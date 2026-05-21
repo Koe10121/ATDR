@@ -1,0 +1,342 @@
+# MFU AI-Driven Log-Based Threat Detection and Response System
+
+ATDR is a defensive senior-project prototype for importing Palo Alto firewall syslog CSV logs, preserving raw evidence, normalizing key fields, generating explainable alerts, and simulating response actions with audit trails.
+
+## What Is Included
+
+- FastAPI backend with log import, log explorer, alerts, detection, response, audit, and dashboard-summary endpoints.
+- Robust Palo Alto parser using `csv.reader` after splitting only the syslog timestamp and hostname.
+- SQLite by default, with SQLAlchemy models matching the prototype tables.
+- Rule-based detection plus optional IsolationForest anomaly scoring.
+- Incident-style alert grouping reduces per-log alert noise while preserving evidence log links.
+- Streamlit dashboard with Executive Demo, Overview, Log Explorer, Alerts, ML Governance, Threat Controls, Response Center, Audit Log, and admin Demo Controls pages.
+- SOC Command Center dashboard styling with Plotly charts, triage queues, readiness panels, and evidence-focused incident views.
+- SOC workflow support for alert assignment, analyst notes, status changes, timelines, and audited response actions.
+- Alert suppression rules with review state, watchlist indicators, escalation metadata, computed SLA signals, and exportable JSON/CSV/HTML/PDF incident reports.
+- Production-style reliability basics: structured JSON logs, request IDs, richer health checks, and migration support.
+- Security hardening basics: configurable CORS origins and browser security headers.
+- Demo, architecture, operations, presentation, and production-readiness documentation in `docs/`.
+- Lab-pilot deployment guide with SQLite, PostgreSQL, and safe syslog receiver modes.
+- CLI scripts for import, demo seeding, ML training, anomaly scoring, lab smoke checks, backups, and export cleanup.
+- Unit and API tests for parsing, rules, auth, workflow, demo controls, and severity scoring.
+
+## Project Layout
+
+```text
+atdr/
+  app/
+    main.py
+    core/
+    db/
+    parsers/
+    detection/
+    routers/
+    services/
+    schemas/
+  dashboard/
+    streamlit_app.py
+  data/
+  models/
+  scripts/
+  tests/
+migrations/
+```
+
+The large sample file `paloalto-firewall(1).log` can stay in the repository root beside this README.
+
+## Local Setup
+
+```powershell
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+Copy-Item .env.example .env
+```
+
+If your system uses `python` instead of the Windows launcher, replace `py -3.11` with `python`.
+
+## Run The Backend
+
+```powershell
+uvicorn atdr.app.main:app --reload
+```
+
+Health check:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/health
+```
+
+The health response includes database connectivity, ML model artifact readiness, response mode, environment, and service version.
+Every API response includes an `X-Request-ID` header. If a client sends `X-Request-ID`, ATDR preserves it; otherwise the API generates one for troubleshooting.
+
+## Demo Login
+
+Create demo users:
+
+```powershell
+python -m atdr.scripts.seed_users
+```
+
+Default demo accounts from `.env.example`:
+
+```text
+admin / admin123
+analyst / analyst123
+```
+
+The admin role can run simulated block/unblock response actions. Analysts can investigate and update alert status.
+Alert workflow states are `open`, `investigating`, `contained`, `resolved`, and `false_positive`.
+Alerts can be assigned to analysts, annotated with investigation notes, and reviewed through a timeline view.
+
+Most API endpoints now require a bearer token. Use `/api/auth/login` to receive a JWT and pass it as:
+
+```text
+Authorization: Bearer <access_token>
+```
+
+## Import Logs
+
+The default import limit is `5000` rows so the first demo stays responsive with the 597 MB sample file. Change `DEFAULT_IMPORT_LIMIT` in `.env`, pass `--limit`, or use `--limit 0` to import the full file.
+
+```powershell
+python -m atdr.scripts.import_logs ".\paloalto-firewall(1).log" --limit 5000
+```
+
+Run detection:
+
+```powershell
+Invoke-RestMethod -Method Post "http://127.0.0.1:8000/api/detection/run?limit=5000&use_ml=false"
+```
+
+Seed a quick demo from the provided sample:
+
+```powershell
+python -m atdr.scripts.seed_demo
+```
+
+Reset the local demo database and recreate grouped alerts:
+
+```powershell
+python -m atdr.scripts.reset_demo --yes --limit 5000
+```
+
+Grouped detection currently uses 5-minute buckets. Low-severity groups are suppressed unless at least 5 matching evidence logs are present.
+
+## Run The Dashboard
+
+Keep the FastAPI backend running, then start Streamlit:
+
+```powershell
+streamlit run atdr/dashboard/streamlit_app.py --server.headless true --browser.gatherUsageStats false
+```
+
+Open `http://127.0.0.1:8501`.
+
+## ML-Assisted Anomaly Detection
+
+Train the optional IsolationForest after importing logs:
+
+```powershell
+python -m atdr.scripts.train_model --limit 20000
+```
+
+Score imported logs without creating alerts:
+
+```powershell
+python -m atdr.scripts.predict_anomaly --limit 5000
+```
+
+Then run detection with ML enabled:
+
+```powershell
+Invoke-RestMethod -Method Post "http://127.0.0.1:8000/api/detection/run?limit=5000&use_ml=true"
+```
+
+The ML output is treated as assistance only. Rule explanations remain the primary reason an alert is created.
+
+The ML Governance dashboard and `/api/ml/*` endpoints record model training and scoring runs, including actor, training log count, feature columns, feature summary, model artifact hash, anomaly count, anomaly rate, run comparison, and baseline drift signals. The dataset profile also reports baseline candidate counts, high-risk traffic volume, deny/drop volume, unknown-app volume, and training recommendations. This keeps the AI layer explainable and auditable instead of treating the model as a black box.
+
+For safer training, use baseline-only mode first. It trains on allowed traffic, caps app risk, excludes unknown/incomplete applications, and can exclude logs already flagged as anomalous.
+
+The evaluation report compares recent scoring runs and summarizes top anomalous source IPs, apps, ports, protocols, sample logs, score statistics, and operator recommendations.
+
+## API Highlights
+
+- `GET /health`
+- `POST /api/auth/login`
+- `GET /api/auth/me`
+- `POST /api/demo/reset`
+- `POST /api/demo/import-sample`
+- `POST /api/demo/run-detection`
+- `POST /api/demo/train-ml`
+- `POST /api/demo/apply-ml`
+- `POST /api/demo/export-bundle`
+- `GET /api/ml/status`
+- `GET /api/ml/runs`
+- `GET /api/ml/profile`
+- `GET /api/ml/report`
+- `POST /api/ml/train`
+- `POST /api/ml/score`
+- `POST /api/logs/import`
+- `GET /api/logs`
+- `GET /api/logs/{log_id}`
+- `GET /api/alerts`
+- `POST /api/alerts/{alert_id}/resolve`
+- `POST /api/alerts/{alert_id}/false-positive`
+- `POST /api/alerts/{alert_id}/investigate`
+- `POST /api/alerts/{alert_id}/contain`
+- `POST /api/alerts/{alert_id}/status`
+- `POST /api/alerts/{alert_id}/assign`
+- `POST /api/alerts/{alert_id}/assign/me`
+- `POST /api/alerts/{alert_id}/notes`
+- `GET /api/alerts/{alert_id}/notes`
+- `GET /api/alerts/{alert_id}/timeline`
+- `POST /api/alerts/{alert_id}/escalate`
+- `GET /api/alerts/{alert_id}/report`
+- `GET /api/suppressions`
+- `POST /api/suppressions`
+- `POST /api/suppressions/{id}/disable`
+- `POST /api/suppressions/{id}/review`
+- `GET /api/watchlists`
+- `POST /api/watchlists`
+- `POST /api/watchlists/{id}/disable`
+- `GET /api/users`
+- `POST /api/users`
+- `POST /api/users/{id}/disable`
+- `POST /api/users/{id}/reset-password`
+- `POST /api/users/{id}/role`
+- `POST /api/auth/change-password`
+- `POST /api/detection/run`
+- `GET /api/detection/summary`
+- `POST /api/response/block-ip`
+- `POST /api/response/unblock-ip`
+- `GET /api/response/blocked-ips`
+- `GET /api/audit`
+- `GET /api/dashboard/summary`
+
+## Tests
+
+```powershell
+pytest atdr/tests
+```
+
+## Database Migrations
+
+SQLite demo mode can still auto-create tables with `AUTO_CREATE_TABLES=true`.
+For production-style environments, set:
+
+```text
+AUTO_CREATE_TABLES=false
+```
+
+Then run migrations explicitly:
+
+```powershell
+alembic upgrade head
+```
+
+Create future schema migrations after model changes:
+
+```powershell
+alembic revision --autogenerate -m "describe change"
+```
+
+If you already have a pre-Alembic local SQLite database with the current schema, back it up and mark it as migrated:
+
+```powershell
+alembic stamp head
+```
+
+## Docker
+
+SQLite demo:
+
+```powershell
+docker compose up --build
+```
+
+PostgreSQL profile:
+
+```powershell
+docker compose --profile postgres up -d postgres
+docker compose --profile postgres run --rm migrate
+docker compose --profile postgres up --build api dashboard
+```
+
+For PostgreSQL, set this in `.env`:
+
+```text
+DATABASE_URL=postgresql+psycopg2://atdr:atdr_dev_password@postgres:5432/atdr
+AUTO_CREATE_TABLES=false
+```
+
+See `docs/DEPLOYMENT_GUIDE.md`, `docs/OPERATIONS_RUNBOOK.md`, and `docs/PRODUCTION_READINESS.md` for lab-pilot deployment guidance, live syslog receiver usage, CORS/HTTPS/reverse-proxy guidance, backups, and retention policy.
+
+Run the local UDP syslog receiver in lab mode:
+
+```powershell
+python -m atdr.scripts.run_syslog_receiver --host 127.0.0.1 --port 5514
+```
+
+## Clean Supervisor Demo Flow
+
+Use `docs/DEMO_DAY_RUNBOOK.md` as the authoritative local Windows checklist for demo day. Quick start:
+
+```powershell
+python -m atdr.scripts.seed_users
+uvicorn atdr.app.main:app --host 127.0.0.1 --port 8000
+streamlit run atdr/dashboard/streamlit_app.py --server.address 127.0.0.1 --server.port 8501 --server.headless true --browser.gatherUsageStats false
+python -m atdr.scripts.demo_health_check
+python -m atdr.scripts.lab_smoke_check --skip-docker
+```
+
+Then in the dashboard:
+
+1. Log in as `admin`.
+2. Keep **Presentation Mode** enabled in the sidebar.
+3. Open **Demo Controls**.
+4. Run **Reset Demo Data**.
+5. Run **Run Detection** if needed.
+6. Optionally run **Train ML Model** and **Apply ML Scoring**.
+7. Run **Generate Demo Evidence Bundle**.
+8. Present from **Executive Demo** first.
+
+CLI export option:
+
+```powershell
+python -m atdr.scripts.export_demo_bundle --actor admin
+```
+
+Lab-pilot utility scripts:
+
+```powershell
+python -m atdr.scripts.lab_smoke_check
+python -m atdr.scripts.backup_demo --dry-run
+python -m atdr.scripts.backup_postgres --dry-run
+python -m atdr.scripts.cleanup_exports --older-than-days 14
+```
+
+On this development machine, Docker Compose validation may need to be run elsewhere if Docker is not installed. The smoke check reports that blocker clearly.
+
+## Assumptions
+
+- Response actions are simulated by default. The system records block and unblock actions but does not modify real firewall devices unless `RESPONSE_SIMULATION=false` and a future enforcement connector is added.
+- The parser focuses on Palo Alto TRAFFIC fields and safely normalizes useful THREAT fields. Full raw payload fields are stored in `parsed_json` for evidence and later mapping improvements.
+- Alert creation groups related evidence logs by rule, source or internet-sweep pattern, and 5-minute time bucket. Low-severity singletons are suppressed to keep the analyst view usable.
+- IsolationForest is an unsupervised assistive model. Train it on a representative baseline window and review anomaly-rate reports before using it to support real SOC decisions.
+- The default SQLite database is intended for local demonstrations. PostgreSQL is included for a more realistic deployment path.
+
+## Project Documentation
+
+- `docs/ARCHITECTURE.md`: subsystem diagram and data trust model.
+- `docs/DEMO_FLOW.md`: hands-on demo sequence.
+- `docs/DEMO_DAY_RUNBOOK.md`: local Windows supervisor demo checklist.
+- `docs/FINAL_DEMO_SCRIPT.md`: final supervisor walkthrough script.
+- `docs/PRESENTATION_PACKAGE.md`: supervisor demo script and screenshot checklist.
+- `docs/SUPERVISOR_QA.md`: prepared answers for likely evaluation questions.
+- `docs/SCREENSHOT_CHECKLIST.md`: exact screenshots to capture for slides/report.
+- `docs/DEPLOYMENT_GUIDE.md`: SQLite, PostgreSQL, and syslog receiver setup.
+- `docs/OPERATIONS_RUNBOOK.md`: HTTPS, backups, retention, and safe response procedure.
+- `docs/LIMITATIONS_AND_FUTURE_WORK.md`: honest production roadmap.

@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+.uv-cache/
+.env
+atdr.db
+*.sqlite
+*.sqlite3
+atdr/models/*.joblib
+atdr/data/processed/*
+!**/.gitkeep
+.streamlit/

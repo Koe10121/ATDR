@@ -1,0 +1,2 @@
+alert_id,severity,status,threat_score,evidence_log_id,generated_time,src_ip,dst_ip,app,action,protocol,dst_port,is_anomaly,anomaly_score
+625,Critical,contained,95,51686,2026-05-20 13:36:52,10.1.88.22,60.220.213.207,qq-base,allow,tcp,443,True,-0.02530967663094058

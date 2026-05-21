@@ -1,0 +1,47 @@
+[
+  {
+    "id": 625,
+    "title": "Critical: ML anomaly detected from 10.1.88.22",
+    "alert_type": "ml_anomaly_detected",
+    "severity": "Critical",
+    "status": "contained",
+    "threat_score": 95,
+    "src_ip": "10.1.88.22",
+    "dst_ip": "60.220.213.207",
+    "assigned_to": null,
+    "ticket_reference": null,
+    "evidence_count": 1,
+    "created_at": "2026-05-20T15:56:35",
+    "updated_at": "2026-05-21T02:22:44"
+  },
+  {
+    "id": 377,
+    "title": "Critical: ML anomaly detected from 172.25.2.13 (5 events)",
+    "alert_type": "ml_anomaly_detected",
+    "severity": "Critical",
+    "status": "open",
+    "threat_score": 95,
+    "src_ip": "172.25.2.13",
+    "dst_ip": null,
+    "assigned_to": null,
+    "ticket_reference": null,
+    "evidence_count": 5,
+    "created_at": "2026-05-20T15:56:35",
+    "updated_at": "2026-05-20T15:56:35"
+  },
+  {
+    "id": 27,
+    "title": "Critical: Possible port scanning behavior from 10.1.31.81 (61 events)",
+    "alert_type": "possible_port_scan",
+    "severity": "Critical",
+    "status": "open",
+    "threat_score": 85,
+    "src_ip": "10.1.31.81",
+    "dst_ip": null,
+    "assigned_to": null,
+    "ticket_reference": null,
+    "evidence_count": 61,
+    "created_at": "2026-05-20T09:59:54",
+    "updated_at": "2026-05-20T09:59:54"
+  }
+]

@@ -1,0 +1,47 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>ATDR Alert 625 Report</title>
+  <style>
+    body { font-family: Arial, sans-serif; color: #172033; margin: 32px; }
+    h1 { margin-bottom: 4px; }
+    h2 { margin-top: 28px; border-bottom: 1px solid #d8dee9; padding-bottom: 6px; }
+    .muted { color: #64748b; }
+    .summary { border: 1px solid #d8dee9; border-radius: 8px; padding: 16px; background: #f8fafc; }
+    .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+    .card { border: 1px solid #d8dee9; border-radius: 8px; padding: 12px; }
+    .label { color: #64748b; font-size: 12px; text-transform: uppercase; font-weight: bold; }
+    .value { font-size: 20px; font-weight: bold; margin-top: 4px; }
+    table { border-collapse: collapse; width: 100%; font-size: 13px; }
+    th, td { border: 1px solid #d8dee9; padding: 8px; vertical-align: top; }
+    th { background: #f1f5f9; text-align: left; }
+  </style>
+</head>
+<body>
+  <h1>ATDR Incident Report</h1>
+  <p class="muted">Generated at 2026-05-21 07:33:55.210942+00:00 by admin</p>
+  <div class="summary">
+    <strong>Critical: ML anomaly detected from 10.1.88.22</strong>
+    <p>Alert 625 is a Critical ml_anomaly_detected finding with score 95. It contains 1 linked evidence log and is currently contained.</p>
+  </div>
+  <div class="grid">
+    <div class="card"><div class="label">Severity</div><div class="value">Critical</div></div>
+    <div class="card"><div class="label">Score</div><div class="value">95</div></div>
+    <div class="card"><div class="label">Status</div><div class="value">contained</div></div>
+    <div class="card"><div class="label">Ticket</div><div class="value">-</div></div>
+  </div>
+  <h2>Risk Assessment</h2>
+  <p>Impact: <strong>High</strong> | Likelihood: <strong>Elevated</strong> | ML Assistive: <strong>True</strong></p>
+  <h2>Recommended Next Steps</h2>
+  <ul><li>Confirm ownership and record the investigation decision in alert notes.</li><li>Review linked raw evidence before performing response actions.</li><li>Escalate to the priority owner and contain affected source or destination if validated.</li><li>Treat ML evidence as assistive and confirm with rule evidence or network context.</li></ul>
+  <h2>Matched Rules</h2>
+  <table><thead><tr><th>Code</th><th>Title</th><th>Score</th><th>Matched Log Count</th><th>Explanation</th></tr></thead><tbody><tr><td>ml_anomaly_detected</td><td>ML anomaly detected</td><td>25</td><td>1</td><td>IsolationForest marked this event as unusual compared with imported logs.</td></tr><tr><td>high_bytes_outlier</td><td>High byte-count outlier</td><td>20</td><td>1</td><td>Bytes value 439125081 is above the batch outlier threshold.</td></tr><tr><td>high_packets_outlier</td><td>High packet-count outlier</td><td>20</td><td>1</td><td>Packet count 453268 is above the batch outlier threshold.</td></tr><tr><td>app_risk_4</td><td>High application risk</td><td>15</td><td>1</td><td>Palo Alto application risk is 4.</td></tr><tr><td>suspicious_app_characteristic</td><td>Suspicious application characteristic</td><td>15</td><td>1</td><td>Application characteristics include: able-to-transfer-file, used-by-malware.</td></tr><tr><td>group_metadata</td><td>Grouped alert metadata</td><td>0</td><td>-</td><td>Alert groups related evidence logs to reduce analyst noise.</td></tr></tbody></table>
+  <h2>Evidence Logs</h2>
+  <table><thead><tr><th>Id</th><th>Generated Time</th><th>Src Ip</th><th>Dst Ip</th><th>App</th><th>Action</th><th>Protocol</th><th>Dst Port</th><th>Is Anomaly</th></tr></thead><tbody><tr><td>51686</td><td>2026-05-20 13:36:52</td><td>10.1.88.22</td><td>60.220.213.207</td><td>qq-base</td><td>allow</td><td>tcp</td><td>443</td><td>True</td></tr></tbody></table>
+  <h2>Timeline</h2>
+  <table><thead><tr><th>Event Time</th><th>Event Type</th><th>Actor</th><th>Summary</th></tr></thead><tbody><tr><td>2026-05-20 15:56:35</td><td>created</td><td>system</td><td>Alert created with severity Critical.</td></tr><tr><td>2026-05-20 16:00:42</td><td>block_ip</td><td>admin</td><td>Block Ip 10.1.88.22: simulated.</td></tr><tr><td>2026-05-21 02:22:44</td><td>alert_contained</td><td>admin</td><td>Alert marked Contained</td></tr></tbody></table>
+  <h2>Response Actions</h2>
+  <table><thead><tr><th>Action Type</th><th>Target Ip</th><th>Status</th><th>Executed By</th><th>Executed At</th></tr></thead><tbody><tr><td>block_ip</td><td>10.1.88.22</td><td>simulated</td><td>admin</td><td>2026-05-20 16:00:42</td></tr></tbody></table>
+</body>
+</html>

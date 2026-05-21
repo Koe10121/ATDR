@@ -1,0 +1,330 @@
+{
+  "total_logs": 52000,
+  "total_alerts": 652,
+  "active_alerts": 652,
+  "critical_open_alerts": 3,
+  "high_open_alerts": 19,
+  "unassigned_active_alerts": 652,
+  "false_positive_alerts": 0,
+  "ml_anomaly_logs": 264,
+  "anomaly_rate": 0.51,
+  "active_suppressions": 0,
+  "suppressed_hits": 0,
+  "active_watchlist_items": 0,
+  "watchlist_hits": 0,
+  "severity_counts": {
+    "Critical": 4,
+    "High": 19,
+    "Low": 89,
+    "Medium": 540
+  },
+  "status_counts": {
+    "contained": 1,
+    "investigating": 1,
+    "open": 650
+  },
+  "top_alert_types": [
+    {
+      "name": "app_risk_4",
+      "count": 301
+    },
+    {
+      "name": "ml_anomaly_detected",
+      "count": 154
+    },
+    {
+      "name": "unusual_destination_port",
+      "count": 120
+    },
+    {
+      "name": "suspicious_app_characteristic",
+      "count": 32
+    },
+    {
+      "name": "paloalto_threat_log",
+      "count": 17
+    },
+    {
+      "name": "app_risk_5",
+      "count": 11
+    },
+    {
+      "name": "deny_drop_action",
+      "count": 6
+    },
+    {
+      "name": "repeated_source_ip",
+      "count": 5
+    },
+    {
+      "name": "possible_port_scan",
+      "count": 4
+    },
+    {
+      "name": "high_bytes_outlier",
+      "count": 2
+    }
+  ],
+  "top_suspicious_source_ips": [
+    {
+      "name": "45.91.133.145",
+      "count": 12
+    },
+    {
+      "name": "172.25.15.208",
+      "count": 7
+    },
+    {
+      "name": "10.1.11.15",
+      "count": 6
+    },
+    {
+      "name": "172.27.6.242",
+      "count": 6
+    },
+    {
+      "name": "107.172.13.174",
+      "count": 4
+    },
+    {
+      "name": "168.61.81.35",
+      "count": 4
+    },
+    {
+      "name": "172.25.10.138",
+      "count": 4
+    },
+    {
+      "name": "172.25.14.45",
+      "count": 4
+    },
+    {
+      "name": "10.1.134.24",
+      "count": 3
+    },
+    {
+      "name": "172.25.10.201",
+      "count": 3
+    }
+  ],
+  "top_destination_countries": [
+    {
+      "name": "United States",
+      "count": 23478
+    },
+    {
+      "name": "Thailand",
+      "count": 17169
+    },
+    {
+      "name": "Singapore",
+      "count": 4201
+    },
+    {
+      "name": "Hong Kong",
+      "count": 1997
+    },
+    {
+      "name": "Japan",
+      "count": 653
+    },
+    {
+      "name": "Malaysia",
+      "count": 644
+    },
+    {
+      "name": "India",
+      "count": 445
+    },
+    {
+      "name": "Asia Pacific Region",
+      "count": 388
+    },
+    {
+      "name": "China",
+      "count": 314
+    },
+    {
+      "name": "192.168.0.0-192.168.255.255",
+      "count": 241
+    }
+  ],
+  "action_distribution": [
+    {
+      "name": "allow",
+      "count": 51838
+    },
+    {
+      "name": "alert",
+      "count": 80
+    },
+    {
+      "name": "drop",
+      "count": 48
+    },
+    {
+      "name": "deny",
+      "count": 34
+    }
+  ],
+  "protocol_distribution": [
+    {
+      "name": "tcp",
+      "count": 28003
+    },
+    {
+      "name": "udp",
+      "count": 22380
+    },
+    {
+      "name": "icmp",
+      "count": 1534
+    },
+    {
+      "name": "ipv6-icmp",
+      "count": 66
+    },
+    {
+      "name": "gre",
+      "count": 13
+    },
+    {
+      "name": "ip",
+      "count": 4
+    }
+  ],
+  "app_risk_distribution": [
+    {
+      "name": "1",
+      "count": 24883
+    },
+    {
+      "name": "4",
+      "count": 15498
+    },
+    {
+      "name": "3",
+      "count": 7296
+    },
+    {
+      "name": "2",
+      "count": 3590
+    },
+    {
+      "name": "5",
+      "count": 733
+    }
+  ],
+  "recent_alerts": [
+    {
+      "id": 652,
+      "title": "Medium: ML anomaly detected from 162.158.53.61",
+      "src_ip": "162.158.53.61",
+      "dst_ip": "202.28.46.3",
+      "severity": "Medium",
+      "status": "open",
+      "threat_score": 55,
+      "evidence_count": 1,
+      "created_at": "2026-05-21T02:15:41"
+    },
+    {
+      "id": 651,
+      "title": "Medium: ML anomaly detected from 172.27.17.53",
+      "src_ip": "172.27.17.53",
+      "dst_ip": "74.125.200.109",
+      "severity": "Medium",
+      "status": "open",
+      "threat_score": 40,
+      "evidence_count": 1,
+      "created_at": "2026-05-21T02:15:41"
+    },
+    {
+      "id": 650,
+      "title": "Medium: ML anomaly detected from 42.112.179.215",
+      "src_ip": "42.112.179.215",
+      "dst_ip": "202.28.44.15",
+      "severity": "Medium",
+      "status": "open",
+      "threat_score": 40,
+      "evidence_count": 1,
+      "created_at": "2026-05-21T02:15:41"
+    },
+    {
+      "id": 649,
+      "title": "Medium: ML anomaly detected from 172.68.146.103",
+      "src_ip": "172.68.146.103",
+      "dst_ip": "202.28.46.3",
+      "severity": "Medium",
+      "status": "open",
+      "threat_score": 55,
+      "evidence_count": 1,
+      "created_at": "2026-05-21T02:15:41"
+    },
+    {
+      "id": 648,
+      "title": "Medium: ML anomaly detected from 219.128.128.82",
+      "src_ip": "219.128.128.82",
+      "dst_ip": "202.28.46.7",
+      "severity": "Medium",
+      "status": "open",
+      "threat_score": 55,
+      "evidence_count": 1,
+      "created_at": "2026-05-21T02:15:41"
+    },
+    {
+      "id": 647,
+      "title": "Medium: ML anomaly detected from 10.1.94.3 (2 events)",
+      "src_ip": "10.1.94.3",
+      "dst_ip": null,
+      "severity": "Medium",
+      "status": "open",
+      "threat_score": 55,
+      "evidence_count": 2,
+      "created_at": "2026-05-21T02:15:41"
+    },
+    {
+      "id": 646,
+      "title": "Medium: ML anomaly detected from 44.192.161.157",
+      "src_ip": "44.192.161.157",
+      "dst_ip": "202.28.46.7",
+      "severity": "Medium",
+      "status": "open",
+      "threat_score": 55,
+      "evidence_count": 1,
+      "created_at": "2026-05-21T02:15:41"
+    },
+    {
+      "id": 645,
+      "title": "Medium: ML anomaly detected from 92.46.54.179",
+      "src_ip": "92.46.54.179",
+      "dst_ip": "202.28.46.7",
+      "severity": "Medium",
+      "status": "open",
+      "threat_score": 55,
+      "evidence_count": 1,
+      "created_at": "2026-05-21T02:15:41"
+    },
+    {
+      "id": 644,
+      "title": "Medium: ML anomaly detected from 162.158.92.41",
+      "src_ip": "162.158.92.41",
+      "dst_ip": "202.28.46.7",
+      "severity": "Medium",
+      "status": "open",
+      "threat_score": 55,
+      "evidence_count": 1,
+      "created_at": "2026-05-21T02:15:41"
+    },
+    {
+      "id": 643,
+      "title": "Medium: Unusual destination port from 2 sources (2 events)",
+      "src_ip": null,
+      "dst_ip": null,
+      "severity": "Medium",
+      "status": "open",
+      "threat_score": 35,
+      "evidence_count": 2,
+      "created_at": "2026-05-20T15:56:35"
+    }
+  ]
+}

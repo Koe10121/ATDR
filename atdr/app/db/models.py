@@ -1,0 +1,262 @@
+from datetime import datetime
+
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, func
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from atdr.app.db.database import Base
+
+
+class RawLog(Base):
+    __tablename__ = "raw_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    raw_line: Mapped[str] = mapped_column(Text, nullable=False)
+    syslog_timestamp: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    device_hostname: Mapped[str | None] = mapped_column(String(255), index=True)
+    imported_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    normalized: Mapped["NormalizedLog"] = relationship(
+        back_populates="raw_log",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    username: Mapped[str] = mapped_column(String(128), unique=True, index=True, nullable=False)
+    full_name: Mapped[str | None] = mapped_column(String(255))
+    role: Mapped[str] = mapped_column(String(32), index=True, nullable=False, default="analyst")
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class NormalizedLog(Base):
+    __tablename__ = "normalized_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    raw_log_id: Mapped[int] = mapped_column(ForeignKey("raw_logs.id"), nullable=False, index=True)
+
+    receive_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    generated_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    log_type: Mapped[str | None] = mapped_column(String(64), index=True)
+    subtype: Mapped[str | None] = mapped_column(String(128), index=True)
+    serial: Mapped[str | None] = mapped_column(String(128), index=True)
+
+    src_ip: Mapped[str | None] = mapped_column(String(64), index=True)
+    dst_ip: Mapped[str | None] = mapped_column(String(64), index=True)
+    nat_src_ip: Mapped[str | None] = mapped_column(String(64))
+    nat_dst_ip: Mapped[str | None] = mapped_column(String(64))
+    rule_name: Mapped[str | None] = mapped_column(String(255), index=True)
+    src_user: Mapped[str | None] = mapped_column(String(255))
+    dst_user: Mapped[str | None] = mapped_column(String(255))
+    app: Mapped[str | None] = mapped_column(String(255), index=True)
+    vsys: Mapped[str | None] = mapped_column(String(128))
+    src_zone: Mapped[str | None] = mapped_column(String(128), index=True)
+    dst_zone: Mapped[str | None] = mapped_column(String(128), index=True)
+    inbound_interface: Mapped[str | None] = mapped_column(String(128))
+    outbound_interface: Mapped[str | None] = mapped_column(String(128))
+    log_action: Mapped[str | None] = mapped_column(String(128))
+    session_id: Mapped[str | None] = mapped_column(String(128), index=True)
+    repeat_count: Mapped[int | None] = mapped_column(Integer)
+    src_port: Mapped[int | None] = mapped_column(Integer, index=True)
+    dst_port: Mapped[int | None] = mapped_column(Integer, index=True)
+    protocol: Mapped[str | None] = mapped_column(String(64), index=True)
+    action: Mapped[str | None] = mapped_column(String(64), index=True)
+    bytes: Mapped[int | None] = mapped_column(Integer)
+    bytes_sent: Mapped[int | None] = mapped_column(Integer)
+    bytes_received: Mapped[int | None] = mapped_column(Integer)
+    packets: Mapped[int | None] = mapped_column(Integer)
+    start_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    elapsed_time: Mapped[int | None] = mapped_column(Integer)
+    category: Mapped[str | None] = mapped_column(String(255))
+    src_country: Mapped[str | None] = mapped_column(String(255), index=True)
+    dst_country: Mapped[str | None] = mapped_column(String(255), index=True)
+    packets_sent: Mapped[int | None] = mapped_column(Integer)
+    packets_received: Mapped[int | None] = mapped_column(Integer)
+    session_end_reason: Mapped[str | None] = mapped_column(String(255))
+    device_name: Mapped[str | None] = mapped_column(String(255), index=True)
+    action_source: Mapped[str | None] = mapped_column(String(255))
+    rule_uuid: Mapped[str | None] = mapped_column(String(128), index=True)
+    high_res_timestamp: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    app_subcategory: Mapped[str | None] = mapped_column(String(255))
+    app_category: Mapped[str | None] = mapped_column(String(255), index=True)
+    app_technology: Mapped[str | None] = mapped_column(String(255))
+    app_risk: Mapped[int | None] = mapped_column(Integer, index=True)
+    app_characteristic: Mapped[str | None] = mapped_column(Text)
+    anomaly_score: Mapped[float | None] = mapped_column(Float)
+    is_anomaly: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    parsed_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+
+    raw_log: Mapped[RawLog] = relationship(back_populates="normalized")
+    alert_evidence: Mapped[list["AlertEvidence"]] = relationship(back_populates="normalized_log")
+
+
+Index("ix_normalized_src_generated", NormalizedLog.src_ip, NormalizedLog.generated_time)
+Index("ix_normalized_action_generated", NormalizedLog.action, NormalizedLog.generated_time)
+
+
+class Alert(Base):
+    __tablename__ = "alerts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    alert_type: Mapped[str] = mapped_column(String(128), index=True, nullable=False)
+    src_ip: Mapped[str | None] = mapped_column(String(64), index=True)
+    dst_ip: Mapped[str | None] = mapped_column(String(64), index=True)
+    threat_score: Mapped[int] = mapped_column(Integer, index=True, nullable=False)
+    severity: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), index=True, default="open", nullable=False)
+    assigned_to: Mapped[str | None] = mapped_column(String(128), index=True)
+    assigned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    priority_owner: Mapped[str | None] = mapped_column(String(128), index=True)
+    escalation_reason: Mapped[str | None] = mapped_column(Text)
+    ticket_reference: Mapped[str | None] = mapped_column(String(255), index=True)
+    escalated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    explanation: Mapped[str] = mapped_column(Text, nullable=False)
+    matched_rules_json: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    recommended_response: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    evidence: Mapped[list["AlertEvidence"]] = relationship(
+        back_populates="alert",
+        cascade="all, delete-orphan",
+    )
+    response_actions: Mapped[list["ResponseAction"]] = relationship(back_populates="alert")
+    notes: Mapped[list["AlertNote"]] = relationship(
+        back_populates="alert",
+        cascade="all, delete-orphan",
+        order_by="AlertNote.created_at",
+    )
+
+
+class AlertNote(Base):
+    __tablename__ = "alert_notes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    alert_id: Mapped[int] = mapped_column(ForeignKey("alerts.id"), nullable=False, index=True)
+    author: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    note: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    alert: Mapped[Alert] = relationship(back_populates="notes")
+
+
+class AlertEvidence(Base):
+    __tablename__ = "alert_evidence"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    alert_id: Mapped[int] = mapped_column(ForeignKey("alerts.id"), nullable=False, index=True)
+    normalized_log_id: Mapped[int] = mapped_column(ForeignKey("normalized_logs.id"), nullable=False, index=True)
+
+    alert: Mapped[Alert] = relationship(back_populates="evidence")
+    normalized_log: Mapped[NormalizedLog] = relationship(back_populates="alert_evidence")
+
+
+class ResponseAction(Base):
+    __tablename__ = "response_actions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    alert_id: Mapped[int | None] = mapped_column(ForeignKey("alerts.id"), index=True)
+    action_type: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    target_ip: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    status: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    result_message: Mapped[str] = mapped_column(Text, nullable=False)
+    executed_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    executed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    alert: Mapped[Alert | None] = relationship(back_populates="response_actions")
+
+
+class BlockedIP(Base):
+    __tablename__ = "blocked_ips"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ip_address: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    reason: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    actor: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    action: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    target_type: Mapped[str] = mapped_column(String(128), nullable=False)
+    target_value: Mapped[str] = mapped_column(String(255), nullable=False)
+    details: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class SuppressionRule(Base):
+    __tablename__ = "suppression_rules"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    src_ip: Mapped[str | None] = mapped_column(String(64), index=True)
+    app: Mapped[str | None] = mapped_column(String(255), index=True)
+    alert_type: Mapped[str | None] = mapped_column(String(128), index=True)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
+    suppressed_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    last_matched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    review_status: Mapped[str] = mapped_column(String(32), default="pending", nullable=False, index=True)
+    review_notes: Mapped[str | None] = mapped_column(Text)
+    reviewed_by: Mapped[str | None] = mapped_column(String(128), index=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    disabled_by: Mapped[str | None] = mapped_column(String(128))
+    disabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class WatchlistItem(Base):
+    __tablename__ = "watchlist_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    indicator_type: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
+    indicator_value: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    severity_boost: Mapped[int] = mapped_column(Integer, default=30, nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
+    match_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    last_matched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    disabled_by: Mapped[str | None] = mapped_column(String(128))
+    disabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class MLModelRun(Base):
+    __tablename__ = "ml_model_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    model_name: Mapped[str] = mapped_column(String(128), index=True, nullable=False)
+    model_version: Mapped[str | None] = mapped_column(String(128), index=True)
+    operation: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    status: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    actor: Mapped[str] = mapped_column(String(128), index=True, nullable=False)
+    model_path: Mapped[str] = mapped_column(String(500), nullable=False)
+    artifact_sha256: Mapped[str | None] = mapped_column(String(64))
+    artifact_size_bytes: Mapped[int | None] = mapped_column(Integer)
+    training_log_count: Mapped[int | None] = mapped_column(Integer)
+    scored_log_count: Mapped[int | None] = mapped_column(Integer)
+    anomaly_count: Mapped[int | None] = mapped_column(Integer)
+    anomaly_rate: Mapped[float | None] = mapped_column(Float)
+    contamination: Mapped[float | None] = mapped_column(Float)
+    feature_columns_json: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    feature_summary_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    metrics_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
