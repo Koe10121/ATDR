@@ -12,3 +12,4 @@ atdr/models/*.joblib
 atdr/data/processed/*
 !**/.gitkeep
 .streamlit/
+paloalto-firewall(1).log
