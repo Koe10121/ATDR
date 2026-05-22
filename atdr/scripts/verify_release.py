@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 import subprocess
 import sys
 import time
@@ -32,12 +33,18 @@ def _excerpt(value: str, *, limit: int = EXCERPT_LIMIT) -> str:
 
 
 def _default_runner(command: Sequence[str], timeout: float) -> CommandExecution:
+    temp_dir = Path(PROJECT_ROOT) / ".tmp" / "release-tmp"
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    env = os.environ.copy()
+    env["TMP"] = str(temp_dir)
+    env["TEMP"] = str(temp_dir)
     try:
         completed = subprocess.run(
             list(command),
             cwd=PROJECT_ROOT,
             capture_output=True,
             check=False,
+            env=env,
             text=True,
             timeout=timeout,
         )
@@ -116,7 +123,7 @@ def run_verify_release(
     required_commands: list[tuple[str, list[str]]] = [
         ("config_doctor", [python, "-m", "atdr.scripts.config_doctor"]),
         ("compileall", [python, "-m", "compileall", "-q", "atdr", "migrations"]),
-        ("pytest", [python, "-m", "pytest", "atdr/tests", "-q"]),
+        ("pytest", [python, "-m", "pytest", "atdr/tests", "-q", "-o", "cache_dir=.tmp/pytest-cache"]),
         ("alembic_check", [python, "-m", "alembic", "check"]),
     ]
 

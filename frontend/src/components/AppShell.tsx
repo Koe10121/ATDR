@@ -1,4 +1,4 @@
-import { Activity, BarChart3, Brain, Gauge, LogOut, RadioTower, ShieldAlert } from "lucide-react";
+import { Activity, BarChart3, Brain, ClipboardList, Database, Gauge, LogOut, RadioTower, Settings2, ShieldAlert, SlidersHorizontal, Users } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
 import clsx from "clsx";
 import { useAuth } from "../hooks/useAuth";
@@ -7,14 +7,19 @@ import { Badge } from "./Badge";
 
 const navItems = [
   { to: "/overview", label: "Executive Overview", icon: Gauge },
-  { to: "/alerts", label: "Alerts Triage", icon: ShieldAlert },
+  { to: "/alerts", label: "Alert Workbench", icon: ShieldAlert },
+  { to: "/logs", label: "Log Explorer", icon: Database },
+  { to: "/response", label: "Response Center", icon: RadioTower },
+  { to: "/controls", label: "Threat Controls", icon: SlidersHorizontal },
+  { to: "/audit", label: "Audit Log", icon: ClipboardList },
   { to: "/tuning", label: "Detection Tuning", icon: BarChart3 },
   { to: "/ml", label: "ML Governance", icon: Brain },
-  { to: "/response", label: "Response Center", icon: RadioTower }
+  { to: "/users", label: "User Admin", icon: Users, adminOnly: true },
+  { to: "/demo", label: "Demo Controls", icon: Settings2, adminOnly: true }
 ];
 
 export function AppShell() {
-  const { logout, session } = useAuth();
+  const { logout, session, isAdmin } = useAuth();
   const health = useHealth();
   const me = useMe(Boolean(session));
   const responseMode = health.data?.checks.response_mode?.status ?? "unknown";
@@ -27,7 +32,7 @@ export function AppShell() {
           <div className="mt-1 text-sm text-muted">AI-driven threat detection console</div>
         </div>
         <nav className="mt-6 space-y-2">
-          {navItems.map((item) => {
+          {navItems.filter((item) => !item.adminOnly || isAdmin).map((item) => {
             const Icon = item.icon;
             return (
               <NavLink
@@ -67,6 +72,19 @@ export function AppShell() {
               </button>
             </div>
           </div>
+          <nav className="mt-4 flex gap-2 overflow-x-auto lg:hidden">
+            {navItems.filter((item) => !item.adminOnly || isAdmin).map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) =>
+                  clsx("whitespace-nowrap rounded-lg border px-3 py-2 text-xs font-bold", isActive ? "border-cyan/50 bg-cyan/10 text-cyan" : "border-line bg-panel2 text-muted")
+                }
+              >
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
         </header>
         <div className="p-5">
           {health.isError ? (

@@ -1,12 +1,26 @@
+import { lazy, Suspense } from "react";
+import type { ReactNode } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
+import { AdminRoute } from "./components/AdminRoute";
 import { AppShell } from "./components/AppShell";
+import { LoadingPanel } from "./components/LoadingPanel";
 import { ProtectedRoute } from "./components/ProtectedRoute";
-import { AlertsTriage } from "./pages/AlertsTriage";
-import { DetectionTuning } from "./pages/DetectionTuning";
-import { ExecutiveOverview } from "./pages/ExecutiveOverview";
 import { LoginPage } from "./pages/LoginPage";
-import { MLGovernance } from "./pages/MLGovernance";
-import { ResponseCenter } from "./pages/ResponseCenter";
+
+const AlertsTriage = lazy(() => import("./pages/AlertsTriage").then((module) => ({ default: module.AlertsTriage })));
+const AuditLogPage = lazy(() => import("./pages/AuditLogPage").then((module) => ({ default: module.AuditLogPage })));
+const DemoControls = lazy(() => import("./pages/DemoControls").then((module) => ({ default: module.DemoControls })));
+const DetectionTuning = lazy(() => import("./pages/DetectionTuning").then((module) => ({ default: module.DetectionTuning })));
+const ExecutiveOverview = lazy(() => import("./pages/ExecutiveOverview").then((module) => ({ default: module.ExecutiveOverview })));
+const LogExplorer = lazy(() => import("./pages/LogExplorer").then((module) => ({ default: module.LogExplorer })));
+const MLGovernance = lazy(() => import("./pages/MLGovernance").then((module) => ({ default: module.MLGovernance })));
+const ResponseCenter = lazy(() => import("./pages/ResponseCenter").then((module) => ({ default: module.ResponseCenter })));
+const ThreatControls = lazy(() => import("./pages/ThreatControls").then((module) => ({ default: module.ThreatControls })));
+const UserAdmin = lazy(() => import("./pages/UserAdmin").then((module) => ({ default: module.UserAdmin })));
+
+function PageSuspense({ children }: { children: ReactNode }) {
+  return <Suspense fallback={<LoadingPanel label="Loading page" />}>{children}</Suspense>;
+}
 
 export function App() {
   return (
@@ -15,11 +29,18 @@ export function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<AppShell />}>
           <Route index element={<Navigate to="/overview" replace />} />
-          <Route path="/overview" element={<ExecutiveOverview />} />
-          <Route path="/alerts" element={<AlertsTriage />} />
-          <Route path="/tuning" element={<DetectionTuning />} />
-          <Route path="/ml" element={<MLGovernance />} />
-          <Route path="/response" element={<ResponseCenter />} />
+          <Route path="/overview" element={<PageSuspense><ExecutiveOverview /></PageSuspense>} />
+          <Route path="/alerts" element={<PageSuspense><AlertsTriage /></PageSuspense>} />
+          <Route path="/logs" element={<PageSuspense><LogExplorer /></PageSuspense>} />
+          <Route path="/response" element={<PageSuspense><ResponseCenter /></PageSuspense>} />
+          <Route path="/controls" element={<PageSuspense><ThreatControls /></PageSuspense>} />
+          <Route path="/audit" element={<PageSuspense><AuditLogPage /></PageSuspense>} />
+          <Route path="/tuning" element={<PageSuspense><DetectionTuning /></PageSuspense>} />
+          <Route path="/ml" element={<PageSuspense><MLGovernance /></PageSuspense>} />
+          <Route element={<AdminRoute />}>
+            <Route path="/users" element={<PageSuspense><UserAdmin /></PageSuspense>} />
+            <Route path="/demo" element={<PageSuspense><DemoControls /></PageSuspense>} />
+          </Route>
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/overview" replace />} />

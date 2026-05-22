@@ -249,6 +249,60 @@ def test_alert_assignment_notes_and_timeline_api():
         app.dependency_overrides.clear()
 
 
+def test_list_filters_support_react_dashboard_tables(tmp_path):
+    sample = tmp_path / "filters.log"
+    sample.write_text(TRAFFIC_LINE + "\n", encoding="utf-8")
+
+    client = _client()
+    try:
+        admin_headers = _login(client, "admin", "admin123")
+        imported = client.post(
+            "/api/logs/import",
+            data={"file_path": str(sample), "limit": "10"},
+            headers=admin_headers,
+        )
+        assert imported.status_code == 200
+
+        analyst_headers = _login(client, "analyst", "analyst123")
+        logs = client.get(
+            "/api/logs",
+            params={
+                "search": "Allow-Outside",
+                "protocol": "icmp",
+                "src_zone": "SG-Outside",
+                "dst_zone": "WLAN-Inside",
+                "sort_by": "app_risk",
+            },
+            headers=analyst_headers,
+        )
+        assert logs.status_code == 200
+        assert int(logs.headers["X-Total-Count"]) >= 1
+        assert logs.json()[0]["src_ip"] == "43.210.171.152"
+        assert logs.json()[0]["protocol"] == "icmp"
+
+        alerts = client.get(
+            "/api/alerts",
+            params={"search": "API test", "src_ip": "203.0.113.50", "alert_type": "api"},
+            headers=analyst_headers,
+        )
+        assert alerts.status_code == 200
+        assert int(alerts.headers["X-Total-Count"]) == 1
+        assert alerts.json()[0]["alert_type"] == "api_test"
+
+        updated = client.post("/api/alerts/1/investigate", headers=analyst_headers)
+        assert updated.status_code == 200
+        audit = client.get(
+            "/api/audit",
+            params={"actor": "analyst", "action": "alert_investigating", "target_type": "alert", "target_value": "1"},
+            headers=analyst_headers,
+        )
+        assert audit.status_code == 200
+        assert int(audit.headers["X-Total-Count"]) >= 1
+        assert audit.json()[0]["action"] == "alert_investigating"
+    finally:
+        app.dependency_overrides.clear()
+
+
 def test_demo_control_endpoints_are_admin_only_and_operational(tmp_path):
     sample = tmp_path / "sample.log"
     sample.write_text(TRAFFIC_LINE + "\n", encoding="utf-8")

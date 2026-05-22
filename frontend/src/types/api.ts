@@ -8,6 +8,7 @@ export interface User {
   full_name?: string | null;
   role: Role;
   is_active: boolean;
+  created_at?: string;
 }
 
 export interface TokenResponse {
@@ -65,6 +66,113 @@ export interface Alert {
   evidence_count: number;
   evidence_log_ids: number[];
   sla: AlertSla;
+}
+
+export interface NormalizedLog {
+  id: number;
+  raw_log_id: number;
+  receive_time?: string | null;
+  generated_time?: string | null;
+  log_type?: string | null;
+  subtype?: string | null;
+  src_ip?: string | null;
+  dst_ip?: string | null;
+  app?: string | null;
+  src_zone?: string | null;
+  dst_zone?: string | null;
+  src_port?: number | null;
+  dst_port?: number | null;
+  protocol?: string | null;
+  action?: string | null;
+  bytes?: number | null;
+  packets?: number | null;
+  src_country?: string | null;
+  dst_country?: string | null;
+  app_risk?: number | null;
+  app_characteristic?: string | null;
+  is_anomaly: boolean;
+  anomaly_score?: number | null;
+  parsed_json: Record<string, unknown>;
+  raw_line?: string | null;
+  alert_ids?: number[];
+}
+
+export interface AuditLog {
+  id: number;
+  actor: string;
+  action: string;
+  target_type: string;
+  target_value: string;
+  details: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface Suppression {
+  id: number;
+  src_ip?: string | null;
+  app?: string | null;
+  alert_type?: string | null;
+  reason: string;
+  active: boolean;
+  suppressed_count: number;
+  last_matched_at?: string | null;
+  created_by: string;
+  created_at: string;
+  review_status: string;
+  review_notes?: string | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  disabled_by?: string | null;
+  disabled_at?: string | null;
+}
+
+export interface WatchlistItem {
+  id: number;
+  indicator_type: "src_ip" | "dst_ip" | "app" | string;
+  indicator_value: string;
+  description: string;
+  severity_boost: number;
+  active: boolean;
+  match_count: number;
+  last_matched_at?: string | null;
+  created_by: string;
+  created_at: string;
+  disabled_by?: string | null;
+  disabled_at?: string | null;
+}
+
+export interface AlertNote {
+  id: number;
+  alert_id: number;
+  author: string;
+  note: string;
+  created_at: string;
+}
+
+export interface AlertTimelineEvent {
+  event_time: string;
+  event_type: string;
+  actor: string;
+  summary: string;
+  details: Record<string, unknown>;
+}
+
+export interface AlertReport {
+  alert: Record<string, unknown>;
+  matched_rules: Array<Record<string, unknown>>;
+  evidence_logs: Array<Record<string, unknown>>;
+  timeline: AlertTimelineEvent[];
+  notes: AlertNote[];
+  response_actions: Array<Record<string, unknown>>;
+  generated_by?: string;
+  executive_summary?: string;
+  risk_assessment?: string;
+  recommended_next_steps?: string[];
+  sla?: Record<string, unknown>;
+}
+
+export interface DemoActionResult {
+  [key: string]: unknown;
 }
 
 export interface DashboardSummary {

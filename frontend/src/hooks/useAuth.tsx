@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { api } from "../lib/api";
 import { clearSession, loadSession, saveSession, tokenToSession } from "../lib/session";
@@ -16,6 +16,12 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(() => loadSession());
+
+  useEffect(() => {
+    const expire = () => setSession(null);
+    window.addEventListener("atdr:session-expired", expire);
+    return () => window.removeEventListener("atdr:session-expired", expire);
+  }, []);
 
   const value = useMemo<AuthContextValue>(
     () => ({

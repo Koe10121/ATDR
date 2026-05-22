@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import HTMLResponse, Response, StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi.responses import HTMLResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
 from atdr.app.core.security import require_analyst_or_admin
@@ -22,6 +22,7 @@ from atdr.app.services.alert_service import (
     alert_sla,
     alert_timeline,
     assign_alert,
+    count_alerts,
     escalate_alert,
     get_alert,
     list_alert_notes,
@@ -63,10 +64,15 @@ def _alert_to_dict(alert) -> dict:
 
 @router.get("", response_model=list[AlertRead])
 def api_list_alerts(
+    response: Response,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_analyst_or_admin),
+    search: str | None = None,
     severity: str | None = None,
     status: str | None = None,
+    src_ip: str | None = None,
+    dst_ip: str | None = None,
+    alert_type: str | None = None,
     assigned_to: str | None = None,
     mine: bool = False,
     unassigned: bool = False,
@@ -75,15 +81,23 @@ def api_list_alerts(
     offset: int = 0,
 ) -> list[dict]:
     owner = current_user.username if mine else assigned_to
+    filters = {
+        "search": search,
+        "severity": severity,
+        "status": status,
+        "src_ip": src_ip,
+        "dst_ip": dst_ip,
+        "alert_type": alert_type,
+        "assigned_to": owner,
+        "unassigned": unassigned,
+        "sort_by": sort_by,
+    }
+    response.headers["X-Total-Count"] = str(count_alerts(db, **filters))
     return [
         _alert_to_dict(alert)
         for alert in list_alerts(
             db,
-            severity=severity,
-            status=status,
-            assigned_to=owner,
-            unassigned=unassigned,
-            sort_by=sort_by,
+            **filters,
             limit=limit,
             offset=offset,
         )

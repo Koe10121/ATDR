@@ -4,7 +4,7 @@ This is the production dashboard migration path for ATDR. It runs beside the exi
 
 ## Status
 
-The project is scaffolded and verified as a first production-dashboard migration sprint. Install Node.js 20+ or the current LTS before running frontend commands on another machine.
+The project is scaffolded and verified as the production-dashboard migration path. It currently includes Executive Overview, Alert Workbench, Log Explorer, Response Center, Threat Controls, Audit Log, Detection Tuning, ML Governance, User Admin, and Demo Controls.
 
 ## Setup
 
@@ -39,8 +39,20 @@ npm run lint
 npm run test:e2e
 ```
 
-Playwright browser tests are optional until browser dependencies are installed. The production build and lint checks are the required frontend checks for this sprint.
+If Playwright browsers are missing on a new machine, install Chromium once:
+
+```powershell
+npx.cmd playwright install chromium
+```
+
+The smoke suite covers login, core protected routes, alert/log deep links, and analyst access-denied behavior.
 
 ## Migration Rule
 
 Do not remove Streamlit yet. Streamlit remains the supervisor-demo and admin prototype until React covers the same operational workflows.
+
+## Safety Notes
+
+- Response actions remain simulated.
+- Admin-only pages are hidden from analysts and protected by route guards.
+- ML views describe anomaly scoring as assistive, not authoritative.

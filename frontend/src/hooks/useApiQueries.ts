@@ -8,9 +8,18 @@ export const queryKeys = {
   me: ["me"],
   summary: ["dashboard-summary"],
   alerts: (params?: Record<string, unknown>) => ["alerts", params ?? {}],
+  alertNotes: (id?: number | null) => ["alert-notes", id],
+  alertTimeline: (id?: number | null) => ["alert-timeline", id],
+  alertReport: (id?: number | null) => ["alert-report", id],
+  logs: (params?: Record<string, unknown>) => ["logs", params ?? {}],
+  log: (id?: number | null) => ["log", id],
+  audit: (params?: Record<string, unknown>) => ["audit", params ?? {}],
+  suppressions: ["suppressions"],
+  watchlists: ["watchlists"],
   tuning: ["detection-tuning"],
   mlReport: ["ml-report"],
-  blockedIps: ["blocked-ips"]
+  blockedIps: ["blocked-ips"],
+  users: ["users"]
 };
 
 export function useHealth() {
@@ -29,6 +38,46 @@ export function useAlerts(params: Params) {
   return useQuery({ queryKey: queryKeys.alerts(params), queryFn: () => api.alerts(params), refetchInterval: 30_000 });
 }
 
+export function useAlertsPage(params: Params) {
+  return useQuery({ queryKey: ["alerts-page", params], queryFn: () => api.alertsPage(params), refetchInterval: 30_000 });
+}
+
+export function useAlert(id?: number | null) {
+  return useQuery({ queryKey: ["alert", id], queryFn: () => api.alert(id as number), enabled: Boolean(id), refetchInterval: 30_000 });
+}
+
+export function useAlertNotes(id?: number | null) {
+  return useQuery({ queryKey: queryKeys.alertNotes(id), queryFn: () => api.alertNotes(id as number), enabled: Boolean(id) });
+}
+
+export function useAlertTimeline(id?: number | null) {
+  return useQuery({ queryKey: queryKeys.alertTimeline(id), queryFn: () => api.alertTimeline(id as number), enabled: Boolean(id) });
+}
+
+export function useAlertReport(id?: number | null) {
+  return useQuery({ queryKey: queryKeys.alertReport(id), queryFn: () => api.alertReport(id as number), enabled: Boolean(id) });
+}
+
+export function useLogs(params: Params) {
+  return useQuery({ queryKey: queryKeys.logs(params), queryFn: () => api.logs(params), refetchInterval: 30_000 });
+}
+
+export function useLogsPage(params: Params) {
+  return useQuery({ queryKey: ["logs-page", params], queryFn: () => api.logsPage(params), refetchInterval: 30_000 });
+}
+
+export function useLog(id?: number | null) {
+  return useQuery({ queryKey: queryKeys.log(id), queryFn: () => api.log(id as number), enabled: Boolean(id) });
+}
+
+export function useAudit(params: Params) {
+  return useQuery({ queryKey: queryKeys.audit(params), queryFn: () => api.audit(params), refetchInterval: 30_000 });
+}
+
+export function useAuditPage(params: Params) {
+  return useQuery({ queryKey: ["audit-page", params], queryFn: () => api.auditPage(params), refetchInterval: 30_000 });
+}
+
 export function useDetectionTuning() {
   return useQuery({ queryKey: queryKeys.tuning, queryFn: api.detectionTuning, refetchInterval: 60_000 });
 }
@@ -41,6 +90,18 @@ export function useBlockedIps() {
   return useQuery({ queryKey: queryKeys.blockedIps, queryFn: api.blockedIps, refetchInterval: 30_000 });
 }
 
+export function useSuppressions() {
+  return useQuery({ queryKey: queryKeys.suppressions, queryFn: () => api.suppressions({ active_only: false }), refetchInterval: 30_000 });
+}
+
+export function useWatchlists() {
+  return useQuery({ queryKey: queryKeys.watchlists, queryFn: () => api.watchlists({ active_only: false }), refetchInterval: 30_000 });
+}
+
+export function useUsers(enabled = true) {
+  return useQuery({ queryKey: queryKeys.users, queryFn: api.users, enabled, retry: false });
+}
+
 export function useAlertStatusMutation() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -49,8 +110,26 @@ export function useAlertStatusMutation() {
       void queryClient.invalidateQueries({ queryKey: ["alerts"] });
       void queryClient.invalidateQueries({ queryKey: queryKeys.summary });
       void queryClient.invalidateQueries({ queryKey: queryKeys.tuning });
+      void queryClient.invalidateQueries({ queryKey: ["alert-timeline"] });
+      void queryClient.invalidateQueries({ queryKey: ["alert-report"] });
     }
   });
+}
+
+export function useAlertWorkflowMutations() {
+  const queryClient = useQueryClient();
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: ["alerts"] });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.summary });
+    void queryClient.invalidateQueries({ queryKey: ["alert-notes"] });
+    void queryClient.invalidateQueries({ queryKey: ["alert-timeline"] });
+    void queryClient.invalidateQueries({ queryKey: ["alert-report"] });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.audit() });
+  };
+  return {
+    assignToMe: useMutation({ mutationFn: (id: number) => api.assignAlertToMe(id), onSuccess: invalidate }),
+    addNote: useMutation({ mutationFn: ({ id, note }: { id: number; note: string }) => api.addAlertNote(id, note), onSuccess: invalidate })
+  };
 }
 
 export function useResponseMutations() {
@@ -58,6 +137,7 @@ export function useResponseMutations() {
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: queryKeys.blockedIps });
     void queryClient.invalidateQueries({ queryKey: queryKeys.summary });
+    void queryClient.invalidateQueries({ queryKey: ["audit"] });
   };
   return {
     blockIp: useMutation({
@@ -69,5 +149,61 @@ export function useResponseMutations() {
       mutationFn: ({ targetIp, reason }: { targetIp: string; reason: string }) => api.unblockIp(targetIp, reason),
       onSuccess: invalidate
     })
+  };
+}
+
+export function useThreatControlMutations() {
+  const queryClient = useQueryClient();
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.suppressions });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.watchlists });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.summary });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.tuning });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.audit() });
+  };
+  return {
+    createSuppression: useMutation({ mutationFn: api.createSuppression, onSuccess: invalidate }),
+    disableSuppression: useMutation({ mutationFn: api.disableSuppression, onSuccess: invalidate }),
+    reviewSuppression: useMutation({
+      mutationFn: ({ id, status, notes }: { id: number; status: string; notes?: string }) => api.reviewSuppression(id, status, notes),
+      onSuccess: invalidate
+    }),
+    createWatchlist: useMutation({ mutationFn: api.createWatchlist, onSuccess: invalidate }),
+    disableWatchlist: useMutation({ mutationFn: api.disableWatchlist, onSuccess: invalidate })
+  };
+}
+
+export function useUserMutations() {
+  const queryClient = useQueryClient();
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.users });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.audit() });
+  };
+  return {
+    createUser: useMutation({ mutationFn: api.createUser, onSuccess: invalidate }),
+    disableUser: useMutation({ mutationFn: api.disableUser, onSuccess: invalidate }),
+    resetPassword: useMutation({
+      mutationFn: ({ id, password }: { id: number; password: string }) => api.resetPassword(id, password),
+      onSuccess: invalidate
+    }),
+    changeRole: useMutation({
+      mutationFn: ({ id, role }: { id: number; role: string }) => api.changeUserRole(id, role),
+      onSuccess: invalidate
+    })
+  };
+}
+
+export function useDemoMutations() {
+  const queryClient = useQueryClient();
+  const invalidate = () => {
+    void queryClient.invalidateQueries();
+  };
+  return {
+    reset: useMutation({ mutationFn: api.demoReset, onSuccess: invalidate }),
+    importSample: useMutation({ mutationFn: api.demoImportSample, onSuccess: invalidate }),
+    runDetection: useMutation({ mutationFn: api.demoRunDetection, onSuccess: invalidate }),
+    trainMl: useMutation({ mutationFn: api.demoTrainMl, onSuccess: invalidate }),
+    applyMl: useMutation({ mutationFn: api.demoApplyMl, onSuccess: invalidate }),
+    exportBundle: useMutation({ mutationFn: api.demoExportBundle, onSuccess: invalidate })
   };
 }

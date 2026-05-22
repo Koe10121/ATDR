@@ -58,6 +58,14 @@
     @apply border-b border-line/70 px-3 py-3 text-muted;
   }
 
+  .soc-table-compact th {
+    @apply px-2 py-2;
+  }
+
+  .soc-table-compact td {
+    @apply px-2 py-2 text-xs;
+  }
+
   .soc-table tr:hover td {
     @apply bg-cyan/5 text-text;
   }
