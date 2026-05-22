@@ -2,12 +2,17 @@
 
 This guide covers two supported deployment modes for the MFU ATDR prototype.
 
+Before choosing a mode, read `docs/ENVIRONMENT_GUIDE.md`.
+Before handing off a release candidate, run the gate in `docs/RELEASE_CHECKLIST.md`.
+
 ## Mode 1: Local SQLite Demo
 
 Use this mode for presentation, development, and quick testing.
 
 ```powershell
 Copy-Item .env.example .env
+python -m atdr.scripts.config_doctor --pretty
+python -m atdr.scripts.verify_release --pretty
 python -m atdr.scripts.seed_users
 uvicorn atdr.app.main:app --reload
 streamlit run atdr/dashboard/streamlit_app.py --server.headless true --browser.gatherUsageStats false
@@ -29,10 +34,13 @@ SYSLOG_PORT=5514
 Use this mode for a more realistic lab deployment.
 
 ```powershell
+Copy-Item .env.lab.example .env
+python -m atdr.scripts.config_doctor --pretty
 docker compose --profile postgres up -d postgres
 docker compose --profile postgres run --rm migrate
 docker compose --profile postgres up --build api dashboard
 python -m atdr.scripts.lab_smoke_check
+python -m atdr.scripts.verify_release --include-smoke --require-docker --pretty
 ```
 
 Recommended settings:
@@ -73,6 +81,7 @@ Do not bind the receiver to `0.0.0.0` unless the host firewall and network scope
 - Replace all demo passwords.
 - Use a strong `JWT_SECRET_KEY`.
 - Set `CORS_ALLOWED_ORIGINS` to the exact dashboard origin.
+- For local React preview, include `http://127.0.0.1:5173` and `http://localhost:5173`; remove these from hardened production configs unless used behind the approved reverse proxy.
 - Keep response actions simulated until firewall enforcement is approved.
 - Run Alembic migrations explicitly.
 - Back up PostgreSQL and model artifacts.
@@ -106,3 +115,4 @@ python -m atdr.scripts.cleanup_exports --older-than-days 14 --execute
 ```
 
 For HTTPS, reverse proxy, backup, retention, and recovery procedures, use `docs/OPERATIONS_RUNBOOK.md`.
+For release candidate validation, use `docs/RELEASE_CHECKLIST.md`.

@@ -6,6 +6,7 @@ from atdr.app.core.security import require_analyst_or_admin
 from atdr.app.db.database import get_db
 from atdr.app.db.models import Alert, NormalizedLog, User
 from atdr.app.services.detection_service import run_detection
+from atdr.app.services.tuning_service import build_detection_tuning_report
 
 router = APIRouter(prefix="/api/detection", tags=["detection"])
 
@@ -35,3 +36,11 @@ def detection_summary(
         "open_alerts": open_alerts,
         "ml_anomaly_logs": anomaly_count,
     }
+
+
+@router.get("/tuning")
+def detection_tuning_report(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    return build_detection_tuning_report(db)

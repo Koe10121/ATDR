@@ -942,6 +942,17 @@ def render_ranked_list(title: str, rows: list[dict], tone: str = "#14b8a6", limi
     st.markdown(ranked_list_html(rows, tone=tone, limit=limit), unsafe_allow_html=True)
 
 
+def readiness_status_to_grid_item(item: dict) -> dict:
+    status = str(item.get("status") or "review")
+    ok = status in {"ready", "available"}
+    state = status.replace("_", " ").title()
+    detail = item.get("detail", "")
+    recommendation = item.get("recommendation")
+    if recommendation:
+        detail = f"{detail} {recommendation}"
+    return {"label": item.get("name", "-"), "ok": ok, "state": state, "detail": detail}
+
+
 def posture_from_summary(summary: dict) -> tuple[str, str, str]:
     critical = int(summary.get("critical_open_alerts", 0) or 0)
     high = int(summary.get("high_open_alerts", 0) or 0)
@@ -2506,6 +2517,137 @@ def ml_governance_page():
             st.dataframe(runs[[col for col in columns if col in runs.columns]], hide_index=True, use_container_width=True)
 
 
+def detection_tuning_page():
+    page_hero(
+        "Detection Tuning",
+        "Production readiness view for alert noise, ML baseline quality, suppressions, ownership, and live-ingestion readiness.",
+        eyebrow="SOC Quality Gate",
+        badges=["Rule First", "ML Assistive", "Noise Reduction", "Lab Pilot"],
+    )
+    report = api_get("/api/detection/tuning")
+    summary = report.get("summary", {})
+    ml = report.get("ml", {})
+    readiness = report.get("production_readiness", [])
+    pressure = report.get("alert_type_pressure", [])
+    candidates = report.get("suppression_candidates", [])
+    fp_learning = report.get("false_positive_learning", {})
+
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        metric_card("Alert Pressure", summary.get("alerts_per_1000_logs", 0), "Alerts per 1,000 logs", "amber")
+    with c2:
+        metric_card("High/Critical", summary.get("high_critical_open", 0), "Active high priority findings", "red")
+    with c3:
+        metric_card("Unassigned Priority", summary.get("high_critical_unassigned", 0), "High/Critical without owner", "amber")
+    with c4:
+        metric_card("ML Anomaly Rate", f"{ml.get('current_anomaly_rate', 0)}%", "Current scored-log rate", "blue")
+
+    section_label("Production Readiness")
+    readiness_grid([readiness_status_to_grid_item(item) for item in readiness])
+
+    recs = report.get("recommendations", [])
+    if recs:
+        st.markdown(
+            result_card_html(
+                "Recommended Next Actions",
+                " ".join(f"{index}. {item}" for index, item in enumerate(recs[:5], start=1)),
+                status="Tuning Guidance",
+                color=SOC_COLORS["amber"],
+            ),
+            unsafe_allow_html=True,
+        )
+
+    section_label("Noise And Priority Analysis")
+    left, right = st.columns([1.15, 0.85])
+    with left:
+        pressure_rows = [{"name": row.get("alert_type"), "count": row.get("count", 0)} for row in pressure]
+        horizontal_bar_chart("Top Alert Types By Volume", pressure_rows, color=SOC_COLORS["red"], limit=10)
+    with right:
+        severity_rows = report.get("severity_distribution", [])
+        donut_chart("Severity Mix", severity_rows, colors=SEVERITY_COLORS)
+
+    pressure_df = as_frame(pressure)
+    if pressure_df.empty:
+        empty_state("No Alert Pressure", "No alert tuning data is available yet.", tone=SOC_COLORS["gray"])
+    else:
+        pressure_df["priority"] = pressure_df["tuning_priority"].map(lambda value: str(value).title())
+        cols = ["alert_type", "count", "share_pct", "high_or_critical_count", "high_or_critical_rate", "priority"]
+        st.dataframe(pressure_df[[col for col in cols if col in pressure_df.columns]], hide_index=True, use_container_width=True)
+
+    section_label("Reviewed Suppression Candidates")
+    if not candidates:
+        empty_state(
+            "No Safe Suppression Candidates Yet",
+            "The current high-volume alert types still need evidence review before suppression should be recommended.",
+            tone=SOC_COLORS["gray"],
+        )
+    else:
+        cols = st.columns(min(3, len(candidates)))
+        for index, candidate in enumerate(candidates[:3]):
+            with cols[index % len(cols)]:
+                result_card(
+                    str(candidate.get("alert_type", "-")),
+                    f"{candidate.get('count', 0)} alerts | {candidate.get('share_pct', 0)}% of queue. {candidate.get('recommended_action', '')}",
+                    status="Review Before Suppress",
+                    color=SOC_COLORS["amber"],
+                )
+        with st.expander("Show all suppression candidates", expanded=not is_presentation_mode()):
+            st.dataframe(as_frame(candidates), hide_index=True, use_container_width=True)
+
+    section_label("False Positive Learning")
+    fp_recommendations = fp_learning.get("suppression_recommendations", [])
+    f1, f2, f3 = st.columns(3)
+    with f1:
+        metric_card("False Positives", fp_learning.get("false_positive_count", 0), "Reviewed analyst decisions", "gray")
+    with f2:
+        metric_card("Learning State", str(fp_learning.get("learning_state", "needs_feedback")).replace("_", " ").title(), "Feedback loop status", "blue")
+    with f3:
+        metric_card("Tuning Candidates", len(fp_recommendations), "Narrow suppression recommendations", "amber")
+
+    if not fp_recommendations:
+        empty_state(
+            "No False-Positive Learning Yet",
+            fp_learning.get(
+                "message",
+                "Mark reviewed alerts as false positives to unlock data-driven tuning recommendations.",
+            ),
+            tone=SOC_COLORS["gray"],
+        )
+    else:
+        cols = st.columns(min(3, len(fp_recommendations)))
+        for index, item in enumerate(fp_recommendations[:3]):
+            target_bits = [
+                f"type={item.get('alert_type')}",
+                f"src={item.get('src_ip') or '*'}",
+                f"app={item.get('app') or '*'}",
+            ]
+            with cols[index % len(cols)]:
+                result_card(
+                    "Candidate Suppression",
+                    f"{' | '.join(target_bits)} | FP count: {item.get('false_positive_count')} | Confidence: {item.get('confidence')}",
+                    status="Requires Admin Review",
+                    color=SOC_COLORS["amber"],
+                )
+        with st.expander("Show false-positive learning details", expanded=not is_presentation_mode()):
+            st.dataframe(as_frame(fp_recommendations), hide_index=True, use_container_width=True)
+
+    section_label("ML Tuning State")
+    m1, m2, m3, m4 = st.columns(4)
+    with m1:
+        metric_card("Training Logs", ml.get("latest_training_log_count") or 0, "Latest baseline training run", "teal")
+    with m2:
+        metric_card("Scored Logs", ml.get("latest_scored_log_count") or 0, "Latest scoring run", "blue")
+    with m3:
+        metric_card("Baseline Candidates", ml.get("baseline_candidate_count") or 0, "Safe training pool estimate", "green")
+    with m4:
+        metric_card("Expected Rate", f"{ml.get('expected_contamination_rate', 0)}%", "Configured contamination", "gray")
+
+    run_df = as_frame(ml.get("latest_runs", []))
+    if not run_df.empty:
+        columns = ["id", "operation", "status", "actor", "training_log_count", "scored_log_count", "anomaly_rate", "created_at"]
+        st.dataframe(run_df[[col for col in columns if col in run_df.columns]], hide_index=True, use_container_width=True)
+
+
 try:
     health = api_get("/health")
     health_status = health["status"]
@@ -2530,7 +2672,17 @@ if st.sidebar.button("Logout"):
     st.session_state.pop("current_user", None)
     st.rerun()
 
-pages = ["Executive Demo", "Overview", "Log Explorer", "Alerts", "ML Governance", "Threat Controls", "Response Center", "Audit Log"]
+pages = [
+    "Executive Demo",
+    "Overview",
+    "Log Explorer",
+    "Alerts",
+    "Detection Tuning",
+    "ML Governance",
+    "Threat Controls",
+    "Response Center",
+    "Audit Log",
+]
 if current_user["role"] == "admin":
     pages.extend(["User Admin", "Demo Controls"])
 page = st.sidebar.radio("Workspace", pages)
@@ -2546,6 +2698,8 @@ try:
         log_explorer_page()
     elif page == "Alerts":
         alerts_page()
+    elif page == "Detection Tuning":
+        detection_tuning_page()
     elif page == "ML Governance":
         ml_governance_page()
     elif page == "Threat Controls":

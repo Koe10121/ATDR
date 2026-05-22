@@ -5,6 +5,7 @@ __pycache__/
 venv/
 .uv-cache/
 .env
+.tools/
 atdr.db
 *.sqlite
 *.sqlite3
@@ -12,4 +13,8 @@ atdr/models/*.joblib
 atdr/data/processed/*
 !**/.gitkeep
 .streamlit/
+frontend/node_modules/
+frontend/dist/
+frontend/playwright-report/
+frontend/test-results/
 paloalto-firewall(1).log

@@ -9,15 +9,16 @@ ATDR is a defensive senior-project prototype for importing Palo Alto firewall sy
 - SQLite by default, with SQLAlchemy models matching the prototype tables.
 - Rule-based detection plus optional IsolationForest anomaly scoring.
 - Incident-style alert grouping reduces per-log alert noise while preserving evidence log links.
-- Streamlit dashboard with Executive Demo, Overview, Log Explorer, Alerts, ML Governance, Threat Controls, Response Center, Audit Log, and admin Demo Controls pages.
+- Streamlit dashboard with Executive Demo, Overview, Log Explorer, Alerts, Detection Tuning, ML Governance, Threat Controls, Response Center, Audit Log, and admin Demo Controls pages.
 - SOC Command Center dashboard styling with Plotly charts, triage queues, readiness panels, and evidence-focused incident views.
 - SOC workflow support for alert assignment, analyst notes, status changes, timelines, and audited response actions.
 - Alert suppression rules with review state, watchlist indicators, escalation metadata, computed SLA signals, and exportable JSON/CSV/HTML/PDF incident reports.
+- Production-style tuning view for alert pressure, noisy rules, false-positive learning, suppression candidates, ML baseline health, and ownership gaps.
 - Production-style reliability basics: structured JSON logs, request IDs, richer health checks, and migration support.
 - Security hardening basics: configurable CORS origins and browser security headers.
 - Demo, architecture, operations, presentation, and production-readiness documentation in `docs/`.
 - Lab-pilot deployment guide with SQLite, PostgreSQL, and safe syslog receiver modes.
-- CLI scripts for import, demo seeding, ML training, anomaly scoring, lab smoke checks, backups, and export cleanup.
+- CLI scripts for import, demo seeding, ML training, anomaly scoring, release verification, lab smoke checks, backups, and export cleanup.
 - Unit and API tests for parsing, rules, auth, workflow, demo controls, and severity scoring.
 
 ## Project Layout
@@ -39,10 +40,13 @@ atdr/
   models/
   scripts/
   tests/
+frontend/
+  src/
+    React production dashboard migration
 migrations/
 ```
 
-The large sample file `paloalto-firewall(1).log` can stay in the repository root beside this README.
+The large sample file `paloalto-firewall(1).log` can stay in the repository root beside this README. If it lives elsewhere, set `DEMO_SAMPLE_LOG_PATH` in `.env` to the absolute path, for example `C:/Users/User/Downloads/paloalto-firewall(1).log`.
 
 ## Local Setup
 
@@ -52,6 +56,7 @@ py -3.11 -m venv .venv
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 Copy-Item .env.example .env
+python -m atdr.scripts.config_doctor --pretty
 ```
 
 If your system uses `python` instead of the Windows launcher, replace `py -3.11` with `python`.
@@ -134,6 +139,31 @@ streamlit run atdr/dashboard/streamlit_app.py --server.headless true --browser.g
 
 Open `http://127.0.0.1:8501`.
 
+## Run The React Dashboard Preview
+
+The production dashboard migration lives in `frontend/`. Streamlit remains the demo/admin dashboard until React reaches feature parity.
+
+After installing Node.js 20+ or the current LTS, run:
+
+```powershell
+cd frontend
+Copy-Item .env.example .env
+npm install
+npm run dev
+```
+
+On Windows, if PowerShell blocks `npm.ps1`, use `npm.cmd install` and `npm.cmd run dev`.
+
+Open `http://127.0.0.1:5173`. FastAPI must be running at `http://127.0.0.1:8000`.
+
+Frontend verification after Node is available:
+
+```powershell
+npm run build
+npm run lint
+npm run test:e2e
+```
+
 ## ML-Assisted Anomaly Detection
 
 Train the optional IsolationForest after importing logs:
@@ -210,6 +240,7 @@ The evaluation report compares recent scoring runs and summarizes top anomalous 
 - `POST /api/auth/change-password`
 - `POST /api/detection/run`
 - `GET /api/detection/summary`
+- `GET /api/detection/tuning`
 - `POST /api/response/block-ip`
 - `POST /api/response/unblock-ip`
 - `GET /api/response/blocked-ips`
@@ -220,6 +251,25 @@ The evaluation report compares recent scoring runs and summarizes top anomalous 
 
 ```powershell
 pytest atdr/tests
+```
+
+Run the full local release gate before a demo or release candidate:
+
+```powershell
+python -m atdr.scripts.verify_release --pretty
+```
+
+If API and Streamlit are already running, include local smoke checks:
+
+```powershell
+python -m atdr.scripts.verify_release --include-smoke --pretty
+```
+
+Playwright browser smoke tests are optional. Run them only after installing browser dependencies and starting API plus Streamlit:
+
+```powershell
+$env:ATDR_RUN_PLAYWRIGHT="1"
+pytest atdr/tests/test_dashboard_playwright_smoke.py -q
 ```
 
 ## Database Migrations
@@ -265,14 +315,16 @@ docker compose --profile postgres run --rm migrate
 docker compose --profile postgres up --build api dashboard
 ```
 
-For PostgreSQL, set this in `.env`:
+For PostgreSQL, start from `.env.lab.example`:
 
-```text
-DATABASE_URL=postgresql+psycopg2://atdr:atdr_dev_password@postgres:5432/atdr
-AUTO_CREATE_TABLES=false
+```powershell
+Copy-Item .env.lab.example .env
+python -m atdr.scripts.config_doctor --pretty
 ```
 
-See `docs/DEPLOYMENT_GUIDE.md`, `docs/OPERATIONS_RUNBOOK.md`, and `docs/PRODUCTION_READINESS.md` for lab-pilot deployment guidance, live syslog receiver usage, CORS/HTTPS/reverse-proxy guidance, backups, and retention policy.
+Use `.env.example` for local demo, `.env.lab.example` for PostgreSQL lab pilot, and `.env.production.example` as a future hardened template. See `docs/ENVIRONMENT_GUIDE.md`, `docs/DEPLOYMENT_GUIDE.md`, `docs/OPERATIONS_RUNBOOK.md`, and `docs/PRODUCTION_READINESS.md` for lab-pilot deployment guidance, live syslog receiver usage, CORS/HTTPS/reverse-proxy guidance, backups, and retention policy.
+
+CI runs the same core quality gate on push and pull request: Config Doctor, compileall, pytest, Alembic drift check, and conservative Ruff linting. Docker and Playwright checks remain optional because they depend on host tooling.
 
 Run the local UDP syslog receiver in lab mode:
 
@@ -286,6 +338,7 @@ Use `docs/DEMO_DAY_RUNBOOK.md` as the authoritative local Windows checklist for 
 
 ```powershell
 python -m atdr.scripts.seed_users
+python -m atdr.scripts.config_doctor --pretty
 uvicorn atdr.app.main:app --host 127.0.0.1 --port 8000
 streamlit run atdr/dashboard/streamlit_app.py --server.address 127.0.0.1 --server.port 8501 --server.headless true --browser.gatherUsageStats false
 python -m atdr.scripts.demo_health_check
@@ -316,6 +369,7 @@ python -m atdr.scripts.lab_smoke_check
 python -m atdr.scripts.backup_demo --dry-run
 python -m atdr.scripts.backup_postgres --dry-run
 python -m atdr.scripts.cleanup_exports --older-than-days 14
+python -m atdr.scripts.verify_release --pretty
 ```
 
 On this development machine, Docker Compose validation may need to be run elsewhere if Docker is not installed. The smoke check reports that blocker clearly.
@@ -333,8 +387,11 @@ On this development machine, Docker Compose validation may need to be run elsewh
 - `docs/ARCHITECTURE.md`: subsystem diagram and data trust model.
 - `docs/DEMO_FLOW.md`: hands-on demo sequence.
 - `docs/DEMO_DAY_RUNBOOK.md`: local Windows supervisor demo checklist.
+- `docs/ENVIRONMENT_GUIDE.md`: demo, lab, and future production environment profiles.
 - `docs/FINAL_DEMO_SCRIPT.md`: final supervisor walkthrough script.
 - `docs/PRESENTATION_PACKAGE.md`: supervisor demo script and screenshot checklist.
+- `docs/RELEASE_CHECKLIST.md`: local demo and lab-pilot release gate checklist.
+- `docs/DASHBOARD_PRODUCTION_PATH.md`: honest path from Streamlit SOC console to enterprise frontend.
 - `docs/SUPERVISOR_QA.md`: prepared answers for likely evaluation questions.
 - `docs/SCREENSHOT_CHECKLIST.md`: exact screenshots to capture for slides/report.
 - `docs/DEPLOYMENT_GUIDE.md`: SQLite, PostgreSQL, and syslog receiver setup.

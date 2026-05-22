@@ -1,0 +1,1069 @@
+{
+  "model_status": {
+    "model_name": "isolation_forest",
+    "model_path": "C:\\Users\\User\\Desktop\\ATDR\\atdr\\models\\isolation_forest.joblib",
+    "artifact_exists": true,
+    "artifact_sha256": "d9e64454c47c6fa2e13b1b225ab4b7555d4fc9a8c9d8b681e37d4ec8ba09e8d4",
+    "artifact_size_bytes": 932091,
+    "contamination": 0.03,
+    "feature_columns": [
+      "src_port",
+      "dst_port",
+      "bytes",
+      "bytes_sent",
+      "bytes_received",
+      "packets",
+      "elapsed_time",
+      "app_risk",
+      "protocol",
+      "action",
+      "app",
+      "src_zone",
+      "dst_zone"
+    ],
+    "latest_training": {
+      "id": 12,
+      "model_name": "isolation_forest",
+      "model_version": "iforest-20260521160254",
+      "operation": "train",
+      "status": "trained",
+      "actor": "cli",
+      "model_path": "C:\\Users\\User\\Desktop\\ATDR\\atdr\\models\\isolation_forest.joblib",
+      "artifact_sha256": "d9e64454c47c6fa2e13b1b225ab4b7555d4fc9a8c9d8b681e37d4ec8ba09e8d4",
+      "artifact_size_bytes": 932091,
+      "training_log_count": 31184,
+      "scored_log_count": null,
+      "anomaly_count": null,
+      "anomaly_rate": null,
+      "contamination": 0.03,
+      "feature_columns": [
+        "src_port",
+        "dst_port",
+        "bytes",
+        "bytes_sent",
+        "bytes_received",
+        "packets",
+        "elapsed_time",
+        "app_risk",
+        "protocol",
+        "action",
+        "app",
+        "src_zone",
+        "dst_zone"
+      ],
+      "feature_summary": {
+        "row_count": 31184,
+        "numeric": {
+          "src_port": {
+            "missing": 0,
+            "min": 0.0,
+            "max": 65534.0,
+            "median": 55313.0
+          },
+          "dst_port": {
+            "missing": 0,
+            "min": 0.0,
+            "max": 65096.0,
+            "median": 443.0
+          },
+          "bytes": {
+            "missing": 0,
+            "min": 60.0,
+            "max": 1787572871.0,
+            "median": 13535.0
+          },
+          "bytes_sent": {
+            "missing": 0,
+            "min": 60.0,
+            "max": 138314799.0,
+            "median": 5500.0
+          },
+          "bytes_received": {
+            "missing": 0,
+            "min": 0.0,
+            "max": 1774645151.0,
+            "median": 7081.0
+          },
+          "packets": {
+            "missing": 0,
+            "min": 1.0,
+            "max": 1501820.0,
+            "median": 29.0
+          },
+          "elapsed_time": {
+            "missing": 0,
+            "min": 0.0,
+            "max": 22204.0,
+            "median": 120.0
+          },
+          "app_risk": {
+            "missing": 0,
+            "min": 1.0,
+            "max": 3.0,
+            "median": 1.0
+          }
+        },
+        "categorical": {
+          "protocol": {
+            "missing": 0,
+            "unique": 5,
+            "top_values": [
+              {
+                "value": "udp",
+                "count": 21222
+              },
+              {
+                "value": "tcp",
+                "count": 8568
+              },
+              {
+                "value": "icmp",
+                "count": 1315
+              },
+              {
+                "value": "ipv6-icmp",
+                "count": 66
+              },
+              {
+                "value": "gre",
+                "count": 13
+              }
+            ]
+          },
+          "action": {
+            "missing": 0,
+            "unique": 1,
+            "top_values": [
+              {
+                "value": "allow",
+                "count": 31184
+              }
+            ]
+          },
+          "app": {
+            "missing": 0,
+            "unique": 120,
+            "top_values": [
+              {
+                "value": "quic-base",
+                "count": 17389
+              },
+              {
+                "value": "facebook-base",
+                "count": 1516
+              },
+              {
+                "value": "dns-base",
+                "count": 1332
+              },
+              {
+                "value": "naver-line",
+                "count": 1299
+              },
+              {
+                "value": "ping",
+                "count": 1285
+              },
+              {
+                "value": "tiktok-base",
+                "count": 801
+              },
+              {
+                "value": "stun",
+                "count": 673
+              },
+              {
+                "value": "insufficient-data",
+                "count": 629
+              }
+            ]
+          },
+          "src_zone": {
+            "missing": 0,
+            "unique": 3,
+            "top_values": [
+              {
+                "value": "WLAN-Inside",
+                "count": 28249
+              },
+              {
+                "value": "SG-Outside",
+                "count": 2711
+              },
+              {
+                "value": "WLAN-Outside",
+                "count": 224
+              }
+            ]
+          },
+          "dst_zone": {
+            "missing": 0,
+            "unique": 2,
+            "top_values": [
+              {
+                "value": "SG-Outside",
+                "count": 28249
+              },
+              {
+                "value": "WLAN-Inside",
+                "count": 2935
+              }
+            ]
+          }
+        }
+      },
+      "metrics": {
+        "artifact_exists": true,
+        "training_filter": {
+          "baseline_only": true,
+          "max_app_risk": 3,
+          "exclude_unknown_apps": true,
+          "exclude_existing_anomalies": true,
+          "limit": null
+        }
+      },
+      "message": "Trained IsolationForest on 31184 logs.",
+      "created_at": "2026-05-21T16:02:54"
+    },
+    "latest_scoring": {
+      "id": 13,
+      "model_name": "isolation_forest",
+      "model_version": "iforest-20260521160254",
+      "operation": "score",
+      "status": "scored",
+      "actor": "cli",
+      "model_path": "C:\\Users\\User\\Desktop\\ATDR\\atdr\\models\\isolation_forest.joblib",
+      "artifact_sha256": "d9e64454c47c6fa2e13b1b225ab4b7555d4fc9a8c9d8b681e37d4ec8ba09e8d4",
+      "artifact_size_bytes": 932091,
+      "training_log_count": null,
+      "scored_log_count": 52000,
+      "anomaly_count": 814,
+      "anomaly_rate": 1.57,
+      "contamination": 0.03,
+      "feature_columns": [
+        "src_port",
+        "dst_port",
+        "bytes",
+        "bytes_sent",
+        "bytes_received",
+        "packets",
+        "elapsed_time",
+        "app_risk",
+        "protocol",
+        "action",
+        "app",
+        "src_zone",
+        "dst_zone"
+      ],
+      "feature_summary": {},
+      "metrics": {
+        "artifact_exists": true,
+        "limit": 0
+      },
+      "message": "Scored 52000 logs and flagged 814 anomalies.",
+      "created_at": "2026-05-21T16:03:15"
+    },
+    "total_logs": 52000,
+    "current_anomaly_logs": 814,
+    "current_anomaly_rate": 1.57
+  },
+  "dataset_profile": {
+    "total_logs": 52000,
+    "generated_time_min": "2026-05-20T13:36:15",
+    "generated_time_max": "2026-05-20T13:36:52",
+    "current_anomaly_logs": 814,
+    "current_anomaly_rate": 1.57,
+    "deny_drop_logs": 82,
+    "deny_drop_rate": 0.16,
+    "high_risk_logs": 16231,
+    "high_risk_rate": 31.21,
+    "unknown_app_logs": 4230,
+    "unknown_app_rate": 8.13,
+    "baseline_max_app_risk": 3,
+    "baseline_candidate_count": 30808,
+    "baseline_candidate_rate": 59.25,
+    "action_distribution": [
+      {
+        "name": "allow",
+        "count": 51838
+      },
+      {
+        "name": "alert",
+        "count": 80
+      },
+      {
+        "name": "drop",
+        "count": 48
+      },
+      {
+        "name": "deny",
+        "count": 34
+      }
+    ],
+    "app_risk_distribution": [
+      {
+        "name": "1",
+        "count": 24883
+      },
+      {
+        "name": "4",
+        "count": 15498
+      },
+      {
+        "name": "3",
+        "count": 7296
+      },
+      {
+        "name": "2",
+        "count": 3590
+      },
+      {
+        "name": "5",
+        "count": 733
+      }
+    ],
+    "protocol_distribution": [
+      {
+        "name": "tcp",
+        "count": 28003
+      },
+      {
+        "name": "udp",
+        "count": 22380
+      },
+      {
+        "name": "icmp",
+        "count": 1534
+      },
+      {
+        "name": "ipv6-icmp",
+        "count": 66
+      },
+      {
+        "name": "gre",
+        "count": 13
+      },
+      {
+        "name": "ip",
+        "count": 4
+      }
+    ],
+    "top_apps": [
+      {
+        "name": "quic-base",
+        "count": 17426
+      },
+      {
+        "name": "ssl",
+        "count": 14198
+      },
+      {
+        "name": "incomplete",
+        "count": 3682
+      },
+      {
+        "name": "facebook-base",
+        "count": 1535
+      },
+      {
+        "name": "ping",
+        "count": 1496
+      },
+      {
+        "name": "dns-base",
+        "count": 1338
+      },
+      {
+        "name": "naver-line",
+        "count": 1301
+      },
+      {
+        "name": "web-browsing",
+        "count": 871
+      },
+      {
+        "name": "tiktok-base",
+        "count": 802
+      },
+      {
+        "name": "bittorrent",
+        "count": 709
+      }
+    ],
+    "top_src_zones": [
+      {
+        "name": "WLAN-Inside",
+        "count": 42967
+      },
+      {
+        "name": "SG-Outside",
+        "count": 8806
+      },
+      {
+        "name": "WLAN-Outside",
+        "count": 227
+      }
+    ],
+    "top_dst_zones": [
+      {
+        "name": "SG-Outside",
+        "count": 42967
+      },
+      {
+        "name": "WLAN-Inside",
+        "count": 9033
+      }
+    ],
+    "recommendations": [
+      "Use baseline-only training first, then score the broader dataset and review anomaly rate.",
+      "Keep app risk 4-5 traffic out of baseline training unless it is reviewed and accepted as normal.",
+      "Keep deny/drop policy events out of baseline training; they are response signals, not normal behavior.",
+      "Exclude existing anomaly-flagged logs from the next baseline training pass."
+    ]
+  },
+  "scored_log_count": 52000,
+  "anomaly_count": 814,
+  "anomaly_rate": 1.57,
+  "score_stats_all": {
+    "count": 52000,
+    "min": -0.079522,
+    "avg": 0.120815,
+    "max": 0.171651
+  },
+  "score_stats_anomalies": {
+    "count": 814,
+    "min": -0.079522,
+    "avg": -0.020887,
+    "max": -2e-06
+  },
+  "run_comparison": {
+    "latest": {
+      "id": 13,
+      "model_name": "isolation_forest",
+      "model_version": "iforest-20260521160254",
+      "operation": "score",
+      "status": "scored",
+      "actor": "cli",
+      "model_path": "C:\\Users\\User\\Desktop\\ATDR\\atdr\\models\\isolation_forest.joblib",
+      "artifact_sha256": "d9e64454c47c6fa2e13b1b225ab4b7555d4fc9a8c9d8b681e37d4ec8ba09e8d4",
+      "artifact_size_bytes": 932091,
+      "training_log_count": null,
+      "scored_log_count": 52000,
+      "anomaly_count": 814,
+      "anomaly_rate": 1.57,
+      "contamination": 0.03,
+      "feature_columns": [
+        "src_port",
+        "dst_port",
+        "bytes",
+        "bytes_sent",
+        "bytes_received",
+        "packets",
+        "elapsed_time",
+        "app_risk",
+        "protocol",
+        "action",
+        "app",
+        "src_zone",
+        "dst_zone"
+      ],
+      "feature_summary": {},
+      "metrics": {
+        "artifact_exists": true,
+        "limit": 0
+      },
+      "message": "Scored 52000 logs and flagged 814 anomalies.",
+      "created_at": "2026-05-21T16:03:15"
+    },
+    "previous": {
+      "id": 10,
+      "model_name": "isolation_forest",
+      "model_version": "iforest-20260521153738",
+      "operation": "score",
+      "status": "scored",
+      "actor": "admin",
+      "model_path": "C:\\Users\\User\\Desktop\\ATDR\\atdr\\models\\isolation_forest.joblib",
+      "artifact_sha256": "f255008849926ae5c5060e14101851e008c244b4188bb14003b70b79f2883d93",
+      "artifact_size_bytes": 961611,
+      "training_log_count": null,
+      "scored_log_count": 5000,
+      "anomaly_count": 207,
+      "anomaly_rate": 4.14,
+      "contamination": 0.03,
+      "feature_columns": [
+        "src_port",
+        "dst_port",
+        "bytes",
+        "bytes_sent",
+        "bytes_received",
+        "packets",
+        "elapsed_time",
+        "app_risk",
+        "protocol",
+        "action",
+        "app",
+        "src_zone",
+        "dst_zone"
+      ],
+      "feature_summary": {},
+      "metrics": {
+        "artifact_exists": true,
+        "limit": 5000
+      },
+      "message": "Scored 5000 logs and flagged 207 anomalies.",
+      "created_at": "2026-05-21T15:37:40"
+    },
+    "anomaly_rate_delta": -2.57,
+    "interpretation": "Latest anomaly rate decreased; review whether the model became stricter or traffic normalized."
+  },
+  "drift_signals": [
+    {
+      "metric": "baseline_pool_delta",
+      "level": "low",
+      "training_value": 31184,
+      "current_value": 30808,
+      "delta_pct": -1.21,
+      "message": "Current baseline candidate volume compared with the latest training set."
+    },
+    {
+      "metric": "anomaly_rate_vs_expected",
+      "level": "low",
+      "training_value": 3.0,
+      "current_value": 1.57,
+      "message": "Current anomaly rate compared with configured model contamination."
+    },
+    {
+      "metric": "app_top_value_shift",
+      "level": "medium",
+      "training_value": [
+        "dns-base",
+        "facebook-base",
+        "insufficient-data",
+        "naver-line",
+        "ping",
+        "quic-base",
+        "stun",
+        "tiktok-base"
+      ],
+      "current_value": [
+        "dns-base",
+        "facebook-base",
+        "incomplete",
+        "naver-line",
+        "ping",
+        "quic-base",
+        "ssl",
+        "web-browsing"
+      ],
+      "message": "Current top app values include values not seen in the latest training top list.",
+      "new_values": [
+        "incomplete",
+        "ssl",
+        "web-browsing"
+      ]
+    },
+    {
+      "metric": "action_top_value_shift",
+      "level": "medium",
+      "training_value": [
+        "allow"
+      ],
+      "current_value": [
+        "alert",
+        "allow",
+        "deny",
+        "drop"
+      ],
+      "message": "Current top action values include values not seen in the latest training top list.",
+      "new_values": [
+        "alert",
+        "deny",
+        "drop"
+      ]
+    },
+    {
+      "metric": "scoring_run_delta",
+      "level": "medium",
+      "training_value": 4.14,
+      "current_value": 1.57,
+      "message": "Latest scoring anomaly rate moved materially from the previous scoring run."
+    }
+  ],
+  "top_anomalous_src_ips": [
+    {
+      "name": "43.158.113.225",
+      "count": 25
+    },
+    {
+      "name": "10.1.94.28",
+      "count": 20
+    },
+    {
+      "name": "43.157.82.161",
+      "count": 20
+    },
+    {
+      "name": "171.97.218.8",
+      "count": 16
+    },
+    {
+      "name": "58.10.70.35",
+      "count": 16
+    },
+    {
+      "name": "81.16.152.2",
+      "count": 12
+    },
+    {
+      "name": "1.4.131.111",
+      "count": 10
+    },
+    {
+      "name": "155.138.246.73",
+      "count": 10
+    },
+    {
+      "name": "172.25.2.13",
+      "count": 10
+    },
+    {
+      "name": "34.219.196.166",
+      "count": 10
+    }
+  ],
+  "top_anomalous_dst_ips": [
+    {
+      "name": "202.28.44.1",
+      "count": 108
+    },
+    {
+      "name": "202.28.46.236",
+      "count": 61
+    },
+    {
+      "name": "202.28.46.8",
+      "count": 50
+    },
+    {
+      "name": "2001:3c8:5505:194::1",
+      "count": 31
+    },
+    {
+      "name": "2001:3c8:5505::6",
+      "count": 31
+    },
+    {
+      "name": "57.145.18.128",
+      "count": 24
+    },
+    {
+      "name": "202.28.46.110",
+      "count": 23
+    },
+    {
+      "name": "202.28.46.3",
+      "count": 22
+    },
+    {
+      "name": "192.168.1.5",
+      "count": 20
+    },
+    {
+      "name": "202.28.44.17",
+      "count": 17
+    }
+  ],
+  "top_anomalous_apps": [
+    {
+      "name": "ping",
+      "count": 342
+    },
+    {
+      "name": "ssl",
+      "count": 123
+    },
+    {
+      "name": "ping6",
+      "count": 62
+    },
+    {
+      "name": "dns-base",
+      "count": 60
+    },
+    {
+      "name": "insufficient-data",
+      "count": 54
+    },
+    {
+      "name": "facebook-base",
+      "count": 52
+    },
+    {
+      "name": "quic-base",
+      "count": 41
+    },
+    {
+      "name": "traceroute",
+      "count": 29
+    },
+    {
+      "name": "gre",
+      "count": 13
+    },
+    {
+      "name": "naver-line",
+      "count": 8
+    }
+  ],
+  "top_anomalous_dst_ports": [
+    {
+      "name": "0",
+      "count": 446
+    },
+    {
+      "name": "443",
+      "count": 244
+    },
+    {
+      "name": "53",
+      "count": 60
+    },
+    {
+      "name": "626",
+      "count": 10
+    },
+    {
+      "name": "80",
+      "count": 4
+    },
+    {
+      "name": "32484",
+      "count": 3
+    },
+    {
+      "name": "38892",
+      "count": 3
+    },
+    {
+      "name": "44180",
+      "count": 3
+    },
+    {
+      "name": "55813",
+      "count": 3
+    },
+    {
+      "name": "59201",
+      "count": 3
+    }
+  ],
+  "top_anomalous_protocols": [
+    {
+      "name": "icmp",
+      "count": 371
+    },
+    {
+      "name": "udp",
+      "count": 204
+    },
+    {
+      "name": "tcp",
+      "count": 164
+    },
+    {
+      "name": "ipv6-icmp",
+      "count": 62
+    },
+    {
+      "name": "gre",
+      "count": 13
+    }
+  ],
+  "sample_anomalies": [
+    {
+      "id": 32402,
+      "generated_time": "2026-05-20T13:36:22",
+      "src_ip": "172.25.152.237",
+      "dst_ip": "57.145.18.128",
+      "app": "facebook-base",
+      "action": "allow",
+      "protocol": "udp",
+      "dst_port": 443,
+      "bytes": 139364471,
+      "packets": 117856,
+      "app_risk": 3,
+      "anomaly_score": -0.07952246768598303
+    },
+    {
+      "id": 8902,
+      "generated_time": "2026-05-20T13:36:22",
+      "src_ip": "172.25.152.237",
+      "dst_ip": "57.145.18.128",
+      "app": "facebook-base",
+      "action": "allow",
+      "protocol": "udp",
+      "dst_port": 443,
+      "bytes": 139364471,
+      "packets": 117856,
+      "app_risk": 3,
+      "anomaly_score": -0.07952246768598303
+    },
+    {
+      "id": 3902,
+      "generated_time": "2026-05-20T13:36:22",
+      "src_ip": "172.25.152.237",
+      "dst_ip": "57.145.18.128",
+      "app": "facebook-base",
+      "action": "allow",
+      "protocol": "udp",
+      "dst_port": 443,
+      "bytes": 139364471,
+      "packets": 117856,
+      "app_risk": 3,
+      "anomaly_score": -0.07952246768598303
+    },
+    {
+      "id": 31149,
+      "generated_time": "2026-05-20T13:36:21",
+      "src_ip": "172.25.152.237",
+      "dst_ip": "57.145.10.128",
+      "app": "facebook-base",
+      "action": "allow",
+      "protocol": "udp",
+      "dst_port": 443,
+      "bytes": 324553470,
+      "packets": 271837,
+      "app_risk": 3,
+      "anomaly_score": -0.07555951823651885
+    },
+    {
+      "id": 7649,
+      "generated_time": "2026-05-20T13:36:21",
+      "src_ip": "172.25.152.237",
+      "dst_ip": "57.145.10.128",
+      "app": "facebook-base",
+      "action": "allow",
+      "protocol": "udp",
+      "dst_port": 443,
+      "bytes": 324553470,
+      "packets": 271837,
+      "app_risk": 3,
+      "anomaly_score": -0.07555951823651885
+    },
+    {
+      "id": 2649,
+      "generated_time": "2026-05-20T13:36:21",
+      "src_ip": "172.25.152.237",
+      "dst_ip": "57.145.10.128",
+      "app": "facebook-base",
+      "action": "allow",
+      "protocol": "udp",
+      "dst_port": 443,
+      "bytes": 324553470,
+      "packets": 271837,
+      "app_risk": 3,
+      "anomaly_score": -0.07555951823651885
+    },
+    {
+      "id": 42180,
+      "generated_time": "2026-05-20T13:36:38",
+      "src_ip": "172.27.97.137",
+      "dst_ip": "172.65.172.62",
+      "app": "unknown-tcp",
+      "action": "allow",
+      "protocol": "tcp",
+      "dst_port": 30054,
+      "bytes": 13293974,
+      "packets": 120621,
+      "app_risk": 1,
+      "anomaly_score": -0.07481983752535193
+    },
+    {
+      "id": 18680,
+      "generated_time": "2026-05-20T13:36:38",
+      "src_ip": "172.27.97.137",
+      "dst_ip": "172.65.172.62",
+      "app": "unknown-tcp",
+      "action": "allow",
+      "protocol": "tcp",
+      "dst_port": 30054,
+      "bytes": 13293974,
+      "packets": 120621,
+      "app_risk": 1,
+      "anomaly_score": -0.07481983752535193
+    },
+    {
+      "id": 33667,
+      "generated_time": "2026-05-20T13:36:24",
+      "src_ip": "58.10.200.113",
+      "dst_ip": "202.28.46.236",
+      "app": "ssl",
+      "action": "allow",
+      "protocol": "tcp",
+      "dst_port": 443,
+      "bytes": 17158849,
+      "packets": 13641,
+      "app_risk": 4,
+      "anomaly_score": -0.07422944781513086
+    },
+    {
+      "id": 10167,
+      "generated_time": "2026-05-20T13:36:24",
+      "src_ip": "58.10.200.113",
+      "dst_ip": "202.28.46.236",
+      "app": "ssl",
+      "action": "allow",
+      "protocol": "tcp",
+      "dst_port": 443,
+      "bytes": 17158849,
+      "packets": 13641,
+      "app_risk": 4,
+      "anomaly_score": -0.07422944781513086
+    },
+    {
+      "id": 39655,
+      "generated_time": "2026-05-20T13:36:33",
+      "src_ip": "10.1.18.13",
+      "dst_ip": "57.145.10.145",
+      "app": "facebook-base",
+      "action": "allow",
+      "protocol": "tcp",
+      "dst_port": 443,
+      "bytes": 26434154,
+      "packets": 53100,
+      "app_risk": 3,
+      "anomaly_score": -0.07044650219964321
+    },
+    {
+      "id": 16155,
+      "generated_time": "2026-05-20T13:36:33",
+      "src_ip": "10.1.18.13",
+      "dst_ip": "57.145.10.145",
+      "app": "facebook-base",
+      "action": "allow",
+      "protocol": "tcp",
+      "dst_port": 443,
+      "bytes": 26434154,
+      "packets": 53100,
+      "app_risk": 3,
+      "anomaly_score": -0.07044650219964321
+    },
+    {
+      "id": 40962,
+      "generated_time": "2026-05-20T13:36:36",
+      "src_ip": "58.11.30.30",
+      "dst_ip": "202.28.46.236",
+      "app": "ssl",
+      "action": "allow",
+      "protocol": "tcp",
+      "dst_port": 443,
+      "bytes": 26059330,
+      "packets": 20243,
+      "app_risk": 4,
+      "anomaly_score": -0.06888773712962104
+    },
+    {
+      "id": 17462,
+      "generated_time": "2026-05-20T13:36:36",
+      "src_ip": "58.11.30.30",
+      "dst_ip": "202.28.46.236",
+      "app": "ssl",
+      "action": "allow",
+      "protocol": "tcp",
+      "dst_port": 443,
+      "bytes": 26059330,
+      "packets": 20243,
+      "app_risk": 4,
+      "anomaly_score": -0.06888773712962104
+    },
+    {
+      "id": 39246,
+      "generated_time": "2026-05-20T13:36:33",
+      "src_ip": "223.109.255.152",
+      "dst_ip": "202.28.46.23",
+      "app": "web-browsing",
+      "action": "allow",
+      "protocol": "tcp",
+      "dst_port": 80,
+      "bytes": 39534241,
+      "packets": 38000,
+      "app_risk": 4,
+      "anomaly_score": -0.06786880461502431
+    },
+    {
+      "id": 15746,
+      "generated_time": "2026-05-20T13:36:33",
+      "src_ip": "223.109.255.152",
+      "dst_ip": "202.28.46.23",
+      "app": "web-browsing",
+      "action": "allow",
+      "protocol": "tcp",
+      "dst_port": 80,
+      "bytes": 39534241,
+      "packets": 38000,
+      "app_risk": 4,
+      "anomaly_score": -0.06786880461502431
+    },
+    {
+      "id": 34470,
+      "generated_time": "2026-05-20T13:36:25",
+      "src_ip": "182.232.217.198",
+      "dst_ip": "202.28.46.236",
+      "app": "ssl",
+      "action": "allow",
+      "protocol": "tcp",
+      "dst_port": 443,
+      "bytes": 55551560,
+      "packets": 42072,
+      "app_risk": 4,
+      "anomaly_score": -0.0646424174036424
+    },
+    {
+      "id": 10970,
+      "generated_time": "2026-05-20T13:36:25",
+      "src_ip": "182.232.217.198",
+      "dst_ip": "202.28.46.236",
+      "app": "ssl",
+      "action": "allow",
+      "protocol": "tcp",
+      "dst_port": 443,
+      "bytes": 55551560,
+      "packets": 42072,
+      "app_risk": 4,
+      "anomaly_score": -0.0646424174036424
+    },
+    {
+      "id": 45792,
+      "generated_time": "2026-05-20T13:36:43",
+      "src_ip": "49.231.199.82",
+      "dst_ip": "202.28.46.236",
+      "app": "ssl",
+      "action": "allow",
+      "protocol": "tcp",
+      "dst_port": 443,
+      "bytes": 60575891,
+      "packets": 44907,
+      "app_risk": 4,
+      "anomaly_score": -0.061129769743479945
+    },
+    {
+      "id": 22292,
+      "generated_time": "2026-05-20T13:36:43",
+      "src_ip": "49.231.199.82",
+      "dst_ip": "202.28.46.236",
+      "app": "ssl",
+      "action": "allow",
+      "protocol": "tcp",
+      "dst_port": 443,
+      "bytes": 60575891,
+      "packets": 44907,
+      "app_risk": 4,
+      "anomaly_score": -0.061129769743479945
+    }
+  ],
+  "recommendations": [
+    "Review top anomalous sources, apps, and ports before turning findings into response actions.",
+    "Use baseline-only training first, then score the broader dataset and review anomaly rate.",
+    "Keep app risk 4-5 traffic out of baseline training unless it is reviewed and accepted as normal."
+  ]
+}
