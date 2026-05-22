@@ -2,7 +2,8 @@ from datetime import datetime
 from io import TextIOWrapper
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from atdr.app.core.config import PROJECT_ROOT, get_settings
@@ -114,20 +115,38 @@ def import_logs(
 
 @router.get("", response_model=list[NormalizedLogRead])
 def list_normalized_logs(
+    response: Response,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_analyst_or_admin),
+    search: str | None = None,
     src_ip: str | None = None,
     dst_ip: str | None = None,
     app: str | None = None,
     action: str | None = None,
+    protocol: str | None = None,
+    src_zone: str | None = None,
+    dst_zone: str | None = None,
     severity: str | None = None,
     country: str | None = None,
     generated_from: str | None = None,
     generated_to: str | None = None,
+    sort_by: str = "generated",
     limit: int = Query(default=100, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
 ) -> list[dict]:
-    statement = build_log_query(src_ip=src_ip, dst_ip=dst_ip, app=app, action=action, severity=severity, country=country)
+    statement = build_log_query(
+        search=search,
+        src_ip=src_ip,
+        dst_ip=dst_ip,
+        app=app,
+        action=action,
+        protocol=protocol,
+        src_zone=src_zone,
+        dst_zone=dst_zone,
+        severity=severity,
+        country=country,
+        sort_by=sort_by,
+    )
     start = parse_datetime(generated_from)
     end = parse_datetime(generated_to)
     if start is not None:
@@ -138,6 +157,8 @@ def list_normalized_logs(
         from atdr.app.db.models import NormalizedLog
 
         statement = statement.where(NormalizedLog.generated_time <= end)
+    total = int(db.scalar(select(func.count()).select_from(statement.order_by(None).subquery())) or 0)
+    response.headers["X-Total-Count"] = str(total)
     logs = list(db.scalars(statement.limit(limit).offset(offset)).unique())
     return [_log_to_dict(log) for log in logs]
 

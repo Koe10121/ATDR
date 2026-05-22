@@ -6,6 +6,7 @@ venv/
 .uv-cache/
 .env
 .tools/
+.tmp/
 atdr.db
 *.sqlite
 *.sqlite3

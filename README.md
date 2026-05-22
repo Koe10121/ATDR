@@ -141,7 +141,7 @@ Open `http://127.0.0.1:8501`.
 
 ## Run The React Dashboard Preview
 
-The production dashboard migration lives in `frontend/`. Streamlit remains the demo/admin dashboard until React reaches feature parity.
+The production dashboard migration lives in `frontend/`. Streamlit remains the demo/admin dashboard while React becomes the production UX path. The React dashboard now includes Executive Overview, Alert Workbench, Log Explorer, Response Center, Threat Controls, Audit Log, Detection Tuning, ML Governance, User Admin, and Demo Controls.
 
 After installing Node.js 20+ or the current LTS, run:
 

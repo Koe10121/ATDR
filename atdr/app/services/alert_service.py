@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from html import escape
 from io import StringIO
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from atdr.app.db.models import Alert, AlertEvidence, AlertNote, AuditLog, NormalizedLog, ResponseAction, User
@@ -195,25 +195,83 @@ def _event_time(log: NormalizedLog) -> datetime | None:
 def list_alerts(
     db: Session,
     *,
+    search: str | None = None,
     severity: str | None = None,
     status: str | None = None,
+    src_ip: str | None = None,
+    dst_ip: str | None = None,
+    alert_type: str | None = None,
     assigned_to: str | None = None,
     unassigned: bool = False,
     sort_by: str = "created",
     limit: int = 100,
     offset: int = 0,
 ) -> list[Alert]:
-    order_column = Alert.updated_at if sort_by == "updated" else Alert.created_at
+    statement = build_alert_query(
+        search=search,
+        severity=severity,
+        status=status,
+        src_ip=src_ip,
+        dst_ip=dst_ip,
+        alert_type=alert_type,
+        assigned_to=assigned_to,
+        unassigned=unassigned,
+        sort_by=sort_by,
+    )
+    return list(db.scalars(statement.limit(limit).offset(offset)).unique())
+
+
+def build_alert_query(
+    *,
+    search: str | None = None,
+    severity: str | None = None,
+    status: str | None = None,
+    src_ip: str | None = None,
+    dst_ip: str | None = None,
+    alert_type: str | None = None,
+    assigned_to: str | None = None,
+    unassigned: bool = False,
+    sort_by: str = "created",
+):
+    sort_columns = {
+        "updated": Alert.updated_at,
+        "created": Alert.created_at,
+        "score": Alert.threat_score,
+        "severity": Alert.severity,
+    }
+    order_column = sort_columns.get(sort_by, Alert.created_at)
     statement = select(Alert).options(joinedload(Alert.evidence)).order_by(order_column.desc(), Alert.id.desc())
+    if search:
+        pattern = f"%{search}%"
+        statement = statement.where(
+            or_(
+                Alert.title.ilike(pattern),
+                Alert.alert_type.ilike(pattern),
+                Alert.src_ip.ilike(pattern),
+                Alert.dst_ip.ilike(pattern),
+                Alert.explanation.ilike(pattern),
+            )
+        )
     if severity:
         statement = statement.where(Alert.severity == severity)
     if status:
         statement = statement.where(Alert.status == status)
+    if src_ip:
+        statement = statement.where(Alert.src_ip == src_ip)
+    if dst_ip:
+        statement = statement.where(Alert.dst_ip == dst_ip)
+    if alert_type:
+        statement = statement.where(Alert.alert_type.ilike(f"%{alert_type}%"))
     if assigned_to:
         statement = statement.where(Alert.assigned_to == assigned_to)
     if unassigned:
         statement = statement.where(Alert.assigned_to.is_(None))
-    return list(db.scalars(statement.limit(limit).offset(offset)).unique())
+    return statement
+
+
+def count_alerts(db: Session, **filters) -> int:
+    statement = build_alert_query(**filters).order_by(None)
+    return int(db.scalar(select(func.count()).select_from(statement.subquery())) or 0)
 
 
 def get_alert(db: Session, alert_id: int) -> Alert | None:

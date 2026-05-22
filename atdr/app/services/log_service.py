@@ -2,7 +2,7 @@ import logging
 from pathlib import Path
 from typing import TextIO
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, desc, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from atdr.app.db.models import Alert, AlertEvidence, AuditLog, NormalizedLog, RawLog
@@ -106,16 +106,46 @@ def import_log_file(db: Session, file_path: str | Path, *, limit: int | None = N
 
 def build_log_query(
     *,
+    search: str | None = None,
     src_ip: str | None = None,
     dst_ip: str | None = None,
     app: str | None = None,
     action: str | None = None,
+    protocol: str | None = None,
+    src_zone: str | None = None,
+    dst_zone: str | None = None,
     severity: str | None = None,
     country: str | None = None,
+    sort_by: str = "generated",
 ) -> Select:
-    statement = select(NormalizedLog).options(joinedload(NormalizedLog.raw_log)).order_by(NormalizedLog.id.desc())
+    sort_columns = {
+        "generated": NormalizedLog.generated_time,
+        "time": NormalizedLog.generated_time,
+        "app_risk": NormalizedLog.app_risk,
+        "action": NormalizedLog.action,
+        "src_ip": NormalizedLog.src_ip,
+        "dst_ip": NormalizedLog.dst_ip,
+        "id": NormalizedLog.id,
+    }
+    order_column = sort_columns.get(sort_by, NormalizedLog.generated_time)
+    statement = select(NormalizedLog).options(joinedload(NormalizedLog.raw_log))
     if severity:
         statement = statement.join(AlertEvidence).join(Alert).where(Alert.severity == severity)
+    if search:
+        pattern = f"%{search}%"
+        statement = statement.where(
+            or_(
+                NormalizedLog.src_ip.ilike(pattern),
+                NormalizedLog.dst_ip.ilike(pattern),
+                NormalizedLog.app.ilike(pattern),
+                NormalizedLog.action.ilike(pattern),
+                NormalizedLog.protocol.ilike(pattern),
+                NormalizedLog.src_zone.ilike(pattern),
+                NormalizedLog.dst_zone.ilike(pattern),
+                NormalizedLog.rule_name.ilike(pattern),
+                NormalizedLog.category.ilike(pattern),
+            )
+        )
     if src_ip:
         statement = statement.where(NormalizedLog.src_ip == src_ip)
     if dst_ip:
@@ -124,10 +154,19 @@ def build_log_query(
         statement = statement.where(NormalizedLog.app.ilike(f"%{app}%"))
     if action:
         statement = statement.where(NormalizedLog.action == action)
+    if protocol:
+        statement = statement.where(NormalizedLog.protocol == protocol)
+    if src_zone:
+        statement = statement.where(NormalizedLog.src_zone.ilike(f"%{src_zone}%"))
+    if dst_zone:
+        statement = statement.where(NormalizedLog.dst_zone.ilike(f"%{dst_zone}%"))
     if country:
         statement = statement.where(
             (NormalizedLog.src_country.ilike(f"%{country}%")) | (NormalizedLog.dst_country.ilike(f"%{country}%"))
         )
+    if sort_by in {"action", "src_ip", "dst_ip"}:
+        return statement.order_by(order_column.asc(), NormalizedLog.id.desc())
+    return statement.order_by(desc(order_column), NormalizedLog.id.desc())
     return statement
 
 

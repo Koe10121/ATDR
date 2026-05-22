@@ -10,6 +10,11 @@ def test_react_frontend_scaffold_exists_and_keeps_streamlit():
     assert (root / "src" / "App.tsx").exists()
     assert (root / "src" / "pages" / "ExecutiveOverview.tsx").exists()
     assert (root / "src" / "pages" / "AlertsTriage.tsx").exists()
+    assert (root / "src" / "pages" / "LogExplorer.tsx").exists()
+    assert (root / "src" / "pages" / "AuditLogPage.tsx").exists()
+    assert (root / "src" / "pages" / "ThreatControls.tsx").exists()
+    assert (root / "src" / "pages" / "UserAdmin.tsx").exists()
+    assert (root / "src" / "pages" / "DemoControls.tsx").exists()
     assert (root / "src" / "pages" / "DetectionTuning.tsx").exists()
     assert (root / "src" / "pages" / "MLGovernance.tsx").exists()
     assert (root / "src" / "pages" / "ResponseCenter.tsx").exists()
@@ -27,6 +32,8 @@ def test_react_frontend_docs_and_cors_are_wired():
     dashboard_path = Path("docs/DASHBOARD_PRODUCTION_PATH.md").read_text(encoding="utf-8")
 
     assert "frontend/" in readme
+    assert "Log Explorer" in readme
+    assert "Threat Controls" in readme
     assert "http://127.0.0.1:5173" in readme
     assert "http://127.0.0.1:5173" in env_example
     assert "VITE_API_BASE_URL=http://127.0.0.1:8000" in frontend_env
