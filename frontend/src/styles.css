@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    margin: 0;
+    min-width: 320px;
+    min-height: 100vh;
+    background: #070b10;
+    font-family: Inter, "Segoe UI", Arial, sans-serif;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply rounded-lg border border-line bg-panel p-5 shadow-panel;
+  }
+
+  .hero-panel {
+    @apply relative overflow-hidden rounded-lg border border-line bg-panel p-6 shadow-panel;
+    background:
+      linear-gradient(135deg, rgba(20, 184, 166, 0.14), rgba(239, 68, 68, 0.06) 48%, rgba(15, 21, 29, 0.96)),
+      #0f151d;
+  }
+
+  .hero-panel::before {
+    content: "";
+    @apply absolute left-0 right-0 top-0 h-0.5;
+    background: linear-gradient(90deg, #22d3ee, #f59e0b, #ef4444);
+  }
+
+  .input {
+    @apply w-full rounded-lg border border-line bg-panel2 px-3 py-2 text-sm text-text outline-none transition placeholder:text-muted focus:border-cyan focus:ring-1 focus:ring-cyan;
+  }
+
+  .btn-primary {
+    @apply rounded-lg border border-cyan/40 bg-cyan px-4 py-2 text-sm font-extrabold text-slate-950 transition hover:bg-cyan/90 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-secondary {
+    @apply rounded-lg border border-line bg-panel2 px-4 py-2 text-sm font-extrabold text-text transition hover:border-cyan/40 hover:bg-cyan/10 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .soc-table {
+    @apply min-w-full border-separate border-spacing-0 text-left text-sm;
+  }
+
+  .soc-table th {
+    @apply sticky top-0 border-b border-line bg-panel2 px-3 py-3 text-xs font-extrabold uppercase tracking-wide text-muted;
+  }
+
+  .soc-table td {
+    @apply border-b border-line/70 px-3 py-3 text-muted;
+  }
+
+  .soc-table tr:hover td {
+    @apply bg-cyan/5 text-text;
+  }
+}

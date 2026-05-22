@@ -6,6 +6,7 @@ ATDR is currently a strong local prototype with a realistic architecture. This r
 
 - FastAPI backend with JWT authentication and role-based access.
 - Streamlit SOC dashboard with alert workflow, assignment, notes, timeline, and response center.
+- React production dashboard migration scaffold in `frontend/` with typed API integration, JWT session handling, SOC shell, and first operational pages.
 - Robust Palo Alto syslog CSV parser that preserves raw evidence.
 - SQLAlchemy models and Alembic migrations.
 - Rule-first detection with explainable scoring.
@@ -20,6 +21,7 @@ ATDR is currently a strong local prototype with a realistic architecture. This r
 - Suppression review status for governance of noisy benign activity.
 - ML run comparison and baseline drift signals.
 - Optional localhost-bound UDP syslog receiver for lab ingestion.
+- Detection Tuning view for alert pressure, false-positive learning, suppression candidates, ownership gaps, ML baseline health, and production-readiness signals.
 
 ## Required Before Real Deployment
 
@@ -34,6 +36,7 @@ ATDR is currently a strong local prototype with a realistic architecture. This r
 9. Define alert retention and audit retention policies.
 10. Validate detection thresholds with real MFU baseline traffic.
 11. Review suppression rules and user accounts on a fixed schedule.
+12. Reduce alert pressure to an analyst-manageable level with reviewed suppressions and threshold tuning.
 
 ## ML Deployment Guidance
 
@@ -70,8 +73,10 @@ Before real blocking:
 
 1. PostgreSQL Docker Compose verification.
 2. End-to-end Playwright dashboard smoke tests.
-3. Browser smoke test execution in CI or on a lab workstation.
-4. Password policy and session revocation.
-5. Alert suppression review workflow and watchlist ownership.
-6. Syslog receiver service for live ingestion.
-7. Production deployment guide with network diagram.
+3. React dashboard feature parity for Audit, Threat Controls, User Admin, Demo Controls, and Log Explorer.
+4. Browser smoke test execution in CI or on a lab workstation.
+5. Password policy and session revocation.
+6. Alert suppression review workflow and watchlist ownership.
+7. Use the Detection Tuning page to reduce alert noise and document false-positive decisions.
+8. Syslog receiver service for live ingestion.
+9. Production deployment guide with network diagram.

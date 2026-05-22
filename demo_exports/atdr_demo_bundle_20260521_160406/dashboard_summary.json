@@ -1,0 +1,410 @@
+{
+  "total_logs": 52000,
+  "total_alerts": 2868,
+  "active_alerts": 2868,
+  "critical_open_alerts": 21,
+  "high_open_alerts": 93,
+  "unassigned_active_alerts": 2868,
+  "false_positive_alerts": 0,
+  "ml_anomaly_logs": 814,
+  "anomaly_rate": 1.57,
+  "active_suppressions": 0,
+  "suppressed_hits": 0,
+  "active_watchlist_items": 0,
+  "watchlist_hits": 0,
+  "severity_counts": {
+    "Critical": 22,
+    "High": 93,
+    "Low": 480,
+    "Medium": 2273
+  },
+  "status_counts": {
+    "contained": 1,
+    "investigating": 1,
+    "open": 2866
+  },
+  "top_alert_types": [
+    {
+      "name": "app_risk_4",
+      "count": 1434
+    },
+    {
+      "name": "suspicious_app_characteristic",
+      "count": 683
+    },
+    {
+      "name": "ml_anomaly_detected",
+      "count": 389
+    },
+    {
+      "name": "unusual_destination_port",
+      "count": 238
+    },
+    {
+      "name": "paloalto_threat_log",
+      "count": 40
+    },
+    {
+      "name": "app_risk_5",
+      "count": 25
+    },
+    {
+      "name": "repeated_source_ip",
+      "count": 25
+    },
+    {
+      "name": "possible_port_scan",
+      "count": 16
+    },
+    {
+      "name": "deny_drop_action",
+      "count": 13
+    },
+    {
+      "name": "multiple_denied_connections",
+      "count": 3
+    }
+  ],
+  "top_suspicious_source_ips": [
+    {
+      "name": "10.1.11.15",
+      "count": 15
+    },
+    {
+      "name": "172.25.15.208",
+      "count": 15
+    },
+    {
+      "name": "45.91.133.145",
+      "count": 13
+    },
+    {
+      "name": "10.1.132.5",
+      "count": 12
+    },
+    {
+      "name": "172.27.6.242",
+      "count": 12
+    },
+    {
+      "name": "172.25.10.201",
+      "count": 11
+    },
+    {
+      "name": "172.25.14.165",
+      "count": 11
+    },
+    {
+      "name": "172.25.15.79",
+      "count": 10
+    },
+    {
+      "name": "172.27.72.77",
+      "count": 10
+    },
+    {
+      "name": "172.25.14.45",
+      "count": 9
+    }
+  ],
+  "top_destination_countries": [
+    {
+      "name": "United States",
+      "count": 23478
+    },
+    {
+      "name": "Thailand",
+      "count": 17169
+    },
+    {
+      "name": "Singapore",
+      "count": 4201
+    },
+    {
+      "name": "Hong Kong",
+      "count": 1997
+    },
+    {
+      "name": "Japan",
+      "count": 653
+    },
+    {
+      "name": "Malaysia",
+      "count": 644
+    },
+    {
+      "name": "India",
+      "count": 445
+    },
+    {
+      "name": "Asia Pacific Region",
+      "count": 388
+    },
+    {
+      "name": "China",
+      "count": 314
+    },
+    {
+      "name": "192.168.0.0-192.168.255.255",
+      "count": 241
+    }
+  ],
+  "action_distribution": [
+    {
+      "name": "allow",
+      "count": 51838
+    },
+    {
+      "name": "alert",
+      "count": 80
+    },
+    {
+      "name": "drop",
+      "count": 48
+    },
+    {
+      "name": "deny",
+      "count": 34
+    }
+  ],
+  "protocol_distribution": [
+    {
+      "name": "tcp",
+      "count": 28003
+    },
+    {
+      "name": "udp",
+      "count": 22380
+    },
+    {
+      "name": "icmp",
+      "count": 1534
+    },
+    {
+      "name": "ipv6-icmp",
+      "count": 66
+    },
+    {
+      "name": "gre",
+      "count": 13
+    },
+    {
+      "name": "ip",
+      "count": 4
+    }
+  ],
+  "app_risk_distribution": [
+    {
+      "name": "1",
+      "count": 24883
+    },
+    {
+      "name": "4",
+      "count": 15498
+    },
+    {
+      "name": "3",
+      "count": 7296
+    },
+    {
+      "name": "2",
+      "count": 3590
+    },
+    {
+      "name": "5",
+      "count": 733
+    }
+  ],
+  "recent_alerts": [
+    {
+      "id": 2868,
+      "title": "Medium: Unusual destination port from 2 sources (2 events)",
+      "src_ip": null,
+      "dst_ip": null,
+      "severity": "Medium",
+      "status": "open",
+      "threat_score": 35,
+      "evidence_count": 2,
+      "created_at": "2026-05-21T16:03:39",
+      "sla": {
+        "label": "Review",
+        "state": "needs_owner",
+        "due_at": "2026-05-24T16:03:39+00:00",
+        "age_minutes": 0,
+        "minutes_remaining": 4319,
+        "target_minutes": 4320
+      }
+    },
+    {
+      "id": 2867,
+      "title": "Medium: Very high application risk from 172.28.133.234",
+      "src_ip": "172.28.133.234",
+      "dst_ip": "3.75.113.112",
+      "severity": "Medium",
+      "status": "open",
+      "threat_score": 40,
+      "evidence_count": 1,
+      "created_at": "2026-05-21T16:03:39",
+      "sla": {
+        "label": "Review",
+        "state": "needs_owner",
+        "due_at": "2026-05-24T16:03:39+00:00",
+        "age_minutes": 0,
+        "minutes_remaining": 4319,
+        "target_minutes": 4320
+      }
+    },
+    {
+      "id": 2866,
+      "title": "Medium: ML anomaly detected from 45.238.254.153",
+      "src_ip": "45.238.254.153",
+      "dst_ip": "202.28.46.198",
+      "severity": "Medium",
+      "status": "open",
+      "threat_score": 60,
+      "evidence_count": 1,
+      "created_at": "2026-05-21T16:03:39",
+      "sla": {
+        "label": "Review",
+        "state": "needs_owner",
+        "due_at": "2026-05-24T16:03:39+00:00",
+        "age_minutes": 0,
+        "minutes_remaining": 4319,
+        "target_minutes": 4320
+      }
+    },
+    {
+      "id": 2865,
+      "title": "Medium: High application risk from 57.141.2.60",
+      "src_ip": "57.141.2.60",
+      "dst_ip": "202.28.46.236",
+      "severity": "Medium",
+      "status": "open",
+      "threat_score": 45,
+      "evidence_count": 1,
+      "created_at": "2026-05-21T16:03:39",
+      "sla": {
+        "label": "Review",
+        "state": "needs_owner",
+        "due_at": "2026-05-24T16:03:39+00:00",
+        "age_minutes": 0,
+        "minutes_remaining": 4319,
+        "target_minutes": 4320
+      }
+    },
+    {
+      "id": 2864,
+      "title": "Medium: High application risk from 57.141.2.37",
+      "src_ip": "57.141.2.37",
+      "dst_ip": "202.28.46.236",
+      "severity": "Medium",
+      "status": "open",
+      "threat_score": 45,
+      "evidence_count": 1,
+      "created_at": "2026-05-21T16:03:39",
+      "sla": {
+        "label": "Review",
+        "state": "needs_owner",
+        "due_at": "2026-05-24T16:03:39+00:00",
+        "age_minutes": 0,
+        "minutes_remaining": 4319,
+        "target_minutes": 4320
+      }
+    },
+    {
+      "id": 2863,
+      "title": "Medium: Suspicious application characteristic from 172.25.12.105 (2 events)",
+      "src_ip": "172.25.12.105",
+      "dst_ip": "142.250.66.133",
+      "severity": "Medium",
+      "status": "open",
+      "threat_score": 35,
+      "evidence_count": 2,
+      "created_at": "2026-05-21T16:03:39",
+      "sla": {
+        "label": "Review",
+        "state": "needs_owner",
+        "due_at": "2026-05-24T16:03:39+00:00",
+        "age_minutes": 0,
+        "minutes_remaining": 4319,
+        "target_minutes": 4320
+      }
+    },
+    {
+      "id": 2862,
+      "title": "Medium: High application risk from 171.6.237.20 (2 events)",
+      "src_ip": "171.6.237.20",
+      "dst_ip": "202.28.44.82",
+      "severity": "Medium",
+      "status": "open",
+      "threat_score": 45,
+      "evidence_count": 2,
+      "created_at": "2026-05-21T16:03:39",
+      "sla": {
+        "label": "Review",
+        "state": "needs_owner",
+        "due_at": "2026-05-24T16:03:39+00:00",
+        "age_minutes": 0,
+        "minutes_remaining": 4319,
+        "target_minutes": 4320
+      }
+    },
+    {
+      "id": 2861,
+      "title": "Critical: ML anomaly detected from 10.1.88.22",
+      "src_ip": "10.1.88.22",
+      "dst_ip": "60.220.213.207",
+      "severity": "Critical",
+      "status": "open",
+      "threat_score": 100,
+      "evidence_count": 1,
+      "created_at": "2026-05-21T16:03:39",
+      "sla": {
+        "label": "Immediate",
+        "state": "needs_owner",
+        "due_at": "2026-05-21T17:03:39+00:00",
+        "age_minutes": 0,
+        "minutes_remaining": 59,
+        "target_minutes": 60
+      }
+    },
+    {
+      "id": 2860,
+      "title": "Medium: Suspicious application characteristic from 10.1.19.71 (2 events)",
+      "src_ip": "10.1.19.71",
+      "dst_ip": "52.123.169.5",
+      "severity": "Medium",
+      "status": "open",
+      "threat_score": 35,
+      "evidence_count": 2,
+      "created_at": "2026-05-21T16:03:39",
+      "sla": {
+        "label": "Review",
+        "state": "needs_owner",
+        "due_at": "2026-05-24T16:03:39+00:00",
+        "age_minutes": 0,
+        "minutes_remaining": 4319,
+        "target_minutes": 4320
+      }
+    },
+    {
+      "id": 2859,
+      "title": "Medium: High application risk from 124.121.4.148",
+      "src_ip": "124.121.4.148",
+      "dst_ip": "202.28.46.236",
+      "severity": "Medium",
+      "status": "open",
+      "threat_score": 45,
+      "evidence_count": 1,
+      "created_at": "2026-05-21T16:03:39",
+      "sla": {
+        "label": "Review",
+        "state": "needs_owner",
+        "due_at": "2026-05-24T16:03:39+00:00",
+        "age_minutes": 0,
+        "minutes_remaining": 4319,
+        "target_minutes": 4320
+      }
+    }
+  ]
+}

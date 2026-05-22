@@ -2,6 +2,18 @@
 
 This runbook is for lab-pilot operation. Keep response actions simulated unless a formal firewall connector is approved.
 
+Use `docs/ENVIRONMENT_GUIDE.md` before changing `.env`. Run Config Doctor after editing configuration:
+
+```powershell
+python -m atdr.scripts.config_doctor --pretty
+```
+
+Before a handoff or release candidate, run the release gate:
+
+```powershell
+python -m atdr.scripts.verify_release --pretty
+```
+
 ## Daily Checks
 
 - Confirm `/health` reports database status `ok`.
@@ -99,3 +111,5 @@ python -m atdr.scripts.lab_smoke_check
 ```
 
 It checks API health, admin login, dashboard summary, alerts, audit, ML report, Streamlit reachability, and Docker Compose availability. If Docker is missing on the current machine, treat that as a tooling blocker and run Compose validation on a Docker-capable host.
+
+For the full release process, including backup dry runs, optional Playwright smoke tests with `ATDR_RUN_PLAYWRIGHT=1`, rollback notes, and Docker/PostgreSQL validation, use `docs/RELEASE_CHECKLIST.md`.

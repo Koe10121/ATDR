@@ -79,6 +79,30 @@ def test_login_and_me_api():
         app.dependency_overrides.clear()
 
 
+def test_detection_tuning_report_requires_auth_and_returns_shape():
+    client = _client()
+    try:
+        unauthorized = client.get("/api/detection/tuning")
+        assert unauthorized.status_code == 401
+
+        headers = _login(client, "analyst", "analyst123")
+        response = client.get("/api/detection/tuning", headers=headers)
+        assert response.status_code == 200
+        payload = response.json()
+
+        assert "summary" in payload
+        assert "alert_type_pressure" in payload
+        assert "suppression_candidates" in payload
+        assert "ml" in payload
+        assert "production_readiness" in payload
+        assert "recommendations" in payload
+        assert "false_positive_learning" in payload
+        assert payload["summary"]["total_alerts"] >= 1
+        assert any(item["name"] == "Response Safety" for item in payload["production_readiness"])
+    finally:
+        app.dependency_overrides.clear()
+
+
 def test_unauthorized_response_access_is_rejected():
     client = _client()
     try:

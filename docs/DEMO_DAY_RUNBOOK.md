@@ -9,6 +9,7 @@ Open PowerShell in the project root:
 ```powershell
 cd C:\Users\User\Desktop\ATDR
 .\.venv\Scripts\python.exe -m atdr.scripts.seed_users
+.\.venv\Scripts\python.exe -m atdr.scripts.config_doctor --pretty
 .\.venv\Scripts\python.exe -m uvicorn atdr.app.main:app --host 127.0.0.1 --port 8000
 ```
 
@@ -102,3 +103,15 @@ Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8000/health
 ```
 
 If the demo looks empty, open **Demo Controls**, run **Reset Demo Data**, then run **Run Detection**.
+
+For local smoke checks:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.lab_smoke_check --skip-docker
+```
+
+Run the full lab smoke check, including Docker availability, on a Docker-capable host:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.lab_smoke_check
+```
