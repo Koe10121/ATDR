@@ -26,6 +26,7 @@ def test_verify_release_json_shape_and_skipped_smoke():
     assert {"config_doctor", "compileall", "pytest", "alembic_check", "lab_smoke_check"} <= set(checks)
     assert checks["lab_smoke_check"]["skipped"] is True
     assert checks["pytest"]["return_code"] == 0
+    assert "--basetemp=.tmp/pytest-release-tmp" in checks["pytest"]["command"]
     assert "duration_seconds" in checks["compileall"]
     json.dumps(result)
 

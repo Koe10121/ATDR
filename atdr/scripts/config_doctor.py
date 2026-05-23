@@ -68,7 +68,15 @@ def run_config_doctor(settings: Settings | None = None) -> dict[str, Any]:
             _issue(
                 "critical" if is_production else "warning",
                 "response-simulation-disabled",
-                "RESPONSE_SIMULATION is false. Real enforcement is unsupported until approved.",
+                "RESPONSE_SIMULATION is false. Real enforcement requires an approved connector, allowlist, and rollback plan.",
+            )
+        )
+    if settings.response_provider.lower() != "simulation" and settings.response_simulation:
+        issues.append(
+            _issue(
+                "warning",
+                "response-provider-ignored",
+                "RESPONSE_PROVIDER is set but RESPONSE_SIMULATION=true, so enforcement remains simulated.",
             )
         )
 
@@ -88,6 +96,7 @@ def run_config_doctor(settings: Settings | None = None) -> dict[str, Any]:
         "environment": settings.environment,
         "database": "postgresql" if settings.database_url.startswith("postgresql") else "sqlite" if settings.database_url.startswith("sqlite") else "other",
         "response_simulation": settings.response_simulation,
+        "response_provider": settings.response_provider,
         "syslog": {
             "enabled": settings.syslog_enabled,
             "host": settings.syslog_host,

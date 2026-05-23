@@ -192,6 +192,14 @@ For safer training, use baseline-only mode first. It trains on allowed traffic, 
 
 The evaluation report compares recent scoring runs and summarizes top anomalous source IPs, apps, ports, protocols, sample logs, score statistics, and operator recommendations.
 
+For lab-pilot tuning, export an analyst review package:
+
+```powershell
+python -m atdr.scripts.ml_baseline_review --anomaly-limit 200 --baseline-limit 200
+```
+
+This writes JSON/CSV/Markdown evidence to `ml_baseline_reviews/`, including anomaly rows with raw evidence excerpts and blank analyst review columns. See `docs/ML_BASELINE_TUNING.md`.
+
 ## API Highlights
 
 - `GET /health`
@@ -332,6 +340,14 @@ Run the local UDP syslog receiver in lab mode:
 python -m atdr.scripts.run_syslog_receiver --host 127.0.0.1 --port 5514
 ```
 
+Prove the live ingestion path locally without a firewall:
+
+```powershell
+python -m atdr.scripts.syslog_lab_smoke --count 5
+```
+
+See `docs/SMALL_OFFICE_LAB_PILOT.md` for the controlled small-office pilot path, including real syslog forwarding and safe response requirements.
+
 ## Clean Supervisor Demo Flow
 
 Use `docs/DEMO_DAY_RUNBOOK.md` as the authoritative local Windows checklist for demo day. Quick start:
@@ -376,7 +392,7 @@ On this development machine, Docker Compose validation may need to be run elsewh
 
 ## Assumptions
 
-- Response actions are simulated by default. The system records block and unblock actions but does not modify real firewall devices unless `RESPONSE_SIMULATION=false` and a future enforcement connector is added.
+- Response actions are simulated by default. The system records block and unblock actions but does not modify real firewall devices. If `RESPONSE_SIMULATION=false` is set before an approved connector exists, actions are recorded as `pending_connector`, not falsely reported as executed.
 - The parser focuses on Palo Alto TRAFFIC fields and safely normalizes useful THREAT fields. Full raw payload fields are stored in `parsed_json` for evidence and later mapping improvements.
 - Alert creation groups related evidence logs by rule, source or internet-sweep pattern, and 5-minute time bucket. Low-severity singletons are suppressed to keep the analyst view usable.
 - IsolationForest is an unsupervised assistive model. Train it on a representative baseline window and review anomaly-rate reports before using it to support real SOC decisions.

@@ -25,6 +25,7 @@ ENVIRONMENT=development
 DATABASE_URL=sqlite:///./atdr.db
 AUTO_CREATE_TABLES=true
 RESPONSE_SIMULATION=true
+RESPONSE_PROVIDER=simulation
 SYSLOG_HOST=127.0.0.1
 SYSLOG_PORT=5514
 ```
@@ -50,6 +51,7 @@ ENVIRONMENT=production
 DATABASE_URL=postgresql+psycopg2://atdr:<strong-password>@postgres:5432/atdr
 AUTO_CREATE_TABLES=false
 RESPONSE_SIMULATION=true
+RESPONSE_PROVIDER=simulation
 JWT_SECRET_KEY=<long-random-secret>
 CORS_ALLOWED_ORIGINS=https://atdr.example.local
 ```
@@ -82,7 +84,7 @@ Do not bind the receiver to `0.0.0.0` unless the host firewall and network scope
 - Use a strong `JWT_SECRET_KEY`.
 - Set `CORS_ALLOWED_ORIGINS` to the exact dashboard origin.
 - For local React preview, include `http://127.0.0.1:5173` and `http://localhost:5173`; remove these from hardened production configs unless used behind the approved reverse proxy.
-- Keep response actions simulated until firewall enforcement is approved.
+- Keep response actions simulated until firewall enforcement is approved. Disabling simulation before a connector exists records actions as `pending_connector`, not real enforcement.
 - Run Alembic migrations explicitly.
 - Back up PostgreSQL and model artifacts.
 - Restrict API/dashboard access to trusted networks.

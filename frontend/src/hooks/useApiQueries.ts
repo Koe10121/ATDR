@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import type { Params } from "../lib/api";
 import type { AlertStatus } from "../types/api";
@@ -8,12 +9,16 @@ export const queryKeys = {
   me: ["me"],
   summary: ["dashboard-summary"],
   alerts: (params?: Record<string, unknown>) => ["alerts", params ?? {}],
+  alertsPage: (params?: Record<string, unknown>) => ["alerts-page", params ?? {}],
+  alert: (id?: number | null) => ["alert", id],
   alertNotes: (id?: number | null) => ["alert-notes", id],
   alertTimeline: (id?: number | null) => ["alert-timeline", id],
   alertReport: (id?: number | null) => ["alert-report", id],
   logs: (params?: Record<string, unknown>) => ["logs", params ?? {}],
+  logsPage: (params?: Record<string, unknown>) => ["logs-page", params ?? {}],
   log: (id?: number | null) => ["log", id],
   audit: (params?: Record<string, unknown>) => ["audit", params ?? {}],
+  auditPage: (params?: Record<string, unknown>) => ["audit-page", params ?? {}],
   suppressions: ["suppressions"],
   watchlists: ["watchlists"],
   tuning: ["detection-tuning"],
@@ -21,6 +26,30 @@ export const queryKeys = {
   blockedIps: ["blocked-ips"],
   users: ["users"]
 };
+
+function invalidateAlerts(queryClient: QueryClient) {
+  void queryClient.invalidateQueries({ queryKey: ["alerts"] });
+  void queryClient.invalidateQueries({ queryKey: ["alerts-page"] });
+  void queryClient.invalidateQueries({ queryKey: ["alert"] });
+  void queryClient.invalidateQueries({ queryKey: ["alert-notes"] });
+  void queryClient.invalidateQueries({ queryKey: ["alert-timeline"] });
+  void queryClient.invalidateQueries({ queryKey: ["alert-report"] });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.summary });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.tuning });
+}
+
+function invalidateAudit(queryClient: QueryClient) {
+  void queryClient.invalidateQueries({ queryKey: ["audit"] });
+  void queryClient.invalidateQueries({ queryKey: ["audit-page"] });
+}
+
+function invalidateThreatControls(queryClient: QueryClient) {
+  void queryClient.invalidateQueries({ queryKey: queryKeys.suppressions });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.watchlists });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.blockedIps });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.summary });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.tuning });
+}
 
 export function useHealth() {
   return useQuery({ queryKey: queryKeys.health, queryFn: api.health, retry: 1, refetchInterval: 30_000 });
@@ -39,11 +68,11 @@ export function useAlerts(params: Params) {
 }
 
 export function useAlertsPage(params: Params) {
-  return useQuery({ queryKey: ["alerts-page", params], queryFn: () => api.alertsPage(params), refetchInterval: 30_000 });
+  return useQuery({ queryKey: queryKeys.alertsPage(params), queryFn: () => api.alertsPage(params), refetchInterval: 30_000 });
 }
 
 export function useAlert(id?: number | null) {
-  return useQuery({ queryKey: ["alert", id], queryFn: () => api.alert(id as number), enabled: Boolean(id), refetchInterval: 30_000 });
+  return useQuery({ queryKey: queryKeys.alert(id), queryFn: () => api.alert(id as number), enabled: Boolean(id), refetchInterval: 30_000 });
 }
 
 export function useAlertNotes(id?: number | null) {
@@ -63,7 +92,7 @@ export function useLogs(params: Params) {
 }
 
 export function useLogsPage(params: Params) {
-  return useQuery({ queryKey: ["logs-page", params], queryFn: () => api.logsPage(params), refetchInterval: 30_000 });
+  return useQuery({ queryKey: queryKeys.logsPage(params), queryFn: () => api.logsPage(params), refetchInterval: 30_000 });
 }
 
 export function useLog(id?: number | null) {
@@ -75,7 +104,7 @@ export function useAudit(params: Params) {
 }
 
 export function useAuditPage(params: Params) {
-  return useQuery({ queryKey: ["audit-page", params], queryFn: () => api.auditPage(params), refetchInterval: 30_000 });
+  return useQuery({ queryKey: queryKeys.auditPage(params), queryFn: () => api.auditPage(params), refetchInterval: 30_000 });
 }
 
 export function useDetectionTuning() {
@@ -106,25 +135,15 @@ export function useAlertStatusMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, status }: { id: number; status: AlertStatus }) => api.updateAlertStatus(id, status),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["alerts"] });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.summary });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.tuning });
-      void queryClient.invalidateQueries({ queryKey: ["alert-timeline"] });
-      void queryClient.invalidateQueries({ queryKey: ["alert-report"] });
-    }
+    onSuccess: () => invalidateAlerts(queryClient)
   });
 }
 
 export function useAlertWorkflowMutations() {
   const queryClient = useQueryClient();
   const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: ["alerts"] });
-    void queryClient.invalidateQueries({ queryKey: queryKeys.summary });
-    void queryClient.invalidateQueries({ queryKey: ["alert-notes"] });
-    void queryClient.invalidateQueries({ queryKey: ["alert-timeline"] });
-    void queryClient.invalidateQueries({ queryKey: ["alert-report"] });
-    void queryClient.invalidateQueries({ queryKey: queryKeys.audit() });
+    invalidateAlerts(queryClient);
+    invalidateAudit(queryClient);
   };
   return {
     assignToMe: useMutation({ mutationFn: (id: number) => api.assignAlertToMe(id), onSuccess: invalidate }),
@@ -135,9 +154,9 @@ export function useAlertWorkflowMutations() {
 export function useResponseMutations() {
   const queryClient = useQueryClient();
   const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: queryKeys.blockedIps });
-    void queryClient.invalidateQueries({ queryKey: queryKeys.summary });
-    void queryClient.invalidateQueries({ queryKey: ["audit"] });
+    invalidateThreatControls(queryClient);
+    invalidateAudit(queryClient);
+    invalidateAlerts(queryClient);
   };
   return {
     blockIp: useMutation({
@@ -155,11 +174,9 @@ export function useResponseMutations() {
 export function useThreatControlMutations() {
   const queryClient = useQueryClient();
   const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: queryKeys.suppressions });
-    void queryClient.invalidateQueries({ queryKey: queryKeys.watchlists });
-    void queryClient.invalidateQueries({ queryKey: queryKeys.summary });
-    void queryClient.invalidateQueries({ queryKey: queryKeys.tuning });
-    void queryClient.invalidateQueries({ queryKey: queryKeys.audit() });
+    invalidateThreatControls(queryClient);
+    invalidateAudit(queryClient);
+    invalidateAlerts(queryClient);
   };
   return {
     createSuppression: useMutation({ mutationFn: api.createSuppression, onSuccess: invalidate }),
@@ -177,7 +194,7 @@ export function useUserMutations() {
   const queryClient = useQueryClient();
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: queryKeys.users });
-    void queryClient.invalidateQueries({ queryKey: queryKeys.audit() });
+    invalidateAudit(queryClient);
   };
   return {
     createUser: useMutation({ mutationFn: api.createUser, onSuccess: invalidate }),

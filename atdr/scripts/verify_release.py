@@ -123,7 +123,19 @@ def run_verify_release(
     required_commands: list[tuple[str, list[str]]] = [
         ("config_doctor", [python, "-m", "atdr.scripts.config_doctor"]),
         ("compileall", [python, "-m", "compileall", "-q", "atdr", "migrations"]),
-        ("pytest", [python, "-m", "pytest", "atdr/tests", "-q", "-o", "cache_dir=.tmp/pytest-cache"]),
+        (
+            "pytest",
+            [
+                python,
+                "-m",
+                "pytest",
+                "atdr/tests",
+                "-q",
+                "-o",
+                "cache_dir=.tmp/pytest-cache",
+                "--basetemp=.tmp/pytest-release-tmp",
+            ],
+        ),
         ("alembic_check", [python, "-m", "alembic", "check"]),
     ]
 

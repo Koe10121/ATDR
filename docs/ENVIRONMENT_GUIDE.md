@@ -58,6 +58,7 @@ ENVIRONMENT=development
 DATABASE_URL=sqlite:///./atdr.db
 AUTO_CREATE_TABLES=true
 RESPONSE_SIMULATION=true
+RESPONSE_PROVIDER=simulation
 CORS_ALLOWED_ORIGINS=http://127.0.0.1:8501,http://localhost:8501,http://127.0.0.1:5173,http://localhost:5173
 SYSLOG_HOST=127.0.0.1
 ```
@@ -73,6 +74,7 @@ ENVIRONMENT=production
 DATABASE_URL=postgresql+psycopg2://atdr:<strong-password>@postgres:5432/atdr
 AUTO_CREATE_TABLES=false
 RESPONSE_SIMULATION=true
+RESPONSE_PROVIDER=simulation
 ```
 
 Run:
@@ -98,6 +100,7 @@ Use `.env.production.example` only as a reviewed deployment template. It still k
 
 ```text
 RESPONSE_SIMULATION=true
+RESPONSE_PROVIDER=simulation
 ```
 
-Real firewall enforcement is unsupported until an approved connector, allowlist, dry-run preview, rollback process, and change approval flow exist.
+Real firewall enforcement is unsupported until an approved connector, allowlist, dry-run preview, rollback process, and change approval flow exist. If simulation is disabled before a connector exists, ATDR records response actions as `pending_connector`.
