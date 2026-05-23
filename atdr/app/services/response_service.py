@@ -5,6 +5,22 @@ from atdr.app.core.config import get_settings
 from atdr.app.db.models import AuditLog, BlockedIP, ResponseAction
 
 
+def _response_outcome(action: str, target_ip: str) -> tuple[str, str, bool]:
+    settings = get_settings()
+    provider = settings.response_provider.lower()
+    if settings.response_simulation or provider == "simulation":
+        verb = "blocked" if action == "block_ip" else "marked unblocked"
+        return "simulated", f"Simulation mode: {target_ip} {verb}; no firewall device was changed.", True
+    return (
+        "pending_connector",
+        (
+            f"{target_ip} {action.replace('_', ' ')} was recorded, but no approved firewall connector is implemented. "
+            f"Configured provider is '{settings.response_provider}'."
+        ),
+        False,
+    )
+
+
 def block_ip(
     db: Session,
     *,
@@ -13,17 +29,11 @@ def block_ip(
     alert_id: int | None = None,
     actor: str = "analyst",
 ) -> ResponseAction:
-    settings = get_settings()
     existing = db.scalar(select(BlockedIP).where(BlockedIP.ip_address == target_ip, BlockedIP.active.is_(True)))
     if existing is None:
         db.add(BlockedIP(ip_address=target_ip, reason=reason, created_by=actor, active=True))
 
-    status = "simulated" if settings.response_simulation else "executed"
-    result_message = (
-        f"Simulation mode: {target_ip} recorded as blocked; no firewall device was changed."
-        if settings.response_simulation
-        else f"{target_ip} block action recorded for firewall enforcement."
-    )
+    status, result_message, simulated = _response_outcome("block_ip", target_ip)
     action = ResponseAction(
         alert_id=alert_id,
         action_type="block_ip",
@@ -39,7 +49,7 @@ def block_ip(
             action="block_ip",
             target_type="ip_address",
             target_value=target_ip,
-            details={"alert_id": alert_id, "reason": reason, "simulation": settings.response_simulation},
+            details={"alert_id": alert_id, "reason": reason, "simulation": simulated, "status": status},
         )
     )
     db.commit()
@@ -54,17 +64,11 @@ def unblock_ip(
     reason: str | None = None,
     actor: str = "analyst",
 ) -> ResponseAction:
-    settings = get_settings()
     blocked = db.scalar(select(BlockedIP).where(BlockedIP.ip_address == target_ip, BlockedIP.active.is_(True)))
     if blocked is not None:
         blocked.active = False
 
-    status = "simulated" if settings.response_simulation else "executed"
-    result_message = (
-        f"Simulation mode: {target_ip} marked unblocked; no firewall device was changed."
-        if settings.response_simulation
-        else f"{target_ip} unblock action recorded for firewall enforcement."
-    )
+    status, result_message, simulated = _response_outcome("unblock_ip", target_ip)
     action = ResponseAction(
         action_type="unblock_ip",
         target_ip=target_ip,
@@ -79,7 +83,7 @@ def unblock_ip(
             action="unblock_ip",
             target_type="ip_address",
             target_value=target_ip,
-            details={"reason": reason, "simulation": settings.response_simulation},
+            details={"reason": reason, "simulation": simulated, "status": status},
         )
     )
     db.commit()

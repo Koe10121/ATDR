@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     database_url: str = Field(default="sqlite:///./atdr.db", alias="DATABASE_URL")
     auto_create_tables: bool = Field(default=True, alias="AUTO_CREATE_TABLES")
     response_simulation: bool = Field(default=True, alias="RESPONSE_SIMULATION")
+    response_provider: str = Field(default="simulation", alias="RESPONSE_PROVIDER")
     default_import_limit: int | None = Field(default=5000, alias="DEFAULT_IMPORT_LIMIT")
     min_alert_score: int = Field(default=30, alias="MIN_ALERT_SCORE")
     ml_model_path: str = Field(default="atdr/models/isolation_forest.joblib", alias="ML_MODEL_PATH")
@@ -77,6 +78,8 @@ def validate_runtime_settings(settings: Settings) -> list[str]:
             issues.append("CORS_ALLOWED_ORIGINS must not include '*' in production.")
     if settings.syslog_enabled and settings.syslog_host in {"0.0.0.0", "::"} and settings.environment.lower() != "production":
         issues.append("SYSLOG_HOST binds publicly outside production; use 127.0.0.1 for lab demo mode.")
+    if not settings.response_simulation and settings.response_provider.lower() in {"simulation", "none", "manual"}:
+        issues.append("RESPONSE_PROVIDER must name an approved connector before RESPONSE_SIMULATION is disabled.")
     return issues
 
 

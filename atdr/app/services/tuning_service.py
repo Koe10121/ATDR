@@ -260,9 +260,13 @@ def build_detection_tuning_report(db: Session) -> dict[str, Any]:
         ),
         _readiness_item(
             "Response Safety",
-            "ready" if settings.response_simulation else "blocked",
-            "Response actions are simulated." if settings.response_simulation else "Real enforcement is enabled.",
-            recommendation=None if settings.response_simulation else "Disable real enforcement until connector approval, allowlists, and rollback exist.",
+            "ready" if settings.response_simulation else "review",
+            "Response actions are simulated."
+            if settings.response_simulation
+            else f"Simulation is disabled, but provider '{settings.response_provider}' still requires approved connector validation.",
+            recommendation=None
+            if settings.response_simulation
+            else "Re-enable simulation until a connector, allowlist, rollback, and change process are tested.",
         ),
     ]
 

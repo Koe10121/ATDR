@@ -59,7 +59,8 @@ def health(db: Session = Depends(get_db)) -> dict:
             "path": str(model_path),
         },
         "response_mode": {
-            "status": "simulation" if settings.response_simulation else "enforcement",
+            "status": "simulation" if settings.response_simulation else "pending_connector",
+            "provider": settings.response_provider,
         },
     }
     overall_status = "ok" if database_check["status"] == "ok" else "degraded"

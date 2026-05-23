@@ -10,7 +10,7 @@ ATDR is currently a strong local prototype with a realistic architecture. This r
 - Robust Palo Alto syslog CSV parser that preserves raw evidence.
 - SQLAlchemy models and Alembic migrations.
 - Rule-first detection with explainable scoring.
-- IsolationForest anomaly scoring with model metadata, run history, and baseline-training controls.
+- IsolationForest anomaly scoring with model metadata, run history, baseline-training controls, and exported analyst baseline-review packages.
 - Simulated response actions by default.
 - Audit trail for alert workflow, response actions, demo controls, and ML operations.
 - Structured JSON logs and request IDs.
@@ -52,9 +52,12 @@ Recommended process:
    - exclude unknown/incomplete apps
    - exclude existing anomaly-flagged logs
 4. Score a broader validation window.
-5. Review anomaly rate and top anomalous IPs/apps/ports.
-6. Adjust contamination and filters if the model is too noisy or too quiet.
-7. Record every model run and explain model limitations in reports.
+5. Export the baseline review package:
+   `python -m atdr.scripts.ml_baseline_review --anomaly-limit 200 --baseline-limit 200`
+6. Review anomaly rate, top anomalous IPs/apps/ports, and the generated CSV rows.
+7. Label anomalies as true positive, benign unusual, false positive, or needs context.
+8. Adjust contamination, suppressions, and filters if the model is too noisy or too quiet.
+9. Record every model run and explain model limitations in reports.
 
 ## Safe Response Design
 
@@ -75,8 +78,9 @@ Before real blocking:
 2. End-to-end Playwright dashboard smoke tests.
 3. React dashboard feature parity for Audit, Threat Controls, User Admin, Demo Controls, and Log Explorer.
 4. Browser smoke test execution in CI or on a lab workstation.
-5. Password policy and session revocation.
-6. Alert suppression review workflow and watchlist ownership.
-7. Use the Detection Tuning page to reduce alert noise and document false-positive decisions.
-8. Syslog receiver service for live ingestion.
-9. Production deployment guide with network diagram.
+5. Use `docs/ML_BASELINE_TUNING.md` and generated review CSVs to tune the AI layer with reviewed traffic.
+6. Password policy and session revocation.
+7. Alert suppression review workflow and watchlist ownership.
+8. Use the Detection Tuning page to reduce alert noise and document false-positive decisions.
+9. Syslog receiver service for live ingestion.
+10. Production deployment guide with network diagram.
