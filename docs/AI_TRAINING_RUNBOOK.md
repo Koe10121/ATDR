@@ -32,10 +32,10 @@ npm.cmd run dev
 ## 2. Import Logs
 
 ```powershell
-python -m atdr.scripts.import_logs ".\paloalto-firewall(1).log" --limit 5000
+python -m atdr.scripts.import_logs "C:/path/to/private/paloalto-firewall.log" --limit 5000
 ```
 
-If the sample file is elsewhere, set `DEMO_SAMPLE_LOG_PATH` in `.env` or pass the absolute file path.
+Keep real or large log files outside Git, for example in `Downloads`, `data/private/`, or `real_logs/`. Set `DEMO_SAMPLE_LOG_PATH` in `.env` or pass the absolute file path.
 
 ## 3. Run Rule-Based Detection
 
@@ -352,3 +352,14 @@ Metric caveat:
 - Current supervised metrics are based on a mixed dataset: mostly assisted weak labels plus the reviewed sample.
 - Do not describe these numbers as final production accuracy.
 - For a small-office lab pilot, the next maturity step is reviewing more representative labels from real baseline traffic before trusting supervised metrics operationally.
+
+## 17. Dashboard Dropdown Manual QA Checklist
+
+Before the final demo, verify that sorting and filter dropdowns close cleanly and never leave an invisible layer blocking the page:
+
+1. Open **Log Explorer**, select a sort dropdown value, then click another filter/search input.
+2. Open **Alert Workbench**, select severity/status/sort dropdown values, then open an alert detail or evidence link.
+3. Open **Audit Log**, select table density or saved-view dropdown values, then click another filter/control.
+4. Open **ML Governance**, use export/report/import controls after any available dropdown interaction.
+5. Open **Threat Controls > Watchlists**, select the indicator-type dropdown, then click the indicator value input.
+6. Confirm the page remains clickable, no raw HTML or error overlay is visible, and no dropdown menu remains open.

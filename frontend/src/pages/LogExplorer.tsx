@@ -9,6 +9,7 @@ import { ErrorBanner } from "../components/ErrorBanner";
 import { LoadingPanel } from "../components/LoadingPanel";
 import { MetaGrid } from "../components/MetaGrid";
 import { PaginationControls } from "../components/PaginationControls";
+import { SafeSelect } from "../components/SafeSelect";
 import { TableToolbar, tableDensityClass } from "../components/TableToolbar";
 import type { SavedView, TableDensity } from "../components/TableToolbar";
 import { useLog, useLogsPage, useMlLabelMutations, useMlLabels } from "../hooks/useApiQueries";
@@ -183,13 +184,19 @@ export function LogExplorer() {
           <input className="input" type="datetime-local" value={safeFilters.generated_from} onChange={(event) => updateFilter("generated_from", event.target.value)} />
           <input className="input" type="datetime-local" value={safeFilters.generated_to} onChange={(event) => updateFilter("generated_to", event.target.value)} />
         </div>
-        <select className="input max-w-xs" value={safeFilters.sort_by} onChange={(event) => updateFilter("sort_by", event.target.value)}>
-          <option value="generated">Sort by generated time</option>
-          <option value="app_risk">Sort by app risk</option>
-          <option value="action">Sort by action</option>
-          <option value="src_ip">Sort by source IP</option>
-          <option value="dst_ip">Sort by destination IP</option>
-        </select>
+        <SafeSelect
+          className="max-w-xs"
+          value={safeFilters.sort_by}
+          options={[
+            { value: "generated", label: "Sort by generated time" },
+            { value: "app_risk", label: "Sort by app risk" },
+            { value: "action", label: "Sort by action" },
+            { value: "src_ip", label: "Sort by source IP" },
+            { value: "dst_ip", label: "Sort by destination IP" }
+          ]}
+          onChange={(next) => updateFilter("sort_by", next)}
+          ariaLabel="Log sort"
+        />
       </section>
 
       {logs.isError ? <ErrorBanner error={logs.error} /> : null}
@@ -265,27 +272,23 @@ export function LogExplorer() {
               <div className="grid gap-3 md:grid-cols-2">
                 <label className="text-xs font-bold uppercase tracking-wide text-muted">
                   Label
-                  <select
-                    className="input mt-1"
+                  <SafeSelect
+                    className="mt-1"
                     value={labelForm.label}
-                    onChange={(event) => setLabelForm((current) => ({ ...current, label: event.target.value as MLLabelValue }))}
-                  >
-                    {LABEL_OPTIONS.map((item) => (
-                      <option key={item} value={item}>{item}</option>
-                    ))}
-                  </select>
+                    options={LABEL_OPTIONS.map((item) => ({ value: item, label: item }))}
+                    onChange={(next) => setLabelForm((current) => ({ ...current, label: next as MLLabelValue }))}
+                    ariaLabel="ML label"
+                  />
                 </label>
                 <label className="text-xs font-bold uppercase tracking-wide text-muted">
                   Attack Type
-                  <select
-                    className="input mt-1"
+                  <SafeSelect
+                    className="mt-1"
                     value={labelForm.attack_type}
-                    onChange={(event) => setLabelForm((current) => ({ ...current, attack_type: event.target.value as MLAttackType }))}
-                  >
-                    {ATTACK_TYPE_OPTIONS.map((item) => (
-                      <option key={item} value={item}>{item}</option>
-                    ))}
-                  </select>
+                    options={ATTACK_TYPE_OPTIONS.map((item) => ({ value: item, label: item }))}
+                    onChange={(next) => setLabelForm((current) => ({ ...current, attack_type: next as MLAttackType }))}
+                    ariaLabel="Attack type"
+                  />
                 </label>
                 <label className="text-xs font-bold uppercase tracking-wide text-muted">
                   Confidence: {labelForm.confidence}

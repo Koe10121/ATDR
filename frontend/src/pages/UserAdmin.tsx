@@ -3,6 +3,7 @@ import { Badge } from "../components/Badge";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { MetricCard } from "../components/MetricCard";
+import { SafeSelect } from "../components/SafeSelect";
 import { useUserMutations, useUsers } from "../hooks/useApiQueries";
 
 export function UserAdmin() {
@@ -44,10 +45,15 @@ export function UserAdmin() {
           <div className="text-sm font-extrabold uppercase tracking-wide text-muted">Create User</div>
           <input className="input" placeholder="Username" value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} />
           <input className="input" placeholder="Full name" value={form.full_name} onChange={(event) => setForm({ ...form, full_name: event.target.value })} />
-          <select className="input" value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value })}>
-            <option value="analyst">Analyst</option>
-            <option value="admin">Admin</option>
-          </select>
+          <SafeSelect
+            value={form.role}
+            options={[
+              { value: "analyst", label: "Analyst" },
+              { value: "admin", label: "Admin" }
+            ]}
+            onChange={(next) => setForm({ ...form, role: next })}
+            ariaLabel="New user role"
+          />
           <input className="input" type="password" placeholder="Temporary password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} />
           <button className="btn-primary w-full" disabled={mutations.createUser.isPending}>Create account</button>
           {mutations.createUser.isError ? <ErrorBanner error={mutations.createUser.error} /> : null}

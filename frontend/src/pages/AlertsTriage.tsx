@@ -10,6 +10,7 @@ import { LoadingPanel } from "../components/LoadingPanel";
 import { MetaGrid } from "../components/MetaGrid";
 import { MetricCard } from "../components/MetricCard";
 import { PaginationControls } from "../components/PaginationControls";
+import { SafeSelect } from "../components/SafeSelect";
 import { TableToolbar, tableDensityClass } from "../components/TableToolbar";
 import type { SavedView, TableDensity } from "../components/TableToolbar";
 import { useAuth } from "../hooks/useAuth";
@@ -173,30 +174,45 @@ export function AlertsTriage() {
       <section className="panel space-y-3">
         <input className="input" placeholder="Search title, source IP, destination IP, alert type, explanation" value={safeFilters.search} onChange={(event) => updateFilter("search", event.target.value)} />
         <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-          <select className="input" value={safeFilters.severity} onChange={(event) => updateFilter("severity", event.target.value)}>
-            <option value="">All severities</option>
-            <option>Critical</option>
-            <option>High</option>
-            <option>Medium</option>
-            <option>Low</option>
-          </select>
-          <select className="input" value={safeFilters.status} onChange={(event) => updateFilter("status", event.target.value)}>
-            <option value="">All statuses</option>
-            <option value="open">Open</option>
-            <option value="investigating">Investigating</option>
-            <option value="contained">Contained</option>
-            <option value="resolved">Resolved</option>
-            <option value="false_positive">False Positive</option>
-          </select>
+          <SafeSelect
+            value={safeFilters.severity}
+            options={[
+              { value: "", label: "All severities" },
+              { value: "Critical", label: "Critical" },
+              { value: "High", label: "High" },
+              { value: "Medium", label: "Medium" },
+              { value: "Low", label: "Low" }
+            ]}
+            onChange={(next) => updateFilter("severity", next)}
+            ariaLabel="Alert severity filter"
+          />
+          <SafeSelect
+            value={safeFilters.status}
+            options={[
+              { value: "", label: "All statuses" },
+              { value: "open", label: "Open" },
+              { value: "investigating", label: "Investigating" },
+              { value: "contained", label: "Contained" },
+              { value: "resolved", label: "Resolved" },
+              { value: "false_positive", label: "False Positive" }
+            ]}
+            onChange={(next) => updateFilter("status", next)}
+            ariaLabel="Alert status filter"
+          />
           <input className="input" placeholder="Source IP" value={safeFilters.src_ip} onChange={(event) => updateFilter("src_ip", event.target.value)} />
           <input className="input" placeholder="Destination IP" value={safeFilters.dst_ip} onChange={(event) => updateFilter("dst_ip", event.target.value)} />
           <input className="input" placeholder="Alert type" value={safeFilters.alert_type} onChange={(event) => updateFilter("alert_type", event.target.value)} />
-          <select className="input" value={safeFilters.sort_by} onChange={(event) => updateFilter("sort_by", event.target.value)}>
-            <option value="score">Sort by score</option>
-            <option value="created">Sort by created</option>
-            <option value="updated">Sort by updated</option>
-            <option value="severity">Sort by severity</option>
-          </select>
+          <SafeSelect
+            value={safeFilters.sort_by}
+            options={[
+              { value: "score", label: "Sort by score" },
+              { value: "created", label: "Sort by created" },
+              { value: "updated", label: "Sort by updated" },
+              { value: "severity", label: "Sort by severity" }
+            ]}
+            onChange={(next) => updateFilter("sort_by", next)}
+            ariaLabel="Alert sort"
+          />
         </div>
       </section>
 

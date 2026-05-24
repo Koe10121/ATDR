@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { SafeSelect } from "./SafeSelect";
 
 export type TableDensity = "comfortable" | "compact";
 
@@ -28,26 +29,30 @@ export function TableToolbar<T>({
 }) {
   const [name, setName] = useState("");
   const safeSavedViews = Array.isArray(savedViews) ? savedViews : [];
+  const savedViewOptions = [{ value: "", label: "Apply saved view" }, ...safeSavedViews.map((view) => ({ value: view.name, label: view.name }))];
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-panel2 p-3">
       <div className="flex flex-wrap items-center gap-2">
-        <select className="input w-36" value={density} onChange={(event) => onDensityChange(event.target.value as TableDensity)}>
-          <option value="comfortable">Comfortable</option>
-          <option value="compact">Compact</option>
-        </select>
-        <select
-          className="input w-48"
+        <SafeSelect
+          className="w-36"
+          value={density}
+          options={[
+            { value: "comfortable", label: "Comfortable" },
+            { value: "compact", label: "Compact" }
+          ]}
+          onChange={(next) => onDensityChange(next as TableDensity)}
+          ariaLabel="Table density"
+        />
+        <SafeSelect
+          className="w-48"
           value=""
-          onChange={(event) => {
-            const view = safeSavedViews.find((item) => item.name === event.target.value);
+          options={savedViewOptions}
+          onChange={(next) => {
+            const view = safeSavedViews.find((item) => item.name === next);
             if (view) onApplyView(view);
           }}
-        >
-          <option value="">Apply saved view</option>
-          {safeSavedViews.map((view) => (
-            <option key={view.name} value={view.name}>{view.name}</option>
-          ))}
-        </select>
+          ariaLabel="Apply saved view"
+        />
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <input className="input w-48" placeholder="View name" value={name} onChange={(event) => setName(event.target.value)} />

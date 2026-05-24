@@ -46,7 +46,7 @@ frontend/
 migrations/
 ```
 
-The large sample file `paloalto-firewall(1).log` can stay in the repository root beside this README. If it lives elsewhere, set `DEMO_SAMPLE_LOG_PATH` in `.env` to the absolute path, for example `C:/Users/User/Downloads/paloalto-firewall(1).log`.
+Keep real or large Palo Alto log files outside Git, for example in `Downloads`, `data/private/`, or `real_logs/`. Set `DEMO_SAMPLE_LOG_PATH` in `.env` to the absolute path when you want the demo scripts to use a private local log file.
 
 ## Local Setup
 
@@ -103,10 +103,10 @@ Authorization: Bearer <access_token>
 
 ## Import Logs
 
-The default import limit is `5000` rows so the first demo stays responsive with the 597 MB sample file. Change `DEFAULT_IMPORT_LIMIT` in `.env`, pass `--limit`, or use `--limit 0` to import the full file.
+The default import limit is `5000` rows so the first demo stays responsive with large firewall files. Change `DEFAULT_IMPORT_LIMIT` in `.env`, pass `--limit`, or use `--limit 0` to import the full file. Keep private logs outside Git and pass an absolute path when importing real data.
 
 ```powershell
-python -m atdr.scripts.import_logs ".\paloalto-firewall(1).log" --limit 5000
+python -m atdr.scripts.import_logs "C:/path/to/private/paloalto-firewall.log" --limit 5000
 ```
 
 Run detection:

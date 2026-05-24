@@ -1,3 +1,5 @@
+import { SafeSelect } from "./SafeSelect";
+
 export function PaginationControls({
   limit,
   offset,
@@ -24,12 +26,13 @@ export function PaginationControls({
         <span className="font-bold text-text">{resultCount}</span> of <span className="font-bold text-text">{knownTotal}</span> rows
       </div>
       <div className="flex items-center gap-2">
-        <select className="input w-28" value={limit} onChange={(event) => onLimitChange(Number(event.target.value))}>
-          <option value={25}>25</option>
-          <option value={50}>50</option>
-          <option value={100}>100</option>
-          <option value={250}>250</option>
-        </select>
+        <SafeSelect
+          className="w-28"
+          value={limit}
+          options={[25, 50, 100, 250].map((rowLimit) => ({ value: String(rowLimit), label: String(rowLimit) }))}
+          onChange={(next) => onLimitChange(Number(next))}
+          ariaLabel="Rows per page"
+        />
         <button className="btn-secondary" disabled={offset === 0} onClick={() => onOffsetChange(Math.max(0, offset - limit))}>
           Previous
         </button>

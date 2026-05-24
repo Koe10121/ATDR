@@ -132,6 +132,13 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
   await page.route("**/api/users", async (route) => route.fulfill({ json: [{ id: 1, username: "admin", full_name: "Admin", role: "admin", is_active: true, created_at: "2026-05-22T00:00:00Z" }] }));
 }
 
+async function chooseSafeSelect(page: Page, ariaLabel: string, optionName: string) {
+  await page.getByRole("button", { name: ariaLabel }).click();
+  await expect(page.locator('[data-atdr-dropdown-open="true"]')).toHaveCount(1);
+  await page.getByRole("option", { name: optionName, exact: true }).click();
+  await expect(page.locator('[data-atdr-dropdown-open="true"]')).toHaveCount(0);
+}
+
 test("login page loads", async ({ page }) => {
   await page.goto("/login");
   await expect(page.getByText("MFU ATDR SOC Console")).toBeVisible();
@@ -182,14 +189,52 @@ test("sort and saved-view dropdowns tolerate malformed persisted table state", a
 
   await page.goto("/logs");
   await expect(page.getByRole("heading", { name: "Search raw evidence and normalized firewall events." })).toBeVisible();
-  await page.locator("select").filter({ hasText: "Apply saved view" }).selectOption("legacy-log-view");
-  await page.locator("select").filter({ hasText: "Sort by generated time" }).selectOption("dst_ip");
+  await chooseSafeSelect(page, "Apply saved view", "legacy-log-view");
+  await chooseSafeSelect(page, "Log sort", "Sort by destination IP");
+  await page.getByPlaceholder("Source IP", { exact: true }).click();
   await expect(page.getByRole("heading", { name: "Search raw evidence and normalized firewall events." })).toBeVisible();
 
   await page.goto("/alerts");
   await expect(page.getByRole("heading", { name: "Prioritize, investigate, contain, and document alerts." })).toBeVisible();
-  await page.locator("select").filter({ hasText: "Apply saved view" }).selectOption("legacy-alert-view");
-  await page.locator("select").filter({ hasText: "Sort by score" }).selectOption("severity");
+  await chooseSafeSelect(page, "Apply saved view", "legacy-alert-view");
+  await chooseSafeSelect(page, "Alert sort", "Sort by severity");
+  await page.getByPlaceholder("Source IP", { exact: true }).click();
   await expect(page.getByRole("heading", { name: "Prioritize, investigate, contain, and document alerts." })).toBeVisible();
+  expect(pageErrors).toEqual([]);
+});
+
+test("dashboard dropdowns close and do not block follow-up clicks", async ({ page }) => {
+  await mockApi(page);
+  await seedSession(page);
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+
+  await page.goto("/logs");
+  await chooseSafeSelect(page, "Log sort", "Sort by source IP");
+  await page.getByPlaceholder("Search IP, app, rule, action, protocol, or zone").click();
+  await chooseSafeSelect(page, "Table density", "Compact");
+  await page.getByRole("button", { name: "Save view" }).click();
+
+  await page.goto("/alerts");
+  await chooseSafeSelect(page, "Alert severity filter", "High");
+  await page.getByPlaceholder("Source IP", { exact: true }).click();
+  await chooseSafeSelect(page, "Alert status filter", "Investigating");
+  await page.getByPlaceholder("Destination IP", { exact: true }).click();
+  await chooseSafeSelect(page, "Alert sort", "Sort by updated");
+  await page.getByPlaceholder("Alert type", { exact: true }).click();
+
+  await page.goto("/audit");
+  await chooseSafeSelect(page, "Table density", "Compact");
+  await page.getByPlaceholder("Actor").click();
+
+  await page.goto("/controls");
+  await page.getByRole("button", { name: "Watchlists" }).click();
+  await chooseSafeSelect(page, "Watchlist indicator type", "Destination IP");
+  await page.getByPlaceholder("Indicator value").click();
+
+  await page.goto("/ml");
+  await page.getByRole("button", { name: "Human Review Sample" }).click();
+  await page.getByRole("button", { name: "Download Model Report" }).click();
+  await expect(page.locator('[data-atdr-dropdown-open="true"]')).toHaveCount(0);
   expect(pageErrors).toEqual([]);
 });

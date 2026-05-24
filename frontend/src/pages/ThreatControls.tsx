@@ -3,6 +3,7 @@ import { Badge } from "../components/Badge";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { MetricCard } from "../components/MetricCard";
+import { SafeSelect } from "../components/SafeSelect";
 import { useAuth } from "../hooks/useAuth";
 import { useBlockedIps, useDetectionTuning, useResponseMutations, useSuppressions, useThreatControlMutations, useWatchlists } from "../hooks/useApiQueries";
 
@@ -110,11 +111,17 @@ export function ThreatControls() {
         <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
           <form className="panel space-y-3" onSubmit={createWatchlist}>
             <div className="text-sm font-extrabold uppercase tracking-wide text-muted">Add Watchlist Item</div>
-            <select className="input" value={watchlist.indicator_type} onChange={(event) => setWatchlist({ ...watchlist, indicator_type: event.target.value })} disabled={!isAdmin}>
-              <option value="src_ip">Source IP</option>
-              <option value="dst_ip">Destination IP</option>
-              <option value="app">Application</option>
-            </select>
+            <SafeSelect
+              value={watchlist.indicator_type}
+              options={[
+                { value: "src_ip", label: "Source IP" },
+                { value: "dst_ip", label: "Destination IP" },
+                { value: "app", label: "Application" }
+              ]}
+              onChange={(next) => setWatchlist({ ...watchlist, indicator_type: next })}
+              disabled={!isAdmin}
+              ariaLabel="Watchlist indicator type"
+            />
             <input className="input" placeholder="Indicator value" value={watchlist.indicator_value} onChange={(event) => setWatchlist({ ...watchlist, indicator_value: event.target.value })} disabled={!isAdmin} />
             <textarea className="input min-h-24" placeholder="Description" value={watchlist.description} onChange={(event) => setWatchlist({ ...watchlist, description: event.target.value })} disabled={!isAdmin} />
             <input className="input" type="number" min={5} max={60} value={watchlist.severity_boost} onChange={(event) => setWatchlist({ ...watchlist, severity_boost: Number(event.target.value) })} disabled={!isAdmin} />
