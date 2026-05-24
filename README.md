@@ -7,7 +7,7 @@ ATDR is a defensive senior-project prototype for importing Palo Alto firewall sy
 - FastAPI backend with log import, log explorer, alerts, detection, response, audit, and dashboard-summary endpoints.
 - Robust Palo Alto parser using `csv.reader` after splitting only the syslog timestamp and hostname.
 - SQLite by default, with SQLAlchemy models matching the prototype tables.
-- Rule-based detection plus optional IsolationForest anomaly scoring.
+- Rule-based detection plus optional IsolationForest anomaly scoring and supervised analyst-label decision support.
 - Incident-style alert grouping reduces per-log alert noise while preserving evidence log links.
 - Streamlit dashboard with Executive Demo, Overview, Log Explorer, Alerts, Detection Tuning, ML Governance, Threat Controls, Response Center, Audit Log, and admin Demo Controls pages.
 - SOC Command Center dashboard styling with Plotly charts, triage queues, readiness panels, and evidence-focused incident views.
@@ -18,7 +18,7 @@ ATDR is a defensive senior-project prototype for importing Palo Alto firewall sy
 - Security hardening basics: configurable CORS origins and browser security headers.
 - Demo, architecture, operations, presentation, and production-readiness documentation in `docs/`.
 - Lab-pilot deployment guide with SQLite, PostgreSQL, and safe syslog receiver modes.
-- CLI scripts for import, demo seeding, ML training, anomaly scoring, release verification, lab smoke checks, backups, and export cleanup.
+- CLI scripts for import, demo seeding, safe synthetic ML labels, ML training, anomaly scoring, release verification, lab smoke checks, backups, and export cleanup.
 - Unit and API tests for parsing, rules, auth, workflow, demo controls, and severity scoring.
 
 ## Project Layout
@@ -192,6 +192,23 @@ For safer training, use baseline-only mode first. It trains on allowed traffic, 
 
 The evaluation report compares recent scoring runs and summarizes top anomalous source IPs, apps, ports, protocols, sample logs, score statistics, and operator recommendations.
 
+Analyst-reviewed labels can be stored in `ml_labels` through `/api/ml/labels` or the React Log Explorer labeling panel. The ML Governance page includes a prioritized Label Review Queue and CSV import/export for analyst review workflows. After enough reviewed rows exist, train the supervised decision-support classifier:
+
+```powershell
+python -m atdr.scripts.train_supervised_model --test-size 0.3
+```
+
+The supervised classifier uses the original single-log features plus 5-minute source/destination context such as deny rate, unique destination ports, total bytes, unknown app count, high-risk app count, hour of day, and after-hours signal. Its output is combined with rule score and IsolationForest anomaly support in a hybrid risk score, but it remains analyst decision support only.
+
+For a safe synthetic training demo without private traffic:
+
+```powershell
+python -m atdr.scripts.seed_demo_labels
+python -m atdr.scripts.train_supervised_model --test-size 0.3
+```
+
+For the complete end-to-end hybrid AI workflow, see `docs/AI_TRAINING_RUNBOOK.md`.
+
 For lab-pilot tuning, export an analyst review package:
 
 ```powershell
@@ -215,6 +232,18 @@ This writes JSON/CSV/Markdown evidence to `ml_baseline_reviews/`, including anom
 - `GET /api/ml/runs`
 - `GET /api/ml/profile`
 - `GET /api/ml/report`
+- `GET /api/ml/labels`
+- `POST /api/ml/labels`
+- `PUT /api/ml/labels/{label_id}`
+- `GET /api/ml/labels/export`
+- `GET /api/ml/labels/template`
+- `POST /api/ml/labels/import`
+- `GET /api/ml/review-queue`
+- `GET /api/ml/review-queue/export`
+- `GET /api/ml/supervised/report`
+- `GET /api/ml/supervised/report/export`
+- `POST /api/ml/supervised/train`
+- `GET /api/ml/supervised/predict/{log_id}`
 - `POST /api/ml/train`
 - `POST /api/ml/score`
 - `POST /api/logs/import`

@@ -1,7 +1,85 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
+
+
+MLLabelValue = Literal["benign", "benign_unusual", "suspicious", "malicious", "needs_context"]
+MLAttackType = Literal[
+    "normal",
+    "port_scan",
+    "brute_force",
+    "dos_ddos",
+    "malware_c2",
+    "policy_violation",
+    "data_exfiltration_suspicion",
+    "unknown_anomaly",
+]
+MLLabelSource = Literal["manual", "assisted_rule", "assisted_ml", "assisted_hybrid"]
+
+
+class MLLabelCreate(BaseModel):
+    log_id: int = Field(ge=1)
+    label: MLLabelValue
+    attack_type: MLAttackType = "unknown_anomaly"
+    confidence: int = Field(ge=1, le=5)
+    review_note: str | None = Field(default=None, max_length=5000)
+    label_source: MLLabelSource = "manual"
+    reviewed: bool = True
+
+
+class MLLabelUpdate(BaseModel):
+    label: MLLabelValue | None = None
+    attack_type: MLAttackType | None = None
+    confidence: int | None = Field(default=None, ge=1, le=5)
+    review_note: str | None = Field(default=None, max_length=5000)
+    label_source: MLLabelSource | None = None
+    reviewed: bool | None = None
+
+
+class MLLabelRead(BaseModel):
+    id: int
+    log_id: int
+    label: str
+    attack_type: str
+    confidence: int
+    reviewer: str
+    review_note: str | None = None
+    label_source: str = "manual"
+    reviewed: bool = True
+    created_at: datetime
+
+
+class MLLabelImportResult(BaseModel):
+    created: int
+    updated: int
+    skipped: int = 0
+    protected_manual: int = 0
+    failed: int
+    errors: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class MLReviewQueueItem(BaseModel):
+    log_id: int
+    generated_time: datetime | None = None
+    src_ip: str | None = None
+    dst_ip: str | None = None
+    app: str | None = None
+    action: str | None = None
+    protocol: str | None = None
+    src_zone: str | None = None
+    dst_zone: str | None = None
+    app_risk: int | None = None
+    is_anomaly: bool
+    anomaly_score: float | None = None
+    rule_score: int
+    supervised_prediction: str | None = None
+    malicious_probability: float
+    hybrid_risk_score: int
+    priority_score: int
+    priority_reasons: list[str]
+    existing_label: MLLabelRead | None = None
+    alert_ids: list[int] = Field(default_factory=list)
 
 
 class MLRunRequest(BaseModel):

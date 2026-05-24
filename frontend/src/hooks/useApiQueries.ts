@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import type { Params } from "../lib/api";
-import type { AlertStatus } from "../types/api";
+import type { AlertStatus, MLLabelPayload } from "../types/api";
 
 export const queryKeys = {
   health: ["health"],
@@ -23,6 +23,9 @@ export const queryKeys = {
   watchlists: ["watchlists"],
   tuning: ["detection-tuning"],
   mlReport: ["ml-report"],
+  supervisedReport: ["supervised-report"],
+  mlLabels: (params?: Record<string, unknown>) => ["ml-labels", params ?? {}],
+  mlReviewQueue: (params?: Record<string, unknown>) => ["ml-review-queue", params ?? {}],
   blockedIps: ["blocked-ips"],
   users: ["users"]
 };
@@ -113,6 +116,18 @@ export function useDetectionTuning() {
 
 export function useMlReport() {
   return useQuery({ queryKey: queryKeys.mlReport, queryFn: api.mlReport, refetchInterval: 60_000 });
+}
+
+export function useSupervisedReport() {
+  return useQuery({ queryKey: queryKeys.supervisedReport, queryFn: api.supervisedReport, refetchInterval: 60_000 });
+}
+
+export function useMlLabels(params: Params, enabled = true) {
+  return useQuery({ queryKey: queryKeys.mlLabels(params), queryFn: () => api.mlLabels(params), enabled, refetchInterval: 30_000 });
+}
+
+export function useMlReviewQueue(params: Params) {
+  return useQuery({ queryKey: queryKeys.mlReviewQueue(params), queryFn: () => api.mlReviewQueue(params), refetchInterval: 60_000 });
 }
 
 export function useBlockedIps() {
@@ -222,5 +237,23 @@ export function useDemoMutations() {
     trainMl: useMutation({ mutationFn: api.demoTrainMl, onSuccess: invalidate }),
     applyMl: useMutation({ mutationFn: api.demoApplyMl, onSuccess: invalidate }),
     exportBundle: useMutation({ mutationFn: api.demoExportBundle, onSuccess: invalidate })
+  };
+}
+
+export function useMlLabelMutations() {
+  const queryClient = useQueryClient();
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: ["ml-labels"] });
+    void queryClient.invalidateQueries({ queryKey: ["ml-review-queue"] });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.supervisedReport });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.mlReport });
+    void queryClient.invalidateQueries({ queryKey: ["logs"] });
+    void queryClient.invalidateQueries({ queryKey: ["logs-page"] });
+    invalidateAudit(queryClient);
+  };
+  return {
+    create: useMutation({ mutationFn: (payload: MLLabelPayload) => api.createMlLabel(payload), onSuccess: invalidate }),
+    update: useMutation({ mutationFn: ({ id, payload }: { id: number; payload: Partial<MLLabelPayload> }) => api.updateMlLabel(id, payload), onSuccess: invalidate }),
+    importCsv: useMutation({ mutationFn: (file: File) => api.importMlLabels(file), onSuccess: invalidate })
   };
 }

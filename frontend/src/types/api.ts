@@ -97,6 +97,72 @@ export interface NormalizedLog {
   alert_ids?: number[];
 }
 
+export type MLLabelValue = "benign" | "benign_unusual" | "suspicious" | "malicious" | "needs_context";
+export type MLAttackType =
+  | "normal"
+  | "port_scan"
+  | "brute_force"
+  | "dos_ddos"
+  | "malware_c2"
+  | "policy_violation"
+  | "data_exfiltration_suspicion"
+  | "unknown_anomaly";
+
+export interface MLLabel {
+  id: number;
+  log_id: number;
+  label: MLLabelValue | string;
+  attack_type: MLAttackType | string;
+  confidence: number;
+  reviewer: string;
+  label_source?: string;
+  reviewed?: boolean;
+  review_note?: string | null;
+  created_at: string;
+}
+
+export interface MLLabelPayload {
+  log_id: number;
+  label: MLLabelValue;
+  attack_type: MLAttackType;
+  confidence: number;
+  review_note?: string | null;
+  label_source?: string;
+  reviewed?: boolean;
+}
+
+export interface MLLabelImportResult {
+  created: number;
+  updated: number;
+  skipped?: number;
+  protected_manual?: number;
+  failed: number;
+  errors: Array<Record<string, unknown>>;
+}
+
+export interface MLReviewQueueItem {
+  log_id: number;
+  generated_time?: string | null;
+  src_ip?: string | null;
+  dst_ip?: string | null;
+  app?: string | null;
+  action?: string | null;
+  protocol?: string | null;
+  src_zone?: string | null;
+  dst_zone?: string | null;
+  app_risk?: number | null;
+  is_anomaly: boolean;
+  anomaly_score?: number | null;
+  rule_score: number;
+  supervised_prediction?: string | null;
+  malicious_probability: number;
+  hybrid_risk_score: number;
+  priority_score: number;
+  priority_reasons: string[];
+  existing_label?: MLLabel | null;
+  alert_ids: number[];
+}
+
 export interface AuditLog {
   id: number;
   actor: string;
@@ -284,6 +350,33 @@ export interface MLEvaluationReport {
   top_anomalous_src_ips: CountRow[];
   top_anomalous_apps: CountRow[];
   top_anomalous_dst_ports: CountRow[];
+}
+
+export interface SupervisedModelReport {
+  model_name: string;
+  model_path: string;
+  artifact_exists: boolean;
+  artifact_sha256?: string | null;
+  latest_run?: {
+    id: number;
+    model_version?: string | null;
+    status: string;
+    actor: string;
+    training_rows?: number | null;
+    test_rows: number;
+    metrics: Record<string, unknown>;
+    label_distribution: Record<string, number>;
+    top_features: Array<Record<string, unknown>>;
+    report_path?: string | null;
+    created_at: string;
+    message: string;
+  } | null;
+  label_count: number;
+  label_distribution: Record<string, number>;
+  label_source_distribution?: Record<string, number>;
+  reviewed_label_count?: number;
+  unreviewed_assisted_label_count?: number;
+  decision_support_only: boolean;
 }
 
 export interface BlockedIP {

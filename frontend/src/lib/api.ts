@@ -11,8 +11,13 @@ import type {
   DetectionTuningReport,
   HealthResponse,
   MLEvaluationReport,
+  MLLabel,
+  MLLabelImportResult,
+  MLLabelPayload,
+  MLReviewQueueItem,
   NormalizedLog,
   ResponseAction,
+  SupervisedModelReport,
   Suppression,
   TokenResponse,
   User,
@@ -52,7 +57,7 @@ function buildUrl(path: string, params?: Params): string {
 export async function apiRequest<T>(path: string, options: RequestInit & { params?: Params } = {}): Promise<T> {
   const session = loadSession();
   const headers = new Headers(options.headers);
-  if (!headers.has("Content-Type") && options.body) {
+  if (!headers.has("Content-Type") && options.body && !(options.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }
   if (session?.token) {
@@ -156,6 +161,22 @@ export const api = {
   auditPage: (params: Params = {}) => apiListRequest<AuditLog>("/api/audit", { params }),
   detectionTuning: () => apiRequest<DetectionTuningReport>("/api/detection/tuning"),
   mlReport: () => apiRequest<MLEvaluationReport>("/api/ml/report"),
+  supervisedReport: () => apiRequest<SupervisedModelReport>("/api/ml/supervised/report"),
+  downloadSupervisedReport: () => apiDownload("/api/ml/supervised/report/export"),
+  mlLabels: (params: Params = {}) => apiRequest<MLLabel[]>("/api/ml/labels", { params }),
+  createMlLabel: (payload: MLLabelPayload) => apiRequest<MLLabel>("/api/ml/labels", { method: "POST", body: JSON.stringify(payload) }),
+  updateMlLabel: (id: number, payload: Partial<MLLabelPayload>) =>
+    apiRequest<MLLabel>(`/api/ml/labels/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+  mlReviewQueue: (params: Params = {}) => apiRequest<MLReviewQueueItem[]>("/api/ml/review-queue", { params }),
+  downloadMlLabels: () => apiDownload("/api/ml/labels/export"),
+  downloadMlLabelTemplate: () => apiDownload("/api/ml/labels/template"),
+  downloadMlLabelReviewSample: () => apiDownload("/api/ml/labels/review-sample/export"),
+  downloadMlReviewQueue: (params: Params = {}) => apiDownload("/api/ml/review-queue/export", params),
+  importMlLabels: (file: File, params: Params = {}) => {
+    const form = new FormData();
+    form.append("upload", file);
+    return apiRequest<MLLabelImportResult>("/api/ml/labels/import", { method: "POST", body: form, params });
+  },
   suppressions: (params: Params = {}) => apiRequest<Suppression[]>("/api/suppressions", { params }),
   createSuppression: (payload: { src_ip?: string; app?: string; alert_type?: string; reason: string }) =>
     apiRequest<Suppression>("/api/suppressions", { method: "POST", body: JSON.stringify(payload) }),

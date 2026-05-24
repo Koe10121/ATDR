@@ -1,0 +1,2 @@
+log_id,label,attack_type,confidence,review_note
+1,suspicious,port_scan,4,Example analyst note. Replace this row before importing.

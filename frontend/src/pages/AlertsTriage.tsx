@@ -1,7 +1,7 @@
 import { FormEvent, useMemo, useState } from "react";
 import { flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table";
 import type { ColumnDef } from "@tanstack/react-table";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Badge } from "../components/Badge";
 import { DetailDrawer } from "../components/DetailDrawer";
 import { EmptyState } from "../components/EmptyState";
@@ -288,7 +288,16 @@ export function AlertsTriage() {
 
             <section className="rounded-lg border border-line bg-panel2 p-4">
               <div className="mb-3 text-sm font-extrabold uppercase tracking-wide text-muted">Evidence And ML Context</div>
-              <div className="text-sm text-muted">Evidence log IDs: {selected.evidence_log_ids.join(", ") || "-"}</div>
+              <div className="flex flex-wrap gap-2 text-sm text-muted">
+                Evidence logs:
+                {selected.evidence_log_ids.length
+                  ? selected.evidence_log_ids.map((id) => (
+                      <Link key={id} className="rounded border border-cyan/30 bg-cyan/10 px-2 py-1 text-cyan underline" to={`/logs?log=${id}`}>
+                        Log {id}
+                      </Link>
+                    ))
+                  : "-"}
+              </div>
               <div className="mt-2 text-sm text-muted">
                 ML anomaly evidence: {(report.data?.evidence_logs ?? []).some((log) => log.is_anomaly) ? "Present in evidence logs" : "No anomaly flag in loaded report evidence"}
               </div>
