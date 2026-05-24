@@ -14,6 +14,7 @@ import type { SavedView, TableDensity } from "../components/TableToolbar";
 import { useLog, useLogsPage, useMlLabelMutations, useMlLabels } from "../hooks/useApiQueries";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { usePersistentState } from "../hooks/usePersistentState";
+import { normalizeSavedViews, normalizeStringState } from "../lib/safeTableState";
 import type { MLAttackType, MLLabelValue, NormalizedLog } from "../types/api";
 
 const LABEL_OPTIONS: MLLabelValue[] = ["benign", "benign_unusual", "suspicious", "malicious", "needs_context"];
@@ -27,31 +28,50 @@ const ATTACK_TYPE_OPTIONS: MLAttackType[] = [
   "data_exfiltration_suspicion",
   "unknown_anomaly"
 ];
+const LOG_FILTER_DEFAULTS = {
+  src_ip: "",
+  dst_ip: "",
+  app: "",
+  action: "",
+  protocol: "",
+  src_zone: "",
+  dst_zone: "",
+  country: "",
+  generated_from: "",
+  generated_to: "",
+  sort_by: "generated"
+};
+const LOG_SORT_VALUES = ["generated", "app_risk", "action", "src_ip", "dst_ip"] as const;
+type LogFilters = typeof LOG_FILTER_DEFAULTS;
+type LogSavedView = { search: string; filters: LogFilters };
+
+function normalizeLogFilters(value: unknown): LogFilters {
+  return normalizeStringState(LOG_FILTER_DEFAULTS, value, { sort_by: LOG_SORT_VALUES });
+}
+
+function normalizeLogSavedView(value: unknown): LogSavedView {
+  const raw = typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+  const filters = "filters" in raw ? raw.filters : raw;
+  return {
+    search: typeof raw.search === "string" ? raw.search : "",
+    filters: normalizeLogFilters(filters)
+  };
+}
 
 export function LogExplorer() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = usePersistentState("atdr.log.search.v1", "");
-  const [filters, setFilters] = usePersistentState("atdr.log.filters.v1", {
-    src_ip: "",
-    dst_ip: "",
-    app: "",
-    action: "",
-    protocol: "",
-    src_zone: "",
-    dst_zone: "",
-    country: "",
-    generated_from: "",
-    generated_to: "",
-    sort_by: "generated"
-  });
+  const [filters, setFilters] = usePersistentState<LogFilters>("atdr.log.filters.v1", LOG_FILTER_DEFAULTS);
+  const safeFilters = useMemo(() => normalizeLogFilters(filters), [filters]);
   const [limit, setLimit] = usePersistentState("atdr.log.limit.v1", 50);
   const [density, setDensity] = usePersistentState<TableDensity>("atdr.log.density.v1", "comfortable");
-  const [savedViews, setSavedViews] = usePersistentState<Array<SavedView<{ search: string; filters: typeof filters }>>>("atdr.log.views.v1", []);
+  const [rawSavedViews, setSavedViews] = usePersistentState<Array<SavedView<unknown>>>("atdr.log.views.v1", []);
+  const savedViews = useMemo(() => normalizeSavedViews(rawSavedViews, normalizeLogSavedView), [rawSavedViews]);
   const [offset, setOffset] = useState(0);
   const selectedIdParam = Number(searchParams.get("log"));
   const selectedId = Number.isFinite(selectedIdParam) && selectedIdParam > 0 ? selectedIdParam : null;
   const debouncedSearch = useDebouncedValue(search);
-  const logs = useLogsPage({ search: debouncedSearch, ...filters, limit, offset });
+  const logs = useLogsPage({ search: debouncedSearch, ...safeFilters, limit, offset });
   const logRows = logs.data?.items ?? [];
   const selectedDetail = useLog(selectedId);
   const selected = selectedDetail.data ?? logRows.find((item) => item.id === selectedId) ?? null;
@@ -94,9 +114,9 @@ export function LogExplorer() {
   );
   const table = useReactTable({ data: logRows, columns, getCoreRowModel: getCoreRowModel() });
 
-  function updateFilter(key: keyof typeof filters, value: string) {
+  function updateFilter(key: keyof LogFilters, value: string) {
     setOffset(0);
-    setFilters((current) => ({ ...current, [key]: value }));
+    setFilters((current) => normalizeLogFilters({ ...normalizeLogFilters(current), [key]: value }));
   }
 
   function openLog(id: number) {
@@ -116,13 +136,17 @@ export function LogExplorer() {
   }
 
   function saveView(name: string) {
-    setSavedViews((current) => [...current.filter((view) => view.name !== name), { name, value: { search, filters } }]);
+    setSavedViews((current) => [
+      ...normalizeSavedViews(current, normalizeLogSavedView).filter((view) => view.name !== name),
+      { name, value: { search, filters: safeFilters } }
+    ]);
   }
 
-  function applyView(view: SavedView<{ search: string; filters: typeof filters }>) {
+  function applyView(view: SavedView<LogSavedView>) {
+    const safeView = normalizeLogSavedView(view.value);
     setOffset(0);
-    setSearch(view.value.search);
-    setFilters(view.value.filters);
+    setSearch(safeView.search);
+    setFilters(safeView.filters);
   }
 
   function saveLabel() {
@@ -148,18 +172,18 @@ export function LogExplorer() {
       <section className="panel space-y-3">
         <input className="input" placeholder="Search IP, app, rule, action, protocol, or zone" value={search} onChange={(event) => setSearch(event.target.value)} />
         <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
-          <input className="input" placeholder="Source IP" value={filters.src_ip} onChange={(event) => updateFilter("src_ip", event.target.value)} />
-          <input className="input" placeholder="Destination IP" value={filters.dst_ip} onChange={(event) => updateFilter("dst_ip", event.target.value)} />
-          <input className="input" placeholder="App" value={filters.app} onChange={(event) => updateFilter("app", event.target.value)} />
-          <input className="input" placeholder="Action" value={filters.action} onChange={(event) => updateFilter("action", event.target.value)} />
-          <input className="input" placeholder="Protocol" value={filters.protocol} onChange={(event) => updateFilter("protocol", event.target.value)} />
-          <input className="input" placeholder="Source zone" value={filters.src_zone} onChange={(event) => updateFilter("src_zone", event.target.value)} />
-          <input className="input" placeholder="Destination zone" value={filters.dst_zone} onChange={(event) => updateFilter("dst_zone", event.target.value)} />
-          <input className="input" placeholder="Country" value={filters.country} onChange={(event) => updateFilter("country", event.target.value)} />
-          <input className="input" type="datetime-local" value={filters.generated_from} onChange={(event) => updateFilter("generated_from", event.target.value)} />
-          <input className="input" type="datetime-local" value={filters.generated_to} onChange={(event) => updateFilter("generated_to", event.target.value)} />
+          <input className="input" placeholder="Source IP" value={safeFilters.src_ip} onChange={(event) => updateFilter("src_ip", event.target.value)} />
+          <input className="input" placeholder="Destination IP" value={safeFilters.dst_ip} onChange={(event) => updateFilter("dst_ip", event.target.value)} />
+          <input className="input" placeholder="App" value={safeFilters.app} onChange={(event) => updateFilter("app", event.target.value)} />
+          <input className="input" placeholder="Action" value={safeFilters.action} onChange={(event) => updateFilter("action", event.target.value)} />
+          <input className="input" placeholder="Protocol" value={safeFilters.protocol} onChange={(event) => updateFilter("protocol", event.target.value)} />
+          <input className="input" placeholder="Source zone" value={safeFilters.src_zone} onChange={(event) => updateFilter("src_zone", event.target.value)} />
+          <input className="input" placeholder="Destination zone" value={safeFilters.dst_zone} onChange={(event) => updateFilter("dst_zone", event.target.value)} />
+          <input className="input" placeholder="Country" value={safeFilters.country} onChange={(event) => updateFilter("country", event.target.value)} />
+          <input className="input" type="datetime-local" value={safeFilters.generated_from} onChange={(event) => updateFilter("generated_from", event.target.value)} />
+          <input className="input" type="datetime-local" value={safeFilters.generated_to} onChange={(event) => updateFilter("generated_to", event.target.value)} />
         </div>
-        <select className="input max-w-xs" value={filters.sort_by} onChange={(event) => updateFilter("sort_by", event.target.value)}>
+        <select className="input max-w-xs" value={safeFilters.sort_by} onChange={(event) => updateFilter("sort_by", event.target.value)}>
           <option value="generated">Sort by generated time</option>
           <option value="app_risk">Sort by app risk</option>
           <option value="action">Sort by action</option>
@@ -177,7 +201,7 @@ export function LogExplorer() {
         savedViews={savedViews}
         onSaveView={saveView}
         onApplyView={applyView}
-        onDeleteView={(name) => setSavedViews((current) => current.filter((view) => view.name !== name))}
+        onDeleteView={(name) => setSavedViews((current) => normalizeSavedViews(current, normalizeLogSavedView).filter((view) => view.name !== name))}
       />
 
       <section className="panel overflow-hidden">

@@ -12,18 +12,28 @@ import { TableToolbar, tableDensityClass } from "../components/TableToolbar";
 import type { SavedView, TableDensity } from "../components/TableToolbar";
 import { useAuditPage } from "../hooks/useApiQueries";
 import { usePersistentState } from "../hooks/usePersistentState";
+import { normalizeSavedViews, normalizeStringState } from "../lib/safeTableState";
 import type { AuditLog } from "../types/api";
+
+const AUDIT_FILTER_DEFAULTS = { actor: "", action: "", target_type: "", target_value: "", created_from: "", created_to: "" };
+type AuditFilters = typeof AUDIT_FILTER_DEFAULTS;
+
+function normalizeAuditFilters(value: unknown): AuditFilters {
+  return normalizeStringState(AUDIT_FILTER_DEFAULTS, value);
+}
 
 export function AuditLogPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [filters, setFilters] = usePersistentState("atdr.audit.filters.v1", { actor: "", action: "", target_type: "", target_value: "", created_from: "", created_to: "" });
+  const [filters, setFilters] = usePersistentState<AuditFilters>("atdr.audit.filters.v1", AUDIT_FILTER_DEFAULTS);
+  const safeFilters = useMemo(() => normalizeAuditFilters(filters), [filters]);
   const [limit, setLimit] = usePersistentState("atdr.audit.limit.v1", 100);
   const [density, setDensity] = usePersistentState<TableDensity>("atdr.audit.density.v1", "comfortable");
-  const [savedViews, setSavedViews] = usePersistentState<Array<SavedView<typeof filters>>>("atdr.audit.views.v1", []);
+  const [rawSavedViews, setSavedViews] = usePersistentState<Array<SavedView<unknown>>>("atdr.audit.views.v1", []);
+  const savedViews = useMemo(() => normalizeSavedViews(rawSavedViews, normalizeAuditFilters), [rawSavedViews]);
   const [offset, setOffset] = useState(0);
   const selectedIdParam = Number(searchParams.get("audit"));
   const selectedId = Number.isFinite(selectedIdParam) && selectedIdParam > 0 ? selectedIdParam : null;
-  const audit = useAuditPage({ ...filters, limit, offset });
+  const audit = useAuditPage({ ...safeFilters, limit, offset });
   const auditRows = audit.data?.items ?? [];
   const selected = auditRows.find((row) => row.id === selectedId) ?? null;
 
@@ -39,9 +49,9 @@ export function AuditLogPage() {
   );
   const table = useReactTable({ data: auditRows, columns, getCoreRowModel: getCoreRowModel() });
 
-  function updateFilter(key: keyof typeof filters, value: string) {
+  function updateFilter(key: keyof AuditFilters, value: string) {
     setOffset(0);
-    setFilters((current) => ({ ...current, [key]: value }));
+    setFilters((current) => normalizeAuditFilters({ ...normalizeAuditFilters(current), [key]: value }));
   }
 
   function openAudit(id: number) {
@@ -61,12 +71,12 @@ export function AuditLogPage() {
   }
 
   function saveView(name: string) {
-    setSavedViews((current) => [...current.filter((view) => view.name !== name), { name, value: filters }]);
+    setSavedViews((current) => [...normalizeSavedViews(current, normalizeAuditFilters).filter((view) => view.name !== name), { name, value: safeFilters }]);
   }
 
-  function applyView(view: SavedView<typeof filters>) {
+  function applyView(view: SavedView<AuditFilters>) {
     setOffset(0);
-    setFilters(view.value);
+    setFilters(normalizeAuditFilters(view.value));
   }
 
   return (
@@ -78,12 +88,12 @@ export function AuditLogPage() {
       </section>
 
       <section className="panel grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-        <input className="input" placeholder="Actor" value={filters.actor} onChange={(event) => updateFilter("actor", event.target.value)} />
-        <input className="input" placeholder="Action" value={filters.action} onChange={(event) => updateFilter("action", event.target.value)} />
-        <input className="input" placeholder="Target type" value={filters.target_type} onChange={(event) => updateFilter("target_type", event.target.value)} />
-        <input className="input" placeholder="Target value" value={filters.target_value} onChange={(event) => updateFilter("target_value", event.target.value)} />
-        <input className="input" type="datetime-local" value={filters.created_from} onChange={(event) => updateFilter("created_from", event.target.value)} />
-        <input className="input" type="datetime-local" value={filters.created_to} onChange={(event) => updateFilter("created_to", event.target.value)} />
+        <input className="input" placeholder="Actor" value={safeFilters.actor} onChange={(event) => updateFilter("actor", event.target.value)} />
+        <input className="input" placeholder="Action" value={safeFilters.action} onChange={(event) => updateFilter("action", event.target.value)} />
+        <input className="input" placeholder="Target type" value={safeFilters.target_type} onChange={(event) => updateFilter("target_type", event.target.value)} />
+        <input className="input" placeholder="Target value" value={safeFilters.target_value} onChange={(event) => updateFilter("target_value", event.target.value)} />
+        <input className="input" type="datetime-local" value={safeFilters.created_from} onChange={(event) => updateFilter("created_from", event.target.value)} />
+        <input className="input" type="datetime-local" value={safeFilters.created_to} onChange={(event) => updateFilter("created_to", event.target.value)} />
       </section>
 
       {audit.isError ? <ErrorBanner error={audit.error} /> : null}
@@ -95,7 +105,7 @@ export function AuditLogPage() {
         savedViews={savedViews}
         onSaveView={saveView}
         onApplyView={applyView}
-        onDeleteView={(name) => setSavedViews((current) => current.filter((view) => view.name !== name))}
+        onDeleteView={(name) => setSavedViews((current) => normalizeSavedViews(current, normalizeAuditFilters).filter((view) => view.name !== name))}
       />
 
       <section className="panel overflow-hidden">

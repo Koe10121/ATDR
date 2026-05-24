@@ -24,6 +24,7 @@ import {
   useResponseMutations
 } from "../hooks/useApiQueries";
 import { api } from "../lib/api";
+import { normalizeSavedViews, normalizeStringState } from "../lib/safeTableState";
 import { usePersistentState } from "../hooks/usePersistentState";
 import type { Alert, AlertStatus } from "../types/api";
 
@@ -36,19 +37,43 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+const ALERT_FILTER_DEFAULTS = {
+  search: "",
+  severity: "",
+  status: "open",
+  src_ip: "",
+  dst_ip: "",
+  alert_type: "",
+  sort_by: "score"
+};
+const ALERT_SORT_VALUES = ["score", "created", "updated", "severity"] as const;
+const ALERT_SEVERITY_VALUES = ["", "Critical", "High", "Medium", "Low"] as const;
+const ALERT_STATUS_VALUES = ["", "open", "investigating", "contained", "resolved", "false_positive"] as const;
+type AlertFilters = typeof ALERT_FILTER_DEFAULTS;
+
+function normalizeAlertFilters(value: unknown): AlertFilters {
+  return normalizeStringState(ALERT_FILTER_DEFAULTS, value, {
+    sort_by: ALERT_SORT_VALUES,
+    severity: ALERT_SEVERITY_VALUES,
+    status: ALERT_STATUS_VALUES
+  });
+}
+
 export function AlertsTriage() {
   const { isAdmin, session } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [filters, setFilters] = usePersistentState("atdr.alert.filters.v1", { search: "", severity: "", status: "open", src_ip: "", dst_ip: "", alert_type: "", sort_by: "score" });
+  const [filters, setFilters] = usePersistentState<AlertFilters>("atdr.alert.filters.v1", ALERT_FILTER_DEFAULTS);
+  const safeFilters = useMemo(() => normalizeAlertFilters(filters), [filters]);
   const [limit, setLimit] = usePersistentState("atdr.alert.limit.v1", 50);
   const [density, setDensity] = usePersistentState<TableDensity>("atdr.alert.density.v1", "comfortable");
-  const [savedViews, setSavedViews] = usePersistentState<Array<SavedView<typeof filters>>>("atdr.alert.views.v1", []);
+  const [rawSavedViews, setSavedViews] = usePersistentState<Array<SavedView<unknown>>>("atdr.alert.views.v1", []);
+  const savedViews = useMemo(() => normalizeSavedViews(rawSavedViews, normalizeAlertFilters), [rawSavedViews]);
   const [offset, setOffset] = useState(0);
   const [note, setNote] = useState("");
   const [reportError, setReportError] = useState<string | null>(null);
   const selectedIdParam = Number(searchParams.get("alert"));
   const selectedId = Number.isFinite(selectedIdParam) && selectedIdParam > 0 ? selectedIdParam : null;
-  const alerts = useAlertsPage({ ...filters, limit, offset });
+  const alerts = useAlertsPage({ ...safeFilters, limit, offset });
   const alertRows = alerts.data?.items ?? [];
   const selectedDetail = useAlert(selectedId);
   const statusMutation = useAlertStatusMutation();
@@ -75,9 +100,9 @@ export function AlertsTriage() {
   );
   const table = useReactTable({ data: alertRows, columns, getCoreRowModel: getCoreRowModel() });
 
-  function updateFilter(key: keyof typeof filters, value: string) {
+  function updateFilter(key: keyof AlertFilters, value: string) {
     setOffset(0);
-    setFilters((current) => ({ ...current, [key]: value }));
+    setFilters((current) => normalizeAlertFilters({ ...normalizeAlertFilters(current), [key]: value }));
   }
 
   function openAlert(id: number) {
@@ -97,12 +122,12 @@ export function AlertsTriage() {
   }
 
   function saveView(name: string) {
-    setSavedViews((current) => [...current.filter((view) => view.name !== name), { name, value: filters }]);
+    setSavedViews((current) => [...normalizeSavedViews(current, normalizeAlertFilters).filter((view) => view.name !== name), { name, value: safeFilters }]);
   }
 
-  function applyView(view: SavedView<typeof filters>) {
+  function applyView(view: SavedView<AlertFilters>) {
     setOffset(0);
-    setFilters(view.value);
+    setFilters(normalizeAlertFilters(view.value));
   }
 
   function setAlertStatus(nextStatus: AlertStatus) {
@@ -146,16 +171,16 @@ export function AlertsTriage() {
       </div>
 
       <section className="panel space-y-3">
-        <input className="input" placeholder="Search title, source IP, destination IP, alert type, explanation" value={filters.search} onChange={(event) => updateFilter("search", event.target.value)} />
+        <input className="input" placeholder="Search title, source IP, destination IP, alert type, explanation" value={safeFilters.search} onChange={(event) => updateFilter("search", event.target.value)} />
         <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-          <select className="input" value={filters.severity} onChange={(event) => updateFilter("severity", event.target.value)}>
+          <select className="input" value={safeFilters.severity} onChange={(event) => updateFilter("severity", event.target.value)}>
             <option value="">All severities</option>
             <option>Critical</option>
             <option>High</option>
             <option>Medium</option>
             <option>Low</option>
           </select>
-          <select className="input" value={filters.status} onChange={(event) => updateFilter("status", event.target.value)}>
+          <select className="input" value={safeFilters.status} onChange={(event) => updateFilter("status", event.target.value)}>
             <option value="">All statuses</option>
             <option value="open">Open</option>
             <option value="investigating">Investigating</option>
@@ -163,10 +188,10 @@ export function AlertsTriage() {
             <option value="resolved">Resolved</option>
             <option value="false_positive">False Positive</option>
           </select>
-          <input className="input" placeholder="Source IP" value={filters.src_ip} onChange={(event) => updateFilter("src_ip", event.target.value)} />
-          <input className="input" placeholder="Destination IP" value={filters.dst_ip} onChange={(event) => updateFilter("dst_ip", event.target.value)} />
-          <input className="input" placeholder="Alert type" value={filters.alert_type} onChange={(event) => updateFilter("alert_type", event.target.value)} />
-          <select className="input" value={filters.sort_by} onChange={(event) => updateFilter("sort_by", event.target.value)}>
+          <input className="input" placeholder="Source IP" value={safeFilters.src_ip} onChange={(event) => updateFilter("src_ip", event.target.value)} />
+          <input className="input" placeholder="Destination IP" value={safeFilters.dst_ip} onChange={(event) => updateFilter("dst_ip", event.target.value)} />
+          <input className="input" placeholder="Alert type" value={safeFilters.alert_type} onChange={(event) => updateFilter("alert_type", event.target.value)} />
+          <select className="input" value={safeFilters.sort_by} onChange={(event) => updateFilter("sort_by", event.target.value)}>
             <option value="score">Sort by score</option>
             <option value="created">Sort by created</option>
             <option value="updated">Sort by updated</option>
@@ -184,7 +209,7 @@ export function AlertsTriage() {
         savedViews={savedViews}
         onSaveView={saveView}
         onApplyView={applyView}
-        onDeleteView={(name) => setSavedViews((current) => current.filter((view) => view.name !== name))}
+        onDeleteView={(name) => setSavedViews((current) => normalizeSavedViews(current, normalizeAlertFilters).filter((view) => view.name !== name))}
       />
 
       <section className="panel overflow-hidden">

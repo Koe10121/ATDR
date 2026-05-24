@@ -325,3 +325,30 @@ Honest AI explanation:
 - Assisted labels are weak labels and should be validated with a human review sample.
 - Accuracy, precision, recall, and F1 should be presented as demo/lab metrics, not certified production performance.
 - Response actions remain simulated and require analyst approval.
+
+## 16. Final Senior Project Demo Script
+
+Use this compact story when presenting the hybrid AI workflow:
+
+1. Import real Palo Alto firewall logs from a private local path.
+2. Run rule-based detection and show that every alert includes score, severity, matched rules, and evidence log IDs.
+3. Train and apply the IsolationForest anomaly detector to highlight unusual traffic patterns.
+4. Generate assisted weak labels from rule evidence, anomaly flags, hybrid risk, normalized fields, and 5-minute behavior features.
+5. Export the human review sample from **ML Governance**.
+6. Review the CSV by filling `human_review_decision` and `human_review_note`.
+7. Import the reviewed CSV through **ML Governance > Import Reviewed CSV**.
+8. Retrain the supervised model.
+9. Show **ML Governance** with label distribution, reviewed vs unreviewed assisted labels, model metrics, and the weak-label warning.
+10. Open **Alert Workbench** and show rule evidence, raw evidence links, matched rules, and the recommended response.
+11. Show that response actions such as block IP are simulated and require analyst/admin approval.
+12. Open **Audit Log** to prove the workflow created traceable evidence.
+
+Final presentation wording:
+
+> The system uses rule-based detection, anomaly scoring, and assisted weak labeling to support analysts. Assisted labels are not treated as perfect ground truth. A human-reviewed sample is used to validate the labeling workflow, and all response actions remain analyst-approved.
+
+Metric caveat:
+
+- Current supervised metrics are based on a mixed dataset: mostly assisted weak labels plus the reviewed sample.
+- Do not describe these numbers as final production accuracy.
+- For a small-office lab pilot, the next maturity step is reviewing more representative labels from real baseline traffic before trusting supervised metrics operationally.
