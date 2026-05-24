@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Link, useSearchParams } from "react-router-dom";
@@ -11,10 +11,22 @@ import { MetaGrid } from "../components/MetaGrid";
 import { PaginationControls } from "../components/PaginationControls";
 import { TableToolbar, tableDensityClass } from "../components/TableToolbar";
 import type { SavedView, TableDensity } from "../components/TableToolbar";
-import { useLog, useLogsPage } from "../hooks/useApiQueries";
+import { useLog, useLogsPage, useMlLabelMutations, useMlLabels } from "../hooks/useApiQueries";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { usePersistentState } from "../hooks/usePersistentState";
-import type { NormalizedLog } from "../types/api";
+import type { MLAttackType, MLLabelValue, NormalizedLog } from "../types/api";
+
+const LABEL_OPTIONS: MLLabelValue[] = ["benign", "benign_unusual", "suspicious", "malicious", "needs_context"];
+const ATTACK_TYPE_OPTIONS: MLAttackType[] = [
+  "normal",
+  "port_scan",
+  "brute_force",
+  "dos_ddos",
+  "malware_c2",
+  "policy_violation",
+  "data_exfiltration_suspicion",
+  "unknown_anomaly"
+];
 
 export function LogExplorer() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -43,6 +55,28 @@ export function LogExplorer() {
   const logRows = logs.data?.items ?? [];
   const selectedDetail = useLog(selectedId);
   const selected = selectedDetail.data ?? logRows.find((item) => item.id === selectedId) ?? null;
+  const selectedLabels = useMlLabels({ log_id: selectedId ?? undefined, limit: 1 }, Boolean(selectedId));
+  const currentLabel = selectedLabels.data?.[0] ?? null;
+  const labelMutations = useMlLabelMutations();
+  const [labelForm, setLabelForm] = useState<{
+    label: MLLabelValue;
+    attack_type: MLAttackType;
+    confidence: number;
+    review_note: string;
+  }>({ label: "suspicious", attack_type: "unknown_anomaly", confidence: 3, review_note: "" });
+
+  useEffect(() => {
+    if (currentLabel) {
+      setLabelForm({
+        label: currentLabel.label as MLLabelValue,
+        attack_type: currentLabel.attack_type as MLAttackType,
+        confidence: currentLabel.confidence,
+        review_note: currentLabel.review_note ?? ""
+      });
+    } else {
+      setLabelForm({ label: "suspicious", attack_type: "unknown_anomaly", confidence: 3, review_note: "" });
+    }
+  }, [currentLabel, selectedId]);
 
   const columns = useMemo<ColumnDef<NormalizedLog>[]>(
     () => [
@@ -89,6 +123,18 @@ export function LogExplorer() {
     setOffset(0);
     setSearch(view.value.search);
     setFilters(view.value.filters);
+  }
+
+  function saveLabel() {
+    if (!selected) {
+      return;
+    }
+    const payload = { ...labelForm, log_id: selected.id, review_note: labelForm.review_note || null };
+    if (currentLabel) {
+      labelMutations.update.mutate({ id: currentLabel.id, payload });
+    } else {
+      labelMutations.create.mutate(payload);
+    }
   }
 
   return (
@@ -184,6 +230,79 @@ export function LogExplorer() {
                 Related alerts: {selected.alert_ids.map((id) => <Link key={id} className="ml-2 underline" to={`/alerts?alert=${id}`}>{id}</Link>)}
               </div>
             ) : null}
+            <section className="rounded-lg border border-cyan/25 bg-cyan/5 p-4">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <div>
+                  <div className="text-xs font-extrabold uppercase tracking-wide text-cyan">Analyst ML Label</div>
+                  <div className="text-sm text-muted">Labels become training data for the supervised model. They do not trigger automatic response.</div>
+                </div>
+                {currentLabel ? <Badge value={`labeled: ${currentLabel.label}`} /> : <Badge value="unlabeled" />}
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="text-xs font-bold uppercase tracking-wide text-muted">
+                  Label
+                  <select
+                    className="input mt-1"
+                    value={labelForm.label}
+                    onChange={(event) => setLabelForm((current) => ({ ...current, label: event.target.value as MLLabelValue }))}
+                  >
+                    {LABEL_OPTIONS.map((item) => (
+                      <option key={item} value={item}>{item}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-xs font-bold uppercase tracking-wide text-muted">
+                  Attack Type
+                  <select
+                    className="input mt-1"
+                    value={labelForm.attack_type}
+                    onChange={(event) => setLabelForm((current) => ({ ...current, attack_type: event.target.value as MLAttackType }))}
+                  >
+                    {ATTACK_TYPE_OPTIONS.map((item) => (
+                      <option key={item} value={item}>{item}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-xs font-bold uppercase tracking-wide text-muted">
+                  Confidence: {labelForm.confidence}
+                  <input
+                    className="mt-3 w-full"
+                    type="range"
+                    min={1}
+                    max={5}
+                    value={labelForm.confidence}
+                    onChange={(event) => setLabelForm((current) => ({ ...current, confidence: Number(event.target.value) }))}
+                  />
+                </label>
+                <label className="text-xs font-bold uppercase tracking-wide text-muted md:col-span-2">
+                  Review Note
+                  <textarea
+                    className="input mt-1 min-h-24"
+                    value={labelForm.review_note}
+                    onChange={(event) => setLabelForm((current) => ({ ...current, review_note: event.target.value }))}
+                    placeholder="Explain why this row is benign, suspicious, malicious, or needs context."
+                  />
+                </label>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <button
+                  className="btn-primary"
+                  type="button"
+                  onClick={saveLabel}
+                  disabled={labelMutations.create.isPending || labelMutations.update.isPending}
+                >
+                  {currentLabel ? "Update Label" : "Save Label"}
+                </button>
+                {currentLabel ? (
+                  <span className="text-xs text-muted">
+                    Last reviewed by {currentLabel.reviewer} at {currentLabel.created_at}
+                  </span>
+                ) : null}
+              </div>
+              {labelMutations.create.isError || labelMutations.update.isError ? (
+                <div className="mt-3"><ErrorBanner error={labelMutations.create.error ?? labelMutations.update.error} /></div>
+              ) : null}
+            </section>
             <div>
               <div className="mb-2 text-sm font-extrabold uppercase tracking-wide text-muted">Raw Evidence</div>
               <pre className="max-h-56 overflow-auto rounded-lg border border-line bg-shell p-3 text-xs text-muted">{selected.raw_line ?? "Raw line unavailable."}</pre>

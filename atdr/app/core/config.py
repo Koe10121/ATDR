@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     default_import_limit: int | None = Field(default=5000, alias="DEFAULT_IMPORT_LIMIT")
     min_alert_score: int = Field(default=30, alias="MIN_ALERT_SCORE")
     ml_model_path: str = Field(default="atdr/models/isolation_forest.joblib", alias="ML_MODEL_PATH")
+    supervised_model_path: str = Field(default="atdr/models/supervised_classifier.joblib", alias="SUPERVISED_MODEL_PATH")
     ml_contamination: float = Field(default=0.03, alias="ML_CONTAMINATION")
     api_base_url: str = Field(default="http://127.0.0.1:8000", alias="API_BASE_URL")
     jwt_secret_key: str = Field(default="change-this-dev-secret", alias="JWT_SECRET_KEY")
@@ -55,6 +56,13 @@ class Settings(BaseSettings):
     @property
     def resolved_model_path(self) -> Path:
         path = Path(self.ml_model_path)
+        if not path.is_absolute():
+            return PROJECT_ROOT / path
+        return path
+
+    @property
+    def resolved_supervised_model_path(self) -> Path:
+        path = Path(self.supervised_model_path)
         if not path.is_absolute():
             return PROJECT_ROOT / path
         return path

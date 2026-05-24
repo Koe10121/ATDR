@@ -93,6 +93,11 @@ class NormalizedLog(Base):
 
     raw_log: Mapped[RawLog] = relationship(back_populates="normalized")
     alert_evidence: Mapped[list["AlertEvidence"]] = relationship(back_populates="normalized_log")
+    ml_labels: Mapped[list["MLLabel"]] = relationship(
+        back_populates="log",
+        cascade="all, delete-orphan",
+        order_by="MLLabel.created_at",
+    )
 
 
 Index("ix_normalized_src_generated", NormalizedLog.src_ip, NormalizedLog.generated_time)
@@ -260,3 +265,23 @@ class MLModelRun(Base):
     metrics_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class MLLabel(Base):
+    __tablename__ = "ml_labels"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    log_id: Mapped[int] = mapped_column(ForeignKey("normalized_logs.id"), nullable=False, index=True)
+    label: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
+    attack_type: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    confidence: Mapped[int] = mapped_column(Integer, nullable=False)
+    reviewer: Mapped[str] = mapped_column(String(128), index=True, nullable=False)
+    review_note: Mapped[str | None] = mapped_column(Text)
+    label_source: Mapped[str] = mapped_column(String(32), default="manual", server_default="manual", nullable=False, index=True)
+    reviewed: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1", nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    log: Mapped[NormalizedLog] = relationship(back_populates="ml_labels")
+
+
+Index("ix_ml_labels_log_created", MLLabel.log_id, MLLabel.created_at)

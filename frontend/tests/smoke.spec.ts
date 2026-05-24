@@ -111,6 +111,21 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
   await page.route("**/api/ml/report", async (route) =>
     route.fulfill({ json: { model_status: { artifact_exists: true }, dataset_profile: { recommendations: [] }, scored_log_count: 0, anomaly_count: 0, anomaly_rate: 0, recommendations: [], drift_signals: [], top_anomalous_src_ips: [], top_anomalous_apps: [], top_anomalous_dst_ports: [] } })
   );
+  await page.route("**/api/ml/supervised/report", async (route) =>
+    route.fulfill({
+      json: {
+        model_name: "supervised_random_forest",
+        model_path: "models/supervised_classifier.joblib",
+        artifact_exists: false,
+        latest_run: null,
+        label_count: 0,
+        label_distribution: {},
+        decision_support_only: true
+      }
+    })
+  );
+  await page.route("**/api/ml/review-queue**", async (route) => route.fulfill({ json: [] }));
+  await page.route("**/api/ml/labels**", async (route) => route.fulfill({ json: [] }));
   await page.route("**/api/response/blocked-ips", async (route) => route.fulfill({ json: [] }));
   await page.route("**/api/suppressions**", async (route) => route.fulfill({ json: [] }));
   await page.route("**/api/watchlists**", async (route) => route.fulfill({ json: [] }));
@@ -139,6 +154,7 @@ test("deep-linked alert and log drawers render", async ({ page }) => {
   await page.goto("/alerts?alert=1");
   await expect(page.getByRole("heading", { name: "Critical: Smoke alert" })).toBeVisible();
   await page.goto("/logs?log=1");
+  await expect(page.getByText("Analyst ML Label")).toBeVisible();
   await expect(page.getByText("Raw Evidence", { exact: true })).toBeVisible();
 });
 

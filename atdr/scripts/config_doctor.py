@@ -86,6 +86,7 @@ def run_config_doctor(settings: Settings | None = None) -> dict[str, Any]:
 
     model_path = settings.resolved_model_path
     model_dir = model_path.parent
+    supervised_model_path = settings.resolved_supervised_model_path
     if not model_dir.exists():
         issues.append(_issue("warning", "missing-model-dir", f"ML model directory does not exist: {model_dir}"))
 
@@ -106,6 +107,7 @@ def run_config_doctor(settings: Settings | None = None) -> dict[str, Any]:
             "sample_log": str(sample_path),
             "sample_log_exists": sample_path.exists(),
             "model_path": str(model_path),
+            "supervised_model_path": str(supervised_model_path),
             "model_dir_exists": model_dir.exists(),
         },
         "critical_count": critical_count,
