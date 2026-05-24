@@ -164,3 +164,32 @@ test("analyst cannot access admin routes", async ({ page }) => {
   await page.goto("/users");
   await expect(page.getByText("Access denied")).toBeVisible();
 });
+
+test("sort and saved-view dropdowns tolerate malformed persisted table state", async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  await mockApi(page);
+  await page.addInitScript(() => {
+    window.localStorage.setItem(
+      "atdr.session.v1",
+      JSON.stringify({ token: "smoke-token", username: "admin", role: "admin", expiresAt: Date.now() + 3600000 })
+    );
+    window.localStorage.setItem("atdr.log.filters.v1", JSON.stringify(null));
+    window.localStorage.setItem("atdr.alert.filters.v1", JSON.stringify({ sort_by: "not-a-real-sort", status: null }));
+    window.localStorage.setItem("atdr.log.views.v1", JSON.stringify([{ name: "legacy-log-view", value: { sort_by: "src_ip" } }]));
+    window.localStorage.setItem("atdr.alert.views.v1", JSON.stringify([{ name: "legacy-alert-view", value: null }]));
+  });
+
+  await page.goto("/logs");
+  await expect(page.getByRole("heading", { name: "Search raw evidence and normalized firewall events." })).toBeVisible();
+  await page.locator("select").filter({ hasText: "Apply saved view" }).selectOption("legacy-log-view");
+  await page.locator("select").filter({ hasText: "Sort by generated time" }).selectOption("dst_ip");
+  await expect(page.getByRole("heading", { name: "Search raw evidence and normalized firewall events." })).toBeVisible();
+
+  await page.goto("/alerts");
+  await expect(page.getByRole("heading", { name: "Prioritize, investigate, contain, and document alerts." })).toBeVisible();
+  await page.locator("select").filter({ hasText: "Apply saved view" }).selectOption("legacy-alert-view");
+  await page.locator("select").filter({ hasText: "Sort by score" }).selectOption("severity");
+  await expect(page.getByRole("heading", { name: "Prioritize, investigate, contain, and document alerts." })).toBeVisible();
+  expect(pageErrors).toEqual([]);
+});

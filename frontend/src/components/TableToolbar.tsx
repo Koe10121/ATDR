@@ -27,6 +27,7 @@ export function TableToolbar<T>({
   onDeleteView: (name: string) => void;
 }) {
   const [name, setName] = useState("");
+  const safeSavedViews = Array.isArray(savedViews) ? savedViews : [];
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-panel2 p-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -38,12 +39,12 @@ export function TableToolbar<T>({
           className="input w-48"
           value=""
           onChange={(event) => {
-            const view = savedViews.find((item) => item.name === event.target.value);
+            const view = safeSavedViews.find((item) => item.name === event.target.value);
             if (view) onApplyView(view);
           }}
         >
           <option value="">Apply saved view</option>
-          {savedViews.map((view) => (
+          {safeSavedViews.map((view) => (
             <option key={view.name} value={view.name}>{view.name}</option>
           ))}
         </select>
@@ -61,8 +62,8 @@ export function TableToolbar<T>({
         >
           Save view
         </button>
-        {savedViews.length ? (
-          <button className="btn-secondary" onClick={() => onDeleteView(savedViews[savedViews.length - 1].name)}>
+        {safeSavedViews.length ? (
+          <button className="btn-secondary" onClick={() => onDeleteView(safeSavedViews[safeSavedViews.length - 1].name)}>
             Delete last
           </button>
         ) : null}

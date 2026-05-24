@@ -6,6 +6,9 @@ export function usePersistentState<T>(key: string, initialValue: T): [T, (next: 
     if (!raw) return initialValue;
     try {
       const parsed = JSON.parse(raw) as T;
+      if (Array.isArray(initialValue)) {
+        return (Array.isArray(parsed) ? parsed : initialValue) as T;
+      }
       if (
         typeof initialValue === "object" &&
         initialValue !== null &&
@@ -15,6 +18,9 @@ export function usePersistentState<T>(key: string, initialValue: T): [T, (next: 
         !Array.isArray(parsed)
       ) {
         return { ...initialValue, ...parsed } as T;
+      }
+      if (parsed === null || typeof parsed !== typeof initialValue) {
+        return initialValue;
       }
       return parsed;
     } catch {
