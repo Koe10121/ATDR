@@ -16,8 +16,15 @@ export function ResponseCenter() {
 
   function onBlock(event: FormEvent) {
     event.preventDefault();
-    if (targetIp.trim()) {
-      blockIp.mutate({ targetIp: targetIp.trim(), reason });
+    const cleanTarget = targetIp.trim();
+    const cleanReason = reason.trim();
+    if (cleanTarget && cleanReason.length >= 8) {
+      const confirmed = window.confirm(
+        `Record a simulated block for ${cleanTarget}?\n\nNo real firewall device will be changed. Audit will record this action with your user account and reason.`
+      );
+      if (confirmed) {
+        blockIp.mutate({ targetIp: cleanTarget, reason: cleanReason });
+      }
     }
   }
 
@@ -26,7 +33,7 @@ export function ResponseCenter() {
       <section className="hero-panel">
         <div className="text-sm font-extrabold uppercase tracking-wide text-cyan">Response Center</div>
         <h1 className="mt-2 text-3xl font-black">Containment actions stay simulated by default.</h1>
-        <p className="mt-2 text-muted">This console records block/unblock actions, blocked IP state, and audit evidence without changing a real firewall.</p>
+        <p className="mt-2 text-muted">This console records simulated response actions after analyst approval, blocked IP state, and audit evidence without changing a real firewall.</p>
       </section>
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -38,15 +45,21 @@ export function ResponseCenter() {
       <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
         <form onSubmit={onBlock} className="panel">
           <div className="mb-4 flex items-center justify-between">
-            <div className="text-sm font-extrabold uppercase tracking-wide text-muted">Simulated Block</div>
+            <div className="text-sm font-extrabold uppercase tracking-wide text-muted">Simulated Response Approval</div>
             <Badge value={responseMode === "simulation" ? "ready" : "blocked"} />
           </div>
           <input className="input" placeholder="IP address" value={targetIp} onChange={(event) => setTargetIp(event.target.value)} disabled={!isAdmin} />
           <textarea className="input mt-3 min-h-24" value={reason} onChange={(event) => setReason(event.target.value)} disabled={!isAdmin} />
-          <button className="btn-primary mt-4 w-full" disabled={!isAdmin || blockIp.isPending}>
+          <div className="mt-2 text-xs text-muted">A justification note is required. Internal/management ranges are protected from simulated blocks.</div>
+          <button className="btn-primary mt-4 w-full" disabled={!isAdmin || blockIp.isPending || !targetIp.trim() || reason.trim().length < 8}>
             {blockIp.isPending ? "Recording..." : "Record simulated block"}
           </button>
-          {blockIp.data ? <div className="mt-3 rounded-lg border border-success/30 bg-success/10 p-3 text-sm text-success">{blockIp.data.result_message}</div> : null}
+          {blockIp.data ? (
+            <div className={`mt-3 rounded-lg border p-3 text-sm ${blockIp.data.status === "denied" ? "border-danger/30 bg-danger/10 text-danger" : "border-success/30 bg-success/10 text-success"}`}>
+              {blockIp.data.result_message}
+            </div>
+          ) : null}
+          {blockIp.error ? <div className="mt-3 rounded-lg border border-danger/30 bg-danger/10 p-3 text-sm text-danger">{String(blockIp.error.message)}</div> : null}
           {!isAdmin ? <div className="mt-3 text-xs text-muted">Only admins can record block/unblock actions.</div> : null}
         </form>
 
@@ -62,7 +75,11 @@ export function ResponseCenter() {
                 <button
                   className="btn-secondary"
                   disabled={!isAdmin || unblockIp.isPending}
-                  onClick={() => unblockIp.mutate({ targetIp: item.ip_address, reason: "Operator removed simulated containment." })}
+                  onClick={() => {
+                    if (window.confirm(`Remove the simulated block for ${item.ip_address}? This will be audited.`)) {
+                      unblockIp.mutate({ targetIp: item.ip_address, reason: "Operator removed simulated containment after analyst review." });
+                    }
+                  }}
                 >
                   Unblock
                 </button>

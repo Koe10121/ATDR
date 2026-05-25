@@ -89,9 +89,24 @@ python -m atdr.scripts.cleanup_exports --older-than-days 14 --execute
 1. Confirm the alert evidence.
 2. Assign the alert to an analyst.
 3. Add an investigation note.
-4. Use simulated block only if containment is justified.
+4. Use simulated block only if containment is justified and a response note explains the reason.
 5. Verify the response appears in Audit Log.
 6. Mark the alert contained or resolved only after documenting the decision.
+
+ATDR denies simulated block attempts for protected internal or management IP ranges and records denied attempts in the audit log. This protects lab users from accidentally treating internal infrastructure as an external containment target.
+
+## Alert Workflow
+
+Alert status values are:
+
+- `open`: new triage item.
+- `investigating`: analyst is reviewing evidence.
+- `needs_more_context`: analyst needs asset, owner, or network context before decision.
+- `contained`: response action or containment decision has been recorded.
+- `resolved`: investigation is complete.
+- `false_positive`: reviewed benign or noisy finding.
+
+Alert details should include severity, risk score, attack type, detection source, why-flagged explanation, related logs, ATT&CK-style mapping, response history, notes, and audit timeline. ML output remains decision support only.
 
 ## Recovery Checklist
 

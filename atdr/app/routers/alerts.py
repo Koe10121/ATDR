@@ -8,6 +8,7 @@ from atdr.app.db.models import User
 from atdr.app.schemas.alerts import (
     ALLOWED_ALERT_STATUSES,
     AlertAssignRequest,
+    AlertCaseRead,
     AlertEscalateRequest,
     AlertNoteCreate,
     AlertNoteRead,
@@ -33,6 +34,7 @@ from atdr.app.services.alert_service import (
     render_alert_report_pdf,
     update_alert_status,
 )
+from atdr.app.services.case_service import list_alert_cases
 
 router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
@@ -106,6 +108,17 @@ def api_list_alerts(
             offset=offset,
         )
     ]
+
+
+@router.get("/cases", response_model=list[AlertCaseRead])
+def api_list_alert_cases(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+    active_only: bool = True,
+    limit: int = Query(default=50, ge=1, le=200),
+    window_hours: int = Query(default=24, ge=1, le=168),
+) -> list[dict]:
+    return list_alert_cases(db, active_only=active_only, limit=limit, window_hours=window_hours)
 
 
 @router.get("/{alert_id}", response_model=AlertRead)
@@ -201,6 +214,15 @@ def investigate_alert(
     current_user: User = Depends(require_analyst_or_admin),
 ) -> dict:
     return _set_alert_status(db, alert_id, "investigating", current_user.username)
+
+
+@router.post("/{alert_id}/needs-context", response_model=AlertStatusResponse)
+def needs_context_alert(
+    alert_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    return _set_alert_status(db, alert_id, "needs_more_context", current_user.username)
 
 
 @router.post("/{alert_id}/contain", response_model=AlertStatusResponse)

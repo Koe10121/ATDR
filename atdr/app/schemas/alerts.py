@@ -4,7 +4,14 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 
-ALLOWED_ALERT_STATUSES = {"open", "investigating", "contained", "resolved", "false_positive"}
+ALLOWED_ALERT_STATUSES = {
+    "open",
+    "investigating",
+    "contained",
+    "resolved",
+    "false_positive",
+    "needs_more_context",
+}
 
 
 class AlertRead(BaseModel):
@@ -42,7 +49,7 @@ class AlertStatusResponse(BaseModel):
 
 
 class AlertStatusUpdate(BaseModel):
-    status: str = Field(description="One of: open, investigating, contained, resolved, false_positive")
+    status: str = Field(description="One of: open, investigating, contained, resolved, false_positive, needs_more_context")
 
     def normalized_status(self) -> str:
         return self.status.strip().lower().replace("-", "_")
@@ -88,3 +95,18 @@ class AlertReportRead(BaseModel):
     timeline: list[AlertTimelineEvent]
     notes: list[AlertNoteRead]
     response_actions: list[dict[str, Any]]
+
+
+class AlertCaseRead(BaseModel):
+    case_id: str
+    title: str
+    related_alert_count: int
+    source_ips: list[str]
+    destination_ips: list[str]
+    attack_types: list[str]
+    severity: str
+    status: str
+    assigned_analyst: str | None = None
+    first_seen: datetime | None = None
+    last_seen: datetime | None = None
+    notes: list[str] = Field(default_factory=list)

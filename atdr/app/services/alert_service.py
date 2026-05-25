@@ -13,7 +13,7 @@ from atdr.app.detection.rules import DetectionResult
 from atdr.app.detection.scoring import recommended_response, severity_from_score
 
 
-ALERT_STATUSES = {"open", "investigating", "contained", "resolved", "false_positive"}
+ALERT_STATUSES = {"open", "investigating", "contained", "resolved", "false_positive", "needs_more_context"}
 SLA_TARGETS = {
     "Critical": ("Immediate", timedelta(hours=1)),
     "High": ("Same day", timedelta(hours=24)),
@@ -38,7 +38,7 @@ def alert_sla(alert: Alert, *, now: datetime | None = None) -> dict:
     minutes_remaining = int((due_at - current).total_seconds() // 60)
     if alert.status in SLA_CLOSED_STATUSES:
         state = "closed"
-    elif alert.assigned_to is None and alert.status in {"open", "investigating", "contained"}:
+    elif alert.assigned_to is None and alert.status in {"open", "investigating", "contained", "needs_more_context"}:
         state = "needs_owner"
     elif minutes_remaining < 0:
         state = "overdue"

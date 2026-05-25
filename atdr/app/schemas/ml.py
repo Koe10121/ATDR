@@ -129,6 +129,8 @@ class MLDataQualityRead(BaseModel):
     duplicate_raw_line_groups: int
     dataset_time_min: datetime | None = None
     dataset_time_max: datetime | None = None
+    latest_ingestion_time: datetime | None = None
+    parser_error_examples: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class MLModelRunRead(BaseModel):

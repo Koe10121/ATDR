@@ -1,6 +1,6 @@
 export type Role = "admin" | "analyst";
 export type Severity = "Low" | "Medium" | "High" | "Critical";
-export type AlertStatus = "open" | "investigating" | "contained" | "resolved" | "false_positive";
+export type AlertStatus = "open" | "investigating" | "contained" | "resolved" | "false_positive" | "needs_more_context";
 
 export interface User {
   id: number;
@@ -67,6 +67,21 @@ export interface Alert {
   evidence_log_ids: number[];
   sla: AlertSla;
   detection_summary?: DetectionSummary;
+}
+
+export interface AlertCase {
+  case_id: string;
+  title: string;
+  related_alert_count: number;
+  source_ips: string[];
+  destination_ips: string[];
+  attack_types: string[];
+  severity: Severity | string;
+  status: AlertStatus | string;
+  assigned_analyst?: string | null;
+  first_seen?: string | null;
+  last_seen?: string | null;
+  notes: string[];
 }
 
 export interface AttackMapping {
@@ -380,6 +395,8 @@ export interface MLEvaluationReport {
     duplicate_raw_line_groups: number;
     dataset_time_min?: string | null;
     dataset_time_max?: string | null;
+    latest_ingestion_time?: string | null;
+    parser_error_examples?: Array<Record<string, unknown>>;
   };
   scored_log_count: number;
   anomaly_count: number;

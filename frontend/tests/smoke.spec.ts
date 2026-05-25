@@ -11,6 +11,7 @@ async function seedSession(page: Page, role: "admin" | "analyst" = "admin") {
 }
 
 async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
+  let deniedResponseAttempt = false;
   const smokeAlert = {
     id: 1,
     title: "Critical: Smoke alert",
@@ -111,6 +112,26 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
   );
   await page.route("**/api/alerts**", async (route) => {
     const url = route.request().url();
+    if (url.includes("/cases")) {
+      return route.fulfill({
+        json: [
+          {
+            case_id: "smoke-case",
+            title: "Critical port_scan case from 203.0.113.10",
+            related_alert_count: 1,
+            source_ips: ["203.0.113.10"],
+            destination_ips: ["10.0.0.5"],
+            attack_types: ["port_scan"],
+            severity: "Critical",
+            status: "open",
+            assigned_analyst: null,
+            first_seen: "2026-05-22T00:00:00Z",
+            last_seen: "2026-05-22T00:00:00Z",
+            notes: []
+          }
+        ]
+      });
+    }
     if (url.includes("/notes")) return route.fulfill({ json: [] });
     if (url.includes("/timeline")) return route.fulfill({ json: [] });
     if (url.includes("/report")) return route.fulfill({ json: { evidence_logs: [], matched_rules: [], timeline: [], notes: [], response_actions: [] } });
@@ -121,7 +142,21 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
     route.fulfill({ json: route.request().url().match(/\/api\/logs\/1(\?|$)/) ? smokeLog : [smokeLog] })
   );
   await page.route("**/api/audit**", async (route) =>
-    route.fulfill({ json: [{ id: 1, actor: "admin", action: "login", target_type: "user", target_value: "admin", details: {}, created_at: "2026-05-22T00:00:00Z" }] })
+    route.fulfill({
+      json: deniedResponseAttempt
+        ? [
+            {
+              id: 2,
+              actor: "admin",
+              action: "block_ip_denied",
+              target_type: "ip_address",
+              target_value: "10.0.0.10",
+              details: { status: "denied" },
+              created_at: "2026-05-22T00:01:00Z"
+            }
+          ]
+        : [{ id: 1, actor: "admin", action: "login", target_type: "user", target_value: "admin", details: {}, created_at: "2026-05-22T00:00:00Z" }]
+    })
   );
   await page.route("**/api/detection/tuning", async (route) =>
     route.fulfill({ json: { summary: {}, alert_type_pressure: [], suppression_candidates: [], false_positive_learning: {}, severity_distribution: [], status_distribution: [], ml: {}, production_readiness: [], recommendations: [] } })
@@ -135,7 +170,24 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
         model_name: "supervised_random_forest",
         model_path: "models/supervised_classifier.joblib",
         artifact_exists: false,
-        latest_run: null,
+        latest_run: {
+          metrics: {
+            f1: 0.72,
+            threat_positive: { precision: 0.87, recall: 0.95, f1: 0.91 },
+            per_class: {
+              suspicious: { recall: 0.71 },
+              malicious: { recall: 0.54 }
+            }
+          },
+          promotion_gate: {
+            decision: "eligible_for_analyst_review",
+            analyst_review_eligible: true,
+            production_promoted: false,
+            response_automation_allowed: false
+          },
+          model_readiness_checklist: { status: "candidate_improved", passed: 6, total: 7, items: [], message: "candidate" },
+          split_strategy: "time"
+        },
         label_count: 0,
         label_distribution: {},
         label_source_distribution: {},
@@ -159,7 +211,7 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
           class_coverage: {},
           warnings: []
         },
-        model_readiness_checklist: { status: "candidate_only", passed: 1, total: 7, items: [], message: "candidate" },
+        model_readiness_checklist: { status: "candidate_improved", passed: 6, total: 7, items: [], message: "candidate" },
         decision_support_only: true
       }
     })
@@ -221,6 +273,21 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
   );
   await page.route("**/api/ml/labels**", async (route) => route.fulfill({ json: [] }));
   await page.route("**/api/response/blocked-ips", async (route) => route.fulfill({ json: [] }));
+  await page.route("**/api/response/block-ip", async (route) => {
+    deniedResponseAttempt = true;
+    await route.fulfill({
+      json: {
+        id: 10,
+        alert_id: null,
+        action_type: "block_ip",
+        target_ip: "10.0.0.10",
+        status: "denied",
+        result_message: "Denied: Target IP is in the protected internal/management allowlist.",
+        executed_by: "admin",
+        executed_at: "2026-05-22T00:01:00Z"
+      }
+    });
+  });
   await page.route("**/api/suppressions**", async (route) => route.fulfill({ json: [] }));
   await page.route("**/api/watchlists**", async (route) => route.fulfill({ json: [] }));
   await page.route("**/api/users", async (route) => route.fulfill({ json: [{ id: 1, username: "admin", full_name: "Admin", role: "admin", is_active: true, created_at: "2026-05-22T00:00:00Z" }] }));
@@ -249,6 +316,21 @@ test("core analyst routes render with mocked API", async ({ page }) => {
   }
 });
 
+test("overview system health panel and ML governance wording render", async ({ page }) => {
+  await mockApi(page);
+  await seedSession(page);
+
+  await page.goto("/overview");
+  await expect(page.getByText("System Health")).toBeVisible();
+  await expect(page.getByText("Response Mode")).toBeVisible();
+  await expect(page.getByText("Config warnings are checked by Config Doctor")).toBeVisible();
+
+  await page.goto("/ml");
+  await expect(page.getByText("Model is eligible for analyst review, not production promotion.")).toBeVisible();
+  await expect(page.getByText("Analyst Review Gate")).toBeVisible();
+  await expect(page.getByText("Assisted labels are weak labels.")).toBeVisible();
+});
+
 test("deep-linked alert and log drawers render", async ({ page }) => {
   await mockApi(page);
   await seedSession(page);
@@ -266,6 +348,25 @@ test("analyst cannot access admin routes", async ({ page }) => {
   await seedSession(page, "analyst");
   await page.goto("/users");
   await expect(page.getByText("Access denied")).toBeVisible();
+});
+
+test("simulated response confirmation and denied audit are visible", async ({ page }) => {
+  await mockApi(page);
+  await seedSession(page);
+  await page.goto("/response");
+
+  await page.getByPlaceholder("IP address").fill("10.0.0.10");
+  await page.locator("textarea").fill("Acceptance test protected IP block attempt.");
+  page.once("dialog", async (dialog) => {
+    expect(dialog.message()).toContain("No real firewall device will be changed");
+    await dialog.accept();
+  });
+  await page.getByRole("button", { name: "Record simulated block" }).click();
+  await expect(page.getByText("Denied: Target IP is in the protected internal/management allowlist.")).toBeVisible();
+
+  await page.goto("/audit");
+  await expect(page.getByText("block_ip_denied")).toBeVisible();
+  await expect(page.getByText("10.0.0.10")).toBeVisible();
 });
 
 test("sort and saved-view dropdowns tolerate malformed persisted table state", async ({ page }) => {

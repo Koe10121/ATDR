@@ -76,6 +76,19 @@ python -m atdr.scripts.run_syslog_receiver --host 127.0.0.1 --port 5514
 
 To test locally, send one syslog line to UDP port `5514`. ATDR stores the raw line first, then attempts Palo Alto parsing. Malformed lines are preserved as evidence and do not crash ingestion.
 
+Harmless local sender:
+
+```powershell
+python -m atdr.scripts.send_sample_syslog --host 127.0.0.1 --port 5514 --count 3
+```
+
+Verification checklist:
+
+- Confirm the receiver prints or logs accepted datagrams.
+- Open React Investigation and check for new normalized rows.
+- Open AI Governance and review Data Quality for latest ingestion time, parse errors, missing fields, and parser error examples.
+- Run detection on new logs only after confirming raw evidence was preserved.
+
 Do not bind the receiver to `0.0.0.0` unless the host firewall and network scope are understood.
 
 ## Production Safety Checklist
