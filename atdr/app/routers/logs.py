@@ -128,6 +128,7 @@ def list_normalized_logs(
     dst_zone: str | None = None,
     severity: str | None = None,
     country: str | None = None,
+    app_risk: int | None = Query(default=None, ge=1, le=5),
     generated_from: str | None = None,
     generated_to: str | None = None,
     sort_by: str = "generated",
@@ -145,6 +146,7 @@ def list_normalized_logs(
         dst_zone=dst_zone,
         severity=severity,
         country=country,
+        app_risk=app_risk,
         sort_by=sort_by,
     )
     start = parse_datetime(generated_from)

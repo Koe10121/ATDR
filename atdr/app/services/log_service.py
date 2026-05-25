@@ -116,6 +116,7 @@ def build_log_query(
     dst_zone: str | None = None,
     severity: str | None = None,
     country: str | None = None,
+    app_risk: int | None = None,
     sort_by: str = "generated",
 ) -> Select:
     sort_columns = {
@@ -164,10 +165,11 @@ def build_log_query(
         statement = statement.where(
             (NormalizedLog.src_country.ilike(f"%{country}%")) | (NormalizedLog.dst_country.ilike(f"%{country}%"))
         )
+    if app_risk is not None:
+        statement = statement.where(NormalizedLog.app_risk == app_risk)
     if sort_by in {"action", "src_ip", "dst_ip"}:
         return statement.order_by(order_column.asc(), NormalizedLog.id.desc())
     return statement.order_by(desc(order_column), NormalizedLog.id.desc())
-    return statement
 
 
 def list_logs(db: Session, *, limit: int = 100, offset: int = 0, **filters) -> list[NormalizedLog]:

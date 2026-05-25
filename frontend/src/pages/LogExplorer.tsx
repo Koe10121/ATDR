@@ -9,6 +9,7 @@ import { ErrorBanner } from "../components/ErrorBanner";
 import { LoadingPanel } from "../components/LoadingPanel";
 import { MetaGrid } from "../components/MetaGrid";
 import { PaginationControls } from "../components/PaginationControls";
+import { SafeSelect } from "../components/SafeSelect";
 import { TableToolbar, tableDensityClass } from "../components/TableToolbar";
 import type { SavedView, TableDensity } from "../components/TableToolbar";
 import { useLog, useLogsPage, useMlLabelMutations, useMlLabels } from "../hooks/useApiQueries";
@@ -33,6 +34,7 @@ const LOG_FILTER_DEFAULTS = {
   dst_ip: "",
   app: "",
   action: "",
+  app_risk: "",
   protocol: "",
   src_zone: "",
   dst_zone: "",
@@ -171,25 +173,48 @@ export function LogExplorer() {
 
       <section className="panel space-y-3">
         <input className="input" placeholder="Search IP, app, rule, action, protocol, or zone" value={search} onChange={(event) => setSearch(event.target.value)} />
-        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
-          <input className="input" placeholder="Source IP" value={safeFilters.src_ip} onChange={(event) => updateFilter("src_ip", event.target.value)} />
-          <input className="input" placeholder="Destination IP" value={safeFilters.dst_ip} onChange={(event) => updateFilter("dst_ip", event.target.value)} />
-          <input className="input" placeholder="App" value={safeFilters.app} onChange={(event) => updateFilter("app", event.target.value)} />
-          <input className="input" placeholder="Action" value={safeFilters.action} onChange={(event) => updateFilter("action", event.target.value)} />
-          <input className="input" placeholder="Protocol" value={safeFilters.protocol} onChange={(event) => updateFilter("protocol", event.target.value)} />
-          <input className="input" placeholder="Source zone" value={safeFilters.src_zone} onChange={(event) => updateFilter("src_zone", event.target.value)} />
-          <input className="input" placeholder="Destination zone" value={safeFilters.dst_zone} onChange={(event) => updateFilter("dst_zone", event.target.value)} />
-          <input className="input" placeholder="Country" value={safeFilters.country} onChange={(event) => updateFilter("country", event.target.value)} />
+        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
           <input className="input" type="datetime-local" value={safeFilters.generated_from} onChange={(event) => updateFilter("generated_from", event.target.value)} />
           <input className="input" type="datetime-local" value={safeFilters.generated_to} onChange={(event) => updateFilter("generated_to", event.target.value)} />
+          <input className="input" placeholder="Source IP" value={safeFilters.src_ip} onChange={(event) => updateFilter("src_ip", event.target.value)} />
+          <input className="input" placeholder="Destination IP" value={safeFilters.dst_ip} onChange={(event) => updateFilter("dst_ip", event.target.value)} />
+          <input className="input" placeholder="Action" value={safeFilters.action} onChange={(event) => updateFilter("action", event.target.value)} />
+          <input className="input" placeholder="App/service" value={safeFilters.app} onChange={(event) => updateFilter("app", event.target.value)} />
+          <SafeSelect
+            value={safeFilters.app_risk}
+            options={[
+              { value: "", label: "Any risk" },
+              { value: "1", label: "Risk 1" },
+              { value: "2", label: "Risk 2" },
+              { value: "3", label: "Risk 3" },
+              { value: "4", label: "Risk 4" },
+              { value: "5", label: "Risk 5" }
+            ]}
+            onChange={(next) => updateFilter("app_risk", next)}
+            ariaLabel="App risk filter"
+          />
         </div>
-        <select className="input max-w-xs" value={safeFilters.sort_by} onChange={(event) => updateFilter("sort_by", event.target.value)}>
-          <option value="generated">Sort by generated time</option>
-          <option value="app_risk">Sort by app risk</option>
-          <option value="action">Sort by action</option>
-          <option value="src_ip">Sort by source IP</option>
-          <option value="dst_ip">Sort by destination IP</option>
-        </select>
+        <details className="rounded-lg border border-line bg-panel2 p-3">
+          <summary className="cursor-pointer text-sm font-extrabold uppercase tracking-wide text-muted">Advanced filters and sorting</summary>
+          <div className="mt-3 grid gap-3 md:grid-cols-3 xl:grid-cols-5">
+            <input className="input" placeholder="Protocol" value={safeFilters.protocol} onChange={(event) => updateFilter("protocol", event.target.value)} />
+            <input className="input" placeholder="Source zone" value={safeFilters.src_zone} onChange={(event) => updateFilter("src_zone", event.target.value)} />
+            <input className="input" placeholder="Destination zone" value={safeFilters.dst_zone} onChange={(event) => updateFilter("dst_zone", event.target.value)} />
+            <input className="input" placeholder="Country" value={safeFilters.country} onChange={(event) => updateFilter("country", event.target.value)} />
+            <SafeSelect
+              value={safeFilters.sort_by}
+              options={[
+                { value: "generated", label: "Sort by generated time" },
+                { value: "app_risk", label: "Sort by app risk" },
+                { value: "action", label: "Sort by action" },
+                { value: "src_ip", label: "Sort by source IP" },
+                { value: "dst_ip", label: "Sort by destination IP" }
+              ]}
+              onChange={(next) => updateFilter("sort_by", next)}
+              ariaLabel="Log sort"
+            />
+          </div>
+        </details>
       </section>
 
       {logs.isError ? <ErrorBanner error={logs.error} /> : null}
@@ -265,27 +290,23 @@ export function LogExplorer() {
               <div className="grid gap-3 md:grid-cols-2">
                 <label className="text-xs font-bold uppercase tracking-wide text-muted">
                   Label
-                  <select
-                    className="input mt-1"
+                  <SafeSelect
+                    className="mt-1"
                     value={labelForm.label}
-                    onChange={(event) => setLabelForm((current) => ({ ...current, label: event.target.value as MLLabelValue }))}
-                  >
-                    {LABEL_OPTIONS.map((item) => (
-                      <option key={item} value={item}>{item}</option>
-                    ))}
-                  </select>
+                    options={LABEL_OPTIONS.map((item) => ({ value: item, label: item }))}
+                    onChange={(next) => setLabelForm((current) => ({ ...current, label: next as MLLabelValue }))}
+                    ariaLabel="ML label"
+                  />
                 </label>
                 <label className="text-xs font-bold uppercase tracking-wide text-muted">
                   Attack Type
-                  <select
-                    className="input mt-1"
+                  <SafeSelect
+                    className="mt-1"
                     value={labelForm.attack_type}
-                    onChange={(event) => setLabelForm((current) => ({ ...current, attack_type: event.target.value as MLAttackType }))}
-                  >
-                    {ATTACK_TYPE_OPTIONS.map((item) => (
-                      <option key={item} value={item}>{item}</option>
-                    ))}
-                  </select>
+                    options={ATTACK_TYPE_OPTIONS.map((item) => ({ value: item, label: item }))}
+                    onChange={(next) => setLabelForm((current) => ({ ...current, attack_type: next as MLAttackType }))}
+                    ariaLabel="Attack type"
+                  />
                 </label>
                 <label className="text-xs font-bold uppercase tracking-wide text-muted">
                   Confidence: {labelForm.confidence}

@@ -28,7 +28,25 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
     updated_at: "2026-05-22T00:00:00Z",
     evidence_count: 1,
     evidence_log_ids: [1],
-    sla: { label: "Immediate", state: "needs_owner" }
+    sla: { label: "Immediate", state: "needs_owner" },
+    detection_summary: {
+      detection_source: ["rule", "anomaly", "hybrid"],
+      attack_type: "port_scan",
+      attack_mapping: {
+        attack_type: "port_scan",
+        tactic: "Discovery",
+        technique: "Network Service Discovery",
+        technique_id: "T1046",
+        description: "Scanning-like behavior can indicate discovery of exposed services."
+      },
+      matched_rule_names: ["Policy deny"],
+      anomaly: { present: true, count: 1, min_score: -0.2, max_score: -0.2 },
+      supervised: { predicted_label: "suspicious", malicious_probability: 0.82, confidence: 0.9, decision_support_only: true },
+      hybrid_risk: { final_risk_score: 88 },
+      behavior_window: { src_ip_5min_unique_dst_ports: 32, scanning_like_behavior_score: 80 },
+      top_evidence_points: ["Policy deny: Denied traffic.", "Source touched 32 unique destination ports in 5 minutes."],
+      why_flagged: "Flagged as suspicious because action=deny and source touched 32 unique destination ports in 5 minutes."
+    }
   };
   const smokeLog = {
     id: 1,
@@ -120,16 +138,99 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
         latest_run: null,
         label_count: 0,
         label_distribution: {},
+        label_source_distribution: {},
+        reviewed_label_distribution: {},
+        weak_label_distribution: {},
+        reviewed_label_count: 0,
+        reviewed_label_target: 300,
+        unreviewed_assisted_label_count: 0,
+        validation_warnings: ["Reviewed-label sample is too small for reliable model validation."],
+        class_temporal_coverage: {
+          reviewed_label_count: 0,
+          reviewed_label_target: 300,
+          reviewed_malicious_count: 0,
+          reviewed_suspicious_count: 0,
+          malicious_train_count: 0,
+          malicious_test_count: 0,
+          suspicious_train_count: 0,
+          suspicious_test_count: 0,
+          malicious_training_minimum: 20,
+          malicious_training_better_target: 50,
+          class_coverage: {},
+          warnings: []
+        },
+        model_readiness_checklist: { status: "candidate_only", passed: 1, total: 7, items: [], message: "candidate" },
         decision_support_only: true
       }
     })
   );
   await page.route("**/api/ml/review-queue**", async (route) => route.fulfill({ json: [] }));
+  await page.route("**/api/ml/active-learning/review-sample/export**", async (route) =>
+    route.fulfill({
+      body: "label_id,log_id,reason_selected_for_review,human_review_decision,human_review_note\n,1,low-confidence model prediction,,\n",
+      headers: { "content-type": "text/csv", "content-disposition": 'attachment; filename="active-learning-review-sample.csv"' }
+    })
+  );
+  await page.route("**/api/ml/training-window-threat-review/export**", async (route) =>
+    route.fulfill({
+      body: "label_id,log_id,split_window,current_label,human_review_decision,human_review_note\n,1,training_window,suspicious,,\n",
+      headers: { "content-type": "text/csv", "content-disposition": 'attachment; filename="training-window-threat-review-sample.csv"' }
+    })
+  );
+  await page.route("**/api/ml/boundary-report/export**", async (route) =>
+    route.fulfill({
+      body: "# Suspicious / Malicious Boundary Report\n",
+      headers: { "content-type": "text/markdown", "content-disposition": 'attachment; filename="suspicious-malicious-boundary-report.md"' }
+    })
+  );
+  await page.route("**/api/ml/suspicious-recall-review/export**", async (route) =>
+    route.fulfill({
+      body: "label_id,log_id,timestamp,split_window,current_label,current_attack_type,reviewed_status,model_prediction,model_confidence,threat_positive_score,rule_evidence,anomaly_evidence,hybrid_risk,reason_selected,evidence_summary,human_review_decision,human_review_attack_type,human_review_confidence,human_review_note\n1,1,2026-05-20T00:00:00Z,test_window,suspicious,unknown_anomaly,true,malicious,0.7,0.9,rule_score=50,is_anomaly=false,70,boundary,test,,unknown_anomaly,3,\n",
+      headers: { "content-type": "text/csv", "content-disposition": 'attachment; filename="suspicious-recall-review-sample.csv"' }
+    })
+  );
+  await page.route("**/api/ml/suspicious-recall-report/export**", async (route) =>
+    route.fulfill({
+      body: "# Suspicious Recall Error Report\n",
+      headers: { "content-type": "text/markdown", "content-disposition": 'attachment; filename="suspicious-recall-error-report.md"' }
+    })
+  );
+  await page.route("**/api/ml/labels/quality-issues/export**", async (route) =>
+    route.fulfill({
+      body: "label_id,log_id,current_label,current_attack_type,issue_type,human_review_decision,human_review_note\n,1,suspicious,unknown_anomaly,test,,\n",
+      headers: { "content-type": "text/csv", "content-disposition": 'attachment; filename="label-quality-issues.csv"' }
+    })
+  );
+  await page.route("**/api/ml/class-temporal-coverage**", async (route) =>
+    route.fulfill({
+      json: {
+        reviewed_label_count: 0,
+        reviewed_label_target: 300,
+        reviewed_malicious_count: 0,
+        reviewed_suspicious_count: 0,
+        malicious_train_count: 0,
+        malicious_test_count: 0,
+        suspicious_train_count: 0,
+        suspicious_test_count: 0,
+        malicious_training_minimum: 20,
+        malicious_training_better_target: 50,
+        class_coverage: {},
+        warnings: []
+      }
+    })
+  );
   await page.route("**/api/ml/labels**", async (route) => route.fulfill({ json: [] }));
   await page.route("**/api/response/blocked-ips", async (route) => route.fulfill({ json: [] }));
   await page.route("**/api/suppressions**", async (route) => route.fulfill({ json: [] }));
   await page.route("**/api/watchlists**", async (route) => route.fulfill({ json: [] }));
   await page.route("**/api/users", async (route) => route.fulfill({ json: [{ id: 1, username: "admin", full_name: "Admin", role: "admin", is_active: true, created_at: "2026-05-22T00:00:00Z" }] }));
+}
+
+async function chooseSafeSelect(page: Page, ariaLabel: string, optionName: string) {
+  await page.getByRole("button", { name: ariaLabel }).click();
+  await expect(page.locator('[data-atdr-dropdown-open="true"]')).toHaveCount(1);
+  await page.getByRole("option", { name: optionName, exact: true }).click();
+  await expect(page.locator('[data-atdr-dropdown-open="true"]')).toHaveCount(0);
 }
 
 test("login page loads", async ({ page }) => {
@@ -153,6 +254,8 @@ test("deep-linked alert and log drawers render", async ({ page }) => {
   await seedSession(page);
   await page.goto("/alerts?alert=1");
   await expect(page.getByRole("heading", { name: "Critical: Smoke alert" })).toBeVisible();
+  await expect(page.getByText("Why flagged?")).toBeVisible();
+  await expect(page.getByText("Discovery / Network Service Discovery (T1046)")).toBeVisible();
   await page.goto("/logs?log=1");
   await expect(page.getByText("Analyst ML Label")).toBeVisible();
   await expect(page.getByText("Raw Evidence", { exact: true })).toBeVisible();
@@ -182,14 +285,69 @@ test("sort and saved-view dropdowns tolerate malformed persisted table state", a
 
   await page.goto("/logs");
   await expect(page.getByRole("heading", { name: "Search raw evidence and normalized firewall events." })).toBeVisible();
-  await page.locator("select").filter({ hasText: "Apply saved view" }).selectOption("legacy-log-view");
-  await page.locator("select").filter({ hasText: "Sort by generated time" }).selectOption("dst_ip");
+  await chooseSafeSelect(page, "Apply saved view", "legacy-log-view");
+  await page.getByText("Advanced filters and sorting").click();
+  await chooseSafeSelect(page, "Log sort", "Sort by destination IP");
+  await page.getByPlaceholder("Source IP", { exact: true }).click();
   await expect(page.getByRole("heading", { name: "Search raw evidence and normalized firewall events." })).toBeVisible();
 
   await page.goto("/alerts");
   await expect(page.getByRole("heading", { name: "Prioritize, investigate, contain, and document alerts." })).toBeVisible();
-  await page.locator("select").filter({ hasText: "Apply saved view" }).selectOption("legacy-alert-view");
-  await page.locator("select").filter({ hasText: "Sort by score" }).selectOption("severity");
+  await chooseSafeSelect(page, "Apply saved view", "legacy-alert-view");
+  await chooseSafeSelect(page, "Alert sort", "Sort by severity");
+  await page.getByPlaceholder("Source IP", { exact: true }).click();
   await expect(page.getByRole("heading", { name: "Prioritize, investigate, contain, and document alerts." })).toBeVisible();
+  expect(pageErrors).toEqual([]);
+});
+
+test("dashboard dropdowns close and do not block follow-up clicks", async ({ page }) => {
+  await mockApi(page);
+  await seedSession(page);
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+
+  await page.goto("/logs");
+  await page.getByText("Advanced filters and sorting").click();
+  await chooseSafeSelect(page, "Log sort", "Sort by source IP");
+  await page.getByPlaceholder("Search IP, app, rule, action, protocol, or zone").click();
+  await chooseSafeSelect(page, "Table density", "Compact");
+  await page.getByRole("button", { name: "Save view" }).click();
+
+  await page.goto("/alerts");
+  await chooseSafeSelect(page, "Alert severity filter", "High");
+  await page.getByPlaceholder("Source IP", { exact: true }).click();
+  await chooseSafeSelect(page, "Alert status filter", "Investigating");
+  await page.getByPlaceholder("Destination IP", { exact: true }).click();
+  await chooseSafeSelect(page, "Alert sort", "Sort by updated");
+  await page.getByPlaceholder("Alert type", { exact: true }).click();
+
+  await page.goto("/audit");
+  await chooseSafeSelect(page, "Table density", "Compact");
+  await page.getByPlaceholder("Actor").click();
+
+  await page.goto("/controls");
+  await page.getByRole("button", { name: "Watchlists" }).click();
+  await chooseSafeSelect(page, "Watchlist indicator type", "Destination IP");
+  await page.getByPlaceholder("Indicator value").click();
+
+  await page.goto("/ml");
+  await expect(page.getByRole("heading", { name: "AI is assistive, explainable, and audited." })).toBeVisible();
+  await expect(page.getByText("AI Model Evaluation")).toBeVisible();
+  await expect(page.getByRole("button", { name: "General Active Learning Sample" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Malicious-Focused Sample" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Round 5 Threat Boundary" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Training-Window Threat Sample" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Suspicious Recall Sample" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Suspicious Recall Report" })).toBeVisible();
+  await page.getByRole("button", { name: "Human Review Sample" }).click();
+  await page.getByRole("button", { name: "General Active Learning Sample" }).click();
+  await page.getByRole("button", { name: "Malicious-Focused Sample" }).click();
+  await page.getByRole("button", { name: "Suspicious Recall Sample" }).click();
+  await page.getByRole("button", { name: "Suspicious Recall Report" }).click();
+  await page.getByRole("button", { name: "Round 5 Threat Boundary" }).click();
+  await page.getByRole("button", { name: "Training-Window Threat Sample" }).click();
+  await page.getByRole("button", { name: "Boundary Report" }).click();
+  await page.getByRole("button", { name: "Download Model Report" }).click();
+  await expect(page.locator('[data-atdr-dropdown-open="true"]')).toHaveCount(0);
   expect(pageErrors).toEqual([]);
 });

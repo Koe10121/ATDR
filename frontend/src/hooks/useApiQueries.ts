@@ -24,6 +24,7 @@ export const queryKeys = {
   tuning: ["detection-tuning"],
   mlReport: ["ml-report"],
   supervisedReport: ["supervised-report"],
+  classTemporalCoverage: ["class-temporal-coverage"],
   mlLabels: (params?: Record<string, unknown>) => ["ml-labels", params ?? {}],
   mlReviewQueue: (params?: Record<string, unknown>) => ["ml-review-queue", params ?? {}],
   blockedIps: ["blocked-ips"],
@@ -120,6 +121,10 @@ export function useMlReport() {
 
 export function useSupervisedReport() {
   return useQuery({ queryKey: queryKeys.supervisedReport, queryFn: api.supervisedReport, refetchInterval: 60_000 });
+}
+
+export function useClassTemporalCoverage() {
+  return useQuery({ queryKey: queryKeys.classTemporalCoverage, queryFn: () => api.classTemporalCoverage(), refetchInterval: 60_000 });
 }
 
 export function useMlLabels(params: Params, enabled = true) {
@@ -254,6 +259,10 @@ export function useMlLabelMutations() {
   return {
     create: useMutation({ mutationFn: (payload: MLLabelPayload) => api.createMlLabel(payload), onSuccess: invalidate }),
     update: useMutation({ mutationFn: ({ id, payload }: { id: number; payload: Partial<MLLabelPayload> }) => api.updateMlLabel(id, payload), onSuccess: invalidate }),
-    importCsv: useMutation({ mutationFn: (file: File) => api.importMlLabels(file), onSuccess: invalidate })
+    importCsv: useMutation({
+      mutationFn: (input: File | { file: File; params?: Record<string, string | number | boolean | null | undefined> }) =>
+        input instanceof File ? api.importMlLabels(input) : api.importMlLabels(input.file, input.params),
+      onSuccess: invalidate
+    })
   };
 }

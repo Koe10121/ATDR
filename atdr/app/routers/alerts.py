@@ -16,6 +16,7 @@ from atdr.app.schemas.alerts import (
     AlertStatusUpdate,
     AlertTimelineEvent,
 )
+from atdr.app.detection.explanations import build_alert_detection_summary
 from atdr.app.services.alert_service import (
     add_alert_note,
     alert_report,
@@ -36,8 +37,8 @@ from atdr.app.services.alert_service import (
 router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
 
-def _alert_to_dict(alert) -> dict:
-    return {
+def _alert_to_dict(alert, db: Session | None = None, *, include_detection_summary: bool = False) -> dict:
+    payload = {
         "id": alert.id,
         "title": alert.title,
         "alert_type": alert.alert_type,
@@ -61,6 +62,9 @@ def _alert_to_dict(alert) -> dict:
         "evidence_log_ids": [item.normalized_log_id for item in alert.evidence],
         "sla": alert_sla(alert),
     }
+    if include_detection_summary and db is not None:
+        payload["detection_summary"] = build_alert_detection_summary(db, alert)
+    return payload
 
 @router.get("", response_model=list[AlertRead])
 def api_list_alerts(
@@ -113,7 +117,7 @@ def api_get_alert(
     alert = get_alert(db, alert_id)
     if alert is None:
         raise HTTPException(status_code=404, detail="Alert not found.")
-    return _alert_to_dict(alert)
+    return _alert_to_dict(alert, db, include_detection_summary=True)
 
 
 @router.post("/{alert_id}/assign", response_model=AlertRead)

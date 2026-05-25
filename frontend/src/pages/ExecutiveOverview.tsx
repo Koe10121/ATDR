@@ -1,17 +1,27 @@
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
+import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ChartCard } from "../components/ChartCard";
 import { EmptyState } from "../components/EmptyState";
 import { MetricCard } from "../components/MetricCard";
 import { Badge } from "../components/Badge";
-import { useAlerts, useDashboardSummary } from "../hooks/useApiQueries";
+import { useAlerts, useDashboardSummary, useSupervisedReport } from "../hooks/useApiQueries";
+import { inferAttackTypeFromAlertType } from "../lib/attackMapping";
 
 const chartColors = ["#ef4444", "#f97316", "#f59e0b", "#22c55e", "#22d3ee", "#94a3b8"];
 
 export function ExecutiveOverview() {
   const summary = useDashboardSummary();
+  const supervised = useSupervisedReport();
   const critical = useAlerts({ severity: "Critical", status: "open", limit: 5 });
   const data = summary.data;
   const severityRows = data ? Object.entries(data.severity_counts).map(([name, count]) => ({ name, count })) : [];
+  const highCritical = (data?.critical_open_alerts ?? 0) + (data?.high_open_alerts ?? 0);
+  const attackRows =
+    data?.top_alert_types.map((item) => ({ name: inferAttackTypeFromAlertType(item.name).replaceAll("_", " "), count: item.count })) ?? [];
+  const detectionBreakdown = [
+    { name: "Rule alerts", count: data?.total_alerts ?? 0 },
+    { name: "Anomaly logs", count: data?.ml_anomaly_logs ?? 0 },
+    { name: "Supervised labels", count: supervised.data?.label_count ?? 0 }
+  ];
 
   return (
     <div className="space-y-5">
@@ -25,12 +35,12 @@ export function ExecutiveOverview() {
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Logs Ingested" value={data?.total_logs ?? "-"} detail="Normalized firewall events" tone="teal" />
-        <MetricCard label="Active Alerts" value={data?.active_alerts ?? "-"} detail="Grouped findings requiring review" tone="danger" />
-        <MetricCard label="Critical Open" value={data?.critical_open_alerts ?? "-"} detail="Immediate triage queue" tone="danger" />
+        <MetricCard label="High/Critical Open" value={highCritical} detail="Priority SOC queue" tone="danger" />
+        <MetricCard label="Top Source IPs" value={data?.top_suspicious_source_ips?.length ?? "-"} detail="Ranked suspicious sources" tone="amber" />
         <MetricCard label="ML Anomaly Rate" value={`${data?.anomaly_rate ?? "-"}%`} detail="Assistive anomaly signal" tone="cyan" />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
+      <div className="grid gap-4 xl:grid-cols-3">
         <ChartCard title="Severity Mix">
           {severityRows.length ? (
             <div className="h-72">
@@ -50,8 +60,41 @@ export function ExecutiveOverview() {
           )}
         </ChartCard>
 
+        <ChartCard title="Detection Breakdown">
+          <div className="h-72">
+            <ResponsiveContainer>
+              <BarChart data={detectionBreakdown} layout="vertical" margin={{ left: 110 }}>
+                <XAxis type="number" stroke="#93a4b7" />
+                <YAxis type="category" dataKey="name" stroke="#93a4b7" width={110} />
+                <Tooltip contentStyle={{ background: "#0f151d", border: "1px solid #263445", color: "#e5edf6" }} />
+                <Bar dataKey="count" fill="#22d3ee" radius={[0, 6, 6, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </ChartCard>
+
         <section className="panel">
-          <div className="mb-4 text-sm font-extrabold uppercase tracking-wide text-muted">Critical Open Queue</div>
+          <div className="mb-4 text-sm font-extrabold uppercase tracking-wide text-muted">Top Sources And Attack Types</div>
+          <div className="space-y-3">
+            {(data?.top_suspicious_source_ips ?? []).slice(0, 4).map((item) => (
+              <div key={item.name} className="flex justify-between rounded-lg border border-line bg-panel2 px-3 py-2 text-sm">
+                <span className="font-bold text-text">{item.name}</span>
+                <span className="text-muted">{item.count}</span>
+              </div>
+            ))}
+            {attackRows.slice(0, 4).map((item) => (
+              <div key={item.name} className="flex justify-between rounded-lg border border-line bg-panel2 px-3 py-2 text-sm">
+                <span className="capitalize text-muted">{item.name}</span>
+                <span className="font-bold text-text">{item.count}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
+        <section className="panel">
+          <div className="mb-4 text-sm font-extrabold uppercase tracking-wide text-muted">Recent Severe Alerts</div>
           <div className="space-y-3">
             {(critical.data ?? []).map((alert) => (
               <div key={alert.id} className="rounded-lg border border-line bg-panel2 p-4">

@@ -10,6 +10,7 @@ import { LoadingPanel } from "../components/LoadingPanel";
 import { MetaGrid } from "../components/MetaGrid";
 import { MetricCard } from "../components/MetricCard";
 import { PaginationControls } from "../components/PaginationControls";
+import { SafeSelect } from "../components/SafeSelect";
 import { TableToolbar, tableDensityClass } from "../components/TableToolbar";
 import type { SavedView, TableDensity } from "../components/TableToolbar";
 import { useAuth } from "../hooks/useAuth";
@@ -24,6 +25,7 @@ import {
   useResponseMutations
 } from "../hooks/useApiQueries";
 import { api } from "../lib/api";
+import { attackMappingForType, inferAttackTypeFromAlertType } from "../lib/attackMapping";
 import { normalizeSavedViews, normalizeStringState } from "../lib/safeTableState";
 import { usePersistentState } from "../hooks/usePersistentState";
 import type { Alert, AlertStatus } from "../types/api";
@@ -83,18 +85,29 @@ export function AlertsTriage() {
   const notes = useAlertNotes(selected?.id);
   const timeline = useAlertTimeline(selected?.id);
   const report = useAlertReport(selected?.id);
+  const detectionSummary = selected?.detection_summary ?? report.data?.detection_summary;
+  const attackMapping = detectionSummary?.attack_mapping ?? attackMappingForType(inferAttackTypeFromAlertType(selected?.alert_type));
+  const anomalySummary = detectionSummary?.anomaly;
+  const supervisedSummary = detectionSummary?.supervised;
 
   const columns = useMemo<ColumnDef<Alert>[]>(
     () => [
       { accessorKey: "id", header: "ID" },
       { accessorKey: "severity", header: "Severity", cell: ({ row }) => <Badge value={row.original.severity} kind="severity" /> },
-      { accessorKey: "status", header: "Status", cell: ({ row }) => <Badge value={row.original.status} /> },
-      { accessorKey: "threat_score", header: "Score" },
-      { accessorKey: "title", header: "Alert" },
+      { accessorKey: "threat_score", header: "Risk Score" },
+      {
+        id: "attack_type",
+        header: "Attack Type",
+        cell: ({ row }) => {
+          const attackType = row.original.detection_summary?.attack_type ?? inferAttackTypeFromAlertType(row.original.alert_type);
+          return <Badge value={attackType} />;
+        }
+      },
       { accessorKey: "src_ip", header: "Source" },
       { accessorKey: "dst_ip", header: "Destination" },
-      { accessorKey: "assigned_to", header: "Owner" },
-      { accessorKey: "evidence_count", header: "Evidence" }
+      { accessorKey: "evidence_count", header: "Evidence" },
+      { accessorKey: "status", header: "Status", cell: ({ row }) => <Badge value={row.original.status} /> },
+      { accessorKey: "title", header: "Alert" }
     ],
     []
   );
@@ -173,30 +186,45 @@ export function AlertsTriage() {
       <section className="panel space-y-3">
         <input className="input" placeholder="Search title, source IP, destination IP, alert type, explanation" value={safeFilters.search} onChange={(event) => updateFilter("search", event.target.value)} />
         <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-          <select className="input" value={safeFilters.severity} onChange={(event) => updateFilter("severity", event.target.value)}>
-            <option value="">All severities</option>
-            <option>Critical</option>
-            <option>High</option>
-            <option>Medium</option>
-            <option>Low</option>
-          </select>
-          <select className="input" value={safeFilters.status} onChange={(event) => updateFilter("status", event.target.value)}>
-            <option value="">All statuses</option>
-            <option value="open">Open</option>
-            <option value="investigating">Investigating</option>
-            <option value="contained">Contained</option>
-            <option value="resolved">Resolved</option>
-            <option value="false_positive">False Positive</option>
-          </select>
+          <SafeSelect
+            value={safeFilters.severity}
+            options={[
+              { value: "", label: "All severities" },
+              { value: "Critical", label: "Critical" },
+              { value: "High", label: "High" },
+              { value: "Medium", label: "Medium" },
+              { value: "Low", label: "Low" }
+            ]}
+            onChange={(next) => updateFilter("severity", next)}
+            ariaLabel="Alert severity filter"
+          />
+          <SafeSelect
+            value={safeFilters.status}
+            options={[
+              { value: "", label: "All statuses" },
+              { value: "open", label: "Open" },
+              { value: "investigating", label: "Investigating" },
+              { value: "contained", label: "Contained" },
+              { value: "resolved", label: "Resolved" },
+              { value: "false_positive", label: "False Positive" }
+            ]}
+            onChange={(next) => updateFilter("status", next)}
+            ariaLabel="Alert status filter"
+          />
           <input className="input" placeholder="Source IP" value={safeFilters.src_ip} onChange={(event) => updateFilter("src_ip", event.target.value)} />
           <input className="input" placeholder="Destination IP" value={safeFilters.dst_ip} onChange={(event) => updateFilter("dst_ip", event.target.value)} />
           <input className="input" placeholder="Alert type" value={safeFilters.alert_type} onChange={(event) => updateFilter("alert_type", event.target.value)} />
-          <select className="input" value={safeFilters.sort_by} onChange={(event) => updateFilter("sort_by", event.target.value)}>
-            <option value="score">Sort by score</option>
-            <option value="created">Sort by created</option>
-            <option value="updated">Sort by updated</option>
-            <option value="severity">Sort by severity</option>
-          </select>
+          <SafeSelect
+            value={safeFilters.sort_by}
+            options={[
+              { value: "score", label: "Sort by score" },
+              { value: "created", label: "Sort by created" },
+              { value: "updated", label: "Sort by updated" },
+              { value: "severity", label: "Sort by severity" }
+            ]}
+            onChange={(next) => updateFilter("sort_by", next)}
+            ariaLabel="Alert sort"
+          />
         </div>
       </section>
 
@@ -256,6 +284,8 @@ export function AlertsTriage() {
               rows={[
                 { label: "Threat Score", value: selected.threat_score },
                 { label: "Alert Type", value: selected.alert_type },
+                { label: "Attack Mapping", value: `${attackMapping.tactic} / ${attackMapping.technique} (${attackMapping.technique_id})` },
+                { label: "Detection Source", value: detectionSummary?.detection_source?.join(", ") ?? "rule" },
                 { label: "Source", value: selected.src_ip },
                 { label: "Destination", value: selected.dst_ip },
                 { label: "Owner", value: selected.assigned_to },
@@ -264,6 +294,44 @@ export function AlertsTriage() {
                 { label: "SLA", value: `${selected.sla?.label ?? "-"} / ${selected.sla?.state ?? "-"}` }
               ]}
             />
+
+            <section className="rounded-lg border border-cyan/25 bg-cyan/5 p-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="text-sm font-extrabold uppercase tracking-wide text-cyan">Why flagged?</div>
+                  <p className="mt-1 text-sm text-muted">{detectionSummary?.why_flagged ?? selected.explanation}</p>
+                </div>
+                <Badge value={detectionSummary?.attack_type ?? inferAttackTypeFromAlertType(selected.alert_type)} />
+              </div>
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded border border-line bg-panel2 p-3">
+                  <div className="text-xs font-bold uppercase tracking-wide text-muted">ATT&CK-style Mapping</div>
+                  <div className="mt-1 font-bold text-text">{attackMapping.tactic}</div>
+                  <div className="text-sm text-muted">{attackMapping.technique} / {attackMapping.technique_id}</div>
+                </div>
+                <div className="rounded border border-line bg-panel2 p-3">
+                  <div className="text-xs font-bold uppercase tracking-wide text-muted">Anomaly</div>
+                  <div className="mt-1 font-bold text-text">{anomalySummary?.present === true ? "Present" : "Not present"}</div>
+                  <div className="text-sm text-muted">Score {String(anomalySummary?.min_score ?? "-")}</div>
+                </div>
+                <div className="rounded border border-line bg-panel2 p-3">
+                  <div className="text-xs font-bold uppercase tracking-wide text-muted">Supervised</div>
+                  <div className="mt-1 font-bold text-text">{String(supervisedSummary?.predicted_label ?? "not trained")}</div>
+                  <div className="text-sm text-muted">Probability {String(supervisedSummary?.malicious_probability ?? 0)}</div>
+                </div>
+              </div>
+              <div className="mt-3 grid gap-2 md:grid-cols-2">
+                {(detectionSummary?.top_evidence_points ?? []).slice(0, 6).map((point) => (
+                  <div key={point} className="rounded border border-line bg-shell p-3 text-sm text-muted">{point}</div>
+                ))}
+              </div>
+              <details className="mt-3">
+                <summary className="cursor-pointer text-sm font-bold text-text">Behavior-window evidence</summary>
+                <pre className="mt-3 max-h-64 overflow-auto rounded-lg border border-line bg-shell p-3 text-xs text-muted">
+                  {JSON.stringify(detectionSummary?.behavior_window ?? {}, null, 2)}
+                </pre>
+              </details>
+            </section>
 
             <section className="rounded-lg border border-line bg-panel2 p-4">
               <div className="mb-3 text-sm font-extrabold uppercase tracking-wide text-muted">Analyst Actions</div>

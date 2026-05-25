@@ -177,6 +177,33 @@ def _parse_int(value: Any, *, field: str, row_number: int) -> int:
         raise ValueError(f"row {row_number}: invalid {field}") from exc
 
 
+def _parse_label_confidence(row: dict[str, Any], *, row_number: int) -> int:
+    raw = (
+        row.get("human_review_confidence")
+        or row.get("label_confidence")
+        or row.get("review_confidence")
+        or row.get("analyst_confidence")
+        or row.get("confidence")
+        or 3
+    )
+    if raw is None or str(raw).strip() == "":
+        return 3
+    raw_text = str(raw).strip()
+    try:
+        value = int(raw_text)
+    except ValueError:
+        try:
+            float_value = float(raw_text)
+        except ValueError as exc:
+            raise ValueError(f"row {row_number}: invalid confidence") from exc
+        if 0 <= float_value <= 1:
+            return 3
+        value = int(round(float_value))
+    if not 1 <= value <= 5:
+        raise ValueError(f"row {row_number}: confidence must be 1-5")
+    return value
+
+
 def _parse_optional_int(value: Any, *, field: str, row_number: int) -> int | None:
     if value is None or str(value).strip() == "":
         return None
@@ -194,9 +221,11 @@ def _validate_import_row(row: dict[str, Any], row_number: int) -> dict[str, Any]
     log_id = _parse_optional_int(row.get("log_id"), field="log_id", row_number=row_number)
     has_human_review_columns = "human_review_decision" in row or "human_review_note" in row
     has_human_review_input = bool(str(row.get("human_review_decision") or "").strip() or str(row.get("human_review_note") or "").strip())
-    label = str(row.get("human_review_decision") or row.get("label", "")).strip()
-    attack_type = str(row.get("attack_type", "unknown_anomaly")).strip() or "unknown_anomaly"
-    confidence = _parse_int(row.get("confidence", 3), field="confidence", row_number=row_number)
+    label = str(row.get("human_review_decision") or row.get("label") or row.get("current_label") or "").strip()
+    attack_type = str(
+        row.get("human_review_attack_type") or row.get("attack_type") or row.get("current_attack_type") or "unknown_anomaly"
+    ).strip() or "unknown_anomaly"
+    confidence = _parse_label_confidence(row, row_number=row_number)
     if log_id is None and label_id is None:
         raise ValueError(f"row {row_number}: log_id or label_id is required")
     if label not in VALID_LABELS:
@@ -241,6 +270,8 @@ def import_ml_labels_csv(
     reviewer: str,
     mark_reviewed: bool = True,
     overwrite_manual: bool = False,
+    overwrite_reviewed: bool = False,
+    correction_mode: bool = False,
     preserve_label_source: bool = True,
 ) -> dict:
     reader = csv.DictReader(StringIO(csv_content))
@@ -248,15 +279,19 @@ def import_ml_labels_csv(
     updated = 0
     skipped = 0
     protected_manual = 0
+    protected_reviewed = 0
+    changed_decisions = 0
     failed = 0
     errors: list[dict[str, Any]] = []
 
     for row_number, row in enumerate(reader, start=2):
         try:
-            parsed = _validate_import_row(row, row_number)
-            if mark_reviewed and parsed["has_human_review_columns"] and not parsed["has_human_review_input"]:
+            has_human_review_columns = "human_review_decision" in row or "human_review_note" in row
+            has_human_review_input = bool(str(row.get("human_review_decision") or "").strip() or str(row.get("human_review_note") or "").strip())
+            if mark_reviewed and has_human_review_columns and not has_human_review_input:
                 skipped += 1
                 continue
+            parsed = _validate_import_row(row, row_number)
             label = db.get(MLLabel, parsed["id"]) if parsed["id"] else None
             if label is not None and parsed["log_id"] is not None and label.log_id != parsed["log_id"]:
                 raise ValueError(f"row {row_number}: label_id does not belong to log_id {parsed['log_id']}")
@@ -288,10 +323,19 @@ def import_ml_labels_csv(
                     skipped += 1
                     protected_manual += 1
                     continue
+                if existing_source != "manual" and getattr(label, "reviewed", False) and not (overwrite_reviewed or correction_mode):
+                    skipped += 1
+                    protected_reviewed += 1
+                    continue
+                old_label = label.label
+                old_attack_type = label.attack_type
+                old_confidence = label.confidence
                 label.label = parsed["label"]
                 label.attack_type = parsed["attack_type"]
                 label.confidence = parsed["confidence"]
                 label.review_note = _merge_human_review_note(label.review_note, parsed["review_note"], reviewer=reviewer)
+                if old_label != label.label or old_attack_type != label.attack_type or old_confidence != label.confidence:
+                    changed_decisions += 1
                 if not preserve_label_source:
                     label.label_source = parsed["label_source"]
                 label.reviewed = True if mark_reviewed else parsed["reviewed"]
@@ -311,9 +355,13 @@ def import_ml_labels_csv(
                 "updated": updated,
                 "skipped": skipped,
                 "protected_manual": protected_manual,
+                "protected_reviewed": protected_reviewed,
+                "changed_decisions": changed_decisions,
                 "failed": failed,
                 "mark_reviewed": mark_reviewed,
                 "overwrite_manual": overwrite_manual,
+                "overwrite_reviewed": overwrite_reviewed,
+                "correction_mode": correction_mode,
                 "preserve_label_source": preserve_label_source,
                 "errors": errors[:20],
             },
@@ -325,6 +373,8 @@ def import_ml_labels_csv(
         "updated": updated,
         "skipped": skipped,
         "protected_manual": protected_manual,
+        "protected_reviewed": protected_reviewed,
+        "changed_decisions": changed_decisions,
         "failed": failed,
         "errors": errors,
     }
@@ -447,6 +497,7 @@ def build_label_review_queue(db: Session, *, limit: int = 100, include_labeled: 
                 "src_ip": log.src_ip,
                 "dst_ip": log.dst_ip,
                 "app": log.app,
+                "dst_port": log.dst_port,
                 "action": log.action,
                 "protocol": log.protocol,
                 "src_zone": log.src_zone,

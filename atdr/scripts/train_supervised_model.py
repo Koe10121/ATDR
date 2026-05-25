@@ -11,6 +11,7 @@ def main() -> None:
     parser.add_argument("--min-samples", type=int, default=6)
     parser.add_argument("--model-path", default=None)
     parser.add_argument("--actor", default="cli")
+    parser.add_argument("--split", choices=["random", "time"], default="random")
     args = parser.parse_args()
 
     init_db()
@@ -21,6 +22,7 @@ def main() -> None:
             model_path=args.model_path,
             test_size=args.test_size,
             min_samples=args.min_samples,
+            split=args.split,
         )
     print(json.dumps(result, indent=2, default=str))
 
