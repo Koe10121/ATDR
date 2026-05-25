@@ -3,14 +3,18 @@ import { ChartCard } from "../components/ChartCard";
 import { EmptyState } from "../components/EmptyState";
 import { MetricCard } from "../components/MetricCard";
 import { Badge } from "../components/Badge";
-import { useAlerts, useDashboardSummary, useSupervisedReport } from "../hooks/useApiQueries";
+import { useAlerts, useAuditPage, useDashboardSummary, useHealth, useMlReport, useSupervisedReport } from "../hooks/useApiQueries";
 import { inferAttackTypeFromAlertType } from "../lib/attackMapping";
 
 const chartColors = ["#ef4444", "#f97316", "#f59e0b", "#22c55e", "#22d3ee", "#94a3b8"];
 
 export function ExecutiveOverview() {
   const summary = useDashboardSummary();
+  const health = useHealth();
+  const mlReport = useMlReport();
   const supervised = useSupervisedReport();
+  const latestDetectionAudit = useAuditPage({ action: "run_detection", limit: 1 });
+  const latestAudit = useAuditPage({ limit: 1 });
   const critical = useAlerts({ severity: "Critical", status: "open", limit: 5 });
   const data = summary.data;
   const severityRows = data ? Object.entries(data.severity_counts).map(([name, count]) => ({ name, count })) : [];
@@ -22,6 +26,12 @@ export function ExecutiveOverview() {
     { name: "Anomaly logs", count: data?.ml_anomaly_logs ?? 0 },
     { name: "Supervised labels", count: supervised.data?.label_count ?? 0 }
   ];
+  const databaseStatus = health.data?.checks.database?.status ?? "unknown";
+  const responseMode = health.data?.checks.response_mode?.status ?? "unknown";
+  const mlStatus = health.data?.checks.ml_model?.status ?? (mlReport.data?.model_status.artifact_exists ? "ready" : "missing");
+  const latestIngestion = mlReport.data?.data_quality?.latest_ingestion_time ?? "-";
+  const latestDetection = latestDetectionAudit.data?.items?.[0]?.created_at ?? "-";
+  const auditCount = latestAudit.data?.totalCount ?? "-";
 
   return (
     <div className="space-y-5">
@@ -39,6 +49,36 @@ export function ExecutiveOverview() {
         <MetricCard label="Top Source IPs" value={data?.top_suspicious_source_ips?.length ?? "-"} detail="Ranked suspicious sources" tone="amber" />
         <MetricCard label="ML Anomaly Rate" value={`${data?.anomaly_rate ?? "-"}%`} detail="Assistive anomaly signal" tone="cyan" />
       </div>
+
+      <section className="panel">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-sm font-extrabold uppercase tracking-wide text-muted">System Health</div>
+            <p className="mt-1 text-sm text-muted">Compact readiness view for local lab acceptance checks.</p>
+          </div>
+          <Badge value={health.data?.status === "ok" ? "ready" : "review"} />
+        </div>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {[
+            ["API", health.data?.status ?? "unknown"],
+            ["Database", databaseStatus],
+            ["Response Mode", responseMode],
+            ["ML Model", mlStatus],
+            ["Latest Ingestion", latestIngestion],
+            ["Latest Detection", latestDetection],
+            ["Alert Count", data?.total_alerts ?? "-"],
+            ["Audit Count", auditCount],
+          ].map(([label, value]) => (
+            <div key={String(label)} className="rounded-lg border border-line bg-panel2 p-3 text-sm">
+              <div className="text-xs font-bold uppercase tracking-wide text-muted">{label}</div>
+              <div className="mt-1 break-words font-bold text-text">{String(value ?? "-")}</div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 rounded-lg border border-amber/30 bg-amber/10 p-3 text-sm text-amber">
+          Config warnings are checked by Config Doctor. In local demo mode, the default JWT-secret warning is expected; replace it before shared lab use.
+        </div>
+      </section>
 
       <div className="grid gap-4 xl:grid-cols-3">
         <ChartCard title="Severity Mix">

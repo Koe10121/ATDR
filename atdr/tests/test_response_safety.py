@@ -5,7 +5,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from atdr.app.db.database import Base
-from atdr.app.db.models import AuditLog
+from atdr.app.db.models import Alert, AuditLog
 from atdr.app.services import response_service
 
 
@@ -71,4 +71,44 @@ def test_response_denies_missing_justification_and_audits_attempt():
 
     assert action.status == "denied"
     assert "justification note is required" in action.result_message
+    assert audit is not None
+
+
+def test_response_denies_alert_without_evidence_and_audits_attempt():
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+        future=True,
+    )
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+
+    with Session() as db:
+        db.add(
+            Alert(
+                title="Alert without evidence",
+                alert_type="unit_test",
+                src_ip="203.0.113.99",
+                dst_ip="198.51.100.10",
+                threat_score=80,
+                severity="High",
+                status="open",
+                explanation="No evidence links.",
+                matched_rules_json=[],
+                recommended_response="Review.",
+            )
+        )
+        db.commit()
+        action = response_service.block_ip(
+            db,
+            target_ip="203.0.113.99",
+            reason="attempt without evidence",
+            alert_id=1,
+            actor="admin",
+        )
+        audit = db.scalar(select(AuditLog).where(AuditLog.action == "block_ip_denied"))
+
+    assert action.status == "denied"
+    assert "no evidence logs" in action.result_message
     assert audit is not None

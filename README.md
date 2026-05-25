@@ -180,6 +180,19 @@ python -m atdr.scripts.send_sample_syslog --host 127.0.0.1 --port 5514 --count 3
 
 Verify ingestion through the Log Explorer, ML Governance data-quality panel, or `GET /api/logs`. Keep the receiver bound to localhost for lab testing unless the host firewall and network scope are explicitly approved.
 
+## Optional Lab Scenario Runner
+
+For a safe end-to-end lab check that does not reset data by default:
+
+```powershell
+python -m atdr.scripts.run_lab_scenario --dry-run --use-sample-data --pretty
+python -m atdr.scripts.run_lab_scenario --use-sample-data --no-ml --pretty
+```
+
+Use `--reset-demo` only when you intentionally want to clear demo data. See `docs/LAB_RUNBOOK.md`.
+
+For v0.1 acceptance testing and current lab-readiness status, see `docs/ACCEPTANCE_TEST_CHECKLIST.md` and `docs/V0_1_STATUS.md`.
+
 ## ML-Assisted Anomaly Detection
 
 Train the optional IsolationForest after importing logs:

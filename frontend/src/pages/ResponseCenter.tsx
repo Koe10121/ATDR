@@ -33,7 +33,7 @@ export function ResponseCenter() {
       <section className="hero-panel">
         <div className="text-sm font-extrabold uppercase tracking-wide text-cyan">Response Center</div>
         <h1 className="mt-2 text-3xl font-black">Containment actions stay simulated by default.</h1>
-        <p className="mt-2 text-muted">This console records block/unblock actions, blocked IP state, and audit evidence without changing a real firewall.</p>
+        <p className="mt-2 text-muted">This console records simulated response actions after analyst approval, blocked IP state, and audit evidence without changing a real firewall.</p>
       </section>
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -45,7 +45,7 @@ export function ResponseCenter() {
       <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
         <form onSubmit={onBlock} className="panel">
           <div className="mb-4 flex items-center justify-between">
-            <div className="text-sm font-extrabold uppercase tracking-wide text-muted">Simulated Block</div>
+            <div className="text-sm font-extrabold uppercase tracking-wide text-muted">Simulated Response Approval</div>
             <Badge value={responseMode === "simulation" ? "ready" : "blocked"} />
           </div>
           <input className="input" placeholder="IP address" value={targetIp} onChange={(event) => setTargetIp(event.target.value)} disabled={!isAdmin} />

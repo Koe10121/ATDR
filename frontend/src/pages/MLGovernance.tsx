@@ -254,7 +254,7 @@ export function MLGovernance() {
           <MetricCard
             label="Model Status"
             value={readiness?.status ?? "candidate_only"}
-            detail="Do not promote until exact-class validation is stable"
+            detail="Analyst review eligible is not production promotion"
             tone="cyan"
           />
         </div>
@@ -394,7 +394,7 @@ export function MLGovernance() {
             </div>
           </div>
           <div className="rounded-lg border border-line bg-panel2 p-4">
-            <div className="mb-2 text-xs font-extrabold uppercase tracking-wide text-muted">Promotion Gate</div>
+            <div className="mb-2 text-xs font-extrabold uppercase tracking-wide text-muted">Analyst Review Gate</div>
             <div className="space-y-2 text-sm text-muted">
               <div className="flex justify-between rounded border border-line bg-panel px-3 py-2">
                 <span>Decision</span>
