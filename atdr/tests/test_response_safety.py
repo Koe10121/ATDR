@@ -33,3 +33,42 @@ def test_response_without_simulation_is_pending_until_connector_exists(monkeypat
     assert audit is not None
     assert audit.details["simulation"] is False
     assert audit.details["status"] == "pending_connector"
+
+
+def test_response_denies_protected_internal_block_and_audits_attempt():
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+        future=True,
+    )
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+
+    with Session() as db:
+        action = response_service.block_ip(db, target_ip="10.0.0.10", reason="operator test", actor="admin")
+        audit = db.scalar(select(AuditLog).where(AuditLog.action == "block_ip_denied"))
+
+    assert action.status == "denied"
+    assert "protected internal" in action.result_message
+    assert audit is not None
+    assert audit.details["status"] == "denied"
+
+
+def test_response_denies_missing_justification_and_audits_attempt():
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+        future=True,
+    )
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+
+    with Session() as db:
+        action = response_service.block_ip(db, target_ip="203.0.113.99", reason="", actor="admin")
+        audit = db.scalar(select(AuditLog).where(AuditLog.action == "block_ip_denied"))
+
+    assert action.status == "denied"
+    assert "justification note is required" in action.result_message
+    assert audit is not None

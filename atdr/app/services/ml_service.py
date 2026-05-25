@@ -292,6 +292,7 @@ def data_quality_profile(db: Session) -> dict:
     total_normalized = int(db.scalar(select(func.count(NormalizedLog.id))) or 0)
     parse_errors = max(0, total_raw - total_normalized)
     time_range = db.execute(select(func.min(NormalizedLog.generated_time), func.max(NormalizedLog.generated_time))).one()
+    latest_ingestion_time = db.scalar(select(func.max(RawLog.imported_at)))
     duplicate_rows = db.execute(
         select(func.count())
         .select_from(
@@ -306,6 +307,15 @@ def data_quality_profile(db: Session) -> dict:
     missing_dst_ip = _count_where(db, or_(NormalizedLog.dst_ip.is_(None), NormalizedLog.dst_ip == ""))
     missing_action = _count_where(db, or_(NormalizedLog.action.is_(None), NormalizedLog.action == ""))
     unknown_app_count = _count_where(db, func.lower(NormalizedLog.app).in_(UNKNOWN_APPS))
+    parser_error_examples = [
+        {"raw_log_id": row.id, "imported_at": row.imported_at, "raw_line_excerpt": row.raw_line[:240]}
+        for row in db.scalars(
+            select(RawLog)
+            .where(~RawLog.normalized.has())
+            .order_by(RawLog.imported_at.desc(), RawLog.id.desc())
+            .limit(5)
+        )
+    ]
     return {
         "total_imported_logs": total_raw,
         "parsed_successfully": total_normalized,
@@ -319,6 +329,8 @@ def data_quality_profile(db: Session) -> dict:
         "duplicate_raw_line_groups": int(duplicate_rows or 0),
         "dataset_time_min": time_range[0],
         "dataset_time_max": time_range[1],
+        "latest_ingestion_time": latest_ingestion_time,
+        "parser_error_examples": parser_error_examples,
     }
 
 

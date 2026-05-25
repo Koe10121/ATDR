@@ -1,22 +1,52 @@
 import { Activity, BarChart3, Brain, ClipboardList, Database, Gauge, LogOut, RadioTower, Settings2, ShieldAlert, SlidersHorizontal, Users } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
 import clsx from "clsx";
 import { useAuth } from "../hooks/useAuth";
 import { useHealth, useMe } from "../hooks/useApiQueries";
 import { Badge } from "./Badge";
 
-const navItems = [
-  { to: "/overview", label: "Executive Overview", icon: Gauge },
-  { to: "/alerts", label: "Alert Workbench", icon: ShieldAlert },
-  { to: "/logs", label: "Log Explorer", icon: Database },
-  { to: "/response", label: "Response Center", icon: RadioTower },
-  { to: "/controls", label: "Threat Controls", icon: SlidersHorizontal },
-  { to: "/audit", label: "Audit Log", icon: ClipboardList },
-  { to: "/tuning", label: "Detection Tuning", icon: BarChart3 },
-  { to: "/ml", label: "ML Governance", icon: Brain },
-  { to: "/users", label: "User Admin", icon: Users, adminOnly: true },
-  { to: "/demo", label: "Demo Controls", icon: Settings2, adminOnly: true }
+interface NavItem {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+  adminOnly?: boolean;
+}
+
+const navGroups: Array<{ label: string; items: NavItem[] }> = [
+  {
+    label: "Operations",
+    items: [
+      { to: "/overview", label: "Overview", icon: Gauge },
+      { to: "/alerts", label: "Alerts", icon: ShieldAlert },
+      { to: "/logs", label: "Investigation", icon: Database }
+    ]
+  },
+  {
+    label: "AI Governance",
+    items: [
+      { to: "/ml", label: "Model Governance", icon: Brain },
+      { to: "/tuning", label: "Detection Tuning", icon: BarChart3 }
+    ]
+  },
+  {
+    label: "Response & Audit",
+    items: [
+      { to: "/response", label: "Response Center", icon: RadioTower },
+      { to: "/audit", label: "Audit Trail", icon: ClipboardList },
+      { to: "/controls", label: "Threat Controls", icon: SlidersHorizontal }
+    ]
+  },
+  {
+    label: "Admin / Settings",
+    items: [
+      { to: "/users", label: "User Admin", icon: Users, adminOnly: true },
+      { to: "/demo", label: "Demo Controls", icon: Settings2, adminOnly: true }
+    ]
+  }
 ];
+
+const navItems = navGroups.flatMap((group) => group.items);
 
 export function AppShell() {
   const { logout, session, isAdmin } = useAuth();
@@ -31,23 +61,34 @@ export function AppShell() {
           <div className="text-lg font-black">MFU ATDR</div>
           <div className="mt-1 text-sm text-muted">AI-driven threat detection console</div>
         </div>
-        <nav className="mt-6 space-y-2">
-          {navItems.filter((item) => !item.adminOnly || isAdmin).map((item) => {
-            const Icon = item.icon;
+        <nav className="mt-6 space-y-5">
+          {navGroups.map((group) => {
+            const visibleItems = group.items.filter((item) => !item.adminOnly || isAdmin);
+            if (!visibleItems.length) return null;
             return (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                className={({ isActive }) =>
-                  clsx(
-                    "flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-bold transition",
-                    isActive ? "border-cyan/50 bg-cyan/10 text-cyan" : "border-transparent text-muted hover:border-line hover:bg-panel"
-                  )
-                }
-              >
-                <Icon size={18} />
-                {item.label}
-              </NavLink>
+              <div key={group.label}>
+                <div className="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-muted">{group.label}</div>
+                <div className="space-y-1.5">
+                  {visibleItems.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <NavLink
+                        key={item.to}
+                        to={item.to}
+                        className={({ isActive }) =>
+                          clsx(
+                            "flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-bold transition",
+                            isActive ? "border-cyan/50 bg-cyan/10 text-cyan" : "border-transparent text-muted hover:border-line hover:bg-panel"
+                          )
+                        }
+                      >
+                        <Icon size={18} />
+                        {item.label}
+                      </NavLink>
+                    );
+                  })}
+                </div>
+              </div>
             );
           })}
         </nav>

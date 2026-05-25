@@ -443,6 +443,7 @@ export function MLGovernance() {
             ["Missing destination IP", dataQuality?.missing_destination_ip],
             ["Missing action", dataQuality?.missing_action],
             ["Duplicate raw groups", dataQuality?.duplicate_raw_line_groups],
+            ["Latest ingestion", dataQuality?.latest_ingestion_time],
             ["First event", dataQuality?.dataset_time_min],
             ["Last event", dataQuality?.dataset_time_max]
           ].map(([label, value]) => (
@@ -452,6 +453,19 @@ export function MLGovernance() {
             </div>
           ))}
         </div>
+        {dataQuality?.parser_error_examples?.length ? (
+          <details className="mt-4">
+            <summary className="cursor-pointer text-sm font-bold text-text">Parser error examples</summary>
+            <div className="mt-3 space-y-2">
+              {dataQuality.parser_error_examples.slice(0, 5).map((item, index) => (
+                <div key={String(item.raw_log_id ?? index)} className="rounded-lg border border-line bg-shell p-3 text-xs text-muted">
+                  <div className="font-bold text-text">Raw log {String(item.raw_log_id ?? "-")} | {String(item.imported_at ?? "-")}</div>
+                  <div className="mt-1 break-all">{String(item.raw_line_excerpt ?? "-")}</div>
+                </div>
+              ))}
+            </div>
+          </details>
+        ) : null}
       </section>
 
       <section className="panel">

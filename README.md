@@ -92,7 +92,7 @@ analyst / analyst123
 ```
 
 The admin role can run simulated block/unblock response actions. Analysts can investigate and update alert status.
-Alert workflow states are `open`, `investigating`, `contained`, `resolved`, and `false_positive`.
+Alert workflow states are `open` (New), `investigating`, `needs_more_context`, `contained`, `resolved`, and `false_positive`.
 Alerts can be assigned to analysts, annotated with investigation notes, and reviewed through a timeline view.
 
 Most API endpoints now require a bearer token. Use `/api/auth/login` to receive a JWT and pass it as:
@@ -141,7 +141,7 @@ Open `http://127.0.0.1:8501`.
 
 ## Run The React Dashboard Preview
 
-The production dashboard migration lives in `frontend/`. Streamlit remains the demo/admin dashboard while React becomes the production UX path. The React dashboard now includes Executive Overview, Alert Workbench, Log Explorer, Response Center, Threat Controls, Audit Log, Detection Tuning, ML Governance, User Admin, and Demo Controls.
+The production dashboard migration lives in `frontend/`. Streamlit remains available for continuity while React is the priority dashboard path. The React dashboard is organized around Overview, Alerts, Investigation, AI Governance, Response & Audit, and Admin / Settings.
 
 After installing Node.js 20+ or the current LTS, run:
 
@@ -163,6 +163,22 @@ npm run build
 npm run lint
 npm run test:e2e
 ```
+
+## Live Syslog Lab Test
+
+Run the localhost UDP receiver in one terminal:
+
+```powershell
+python -m atdr.scripts.run_syslog_receiver --host 127.0.0.1 --port 5514
+```
+
+Then send harmless sample Palo Alto traffic lines from another terminal:
+
+```powershell
+python -m atdr.scripts.send_sample_syslog --host 127.0.0.1 --port 5514 --count 3
+```
+
+Verify ingestion through the Log Explorer, ML Governance data-quality panel, or `GET /api/logs`. Keep the receiver bound to localhost for lab testing unless the host firewall and network scope are explicitly approved.
 
 ## ML-Assisted Anomaly Detection
 

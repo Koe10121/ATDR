@@ -1,5 +1,6 @@
 import type {
   Alert,
+  AlertCase,
   AlertNote,
   AlertReport,
   AlertStatus,
@@ -149,6 +150,7 @@ export const api = {
   alertNotes: (id: number) => apiRequest<AlertNote[]>(`/api/alerts/${id}/notes`),
   alertTimeline: (id: number) => apiRequest<AlertTimelineEvent[]>(`/api/alerts/${id}/timeline`),
   alertReport: (id: number) => apiRequest<AlertReport>(`/api/alerts/${id}/report`),
+  alertCases: (params: Params = {}) => apiRequest<AlertCase[]>("/api/alerts/cases", { params }),
   downloadAlertReport: (id: number, format: "csv" | "html" | "pdf") => apiDownload(`/api/alerts/${id}/report`, { format }),
   updateAlertStatus: (id: number, status: AlertStatus) =>
     apiRequest<{ id: number; status: string; updated_at: string }>(`/api/alerts/${id}/status`, {

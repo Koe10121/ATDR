@@ -111,6 +111,26 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
   );
   await page.route("**/api/alerts**", async (route) => {
     const url = route.request().url();
+    if (url.includes("/cases")) {
+      return route.fulfill({
+        json: [
+          {
+            case_id: "smoke-case",
+            title: "Critical port_scan case from 203.0.113.10",
+            related_alert_count: 1,
+            source_ips: ["203.0.113.10"],
+            destination_ips: ["10.0.0.5"],
+            attack_types: ["port_scan"],
+            severity: "Critical",
+            status: "open",
+            assigned_analyst: null,
+            first_seen: "2026-05-22T00:00:00Z",
+            last_seen: "2026-05-22T00:00:00Z",
+            notes: []
+          }
+        ]
+      });
+    }
     if (url.includes("/notes")) return route.fulfill({ json: [] });
     if (url.includes("/timeline")) return route.fulfill({ json: [] });
     if (url.includes("/report")) return route.fulfill({ json: { evidence_logs: [], matched_rules: [], timeline: [], notes: [], response_actions: [] } });

@@ -13,6 +13,7 @@ const statusClass: Record<string, string> = {
   contained: "border-cyan/30 bg-cyan/10 text-cyan",
   resolved: "border-success/30 bg-success/10 text-success",
   false_positive: "border-slate-400/30 bg-slate-400/10 text-slate-300",
+  needs_more_context: "border-purple-300/30 bg-purple-300/10 text-purple-200",
   needs_owner: "border-amber/30 bg-amber/10 text-amber",
   ready: "border-success/30 bg-success/10 text-success",
   review: "border-amber/30 bg-amber/10 text-amber",
@@ -23,9 +24,10 @@ const statusClass: Record<string, string> = {
 export function Badge({ value, kind = "status" }: { value?: string | null; kind?: "severity" | "status" }) {
   const label = value || "unknown";
   const classes = kind === "severity" ? severityClass[label] : statusClass[label];
+  const displayLabel = label === "open" ? "New" : label.replaceAll("_", " ");
   return (
     <span className={clsx("inline-flex rounded-full border px-2.5 py-1 text-xs font-bold uppercase tracking-wide", classes ?? "border-line bg-panel2 text-muted")}>
-      {label.replaceAll("_", " ")}
+      {displayLabel}
     </span>
   );
 }

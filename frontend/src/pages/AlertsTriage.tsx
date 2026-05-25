@@ -17,6 +17,7 @@ import { useAuth } from "../hooks/useAuth";
 import {
   useAlertNotes,
   useAlertReport,
+  useAlertCases,
   useAlertStatusMutation,
   useAlertTimeline,
   useAlertWorkflowMutations,
@@ -50,7 +51,7 @@ const ALERT_FILTER_DEFAULTS = {
 };
 const ALERT_SORT_VALUES = ["score", "created", "updated", "severity"] as const;
 const ALERT_SEVERITY_VALUES = ["", "Critical", "High", "Medium", "Low"] as const;
-const ALERT_STATUS_VALUES = ["", "open", "investigating", "contained", "resolved", "false_positive"] as const;
+const ALERT_STATUS_VALUES = ["", "open", "investigating", "contained", "resolved", "false_positive", "needs_more_context"] as const;
 type AlertFilters = typeof ALERT_FILTER_DEFAULTS;
 
 function normalizeAlertFilters(value: unknown): AlertFilters {
@@ -76,6 +77,7 @@ export function AlertsTriage() {
   const selectedIdParam = Number(searchParams.get("alert"));
   const selectedId = Number.isFinite(selectedIdParam) && selectedIdParam > 0 ? selectedIdParam : null;
   const alerts = useAlertsPage({ ...safeFilters, limit, offset });
+  const cases = useAlertCases({ active_only: true, limit: 5 });
   const alertRows = alerts.data?.items ?? [];
   const selectedDetail = useAlert(selectedId);
   const statusMutation = useAlertStatusMutation();
@@ -180,7 +182,7 @@ export function AlertsTriage() {
         <MetricCard label="Filtered Alerts" value={alerts.data?.totalCount ?? "-"} detail="Matching alerts" tone="teal" />
         <MetricCard label="Selected Alert" value={selected?.id ?? "-"} detail={selected?.severity ?? "No alert selected"} tone="amber" />
         <MetricCard label="Session" value={session?.role ?? "-"} detail={session?.username ?? "No user"} tone="cyan" />
-        <MetricCard label="Response" value={isAdmin ? "Admin" : "Read-only"} detail="Block/unblock requires admin" tone={isAdmin ? "danger" : "slate"} />
+        <MetricCard label="Active Cases" value={cases.data?.length ?? "-"} detail="Computed related alert groups" tone="cyan" />
       </div>
 
       <section className="panel space-y-3">
@@ -202,11 +204,12 @@ export function AlertsTriage() {
             value={safeFilters.status}
             options={[
               { value: "", label: "All statuses" },
-              { value: "open", label: "Open" },
+              { value: "open", label: "New" },
               { value: "investigating", label: "Investigating" },
               { value: "contained", label: "Contained" },
               { value: "resolved", label: "Resolved" },
-              { value: "false_positive", label: "False Positive" }
+              { value: "false_positive", label: "False Positive" },
+              { value: "needs_more_context", label: "Needs More Context" }
             ]}
             onChange={(next) => updateFilter("status", next)}
             ariaLabel="Alert status filter"
@@ -239,6 +242,30 @@ export function AlertsTriage() {
         onApplyView={applyView}
         onDeleteView={(name) => setSavedViews((current) => normalizeSavedViews(current, normalizeAlertFilters).filter((view) => view.name !== name))}
       />
+
+      {cases.data?.length ? (
+        <section className="panel">
+          <details>
+            <summary className="cursor-pointer text-sm font-extrabold uppercase tracking-wide text-muted">Active Case Grouping</summary>
+            <div className="mt-3 grid gap-3 lg:grid-cols-2">
+              {cases.data.map((item) => (
+                <div key={item.case_id} className="rounded-lg border border-line bg-panel2 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="font-bold text-text">{item.title}</div>
+                    <Badge value={item.severity} kind="severity" />
+                  </div>
+                  <div className="mt-2 text-sm text-muted">
+                    {item.related_alert_count} related alert(s) | {item.attack_types.join(", ") || "unknown"} | owner {item.assigned_analyst ?? "unassigned"}
+                  </div>
+                  <div className="mt-2 text-xs text-muted">
+                    Sources {item.source_ips.join(", ") || "-"} | Destinations {item.destination_ips.join(", ") || "-"}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </details>
+        </section>
+      ) : null}
 
       <section className="panel overflow-hidden">
         <div className="overflow-auto">
@@ -338,6 +365,7 @@ export function AlertsTriage() {
               <div className="flex flex-wrap gap-2">
                 <button className="btn-secondary" onClick={() => workflow.assignToMe.mutate(selected.id)}>Assign to me</button>
                 <button className="btn-secondary" onClick={() => setAlertStatus("investigating")}>Investigating</button>
+                <button className="btn-secondary" onClick={() => setAlertStatus("needs_more_context")}>Needs context</button>
                 <button className="btn-secondary" onClick={() => setAlertStatus("contained")}>Contained</button>
                 <button className="btn-primary" onClick={() => setAlertStatus("resolved")}>Resolve</button>
                 <button className="btn-secondary" onClick={() => setAlertStatus("false_positive")}>False positive</button>

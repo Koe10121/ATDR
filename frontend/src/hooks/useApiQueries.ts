@@ -14,6 +14,7 @@ export const queryKeys = {
   alertNotes: (id?: number | null) => ["alert-notes", id],
   alertTimeline: (id?: number | null) => ["alert-timeline", id],
   alertReport: (id?: number | null) => ["alert-report", id],
+  alertCases: (params?: Record<string, unknown>) => ["alert-cases", params ?? {}],
   logs: (params?: Record<string, unknown>) => ["logs", params ?? {}],
   logsPage: (params?: Record<string, unknown>) => ["logs-page", params ?? {}],
   log: (id?: number | null) => ["log", id],
@@ -89,6 +90,10 @@ export function useAlertTimeline(id?: number | null) {
 
 export function useAlertReport(id?: number | null) {
   return useQuery({ queryKey: queryKeys.alertReport(id), queryFn: () => api.alertReport(id as number), enabled: Boolean(id) });
+}
+
+export function useAlertCases(params: Params = {}) {
+  return useQuery({ queryKey: queryKeys.alertCases(params), queryFn: () => api.alertCases(params), refetchInterval: 60_000 });
 }
 
 export function useLogs(params: Params) {

@@ -155,13 +155,29 @@ def test_alert_status_transition_api_supports_new_workflow_states():
     client = _client()
     try:
         headers = _login(client, "analyst", "analyst123")
-        for status in ["investigating", "contained", "resolved", "false_positive", "open"]:
+        for status in ["investigating", "needs_more_context", "contained", "resolved", "false_positive", "open"]:
             response = client.post("/api/alerts/1/status", json={"status": status}, headers=headers)
             assert response.status_code == 200
             assert response.json()["status"] == status
 
         invalid = client.post("/api/alerts/1/status", json={"status": "archived"}, headers=headers)
         assert invalid.status_code == 400
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_alert_cases_group_related_alerts():
+    client = _client()
+    try:
+        headers = _login(client, "analyst", "analyst123")
+        response = client.get("/api/alerts/cases", headers=headers)
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload
+        assert payload[0]["related_alert_count"] >= 1
+        assert "case_id" in payload[0]
+        assert payload[0]["status"] in {"open", "investigating", "contained", "needs_more_context"}
     finally:
         app.dependency_overrides.clear()
 

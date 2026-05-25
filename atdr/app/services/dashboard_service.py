@@ -15,12 +15,13 @@ def _group_counts(db: Session, column, limit: int = 10) -> list[dict]:
 def build_dashboard_summary(db: Session) -> dict:
     total_logs = int(db.scalar(select(func.count(NormalizedLog.id))) or 0)
     total_alerts = int(db.scalar(select(func.count(Alert.id))) or 0)
-    active_alerts = int(db.scalar(select(func.count(Alert.id)).where(Alert.status.in_(["open", "investigating", "contained"]))) or 0)
+    active_statuses = ["open", "investigating", "needs_more_context", "contained"]
+    active_alerts = int(db.scalar(select(func.count(Alert.id)).where(Alert.status.in_(active_statuses))) or 0)
     critical_open = int(db.scalar(select(func.count(Alert.id)).where(Alert.severity == "Critical", Alert.status == "open")) or 0)
     high_open = int(db.scalar(select(func.count(Alert.id)).where(Alert.severity == "High", Alert.status == "open")) or 0)
     unassigned_alerts = int(
         db.scalar(
-            select(func.count(Alert.id)).where(Alert.assigned_to.is_(None), Alert.status.in_(["open", "investigating", "contained"]))
+            select(func.count(Alert.id)).where(Alert.assigned_to.is_(None), Alert.status.in_(active_statuses))
         )
         or 0
     )

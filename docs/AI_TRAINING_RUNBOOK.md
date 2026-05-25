@@ -2,6 +2,14 @@
 
 This runbook explains the supervised AI workflow for the MFU ATDR senior project demo and small-office lab pilot. The AI layer is decision support only. Rule evidence, raw logs, and analyst approval remain required before any response action.
 
+## Current Model Status
+
+Current supervised ML status is `candidate_improved`: it is eligible for analyst review as decision support, but it is not production promoted. Threat-positive triage is strong, while exact suspicious-versus-malicious separation remains imperfect and suspicious recall is still below the project target. Automatic response remains disabled.
+
+Recommended demo wording:
+
+> The model helps prioritize analyst attention. It is not a production-accuracy claim and it cannot trigger containment automatically. Response actions still require reviewed evidence and analyst approval.
+
 ## 1. Start From A Clean Demo Baseline
 
 ```powershell
