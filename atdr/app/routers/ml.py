@@ -11,6 +11,11 @@ from atdr.app.detection.supervised_detector import (
     supervised_report_markdown,
     train_supervised_classifier,
 )
+from atdr.app.detection.boundary_analysis import build_boundary_analysis, render_boundary_report
+from atdr.app.detection.suspicious_recall_analysis import (
+    build_suspicious_recall_error_report,
+    render_suspicious_recall_error_report,
+)
 from atdr.app.schemas.ml import (
     MLDatasetProfileRead,
     MLEvaluationReportRead,
@@ -23,7 +28,14 @@ from atdr.app.schemas.ml import (
     MLRunRequest,
     MLStatusRead,
 )
+from atdr.app.services.active_learning_service import (
+    export_active_learning_review_sample_csv,
+    export_suspicious_recall_review_sample_csv,
+    export_training_window_threat_review_sample_csv,
+)
 from atdr.app.services.assisted_label_service import export_label_review_sample
+from atdr.app.services.class_temporal_coverage_service import build_class_temporal_coverage, render_class_temporal_coverage_markdown
+from atdr.app.services.label_quality_service import export_label_quality_issues_csv
 from atdr.app.services.ml_label_service import (
     build_label_review_queue,
     create_ml_label,
@@ -103,6 +115,8 @@ async def import_ml_labels(
     current_user: User = Depends(require_analyst_or_admin),
     mark_reviewed: bool = Query(default=True),
     overwrite_manual: bool = Query(default=False),
+    overwrite_reviewed: bool = Query(default=False),
+    correction_mode: bool = Query(default=False),
     preserve_label_source: bool = Query(default=True),
 ) -> dict:
     content = await upload.read()
@@ -113,6 +127,8 @@ async def import_ml_labels(
         reviewer=current_user.username,
         mark_reviewed=mark_reviewed,
         overwrite_manual=overwrite_manual,
+        overwrite_reviewed=overwrite_reviewed,
+        correction_mode=correction_mode,
         preserve_label_source=preserve_label_source,
     )
 
@@ -142,6 +158,119 @@ def export_ml_label_review_sample(
         content=export_label_review_sample(db),
         media_type="text/csv",
         headers={"Content-Disposition": 'attachment; filename="assisted-label-human-review-sample.csv"'},
+    )
+
+
+@router.get("/active-learning/review-sample/export")
+def export_active_learning_review_sample(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+    limit: int = Query(default=100, ge=1, le=1000),
+    focus: str | None = Query(default=None),
+    strategy: str = Query(default="general", pattern="^(general|boundary|threat_boundary)$"),
+) -> Response:
+    filename = "active-learning-review-sample.csv"
+    if strategy == "threat_boundary":
+        filename = "active-learning-round5-suspicious-malicious-boundary.csv"
+    elif strategy == "boundary":
+        filename = "active-learning-round4-boundary-cases.csv"
+    elif focus:
+        filename = "active-learning-focused-review-sample.csv"
+    return Response(
+        content=export_active_learning_review_sample_csv(db, limit=limit, focus=focus, strategy=strategy),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/training-window-threat-review/export")
+def export_training_window_threat_review_sample(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+    limit: int = Query(default=150, ge=1, le=1000),
+) -> Response:
+    return Response(
+        content=export_training_window_threat_review_sample_csv(db, limit=limit),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="training-window-threat-review-sample.csv"'},
+    )
+
+
+@router.get("/boundary-report/export")
+def export_boundary_report(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+    split: str = Query(default="time", pattern="^(random|time)$"),
+    test_size: float = Query(default=0.3, ge=0.1, le=0.5),
+) -> Response:
+    return Response(
+        content=render_boundary_report(build_boundary_analysis(db, split=split, test_size=test_size)),
+        media_type="text/markdown",
+        headers={"Content-Disposition": 'attachment; filename="suspicious-malicious-boundary-report.md"'},
+    )
+
+
+@router.get("/suspicious-recall-review/export")
+def export_suspicious_recall_review_sample(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+    limit: int = Query(default=150, ge=1, le=1000),
+) -> Response:
+    return Response(
+        content=export_suspicious_recall_review_sample_csv(db, limit=limit),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="suspicious-recall-review-sample.csv"'},
+    )
+
+
+@router.get("/suspicious-recall-report/export")
+def export_suspicious_recall_report(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+    split: str = Query(default="time", pattern="^(random|time)$"),
+    test_size: float = Query(default=0.3, ge=0.1, le=0.5),
+) -> Response:
+    report = build_suspicious_recall_error_report(db, split=split, test_size=test_size)
+    return Response(
+        content=render_suspicious_recall_error_report(report),
+        media_type="text/markdown",
+        headers={"Content-Disposition": 'attachment; filename="suspicious-recall-error-report.md"'},
+    )
+
+
+@router.get("/labels/quality-issues/export")
+def export_label_quality_issues(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+    limit: int = Query(default=500, ge=1, le=5000),
+) -> Response:
+    return Response(
+        content=export_label_quality_issues_csv(db, limit=limit),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="label-quality-issues.csv"'},
+    )
+
+
+@router.get("/class-temporal-coverage")
+def get_class_temporal_coverage(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+    test_size: float = Query(default=0.3, ge=0.1, le=0.5),
+) -> dict:
+    return build_class_temporal_coverage(db, test_size=test_size)
+
+
+@router.get("/class-temporal-coverage/export")
+def export_class_temporal_coverage(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+    test_size: float = Query(default=0.3, ge=0.1, le=0.5),
+) -> Response:
+    report = build_class_temporal_coverage(db, test_size=test_size)
+    return Response(
+        content=render_class_temporal_coverage_markdown(report),
+        media_type="text/markdown",
+        headers={"Content-Disposition": 'attachment; filename="class-temporal-coverage-report.md"'},
     )
 
 
@@ -269,8 +398,9 @@ def train_supervised_model(
     current_user: User = Depends(require_admin),
     test_size: float = Query(default=0.3, ge=0.1, le=0.5),
     min_samples: int = Query(default=6, ge=2, le=100000),
+    split: str = Query(default="random", pattern="^(random|time)$"),
 ) -> dict:
-    return train_supervised_classifier(db, actor=current_user.username, test_size=test_size, min_samples=min_samples)
+    return train_supervised_classifier(db, actor=current_user.username, test_size=test_size, min_samples=min_samples, split=split)
 
 
 @router.get("/supervised/predict/{log_id}")

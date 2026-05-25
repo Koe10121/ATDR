@@ -6,6 +6,7 @@ import type {
   AlertTimelineEvent,
   AuditLog,
   BlockedIP,
+  ClassTemporalCoverageReport,
   DashboardSummary,
   DemoActionResult,
   DetectionTuningReport,
@@ -171,6 +172,15 @@ export const api = {
   downloadMlLabels: () => apiDownload("/api/ml/labels/export"),
   downloadMlLabelTemplate: () => apiDownload("/api/ml/labels/template"),
   downloadMlLabelReviewSample: () => apiDownload("/api/ml/labels/review-sample/export"),
+  downloadActiveLearningReviewSample: (params: Params = {}) => apiDownload("/api/ml/active-learning/review-sample/export", params),
+  downloadTrainingWindowThreatReviewSample: (params: Params = {}) =>
+    apiDownload("/api/ml/training-window-threat-review/export", params),
+  downloadSuspiciousMaliciousBoundaryReport: (params: Params = {}) => apiDownload("/api/ml/boundary-report/export", params),
+  downloadSuspiciousRecallReviewSample: (params: Params = {}) => apiDownload("/api/ml/suspicious-recall-review/export", params),
+  downloadSuspiciousRecallErrorReport: (params: Params = {}) => apiDownload("/api/ml/suspicious-recall-report/export", params),
+  downloadLabelQualityIssues: (params: Params = {}) => apiDownload("/api/ml/labels/quality-issues/export", params),
+  classTemporalCoverage: (params: Params = {}) => apiRequest<ClassTemporalCoverageReport>("/api/ml/class-temporal-coverage", { params }),
+  downloadClassTemporalCoverage: (params: Params = {}) => apiDownload("/api/ml/class-temporal-coverage/export", params),
   downloadMlReviewQueue: (params: Params = {}) => apiDownload("/api/ml/review-queue/export", params),
   importMlLabels: (file: File, params: Params = {}) => {
     const form = new FormData();

@@ -6,7 +6,7 @@ from sqlalchemy import desc, func, or_, select
 from sqlalchemy.orm import Session
 
 from atdr.app.core.config import get_settings
-from atdr.app.db.models import AuditLog, MLModelRun, NormalizedLog
+from atdr.app.db.models import AuditLog, MLModelRun, NormalizedLog, RawLog
 from atdr.app.detection.ml_detector import FEATURE_COLUMNS, apply_model_to_db, train_model
 
 
@@ -287,6 +287,41 @@ def dataset_profile(db: Session, *, baseline_max_app_risk: int = 3) -> dict:
     }
 
 
+def data_quality_profile(db: Session) -> dict:
+    total_raw = int(db.scalar(select(func.count(RawLog.id))) or 0)
+    total_normalized = int(db.scalar(select(func.count(NormalizedLog.id))) or 0)
+    parse_errors = max(0, total_raw - total_normalized)
+    time_range = db.execute(select(func.min(NormalizedLog.generated_time), func.max(NormalizedLog.generated_time))).one()
+    duplicate_rows = db.execute(
+        select(func.count())
+        .select_from(
+            select(RawLog.raw_line)
+            .group_by(RawLog.raw_line)
+            .having(func.count(RawLog.id) > 1)
+            .subquery()
+        )
+    ).scalar()
+    missing_timestamp = _count_where(db, NormalizedLog.generated_time.is_(None), NormalizedLog.receive_time.is_(None))
+    missing_src_ip = _count_where(db, or_(NormalizedLog.src_ip.is_(None), NormalizedLog.src_ip == ""))
+    missing_dst_ip = _count_where(db, or_(NormalizedLog.dst_ip.is_(None), NormalizedLog.dst_ip == ""))
+    missing_action = _count_where(db, or_(NormalizedLog.action.is_(None), NormalizedLog.action == ""))
+    unknown_app_count = _count_where(db, func.lower(NormalizedLog.app).in_(UNKNOWN_APPS))
+    return {
+        "total_imported_logs": total_raw,
+        "parsed_successfully": total_normalized,
+        "parse_errors": parse_errors,
+        "parse_success_rate": round((total_normalized / total_raw) * 100, 2) if total_raw else 0.0,
+        "missing_timestamp": missing_timestamp,
+        "missing_source_ip": missing_src_ip,
+        "missing_destination_ip": missing_dst_ip,
+        "missing_action": missing_action,
+        "unknown_app_count": unknown_app_count,
+        "duplicate_raw_line_groups": int(duplicate_rows or 0),
+        "dataset_time_min": time_range[0],
+        "dataset_time_max": time_range[1],
+    }
+
+
 def _anomalous_group(db: Session, column, limit: int = 10) -> list[dict]:
     rows = db.execute(
         select(column, func.count())
@@ -296,6 +331,32 @@ def _anomalous_group(db: Session, column, limit: int = 10) -> list[dict]:
         .limit(limit)
     ).all()
     return [{"name": str(name), "count": int(count)} for name, count in rows]
+
+
+def baseline_drift_report(db: Session) -> dict:
+    total_logs = int(db.scalar(select(func.count(NormalizedLog.id))) or 0)
+    anomaly_logs = _count_where(db, NormalizedLog.is_anomaly.is_(True))
+    deny_drop_reset_logs = _count_where(db, func.lower(NormalizedLog.action).in_(["deny", "drop", "reset-both", "reset-client", "reset-server"]))
+    unknown_app_logs = _count_where(db, func.lower(NormalizedLog.app).in_(UNKNOWN_APPS))
+    scoring_runs = _latest_scoring_runs(db)
+    comparison = _run_comparison(scoring_runs)
+    return {
+        "total_logs": total_logs,
+        "unknown_app_count": unknown_app_logs,
+        "unknown_app_rate": _anomaly_rate(unknown_app_logs, total_logs),
+        "deny_drop_reset_count": deny_drop_reset_logs,
+        "deny_drop_reset_rate": _anomaly_rate(deny_drop_reset_logs, total_logs),
+        "anomaly_count": anomaly_logs,
+        "anomaly_rate": _anomaly_rate(anomaly_logs, total_logs),
+        "app_distribution": _count_group(db, NormalizedLog.app),
+        "action_distribution": _count_group(db, NormalizedLog.action),
+        "top_source_ips": _count_group(db, NormalizedLog.src_ip),
+        "top_destination_ports": _count_group(db, NormalizedLog.dst_port),
+        "top_destination_ips": _count_group(db, NormalizedLog.dst_ip),
+        "run_comparison": comparison,
+        "interpretation": comparison.get("interpretation")
+        or "Use this snapshot to compare current traffic shape against reviewed baseline and scoring runs.",
+    }
 
 
 def _score_stats(db: Session, anomalous_only: bool = False) -> dict:
@@ -503,6 +564,7 @@ def evaluation_report(db: Session) -> dict:
     return {
         "model_status": status,
         "dataset_profile": profile,
+        "data_quality": data_quality_profile(db),
         "scored_log_count": scored_logs,
         "anomaly_count": anomaly_count,
         "anomaly_rate": anomaly_rate,
@@ -510,6 +572,7 @@ def evaluation_report(db: Session) -> dict:
         "score_stats_anomalies": _score_stats(db, anomalous_only=True),
         "run_comparison": run_comparison,
         "drift_signals": _drift_signals(status, profile, run_comparison),
+        "baseline_drift_report": baseline_drift_report(db),
         "top_anomalous_src_ips": _anomalous_group(db, NormalizedLog.src_ip),
         "top_anomalous_dst_ips": _anomalous_group(db, NormalizedLog.dst_ip),
         "top_anomalous_apps": _anomalous_group(db, NormalizedLog.app),

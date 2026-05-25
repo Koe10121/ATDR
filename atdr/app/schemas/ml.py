@@ -55,6 +55,8 @@ class MLLabelImportResult(BaseModel):
     updated: int
     skipped: int = 0
     protected_manual: int = 0
+    protected_reviewed: int = 0
+    changed_decisions: int = 0
     failed: int
     errors: list[dict[str, Any]] = Field(default_factory=list)
 
@@ -112,6 +114,21 @@ class MLDatasetProfileRead(BaseModel):
     top_src_zones: list[dict[str, Any]]
     top_dst_zones: list[dict[str, Any]]
     recommendations: list[str]
+
+
+class MLDataQualityRead(BaseModel):
+    total_imported_logs: int
+    parsed_successfully: int
+    parse_errors: int
+    parse_success_rate: float
+    missing_timestamp: int
+    missing_source_ip: int
+    missing_destination_ip: int
+    missing_action: int
+    unknown_app_count: int
+    duplicate_raw_line_groups: int
+    dataset_time_min: datetime | None = None
+    dataset_time_max: datetime | None = None
 
 
 class MLModelRunRead(BaseModel):
@@ -183,6 +200,7 @@ class MLAnomalySample(BaseModel):
 class MLEvaluationReportRead(BaseModel):
     model_status: MLStatusRead
     dataset_profile: MLDatasetProfileRead
+    data_quality: MLDataQualityRead
     scored_log_count: int
     anomaly_count: int
     anomaly_rate: float
@@ -190,6 +208,7 @@ class MLEvaluationReportRead(BaseModel):
     score_stats_anomalies: MLScoreStats
     run_comparison: MLRunComparison
     drift_signals: list[dict[str, Any]]
+    baseline_drift_report: dict[str, Any] = Field(default_factory=dict)
     top_anomalous_src_ips: list[dict[str, Any]]
     top_anomalous_dst_ips: list[dict[str, Any]]
     top_anomalous_apps: list[dict[str, Any]]

@@ -66,6 +66,28 @@ export interface Alert {
   evidence_count: number;
   evidence_log_ids: number[];
   sla: AlertSla;
+  detection_summary?: DetectionSummary;
+}
+
+export interface AttackMapping {
+  attack_type: string;
+  tactic: string;
+  technique: string;
+  technique_id: string;
+  description: string;
+}
+
+export interface DetectionSummary {
+  detection_source: string[];
+  attack_type: string;
+  attack_mapping: AttackMapping;
+  matched_rule_names: string[];
+  anomaly: Record<string, unknown>;
+  supervised: Record<string, unknown>;
+  hybrid_risk: Record<string, unknown>;
+  behavior_window: Record<string, unknown>;
+  top_evidence_points: string[];
+  why_flagged: string;
 }
 
 export interface NormalizedLog {
@@ -136,6 +158,8 @@ export interface MLLabelImportResult {
   updated: number;
   skipped?: number;
   protected_manual?: number;
+  protected_reviewed?: number;
+  changed_decisions?: number;
   failed: number;
   errors: Array<Record<string, unknown>>;
 }
@@ -226,6 +250,7 @@ export interface AlertTimelineEvent {
 export interface AlertReport {
   alert: Record<string, unknown>;
   matched_rules: Array<Record<string, unknown>>;
+  detection_summary?: DetectionSummary;
   evidence_logs: Array<Record<string, unknown>>;
   timeline: AlertTimelineEvent[];
   notes: AlertNote[];
@@ -342,11 +367,41 @@ export interface MLEvaluationReport {
     unknown_app_rate: number;
     recommendations: string[];
   };
+  data_quality?: {
+    total_imported_logs: number;
+    parsed_successfully: number;
+    parse_errors: number;
+    parse_success_rate: number;
+    missing_timestamp: number;
+    missing_source_ip: number;
+    missing_destination_ip: number;
+    missing_action: number;
+    unknown_app_count: number;
+    duplicate_raw_line_groups: number;
+    dataset_time_min?: string | null;
+    dataset_time_max?: string | null;
+  };
   scored_log_count: number;
   anomaly_count: number;
   anomaly_rate: number;
   recommendations: string[];
   drift_signals: Array<Record<string, unknown>>;
+  baseline_drift_report?: {
+    total_logs: number;
+    unknown_app_count: number;
+    unknown_app_rate: number;
+    deny_drop_reset_count: number;
+    deny_drop_reset_rate: number;
+    anomaly_count: number;
+    anomaly_rate: number;
+    app_distribution: CountRow[];
+    action_distribution: CountRow[];
+    top_source_ips: CountRow[];
+    top_destination_ports: CountRow[];
+    top_destination_ips: CountRow[];
+    run_comparison?: Record<string, unknown>;
+    interpretation?: string;
+  };
   top_anomalous_src_ips: CountRow[];
   top_anomalous_apps: CountRow[];
   top_anomalous_dst_ports: CountRow[];
@@ -365,7 +420,20 @@ export interface SupervisedModelReport {
     training_rows?: number | null;
     test_rows: number;
     metrics: Record<string, unknown>;
+    evaluation?: Record<string, unknown>;
     label_distribution: Record<string, number>;
+    label_source_distribution?: Record<string, number>;
+    reviewed_label_distribution?: Record<string, number>;
+    weak_label_distribution?: Record<string, number>;
+    validation_warnings?: string[];
+    promotion_gate?: Record<string, unknown>;
+    model_readiness_checklist?: ModelReadinessChecklist;
+    class_temporal_coverage?: ClassTemporalCoverageReport;
+    split_strategy?: string;
+    split_warnings?: string[];
+    label_quality?: string;
+    feature_generation?: Record<string, unknown>;
+    training_dataset_diagnostics?: Record<string, unknown>;
     top_features: Array<Record<string, unknown>>;
     report_path?: string | null;
     created_at: string;
@@ -374,9 +442,64 @@ export interface SupervisedModelReport {
   label_count: number;
   label_distribution: Record<string, number>;
   label_source_distribution?: Record<string, number>;
+  reviewed_label_distribution?: Record<string, number>;
+  weak_label_distribution?: Record<string, number>;
   reviewed_label_count?: number;
+  reviewed_label_target?: number;
   unreviewed_assisted_label_count?: number;
+  validation_warnings?: string[];
+  class_temporal_coverage?: ClassTemporalCoverageReport;
+  model_readiness_checklist?: ModelReadinessChecklist;
   decision_support_only: boolean;
+}
+
+export interface ModelReadinessItem {
+  name: string;
+  passed: boolean;
+  detail: string;
+  target?: string | null;
+}
+
+export interface ModelReadinessChecklist {
+  status: string;
+  passed: number;
+  total: number;
+  items: ModelReadinessItem[];
+  message: string;
+}
+
+export interface ClassTemporalCoverageRow {
+  label: string;
+  total: number;
+  reviewed_total: number;
+  train_count: number;
+  test_count: number;
+  reviewed_train_count: number;
+  reviewed_test_count: number;
+  exists_in_train: boolean;
+  exists_in_test: boolean;
+  earliest_timestamp?: string | null;
+  latest_timestamp?: string | null;
+}
+
+export interface ClassTemporalCoverageReport {
+  test_size: number;
+  total_labels: number;
+  training_rows: number;
+  test_rows: number;
+  first_test_timestamp?: string | null;
+  reviewed_label_target: number;
+  malicious_training_minimum: number;
+  malicious_training_better_target: number;
+  reviewed_label_count: number;
+  reviewed_malicious_count: number;
+  reviewed_suspicious_count: number;
+  malicious_train_count: number;
+  malicious_test_count: number;
+  suspicious_train_count: number;
+  suspicious_test_count: number;
+  class_coverage: Record<string, ClassTemporalCoverageRow>;
+  warnings: string[];
 }
 
 export interface BlockedIP {

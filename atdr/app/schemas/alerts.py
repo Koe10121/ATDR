@@ -32,6 +32,7 @@ class AlertRead(BaseModel):
     evidence_count: int = 0
     evidence_log_ids: list[int] = Field(default_factory=list)
     sla: dict[str, Any] = Field(default_factory=dict)
+    detection_summary: dict[str, Any] = Field(default_factory=dict)
 
 
 class AlertStatusResponse(BaseModel):
@@ -82,6 +83,7 @@ class AlertEscalateRequest(BaseModel):
 class AlertReportRead(BaseModel):
     alert: dict[str, Any]
     matched_rules: list[dict[str, Any]]
+    detection_summary: dict[str, Any] = Field(default_factory=dict)
     evidence_logs: list[dict[str, Any]]
     timeline: list[AlertTimelineEvent]
     notes: list[AlertNoteRead]

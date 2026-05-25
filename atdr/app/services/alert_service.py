@@ -8,6 +8,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from atdr.app.db.models import Alert, AlertEvidence, AlertNote, AuditLog, NormalizedLog, ResponseAction, User
+from atdr.app.detection.explanations import build_alert_detection_summary, compact_behavior_features
 from atdr.app.detection.rules import DetectionResult
 from atdr.app.detection.scoring import recommended_response, severity_from_score
 
@@ -468,6 +469,7 @@ def alert_report(db: Session, alert_id: int) -> dict | None:
                 "app_risk": log.app_risk,
                 "is_anomaly": log.is_anomaly,
                 "anomaly_score": log.anomaly_score,
+                "behavior_window": compact_behavior_features(db, log),
                 "raw_line_excerpt": raw_line[:500] if raw_line else None,
             }
         )
@@ -524,6 +526,7 @@ def alert_report(db: Session, alert_id: int) -> dict | None:
         },
         "sla": alert_sla(alert),
         "matched_rules": alert.matched_rules_json,
+        "detection_summary": build_alert_detection_summary(db, alert),
         "evidence_logs": evidence_logs,
         "timeline": alert_timeline(db, alert_id) or [],
         "notes": [

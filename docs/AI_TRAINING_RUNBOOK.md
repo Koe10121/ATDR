@@ -225,6 +225,14 @@ The hybrid score combines:
 - supervised malicious probability
 - optional asset/context weight
 
+Compare supervised candidates without replacing the active model:
+
+```powershell
+python -m atdr.scripts.compare_supervised_models --test-size 0.3 --min-samples 6
+```
+
+This writes `ml_baseline_reviews/model_comparison_report.md`. The comparison includes Random Forest, Logistic Regression, gradient boosting, and a hybrid-score baseline. It does not overwrite the active supervised model artifact.
+
 ## 13. View AI Model Evaluation
 
 Open **ML Governance** in the React dashboard. Show:
@@ -233,6 +241,8 @@ Open **ML Governance** in the React dashboard. Show:
 - supervised label count
 - training/test rows
 - accuracy, precision, recall, F1
+- feature importance
+- data quality: parse success, missing fields, unknown apps, time range
 - label distribution
 - assisted vs reviewed label counts
 - review queue
@@ -363,3 +373,96 @@ Before the final demo, verify that sorting and filter dropdowns close cleanly an
 4. Open **ML Governance**, use export/report/import controls after any available dropdown interaction.
 5. Open **Threat Controls > Watchlists**, select the indicator-type dropdown, then click the indicator value input.
 6. Confirm the page remains clickable, no raw HTML or error overlay is visible, and no dropdown menu remains open.
+
+## 18. Active Learning And Safe Model Promotion
+
+Use active learning when weak-label metrics look strong but reviewed coverage is still small:
+
+```powershell
+python -m atdr.scripts.export_active_learning_review_sample --limit 100
+python -m atdr.scripts.train_supervised_model --split time --test-size 0.3 --min-samples 6
+python -m atdr.scripts.compare_supervised_models --test-size 0.3 --min-samples 6
+```
+
+The active-learning CSV is written to `ml_baseline_reviews/active_learning_review_sample.csv`. Review the rows with the highest disagreement, low confidence, rare apps/ports, high hybrid risk, `needs_context`, or underrepresented classes. Fill `human_review_decision` and `human_review_note`, then import the reviewed CSV through **ML Governance > Import Reviewed CSV**.
+
+Promotion rules:
+
+- A higher weighted F1 score is not enough by itself.
+- Reviewed-label support must be large enough to validate the result.
+- Suspicious and malicious recall must not get worse.
+- Minority classes must not collapse to zero recall.
+- Metrics must be identified as weak-label, reviewed-label, or mixed-label.
+- Response automation remains disabled; every containment action still requires analyst approval.
+
+Recommended wording:
+
+> Model comparison produced candidate models, but promotion is gated by reviewed-label coverage, class support, recall sanity checks, and analyst review. Current metrics are mostly weak-label or mixed-label indicators, not production accuracy.
+
+## 19. Malicious-Class Coverage Improvement
+
+If time-split evaluation shows `malicious recall = 0.0`, first check whether malicious examples exist in the training window:
+
+```powershell
+python -m atdr.scripts.export_class_temporal_coverage_report
+```
+
+Open `ml_baseline_reviews/class_temporal_coverage_report.md` and check:
+
+- malicious train/test support
+- suspicious train/test support
+- earliest and latest timestamp per class
+- warnings for classes that exist only in the test window
+
+Then export review files designed for correction and re-import:
+
+```powershell
+python -m atdr.scripts.export_label_quality_issues --limit 1000
+python -m atdr.scripts.export_active_learning_review_sample --limit 200 --focus malicious,suspicious,needs_context --output ml_baseline_reviews/active_learning_round3_malicious_focus.csv
+```
+
+Recommended review order:
+
+1. Review `ml_baseline_reviews/label_quality_issues.csv` first. Correct inconsistent labels by filling `human_review_decision`, optional `human_review_attack_type`, optional `human_review_confidence`, and `human_review_note`.
+2. Import the corrected quality CSV through **ML Governance > Import Reviewed CSV**.
+3. Review `ml_baseline_reviews/active_learning_round3_malicious_focus.csv`, especially rows marked `training_window`.
+4. Import the corrected active-learning CSV.
+5. Retrain with time split:
+
+```powershell
+python -m atdr.scripts.train_supervised_model --split time --test-size 0.3 --min-samples 6
+python -m atdr.scripts.tune_model_thresholds --split time --test-size 0.3 --min-samples 6
+```
+
+Presentation wording:
+
+> Malicious-class validation is intentionally gated by time-window support. If malicious examples only appear in the newer test window, the model cannot learn that class yet. We improve this honestly by reviewing earlier malicious-like and suspicious examples, not by forcing promotion or claiming production accuracy.
+
+## 20. Suspicious Recall And Boundary Improvement
+
+After malicious training-window support reaches the minimum target, the next common blocker is suspicious recall. Use this workflow when threat-positive F1 is strong but exact suspicious-vs-malicious separation is weak:
+
+```powershell
+python -m atdr.scripts.analyze_suspicious_recall_errors --split time --test-size 0.3 --min-samples 6
+python -m atdr.scripts.export_suspicious_recall_review_sample --limit 150
+python -m atdr.scripts.tune_model_thresholds --split time --test-size 0.3 --min-samples 6
+```
+
+Review:
+
+- `ml_baseline_reviews/suspicious_recall_error_report.md`
+- `ml_baseline_reviews/suspicious_recall_review_sample.csv`
+- `ml_baseline_reviews/threshold_tuning_report.md`
+
+The suspicious recall sample prioritizes suspicious rows predicted as malicious, benign_unusual, benign, or needs_context, especially app=`incomplete`, action=`allow`, destination port `995`, and high threat-positive confidence rows with the wrong exact class. Fill `human_review_decision`, `human_review_attack_type`, `human_review_confidence`, and `human_review_note`, then import through **ML Governance > Import Reviewed CSV**.
+
+Threshold profiles are candidate analysis only:
+
+- `balanced`: default SOC triage policy.
+- `suspicious_recall`: tries to recover suspicious rows without lowering malicious threshold.
+- `malicious_recall`: catches more malicious rows but can increase suspicious/malicious boundary confusion.
+- `threat_positive`: focuses on suspicious+malicious triage grouping, not exact class separation.
+
+Recommended wording:
+
+> The model is strong at threat-positive triage, but exact suspicious-versus-malicious separation is still being tuned. We use focused human review and threshold comparison to improve suspicious recall without enabling automatic response or claiming production accuracy.
