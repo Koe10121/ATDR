@@ -9,6 +9,9 @@ class ImportResult(BaseModel):
     imported: int
     parsed: int
     failed: int
+    duplicate_raw_logs: int = 0
+    run_id: int | None = None
+    source_id: int | None = None
 
 
 class NormalizedLogRead(BaseModel):
@@ -16,6 +19,10 @@ class NormalizedLogRead(BaseModel):
 
     id: int
     raw_log_id: int
+    source_id: int | None = None
+    source_name: str | None = None
+    source_type: str | None = None
+    parser_profile: str | None = None
     receive_time: datetime | None = None
     generated_time: datetime | None = None
     log_type: str | None = None

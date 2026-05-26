@@ -73,8 +73,10 @@ ATDR v0.1 is a lab-ready defensive SOC prototype for small-office or university-
 
 Move into v0.2 lab pilot validation:
 
+- Use safe replay mode to simulate near-real-time ingestion before connecting lab hardware.
 - Validate Docker/PostgreSQL on a capable host.
 - Run live syslog forwarding from a lab firewall or log forwarder.
+- Monitor alert deduplication and case grouping quality during repeated replay/live tests.
 - Tune alert thresholds against reviewed baseline traffic.
 - Add operator backup/restore rehearsal.
 - Expand reviewed labels for suspicious/malicious boundary quality.

@@ -5,6 +5,7 @@ from atdr.app.core.config import get_settings
 from atdr.app.db.database import SessionLocal, init_db
 from atdr.app.db.models import AuditLog
 from atdr.app.services.log_service import import_raw_log_line
+from atdr.app.services.operation_run_service import complete_ingestion_run, start_ingestion_run
 
 
 logger = logging.getLogger(__name__)
@@ -38,6 +39,12 @@ def run_udp_syslog_receiver(
         logger.info("ATDR syslog receiver listening on %s:%s", bind_host, bind_port)
 
         with SessionLocal() as db:
+            run = start_ingestion_run(
+                db,
+                source_type="syslog_udp",
+                input_name=f"udp:{bind_host}:{bind_port}",
+                details={"batch_size": flush_every, "max_messages": max_messages},
+            )
             while max_messages is None or received < max_messages:
                 try:
                     payload, address = sock.recvfrom(65535)
@@ -50,9 +57,12 @@ def run_udp_syslog_receiver(
                 result = import_raw_log_line(
                     db,
                     line,
-                    source_name=f"udp:{address[0]}:{address[1]}",
+                    source_name=f"syslog_udp:{address[0]}",
                     actor="syslog_receiver",
                     commit=False,
+                    source_type="syslog_udp",
+                    host=address[0],
+                    port=address[1],
                 )
                 received += 1
                 parsed += 1 if result["parsed"] else 0
@@ -80,7 +90,16 @@ def run_udp_syslog_receiver(
                         details={"received": received, "parsed": parsed, "failed": failed},
                     )
                 )
-                db.commit()
+            complete_ingestion_run(
+                db,
+                run,
+                total_lines_received=received,
+                raw_logs_created=received,
+                parsed_successfully=parsed,
+                parse_failures=failed,
+                details={"timed_out": timed_out},
+            )
+            db.commit()
     finally:
         sock.close()
 

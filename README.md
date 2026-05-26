@@ -9,6 +9,7 @@ ATDR is a defensive senior-project prototype for importing Palo Alto firewall sy
 - SQLite by default, with SQLAlchemy models matching the prototype tables.
 - Rule-based detection plus optional IsolationForest anomaly scoring and supervised analyst-label decision support.
 - Incident-style alert grouping reduces per-log alert noise while preserving evidence log links.
+- Log source management tracks file import, replay, syslog, router, firewall, and sample sources with health/status counters.
 - Streamlit dashboard with Executive Demo, Overview, Log Explorer, Alerts, Detection Tuning, ML Governance, Threat Controls, Response Center, Audit Log, and admin Demo Controls pages.
 - SOC Command Center dashboard styling with Plotly charts, triage queues, readiness panels, and evidence-focused incident views.
 - SOC workflow support for alert assignment, analyst notes, status changes, timelines, and audited response actions.
@@ -193,6 +194,23 @@ Use `--reset-demo` only when you intentionally want to clear demo data. See `doc
 
 For v0.1 acceptance testing and current lab-readiness status, see `docs/ACCEPTANCE_TEST_CHECKLIST.md` and `docs/V0_1_STATUS.md`.
 
+For v0.2 replay ingestion and alert deduplication work, see `docs/V0_2_PLAN.md`.
+
+For v0.3 live/lab source management work, see `docs/V0_3_PLAN.md`.
+
+Safe replay dry-run:
+
+```powershell
+python -m atdr.scripts.replay_logs --dry-run --limit 20 --rate 5 --pretty
+```
+
+Register a lab source and replay as that source:
+
+```powershell
+python -m atdr.scripts.register_log_source --name lab-firewall-1 --source-type firewall --parser-profile palo_alto --host 192.0.2.10 --port 514 --pretty
+python -m atdr.scripts.replay_logs --send-to direct --source-name lab-firewall-1 --source-type firewall --source-host 192.0.2.10 --source-port 514 --limit 100 --rate 1 --pretty
+```
+
 ## ML-Assisted Anomaly Detection
 
 Train the optional IsolationForest after importing logs:
@@ -278,6 +296,11 @@ This writes JSON/CSV/Markdown evidence to `ml_baseline_reviews/`, including anom
 - `POST /api/logs/import`
 - `GET /api/logs`
 - `GET /api/logs/{log_id}`
+- `GET /api/sources`
+- `GET /api/sources/{id}`
+- `POST /api/sources`
+- `PATCH /api/sources/{id}`
+- `GET /api/sources/{id}/health`
 - `GET /api/alerts`
 - `POST /api/alerts/{alert_id}/resolve`
 - `POST /api/alerts/{alert_id}/false-positive`
@@ -470,4 +493,5 @@ On this development machine, Docker Compose validation may need to be run elsewh
 - `docs/SCREENSHOT_CHECKLIST.md`: exact screenshots to capture for slides/report.
 - `docs/DEPLOYMENT_GUIDE.md`: SQLite, PostgreSQL, and syslog receiver setup.
 - `docs/OPERATIONS_RUNBOOK.md`: HTTPS, backups, retention, and safe response procedure.
+- `docs/V0_3_PLAN.md`: live/lab log source management and parser profile readiness.
 - `docs/LIMITATIONS_AND_FUTURE_WORK.md`: honest production roadmap.

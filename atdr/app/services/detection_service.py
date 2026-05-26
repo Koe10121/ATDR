@@ -10,6 +10,12 @@ from atdr.app.detection.ml_detector import apply_model_to_db
 from atdr.app.detection.rules import DetectionResult, RuleMatch, build_detection_context, evaluate_rules
 from atdr.app.detection.scoring import clamp_score, severity_from_score
 from atdr.app.services.alert_service import create_grouped_alert_from_detections, existing_evidence_log_ids
+from atdr.app.services.operation_run_service import (
+    complete_detection_run,
+    fail_detection_run,
+    recent_attack_type_counts,
+    start_detection_run,
+)
 from atdr.app.services.suppression_service import matching_suppression, record_suppression_hit
 from atdr.app.services.watchlist_service import list_watchlist_items, matching_watchlist_items, record_watchlist_hits
 
@@ -113,104 +119,126 @@ def _should_create_group_alert(candidates: list[DetectionCandidate]) -> bool:
 
 def run_detection(db: Session, *, limit: int | None = 5000, use_ml: bool = True, actor: str = "system") -> dict:
     settings = get_settings()
-    statement = select(NormalizedLog).order_by(NormalizedLog.id.desc())
-    if limit:
-        statement = statement.limit(limit)
-    logs = list(db.scalars(statement))
-    logs.reverse()
-
-    if use_ml:
-        apply_model_to_db(db, limit=limit)
-
-    context = build_detection_context(logs)
-    already_alerted = existing_evidence_log_ids(db)
-    active_watchlist_items = list_watchlist_items(db, active_only=True)
-    candidates: list[DetectionCandidate] = []
-    evaluated = 0
-    watchlist_matches = 0
-
-    for log in logs:
-        evaluated += 1
-        if log.id in already_alerted:
-            continue
-        matches = evaluate_rules(log, context)
-        matched_watchlist_items = matching_watchlist_items(log, active_watchlist_items)
-        if matched_watchlist_items:
-            watchlist_matches += len(matched_watchlist_items)
-            record_watchlist_hits(matched_watchlist_items)
-            indicators = ", ".join(
-                f"{item.indicator_type}:{item.indicator_value}" for item in matched_watchlist_items[:5]
-            )
-            severity_boost = max(item.severity_boost for item in matched_watchlist_items)
-            matches.append(
-                RuleMatch(
-                    code="watchlist_match",
-                    title="Watchlist indicator match",
-                    score=severity_boost,
-                    explanation=f"Matched active watchlist indicator(s): {indicators}.",
-                )
-            )
-        if not matches:
-            continue
-        result = _result_from_matches(matches)
-        if result.threat_score >= settings.min_alert_score:
-            candidates.append(DetectionCandidate(log=log, result=result, primary_rule=_primary_rule(matches)))
-
-    grouped = group_detection_candidates(candidates)
-    created = 0
-    suppressed_groups = 0
-    suppressed_by_rules = 0
-    for grouped_candidates in grouped.values():
-        if not _should_create_group_alert(grouped_candidates):
-            suppressed_groups += 1
-            continue
-        group_logs = [candidate.log for candidate in grouped_candidates]
-        suppression = matching_suppression(
-            db,
-            alert_type=grouped_candidates[0].primary_rule.code,
-            logs=group_logs,
-        )
-        if suppression is not None:
-            record_suppression_hit(suppression, count=len(grouped_candidates))
-            suppressed_by_rules += 1
-            continue
-        detections = [(candidate.log, candidate.result) for candidate in grouped_candidates]
-        create_grouped_alert_from_detections(
-            db,
-            detections,
-            primary_rule_code=grouped_candidates[0].primary_rule.code,
-        )
-        created += 1
-
-    db.add(
-        AuditLog(
-            actor=actor,
-            action="run_detection",
-            target_type="normalized_logs",
-            target_value="latest_batch",
-            details={
-                "evaluated": evaluated,
-                "candidate_logs": len(candidates),
-                "created_alerts": created,
-                "suppressed_low_groups": suppressed_groups,
-                "suppressed_by_rules": suppressed_by_rules,
-                "watchlist_matches": watchlist_matches,
-                "limit": limit,
-                "use_ml": use_ml,
-                "group_bucket_minutes": GROUP_BUCKET_MINUTES,
-                "low_severity_group_min_evidence": LOW_SEVERITY_GROUP_MIN_EVIDENCE,
-            },
-        )
+    run = start_detection_run(
+        db,
+        detection_type="hybrid" if use_ml else "rule",
+        details={"limit": limit, "use_ml": use_ml, "actor": actor},
     )
-    db.commit()
-    return {
-        "evaluated": evaluated,
-        "candidate_logs": len(candidates),
-        "created_alerts": created,
-        "suppressed_low_groups": suppressed_groups,
-        "suppressed_by_rules": suppressed_by_rules,
-        "watchlist_matches": watchlist_matches,
-        "use_ml": use_ml,
-        "group_bucket_minutes": GROUP_BUCKET_MINUTES,
-        "low_severity_group_min_evidence": LOW_SEVERITY_GROUP_MIN_EVIDENCE,
-    }
+    statement = select(NormalizedLog).order_by(NormalizedLog.id.desc())
+    try:
+        if limit:
+            statement = statement.limit(limit)
+        logs = list(db.scalars(statement))
+        logs.reverse()
+
+        if use_ml:
+            apply_model_to_db(db, limit=limit)
+
+        context = build_detection_context(logs)
+        already_alerted = existing_evidence_log_ids(db)
+        active_watchlist_items = list_watchlist_items(db, active_only=True)
+        candidates: list[DetectionCandidate] = []
+        evaluated = 0
+        watchlist_matches = 0
+
+        for log in logs:
+            evaluated += 1
+            if log.id in already_alerted:
+                continue
+            matches = evaluate_rules(log, context)
+            matched_watchlist_items = matching_watchlist_items(log, active_watchlist_items)
+            if matched_watchlist_items:
+                watchlist_matches += len(matched_watchlist_items)
+                record_watchlist_hits(matched_watchlist_items)
+                indicators = ", ".join(
+                    f"{item.indicator_type}:{item.indicator_value}" for item in matched_watchlist_items[:5]
+                )
+                severity_boost = max(item.severity_boost for item in matched_watchlist_items)
+                matches.append(
+                    RuleMatch(
+                        code="watchlist_match",
+                        title="Watchlist indicator match",
+                        score=severity_boost,
+                        explanation=f"Matched active watchlist indicator(s): {indicators}.",
+                    )
+                )
+            if not matches:
+                continue
+            result = _result_from_matches(matches)
+            if result.threat_score >= settings.min_alert_score:
+                candidates.append(DetectionCandidate(log=log, result=result, primary_rule=_primary_rule(matches)))
+
+        grouped = group_detection_candidates(candidates)
+        created = 0
+        deduplicated_alert_updates = 0
+        suppressed_groups = 0
+        suppressed_by_rules = 0
+        for grouped_candidates in grouped.values():
+            if not _should_create_group_alert(grouped_candidates):
+                suppressed_groups += 1
+                continue
+            group_logs = [candidate.log for candidate in grouped_candidates]
+            suppression = matching_suppression(
+                db,
+                alert_type=grouped_candidates[0].primary_rule.code,
+                logs=group_logs,
+            )
+            if suppression is not None:
+                record_suppression_hit(suppression, count=len(grouped_candidates))
+                suppressed_by_rules += 1
+                continue
+            detections = [(candidate.log, candidate.result) for candidate in grouped_candidates]
+            alert = create_grouped_alert_from_detections(
+                db,
+                detections,
+                primary_rule_code=grouped_candidates[0].primary_rule.code,
+            )
+            if alert.id is None:
+                created += 1
+            else:
+                deduplicated_alert_updates += 1
+
+        run_details = {
+            "evaluated": evaluated,
+            "candidate_logs": len(candidates),
+            "created_alerts": created,
+            "deduplicated_alert_updates": deduplicated_alert_updates,
+            "suppressed_low_groups": suppressed_groups,
+            "suppressed_by_rules": suppressed_by_rules,
+            "watchlist_matches": watchlist_matches,
+            "limit": limit,
+            "use_ml": use_ml,
+            "group_bucket_minutes": GROUP_BUCKET_MINUTES,
+            "low_severity_group_min_evidence": LOW_SEVERITY_GROUP_MIN_EVIDENCE,
+        }
+        complete_detection_run(
+            db,
+            run,
+            logs_evaluated=evaluated,
+            alerts_created=created,
+            alerts_deduplicated=deduplicated_alert_updates,
+            alerts_suppressed=suppressed_groups + suppressed_by_rules,
+            top_attack_types=recent_attack_type_counts(db),
+            details=run_details,
+        )
+        db.add(
+            AuditLog(
+                actor=actor,
+                action="run_detection",
+                target_type="normalized_logs",
+                target_value="latest_batch",
+                details={**run_details, "detection_run_id": run.id},
+            )
+        )
+        db.commit()
+        return {
+            **run_details,
+            "use_ml": use_ml,
+            "detection_run_id": run.id,
+            "group_bucket_minutes": GROUP_BUCKET_MINUTES,
+            "low_severity_group_min_evidence": LOW_SEVERITY_GROUP_MIN_EVIDENCE,
+        }
+    except Exception as exc:
+        fail_detection_run(db, run, error=f"{exc.__class__.__name__}: {exc}")
+        db.commit()
+        raise

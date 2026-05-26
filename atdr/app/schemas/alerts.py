@@ -38,6 +38,8 @@ class AlertRead(BaseModel):
     updated_at: datetime
     evidence_count: int = 0
     evidence_log_ids: list[int] = Field(default_factory=list)
+    source_ids: list[int] = Field(default_factory=list)
+    source_names: list[str] = Field(default_factory=list)
     sla: dict[str, Any] = Field(default_factory=dict)
     detection_summary: dict[str, Any] = Field(default_factory=dict)
 
@@ -101,6 +103,7 @@ class AlertCaseRead(BaseModel):
     case_id: str
     title: str
     related_alert_count: int
+    total_related_logs: int = 0
     source_ips: list[str]
     destination_ips: list[str]
     attack_types: list[str]
@@ -109,4 +112,7 @@ class AlertCaseRead(BaseModel):
     assigned_analyst: str | None = None
     first_seen: datetime | None = None
     last_seen: datetime | None = None
+    top_destination_ports: list[dict[str, Any]] = Field(default_factory=list)
+    top_actions: list[dict[str, Any]] = Field(default_factory=list)
+    recommended_analyst_focus: str | None = None
     notes: list[str] = Field(default_factory=list)

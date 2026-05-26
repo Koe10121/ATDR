@@ -134,6 +134,16 @@ def parse_log_line(raw_line: str) -> ParsedPaloAltoLog:
     """Parse one syslog-wrapped Palo Alto CSV line without using unsafe comma splitting."""
 
     raw_line = raw_line.rstrip("\r\n")
+    if not raw_line.strip():
+        return ParsedPaloAltoLog(
+            raw_line=raw_line,
+            syslog_timestamp=None,
+            device_hostname=None,
+            normalized={},
+            parsed_json={"parser_error": "blank line"},
+            error="blank line",
+        )
+
     syslog_text, hostname, payload = _split_syslog_line(raw_line)
     if payload is None:
         return ParsedPaloAltoLog(
@@ -202,11 +212,35 @@ def parse_log_line(raw_line: str) -> ParsedPaloAltoLog:
 
     normalized.update(_tail_app_metadata(fields))
 
+    parser_warnings: list[str] = []
+    if log_type == "TRAFFIC" and len(fields) < 47:
+        parser_warnings.append(f"traffic log has fewer fields than expected: {len(fields)}")
+    elif log_type == "THREAT" and len(fields) < 40:
+        parser_warnings.append(f"threat log has fewer fields than expected: {len(fields)}")
+    elif not log_type:
+        parser_warnings.append("missing Palo Alto log type")
+    if parsed_syslog_timestamp := parse_datetime(syslog_text):
+        syslog_timestamp = parsed_syslog_timestamp
+    else:
+        syslog_timestamp = None
+        parser_warnings.append("missing or unparsable syslog timestamp")
+    if normalized.get("generated_time") is None and normalized.get("receive_time") is None:
+        parser_warnings.append("missing generated and receive timestamps")
+    if not normalized.get("src_ip"):
+        parser_warnings.append("missing source IP")
+    if not normalized.get("dst_ip"):
+        parser_warnings.append("missing destination IP")
+    if not normalized.get("action"):
+        parser_warnings.append("missing action")
+    if (normalized.get("app") or "").strip().lower() in {"", "unknown", "incomplete", "not-applicable"}:
+        parser_warnings.append("unknown or incomplete application")
+
     parsed_json = {
         "field_count": len(fields),
         "payload_fields": fields,
         "log_type": log_type,
         "unknown_extra_fields": fields[115:] if log_type == "TRAFFIC" and len(fields) > 115 else [],
+        "parser_warnings": parser_warnings,
     }
     for key in ("parsed_threat_name", "parsed_threat_severity", "parsed_threat_direction"):
         if key in normalized:
@@ -214,7 +248,7 @@ def parse_log_line(raw_line: str) -> ParsedPaloAltoLog:
 
     return ParsedPaloAltoLog(
         raw_line=raw_line,
-        syslog_timestamp=parse_datetime(syslog_text),
+        syslog_timestamp=syslog_timestamp,
         device_hostname=hostname,
         normalized=normalized,
         parsed_json=parsed_json,

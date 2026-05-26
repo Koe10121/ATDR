@@ -7,13 +7,15 @@ from io import StringIO
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
-from atdr.app.db.models import Alert, AlertEvidence, AlertNote, AuditLog, NormalizedLog, ResponseAction, User
+from atdr.app.db.models import Alert, AlertEvidence, AlertNote, AuditLog, LogSource, NormalizedLog, RawLog, ResponseAction, User
 from atdr.app.detection.explanations import build_alert_detection_summary, compact_behavior_features
 from atdr.app.detection.rules import DetectionResult
 from atdr.app.detection.scoring import recommended_response, severity_from_score
 
 
 ALERT_STATUSES = {"open", "investigating", "contained", "resolved", "false_positive", "needs_more_context"}
+ALERT_DEDUP_ACTIVE_STATUSES = {"open", "investigating", "contained", "needs_more_context"}
+ALERT_DEDUP_WINDOW_MINUTES = 10
 SLA_TARGETS = {
     "Critical": ("Immediate", timedelta(hours=1)),
     "High": ("Same day", timedelta(hours=24)),
@@ -129,6 +131,18 @@ def create_grouped_alert_from_detections(
     dst_ports = sorted({log.dst_port for log in logs if log.dst_port is not None})[:10]
     actions = sorted({log.action for log in logs if log.action})
     protocols = sorted({log.protocol for log in logs if log.protocol})
+    observations = {
+        "evidence_count": evidence_count,
+        "first_seen": first_seen,
+        "last_seen": last_seen,
+        "unique_src_count": unique_src_count,
+        "sample_src_ips": src_ips,
+        "unique_dst_count": unique_dst_count,
+        "sample_dst_ips": dst_ips,
+        "sample_dst_ports": dst_ports,
+        "actions": actions,
+        "protocols": protocols,
+    }
 
     top_rule = next((rule for rule in matched_rules if rule["code"] == primary_rule_code), None)
     if top_rule is None:
@@ -153,6 +167,19 @@ def create_grouped_alert_from_detections(
     if dst_ports:
         explanation_parts.append(f"Destination ports observed: {', '.join(str(port) for port in dst_ports)}.")
     explanation_parts.append(primary_result.explanation)
+
+    duplicate_alert = _find_dedup_alert(db, alert_type=top_rule["code"], observations=observations)
+    if duplicate_alert is not None:
+        return _update_deduplicated_alert(
+            db,
+            duplicate_alert,
+            detections=detections,
+            matched_rules=matched_rules,
+            observations=observations,
+            max_score=max_score,
+            severity=severity,
+            top_rule=top_rule,
+        )
 
     alert = Alert(
         title=title,
@@ -193,6 +220,198 @@ def _event_time(log: NormalizedLog) -> datetime | None:
     return log.generated_time or log.receive_time or log.high_res_timestamp or log.start_time
 
 
+def _iso(value: datetime | None) -> str | None:
+    return value.isoformat() if value else None
+
+
+def _parse_iso(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def _merge_sorted(existing: list | None, incoming: list | None, *, limit: int = 10) -> list:
+    values = {item for item in (existing or []) if item is not None}
+    values.update(item for item in (incoming or []) if item is not None)
+    return sorted(values, key=lambda item: str(item))[:limit]
+
+
+def _group_observations(logs: list[NormalizedLog]) -> dict:
+    event_times = [item for item in (_event_time(log) for log in logs) if item is not None]
+    src_ips = sorted({log.src_ip for log in logs if log.src_ip})
+    dst_ips = sorted({log.dst_ip for log in logs if log.dst_ip})
+    dst_ports = sorted({log.dst_port for log in logs if log.dst_port is not None})
+    actions = sorted({log.action for log in logs if log.action})
+    protocols = sorted({log.protocol for log in logs if log.protocol})
+    return {
+        "evidence_count": len(logs),
+        "first_seen": _iso(min(event_times)) if event_times else None,
+        "last_seen": _iso(max(event_times)) if event_times else None,
+        "unique_src_count": len(src_ips),
+        "sample_src_ips": src_ips[:10],
+        "unique_dst_count": len(dst_ips),
+        "sample_dst_ips": dst_ips[:10],
+        "sample_dst_ports": dst_ports[:10],
+        "actions": actions,
+        "protocols": protocols,
+    }
+
+
+def _group_metadata(alert: Alert) -> dict:
+    for rule in alert.matched_rules_json or []:
+        if rule.get("code") == "group_metadata":
+            return rule
+    return {}
+
+
+def _time_windows_match(existing: dict, incoming: dict) -> bool:
+    existing_first = _parse_iso(existing.get("first_seen"))
+    existing_last = _parse_iso(existing.get("last_seen"))
+    incoming_first = _parse_iso(incoming.get("first_seen"))
+    incoming_last = _parse_iso(incoming.get("last_seen"))
+    if not all([existing_first, existing_last, incoming_first, incoming_last]):
+        return True
+    if existing_first <= incoming_last and incoming_first <= existing_last:
+        return True
+    max_gap = timedelta(minutes=ALERT_DEDUP_WINDOW_MINUTES)
+    return abs((incoming_first - existing_last).total_seconds()) <= max_gap.total_seconds() or abs(
+        (existing_first - incoming_last).total_seconds()
+    ) <= max_gap.total_seconds()
+
+
+def _alert_source_matches(alert: Alert, observations: dict) -> bool:
+    src_ips = observations.get("sample_src_ips") or []
+    dst_ips = observations.get("sample_dst_ips") or []
+    if alert.src_ip and alert.src_ip not in src_ips:
+        return False
+    if alert.dst_ip and alert.dst_ip not in dst_ips:
+        return False
+    return True
+
+
+def _port_pattern_matches(existing: dict, incoming: dict) -> bool:
+    existing_ports = set(existing.get("sample_dst_ports") or [])
+    incoming_ports = set(incoming.get("sample_dst_ports") or [])
+    if not existing_ports or not incoming_ports:
+        return True
+    return bool(existing_ports & incoming_ports)
+
+
+def _find_dedup_alert(db: Session, *, alert_type: str, observations: dict) -> Alert | None:
+    statement = (
+        select(Alert)
+        .options(joinedload(Alert.evidence))
+        .where(Alert.alert_type == alert_type, Alert.status.in_(ALERT_DEDUP_ACTIVE_STATUSES))
+        .order_by(Alert.updated_at.desc(), Alert.id.desc())
+        .limit(50)
+    )
+    for alert in db.scalars(statement).unique():
+        metadata = _group_metadata(alert)
+        if not _alert_source_matches(alert, observations):
+            continue
+        if not _time_windows_match(metadata, observations):
+            continue
+        if not _port_pattern_matches(metadata, observations):
+            continue
+        return alert
+    return None
+
+
+def _merge_rule_metadata(existing_rules: list[dict], incoming_rules: list[dict]) -> list[dict]:
+    rules_by_code: dict[str, dict] = {
+        str(rule.get("code")): dict(rule)
+        for rule in existing_rules
+        if rule.get("code") and rule.get("code") != "group_metadata"
+    }
+    for incoming in incoming_rules:
+        code = str(incoming.get("code"))
+        if code == "group_metadata":
+            continue
+        existing = rules_by_code.get(code)
+        if existing is None:
+            rules_by_code[code] = dict(incoming)
+            continue
+        existing["score"] = max(int(existing.get("score") or 0), int(incoming.get("score") or 0))
+        existing["matched_log_count"] = int(existing.get("matched_log_count") or 0) + int(
+            incoming.get("matched_log_count") or 0
+        )
+    return sorted(rules_by_code.values(), key=lambda item: (-int(item.get("score") or 0), str(item.get("code"))))
+
+
+def _update_deduplicated_alert(
+    db: Session,
+    alert: Alert,
+    *,
+    detections: list[tuple[NormalizedLog, DetectionResult]],
+    matched_rules: list[dict],
+    observations: dict,
+    max_score: int,
+    severity: str,
+    top_rule: dict,
+) -> Alert:
+    existing_log_ids = {evidence.normalized_log_id for evidence in alert.evidence}
+    added_log_ids: list[int] = []
+    for log, _ in detections:
+        if log.id not in existing_log_ids:
+            alert.evidence.append(AlertEvidence(normalized_log_id=log.id))
+            added_log_ids.append(log.id)
+
+    existing_metadata = _group_metadata(alert)
+    occurrence_count = int(existing_metadata.get("occurrence_count") or existing_metadata.get("evidence_count") or len(alert.evidence))
+    occurrence_count += len(detections)
+    first_candidates = [_parse_iso(existing_metadata.get("first_seen")), _parse_iso(observations.get("first_seen"))]
+    last_candidates = [_parse_iso(existing_metadata.get("last_seen")), _parse_iso(observations.get("last_seen"))]
+    first_seen = min((item for item in first_candidates if item is not None), default=None)
+    last_seen = max((item for item in last_candidates if item is not None), default=None)
+    related_log_count = len({evidence.normalized_log_id for evidence in alert.evidence})
+    metadata = {
+        "code": "group_metadata",
+        "title": "Grouped alert metadata",
+        "score": 0,
+        "explanation": "Alert deduplication updated this existing finding with new related evidence.",
+        "evidence_count": related_log_count,
+        "occurrence_count": occurrence_count,
+        "related_log_count": related_log_count,
+        "first_seen": _iso(first_seen),
+        "last_seen": _iso(last_seen),
+        "unique_src_count": len(_merge_sorted(existing_metadata.get("sample_src_ips"), observations.get("sample_src_ips"), limit=1000)),
+        "sample_src_ips": _merge_sorted(existing_metadata.get("sample_src_ips"), observations.get("sample_src_ips")),
+        "unique_dst_count": len(_merge_sorted(existing_metadata.get("sample_dst_ips"), observations.get("sample_dst_ips"), limit=1000)),
+        "sample_dst_ips": _merge_sorted(existing_metadata.get("sample_dst_ips"), observations.get("sample_dst_ips")),
+        "sample_dst_ports": _merge_sorted(existing_metadata.get("sample_dst_ports"), observations.get("sample_dst_ports")),
+        "actions": _merge_sorted(existing_metadata.get("actions"), observations.get("actions")),
+        "protocols": _merge_sorted(existing_metadata.get("protocols"), observations.get("protocols")),
+        "deduplicated": True,
+    }
+    alert.threat_score = max(alert.threat_score, max_score)
+    alert.severity = severity_from_score(alert.threat_score)
+    alert.title = f"{alert.severity}: {top_rule['title']} ({related_log_count} related logs, {occurrence_count} occurrences)"
+    alert.explanation = (
+        f"Deduplicated alert updated with {len(added_log_ids)} new evidence log"
+        f"{'s' if len(added_log_ids) != 1 else ''}. {alert.explanation}"
+    )[:4000]
+    alert.recommended_response = recommended_response(alert.severity, alert.src_ip)
+    alert.matched_rules_json = [*_merge_rule_metadata(alert.matched_rules_json or [], matched_rules), metadata]
+    db.add(
+        AuditLog(
+            actor="system",
+            action="alert_deduplicated",
+            target_type="alert",
+            target_value=str(alert.id),
+            details={
+                "alert_type": alert.alert_type,
+                "added_log_ids": added_log_ids,
+                "occurrence_count": occurrence_count,
+                "related_log_count": related_log_count,
+            },
+        )
+    )
+    return alert
+
+
 def list_alerts(
     db: Session,
     *,
@@ -204,6 +423,10 @@ def list_alerts(
     alert_type: str | None = None,
     assigned_to: str | None = None,
     unassigned: bool = False,
+    source_id: int | None = None,
+    source_ids: list[int] | None = None,
+    source_name: str | None = None,
+    source_type: str | None = None,
     sort_by: str = "created",
     limit: int = 100,
     offset: int = 0,
@@ -217,6 +440,10 @@ def list_alerts(
         alert_type=alert_type,
         assigned_to=assigned_to,
         unassigned=unassigned,
+        source_id=source_id,
+        source_ids=source_ids,
+        source_name=source_name,
+        source_type=source_type,
         sort_by=sort_by,
     )
     return list(db.scalars(statement.limit(limit).offset(offset)).unique())
@@ -232,6 +459,10 @@ def build_alert_query(
     alert_type: str | None = None,
     assigned_to: str | None = None,
     unassigned: bool = False,
+    source_id: int | None = None,
+    source_ids: list[int] | None = None,
+    source_name: str | None = None,
+    source_type: str | None = None,
     sort_by: str = "created",
 ):
     sort_columns = {
@@ -241,7 +472,11 @@ def build_alert_query(
         "severity": Alert.severity,
     }
     order_column = sort_columns.get(sort_by, Alert.created_at)
-    statement = select(Alert).options(joinedload(Alert.evidence)).order_by(order_column.desc(), Alert.id.desc())
+    statement = (
+        select(Alert)
+        .options(joinedload(Alert.evidence).joinedload(AlertEvidence.normalized_log).joinedload(NormalizedLog.raw_log).joinedload(RawLog.source))
+        .order_by(order_column.desc(), Alert.id.desc())
+    )
     if search:
         pattern = f"%{search}%"
         statement = statement.where(
@@ -267,6 +502,15 @@ def build_alert_query(
         statement = statement.where(Alert.assigned_to == assigned_to)
     if unassigned:
         statement = statement.where(Alert.assigned_to.is_(None))
+    if source_id is not None:
+        statement = statement.where(Alert.id.in_(_alert_ids_for_sources(source_id=source_id)))
+    elif source_ids is not None:
+        if not source_ids:
+            statement = statement.where(False)
+        else:
+            statement = statement.where(Alert.id.in_(_alert_ids_for_sources(source_ids=source_ids)))
+    elif source_name or source_type:
+        statement = statement.where(Alert.id.in_(_alert_ids_for_sources(source_name=source_name, source_type=source_type)))
     return statement
 
 
@@ -275,8 +519,40 @@ def count_alerts(db: Session, **filters) -> int:
     return int(db.scalar(select(func.count()).select_from(statement.subquery())) or 0)
 
 
+def _alert_ids_for_sources(
+    *,
+    source_id: int | None = None,
+    source_ids: list[int] | None = None,
+    source_name: str | None = None,
+    source_type: str | None = None,
+):
+    statement = (
+        select(AlertEvidence.alert_id)
+        .join(NormalizedLog, NormalizedLog.id == AlertEvidence.normalized_log_id)
+        .join(RawLog, RawLog.id == NormalizedLog.raw_log_id)
+    )
+    if source_id is not None:
+        statement = statement.where(RawLog.source_id == source_id)
+    if source_ids is not None:
+        statement = statement.where(RawLog.source_id.in_(source_ids))
+    if source_name or source_type:
+        statement = statement.join(LogSource, LogSource.id == RawLog.source_id)
+        if source_name:
+            statement = statement.where(LogSource.name.ilike(f"%{source_name}%"))
+        if source_type:
+            statement = statement.where(LogSource.source_type == source_type)
+    return statement
+
+
 def get_alert(db: Session, alert_id: int) -> Alert | None:
-    statement = select(Alert).options(joinedload(Alert.evidence), joinedload(Alert.notes)).where(Alert.id == alert_id)
+    statement = (
+        select(Alert)
+        .options(
+            joinedload(Alert.evidence).joinedload(AlertEvidence.normalized_log).joinedload(NormalizedLog.raw_log).joinedload(RawLog.source),
+            joinedload(Alert.notes),
+        )
+        .where(Alert.id == alert_id)
+    )
     return db.scalars(statement).unique().first()
 
 

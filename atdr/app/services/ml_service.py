@@ -1,27 +1,38 @@
 import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
-from sqlalchemy import desc, func, or_, select
+from sqlalchemy import case, desc, func, or_, select
 from sqlalchemy.orm import Session
 
 from atdr.app.core.config import get_settings
-from atdr.app.db.models import AuditLog, MLModelRun, NormalizedLog, RawLog
+from atdr.app.db.models import AuditLog, IngestionRun, MLModelRun, NormalizedLog, RawLog
 from atdr.app.detection.ml_detector import FEATURE_COLUMNS, apply_model_to_db, train_model
 
 
 MODEL_NAME = "isolation_forest"
 UNKNOWN_APPS = ["unknown-tcp", "unknown-udp", "unknown-p2p", "incomplete", "not-applicable"]
+_ARTIFACT_CACHE: dict[str, dict[str, Any]] = {}
+EXACT_JSON_QUALITY_LIMIT = 50_000
 
 
 def _artifact_metadata(path: Path) -> dict:
     if not path.exists():
         return {"exists": False, "sha256": None, "size_bytes": None}
+    stat = path.stat()
+    cache_key = f"{path.resolve()}:{stat.st_mtime_ns}:{stat.st_size}"
+    cached = _ARTIFACT_CACHE.get(cache_key)
+    if cached:
+        return dict(cached)
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
-    return {"exists": True, "sha256": digest.hexdigest(), "size_bytes": path.stat().st_size}
+    metadata = {"exists": True, "sha256": digest.hexdigest(), "size_bytes": stat.st_size}
+    _ARTIFACT_CACHE.clear()
+    _ARTIFACT_CACHE[cache_key] = metadata
+    return dict(metadata)
 
 
 def _model_version() -> str:
@@ -234,18 +245,70 @@ def _count_where(db: Session, *filters) -> int:
     return int(db.scalar(statement) or 0)
 
 
-def dataset_profile(db: Session, *, baseline_max_app_risk: int = 3) -> dict:
-    total_logs = int(db.scalar(select(func.count(NormalizedLog.id))) or 0)
-    anomaly_logs = _count_where(db, NormalizedLog.is_anomaly.is_(True))
-    deny_drop_logs = _count_where(db, func.lower(NormalizedLog.action).in_(["deny", "drop"]))
-    high_risk_logs = _count_where(db, NormalizedLog.app_risk >= 4)
-    unknown_app_logs = _count_where(db, func.lower(NormalizedLog.app).in_(UNKNOWN_APPS))
-    baseline_filters = _baseline_filters(
-        max_app_risk=baseline_max_app_risk,
-        exclude_unknown_apps=True,
-        exclude_existing_anomalies=True,
+def _sum_if(condition):
+    return func.coalesce(func.sum(case((condition, 1), else_=0)), 0)
+
+
+def _traffic_aggregate(db: Session, *, baseline_max_app_risk: int = 3) -> dict:
+    lower_action = func.lower(NormalizedLog.action)
+    lower_app = func.lower(NormalizedLog.app)
+    unknown_app_condition = lower_app.in_(UNKNOWN_APPS)
+    baseline_candidate_condition = (
+        (lower_action == "allow")
+        & (or_(NormalizedLog.app_risk.is_(None), NormalizedLog.app_risk <= baseline_max_app_risk))
+        & (or_(NormalizedLog.app.is_(None), lower_app.not_in(UNKNOWN_APPS)))
+        & (NormalizedLog.is_anomaly.is_(False))
     )
-    baseline_candidate_count = _count_where(db, *baseline_filters)
+    row = db.execute(
+        select(
+            func.count(NormalizedLog.id).label("total_logs"),
+            func.min(NormalizedLog.generated_time).label("generated_time_min"),
+            func.max(NormalizedLog.generated_time).label("generated_time_max"),
+            _sum_if(NormalizedLog.is_anomaly.is_(True)).label("anomaly_logs"),
+            _sum_if(lower_action.in_(["deny", "drop"])).label("deny_drop_logs"),
+            _sum_if(lower_action.in_(["deny", "drop", "reset-both", "reset-client", "reset-server"])).label(
+                "deny_drop_reset_logs"
+            ),
+            _sum_if(NormalizedLog.app_risk >= 4).label("high_risk_logs"),
+            _sum_if(unknown_app_condition).label("unknown_app_logs"),
+            _sum_if(baseline_candidate_condition).label("baseline_candidate_count"),
+        )
+    ).mappings().one()
+    return {key: int(value or 0) if key.endswith(("_logs", "_count")) or key == "total_logs" else value for key, value in row.items()}
+
+
+def _quality_aggregate(db: Session) -> dict:
+    lower_app = func.lower(NormalizedLog.app)
+    row = db.execute(
+        select(
+            _sum_if(NormalizedLog.generated_time.is_(None) & NormalizedLog.receive_time.is_(None)).label("missing_timestamp"),
+            _sum_if(or_(NormalizedLog.src_ip.is_(None), NormalizedLog.src_ip == "")).label("missing_source_ip"),
+            _sum_if(or_(NormalizedLog.dst_ip.is_(None), NormalizedLog.dst_ip == "")).label("missing_destination_ip"),
+            _sum_if(or_(NormalizedLog.action.is_(None), NormalizedLog.action == "")).label("missing_action"),
+            _sum_if(lower_app.in_(UNKNOWN_APPS)).label("unknown_app_count"),
+        )
+    ).mappings().one()
+    return {key: int(value or 0) for key, value in row.items()}
+
+
+def _duplicate_raw_logs_from_runs(db: Session) -> int:
+    return int(db.scalar(select(func.coalesce(func.sum(IngestionRun.duplicate_raw_logs), 0))) or 0)
+
+
+def _parser_error_count(db: Session, *, total_logs: int, parser_error_filter) -> int:
+    if total_logs <= EXACT_JSON_QUALITY_LIMIT:
+        return _count_where(db, parser_error_filter)
+    return int(db.scalar(select(func.coalesce(func.sum(IngestionRun.parse_failures), 0))) or 0)
+
+
+def dataset_profile(db: Session, *, baseline_max_app_risk: int = 3) -> dict:
+    aggregate = _traffic_aggregate(db, baseline_max_app_risk=baseline_max_app_risk)
+    total_logs = int(aggregate["total_logs"])
+    anomaly_logs = int(aggregate["anomaly_logs"])
+    deny_drop_logs = int(aggregate["deny_drop_logs"])
+    high_risk_logs = int(aggregate["high_risk_logs"])
+    unknown_app_logs = int(aggregate["unknown_app_logs"])
+    baseline_candidate_count = int(aggregate["baseline_candidate_count"])
 
     recommendations: list[str] = []
     if total_logs < 1000:
@@ -261,11 +324,10 @@ def dataset_profile(db: Session, *, baseline_max_app_risk: int = 3) -> dict:
     if anomaly_logs:
         recommendations.append("Exclude existing anomaly-flagged logs from the next baseline training pass.")
 
-    time_range = db.execute(select(func.min(NormalizedLog.generated_time), func.max(NormalizedLog.generated_time))).one()
     return {
         "total_logs": total_logs,
-        "generated_time_min": time_range[0],
-        "generated_time_max": time_range[1],
+        "generated_time_min": aggregate["generated_time_min"],
+        "generated_time_max": aggregate["generated_time_max"],
         "current_anomaly_logs": anomaly_logs,
         "current_anomaly_rate": _anomaly_rate(anomaly_logs, total_logs),
         "deny_drop_logs": deny_drop_logs,
@@ -290,43 +352,34 @@ def dataset_profile(db: Session, *, baseline_max_app_risk: int = 3) -> dict:
 def data_quality_profile(db: Session) -> dict:
     total_raw = int(db.scalar(select(func.count(RawLog.id))) or 0)
     total_normalized = int(db.scalar(select(func.count(NormalizedLog.id))) or 0)
-    parse_errors = max(0, total_raw - total_normalized)
+    parser_error_filter = NormalizedLog.parsed_json["parser_error"].as_string().is_not(None)
+    parse_errors = _parser_error_count(db, total_logs=total_normalized, parser_error_filter=parser_error_filter)
+    parsed_successfully = max(0, total_normalized - parse_errors)
     time_range = db.execute(select(func.min(NormalizedLog.generated_time), func.max(NormalizedLog.generated_time))).one()
     latest_ingestion_time = db.scalar(select(func.max(RawLog.imported_at)))
-    duplicate_rows = db.execute(
-        select(func.count())
-        .select_from(
-            select(RawLog.raw_line)
-            .group_by(RawLog.raw_line)
-            .having(func.count(RawLog.id) > 1)
-            .subquery()
-        )
-    ).scalar()
-    missing_timestamp = _count_where(db, NormalizedLog.generated_time.is_(None), NormalizedLog.receive_time.is_(None))
-    missing_src_ip = _count_where(db, or_(NormalizedLog.src_ip.is_(None), NormalizedLog.src_ip == ""))
-    missing_dst_ip = _count_where(db, or_(NormalizedLog.dst_ip.is_(None), NormalizedLog.dst_ip == ""))
-    missing_action = _count_where(db, or_(NormalizedLog.action.is_(None), NormalizedLog.action == ""))
-    unknown_app_count = _count_where(db, func.lower(NormalizedLog.app).in_(UNKNOWN_APPS))
-    parser_error_examples = [
-        {"raw_log_id": row.id, "imported_at": row.imported_at, "raw_line_excerpt": row.raw_line[:240]}
-        for row in db.scalars(
-            select(RawLog)
-            .where(~RawLog.normalized.has())
-            .order_by(RawLog.imported_at.desc(), RawLog.id.desc())
-            .limit(5)
-        )
-    ]
+    quality = _quality_aggregate(db)
+    parser_error_examples = []
+    if parse_errors and total_normalized <= EXACT_JSON_QUALITY_LIMIT:
+        parser_error_examples = [
+            {
+                "raw_log_id": row.raw_log_id,
+                "normalized_log_id": row.id,
+                "parser_error": row.parsed_json.get("parser_error"),
+                "raw_line_excerpt": row.raw_log.raw_line[:240] if row.raw_log else None,
+            }
+            for row in db.scalars(select(NormalizedLog).where(parser_error_filter).order_by(NormalizedLog.id.desc()).limit(5))
+        ]
     return {
         "total_imported_logs": total_raw,
-        "parsed_successfully": total_normalized,
+        "parsed_successfully": parsed_successfully,
         "parse_errors": parse_errors,
-        "parse_success_rate": round((total_normalized / total_raw) * 100, 2) if total_raw else 0.0,
-        "missing_timestamp": missing_timestamp,
-        "missing_source_ip": missing_src_ip,
-        "missing_destination_ip": missing_dst_ip,
-        "missing_action": missing_action,
-        "unknown_app_count": unknown_app_count,
-        "duplicate_raw_line_groups": int(duplicate_rows or 0),
+        "parse_success_rate": round((parsed_successfully / total_raw) * 100, 2) if total_raw else 0.0,
+        "missing_timestamp": quality["missing_timestamp"],
+        "missing_source_ip": quality["missing_source_ip"],
+        "missing_destination_ip": quality["missing_destination_ip"],
+        "missing_action": quality["missing_action"],
+        "unknown_app_count": quality["unknown_app_count"],
+        "duplicate_raw_line_groups": _duplicate_raw_logs_from_runs(db),
         "dataset_time_min": time_range[0],
         "dataset_time_max": time_range[1],
         "latest_ingestion_time": latest_ingestion_time,
@@ -346,10 +399,11 @@ def _anomalous_group(db: Session, column, limit: int = 10) -> list[dict]:
 
 
 def baseline_drift_report(db: Session) -> dict:
-    total_logs = int(db.scalar(select(func.count(NormalizedLog.id))) or 0)
-    anomaly_logs = _count_where(db, NormalizedLog.is_anomaly.is_(True))
-    deny_drop_reset_logs = _count_where(db, func.lower(NormalizedLog.action).in_(["deny", "drop", "reset-both", "reset-client", "reset-server"]))
-    unknown_app_logs = _count_where(db, func.lower(NormalizedLog.app).in_(UNKNOWN_APPS))
+    aggregate = _traffic_aggregate(db)
+    total_logs = int(aggregate["total_logs"])
+    anomaly_logs = int(aggregate["anomaly_logs"])
+    deny_drop_reset_logs = int(aggregate["deny_drop_reset_logs"])
+    unknown_app_logs = int(aggregate["unknown_app_logs"])
     scoring_runs = _latest_scoring_runs(db)
     comparison = _run_comparison(scoring_runs)
     return {

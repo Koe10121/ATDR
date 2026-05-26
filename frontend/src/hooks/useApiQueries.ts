@@ -8,6 +8,10 @@ export const queryKeys = {
   health: ["health"],
   me: ["me"],
   summary: ["dashboard-summary"],
+  ingestionRuns: (params?: Record<string, unknown>) => ["ingestion-runs", params ?? {}],
+  detectionRuns: (params?: Record<string, unknown>) => ["detection-runs", params ?? {}],
+  sources: (params?: Record<string, unknown>) => ["sources", params ?? {}],
+  source: (id?: number | null) => ["source", id],
   alerts: (params?: Record<string, unknown>) => ["alerts", params ?? {}],
   alertsPage: (params?: Record<string, unknown>) => ["alerts-page", params ?? {}],
   alert: (id?: number | null) => ["alert", id],
@@ -56,6 +60,12 @@ function invalidateThreatControls(queryClient: QueryClient) {
   void queryClient.invalidateQueries({ queryKey: queryKeys.tuning });
 }
 
+const mlGovernanceQueryOptions = {
+  staleTime: 5 * 60_000,
+  refetchInterval: false,
+  refetchOnWindowFocus: false
+} as const;
+
 export function useHealth() {
   return useQuery({ queryKey: queryKeys.health, queryFn: api.health, retry: 1, refetchInterval: 30_000 });
 }
@@ -66,6 +76,22 @@ export function useMe(enabled: boolean) {
 
 export function useDashboardSummary() {
   return useQuery({ queryKey: queryKeys.summary, queryFn: api.dashboardSummary, refetchInterval: 30_000 });
+}
+
+export function useIngestionRuns(params: Params = {}) {
+  return useQuery({ queryKey: queryKeys.ingestionRuns(params), queryFn: () => api.ingestionRuns(params), refetchInterval: 30_000 });
+}
+
+export function useDetectionRuns(params: Params = {}) {
+  return useQuery({ queryKey: queryKeys.detectionRuns(params), queryFn: () => api.detectionRuns(params), refetchInterval: 30_000 });
+}
+
+export function useSources(params: Params = {}) {
+  return useQuery({ queryKey: queryKeys.sources(params), queryFn: () => api.sources(params), refetchInterval: 30_000 });
+}
+
+export function useSource(id?: number | null) {
+  return useQuery({ queryKey: queryKeys.source(id), queryFn: () => api.source(id as number), enabled: Boolean(id), refetchInterval: 30_000 });
 }
 
 export function useAlerts(params: Params) {
@@ -121,15 +147,15 @@ export function useDetectionTuning() {
 }
 
 export function useMlReport() {
-  return useQuery({ queryKey: queryKeys.mlReport, queryFn: api.mlReport, refetchInterval: 60_000 });
+  return useQuery({ queryKey: queryKeys.mlReport, queryFn: api.mlReport, ...mlGovernanceQueryOptions });
 }
 
 export function useSupervisedReport() {
-  return useQuery({ queryKey: queryKeys.supervisedReport, queryFn: api.supervisedReport, refetchInterval: 60_000 });
+  return useQuery({ queryKey: queryKeys.supervisedReport, queryFn: api.supervisedReport, ...mlGovernanceQueryOptions });
 }
 
 export function useClassTemporalCoverage() {
-  return useQuery({ queryKey: queryKeys.classTemporalCoverage, queryFn: () => api.classTemporalCoverage(), refetchInterval: 60_000 });
+  return useQuery({ queryKey: queryKeys.classTemporalCoverage, queryFn: () => api.classTemporalCoverage(), ...mlGovernanceQueryOptions });
 }
 
 export function useMlLabels(params: Params, enabled = true) {
@@ -137,7 +163,7 @@ export function useMlLabels(params: Params, enabled = true) {
 }
 
 export function useMlReviewQueue(params: Params) {
-  return useQuery({ queryKey: queryKeys.mlReviewQueue(params), queryFn: () => api.mlReviewQueue(params), refetchInterval: 60_000 });
+  return useQuery({ queryKey: queryKeys.mlReviewQueue(params), queryFn: () => api.mlReviewQueue(params), ...mlGovernanceQueryOptions });
 }
 
 export function useBlockedIps() {

@@ -65,6 +65,8 @@ export interface Alert {
   updated_at: string;
   evidence_count: number;
   evidence_log_ids: number[];
+  source_ids?: number[];
+  source_names?: string[];
   sla: AlertSla;
   detection_summary?: DetectionSummary;
 }
@@ -73,6 +75,7 @@ export interface AlertCase {
   case_id: string;
   title: string;
   related_alert_count: number;
+  total_related_logs?: number;
   source_ips: string[];
   destination_ips: string[];
   attack_types: string[];
@@ -81,6 +84,9 @@ export interface AlertCase {
   assigned_analyst?: string | null;
   first_seen?: string | null;
   last_seen?: string | null;
+  top_destination_ports?: CountRow[];
+  top_actions?: CountRow[];
+  recommended_analyst_focus?: string | null;
   notes: string[];
 }
 
@@ -108,6 +114,10 @@ export interface DetectionSummary {
 export interface NormalizedLog {
   id: number;
   raw_log_id: number;
+  source_id?: number | null;
+  source_name?: string | null;
+  source_type?: string | null;
+  parser_profile?: string | null;
   receive_time?: string | null;
   generated_time?: string | null;
   log_type?: string | null;
@@ -132,6 +142,53 @@ export interface NormalizedLog {
   parsed_json: Record<string, unknown>;
   raw_line?: string | null;
   alert_ids?: number[];
+}
+
+export interface SourceHealth {
+  source_id: number;
+  status: "healthy" | "idle" | "warning" | "error" | "disabled" | string;
+  enabled: boolean;
+  logs_received_count: number;
+  parse_success_count: number;
+  parse_failure_count: number;
+  parse_success_rate: number;
+  last_seen?: string | null;
+  last_log_received_at?: string | null;
+  latest_error?: string | null;
+  recommendation: string;
+  warnings?: string[];
+}
+
+export interface SourceQuality {
+  raw_logs: number;
+  normalized_logs: number;
+  unknown_app_count: number;
+  unknown_app_rate: number;
+  alert_count: number;
+  parse_failure_examples: Array<Record<string, unknown>>;
+  warnings?: string[];
+}
+
+export interface LogSource {
+  source_id: number;
+  name: string;
+  source_type: string;
+  parser_profile: string;
+  host?: string | null;
+  port?: number | null;
+  enabled: boolean;
+  last_seen?: string | null;
+  last_log_received_at?: string | null;
+  logs_received_count: number;
+  parse_success_count: number;
+  parse_failure_count: number;
+  latest_error?: string | null;
+  created_at: string;
+  updated_at: string;
+  health: SourceHealth;
+  quality?: SourceQuality | null;
+  recent_ingestion_runs?: IngestionRun[];
+  recent_detection_runs?: DetectionRun[];
 }
 
 export type MLLabelValue = "benign" | "benign_unusual" | "suspicious" | "malicious" | "needs_context";
@@ -283,6 +340,7 @@ export interface DemoActionResult {
 
 export interface DashboardSummary {
   total_logs: number;
+  total_raw_logs?: number;
   total_alerts: number;
   active_alerts: number;
   critical_open_alerts: number;
@@ -304,6 +362,27 @@ export interface DashboardSummary {
   protocol_distribution: CountRow[];
   app_risk_distribution: CountRow[];
   recent_alerts: Alert[];
+  ingestion_stats?: {
+    latest_raw_log_time?: string | null;
+    latest_normalized_log_time?: string | null;
+    latest_detection_run_time?: string | null;
+    import_count: number;
+    parse_success_count: number;
+    parse_failure_count: number;
+    duplicate_raw_line_groups: number;
+    deduplicated_alert_updates: number;
+    alert_occurrence_count: number;
+  };
+  data_quality?: {
+    missing_timestamp: number;
+    missing_source_ip: number;
+    missing_destination_ip: number;
+    missing_action: number;
+    unknown_app_count: number;
+    parser_error_examples: Array<Record<string, unknown>>;
+  };
+  latest_ingestion_run?: IngestionRun | null;
+  latest_detection_run?: DetectionRun | null;
 }
 
 export interface TuningReadinessItem {
@@ -537,4 +616,40 @@ export interface ResponseAction {
   result_message: string;
   executed_by: string;
   executed_at: string;
+}
+
+export interface IngestionRun {
+  run_id: number;
+  started_at: string;
+  finished_at?: string | null;
+  source_type: string;
+  input_name?: string | null;
+  status: string;
+  total_lines_received: number;
+  raw_logs_created: number;
+  parsed_successfully: number;
+  parse_failures: number;
+  duplicate_raw_logs: number;
+  alerts_created: number;
+  alerts_deduplicated: number;
+  alerts_suppressed: number;
+  runtime_seconds?: number | null;
+  error_summary?: string | null;
+  details: Record<string, unknown>;
+}
+
+export interface DetectionRun {
+  run_id: number;
+  started_at: string;
+  finished_at?: string | null;
+  detection_type: string;
+  status: string;
+  logs_evaluated: number;
+  alerts_created: number;
+  alerts_deduplicated: number;
+  alerts_suppressed: number;
+  top_attack_types: CountRow[];
+  runtime_seconds?: number | null;
+  error_summary?: string | null;
+  details: Record<string, unknown>;
 }

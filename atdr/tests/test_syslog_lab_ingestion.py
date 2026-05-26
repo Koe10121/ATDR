@@ -7,7 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from atdr.app.db.database import Base
-from atdr.app.db.models import AuditLog, NormalizedLog, RawLog
+from atdr.app.db.models import AuditLog, LogSource, NormalizedLog, RawLog
 from atdr.app.services import syslog_service
 from atdr.tests.test_parser import TRAFFIC_LINE
 
@@ -65,5 +65,10 @@ def test_udp_syslog_receiver_ingests_live_datagrams(monkeypatch):
         assert db.scalar(select(func.count(RawLog.id))) == 2
         assert db.scalar(select(func.count(NormalizedLog.id))) == 2
         audit = db.scalar(select(AuditLog).where(AuditLog.action == "ingest_syslog_batch"))
+        source = db.scalar(select(LogSource).where(LogSource.source_type == "syslog_udp"))
         assert audit is not None
         assert audit.details["received"] == 2
+        assert source is not None
+        assert source.parser_profile == "palo_alto"
+        assert source.logs_received_count == 2
+        assert source.parse_success_count == 2

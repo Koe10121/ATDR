@@ -12,7 +12,22 @@ from atdr.app.core.logging import configure_logging
 from atdr.app.core.middleware import RequestContextMiddleware, SecurityHeadersMiddleware
 from atdr.app.core.request_context import get_request_id
 from atdr.app.db.database import check_database_connection, get_db, init_db
-from atdr.app.routers import alerts, audit, auth, dashboard, demo, detection, logs, ml, response, suppressions, users, watchlists
+from atdr.app.routers import (
+    alerts,
+    audit,
+    auth,
+    dashboard,
+    demo,
+    detection,
+    ingestion,
+    logs,
+    ml,
+    response,
+    sources,
+    suppressions,
+    users,
+    watchlists,
+)
 
 settings = get_settings()
 configure_logging(settings.log_level, settings.log_format)
@@ -108,6 +123,8 @@ app.include_router(users.router)
 app.include_router(alerts.router)
 app.include_router(suppressions.router)
 app.include_router(watchlists.router)
+app.include_router(sources.router)
+app.include_router(ingestion.router)
 app.include_router(detection.router)
 app.include_router(ml.router)
 app.include_router(response.router)

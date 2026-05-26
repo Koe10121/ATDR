@@ -196,14 +196,31 @@ export function MLGovernance() {
     );
   }
 
+  function refreshGovernance() {
+    void report.refetch();
+    void supervised.refetch();
+    void temporalCoverage.refetch();
+    void reviewQueue.refetch();
+  }
+
   return (
     <div className="space-y-5">
       <section className="hero-panel">
-        <div className="text-sm font-extrabold uppercase tracking-wide text-cyan">ML Governance</div>
-        <h1 className="mt-2 text-3xl font-black">AI is assistive, explainable, and audited.</h1>
-        <p className="mt-2 text-muted">
-          IsolationForest highlights unusual traffic. Rule evidence and analyst review remain the authority for response decisions.
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-sm font-extrabold uppercase tracking-wide text-cyan">ML Governance</div>
+            <h1 className="mt-2 text-3xl font-black">AI is assistive, explainable, and audited.</h1>
+            <p className="mt-2 text-muted">
+              IsolationForest highlights unusual traffic. Rule evidence and analyst review remain the authority for response decisions.
+            </p>
+            <p className="mt-2 text-xs text-muted">
+              Summary data is cached briefly for dashboard responsiveness. Use refresh after training, scoring, or label import.
+            </p>
+          </div>
+          <button className="btn-secondary" type="button" onClick={refreshGovernance}>
+            Refresh ML Summary
+          </button>
+        </div>
       </section>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

@@ -23,6 +23,7 @@ import {
   useAlertWorkflowMutations,
   useAlert,
   useAlertsPage,
+  useSources,
   useResponseMutations
 } from "../hooks/useApiQueries";
 import { api } from "../lib/api";
@@ -47,6 +48,8 @@ const ALERT_FILTER_DEFAULTS = {
   src_ip: "",
   dst_ip: "",
   alert_type: "",
+  source_id: "",
+  source_status: "",
   sort_by: "score"
 };
 const ALERT_SORT_VALUES = ["score", "created", "updated", "severity"] as const;
@@ -77,7 +80,15 @@ export function AlertsTriage() {
   const selectedIdParam = Number(searchParams.get("alert"));
   const selectedId = Number.isFinite(selectedIdParam) && selectedIdParam > 0 ? selectedIdParam : null;
   const alerts = useAlertsPage({ ...safeFilters, limit, offset });
-  const cases = useAlertCases({ active_only: true, limit: 5 });
+  const cases = useAlertCases({ active_only: true, limit: 5, source_id: safeFilters.source_id, source_status: safeFilters.source_status });
+  const sources = useSources({ limit: 100 });
+  const sourceOptions = useMemo(
+    () => [
+      { value: "", label: "Any source" },
+      ...(sources.data ?? []).map((source) => ({ value: String(source.source_id), label: source.name }))
+    ],
+    [sources.data]
+  );
   const alertRows = alerts.data?.items ?? [];
   const selectedDetail = useAlert(selectedId);
   const statusMutation = useAlertStatusMutation();
@@ -107,6 +118,7 @@ export function AlertsTriage() {
       },
       { accessorKey: "src_ip", header: "Source" },
       { accessorKey: "dst_ip", header: "Destination" },
+      { id: "log_source", header: "Log Source", cell: ({ row }) => row.original.source_names?.join(", ") || "-" },
       { accessorKey: "evidence_count", header: "Evidence" },
       { accessorKey: "status", header: "Status", cell: ({ row }) => <Badge value={row.original.status} /> },
       { accessorKey: "title", header: "Alert" }
@@ -218,6 +230,25 @@ export function AlertsTriage() {
           <input className="input" placeholder="Destination IP" value={safeFilters.dst_ip} onChange={(event) => updateFilter("dst_ip", event.target.value)} />
           <input className="input" placeholder="Alert type" value={safeFilters.alert_type} onChange={(event) => updateFilter("alert_type", event.target.value)} />
           <SafeSelect
+            value={safeFilters.source_id}
+            options={sourceOptions}
+            onChange={(next) => updateFilter("source_id", next)}
+            ariaLabel="Alert source filter"
+          />
+          <SafeSelect
+            value={safeFilters.source_status}
+            options={[
+              { value: "", label: "Any source status" },
+              { value: "healthy", label: "Healthy sources" },
+              { value: "idle", label: "Idle sources" },
+              { value: "warning", label: "Warning sources" },
+              { value: "error", label: "Error sources" },
+              { value: "disabled", label: "Disabled sources" }
+            ]}
+            onChange={(next) => updateFilter("source_status", next)}
+            ariaLabel="Alert source status filter"
+          />
+          <SafeSelect
             value={safeFilters.sort_by}
             options={[
               { value: "score", label: "Sort by score" },
@@ -255,11 +286,16 @@ export function AlertsTriage() {
                     <Badge value={item.severity} kind="severity" />
                   </div>
                   <div className="mt-2 text-sm text-muted">
-                    {item.related_alert_count} related alert(s) | {item.attack_types.join(", ") || "unknown"} | owner {item.assigned_analyst ?? "unassigned"}
+                    {item.related_alert_count} related alert(s) | {item.total_related_logs ?? 0} related log(s) | {item.attack_types.join(", ") || "unknown"} | owner {item.assigned_analyst ?? "unassigned"}
                   </div>
                   <div className="mt-2 text-xs text-muted">
                     Sources {item.source_ips.join(", ") || "-"} | Destinations {item.destination_ips.join(", ") || "-"}
                   </div>
+                  <div className="mt-2 text-xs text-muted">
+                    Ports {(item.top_destination_ports ?? []).map((port) => `${port.name} (${port.count})`).join(", ") || "-"} | Actions{" "}
+                    {(item.top_actions ?? []).map((action) => `${action.name} (${action.count})`).join(", ") || "-"}
+                  </div>
+                  {item.recommended_analyst_focus ? <div className="mt-2 text-xs text-cyan">{item.recommended_analyst_focus}</div> : null}
                 </div>
               ))}
             </div>
@@ -315,6 +351,7 @@ export function AlertsTriage() {
                 { label: "Detection Source", value: detectionSummary?.detection_source?.join(", ") ?? "rule" },
                 { label: "Source", value: selected.src_ip },
                 { label: "Destination", value: selected.dst_ip },
+                { label: "Log Sources", value: selected.source_names?.join(", ") || "-" },
                 { label: "Owner", value: selected.assigned_to },
                 { label: "Evidence Logs", value: selected.evidence_log_ids.join(", ") || "-" },
                 { label: "Recommended Response", value: selected.recommended_response },
