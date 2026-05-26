@@ -23,6 +23,7 @@ from atdr.app.services.alert_service import alert_report, render_alert_report_cs
 from atdr.app.services.dashboard_service import build_dashboard_summary
 from atdr.app.services.detection_service import run_detection
 from atdr.app.services.log_service import import_log_file
+from atdr.app.services.operation_run_service import safe_source_label
 from atdr.app.services.ml_service import apply_anomaly_scoring, evaluation_report, train_anomaly_model
 from atdr.app.services.user_service import ensure_demo_users
 
@@ -63,6 +64,17 @@ def reset_and_seed_demo(
     deleted = clear_demo_data(db)
     users = ensure_demo_users(db)
     import_result = import_log_file(db, path, limit=limit, actor=actor)
+    safe_label = safe_source_label(str(path)) or path.name
+    import_result["source"] = safe_label
+    import_result["source_label"] = safe_label
+    import_result["requested_limit"] = limit
+    import_result["sample_file"] = safe_label
+    import_result["safe_sample_note"] = None
+    if limit and import_result.get("available_lines") is not None and int(import_result["available_lines"]) < limit:
+        import_result["safe_sample_note"] = (
+            f"Sample file {safe_label} contains {import_result['available_lines']} non-empty log lines. "
+            "To test a larger import, choose a larger sample file or use replay_logs --sample-path <path>."
+        )
     detection_result = run_detection(db, limit=limit, use_ml=use_ml, actor=actor)
     return {
         "deleted": deleted,
@@ -74,7 +86,10 @@ def reset_and_seed_demo(
 
 def resolve_demo_sample_path(sample_path: str | Path | None = None) -> Path:
     settings = get_settings()
-    path = Path(sample_path or settings.demo_sample_log_path)
+    raw_path = str(sample_path or settings.demo_sample_log_path).strip()
+    if (raw_path.startswith('"') and raw_path.endswith('"')) or (raw_path.startswith("'") and raw_path.endswith("'")):
+        raw_path = raw_path[1:-1].strip()
+    path = Path(raw_path)
     if not path.is_absolute():
         path = PROJECT_ROOT / path
     return path
@@ -92,7 +107,19 @@ def import_demo_sample_logs(
     if import_limit is not None and import_limit <= 0:
         import_limit = None
     path = resolve_demo_sample_path(sample_path)
-    return import_log_file(db, path, limit=import_limit, actor=actor)
+    result = import_log_file(db, path, limit=import_limit, actor=actor)
+    safe_label = safe_source_label(str(path)) or path.name
+    result["source"] = safe_label
+    result["source_label"] = safe_label
+    result["requested_limit"] = import_limit
+    result["sample_file"] = safe_label
+    result["safe_sample_note"] = None
+    if import_limit and result.get("available_lines") is not None and int(result["available_lines"]) < import_limit:
+        result["safe_sample_note"] = (
+            f"Sample file {safe_label} contains {result['available_lines']} non-empty log lines. "
+            "To test a larger import, choose a larger sample file or use replay_logs --sample-path <path>."
+        )
+    return result
 
 
 def run_demo_detection(

@@ -480,6 +480,97 @@ def test_demo_control_endpoints_are_admin_only_and_operational(tmp_path):
         app.dependency_overrides.clear()
 
 
+def test_demo_import_sample_reports_requested_available_and_raw_counts(tmp_path):
+    sample = tmp_path / "tiny-safe-sample.log"
+    sample.write_text(TRAFFIC_LINE + "\n" + TRAFFIC_LINE.replace("35845233", "35845234") + "\n", encoding="utf-8")
+
+    client = _client()
+    try:
+        admin_headers = _login(client, "admin", "admin123")
+        response = client.post(
+            "/api/demo/import-sample",
+            json={"limit": 1000, "sample_path": str(sample)},
+            headers=admin_headers,
+        )
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["requested_limit"] == 1000
+        assert payload["available_lines"] == 2
+        assert payload["raw_logs_imported"] == 2
+        assert payload["normalized_logs_created"] == 2
+        assert payload["parsed_successfully"] == 2
+        assert payload["parse_failures"] == 0
+        assert payload["alerts_created"] == 0
+        assert payload["alerts_deduplicated"] == 0
+        assert payload["source"] == "tiny-safe-sample.log"
+        assert "contains 2 non-empty log lines" in payload["safe_sample_note"]
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_demo_import_sample_imports_up_to_limit_when_larger_file_available(tmp_path):
+    sample = tmp_path / "larger-sample.log"
+    lines = [TRAFFIC_LINE.replace("35845233", str(35845233 + index)) for index in range(5)]
+    sample.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    client = _client()
+    try:
+        admin_headers = _login(client, "admin", "admin123")
+        response = client.post(
+            "/api/demo/import-sample",
+            json={"limit": 4, "sample_path": str(sample)},
+            headers=admin_headers,
+        )
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["requested_limit"] == 4
+        assert payload["available_lines"] == 5
+        assert payload["raw_logs_imported"] == 4
+        assert payload["normalized_logs_created"] == 4
+        assert payload["parsed_successfully"] == 4
+        assert payload["safe_sample_note"] is None
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_demo_import_sample_accepts_quoted_windows_style_path(tmp_path):
+    sample = tmp_path / "quoted-sample.log"
+    sample.write_text(TRAFFIC_LINE + "\n", encoding="utf-8")
+
+    client = _client()
+    try:
+        admin_headers = _login(client, "admin", "admin123")
+        response = client.post(
+            "/api/demo/import-sample",
+            json={"limit": 1, "sample_path": f'"{sample}"'},
+            headers=admin_headers,
+        )
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["available_lines"] == 1
+        assert payload["raw_logs_imported"] == 1
+        assert payload["source"] == "quoted-sample.log"
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_demo_import_sample_missing_file_returns_clean_404(tmp_path):
+    missing = tmp_path / "missing.log"
+
+    client = _client()
+    try:
+        admin_headers = _login(client, "admin", "admin123")
+        response = client.post(
+            "/api/demo/import-sample",
+            json={"limit": 1, "sample_path": f'"{missing}"'},
+            headers=admin_headers,
+        )
+        assert response.status_code == 404
+        assert "Sample log file not found" in response.json()["detail"]
+    finally:
+        app.dependency_overrides.clear()
+
+
 def test_demo_bundle_export_is_admin_only_and_writes_expected_files(tmp_path):
     client = _client()
     try:
