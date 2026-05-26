@@ -1,24 +1,59 @@
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, func
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, foreign, mapped_column, relationship
 
 from atdr.app.db.database import Base
+
+
+class LogSource(Base):
+    __tablename__ = "log_sources"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    source_type: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    parser_profile: Mapped[str] = mapped_column(String(64), default="palo_alto", nullable=False, index=True)
+    host: Mapped[str | None] = mapped_column(String(255), index=True)
+    port: Mapped[int | None] = mapped_column(Integer, index=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
+    last_seen: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    last_log_received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    logs_received_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    parse_success_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    parse_failure_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    latest_error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    raw_logs: Mapped[list["RawLog"]] = relationship(
+        back_populates="source",
+        primaryjoin=lambda: LogSource.id == foreign(RawLog.source_id),
+    )
 
 
 class RawLog(Base):
     __tablename__ = "raw_logs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source_id: Mapped[int | None] = mapped_column(Integer, index=True)
     raw_line: Mapped[str] = mapped_column(Text, nullable=False)
     syslog_timestamp: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     device_hostname: Mapped[str | None] = mapped_column(String(255), index=True)
-    imported_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    imported_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
 
     normalized: Mapped["NormalizedLog"] = relationship(
         back_populates="raw_log",
         cascade="all, delete-orphan",
         uselist=False,
+    )
+    source: Mapped[LogSource | None] = relationship(
+        back_populates="raw_logs",
+        primaryjoin=lambda: foreign(RawLog.source_id) == LogSource.id,
     )
 
 
@@ -87,8 +122,8 @@ class NormalizedLog(Base):
     app_technology: Mapped[str | None] = mapped_column(String(255))
     app_risk: Mapped[int | None] = mapped_column(Integer, index=True)
     app_characteristic: Mapped[str | None] = mapped_column(Text)
-    anomaly_score: Mapped[float | None] = mapped_column(Float)
-    is_anomaly: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    anomaly_score: Mapped[float | None] = mapped_column(Float, index=True)
+    is_anomaly: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
     parsed_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
 
     raw_log: Mapped[RawLog] = relationship(back_populates="normalized")
@@ -264,7 +299,47 @@ class MLModelRun(Base):
     feature_summary_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     metrics_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+
+
+class IngestionRun(Base):
+    __tablename__ = "ingestion_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    source_type: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    input_name: Mapped[str | None] = mapped_column(String(255), index=True)
+    status: Mapped[str] = mapped_column(String(32), index=True, default="running", nullable=False)
+    total_lines_received: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    raw_logs_created: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    parsed_successfully: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    parse_failures: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    duplicate_raw_logs: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    alerts_created: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    alerts_deduplicated: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    alerts_suppressed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    runtime_seconds: Mapped[float | None] = mapped_column(Float)
+    error_summary: Mapped[str | None] = mapped_column(Text)
+    details_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class DetectionRun(Base):
+    __tablename__ = "detection_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    detection_type: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), index=True, default="running", nullable=False)
+    logs_evaluated: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    alerts_created: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    alerts_deduplicated: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    alerts_suppressed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    top_attack_types_json: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    runtime_seconds: Mapped[float | None] = mapped_column(Float)
+    error_summary: Mapped[str | None] = mapped_column(Text)
+    details_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
 
 
 class MLLabel(Base):
@@ -279,9 +354,16 @@ class MLLabel(Base):
     review_note: Mapped[str | None] = mapped_column(Text)
     label_source: Mapped[str] = mapped_column(String(32), default="manual", server_default="manual", nullable=False, index=True)
     reviewed: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1", nullable=False, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
 
     log: Mapped[NormalizedLog] = relationship(back_populates="ml_labels")
 
 
 Index("ix_ml_labels_log_created", MLLabel.log_id, MLLabel.created_at)
+Index("ix_ml_labels_reviewed_label", MLLabel.reviewed, MLLabel.label)
+Index("ix_ml_labels_source_reviewed", MLLabel.label_source, MLLabel.reviewed)
+Index("ix_ml_labels_label_label_source", MLLabel.label, MLLabel.label_source)
+Index("ix_ml_model_runs_model_operation_created", MLModelRun.model_name, MLModelRun.operation, MLModelRun.created_at)
+Index("ix_normalized_anomaly_app", NormalizedLog.is_anomaly, NormalizedLog.app)
+Index("ix_normalized_anomaly_dst_port", NormalizedLog.is_anomaly, NormalizedLog.dst_port)
+Index("ix_alert_status_severity_updated", Alert.status, Alert.severity, Alert.updated_at)

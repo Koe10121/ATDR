@@ -177,6 +177,10 @@ def test_alert_cases_group_related_alerts():
         assert payload
         assert payload[0]["related_alert_count"] >= 1
         assert "case_id" in payload[0]
+        assert "total_related_logs" in payload[0]
+        assert "top_destination_ports" in payload[0]
+        assert "top_actions" in payload[0]
+        assert "recommended_analyst_focus" in payload[0]
         assert payload[0]["status"] in {"open", "investigating", "contained", "needs_more_context"}
     finally:
         app.dependency_overrides.clear()
@@ -315,6 +319,127 @@ def test_list_filters_support_react_dashboard_tables(tmp_path):
         assert audit.status_code == 200
         assert int(audit.headers["X-Total-Count"]) >= 1
         assert audit.json()[0]["action"] == "alert_investigating"
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_run_history_api_tracks_ingestion_and_detection(tmp_path):
+    sample = tmp_path / "run-history.log"
+    sample.write_text(TRAFFIC_LINE + "\n", encoding="utf-8")
+
+    client = _client()
+    try:
+        headers = _login(client, "admin", "admin123")
+        imported = client.post("/api/logs/import", data={"file_path": str(sample), "limit": "10"}, headers=headers)
+        assert imported.status_code == 200
+        assert imported.json()["run_id"] >= 1
+
+        detection = client.post("/api/detection/run?limit=10&use_ml=false", headers=headers)
+        assert detection.status_code == 200
+        assert detection.json()["detection_run_id"] >= 1
+
+        ingestion_runs = client.get("/api/ingestion/runs", headers=headers)
+        assert ingestion_runs.status_code == 200
+        assert ingestion_runs.json()[0]["source_type"] == "file_import"
+        assert ingestion_runs.json()[0]["parsed_successfully"] == 1
+        ingestion_run = client.get(f"/api/ingestion/runs/{ingestion_runs.json()[0]['run_id']}", headers=headers)
+        assert ingestion_run.status_code == 200
+
+        detection_runs = client.get("/api/detection/runs", headers=headers)
+        assert detection_runs.status_code == 200
+        assert detection_runs.json()[0]["detection_type"] == "rule"
+        assert detection_runs.json()[0]["logs_evaluated"] >= 1
+        detection_run = client.get(f"/api/detection/runs/{detection_runs.json()[0]['run_id']}", headers=headers)
+        assert detection_run.status_code == 200
+
+        summary = client.get("/api/dashboard/summary", headers=headers)
+        assert summary.status_code == 200
+        assert summary.json()["latest_ingestion_run"]["run_id"] == ingestion_runs.json()[0]["run_id"]
+        assert summary.json()["latest_detection_run"]["run_id"] == detection_runs.json()[0]["run_id"]
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_source_management_and_import_fallback_source():
+    client = _client()
+    try:
+        admin_headers = _login(client, "admin", "admin123")
+        analyst_headers = _login(client, "analyst", "analyst123")
+
+        unauthorized = client.get("/api/sources")
+        assert unauthorized.status_code == 401
+
+        created = client.post(
+            "/api/sources",
+            json={
+                "name": "lab-firewall-1",
+                "source_type": "firewall",
+                "parser_profile": "palo_alto",
+                "host": "192.0.2.10",
+                "port": 514,
+            },
+            headers=admin_headers,
+        )
+        assert created.status_code == 200
+        source = created.json()
+        assert source["health"]["status"] == "idle"
+        assert source["parser_profile"] == "palo_alto"
+
+        listed = client.get("/api/sources", headers=analyst_headers)
+        assert listed.status_code == 200
+        assert any(item["name"] == "lab-firewall-1" for item in listed.json())
+
+        imported_with_source = client.post(
+            "/api/logs/import",
+            data={"file_path": "data/samples/paloalto-demo.txt", "limit": "2", "source_id": str(source["source_id"])},
+            headers=admin_headers,
+        )
+        assert imported_with_source.status_code == 200
+        assert imported_with_source.json()["source_id"] == source["source_id"]
+
+        source_logs = client.get("/api/logs", params={"source_id": source["source_id"]}, headers=analyst_headers)
+        assert source_logs.status_code == 200
+        assert int(source_logs.headers["X-Total-Count"]) == 2
+        assert source_logs.json()[0]["source_name"] == "lab-firewall-1"
+
+        detection = client.post("/api/detection/run?limit=20&use_ml=false", headers=admin_headers)
+        assert detection.status_code == 200
+        source_alerts = client.get("/api/alerts", params={"source_id": source["source_id"]}, headers=analyst_headers)
+        assert source_alerts.status_code == 200
+        assert int(source_alerts.headers["X-Total-Count"]) >= 1
+
+        disabled = client.patch(f"/api/sources/{source['source_id']}", json={"enabled": False}, headers=admin_headers)
+        assert disabled.status_code == 200
+        assert disabled.json()["health"]["status"] == "disabled"
+        assert disabled.json()["logs_received_count"] == 2
+        assert disabled.json()["quality"]["raw_logs"] == 2
+
+        disabled_logs = client.get("/api/logs", params={"source_status": "disabled"}, headers=analyst_headers)
+        assert disabled_logs.status_code == 200
+        assert int(disabled_logs.headers["X-Total-Count"]) >= 1
+
+        imported = client.post(
+            "/api/logs/import",
+            data={"file_path": "data/samples/paloalto-demo.txt", "limit": "2"},
+            headers=admin_headers,
+        )
+        assert imported.status_code == 200
+        import_payload = imported.json()
+        assert import_payload["source_id"] is not None
+
+        sources = client.get("/api/sources", headers=analyst_headers).json()
+        fallback = next(item for item in sources if item["name"] == "local_import")
+        assert fallback["logs_received_count"] == 2
+        assert fallback["parse_success_count"] == 2
+
+        health = client.get(f"/api/sources/{fallback['source_id']}/health", headers=analyst_headers)
+        assert health.status_code == 200
+        assert health.json()["status"] in {"healthy", "warning", "idle"}
+
+        source_detail = client.get(f"/api/sources/{fallback['source_id']}", headers=analyst_headers)
+        assert source_detail.status_code == 200
+        assert "quality" in source_detail.json()
+        assert "recent_ingestion_runs" in source_detail.json()
     finally:
         app.dependency_overrides.clear()
 

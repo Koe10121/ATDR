@@ -63,3 +63,15 @@ def test_malformed_line_does_not_raise():
 
     assert parsed.error is not None
     assert "parser_error" in parsed.parsed_json
+
+
+def test_blank_line_and_missing_fields_are_recorded_safely():
+    blank = parse_log_line("   ")
+    assert blank.error == "blank line"
+    assert blank.parsed_json["parser_error"] == "blank line"
+
+    partial = parse_log_line("2026-05-20T13:36:16+07:00 MFU-FW.mfu.ac.th 1,2026/05/20 13:36:15")
+    assert partial.error is None
+    assert "missing source IP" in partial.parsed_json["parser_warnings"]
+    assert "missing destination IP" in partial.parsed_json["parser_warnings"]
+    assert "missing action" in partial.parsed_json["parser_warnings"]

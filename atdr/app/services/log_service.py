@@ -5,14 +5,22 @@ from typing import TextIO
 from sqlalchemy import Select, desc, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
-from atdr.app.db.models import Alert, AlertEvidence, AuditLog, NormalizedLog, RawLog
+from atdr.app.db.models import Alert, AlertEvidence, AuditLog, LogSource, NormalizedLog, RawLog
 from atdr.app.parsers.paloalto_parser import ParsedPaloAltoLog, parse_log_line
+from atdr.app.services.operation_run_service import (
+    complete_ingestion_run,
+    fail_ingestion_run,
+    safe_source_label,
+    start_ingestion_run,
+)
+from atdr.app.services.source_service import DEFAULT_SOURCE_NAME, get_or_create_source, record_source_ingestion
 
 logger = logging.getLogger(__name__)
 
 
-def _persist_parsed_log(db: Session, parsed: ParsedPaloAltoLog) -> NormalizedLog | None:
+def _persist_parsed_log(db: Session, parsed: ParsedPaloAltoLog, *, source_id: int | None = None) -> NormalizedLog | None:
     raw = RawLog(
+        source_id=source_id,
         raw_line=parsed.raw_line,
         syslog_timestamp=parsed.syslog_timestamp,
         device_hostname=parsed.device_hostname,
@@ -34,39 +42,106 @@ def import_log_stream(
     stream: TextIO,
     *,
     source_name: str = "uploaded-log",
+    source_type: str = "file_import",
     limit: int | None = None,
     actor: str = "system",
+    track_run: bool = True,
+    source_id: int | None = None,
+    parser_profile: str | None = None,
 ) -> dict:
     imported = 0
     parsed = 0
     failed = 0
+    duplicate_raw_logs = 0
+    source_label = safe_source_label(source_name) or DEFAULT_SOURCE_NAME
+    source_record_name = DEFAULT_SOURCE_NAME if source_id is None and source_type == "file_import" else source_label
+    source = get_or_create_source(
+        db,
+        source_id=source_id,
+        name=source_record_name,
+        source_type=source_type,
+        parser_profile=parser_profile,
+    )
+    run = (
+        start_ingestion_run(db, source_type=source_type, input_name=source_name, details={"limit": limit, "source_id": source.id})
+        if track_run
+        else None
+    )
+    latest_error: str | None = None
 
-    for line_number, line in enumerate(stream, start=1):
-        if limit is not None and imported >= limit:
-            break
-        if not line.strip():
-            continue
-        parsed_log = parse_log_line(line)
-        _persist_parsed_log(db, parsed_log)
-        imported += 1
-        if parsed_log.error:
-            failed += 1
-            logger.debug("Parser issue in %s line %s: %s", source_name, line_number, parsed_log.error)
-        else:
-            parsed += 1
-        if imported % 500 == 0:
-            db.flush()
+    try:
+        for line_number, line in enumerate(stream, start=1):
+            if limit is not None and imported >= limit:
+                break
+            if not line.strip():
+                continue
+            existing_raw = db.scalar(select(RawLog.id).where(RawLog.raw_line == line.rstrip("\r\n")).limit(1))
+            duplicate_raw_logs += 1 if existing_raw is not None else 0
+            parsed_log = parse_log_line(line)
+            _persist_parsed_log(db, parsed_log, source_id=source.id)
+            imported += 1
+            if parsed_log.error:
+                failed += 1
+                latest_error = parsed_log.error
+                logger.debug("Parser issue in %s line %s: %s", source_name, line_number, parsed_log.error)
+            else:
+                parsed += 1
+            if imported % 500 == 0:
+                db.flush()
+    except Exception as exc:
+        if run is not None:
+            fail_ingestion_run(
+                db,
+                run,
+                error=f"{exc.__class__.__name__}: {exc}",
+                details={"imported_before_failure": imported, "parsed_before_failure": parsed, "failed_before_failure": failed},
+            )
+            db.commit()
+        raise
 
     audit = AuditLog(
         actor=actor,
         action="import_logs",
-        target_type="log_file",
-        target_value=source_name,
-        details={"imported": imported, "parsed": parsed, "failed": failed, "limit": limit},
+        target_type=source_type,
+        target_value=safe_source_label(source_name) or source_name,
+        details={
+            "imported": imported,
+            "parsed": parsed,
+            "failed": failed,
+            "duplicate_raw_logs": duplicate_raw_logs,
+            "limit": limit,
+            "source_id": source.id,
+        },
     )
     db.add(audit)
+    record_source_ingestion(
+        source,
+        logs_received=imported,
+        parsed_successfully=parsed,
+        parse_failures=failed,
+        latest_error=latest_error,
+    )
+    if run is not None:
+        complete_ingestion_run(
+            db,
+            run,
+            total_lines_received=imported,
+            raw_logs_created=imported,
+            parsed_successfully=parsed,
+            parse_failures=failed,
+            duplicate_raw_logs=duplicate_raw_logs,
+            details={"actor": actor, "source_id": source.id},
+        )
     db.commit()
-    return {"source": source_name, "imported": imported, "parsed": parsed, "failed": failed}
+    return {
+        "source": source_name,
+        "imported": imported,
+        "parsed": parsed,
+        "failed": failed,
+        "duplicate_raw_logs": duplicate_raw_logs,
+        "run_id": run.id if run is not None else None,
+        "source_id": source.id,
+    }
 
 
 def import_raw_log_line(
@@ -76,10 +151,32 @@ def import_raw_log_line(
     source_name: str = "syslog",
     actor: str = "syslog_receiver",
     commit: bool = True,
+    source_id: int | None = None,
+    source_type: str = "syslog_udp",
+    parser_profile: str | None = None,
+    host: str | None = None,
+    port: int | None = None,
 ) -> dict:
+    source = get_or_create_source(
+        db,
+        source_id=source_id,
+        name=source_name,
+        source_type=source_type,
+        parser_profile=parser_profile,
+        host=host,
+        port=port,
+    )
     parsed_log = parse_log_line(raw_line)
-    normalized = _persist_parsed_log(db, parsed_log)
+    duplicate_raw_log = db.scalar(select(RawLog.id).where(RawLog.raw_line == raw_line.rstrip("\r\n")).limit(1)) is not None
+    normalized = _persist_parsed_log(db, parsed_log, source_id=source.id)
     db.flush()
+    record_source_ingestion(
+        source,
+        logs_received=1,
+        parsed_successfully=0 if parsed_log.error else 1,
+        parse_failures=1 if parsed_log.error else 0,
+        latest_error=parsed_log.error,
+    )
     if commit:
         db.add(
             AuditLog(
@@ -87,7 +184,7 @@ def import_raw_log_line(
                 action="ingest_syslog",
                 target_type="syslog",
                 target_value=source_name,
-                details={"parsed": not bool(parsed_log.error), "normalized_log_id": getattr(normalized, "id", None)},
+                details={"parsed": not bool(parsed_log.error), "normalized_log_id": getattr(normalized, "id", None), "source_id": source.id},
             )
         )
         db.commit()
@@ -95,13 +192,33 @@ def import_raw_log_line(
         "parsed": not bool(parsed_log.error),
         "error": parsed_log.error,
         "normalized_log_id": getattr(normalized, "id", None),
+        "duplicate_raw_log": duplicate_raw_log,
+        "source_id": source.id,
     }
 
 
-def import_log_file(db: Session, file_path: str | Path, *, limit: int | None = None, actor: str = "system") -> dict:
+def import_log_file(
+    db: Session,
+    file_path: str | Path,
+    *,
+    limit: int | None = None,
+    actor: str = "system",
+    source_type: str = "file_import",
+    source_id: int | None = None,
+    parser_profile: str | None = None,
+) -> dict:
     path = Path(file_path)
     with path.open("r", encoding="utf-8", errors="replace", newline="") as stream:
-        return import_log_stream(db, stream, source_name=str(path), limit=limit, actor=actor)
+        return import_log_stream(
+            db,
+            stream,
+            source_name=str(path),
+            source_type=source_type,
+            limit=limit,
+            actor=actor,
+            source_id=source_id,
+            parser_profile=parser_profile,
+        )
 
 
 def build_log_query(
@@ -117,6 +234,10 @@ def build_log_query(
     severity: str | None = None,
     country: str | None = None,
     app_risk: int | None = None,
+    source_id: int | None = None,
+    source_ids: list[int] | None = None,
+    source_name: str | None = None,
+    source_type: str | None = None,
     sort_by: str = "generated",
 ) -> Select:
     sort_columns = {
@@ -129,7 +250,7 @@ def build_log_query(
         "id": NormalizedLog.id,
     }
     order_column = sort_columns.get(sort_by, NormalizedLog.generated_time)
-    statement = select(NormalizedLog).options(joinedload(NormalizedLog.raw_log))
+    statement = select(NormalizedLog).options(joinedload(NormalizedLog.raw_log).joinedload(RawLog.source))
     if severity:
         statement = statement.join(AlertEvidence).join(Alert).where(Alert.severity == severity)
     if search:
@@ -167,6 +288,22 @@ def build_log_query(
         )
     if app_risk is not None:
         statement = statement.where(NormalizedLog.app_risk == app_risk)
+    if source_id is not None:
+        statement = statement.join(RawLog, NormalizedLog.raw_log_id == RawLog.id).where(RawLog.source_id == source_id)
+    elif source_ids is not None:
+        if not source_ids:
+            statement = statement.where(False)
+        else:
+            statement = statement.join(RawLog, NormalizedLog.raw_log_id == RawLog.id).where(RawLog.source_id.in_(source_ids))
+    elif source_name or source_type:
+        statement = (
+            statement.join(RawLog, NormalizedLog.raw_log_id == RawLog.id)
+            .join(LogSource, RawLog.source_id == LogSource.id)
+        )
+        if source_name:
+            statement = statement.where(LogSource.name.ilike(f"%{source_name}%"))
+        if source_type:
+            statement = statement.where(LogSource.source_type == source_type)
     if sort_by in {"action", "src_ip", "dst_ip"}:
         return statement.order_by(order_column.asc(), NormalizedLog.id.desc())
     return statement.order_by(desc(order_column), NormalizedLog.id.desc())
@@ -180,7 +317,7 @@ def list_logs(db: Session, *, limit: int = 100, offset: int = 0, **filters) -> l
 def get_log(db: Session, log_id: int) -> NormalizedLog | None:
     statement = (
         select(NormalizedLog)
-        .options(joinedload(NormalizedLog.raw_log), joinedload(NormalizedLog.alert_evidence))
+        .options(joinedload(NormalizedLog.raw_log).joinedload(RawLog.source), joinedload(NormalizedLog.alert_evidence))
         .where(NormalizedLog.id == log_id)
     )
     return db.scalars(statement).unique().first()

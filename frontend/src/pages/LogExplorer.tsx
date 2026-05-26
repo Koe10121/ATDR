@@ -12,7 +12,7 @@ import { PaginationControls } from "../components/PaginationControls";
 import { SafeSelect } from "../components/SafeSelect";
 import { TableToolbar, tableDensityClass } from "../components/TableToolbar";
 import type { SavedView, TableDensity } from "../components/TableToolbar";
-import { useLog, useLogsPage, useMlLabelMutations, useMlLabels } from "../hooks/useApiQueries";
+import { useLog, useLogsPage, useMlLabelMutations, useMlLabels, useSources } from "../hooks/useApiQueries";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { usePersistentState } from "../hooks/usePersistentState";
 import { normalizeSavedViews, normalizeStringState } from "../lib/safeTableState";
@@ -41,6 +41,8 @@ const LOG_FILTER_DEFAULTS = {
   country: "",
   generated_from: "",
   generated_to: "",
+  source_id: "",
+  source_status: "",
   sort_by: "generated"
 };
 const LOG_SORT_VALUES = ["generated", "app_risk", "action", "src_ip", "dst_ip"] as const;
@@ -74,6 +76,14 @@ export function LogExplorer() {
   const selectedId = Number.isFinite(selectedIdParam) && selectedIdParam > 0 ? selectedIdParam : null;
   const debouncedSearch = useDebouncedValue(search);
   const logs = useLogsPage({ search: debouncedSearch, ...safeFilters, limit, offset });
+  const sources = useSources({ limit: 100 });
+  const sourceOptions = useMemo(
+    () => [
+      { value: "", label: "Any source" },
+      ...(sources.data ?? []).map((source) => ({ value: String(source.source_id), label: source.name }))
+    ],
+    [sources.data]
+  );
   const logRows = logs.data?.items ?? [];
   const selectedDetail = useLog(selectedId);
   const selected = selectedDetail.data ?? logRows.find((item) => item.id === selectedId) ?? null;
@@ -103,6 +113,7 @@ export function LogExplorer() {
   const columns = useMemo<ColumnDef<NormalizedLog>[]>(
     () => [
       { accessorKey: "id", header: "ID" },
+      { accessorKey: "source_name", header: "Source" },
       { accessorKey: "generated_time", header: "Generated" },
       { accessorKey: "src_ip", header: "Source" },
       { accessorKey: "dst_ip", header: "Destination" },
@@ -202,6 +213,25 @@ export function LogExplorer() {
             <input className="input" placeholder="Destination zone" value={safeFilters.dst_zone} onChange={(event) => updateFilter("dst_zone", event.target.value)} />
             <input className="input" placeholder="Country" value={safeFilters.country} onChange={(event) => updateFilter("country", event.target.value)} />
             <SafeSelect
+              value={safeFilters.source_id}
+              options={sourceOptions}
+              onChange={(next) => updateFilter("source_id", next)}
+              ariaLabel="Log source filter"
+            />
+            <SafeSelect
+              value={safeFilters.source_status}
+              options={[
+                { value: "", label: "Any source status" },
+                { value: "healthy", label: "Healthy sources" },
+                { value: "idle", label: "Idle sources" },
+                { value: "warning", label: "Warning sources" },
+                { value: "error", label: "Error sources" },
+                { value: "disabled", label: "Disabled sources" }
+              ]}
+              onChange={(next) => updateFilter("source_status", next)}
+              ariaLabel="Log source status filter"
+            />
+            <SafeSelect
               value={safeFilters.sort_by}
               options={[
                 { value: "generated", label: "Sort by generated time" },
@@ -263,6 +293,8 @@ export function LogExplorer() {
             <MetaGrid
               rows={[
                 { label: "Generated", value: selected.generated_time },
+                { label: "Log Source", value: selected.source_name ? `${selected.source_name} (${selected.source_type ?? "unknown"})` : "-" },
+                { label: "Parser Profile", value: selected.parser_profile ?? "-" },
                 { label: "Receive Time", value: selected.receive_time },
                 { label: "Source", value: `${selected.src_ip ?? "-"}:${selected.src_port ?? "-"}` },
                 { label: "Destination", value: `${selected.dst_ip ?? "-"}:${selected.dst_port ?? "-"}` },

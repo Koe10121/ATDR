@@ -13,6 +13,7 @@ from atdr.app.db.models import User
 from atdr.app.parsers.paloalto_parser import parse_datetime
 from atdr.app.schemas.logs import ImportResult, LogDetail, NormalizedLogRead
 from atdr.app.services.log_service import build_log_query, get_log, import_log_file, import_log_stream
+from atdr.app.services.source_service import source_ids_for_filters
 
 router = APIRouter(prefix="/api/logs", tags=["logs"])
 
@@ -71,6 +72,10 @@ def _log_to_dict(log) -> dict:
         "parsed_json": log.parsed_json,
     }
     if getattr(log, "raw_log", None):
+        data["source_id"] = log.raw_log.source_id
+        data["source_name"] = log.raw_log.source.name if getattr(log.raw_log, "source", None) else None
+        data["source_type"] = log.raw_log.source.source_type if getattr(log.raw_log, "source", None) else None
+        data["parser_profile"] = log.raw_log.source.parser_profile if getattr(log.raw_log, "source", None) else None
         data["raw_line"] = log.raw_log.raw_line
         data["syslog_timestamp"] = log.raw_log.syslog_timestamp
         data["device_hostname"] = log.raw_log.device_hostname
@@ -86,6 +91,8 @@ def import_logs(
     upload: UploadFile | None = File(default=None),
     file_path: str | None = Form(default=None),
     limit: int | None = Form(default=None),
+    source_id: int | None = Form(default=None),
+    parser_profile: str | None = Form(default=None),
 ) -> dict:
     settings = get_settings()
     import_limit = settings.default_import_limit if limit is None else limit
@@ -100,6 +107,8 @@ def import_logs(
             source_name=upload.filename or "uploaded-log",
             limit=import_limit,
             actor=current_user.username,
+            source_id=source_id,
+            parser_profile=parser_profile,
         )
 
     if not file_path:
@@ -110,7 +119,7 @@ def import_logs(
         path = PROJECT_ROOT / path
     if not path.exists():
         raise HTTPException(status_code=404, detail=f"Log file not found: {path}")
-    return import_log_file(db, path, limit=import_limit, actor=current_user.username)
+    return import_log_file(db, path, limit=import_limit, actor=current_user.username, source_id=source_id, parser_profile=parser_profile)
 
 
 @router.get("", response_model=list[NormalizedLogRead])
@@ -129,12 +138,23 @@ def list_normalized_logs(
     severity: str | None = None,
     country: str | None = None,
     app_risk: int | None = Query(default=None, ge=1, le=5),
+    source_id: int | None = Query(default=None, ge=1),
+    source_name: str | None = None,
+    source_type: str | None = None,
+    source_status: str | None = None,
     generated_from: str | None = None,
     generated_to: str | None = None,
     sort_by: str = "generated",
     limit: int = Query(default=100, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
 ) -> list[dict]:
+    source_ids = source_ids_for_filters(
+        db,
+        source_id=source_id,
+        source_name=source_name,
+        source_type=source_type,
+        source_status=source_status,
+    )
     statement = build_log_query(
         search=search,
         src_ip=src_ip,
@@ -147,6 +167,10 @@ def list_normalized_logs(
         severity=severity,
         country=country,
         app_risk=app_risk,
+        source_id=source_id if source_ids is None else None,
+        source_ids=source_ids,
+        source_name=source_name if source_ids is None else None,
+        source_type=source_type if source_ids is None else None,
         sort_by=sort_by,
     )
     start = parse_datetime(generated_from)

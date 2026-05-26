@@ -35,6 +35,7 @@ from atdr.app.services.alert_service import (
     update_alert_status,
 )
 from atdr.app.services.case_service import list_alert_cases
+from atdr.app.services.source_service import source_ids_for_filters
 
 router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
@@ -62,6 +63,24 @@ def _alert_to_dict(alert, db: Session | None = None, *, include_detection_summar
         "updated_at": alert.updated_at,
         "evidence_count": len(alert.evidence),
         "evidence_log_ids": [item.normalized_log_id for item in alert.evidence],
+        "source_ids": sorted(
+            {
+                item.normalized_log.raw_log.source_id
+                for item in alert.evidence
+                if getattr(item, "normalized_log", None)
+                and getattr(item.normalized_log, "raw_log", None)
+                and item.normalized_log.raw_log.source_id is not None
+            }
+        ),
+        "source_names": sorted(
+            {
+                item.normalized_log.raw_log.source.name
+                for item in alert.evidence
+                if getattr(item, "normalized_log", None)
+                and getattr(item.normalized_log, "raw_log", None)
+                and getattr(item.normalized_log.raw_log, "source", None)
+            }
+        ),
         "sla": alert_sla(alert),
     }
     if include_detection_summary and db is not None:
@@ -79,6 +98,10 @@ def api_list_alerts(
     src_ip: str | None = None,
     dst_ip: str | None = None,
     alert_type: str | None = None,
+    source_id: int | None = Query(default=None, ge=1),
+    source_name: str | None = None,
+    source_type: str | None = None,
+    source_status: str | None = None,
     assigned_to: str | None = None,
     mine: bool = False,
     unassigned: bool = False,
@@ -87,6 +110,13 @@ def api_list_alerts(
     offset: int = 0,
 ) -> list[dict]:
     owner = current_user.username if mine else assigned_to
+    source_ids = source_ids_for_filters(
+        db,
+        source_id=source_id,
+        source_name=source_name,
+        source_type=source_type,
+        source_status=source_status,
+    )
     filters = {
         "search": search,
         "severity": severity,
@@ -94,6 +124,10 @@ def api_list_alerts(
         "src_ip": src_ip,
         "dst_ip": dst_ip,
         "alert_type": alert_type,
+        "source_id": source_id if source_ids is None else None,
+        "source_ids": source_ids,
+        "source_name": source_name if source_ids is None else None,
+        "source_type": source_type if source_ids is None else None,
         "assigned_to": owner,
         "unassigned": unassigned,
         "sort_by": sort_by,
@@ -115,10 +149,30 @@ def api_list_alert_cases(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_analyst_or_admin),
     active_only: bool = True,
+    source_id: int | None = Query(default=None, ge=1),
+    source_name: str | None = None,
+    source_type: str | None = None,
+    source_status: str | None = None,
     limit: int = Query(default=50, ge=1, le=200),
     window_hours: int = Query(default=24, ge=1, le=168),
 ) -> list[dict]:
-    return list_alert_cases(db, active_only=active_only, limit=limit, window_hours=window_hours)
+    source_ids = source_ids_for_filters(
+        db,
+        source_id=source_id,
+        source_name=source_name,
+        source_type=source_type,
+        source_status=source_status,
+    )
+    return list_alert_cases(
+        db,
+        active_only=active_only,
+        source_id=source_id if source_ids is None else None,
+        source_ids=source_ids,
+        source_name=source_name if source_ids is None else None,
+        source_type=source_type if source_ids is None else None,
+        limit=limit,
+        window_hours=window_hours,
+    )
 
 
 @router.get("/{alert_id}", response_model=AlertRead)

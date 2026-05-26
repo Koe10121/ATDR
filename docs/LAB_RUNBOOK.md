@@ -96,8 +96,266 @@ Verify:
 - AI Governance Data Quality shows latest ingestion time.
 - Investigation page can find the new rows.
 - Detection can be run after ingestion.
+- Overview > Log Sources shows a `syslog_udp:<sender-ip>` source with recent activity.
 
 The UDP receiver is local/lab only. Do not bind it to `0.0.0.0` unless host firewall rules and network scope are approved.
+
+## Log Source Management
+
+ATDR v0.3 tracks optional log sources/sensors so a lab operator can tell whether a file import, replay source, or syslog sender is healthy. Normal file import still works without choosing a source. If no source is provided, ATDR uses the safe default source `local_import`.
+
+Source records include:
+
+- name and source type
+- host and port when available
+- enabled or disabled state
+- last seen and last log received time
+- logs received, parse success count, and parse failure count
+- latest parser/source error
+- health status: `healthy`, `idle`, `warning`, `error`, or `disabled`
+- parser profile: `palo_alto`, `generic_syslog`, or `raw_fallback`
+
+Register or update a lab source:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.register_log_source --name lab-firewall-1 --source-type firewall --parser-profile palo_alto --host 192.0.2.10 --port 514 --pretty
+```
+
+Register a UDP syslog source before local validation:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.register_log_source --name syslog-localhost --source-type syslog_udp --parser-profile palo_alto --host 127.0.0.1 --port 5514 --pretty
+```
+
+List sources through the API:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/api/sources -Headers @{ Authorization = "Bearer <token>" }
+```
+
+Source health logic:
+
+- `healthy`: recent logs were received and parse failures are low.
+- `idle`: no logs have arrived recently.
+- `warning`: parse failures, latest parser error, or format mismatch need review.
+- `error`: repeated parser failures indicate the sender/parser profile should be checked.
+- `disabled`: an administrator disabled the source; historical data remains intact.
+
+Disabling a source never deletes raw logs, normalized logs, alerts, labels, or audit records.
+
+Filter logs by source:
+
+```powershell
+Invoke-RestMethod "http://127.0.0.1:8000/api/logs?source_name=lab-firewall-1" -Headers @{ Authorization = "Bearer <token>" }
+```
+
+Filter alerts or cases by source:
+
+```powershell
+Invoke-RestMethod "http://127.0.0.1:8000/api/alerts?source_name=lab-firewall-1" -Headers @{ Authorization = "Bearer <token>" }
+Invoke-RestMethod "http://127.0.0.1:8000/api/alerts/cases?source_name=lab-firewall-1" -Headers @{ Authorization = "Bearer <token>" }
+```
+
+In React, use source filters in **Investigation / Log Explorer** and **Alert Workbench**. Click a source card in Overview to inspect source health, quality warnings, recent source-linked runs, and parser examples.
+
+## Controlled Real Syslog Lab Flow
+
+For a real firewall/router lab test, keep the receiver bound to localhost until the host firewall and network scope are approved. For a device on the same lab network, configure the device to forward syslog to the ATDR host IP and approved UDP/TCP port. Vendor-specific forwarding screens differ, so treat the following as generic guidance:
+
+1. Start the backend normally.
+2. Start the UDP receiver:
+
+   ```powershell
+   .\.venv\Scripts\python.exe -m atdr.scripts.run_syslog_receiver --host 127.0.0.1 --port 5514
+   ```
+
+3. Validate the path locally before using a device:
+
+   ```powershell
+   .\.venv\Scripts\python.exe -m atdr.scripts.send_sample_syslog --host 127.0.0.1 --port 5514 --count 3
+   ```
+
+4. Open React at `http://127.0.0.1:5173`.
+5. Check Overview > Log Sources for a healthy or recently active source.
+6. Check Investigation for the received raw and normalized log rows.
+7. Run detection and verify alerts/cases update.
+8. If the source is idle, confirm sender IP, receiver bind address, port, host firewall rules, and whether the device is sending UDP or TCP.
+9. If the source is warning/error, inspect parse failure examples and confirm the parser profile matches the sender format.
+
+TCP syslog and vendor-specific forwarding validation are future lab work unless explicitly configured and approved.
+
+## Parser Profile Readiness
+
+ATDR currently supports these parser-profile behaviors:
+
+- Palo Alto syslog CSV: splits syslog timestamp and hostname first, then parses the Palo Alto CSV payload with `csv.reader`.
+- Generic syslog or unknown raw fallback: preserves the original raw line, records parser error metadata, and does not crash ingestion.
+- Unknown or incomplete Palo Alto fields: stores known normalized fields, stores the full parsed payload in `parsed_json`, and records missing-field warnings.
+
+Parser failures are operational signals, not data loss. Raw evidence is always preserved.
+
+## Safe Log Replay Mode
+
+Replay mode simulates near-real-time ingestion from a sample log file. It never resets the database. Dry-run mode parses only and does not send syslog packets or write database rows.
+
+Dry-run against the safe demo sample:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.replay_logs --dry-run --limit 20 --rate 5 --pretty
+```
+
+Replay the safe sample to the local UDP syslog receiver:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.replay_logs --send-to syslog --host 127.0.0.1 --port 5514 --limit 20 --rate 2 --pretty
+```
+
+Replay directly through the local import service when you do not want to run the UDP receiver:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.replay_logs --send-to direct --limit 20 --rate 0 --pretty
+```
+
+Replay directly as a specific lab firewall source:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.replay_logs --send-to direct --source-name lab-firewall-1 --source-type firewall --source-host 192.0.2.10 --source-port 514 --parser-profile palo_alto --limit 100 --rate 1 --pretty
+```
+
+Replay directly and run detection afterward:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.replay_logs --send-to direct --limit 20 --rate 0 --run-detection --pretty
+```
+
+Replay a real/private log only when you explicitly provide the path:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.replay_logs --sample-path "C:/Users/User/Downloads/paloalto-firewall(1).log" --send-to syslog --limit 100 --rate 1 --pretty
+```
+
+Keep real and large logs outside Git.
+
+## Near-Real-Time Ingestion Validation Flow
+
+1. Start the backend normally.
+2. If testing UDP, start the receiver:
+
+   ```powershell
+   .\.venv\Scripts\python.exe -m atdr.scripts.run_syslog_receiver --host 127.0.0.1 --port 5514
+   ```
+
+3. Replay safe logs using `replay_logs`.
+4. Open React at `http://127.0.0.1:5173`.
+5. Verify Overview > System Health and Ingestion Quality Snapshot:
+   - latest raw log time changed
+   - latest normalized log time changed
+   - parse success count increased
+   - parse failure count remains explainable
+   - source health changed from idle to healthy or warning
+6. Open Investigation and search for the replayed source IP or destination port.
+7. Filter Investigation by the source name or source status.
+8. Run detection from Demo Controls or API.
+9. Verify Alerts show related evidence and can be filtered by source.
+10. Verify Active Case Grouping shows related alert/log counts, top destination ports, top actions, and recommended analyst focus.
+11. Verify Audit Log contains import/syslog/detection activity.
+
+Repeated replay is expected to preserve every raw log as evidence while deduplicating matching active alerts into occurrence counts instead of flooding the queue.
+
+## Run History Checks
+
+ATDR records lightweight run history for ingestion/import/replay/syslog work and detection work.
+
+List latest ingestion runs:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/api/ingestion/runs -Headers @{ Authorization = "Bearer <token>" }
+```
+
+List latest detection runs:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/api/detection/runs -Headers @{ Authorization = "Bearer <token>" }
+```
+
+The React Overview page shows a compact **Operations Health** panel with:
+
+- latest ingestion run status
+- latest detection run status
+- parser failures
+- deduplicated alert count
+- alert creation count
+- runtime duration
+
+Run history source names use safe labels such as filenames or `udp:host:port`; private full paths are not exposed in API output.
+
+## Alert Deduplication Behavior
+
+ATDR v0.2 deduplicates live/replayed alert noise by updating an active matching alert when these fields line up inside a short window:
+
+- alert type/rule
+- source pattern
+- destination pattern
+- destination port/service pattern
+- event-time window
+
+Deduplication updates the existing alert metadata:
+
+- `occurrence_count`
+- `related_log_count`
+- first seen / last seen
+- sample sources and destinations
+- destination ports
+- actions and protocols
+
+Raw logs are never deleted. New evidence log IDs are linked to the existing alert, and an `alert_deduplicated` audit event is recorded.
+
+Interpretation:
+
+- `alerts_created`: new SOC alert groups created during the run.
+- `alerts_deduplicated`: active alert groups updated instead of creating duplicates.
+- `alerts_suppressed`: low-volume or explicitly suppressed groups.
+- `occurrence_count`: repeated matching activity represented in one alert.
+- `related_log_count`: distinct evidence logs linked to the alert.
+
+## Performance Smoke
+
+Run the read-only performance smoke report:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.performance_smoke --feature-limit 20 --pretty
+```
+
+This does not import logs, reset data, run detection, score ML, or perform response actions. It times Overview summary, Operations Health run-history queries, alert list, case grouping, ML Governance lightweight summary, supervised report loading, and feature-generation reads.
+
+Local lab budgets:
+
+- Overview summary: ideally under `1s`.
+- ML Governance lightweight summary: ideally under `2s`.
+- Heavy supervised report/export: acceptable up to a few seconds because it is an explicit governance/reporting action.
+
+If a timing warning appears, reduce page limits for the demo and review indexes/query shape before larger lab operation. For larger datasets, prefer PostgreSQL lab mode and keep ML Governance on the default cached view; use **Refresh ML Summary** after training, scoring, or label import.
+
+Parser-error example extraction is intentionally lightweight for large local datasets. Full raw evidence is still retained and can be inspected through Log Explorer or specific alert/log details.
+
+## Parser Failure Troubleshooting
+
+Parser failures are preserved as raw evidence and visible in Overview/AI Governance data-quality panels.
+
+Common causes:
+
+- blank lines
+- missing syslog timestamp / hostname / payload wrapper
+- malformed CSV payload
+- incomplete Palo Alto payload
+- missing source IP, destination IP, action, or timestamp
+- unknown or incomplete application values
+
+For a bad row, inspect the parser error example, then compare it with the expected syslog wrapper:
+
+```text
+<syslog_timestamp> <hostname> <Palo Alto CSV payload>
+```
 
 ## Triage And Simulated Response
 

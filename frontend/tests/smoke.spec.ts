@@ -29,6 +29,8 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
     updated_at: "2026-05-22T00:00:00Z",
     evidence_count: 1,
     evidence_log_ids: [1],
+    source_ids: [1],
+    source_names: ["local_import"],
     sla: { label: "Immediate", state: "needs_owner" },
     detection_summary: {
       detection_source: ["rule", "anomaly", "hybrid"],
@@ -52,6 +54,10 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
   const smokeLog = {
     id: 1,
     raw_log_id: 1,
+    source_id: 1,
+    source_name: "local_import",
+    source_type: "file_import",
+    parser_profile: "palo_alto",
     generated_time: "2026-05-22T00:00:00Z",
     src_ip: "203.0.113.10",
     dst_ip: "10.0.0.5",
@@ -106,10 +112,131 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
         action_distribution: [],
         protocol_distribution: [],
         app_risk_distribution: [],
-        recent_alerts: []
+        recent_alerts: [],
+        latest_ingestion_run: {
+          run_id: 7,
+          started_at: "2026-05-22T00:00:00Z",
+          finished_at: "2026-05-22T00:00:01Z",
+          source_type: "replay_direct",
+          input_name: "paloalto-demo.txt",
+          status: "completed",
+          total_lines_received: 2,
+          raw_logs_created: 2,
+          parsed_successfully: 2,
+          parse_failures: 0,
+          duplicate_raw_logs: 0,
+          alerts_created: 1,
+          alerts_deduplicated: 1,
+          alerts_suppressed: 0,
+          runtime_seconds: 1,
+          details: {}
+        },
+        latest_detection_run: {
+          run_id: 8,
+          started_at: "2026-05-22T00:00:02Z",
+          finished_at: "2026-05-22T00:00:03Z",
+          detection_type: "hybrid",
+          status: "completed",
+          logs_evaluated: 2,
+          alerts_created: 1,
+          alerts_deduplicated: 1,
+          alerts_suppressed: 0,
+          top_attack_types: [{ name: "port_scan", count: 1 }],
+          runtime_seconds: 1,
+          details: {}
+        }
       }
     })
   );
+  await page.route("**/api/ingestion/runs**", async (route) =>
+    route.fulfill({
+      json: [
+        {
+          run_id: 7,
+          started_at: "2026-05-22T00:00:00Z",
+          finished_at: "2026-05-22T00:00:01Z",
+          source_type: "replay_direct",
+          input_name: "paloalto-demo.txt",
+          status: "completed",
+          total_lines_received: 2,
+          raw_logs_created: 2,
+          parsed_successfully: 2,
+          parse_failures: 0,
+          duplicate_raw_logs: 0,
+          alerts_created: 1,
+          alerts_deduplicated: 1,
+          alerts_suppressed: 0,
+          runtime_seconds: 1,
+          details: {}
+        }
+      ]
+    })
+  );
+  await page.route("**/api/detection/runs**", async (route) =>
+    route.fulfill({
+      json: [
+        {
+          run_id: 8,
+          started_at: "2026-05-22T00:00:02Z",
+          finished_at: "2026-05-22T00:00:03Z",
+          detection_type: "hybrid",
+          status: "completed",
+          logs_evaluated: 2,
+          alerts_created: 1,
+          alerts_deduplicated: 1,
+          alerts_suppressed: 0,
+          top_attack_types: [{ name: "port_scan", count: 1 }],
+          runtime_seconds: 1,
+          details: {}
+        }
+      ]
+    })
+  );
+  await page.route("**/api/sources**", async (route) => {
+    const source = {
+      source_id: 1,
+      name: "local_import",
+      source_type: "file_import",
+      parser_profile: "palo_alto",
+      host: null,
+      port: null,
+      enabled: true,
+      last_seen: "2026-05-22T00:00:01Z",
+      last_log_received_at: "2026-05-22T00:00:01Z",
+      logs_received_count: 2,
+      parse_success_count: 2,
+      parse_failure_count: 0,
+      latest_error: null,
+      created_at: "2026-05-22T00:00:00Z",
+      updated_at: "2026-05-22T00:00:01Z",
+      health: {
+        source_id: 1,
+        status: "healthy",
+        enabled: true,
+        logs_received_count: 2,
+        parse_success_count: 2,
+        parse_failure_count: 0,
+        parse_success_rate: 100,
+        last_seen: "2026-05-22T00:00:01Z",
+        last_log_received_at: "2026-05-22T00:00:01Z",
+        latest_error: null,
+        recommendation: "Source is receiving parseable logs recently.",
+        warnings: []
+      },
+      quality: {
+        raw_logs: 2,
+        normalized_logs: 2,
+        unknown_app_count: 0,
+        unknown_app_rate: 0,
+        alert_count: 1,
+        parse_failure_examples: [],
+        warnings: []
+      },
+      recent_ingestion_runs: [],
+      recent_detection_runs: []
+    };
+    await route.fulfill({ json: route.request().url().match(/\/api\/sources\/1(\?|$)/) ? source : [source] });
+  });
   await page.route("**/api/alerts**", async (route) => {
     const url = route.request().url();
     if (url.includes("/cases")) {
@@ -322,6 +449,15 @@ test("overview system health panel and ML governance wording render", async ({ p
 
   await page.goto("/overview");
   await expect(page.getByText("System Health")).toBeVisible();
+  await expect(page.getByText("Operations Health")).toBeVisible();
+  await expect(page.getByText("Log Sources")).toBeVisible();
+  await expect(page.getByText("local_import")).toBeVisible();
+  await page.getByText("local_import").click();
+  await expect(page.getByText("Parser Profile")).toBeVisible();
+  await expect(page.getByText("Troubleshooting Hints")).toBeVisible();
+  await page.getByRole("button", { name: "Close details" }).click();
+  await expect(page.getByText("Latest Ingestion Run")).toBeVisible();
+  await expect(page.getByText("Latest Detection Run")).toBeVisible();
   await expect(page.getByText("Response Mode")).toBeVisible();
   await expect(page.getByText("Config warnings are checked by Config Doctor")).toBeVisible();
 
