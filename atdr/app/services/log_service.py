@@ -18,6 +18,12 @@ from atdr.app.services.source_service import DEFAULT_SOURCE_NAME, get_or_create_
 logger = logging.getLogger(__name__)
 
 
+def count_nonblank_log_lines(file_path: str | Path) -> int:
+    path = Path(file_path)
+    with path.open("r", encoding="utf-8", errors="replace", newline="") as stream:
+        return sum(1 for line in stream if line.strip())
+
+
 def _persist_parsed_log(db: Session, parsed: ParsedPaloAltoLog, *, source_id: int | None = None) -> NormalizedLog | None:
     raw = RawLog(
         source_id=source_id,
@@ -48,6 +54,7 @@ def import_log_stream(
     track_run: bool = True,
     source_id: int | None = None,
     parser_profile: str | None = None,
+    available_lines: int | None = None,
 ) -> dict:
     imported = 0
     parsed = 0
@@ -63,7 +70,12 @@ def import_log_stream(
         parser_profile=parser_profile,
     )
     run = (
-        start_ingestion_run(db, source_type=source_type, input_name=source_name, details={"limit": limit, "source_id": source.id})
+        start_ingestion_run(
+            db,
+            source_type=source_type,
+            input_name=source_name,
+            details={"limit": limit, "source_id": source.id, "available_lines": available_lines},
+        )
         if track_run
         else None
     )
@@ -110,6 +122,7 @@ def import_log_stream(
             "failed": failed,
             "duplicate_raw_logs": duplicate_raw_logs,
             "limit": limit,
+            "available_lines": available_lines,
             "source_id": source.id,
         },
     )
@@ -130,15 +143,25 @@ def import_log_stream(
             parsed_successfully=parsed,
             parse_failures=failed,
             duplicate_raw_logs=duplicate_raw_logs,
-            details={"actor": actor, "source_id": source.id},
+            details={"actor": actor, "source_id": source.id, "available_lines": available_lines},
         )
     db.commit()
     return {
         "source": source_name,
+        "source_label": safe_source_label(source_name) or source_name,
+        "requested_limit": limit,
+        "available_lines": available_lines,
         "imported": imported,
+        "raw_logs_imported": imported,
+        "normalized_logs_created": imported,
         "parsed": parsed,
+        "parsed_successfully": parsed,
         "failed": failed,
+        "parse_failures": failed,
         "duplicate_raw_logs": duplicate_raw_logs,
+        "alerts_created": 0,
+        "alerts_deduplicated": 0,
+        "alerts_suppressed": 0,
         "run_id": run.id if run is not None else None,
         "source_id": source.id,
     }
@@ -208,6 +231,7 @@ def import_log_file(
     parser_profile: str | None = None,
 ) -> dict:
     path = Path(file_path)
+    available_lines = count_nonblank_log_lines(path)
     with path.open("r", encoding="utf-8", errors="replace", newline="") as stream:
         return import_log_stream(
             db,
@@ -218,6 +242,7 @@ def import_log_file(
             actor=actor,
             source_id=source_id,
             parser_profile=parser_profile,
+            available_lines=available_lines,
         )
 
 

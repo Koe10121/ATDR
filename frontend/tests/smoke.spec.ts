@@ -418,6 +418,68 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
   await page.route("**/api/suppressions**", async (route) => route.fulfill({ json: [] }));
   await page.route("**/api/watchlists**", async (route) => route.fulfill({ json: [] }));
   await page.route("**/api/users", async (route) => route.fulfill({ json: [{ id: 1, username: "admin", full_name: "Admin", role: "admin", is_active: true, created_at: "2026-05-22T00:00:00Z" }] }));
+  await page.route("**/api/demo/import-sample", async (route) =>
+    {
+      const body = JSON.parse(route.request().postData() || "{}") as { limit?: number | null; sample_path?: string | null };
+      const source = body.sample_path ? String(body.sample_path).split(/[\\/]/).pop() || "custom.log" : "paloalto-demo.txt";
+      const available = body.sample_path ? Number(body.limit ?? 1000) : 2;
+      return route.fulfill({
+        json: {
+          source,
+          source_label: source,
+          sample_file: source,
+          requested_limit: body.limit ?? null,
+          available_lines: available,
+          imported: Math.min(Number(body.limit ?? available), available),
+          raw_logs_imported: Math.min(Number(body.limit ?? available), available),
+          normalized_logs_created: Math.min(Number(body.limit ?? available), available),
+          parsed: Math.min(Number(body.limit ?? available), available),
+          parsed_successfully: Math.min(Number(body.limit ?? available), available),
+          failed: 0,
+          parse_failures: 0,
+          duplicate_raw_logs: 0,
+          alerts_created: 0,
+          alerts_deduplicated: 0,
+          run_id: 7,
+          source_id: 1,
+          safe_sample_note: body.sample_path
+            ? null
+            : "Sample file paloalto-demo.txt contains 2 non-empty log lines. To test a larger import, choose a larger sample file or use replay_logs --sample-path <path>."
+        }
+      });
+    }
+  );
+  await page.route("**/api/demo/run-detection", async (route) =>
+    route.fulfill({ json: { logs_evaluated: 1000, created_alerts: 4, deduplicated_alert_updates: 2, suppressed_alerts: 0, detection_run_id: 8 } })
+  );
+  await page.route("**/api/demo/train-ml", async (route) =>
+    route.fulfill({
+      json: {
+        trained: true,
+        status: "trained",
+        training_log_count: 1000,
+        contamination: 0.02,
+        model_type: "IsolationForest",
+        model_path: "C:\\Users\\User\\Desktop\\ATDR\\models\\very\\long\\windows\\path\\isolation_forest.joblib",
+        feature_columns: Array.from({ length: 80 }, (_, index) => `very_long_feature_name_${index}_with_more_text_to_force_wrapping`),
+        feature_summary: {
+          huge: Array.from({ length: 60 }, (_, index) => ({ feature: `feature_${index}`, value: `long-value-${index}` }))
+        }
+      }
+    })
+  );
+  await page.route("**/api/demo/apply-ml", async (route) =>
+    route.fulfill({ json: { scored: 1000, anomalies: 14, anomaly_rate: 1.4, model_path: "models/isolation_forest.joblib" } })
+  );
+  await page.route("**/api/demo/export-bundle", async (route) =>
+    route.fulfill({
+      json: {
+        export_dir: "C:\\Users\\User\\Desktop\\ATDR\\demo_exports\\atdr_demo_bundle_with_a_very_long_name",
+        files: { "dashboard_summary.json": "...", "ml_evaluation.json": "..." },
+        counts: { total_logs: 1200, total_alerts: 12 }
+      }
+    })
+  );
 }
 
 async function chooseSafeSelect(page: Page, ariaLabel: string, optionName: string) {
@@ -587,4 +649,80 @@ test("dashboard dropdowns close and do not block follow-up clicks", async ({ pag
   await page.getByRole("button", { name: "Download Model Report" }).click();
   await expect(page.locator('[data-atdr-dropdown-open="true"]')).toHaveCount(0);
   expect(pageErrors).toEqual([]);
+});
+
+test("demo action results summarize imports and contain long ML details", async ({ page }) => {
+  await mockApi(page);
+  await seedSession(page);
+  await page.goto("/demo");
+
+  await page.getByRole("button", { name: "Import sample logs" }).click();
+  await expect(page.getByTestId("action-result-import")).toContainText("Requested limit");
+  await expect(page.getByTestId("action-result-import")).toContainText("Available lines");
+  await expect(page.getByTestId("action-result-import")).toContainText("Raw logs imported");
+  await expect(page.getByTestId("action-result-import")).toContainText("Alerts created");
+  await expect(page.getByText("contains 2 non-empty log lines")).toBeVisible();
+
+  await page.getByRole("button", { name: "Train ML model" }).click();
+  const mlResult = page.getByTestId("action-result-ml-train");
+  await expect(mlResult).toContainText("Feature count");
+  await mlResult.getByRole("button", { name: "View technical details" }).click();
+  await expect(mlResult.getByTestId("technical-details")).toBeVisible();
+
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 2);
+  expect(overflow).toBe(false);
+});
+
+test("demo import limit is editable and custom sample path is sent", async ({ page }) => {
+  await mockApi(page);
+  await seedSession(page);
+  await page.goto("/demo");
+
+  const limitInput = page.getByLabel("Log import limit");
+  await limitInput.fill("");
+  await expect(limitInput).toHaveValue("");
+  await limitInput.fill("1000");
+  await expect(limitInput).toHaveValue("1000");
+
+  await page.getByLabel("Sample log file path").fill("C:\\Users\\User\\Downloads\\paloalto-firewall(1).log");
+  await page.getByRole("button", { name: "Import sample logs" }).click();
+
+  const importResult = page.getByTestId("action-result-import");
+  await expect(importResult).toContainText("Requested limit");
+  await expect(importResult).toContainText("1000");
+  await expect(importResult).toContainText("Available lines");
+  await expect(importResult).toContainText("Raw logs imported");
+  await expect(importResult).toContainText("paloalto-firewall(1).log");
+  await expect(page.getByText("contains 2 non-empty log lines")).not.toBeVisible();
+});
+
+test("demo import strips copy-as-path quotes before sending sample path", async ({ page }) => {
+  let postedPath = "";
+  await mockApi(page);
+  await page.route("**/api/demo/import-sample", async (route) => {
+    const body = JSON.parse(route.request().postData() || "{}") as { sample_path?: string | null };
+    postedPath = body.sample_path ?? "";
+    await route.fulfill({
+      json: {
+        source: "paloalto-firewall(1).log",
+        source_label: "paloalto-firewall(1).log",
+        requested_limit: 2000,
+        available_lines: 2000,
+        raw_logs_imported: 2000,
+        normalized_logs_created: 2000,
+        parsed_successfully: 2000,
+        parse_failures: 0,
+        duplicate_raw_logs: 0,
+        alerts_created: 0,
+        alerts_deduplicated: 0,
+        safe_sample_note: null
+      }
+    });
+  });
+  await seedSession(page);
+  await page.goto("/demo");
+  await page.getByLabel("Sample log file path").fill('"C:\\Users\\User\\Downloads\\paloalto-firewall(1).log"');
+  await page.getByRole("button", { name: "Import sample logs" }).click();
+  await expect(page.getByTestId("action-result-import")).toContainText("2000");
+  expect(postedPath).toBe("C:\\Users\\User\\Downloads\\paloalto-firewall(1).log");
 });

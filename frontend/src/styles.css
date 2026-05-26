@@ -13,16 +13,21 @@
     min-height: 100vh;
     background: #070b10;
     font-family: Inter, "Segoe UI", Arial, sans-serif;
+    overflow-x: hidden;
+  }
+
+  * {
+    box-sizing: border-box;
   }
 }
 
 @layer components {
   .panel {
-    @apply rounded-lg border border-line bg-panel p-5 shadow-panel;
+    @apply min-w-0 rounded-lg border border-line bg-panel p-5 shadow-panel;
   }
 
   .hero-panel {
-    @apply relative overflow-hidden rounded-lg border border-line bg-panel p-6 shadow-panel;
+    @apply relative min-w-0 overflow-hidden rounded-lg border border-line bg-panel p-6 shadow-panel;
     background:
       linear-gradient(135deg, rgba(20, 184, 166, 0.14), rgba(239, 68, 68, 0.06) 48%, rgba(15, 21, 29, 0.96)),
       #0f151d;
@@ -68,5 +73,32 @@
 
   .soc-table tr:hover td {
     @apply bg-cyan/5 text-text;
+  }
+
+  .action-result-card {
+    @apply min-w-0 rounded-lg border p-4 text-sm shadow-panel;
+  }
+
+  .action-result-card-success {
+    @apply border-success/30 bg-success/10 text-success;
+  }
+
+  .action-result-card-amber {
+    @apply border-amber/30 bg-amber/10 text-amber;
+  }
+
+  .action-result-card-danger {
+    @apply border-danger/30 bg-danger/10 text-danger;
+  }
+
+  .action-result-card-cyan {
+    @apply border-cyan/30 bg-cyan/10 text-cyan;
+  }
+
+  .technical-json {
+    @apply max-h-80 min-w-0 overflow-auto rounded-lg border border-line bg-shell p-3 text-xs text-muted;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+    word-break: break-word;
   }
 }

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from atdr.app.core.security import require_admin
@@ -23,13 +23,16 @@ def reset_demo(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ) -> dict:
-    return reset_and_seed_demo(
-        db,
-        sample_path=request.sample_path,
-        limit=request.limit,
-        use_ml=request.use_ml,
-        actor=current_user.username,
-    )
+    try:
+        return reset_and_seed_demo(
+            db,
+            sample_path=request.sample_path,
+            limit=request.limit,
+            use_ml=request.use_ml,
+            actor=current_user.username,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"Sample log file not found: {exc.filename or request.sample_path}") from exc
 
 
 @router.post("/import-sample")
@@ -38,7 +41,10 @@ def import_sample(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ) -> dict:
-    return import_demo_sample_logs(db, sample_path=request.sample_path, limit=request.limit, actor=current_user.username)
+    try:
+        return import_demo_sample_logs(db, sample_path=request.sample_path, limit=request.limit, actor=current_user.username)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"Sample log file not found: {exc.filename or request.sample_path}") from exc
 
 
 @router.post("/run-detection")
