@@ -23,7 +23,10 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
     status: "open",
     assigned_to: null,
     explanation: "Smoke alert for route testing.",
-    matched_rules_json: [{ code: "policy_deny", title: "Policy deny", explanation: "Denied traffic." }],
+    matched_rules_json: [
+      { code: "policy_deny", title: "Policy deny", explanation: "Denied traffic." },
+      { code: "group_metadata", occurrence_count: 12, related_log_count: 12, deduplicated: true }
+    ],
     recommended_response: "Investigate source IP.",
     created_at: "2026-05-22T00:00:00Z",
     updated_at: "2026-05-22T00:00:00Z",
@@ -220,7 +223,7 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
         last_seen: "2026-05-22T00:00:01Z",
         last_log_received_at: "2026-05-22T00:00:01Z",
         latest_error: null,
-        recommendation: "Source is receiving parseable logs recently.",
+        recommendation: "Healthy: logs recently received and parsed successfully.",
         warnings: []
       },
       quality: {
@@ -232,10 +235,89 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
         parse_failure_examples: [],
         warnings: []
       },
+      recent_ingestion_runs: [
+        {
+          run_id: 7,
+          started_at: "2026-05-22T00:00:00Z",
+          finished_at: "2026-05-22T00:00:01Z",
+          source_type: "replay_direct",
+          input_name: "paloalto-demo.txt",
+          status: "completed",
+          total_lines_received: 2,
+          raw_logs_created: 2,
+          parsed_successfully: 2,
+          parse_failures: 0,
+          duplicate_raw_logs: 0,
+          alerts_created: 1,
+          alerts_deduplicated: 1,
+          alerts_suppressed: 0,
+          runtime_seconds: 1,
+          details: { source_id: 1 }
+        }
+      ],
+      recent_detection_runs: [
+        {
+          run_id: 8,
+          started_at: "2026-05-22T00:00:02Z",
+          finished_at: "2026-05-22T00:00:03Z",
+          detection_type: "hybrid",
+          status: "completed",
+          logs_evaluated: 2,
+          alerts_created: 1,
+          alerts_deduplicated: 1,
+          alerts_suppressed: 0,
+          top_attack_types: [{ name: "port_scan", count: 1 }],
+          runtime_seconds: 1,
+          details: { source_id: 1 }
+        }
+      ]
+    };
+    const rawFallbackSource = {
+      source_id: 2,
+      name: "scenario-raw-fallback",
+      source_type: "sample",
+      parser_profile: "raw_fallback",
+      host: null,
+      port: null,
+      enabled: true,
+      last_seen: "2026-05-22T00:02:01Z",
+      last_log_received_at: "2026-05-22T00:02:01Z",
+      logs_received_count: 3,
+      parse_success_count: 0,
+      parse_failure_count: 3,
+      latest_error: "raw_fallback parser profile preserved raw evidence with limited structured fields",
+      created_at: "2026-05-22T00:02:00Z",
+      updated_at: "2026-05-22T00:02:01Z",
+      health: {
+        source_id: 2,
+        status: "error",
+        enabled: true,
+        logs_received_count: 3,
+        parse_success_count: 0,
+        parse_failure_count: 3,
+        parse_success_rate: 0,
+        last_seen: "2026-05-22T00:02:01Z",
+        last_log_received_at: "2026-05-22T00:02:01Z",
+        latest_error: "raw_fallback parser profile preserved raw evidence with limited structured fields",
+        recommendation: "Error: repeated parser failures. Pause response decisions from this source until format is reviewed.",
+        warnings: ["Raw fallback preserves evidence but structured fields may be limited."]
+      },
+      quality: {
+        raw_logs: 3,
+        normalized_logs: 3,
+        unknown_app_count: 3,
+        unknown_app_rate: 100,
+        alert_count: 0,
+        parse_failure_examples: [{ raw_log_id: 21, error: "raw fallback preserved evidence", raw_line_excerpt: "not-a-firewall-line" }],
+        warnings: ["Parser profile has limited structured fields."]
+      },
       recent_ingestion_runs: [],
       recent_detection_runs: []
     };
-    await route.fulfill({ json: route.request().url().match(/\/api\/sources\/1(\?|$)/) ? source : [source] });
+    const url = route.request().url();
+    await route.fulfill({
+      json: url.match(/\/api\/sources\/2(\?|$)/) ? rawFallbackSource : url.match(/\/api\/sources\/1(\?|$)/) ? source : [source, rawFallbackSource]
+    });
   });
   await page.route("**/api/alerts**", async (route) => {
     const url = route.request().url();
@@ -514,9 +596,16 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByText("Operations Health")).toBeVisible();
   await expect(page.getByText("Log Sources")).toBeVisible();
   await expect(page.getByText("local_import")).toBeVisible();
+  await expect(page.getByText("scenario-raw-fallback")).toBeVisible();
   await page.getByText("local_import").click();
-  await expect(page.getByText("Parser Profile")).toBeVisible();
+  await expect(page.getByText("Parser Profile", { exact: true })).toBeVisible();
   await expect(page.getByText("Troubleshooting Hints")).toBeVisible();
+  await expect(page.getByText("Parser profile behavior")).toBeVisible();
+  await expect(page.getByText("Recent Detection Runs")).toBeVisible();
+  await page.getByRole("button", { name: "Close details" }).click();
+  await page.getByText("scenario-raw-fallback").click();
+  await expect(page.getByText("Raw fallback preserves evidence but structured fields may be limited.")).toBeVisible();
+  await expect(page.getByText("raw fallback preserved evidence")).toBeVisible();
   await page.getByRole("button", { name: "Close details" }).click();
   await expect(page.getByText("Latest Ingestion Run")).toBeVisible();
   await expect(page.getByText("Latest Detection Run")).toBeVisible();
@@ -535,6 +624,9 @@ test("deep-linked alert and log drawers render", async ({ page }) => {
   await page.goto("/alerts?alert=1");
   await expect(page.getByRole("heading", { name: "Critical: Smoke alert" })).toBeVisible();
   await expect(page.getByText("Why flagged?")).toBeVisible();
+  await expect(page.getByText("Alert Occurrences")).toBeVisible();
+  await expect(page.getByText("Related Log Count")).toBeVisible();
+  await expect(page.getByText("Grouped alert metadata")).toBeVisible();
   await expect(page.getByText("Discovery / Network Service Discovery (T1046)")).toBeVisible();
   await page.goto("/logs?log=1");
   await expect(page.getByText("Analyst ML Label")).toBeVisible();
@@ -607,12 +699,16 @@ test("dashboard dropdowns close and do not block follow-up clicks", async ({ pag
 
   await page.goto("/logs");
   await page.getByText("Advanced filters and sorting").click();
+  await chooseSafeSelect(page, "Log source filter", "scenario-raw-fallback");
+  await page.getByPlaceholder("Search IP, app, rule, action, protocol, or zone").click();
   await chooseSafeSelect(page, "Log sort", "Sort by source IP");
   await page.getByPlaceholder("Search IP, app, rule, action, protocol, or zone").click();
   await chooseSafeSelect(page, "Table density", "Compact");
   await page.getByRole("button", { name: "Save view" }).click();
 
   await page.goto("/alerts");
+  await chooseSafeSelect(page, "Alert source filter", "scenario-raw-fallback");
+  await page.getByPlaceholder("Source IP", { exact: true }).click();
   await chooseSafeSelect(page, "Alert severity filter", "High");
   await page.getByPlaceholder("Source IP", { exact: true }).click();
   await chooseSafeSelect(page, "Alert status filter", "Investigating");

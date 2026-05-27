@@ -6,7 +6,7 @@ from sqlalchemy import Select, desc, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from atdr.app.db.models import Alert, AlertEvidence, AuditLog, LogSource, NormalizedLog, RawLog
-from atdr.app.parsers.paloalto_parser import ParsedPaloAltoLog, parse_log_line
+from atdr.app.parsers.paloalto_parser import ParsedPaloAltoLog, parse_log_line_for_profile
 from atdr.app.services.operation_run_service import (
     complete_ingestion_run,
     fail_ingestion_run,
@@ -89,7 +89,7 @@ def import_log_stream(
                 continue
             existing_raw = db.scalar(select(RawLog.id).where(RawLog.raw_line == line.rstrip("\r\n")).limit(1))
             duplicate_raw_logs += 1 if existing_raw is not None else 0
-            parsed_log = parse_log_line(line)
+            parsed_log = parse_log_line_for_profile(line, source.parser_profile)
             _persist_parsed_log(db, parsed_log, source_id=source.id)
             imported += 1
             if parsed_log.error:
@@ -189,7 +189,7 @@ def import_raw_log_line(
         host=host,
         port=port,
     )
-    parsed_log = parse_log_line(raw_line)
+    parsed_log = parse_log_line_for_profile(raw_line, source.parser_profile)
     duplicate_raw_log = db.scalar(select(RawLog.id).where(RawLog.raw_line == raw_line.rstrip("\r\n")).limit(1)) is not None
     normalized = _persist_parsed_log(db, parsed_log, source_id=source.id)
     db.flush()

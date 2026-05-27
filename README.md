@@ -1,6 +1,6 @@
 # MFU AI-Driven Log-Based Threat Detection and Response System
 
-ATDR is a defensive senior-project prototype for importing Palo Alto firewall syslog CSV logs, preserving raw evidence, normalizing key fields, generating explainable alerts, and simulating response actions with audit trails.
+ATDR is a defensive senior-project lab prototype for importing Palo Alto firewall/syslog logs, preserving raw evidence, normalizing key fields, generating explainable alerts, and simulating analyst-approved response actions with audit trails. It is lab-ready for controlled small-office validation, not certified production software.
 
 ## What Is Included
 
@@ -10,8 +10,9 @@ ATDR is a defensive senior-project prototype for importing Palo Alto firewall sy
 - Rule-based detection plus optional IsolationForest anomaly scoring and supervised analyst-label decision support.
 - Incident-style alert grouping reduces per-log alert noise while preserving evidence log links.
 - Log source management tracks file import, replay, syslog, router, firewall, and sample sources with health/status counters.
-- Streamlit dashboard with Executive Demo, Overview, Log Explorer, Alerts, Detection Tuning, ML Governance, Threat Controls, Response Center, Audit Log, and admin Demo Controls pages.
-- SOC Command Center dashboard styling with Plotly charts, triage queues, readiness panels, and evidence-focused incident views.
+- React-first SOC dashboard with Overview, Alerts, Investigation, AI Governance, Threat Controls, Response & Audit, and Admin / Settings.
+- Streamlit dashboard remains available as a temporary demo/admin prototype while React is the priority dashboard path.
+- Source-aware scenario validation for normal traffic, port-scan-like traffic, deduplication, generic syslog, and raw fallback parser behavior.
 - SOC workflow support for alert assignment, analyst notes, status changes, timelines, and audited response actions.
 - Alert suppression rules with review state, watchlist indicators, escalation metadata, computed SLA signals, and exportable JSON/CSV/HTML/PDF incident reports.
 - Production-style tuning view for alert pressure, noisy rules, false-positive learning, suppression candidates, ML baseline health, and ownership gaps.
@@ -19,7 +20,7 @@ ATDR is a defensive senior-project prototype for importing Palo Alto firewall sy
 - Security hardening basics: configurable CORS origins and browser security headers.
 - Demo, architecture, operations, presentation, and production-readiness documentation in `docs/`.
 - Lab-pilot deployment guide with SQLite, PostgreSQL, and safe syslog receiver modes.
-- CLI scripts for import, demo seeding, safe synthetic ML labels, ML training, anomaly scoring, release verification, lab smoke checks, backups, and export cleanup.
+- CLI scripts for import, replay, source registration, scenario validation, demo seeding, safe synthetic ML labels, ML training, anomaly scoring, release verification, lab smoke checks, backups, and export cleanup.
 - Unit and API tests for parsing, rules, auth, workflow, demo controls, and severity scoring.
 
 ## Project Layout
@@ -65,7 +66,7 @@ If your system uses `python` instead of the Windows launcher, replace `py -3.11`
 ## Run The Backend
 
 ```powershell
-uvicorn atdr.app.main:app --reload
+.\.venv\Scripts\python.exe -m uvicorn atdr.app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 Health check:
@@ -130,19 +131,26 @@ python -m atdr.scripts.reset_demo --yes --limit 5000
 
 Grouped detection currently uses 5-minute buckets. Low-severity groups are suppressed unless at least 5 matching evidence logs are present.
 
-## Run The Dashboard
+## Run The React Dashboard
 
-Keep the FastAPI backend running, then start Streamlit:
+The production dashboard migration lives in `frontend/`. Keep FastAPI running, then start React:
 
 ```powershell
-streamlit run atdr/dashboard/streamlit_app.py --server.headless true --browser.gatherUsageStats false
+cd frontend
+npm.cmd run dev
+```
+
+Open `http://127.0.0.1:5173`.
+
+Streamlit remains available for continuity:
+
+```powershell
+.\.venv\Scripts\streamlit.exe run atdr/dashboard/streamlit_app.py --server.headless true --browser.gatherUsageStats false
 ```
 
 Open `http://127.0.0.1:8501`.
 
-## Run The React Dashboard Preview
-
-The production dashboard migration lives in `frontend/`. Streamlit remains available for continuity while React is the priority dashboard path. The React dashboard is organized around Overview, Alerts, Investigation, AI Governance, Response & Audit, and Admin / Settings.
+## React Frontend Setup
 
 After installing Node.js 20+ or the current LTS, run:
 
@@ -198,6 +206,8 @@ For v0.2 replay ingestion and alert deduplication work, see `docs/V0_2_PLAN.md`.
 
 For v0.3 live/lab source management work, see `docs/V0_3_PLAN.md`.
 
+For current v0.3 release-candidate status, see `docs/V0_3_STATUS.md`.
+
 Safe replay dry-run:
 
 ```powershell
@@ -210,6 +220,20 @@ Register a lab source and replay as that source:
 python -m atdr.scripts.register_log_source --name lab-firewall-1 --source-type firewall --parser-profile palo_alto --host 192.0.2.10 --port 514 --pretty
 python -m atdr.scripts.replay_logs --send-to direct --source-name lab-firewall-1 --source-type firewall --source-host 192.0.2.10 --source-port 514 --limit 100 --rate 1 --pretty
 ```
+
+Run safe source-aware scenario validation without touching the current database:
+
+```powershell
+python -m atdr.scripts.run_source_scenario --scenario port_scan_like_traffic --use-temp-db --run-detection --pretty
+```
+
+Run a scenario into the current dashboard intentionally:
+
+```powershell
+python -m atdr.scripts.run_source_scenario --scenario port_scan_like_traffic --source-name scenario-lab-firewall-1 --run-detection --pretty
+```
+
+The synthetic scenario files are under `data/samples/scenarios/`. They prove parser, source, detection, deduplication, and dashboard investigation behavior without using private logs.
 
 ## ML-Assisted Anomaly Detection
 
@@ -494,4 +518,5 @@ On this development machine, Docker Compose validation may need to be run elsewh
 - `docs/DEPLOYMENT_GUIDE.md`: SQLite, PostgreSQL, and syslog receiver setup.
 - `docs/OPERATIONS_RUNBOOK.md`: HTTPS, backups, retention, and safe response procedure.
 - `docs/V0_3_PLAN.md`: live/lab log source management and parser profile readiness.
+- `docs/V0_3_STATUS.md`: current v0.3 lab-ready release-candidate status.
 - `docs/LIMITATIONS_AND_FUTURE_WORK.md`: honest production roadmap.

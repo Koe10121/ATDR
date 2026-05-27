@@ -253,3 +253,63 @@ def parse_log_line(raw_line: str) -> ParsedPaloAltoLog:
         normalized=normalized,
         parsed_json=parsed_json,
     )
+
+
+def parse_log_line_for_profile(raw_line: str, parser_profile: str | None = None) -> ParsedPaloAltoLog:
+    """Parse a log line using the configured source parser profile.
+
+    Palo Alto remains the default production parser. The generic and raw
+    fallback profiles intentionally preserve evidence with minimal structured
+    assumptions so lab source tests never lose raw lines or crash on unknown
+    device formats.
+    """
+
+    profile = (parser_profile or "palo_alto").strip().lower()
+    if profile == "palo_alto":
+        parsed = parse_log_line(raw_line)
+        parsed.parsed_json["parser_profile"] = "palo_alto"
+        return parsed
+
+    raw_line = raw_line.rstrip("\r\n")
+    syslog_text, hostname, payload = _split_syslog_line(raw_line)
+    syslog_timestamp = parse_datetime(syslog_text)
+
+    if profile == "generic_syslog":
+        if payload is None:
+            return ParsedPaloAltoLog(
+                raw_line=raw_line,
+                syslog_timestamp=syslog_timestamp,
+                device_hostname=hostname,
+                normalized={},
+                parsed_json={
+                    "parser_profile": "generic_syslog",
+                    "parser_error": "generic syslog line did not contain timestamp, hostname, and message",
+                },
+                error="malformed generic syslog wrapper",
+            )
+        return ParsedPaloAltoLog(
+            raw_line=raw_line,
+            syslog_timestamp=syslog_timestamp,
+            device_hostname=hostname,
+            normalized={},
+            parsed_json={
+                "parser_profile": "generic_syslog",
+                "message": payload,
+                "parser_warnings": [
+                    "generic syslog profile preserved raw message with limited normalized fields",
+                ],
+            },
+        )
+
+    return ParsedPaloAltoLog(
+        raw_line=raw_line,
+        syslog_timestamp=syslog_timestamp,
+        device_hostname=hostname,
+        normalized={},
+        parsed_json={
+            "parser_profile": "raw_fallback",
+            "parser_error": "raw fallback parser profile stored raw evidence without structured parsing",
+            "raw_fallback": True,
+        },
+        error="raw fallback parser profile",
+    )

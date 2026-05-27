@@ -50,9 +50,45 @@ Prepare ATDR for controlled real/live ingestion in a small-office or lab environ
   - unknown app rate
   - alert count
   - recent source-linked ingestion runs
+  - recent source-linked detection runs when source-scoped detection is used
   - parser failure examples
   - troubleshooting hints
+- Optional source-scoped detection through `POST /api/detection/run?source_id=<id>` and replay `--run-detection`, without changing the default unfiltered detection workflow.
+- Parser profiles now have explicit runtime behavior:
+  - `palo_alto` parses Palo Alto syslog CSV fields.
+  - `generic_syslog` preserves generic wrapper/message metadata with limited normalized fields.
+  - `raw_fallback` stores raw evidence and marks the row as a parser fallback/error.
 - Source-level data-quality warnings for idle sources, parse failures, raw fallback profile, generic syslog mismatch, and high unknown/incomplete app rate.
+
+## Added In Phase 3
+
+- Synthetic source-aware validation samples in `data/samples/scenarios/`:
+  - `normal_allowed_traffic.txt`
+  - `port_scan_like_traffic.txt`
+  - `repeated_dedup_traffic.txt`
+  - `generic_syslog_mixed.txt`
+  - `malformed_raw_fallback.txt`
+- Safe scenario runner:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_source_scenario --scenario port_scan_like_traffic --use-temp-db --run-detection --pretty
+```
+
+- Temporary-database mode for expected-outcome validation without touching current local data.
+- Dry-run mode for parser-only checks without database writes.
+- Expected-outcome checks for:
+  - normal traffic avoiding high/critical alerts
+  - port-scan-like traffic creating source-scoped suspicious alerts
+  - repeated traffic deduplicating into occurrence counts
+  - generic syslog preserving evidence with limited structured fields
+  - raw fallback preserving evidence and counting parser failures
+  - no response actions being triggered by scenario output
+- React smoke coverage for source detail warnings, parser fallback wording, and source filters in Investigation and Alert Workbench.
+- Clearer source detail wording:
+  - healthy sources received recent parseable logs
+  - warning/error sources need parser or sender review
+  - disabled sources preserve historical evidence
+  - raw fallback preserves evidence while structured fields may be limited
 
 ## Compatibility Rules
 
@@ -94,6 +130,18 @@ Then verify:
 - logs/alerts/cases can be filtered by source
 
 For a real firewall/router, use an approved lab host, approved UDP/TCP port, and host firewall rules. Vendor-specific forwarding setup remains future lab validation.
+
+## Scenario Validation Matrix
+
+| Scenario | Parser profile | Detection | Expected result |
+| --- | --- | --- | --- |
+| `normal_allowed_traffic` | `palo_alto` | yes | Parses cleanly and creates no high/critical alerts. |
+| `port_scan_like_traffic` | `palo_alto` | yes | Creates at least one source-scoped port-scan-style alert. |
+| `repeated_dedup_traffic` | `palo_alto` | yes, twice | Preserves raw evidence and updates an active alert's occurrence count. |
+| `generic_syslog_mixed` | `generic_syslog` | optional | Preserves raw evidence with limited generic syslog fields and source warning context. |
+| `malformed_raw_fallback` | `raw_fallback` | optional | Records parser failures without crashing and keeps raw evidence available. |
+ 
+Use `--use-temp-db` for proof runs and omit it only when you intentionally want the scenario source and alerts visible in the current React dashboard.
 
 ## What Remains Simulated
 

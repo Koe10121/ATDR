@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from atdr.app.core.config import get_settings
-from atdr.app.db.models import AuditLog, NormalizedLog
+from atdr.app.db.models import AuditLog, NormalizedLog, RawLog
 from atdr.app.detection.ml_detector import apply_model_to_db
 from atdr.app.detection.rules import DetectionResult, RuleMatch, build_detection_context, evaluate_rules
 from atdr.app.detection.scoring import clamp_score, severity_from_score
@@ -117,15 +117,33 @@ def _should_create_group_alert(candidates: list[DetectionCandidate]) -> bool:
     return True
 
 
-def run_detection(db: Session, *, limit: int | None = 5000, use_ml: bool = True, actor: str = "system") -> dict:
+def run_detection(
+    db: Session,
+    *,
+    limit: int | None = 5000,
+    use_ml: bool = True,
+    actor: str = "system",
+    source_id: int | None = None,
+    source_name: str | None = None,
+    source_type: str | None = None,
+) -> dict:
     settings = get_settings()
     run = start_detection_run(
         db,
         detection_type="hybrid" if use_ml else "rule",
-        details={"limit": limit, "use_ml": use_ml, "actor": actor},
+        details={
+            "limit": limit,
+            "use_ml": use_ml,
+            "actor": actor,
+            "source_id": source_id,
+            "source_name": source_name,
+            "source_type": source_type,
+        },
     )
     statement = select(NormalizedLog).order_by(NormalizedLog.id.desc())
     try:
+        if source_id is not None:
+            statement = statement.join(RawLog, NormalizedLog.raw_log_id == RawLog.id).where(RawLog.source_id == source_id)
         if limit:
             statement = statement.limit(limit)
         logs = list(db.scalars(statement))
@@ -208,6 +226,9 @@ def run_detection(db: Session, *, limit: int | None = 5000, use_ml: bool = True,
             "watchlist_matches": watchlist_matches,
             "limit": limit,
             "use_ml": use_ml,
+            "source_id": source_id,
+            "source_name": source_name,
+            "source_type": source_type,
             "group_bucket_minutes": GROUP_BUCKET_MINUTES,
             "low_severity_group_min_evidence": LOW_SEVERITY_GROUP_MIN_EVIDENCE,
         }

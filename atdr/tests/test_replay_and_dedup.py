@@ -9,6 +9,7 @@ from atdr.app.db.models import Alert, AlertEvidence, AuditLog, DetectionRun, Ing
 from atdr.app.services.dashboard_service import build_dashboard_summary
 from atdr.app.services.detection_service import run_detection
 from atdr.app.services.log_service import import_log_file, import_raw_log_line
+from atdr.app.services.source_service import recent_source_detection_runs
 from atdr.scripts.performance_smoke import run_performance_smoke
 from atdr.scripts.register_log_source import register_log_source
 from atdr.scripts.replay_logs import replay_logs
@@ -78,6 +79,32 @@ def test_replay_logs_direct_import_preserves_raw_evidence():
     assert source.parse_success_count == 1
 
 
+def test_replay_logs_direct_detection_run_links_to_source():
+    Session = _session()
+    with Session() as db:
+        result = replay_logs(
+            db,
+            sample_path="data/samples/paloalto-demo.txt",
+            rate=0,
+            limit=2,
+            dry_run=False,
+            send_to="direct",
+            run_detection_after=True,
+            source_name="lab-firewall-detection",
+            source_type="firewall",
+            actor="unit_replay",
+        )
+        source = db.scalar(select(LogSource).where(LogSource.name == "lab-firewall-detection"))
+        runs = recent_source_detection_runs(db, source.id)
+
+    assert result["ok"] is True
+    assert source is not None
+    assert result["detection"]["source_id"] == source.id
+    assert runs
+    assert runs[0]["details"]["source_id"] == source.id
+    assert runs[0]["logs_evaluated"] == 2
+
+
 def test_replay_logs_dry_run_accepts_source_metadata_without_writing():
     Session = _session()
     with Session() as db:
@@ -130,6 +157,38 @@ def test_register_log_source_helper_creates_and_updates(monkeypatch):
     assert updated["source"]["source_type"] == "syslog_udp"
     assert updated["source"]["parser_profile"] == "generic_syslog"
     assert updated["source"]["health"]["status"] == "disabled"
+
+
+def test_parser_profiles_preserve_raw_evidence_without_crashing():
+    Session = _session()
+    with Session() as db:
+        generic = import_raw_log_line(
+            db,
+            "2026-05-22T00:00:00Z lab-router-1 generic syslog payload without Palo Alto CSV",
+            source_name="generic-router",
+            source_type="router",
+            parser_profile="generic_syslog",
+            actor="unit_test",
+        )
+        raw_fallback = import_raw_log_line(
+            db,
+            "not a syslog or Palo Alto line",
+            source_name="unknown-raw-source",
+            source_type="sample",
+            parser_profile="raw_fallback",
+            actor="unit_test",
+        )
+        generic_source = db.scalar(select(LogSource).where(LogSource.name == "generic-router"))
+        fallback_source = db.scalar(select(LogSource).where(LogSource.name == "unknown-raw-source"))
+        rows = list(db.scalars(select(NormalizedLog).order_by(NormalizedLog.id.asc())))
+
+    assert generic["parsed"] is True
+    assert raw_fallback["parsed"] is False
+    assert generic_source.parse_success_count == 1
+    assert fallback_source.parse_failure_count == 1
+    assert rows[0].parsed_json["parser_profile"] == "generic_syslog"
+    assert rows[1].parsed_json["parser_profile"] == "raw_fallback"
+    assert rows[1].parsed_json["raw_fallback"] is True
 
 
 def test_alert_dedup_updates_existing_alert_and_keeps_raw_logs():

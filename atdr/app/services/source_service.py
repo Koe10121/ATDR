@@ -94,11 +94,11 @@ def _source_warnings(source: LogSource, current: datetime) -> list[str]:
 
 def _health_recommendation(status: str) -> str:
     return {
-        "healthy": "Source is receiving parseable logs recently.",
-        "idle": "No recent logs. Confirm sender forwarding, receiver port, and lab network path.",
-        "warning": "Review parser failures, unknown formats, or device profile mismatch.",
-        "error": "Repeated parser failures. Pause response decisions from this source until format is reviewed.",
-        "disabled": "Source is disabled by an administrator.",
+        "healthy": "Healthy: logs recently received and parsed successfully.",
+        "idle": "Idle: no recent logs. Confirm sender forwarding, receiver port, and lab network path.",
+        "warning": "Warning: logs were received, but parser profile limits, parse errors, or device mismatch need review.",
+        "error": "Error: repeated parser failures. Pause response decisions from this source until format is reviewed.",
+        "disabled": "Disabled: source is disabled and existing data is preserved.",
     }.get(status, "Review source configuration and latest ingestion run.")
 
 

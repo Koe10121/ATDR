@@ -158,6 +158,59 @@ Invoke-RestMethod "http://127.0.0.1:8000/api/alerts/cases?source_name=lab-firewa
 
 In React, use source filters in **Investigation / Log Explorer** and **Alert Workbench**. Click a source card in Overview to inspect source health, quality warnings, recent source-linked runs, and parser examples.
 
+Run detection for one source only when validating source-specific replay:
+
+```powershell
+Invoke-RestMethod "http://127.0.0.1:8000/api/detection/run?limit=1000&use_ml=true&source_id=<source_id>" -Method Post -Headers @{ Authorization = "Bearer <token>" }
+```
+
+The unfiltered detection command remains unchanged. Source-scoped detection is optional and useful for confirming that recent replay or syslog activity from one lab source can be traced into source-linked detection run history.
+
+## Source Scenario Validation
+
+ATDR includes small synthetic scenario files in `data/samples/scenarios/` for controlled source-aware validation. These files are safe examples, not private firewall logs.
+
+Run every scenario against a temporary database when you want proof without touching current local data:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_source_scenario --scenario normal_allowed_traffic --use-temp-db --run-detection --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_source_scenario --scenario port_scan_like_traffic --use-temp-db --run-detection --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_source_scenario --scenario repeated_dedup_traffic --use-temp-db --run-detection --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_source_scenario --scenario generic_syslog_mixed --use-temp-db --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_source_scenario --scenario malformed_raw_fallback --use-temp-db --pretty
+```
+
+Expected outcomes:
+
+- `normal_allowed_traffic`: imports and parses clean allowed traffic; no high or critical alerts should be created.
+- `port_scan_like_traffic`: creates at least one suspicious/port-scan-style alert when detection runs.
+- `repeated_dedup_traffic`: imports and detects the same pattern twice; raw evidence is preserved, while matching active alerts should update `occurrence_count` instead of flooding the queue.
+- `generic_syslog_mixed`: preserves raw evidence and minimal syslog wrapper fields; source health may show warning because firewall-specific fields are limited.
+- `malformed_raw_fallback`: preserves raw evidence, counts parser failures, and does not crash.
+
+Dry-run a scenario without writing rows:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_source_scenario --scenario malformed_raw_fallback --dry-run --pretty
+```
+
+Run a scenario against the current local database only when you intentionally want it visible in React:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_source_scenario --scenario port_scan_like_traffic --source-name scenario-lab-firewall-1 --source-type firewall --parser-profile palo_alto --run-detection --pretty
+```
+
+Dashboard validation:
+
+1. Open Overview and confirm the source appears in **Log Sources**.
+2. Open the source detail drawer and check health, parser profile behavior, quality warnings, recent ingestion runs, and recent detection runs.
+3. Filter **Investigation** by source and confirm raw evidence can be inspected.
+4. Filter **Alerts** by source and open the alert evidence panel.
+5. For repeated traffic, confirm `occurrence_count`, `related_log_count`, and dedup counts increase while raw logs remain available.
+6. For generic/raw fallback traffic, treat warnings as parser-profile signals, not data loss.
+
+If a scenario fails, check the runner's `expected_outcome.checks` output first. Then inspect source health, parser error examples, and whether detection was run with `--run-detection` for alert-producing scenarios.
+
 ## Controlled Real Syslog Lab Flow
 
 For a real firewall/router lab test, keep the receiver bound to localhost until the host firewall and network scope are approved. For a device on the same lab network, configure the device to forward syslog to the ATDR host IP and approved UDP/TCP port. Vendor-specific forwarding screens differ, so treat the following as generic guidance:
@@ -189,7 +242,8 @@ TCP syslog and vendor-specific forwarding validation are future lab work unless 
 ATDR currently supports these parser-profile behaviors:
 
 - Palo Alto syslog CSV: splits syslog timestamp and hostname first, then parses the Palo Alto CSV payload with `csv.reader`.
-- Generic syslog or unknown raw fallback: preserves the original raw line, records parser error metadata, and does not crash ingestion.
+- Generic syslog: preserves the original raw line and minimal syslog wrapper/message metadata with a warning that normalized firewall fields are limited.
+- Raw fallback: preserves the original raw line, marks a parser error, and keeps the row available for evidence review when the format is unknown.
 - Unknown or incomplete Palo Alto fields: stores known normalized fields, stores the full parsed payload in `parsed_json`, and records missing-field warnings.
 
 Parser failures are operational signals, not data loss. Raw evidence is always preserved.
@@ -226,6 +280,12 @@ Replay directly and run detection afterward:
 
 ```powershell
 .\.venv\Scripts\python.exe -m atdr.scripts.replay_logs --send-to direct --limit 20 --rate 0 --run-detection --pretty
+```
+
+Replay directly as a named source and run source-linked detection afterward:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.replay_logs --send-to direct --source-name lab-firewall-1 --source-type firewall --parser-profile palo_alto --limit 100 --rate 0 --run-detection --pretty
 ```
 
 Replay a real/private log only when you explicitly provide the path:

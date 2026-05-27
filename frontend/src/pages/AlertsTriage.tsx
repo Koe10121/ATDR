@@ -102,6 +102,9 @@ export function AlertsTriage() {
   const attackMapping = detectionSummary?.attack_mapping ?? attackMappingForType(inferAttackTypeFromAlertType(selected?.alert_type));
   const anomalySummary = detectionSummary?.anomaly;
   const supervisedSummary = detectionSummary?.supervised;
+  const groupMetadata = selected?.matched_rules_json?.find((rule) => rule.code === "group_metadata") ?? null;
+  const occurrenceCount = Number(groupMetadata?.occurrence_count ?? groupMetadata?.evidence_count ?? selected?.evidence_count ?? 0);
+  const relatedLogCount = Number(groupMetadata?.related_log_count ?? groupMetadata?.evidence_count ?? selected?.evidence_count ?? 0);
 
   const columns = useMemo<ColumnDef<Alert>[]>(
     () => [
@@ -354,6 +357,9 @@ export function AlertsTriage() {
                 { label: "Log Sources", value: selected.source_names?.join(", ") || "-" },
                 { label: "Owner", value: selected.assigned_to },
                 { label: "Evidence Logs", value: selected.evidence_log_ids.join(", ") || "-" },
+                { label: "Alert Occurrences", value: occurrenceCount || "-" },
+                { label: "Related Log Count", value: relatedLogCount || "-" },
+                { label: "Deduplicated", value: groupMetadata?.deduplicated ? "yes" : "no" },
                 { label: "Recommended Response", value: selected.recommended_response },
                 { label: "SLA", value: `${selected.sla?.label ?? "-"} / ${selected.sla?.state ?? "-"}` }
               ]}
@@ -435,13 +441,21 @@ export function AlertsTriage() {
             <section className="rounded-lg border border-line bg-panel2 p-4">
               <div className="mb-3 text-sm font-extrabold uppercase tracking-wide text-muted">Matched Rules</div>
               <div className="space-y-2">
-                {selected.matched_rules_json.map((rule, index) => (
+                {selected.matched_rules_json.filter((rule) => rule.code !== "group_metadata").map((rule, index) => (
                   <div key={index} className="rounded border border-line bg-shell p-3 text-sm text-muted">
                     <div className="font-bold text-text">{String(rule.title ?? rule.code ?? `Rule ${index + 1}`)}</div>
                     <div className="mt-1">{String(rule.explanation ?? "No explanation provided.")}</div>
                   </div>
                 ))}
               </div>
+              {groupMetadata ? (
+                <details className="mt-3">
+                  <summary className="cursor-pointer text-sm font-bold text-text">Grouped alert metadata</summary>
+                  <pre className="mt-3 max-h-56 overflow-auto rounded-lg border border-line bg-shell p-3 text-xs text-muted">
+                    {JSON.stringify(groupMetadata, null, 2)}
+                  </pre>
+                </details>
+              ) : null}
             </section>
 
             <section className="rounded-lg border border-line bg-panel2 p-4">
