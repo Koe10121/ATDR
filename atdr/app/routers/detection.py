@@ -19,8 +19,9 @@ def api_run_detection(
     current_user: User = Depends(require_analyst_or_admin),
     limit: int | None = Query(default=5000, ge=1, le=100000),
     use_ml: bool = True,
+    source_id: int | None = Query(default=None, ge=1),
 ) -> dict:
-    return run_detection(db, limit=limit, use_ml=use_ml, actor=current_user.username)
+    return run_detection(db, limit=limit, use_ml=use_ml, actor=current_user.username, source_id=source_id)
 
 
 @router.get("/runs", response_model=list[DetectionRunRead])

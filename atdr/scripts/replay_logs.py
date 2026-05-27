@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from atdr.app.core.config import PROJECT_ROOT, get_settings
 from atdr.app.db.database import SessionLocal, init_db
-from atdr.app.parsers.paloalto_parser import parse_log_line
+from atdr.app.parsers.paloalto_parser import parse_log_line_for_profile
 from atdr.app.services.detection_service import run_detection
 from atdr.app.services.demo_service import resolve_demo_sample_path
 from atdr.app.services.log_service import import_raw_log_line
@@ -163,7 +163,7 @@ def replay_logs(
             if not line.strip():
                 result["blank"] += 1
                 continue
-            parsed = parse_log_line(line)
+            parsed = parse_log_line_for_profile(line, parser_profile)
             if parsed.error:
                 result["failed"] += 1
                 result["errors"].append({"line_number": line_number, "error": parsed.error})
@@ -202,7 +202,15 @@ def replay_logs(
             _sleep_for_rate(rate)
 
         if db is not None and mode == "direct" and not dry_run and run_detection_after:
-            detection_result = run_detection(db, limit=detection_limit or limit, use_ml=True, actor=actor)
+            detection_result = run_detection(
+                db,
+                limit=detection_limit or limit,
+                use_ml=True,
+                actor=actor,
+                source_id=source.id if source is not None else None,
+                source_name=source.name if source is not None else source_name,
+                source_type=source.source_type if source is not None else source_type,
+            )
             result["detection"] = detection_result
             result["alerts_created"] = detection_result.get("created_alerts", 0)
             result["alerts_deduplicated"] = detection_result.get("deduplicated_alert_updates", 0)

@@ -332,7 +332,16 @@ export function ExecutiveOverview() {
             <section className="rounded-lg border border-line bg-panel2 p-4">
               <div className="text-sm font-extrabold uppercase tracking-wide text-muted">Troubleshooting Hints</div>
               <div className="mt-2 space-y-2 text-sm text-muted">
+                {!sourceDetail.data.enabled ? (
+                  <div className="rounded border border-cyan/30 bg-cyan/10 p-2 text-cyan">
+                    Disabled sources keep all historical raw logs, normalized rows, alerts, labels, and audit evidence. Re-enable only when the lab sender should be monitored again.
+                  </div>
+                ) : null}
                 <div>{sourceDetail.data.health.recommendation}</div>
+                <div>
+                  Parser profile behavior: <span className="font-bold text-text">{sourceDetail.data.parser_profile}</span>. Palo Alto extracts firewall CSV
+                  fields, generic syslog preserves minimal wrapper data, and raw fallback preserves raw evidence while structured fields may be limited.
+                </div>
                 {(sourceDetail.data.health.warnings ?? []).map((warning) => (
                   <div key={warning} className="rounded border border-amber/30 bg-amber/10 p-2 text-amber">{warning}</div>
                 ))}
@@ -351,6 +360,23 @@ export function ExecutiveOverview() {
                   </div>
                 ))}
                 {!(sourceDetail.data.recent_ingestion_runs ?? []).length ? <EmptyState title="No linked runs" body="Future direct replay or imports from this source will appear here." /> : null}
+              </div>
+            </section>
+            <section className="rounded-lg border border-line bg-panel2 p-4">
+              <div className="text-sm font-extrabold uppercase tracking-wide text-muted">Recent Detection Runs</div>
+              <div className="mt-3 space-y-2">
+                {(sourceDetail.data.recent_detection_runs ?? []).map((run) => (
+                  <div key={run.run_id} className="rounded border border-line bg-shell p-3 text-sm text-muted">
+                    <div className="font-bold text-text">Run #{run.run_id} | {run.status}</div>
+                    <div>
+                      {run.detection_type} | evaluated {run.logs_evaluated} | created {run.alerts_created} | dedup {run.alerts_deduplicated} |{" "}
+                      {run.runtime_seconds ?? "-"}s
+                    </div>
+                  </div>
+                ))}
+                {!(sourceDetail.data.recent_detection_runs ?? []).length ? (
+                  <EmptyState title="No linked detection runs" body="Run detection after source-specific replay to populate source-linked detection history." />
+                ) : null}
               </div>
             </section>
             {sourceDetail.data.latest_error || sourceDetail.data.quality?.parse_failure_examples?.length ? (

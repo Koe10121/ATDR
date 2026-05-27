@@ -1,0 +1,3 @@
+not a syslog wrapped line at all
+2026-05-20T14:11:00+07:00 only-two-parts
+raw-device-message-without-timestamp-or-csv fields missing everything
