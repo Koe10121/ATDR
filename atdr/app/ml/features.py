@@ -1,4 +1,6 @@
+import hashlib
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import case, func, select
@@ -73,6 +75,30 @@ WINDOW_NUMERIC_FEATURES = _dedupe([*LEGACY_WINDOW_NUMERIC_FEATURES, *EXTENDED_WI
 NUMERIC_FEATURES = _dedupe([*BASE_NUMERIC_FEATURES, *WINDOW_NUMERIC_FEATURES])
 CATEGORICAL_FEATURES = list(BASE_CATEGORICAL_FEATURES)
 FEATURE_COLUMNS = [*NUMERIC_FEATURES, *CATEGORICAL_FEATURES]
+FEATURE_SET_VERSION = "behavior_windows_v2"
+
+
+def feature_code_hash() -> str:
+    """Return a short hash of this feature pipeline source for model metadata."""
+    digest = hashlib.sha256()
+    digest.update(Path(__file__).read_bytes())
+    return digest.hexdigest()[:16]
+
+
+def feature_set_metadata(*, row_count: int | None = None, missing_value_summary: dict[str, int] | None = None) -> dict[str, Any]:
+    return {
+        "feature_set_version": FEATURE_SET_VERSION,
+        "feature_code_hash": feature_code_hash(),
+        "feature_count": len(FEATURE_COLUMNS),
+        "numeric_feature_count": len(NUMERIC_FEATURES),
+        "categorical_feature_count": len(CATEGORICAL_FEATURES),
+        "feature_columns": FEATURE_COLUMNS,
+        "numeric_columns": NUMERIC_FEATURES,
+        "categorical_columns": CATEGORICAL_FEATURES,
+        "row_count": row_count,
+        "missing_value_summary": missing_value_summary or {},
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 def _log_time(log: NormalizedLog) -> datetime:

@@ -7,7 +7,14 @@ import { MetricCard } from "../components/MetricCard";
 import { Badge } from "../components/Badge";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { api } from "../lib/api";
-import { useClassTemporalCoverage, useMlLabelMutations, useMlReport, useMlReviewQueue, useSupervisedReport } from "../hooks/useApiQueries";
+import {
+  useClassTemporalCoverage,
+  useMlLabelMutations,
+  useMlReport,
+  useMlReviewQueue,
+  useSupervisedModels,
+  useSupervisedReport
+} from "../hooks/useApiQueries";
 import type { MLAttackType, MLLabelValue, MLReviewQueueItem } from "../types/api";
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -22,6 +29,7 @@ function downloadBlob(blob: Blob, filename: string) {
 export function MLGovernance() {
   const report = useMlReport();
   const supervised = useSupervisedReport();
+  const supervisedModels = useSupervisedModels();
   const temporalCoverage = useClassTemporalCoverage();
   const reviewQueue = useMlReviewQueue({ limit: 25 });
   const labelMutations = useMlLabelMutations();
@@ -47,6 +55,8 @@ export function MLGovernance() {
   const maliciousRecall = Number(maliciousMetrics.recall ?? 0);
   const productionPromoted = Boolean(promotionGate.production_promoted);
   const analystReviewEligible = Boolean(promotionGate.analyst_review_eligible);
+  const registry = supervisedModels.data;
+  const activeRegistryModel = registry?.models.find((model) => model.is_active_path) ?? registry?.models[0];
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<string | null>(null);
   const [quickReviewMessage, setQuickReviewMessage] = useState<string | null>(null);
@@ -199,6 +209,7 @@ export function MLGovernance() {
   function refreshGovernance() {
     void report.refetch();
     void supervised.refetch();
+    void supervisedModels.refetch();
     void temporalCoverage.refetch();
     void reviewQueue.refetch();
   }
@@ -244,6 +255,55 @@ export function MLGovernance() {
           <MetricCard label="Training Rows" value={supervisedData?.latest_run?.training_rows ?? "-"} detail="Latest supervised run" tone="cyan" />
           <MetricCard label="Test Rows" value={supervisedData?.latest_run?.test_rows ?? "-"} detail="Holdout evaluation" tone="amber" />
           <MetricCard label="F1 Score" value={String(supervisedMetrics.f1 ?? "-")} detail="Weighted test metric" tone="cyan" />
+        </div>
+        <div className="mt-4 rounded-lg border border-line bg-panel2 p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div className="text-xs font-extrabold uppercase tracking-wide text-muted">Supervised Model Registry</div>
+              <div className="mt-1 text-sm text-muted">
+                Active and candidate artifacts are tracked for analyst decision support only. Activation is explicit and never enables response automation.
+              </div>
+            </div>
+            <Badge value={registry?.active_artifact_exists ? "active artifact ready" : "no active artifact"} />
+          </div>
+          <div className="grid gap-3 md:grid-cols-4">
+            <MetricCard label="Active Model Type" value={activeRegistryModel?.model_type ?? supervisedData?.latest_run?.model_type ?? "-"} detail="Current classifier family" tone="cyan" />
+            <MetricCard label="Feature Set" value={activeRegistryModel?.feature_set_version ?? "-"} detail="Versioned feature pipeline" tone="teal" />
+            <MetricCard label="Registry Entries" value={registry?.models.length ?? 0} detail="Recent train/activate/rollback runs" tone="amber" />
+            <MetricCard label="Auto Response" value={String(registry?.response_automation_allowed ?? false)} detail="Must remain disabled" tone="danger" />
+          </div>
+          <details className="mt-3">
+            <summary className="cursor-pointer text-sm font-bold text-text">View candidate model registry</summary>
+            <div className="mt-3 overflow-auto">
+              <table className="soc-table soc-table-compact">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Type</th>
+                    <th>Operation</th>
+                    <th>Decision</th>
+                    <th>F1</th>
+                    <th>Created</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(registry?.models ?? []).slice(0, 8).map((model) => {
+                    const metrics = model.metrics ?? {};
+                    return (
+                      <tr key={model.model_id}>
+                        <td>{model.model_id}</td>
+                        <td>{model.model_type ?? "-"}</td>
+                        <td>{model.operation}</td>
+                        <td>{model.readiness_decision ?? "candidate_only"}</td>
+                        <td>{String(metrics.f1 ?? "-")}</td>
+                        <td>{model.created_at}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </details>
         </div>
         <div className="mt-4 grid gap-4 md:grid-cols-3">
           <MetricCard label="Reviewed Labels" value={supervisedData?.reviewed_label_count ?? 0} detail="Human-reviewed/manual rows" tone="teal" />

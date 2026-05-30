@@ -22,7 +22,8 @@ ATDR v0.3 is a controlled lab-ready release candidate for small-office style fir
 - Parser profiles: `palo_alto`, `generic_syslog`, and `raw_fallback`.
 - Rule-based detection, alert deduplication, lightweight case grouping, ATT&CK-style mapping, and "Why flagged?" explanations.
 - IsolationForest anomaly scoring and supervised ML decision support.
-- AI Governance for label review, active learning, supervised model reports, readiness status, and weak-label warnings.
+- AI Governance for label review, active learning, supervised model reports, readiness status, model registry visibility, and weak-label warnings.
+- Reproducible supervised ML workflow with ignored dataset snapshots, feature-set metadata, candidate comparison, threshold tuning, error analysis, and explicit activation/rollback commands.
 - Simulated block/unblock response with confirmation, justification, protected-IP denial, and audit logs.
 - Ingestion run history, detection run history, Operations Health, and performance smoke checks.
 - React dashboard with role-aware navigation and admin-only route protection.
@@ -48,6 +49,8 @@ Scenario output does not trigger response actions.
 - Rule evidence remains primary.
 - IsolationForest anomaly scoring is assistive.
 - Supervised ML is decision support trained from mixed assisted and reviewed labels.
+- Feature pipelines are versioned in supervised model metadata.
+- Candidate model activation is explicit and does not equal production promotion.
 - Threat-positive triage is useful, but suspicious vs malicious separation still needs more reviewed labels and real lab validation.
 - Weak-label metrics must not be presented as production accuracy.
 

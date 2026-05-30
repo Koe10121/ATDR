@@ -11,6 +11,11 @@ from atdr.app.detection.supervised_detector import (
     supervised_report_markdown,
     train_supervised_classifier,
 )
+from atdr.app.detection.supervised_workflow import (
+    activate_supervised_model,
+    list_supervised_models,
+    rollback_supervised_model,
+)
 from atdr.app.detection.boundary_analysis import build_boundary_analysis, render_boundary_report
 from atdr.app.detection.suspicious_recall_analysis import (
     build_suspicious_recall_error_report,
@@ -380,6 +385,15 @@ def get_supervised_report(
     return supervised_model_report(db)
 
 
+@router.get("/supervised/models")
+def get_supervised_models(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+    limit: int = Query(default=25, ge=1, le=100),
+) -> dict:
+    return list_supervised_models(db, limit=limit)
+
+
 @router.get("/supervised/report/export")
 def export_supervised_report(
     db: Session = Depends(get_db),
@@ -399,8 +413,38 @@ def train_supervised_model(
     test_size: float = Query(default=0.3, ge=0.1, le=0.5),
     min_samples: int = Query(default=6, ge=2, le=100000),
     split: str = Query(default="random", pattern="^(random|time)$"),
+    model: str = Query(default="random_forest", pattern="^(random_forest|hist_gradient_boosting|logistic_regression|extra_trees)$"),
+    threshold_profile: str = Query(
+        default="balanced",
+        pattern="^(conservative|balanced|aggressive|suspicious_recall|malicious_recall|threat_positive)$",
+    ),
 ) -> dict:
-    return train_supervised_classifier(db, actor=current_user.username, test_size=test_size, min_samples=min_samples, split=split)
+    return train_supervised_classifier(
+        db,
+        actor=current_user.username,
+        test_size=test_size,
+        min_samples=min_samples,
+        split=split,
+        model_type=model,
+        threshold_profile=threshold_profile,
+    )
+
+
+@router.post("/supervised/models/{model_id}/activate")
+def activate_supervised_model_api(
+    model_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+) -> dict:
+    return activate_supervised_model(db, model_id=model_id, actor=current_user.username)
+
+
+@router.post("/supervised/models/rollback")
+def rollback_supervised_model_api(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+) -> dict:
+    return rollback_supervised_model(db, actor=current_user.username)
 
 
 @router.get("/supervised/predict/{log_id}")

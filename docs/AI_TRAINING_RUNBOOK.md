@@ -474,3 +474,71 @@ Threshold profiles are candidate analysis only:
 Recommended wording:
 
 > The model is strong at threat-positive triage, but exact suspicious-versus-malicious separation is still being tuned. We use focused human review and threshold comparison to improve suspicious recall without enabling automatic response or claiming production accuracy.
+
+## 21. Reproducible Supervised ML Pipeline
+
+Use this workflow when you want a more professional supervised ML experiment without changing the current lab dashboard behavior.
+
+Export a dataset snapshot:
+
+```powershell
+python -m atdr.scripts.export_supervised_dataset_snapshot --split time --test-size 0.3
+```
+
+This writes an ignored package under `ml_baseline_reviews/supervised_snapshots/` with metadata, feature schema, label distribution, reviewed/weak counts, class temporal coverage, train/test split information, and a feature CSV. Raw log text is excluded by default. Use `--include-raw` only for a controlled private review because raw payloads may contain sensitive data.
+
+Train a model with explicit options:
+
+```powershell
+python -m atdr.scripts.train_supervised_model --split time --test-size 0.3 --min-samples 6 --model random_forest --class-weight balanced --threshold-profile balanced
+```
+
+Supported model options are:
+
+- `random_forest`
+- `hist_gradient_boosting`
+- `logistic_regression`
+- `extra_trees`
+
+Run a comparison experiment without activating any model:
+
+```powershell
+python -m atdr.scripts.run_supervised_experiment --split time --test-size 0.3 --min-samples 6
+```
+
+This writes reports under `ml_baseline_reviews/supervised_experiments/` and compares rule/hybrid baseline, Random Forest, Logistic Regression, HistGradientBoosting, ExtraTrees, and existing boundary-analysis candidates where available.
+
+Run safe tuning:
+
+```powershell
+python -m atdr.scripts.tune_supervised_model --split time --test-size 0.3 --min-samples 6
+```
+
+Tuning prioritizes threat-positive F1, suspicious recall, malicious recall, macro F1, and cost-sensitive score. Do not tune for accuracy alone.
+
+Export error analysis:
+
+```powershell
+python -m atdr.scripts.analyze_supervised_errors --split time --test-size 0.3 --min-samples 6
+```
+
+This writes `ml_baseline_reviews/supervised_error_analysis.md` with suspicious/malicious false-negative and boundary-review guidance.
+
+List model registry entries:
+
+```powershell
+python -m atdr.scripts.list_supervised_models
+```
+
+Activation is explicit and still means analyst decision support only:
+
+```powershell
+python -m atdr.scripts.activate_supervised_model --model-id <id>
+python -m atdr.scripts.rollback_supervised_model
+```
+
+Activation never means production promotion. It does not enable automatic response. Response actions remain simulated and analyst-approved.
+
+Recommended wording:
+
+> We now snapshot the supervised dataset, version the feature pipeline, compare candidate models, tune thresholds with threat-focused metrics, and keep a model registry. The model remains decision support only; metrics are weak-label or mixed-label indicators unless separately validated with enough reviewed labels.

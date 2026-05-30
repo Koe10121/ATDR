@@ -29,6 +29,7 @@ export const queryKeys = {
   tuning: ["detection-tuning"],
   mlReport: ["ml-report"],
   supervisedReport: ["supervised-report"],
+  supervisedModels: ["supervised-models"],
   classTemporalCoverage: ["class-temporal-coverage"],
   mlLabels: (params?: Record<string, unknown>) => ["ml-labels", params ?? {}],
   mlReviewQueue: (params?: Record<string, unknown>) => ["ml-review-queue", params ?? {}],
@@ -152,6 +153,10 @@ export function useMlReport() {
 
 export function useSupervisedReport() {
   return useQuery({ queryKey: queryKeys.supervisedReport, queryFn: api.supervisedReport, ...mlGovernanceQueryOptions });
+}
+
+export function useSupervisedModels() {
+  return useQuery({ queryKey: queryKeys.supervisedModels, queryFn: api.supervisedModels, ...mlGovernanceQueryOptions });
 }
 
 export function useClassTemporalCoverage() {
@@ -282,6 +287,7 @@ export function useMlLabelMutations() {
     void queryClient.invalidateQueries({ queryKey: ["ml-labels"] });
     void queryClient.invalidateQueries({ queryKey: ["ml-review-queue"] });
     void queryClient.invalidateQueries({ queryKey: queryKeys.supervisedReport });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.supervisedModels });
     void queryClient.invalidateQueries({ queryKey: queryKeys.mlReport });
     void queryClient.invalidateQueries({ queryKey: ["logs"] });
     void queryClient.invalidateQueries({ queryKey: ["logs-page"] });

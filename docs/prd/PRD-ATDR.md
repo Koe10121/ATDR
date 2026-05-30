@@ -89,10 +89,10 @@ Evidence: `atdr/app/services/detection_service.py`, `atdr/app/detection/*`, `atd
 - Assisted weak-label generation.
 - CSV review import/export.
 - Active learning samples.
-- Supervised model training and evaluation reports.
+- Supervised model training, dataset snapshots, feature-set metadata, comparison experiments, tuning, error analysis, model registry, and evaluation reports.
 - Promotion gate that keeps the model in analyst-review / candidate status unless readiness checks pass.
 
-Evidence: `atdr/app/db/models.py`, `atdr/app/routers/ml.py`, `atdr/scripts/train_supervised_model.py`, `atdr/scripts/generate_assisted_labels.py`, `docs/AI_TRAINING_RUNBOOK.md`.
+Evidence: `atdr/app/db/models.py`, `atdr/app/routers/ml.py`, `atdr/app/detection/supervised_workflow.py`, `atdr/scripts/train_supervised_model.py`, `atdr/scripts/export_supervised_dataset_snapshot.py`, `atdr/scripts/run_supervised_experiment.py`, `atdr/scripts/tune_supervised_model.py`, `atdr/scripts/analyze_supervised_errors.py`, `atdr/scripts/generate_assisted_labels.py`, `docs/AI_TRAINING_RUNBOOK.md`.
 
 ### Dashboard
 
@@ -132,7 +132,7 @@ Evidence: `atdr/app/db/models.py`, `atdr/scripts/performance_smoke.py`, `atdr/sc
 | FR-ATDR-004 | Track log source identity, parser profile, health, and quality | Implemented |
 | FR-ATDR-005 | Run explainable rule-based detection | Implemented |
 | FR-ATDR-006 | Run IsolationForest anomaly scoring as assistive ML | Implemented |
-| FR-ATDR-007 | Train and evaluate supervised classifier from labels | Implemented as decision support |
+| FR-ATDR-007 | Train and evaluate supervised classifier from labels | Implemented as decision support with dataset snapshots, feature-set metadata, candidate comparison, threshold tuning, error analysis, and explicit activation/rollback |
 | FR-ATDR-008 | Keep ML outputs explainable and non-authoritative | Implemented |
 | FR-ATDR-009 | Generate alert evidence, lifecycle, notes, timelines, and reports | Implemented |
 | FR-ATDR-010 | Deduplicate repeated alert patterns without deleting raw logs | Implemented |

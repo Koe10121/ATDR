@@ -12,7 +12,15 @@ from atdr.app.core.config import get_settings
 from atdr.app.db.models import AuditLog, MLLabel, MLModelRun, NormalizedLog
 from atdr.app.detection.cost_sensitive import cost_sensitive_report
 from atdr.app.detection.hybrid_scoring import hybrid_risk_score
-from atdr.app.ml.features import CATEGORICAL_FEATURES, FEATURE_COLUMNS, NUMERIC_FEATURES, build_feature_rows, build_log_features
+from atdr.app.ml.features import (
+    CATEGORICAL_FEATURES,
+    FEATURE_COLUMNS,
+    FEATURE_SET_VERSION,
+    NUMERIC_FEATURES,
+    build_feature_rows,
+    build_log_features,
+    feature_set_metadata,
+)
 from atdr.app.services.class_temporal_coverage_service import (
     MALICIOUS_TRAINING_MINIMUM,
     build_class_temporal_coverage,
@@ -20,6 +28,7 @@ from atdr.app.services.class_temporal_coverage_service import (
 
 
 MODEL_NAME = "supervised_random_forest"
+SUPPORTED_SUPERVISED_MODELS = {"random_forest", "hist_gradient_boosting", "logistic_regression", "extra_trees"}
 TRAINABLE_LABELS = {"benign", "benign_unusual", "suspicious", "malicious", "needs_context"}
 POSITIVE_LABELS = {"suspicious", "malicious"}
 REVIEWED_LABEL_TARGET = 300
@@ -143,6 +152,7 @@ def _render_supervised_report(result: dict) -> str:
 ## Model
 
 - Model name: {result.get("model_name", MODEL_NAME)}
+- Model type: {result.get("model_type", "random_forest")}
 - Model version: {result.get("model_version", "not_trained")}
 - Status: {result.get("status", "unknown")}
 - Model path: {result.get("model_path", "")}
@@ -150,6 +160,11 @@ def _render_supervised_report(result: dict) -> str:
 - Split strategy: {result.get("split_strategy", "random")}
 - Label quality: {result.get("label_quality", "unknown")}
 - Threshold profile: {result.get("threshold_profile", "balanced")}
+- Feature set version: {(result.get("feature_set_metadata") or {}).get("feature_set_version", FEATURE_SET_VERSION)}
+- Feature code hash: {(result.get("feature_set_metadata") or {}).get("feature_code_hash", "not_available")}
+- Dataset snapshot ID: {result.get("dataset_snapshot_id") or "not_linked"}
+- Production promoted: false
+- Response automation allowed: false
 
 ## Dataset
 
@@ -742,16 +757,21 @@ def _model_readiness_checklist(
     }
 
 
-def _sample_weights(labels: list[MLLabel]) -> tuple[list[float], dict[str, Any]]:
+def _sample_weights(
+    labels: list[MLLabel],
+    *,
+    reviewed_weight: float = 3.0,
+    weak_weight: float = 0.55,
+) -> tuple[list[float], dict[str, Any]]:
     weights: list[float] = []
     for label in labels:
         weight = 1.0
         source = str(getattr(label, "label_source", "manual") or "manual")
         reviewed = bool(getattr(label, "reviewed", True))
         if source.startswith("assisted") and not reviewed:
-            weight *= 0.55
+            weight *= weak_weight
         if reviewed:
-            weight *= 3.0
+            weight *= reviewed_weight
         if label.label == "malicious":
             weight *= 4.0 if reviewed else 2.0
         elif label.label == "suspicious":
@@ -765,8 +785,8 @@ def _sample_weights(labels: list[MLLabel]) -> tuple[list[float], dict[str, Any]]
         weights.append(round(min(weight, 20.0), 4))
     return weights, {
         "enabled": True,
-        "reviewed_multiplier": 3.0,
-        "unreviewed_assisted_multiplier": 0.55,
+        "reviewed_multiplier": reviewed_weight,
+        "unreviewed_assisted_multiplier": weak_weight,
         "reviewed_malicious_multiplier": 4.0,
         "reviewed_suspicious_multiplier": 2.0,
         "needs_context_multiplier": 1.8,
@@ -792,7 +812,25 @@ def threshold_decision(class_probs: dict[str, float], *, profile: str = "balance
     return "needs_context"
 
 
-def _build_pipeline(imports):
+def _model_for_type(model_type: str, RandomForestClassifier, *, class_weight: str | None = "balanced"):
+    if model_type == "random_forest":
+        return RandomForestClassifier(n_estimators=150, random_state=42, class_weight=class_weight)
+    if model_type == "extra_trees":
+        from sklearn.ensemble import ExtraTreesClassifier
+
+        return ExtraTreesClassifier(n_estimators=180, random_state=42, class_weight=class_weight)
+    if model_type == "hist_gradient_boosting":
+        from sklearn.ensemble import HistGradientBoostingClassifier
+
+        return HistGradientBoostingClassifier(random_state=42)
+    if model_type == "logistic_regression":
+        from sklearn.linear_model import LogisticRegression
+
+        return LogisticRegression(max_iter=1000, solver="liblinear", class_weight=class_weight)
+    raise ValueError(f"Unsupported supervised model type: {model_type}")
+
+
+def _build_pipeline(imports, *, model_type: str = "random_forest", class_weight: str | None = "balanced"):
     _, _, ColumnTransformer, RandomForestClassifier, SimpleImputer, *_rest, Pipeline, OneHotEncoder = imports
     preprocessor = ColumnTransformer(
         transformers=[
@@ -812,7 +850,7 @@ def _build_pipeline(imports):
     return Pipeline(
         steps=[
             ("preprocess", preprocessor),
-            ("model", RandomForestClassifier(n_estimators=150, random_state=42, class_weight="balanced")),
+            ("model", _model_for_type(model_type, RandomForestClassifier, class_weight=class_weight)),
         ]
     )
 
@@ -838,6 +876,14 @@ def train_supervised_classifier(
     test_size: float = 0.3,
     min_samples: int = 6,
     split: str = "random",
+    model_type: str = "random_forest",
+    class_weight: str | None = "balanced",
+    reviewed_weight: float = 3.0,
+    weak_weight: float = 0.55,
+    threshold_profile: str = "balanced",
+    save_candidate: bool = False,
+    dataset_snapshot_id: str | None = None,
+    training_command: str | None = None,
 ) -> dict:
     imports = _optional_imports()
     if imports is None:
@@ -858,6 +904,18 @@ def train_supervised_classifier(
 
     if split not in {"random", "time"}:
         return {"trained": False, "status": "failed", "message": "split must be 'random' or 'time'."}
+    if model_type not in SUPPORTED_SUPERVISED_MODELS:
+        return {
+            "trained": False,
+            "status": "failed",
+            "message": f"model_type must be one of {sorted(SUPPORTED_SUPERVISED_MODELS)}.",
+        }
+    if threshold_profile not in THRESHOLD_PROFILES:
+        return {
+            "trained": False,
+            "status": "failed",
+            "message": f"threshold_profile must be one of {sorted(THRESHOLD_PROFILES)}.",
+        }
     labels = [label for label in _latest_labels(db) if label.log is not None]
     logs = [label.log for label in labels]
     y = [label.label for label in labels]
@@ -908,8 +966,8 @@ def train_supervised_classifier(
     X_train = X.iloc[train_idx]
     X_test = X.iloc[test_idx]
     test_labels = [labels[index] for index in test_idx]
-    pipeline = _build_pipeline(imports)
-    all_weights, weighting_summary = _sample_weights(labels)
+    pipeline = _build_pipeline(imports, model_type=model_type, class_weight=class_weight)
+    all_weights, weighting_summary = _sample_weights(labels, reviewed_weight=reviewed_weight, weak_weight=weak_weight)
     train_weights = [all_weights[index] for index in train_idx]
     pipeline.fit(X_train, y_train, model__sample_weight=train_weights)
     direct_predictions = list(pipeline.predict(X_test))
@@ -917,7 +975,7 @@ def train_supervised_classifier(
     probabilities = pipeline.predict_proba(X_test) if hasattr(pipeline, "predict_proba") else []
     predictions = (
         [
-            threshold_decision({label: float(prob) for label, prob in zip(class_labels, row, strict=False)}, profile="balanced")
+            threshold_decision({label: float(prob) for label, prob in zip(class_labels, row, strict=False)}, profile=threshold_profile)
             for row in probabilities
         ]
         if len(probabilities)
@@ -941,7 +999,11 @@ def train_supervised_classifier(
         confusion_matrix=confusion_matrix,
         precision_recall_fscore_support=precision_recall_fscore_support,
     )
-    path = supervised_model_path(model_path)
+    if save_candidate and model_path is None:
+        candidate_id = f"{model_type}-{split}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
+        path = supervised_model_path().parent / "supervised_candidates" / f"{candidate_id}.joblib"
+    else:
+        path = supervised_model_path(model_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     artifact = {
         "pipeline": pipeline,
@@ -949,8 +1011,11 @@ def train_supervised_classifier(
         "label_classes": labels_order,
         "positive_labels": sorted(POSITIVE_LABELS),
         "threshold_profiles": THRESHOLD_PROFILES,
-        "threshold_profile": "balanced",
+        "threshold_profile": threshold_profile,
         "sample_weighting": weighting_summary,
+        "model_type": model_type,
+        "feature_set_metadata": feature_set_metadata(row_count=len(logs), missing_value_summary=X.isna().sum().to_dict()),
+        "dataset_snapshot_id": dataset_snapshot_id,
         "trained_at": datetime.now(timezone.utc).isoformat(),
     }
     joblib.dump(artifact, path)
@@ -958,8 +1023,9 @@ def train_supervised_classifier(
         "trained": True,
         "status": "trained",
         "model_name": MODEL_NAME,
+        "model_type": model_type,
         "model_path": str(path),
-        "model_version": f"rf-{split}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
+        "model_version": f"{model_type}-{split}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
         "training_rows": len(X_train),
         "test_rows": len(X_test),
         "metrics": metrics,
@@ -982,8 +1048,14 @@ def train_supervised_classifier(
         "reviewed_label_count": reviewed_count,
         "unreviewed_assisted_label_count": unreviewed_assisted_count,
         "feature_columns": FEATURE_COLUMNS,
+        "feature_set_metadata": artifact["feature_set_metadata"],
+        "dataset_snapshot_id": dataset_snapshot_id,
         "sample_weighting": weighting_summary,
-        "threshold_profile": "balanced",
+        "threshold_profile": threshold_profile,
+        "save_candidate": save_candidate,
+        "production_promoted": False,
+        "response_automation_allowed": False,
+        "training_command": training_command,
         "feature_generation": feature_generation,
         "training_dataset_diagnostics": training_dataset_diagnostics(db),
         "top_features": _feature_importances(pipeline),
@@ -1020,7 +1092,7 @@ def train_supervised_classifier(
 
 def _record_run(db: Session, result: dict, *, actor: str, model_path: Path) -> None:
     run = MLModelRun(
-        model_name=MODEL_NAME,
+        model_name=result.get("model_name", MODEL_NAME),
         model_version=result.get("model_version"),
         operation="train_supervised",
         status=result.get("status", "skipped"),
@@ -1032,6 +1104,13 @@ def _record_run(db: Session, result: dict, *, actor: str, model_path: Path) -> N
         feature_columns_json=result.get("feature_columns", FEATURE_COLUMNS),
         metrics_json={
             "metrics": result.get("metrics", {}),
+            "model_type": result.get("model_type", "random_forest"),
+            "feature_set_metadata": result.get("feature_set_metadata", {}),
+            "dataset_snapshot_id": result.get("dataset_snapshot_id"),
+            "training_command": result.get("training_command"),
+            "save_candidate": result.get("save_candidate", False),
+            "production_promoted": False,
+            "response_automation_allowed": False,
             "direct_model_metrics": result.get("direct_model_metrics", {}),
             "evaluation": result.get("evaluation", {}),
             "label_distribution": result.get("label_distribution", {}),
@@ -1128,6 +1207,13 @@ def _run_to_report(run: MLModelRun) -> dict:
         "training_rows": run.training_log_count,
         "test_rows": metrics.get("test_rows", 0),
         "metrics": metrics.get("metrics", {}),
+        "model_type": metrics.get("model_type", "random_forest"),
+        "feature_set_metadata": metrics.get("feature_set_metadata", {}),
+        "dataset_snapshot_id": metrics.get("dataset_snapshot_id"),
+        "training_command": metrics.get("training_command"),
+        "save_candidate": metrics.get("save_candidate", False),
+        "production_promoted": metrics.get("production_promoted", False),
+        "response_automation_allowed": metrics.get("response_automation_allowed", False),
         "direct_model_metrics": metrics.get("direct_model_metrics", {}),
         "evaluation": metrics.get("evaluation", {}),
         "label_distribution": metrics.get("label_distribution", {}),
@@ -1185,6 +1271,10 @@ def supervised_report_markdown(db: Session) -> str:
         "training_rows": latest.training_log_count,
         "test_rows": metrics_json.get("test_rows", 0),
         "metrics": metrics_json.get("metrics", {}),
+        "model_type": metrics_json.get("model_type", "random_forest"),
+        "feature_set_metadata": metrics_json.get("feature_set_metadata", {}),
+        "dataset_snapshot_id": metrics_json.get("dataset_snapshot_id"),
+        "training_command": metrics_json.get("training_command"),
         "direct_model_metrics": metrics_json.get("direct_model_metrics", {}),
         "label_distribution": metrics_json.get("label_distribution", {}),
         "label_source_distribution": metrics_json.get("label_source_distribution", {}),

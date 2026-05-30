@@ -1,4 +1,3 @@
-import math
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -30,7 +29,7 @@ def _optional_imports():
     try:
         import pandas as pd
         from sklearn.compose import ColumnTransformer
-        from sklearn.ensemble import HistGradientBoostingClassifier, RandomForestClassifier
+        from sklearn.ensemble import ExtraTreesClassifier, HistGradientBoostingClassifier, RandomForestClassifier
         from sklearn.impute import SimpleImputer
         from sklearn.linear_model import LogisticRegression
         from sklearn.metrics import accuracy_score, confusion_matrix, precision_recall_fscore_support
@@ -46,6 +45,7 @@ def _optional_imports():
         RandomForestClassifier,
         SimpleImputer,
         LogisticRegression,
+        ExtraTreesClassifier,
         accuracy_score,
         confusion_matrix,
         precision_recall_fscore_support,
@@ -65,8 +65,8 @@ def _one_hot_encoder(OneHotEncoder):
 def _build_pipeline(imports, model):
     ColumnTransformer = imports[1]
     SimpleImputer = imports[4]
-    Pipeline = imports[10]
-    OneHotEncoder = imports[11]
+    Pipeline = imports[11]
+    OneHotEncoder = imports[12]
     preprocessor = ColumnTransformer(
         transformers=[
             ("numeric", SimpleImputer(strategy="median"), NUMERIC_FEATURES),
@@ -141,10 +141,34 @@ def _false_positive_rate(y_true: list[str], y_pred: list[str]) -> float:
     return round(fp / (fp + tn), 4) if fp + tn else 0.0
 
 
+def _threat_positive_metrics(y_true: list[str], y_pred: list[str]) -> dict[str, Any]:
+    tp = fp = fn = support = 0
+    for actual, predicted in zip(y_true, y_pred, strict=False):
+        actual_positive = actual in POSITIVE_LABELS
+        predicted_positive = predicted in POSITIVE_LABELS
+        if actual_positive:
+            support += 1
+        if actual_positive and predicted_positive:
+            tp += 1
+        elif not actual_positive and predicted_positive:
+            fp += 1
+        elif actual_positive and not predicted_positive:
+            fn += 1
+    precision = tp / (tp + fp) if tp + fp else 0.0
+    recall = tp / (tp + fn) if tp + fn else 0.0
+    f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+    return {
+        "precision": round(precision, 4),
+        "recall": round(recall, 4),
+        "f1": round(f1, 4),
+        "support": support,
+    }
+
+
 def _metrics(imports, y_test: list[str], predictions: list[str], labels_order: list[str]) -> dict[str, Any]:
-    accuracy_score = imports[6]
-    confusion_matrix = imports[7]
-    precision_recall_fscore_support = imports[8]
+    accuracy_score = imports[7]
+    confusion_matrix = imports[8]
+    precision_recall_fscore_support = imports[9]
     weighted = precision_recall_fscore_support(y_test, predictions, labels=labels_order, average="weighted", zero_division=0)
     macro = precision_recall_fscore_support(y_test, predictions, labels=labels_order, average="macro", zero_division=0)
     per_class = precision_recall_fscore_support(y_test, predictions, labels=labels_order, average=None, zero_division=0)
@@ -173,10 +197,39 @@ def _metrics(imports, y_test: list[str], predictions: list[str], labels_order: l
             for index, label in enumerate(labels_order)
         },
         "cost_sensitive": cost_sensitive_report(y_test, predictions),
+        "threat_positive": _threat_positive_metrics(y_test, predictions),
         "false_positive_rate": _false_positive_rate(y_test, predictions),
         "confusion_matrix": confusion_matrix(y_test, predictions, labels=labels_order).tolist(),
         "labels": labels_order,
     }
+
+
+def _subset_metrics(imports, test_labels: list[MLLabel], y_test: list[str], predictions: list[str], labels_order: list[str]) -> dict[str, Any]:
+    subsets = {
+        "mixed_label_metrics": list(range(len(y_test))),
+        "reviewed_label_only_metrics": [index for index, label in enumerate(test_labels) if getattr(label, "reviewed", True)],
+        "weak_label_metrics": [
+            index
+            for index, label in enumerate(test_labels)
+            if not getattr(label, "reviewed", True) and str(getattr(label, "label_source", "")).startswith("assisted")
+        ],
+    }
+    results: dict[str, Any] = {}
+    for name, indexes in subsets.items():
+        if not indexes or len({y_test[index] for index in indexes}) < 2:
+            results[name] = {"status": "skipped", "rows": len(indexes), "reason": "not enough class support"}
+            continue
+        results[name] = {
+            "status": "evaluated",
+            "rows": len(indexes),
+            "metrics": _metrics(
+                imports,
+                [y_test[index] for index in indexes],
+                [predictions[index] for index in indexes],
+                labels_order,
+            ),
+        }
+    return results
 
 
 def _model_by_name(results: list[dict[str, Any]], name: str) -> dict[str, Any] | None:
@@ -204,15 +257,24 @@ def _promotion_gate(
     best_f1 = float(best_metrics.get("f1") or 0)
     baseline_macro = float((baseline_metrics.get("macro_average") or {}).get("f1") or 0)
     best_macro = float((best_metrics.get("macro_average") or {}).get("f1") or 0)
+    best_threat_f1 = float(((best_metrics.get("threat_positive") or {}).get("f1")) or 0)
     reasons: list[str] = []
     warnings = _support_warnings(label_distribution, reviewed_distribution, weak_distribution)
     if best_f1 < baseline_f1 + 0.01 and best_macro < baseline_macro + 0.01:
         reasons.append("Candidate does not meaningfully improve weighted or macro F1 over the current Random Forest baseline.")
+    if best_macro < 0.5:
+        reasons.append("Candidate macro F1 is below the analyst-review sanity floor.")
+    if best_threat_f1 and best_threat_f1 < 0.75:
+        reasons.append("Threat-positive F1 is below the analyst-review sanity floor.")
     for label in ["suspicious", "malicious"]:
         if int(label_distribution.get(label, 0)) >= MIN_CLASS_SUPPORT and _recall_for(best, label) < _recall_for(baseline, label):
             reasons.append(f"{label} recall is worse than the active Random Forest baseline.")
         if int(label_distribution.get(label, 0)) and _recall_for(best, label) == 0:
             reasons.append(f"{label} recall collapsed to zero.")
+    if _recall_for(best, "suspicious") < 0.5:
+        reasons.append("Suspicious recall is below the analyst-review sanity floor.")
+    if int(label_distribution.get("malicious", 0)) >= MIN_CLASS_SUPPORT and _recall_for(best, "malicious") < 0.25:
+        reasons.append("Malicious recall is below the analyst-review sanity floor.")
     if any("too small" in warning or "very low support" in warning or "weak-label" in warning for warning in warnings):
         reasons.append("Validation evidence is not strong enough for promotion.")
     analyst_review_eligible = not reasons
@@ -353,6 +415,7 @@ def compare_supervised_models(
     output_path: str | Path = DEFAULT_REPORT_PATH,
     test_size: float = 0.3,
     min_samples: int = 6,
+    split: str = "random",
 ) -> dict[str, Any]:
     imports = _optional_imports()
     if imports is None:
@@ -364,6 +427,7 @@ def compare_supervised_models(
         RandomForestClassifier,
         _SimpleImputer,
         LogisticRegression,
+        ExtraTreesClassifier,
         _accuracy_score,
         _confusion_matrix,
         _precision_recall_fscore_support,
@@ -399,31 +463,48 @@ def compare_supervised_models(
     distribution = _label_distribution(y)
     reviewed_distribution = _reviewed_distribution(labels)
     weak_distribution = _weak_distribution(labels)
-    estimated_test_rows = max(1, math.ceil(len(y) * test_size))
-    stratify = y if min(distribution.values()) >= 2 and estimated_test_rows >= len(distribution) else None
-    X_train, X_test, y_train, y_test, train_labels, logs_test = train_test_split(
-        frame,
-        y,
-        labels,
+    from atdr.app.detection.supervised_detector import _split_class_warnings, _split_indices
+
+    train_idx, test_idx, y_train, y_test, split_warnings = _split_indices(
+        logs=logs,
+        y=y,
+        split=split,
         test_size=test_size,
-        random_state=42,
-        stratify=stratify,
+        train_test_split=train_test_split,
     )
-    _weights, weight_summary = _sample_weights(train_labels)
+    split_warnings = [*split_warnings, *_split_class_warnings(y_train, y_test)]
+    X_train = frame.iloc[train_idx]
+    X_test = frame.iloc[test_idx]
+    test_labels = [labels[index] for index in test_idx]
+    _weights_all, weight_summary = _sample_weights(labels)
+    _weights = [_weights_all[index] for index in train_idx]
     labels_order = sorted(set(y))
     candidates = [
         ("random_forest", RandomForestClassifier(n_estimators=150, random_state=42, class_weight="balanced")),
         ("logistic_regression", LogisticRegression(max_iter=1000, solver="liblinear", class_weight="balanced")),
         ("hist_gradient_boosting", HistGradientBoostingClassifier(random_state=42)),
+        ("extra_trees", ExtraTreesClassifier(n_estimators=180, random_state=42, class_weight="balanced")),
     ]
     results: list[dict[str, Any]] = []
     for name, model in candidates:
         pipeline = _build_pipeline(imports, model)
+        train_started = time.perf_counter()
         pipeline.fit(X_train, y_train, model__sample_weight=_weights)
+        training_seconds = time.perf_counter() - train_started
+        predict_started = time.perf_counter()
         predictions = list(pipeline.predict(X_test))
-        results.append({"name": name, "metrics": _metrics(imports, y_test, predictions, labels_order)})
+        prediction_seconds = time.perf_counter() - predict_started
+        results.append(
+            {
+                "name": name,
+                "training_time_seconds": round(training_seconds, 4),
+                "prediction_time_seconds": round(prediction_seconds, 4),
+                "metrics": _metrics(imports, y_test, predictions, labels_order),
+                "evaluation": _subset_metrics(imports, test_labels, y_test, predictions, labels_order),
+            }
+        )
 
-    hybrid_predictions = _hybrid_predictions(db, [label.log for label in logs_test if label.log is not None])
+    hybrid_predictions = _hybrid_predictions(db, [logs[index] for index in test_idx])
     results.append({"name": "hybrid_score_baseline", "metrics": _metrics(imports, y_test, hybrid_predictions, labels_order)})
     best = max(results, key=lambda item: float(item["metrics"].get("f1", 0)))
     promotion_gate = _promotion_gate(
@@ -438,8 +519,10 @@ def compare_supervised_models(
         "status": "completed",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "label_quality": _label_quality(labels),
+        "split": split,
         "training_rows": len(X_train),
         "test_rows": len(X_test),
+        "split_warnings": split_warnings,
         "label_distribution": distribution,
         "label_source_distribution": _label_source_distribution(labels),
         "reviewed_label_distribution": reviewed_distribution,

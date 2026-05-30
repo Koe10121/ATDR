@@ -511,6 +511,7 @@ export interface SupervisedModelReport {
   latest_run?: {
     id: number;
     model_version?: string | null;
+    model_type?: string | null;
     status: string;
     actor: string;
     training_rows?: number | null;
@@ -530,6 +531,8 @@ export interface SupervisedModelReport {
     label_quality?: string;
     feature_generation?: Record<string, unknown>;
     training_dataset_diagnostics?: Record<string, unknown>;
+    feature_set_metadata?: Record<string, unknown>;
+    dataset_snapshot_id?: string | null;
     top_features: Array<Record<string, unknown>>;
     report_path?: string | null;
     created_at: string;
@@ -546,6 +549,42 @@ export interface SupervisedModelReport {
   validation_warnings?: string[];
   class_temporal_coverage?: ClassTemporalCoverageReport;
   model_readiness_checklist?: ModelReadinessChecklist;
+  decision_support_only: boolean;
+}
+
+export interface SupervisedModelRegistryItem {
+  model_id: number;
+  model_name: string;
+  model_version?: string | null;
+  model_type?: string | null;
+  operation: string;
+  status: string;
+  created_at?: string | null;
+  actor: string;
+  model_path: string;
+  artifact_sha256?: string | null;
+  artifact_exists: boolean;
+  is_active_path: boolean;
+  feature_set_version?: string | null;
+  dataset_snapshot_id?: string | null;
+  split_strategy?: string | null;
+  metrics?: Record<string, unknown>;
+  readiness_decision?: string | null;
+  analyst_review_eligible: boolean;
+  production_promoted: boolean;
+  response_automation_allowed: boolean;
+  report_path?: string | null;
+  message?: string | null;
+}
+
+export interface SupervisedModelRegistry {
+  ok: boolean;
+  active_model_path: string;
+  active_artifact_exists: boolean;
+  active_artifact_sha256?: string | null;
+  models: SupervisedModelRegistryItem[];
+  production_promoted: boolean;
+  response_automation_allowed: boolean;
   decision_support_only: boolean;
 }
 
