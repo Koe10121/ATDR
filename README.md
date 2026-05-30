@@ -52,6 +52,8 @@ Keep real or large Palo Alto log files outside Git, for example in `Downloads`, 
 
 ## Local Setup
 
+For a beginner-friendly Windows setup from a fresh clone or GitHub zip download, use `docs/QUICKSTART_FOR_TEAM.md`.
+
 ```powershell
 py -3.11 -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -152,7 +154,7 @@ Open `http://127.0.0.1:8501`.
 
 ## React Frontend Setup
 
-After installing Node.js 20+ or the current LTS, run:
+After installing Node.js 20.x LTS or newer, run:
 
 ```powershell
 cd frontend
@@ -161,7 +163,7 @@ npm install
 npm run dev
 ```
 
-On Windows, if PowerShell blocks `npm.ps1`, use `npm.cmd install` and `npm.cmd run dev`.
+On Windows, if PowerShell blocks `npm.ps1`, use `npm.cmd install` and `npm.cmd run dev`. Node 16 may fail with the current Vite, ESLint, and Playwright toolchain, so use Node 20.x for team setup and verification.
 
 Open `http://127.0.0.1:5173`. FastAPI must be running at `http://127.0.0.1:8000`.
 
@@ -207,6 +209,19 @@ For v0.2 replay ingestion and alert deduplication work, see `docs/V0_2_PLAN.md`.
 For v0.3 live/lab source management work, see `docs/V0_3_PLAN.md`.
 
 For current v0.3 release-candidate status, see `docs/V0_3_STATUS.md`.
+
+## Project Governance Docs
+
+ATDR-specific university workflow/process documents are available under `docs/`:
+
+- `docs/QUICKSTART_FOR_TEAM.md` - Windows PowerShell setup for teammates using clone or zip download.
+- `docs/ATDR_AI_WORKFLOW.md` - no-guessing, source-evidence, testing, PRD-update, safety, and handoff workflow.
+- `docs/prd/PRD-ATDR.md` - ATDR product requirements, constraints, capabilities, and PRD update rules.
+- `docs/agents/ATDR_AGENT_OPERATING_MODEL.md` - ATDR agent roles and handoff responsibilities.
+- `docs/templates/ATDR_T1_T20_CHANGE_DOCUMENT.md` - ATDR change document template.
+- `docs/ATDR_UNIVERSITY_COMPLIANCE_CHECKLIST.md` - mapping from university rules to current ATDR evidence and gaps.
+- `docs/security/ATDR_IAM_RBAC_MATRIX.md` - current admin/analyst permission matrix and IAM limitations.
+- `docs/ATDR_REQUIREMENT_TRACEABILITY.md` - source-backed mapping from major requirements to code, tests, docs, and gaps.
 
 Safe replay dry-run:
 
