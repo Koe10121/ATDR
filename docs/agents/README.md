@@ -1,5 +1,9 @@
 # NewSystem Agent Operating Model
 
+> Reference/template note: this folder still contains the original university
+> NewSystem agent examples for traceability. The active ATDR agent operating
+> model is `docs/agents/ATDR_AGENT_OPERATING_MODEL.md`.
+
 อัปเดตจาก source repo `NewSystem` ณ วันที่ 2026-05-28
 
 เอกสารชุดนี้คือ operating manual สำหรับใช้ agents พัฒนาและดูแล NewSystem. ทุก agent ต้องยึด `docs/AI-WORKFLOW.md`, source code ปัจจุบัน, route mount จริง, frontend route/API จริง และ permission model ที่มีอยู่ ไม่ใช่ prompt ทั่วไป.

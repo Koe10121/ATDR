@@ -119,6 +119,7 @@ def run_verify_release(
     include_smoke = include_smoke or require_docker
     python = sys.executable
     checks: list[dict] = []
+    pytest_basetemp = f".tmp/pytest-release-tmp-{os.getpid()}-{int(time.time() * 1000)}"
 
     required_commands: list[tuple[str, list[str]]] = [
         ("config_doctor", [python, "-m", "atdr.scripts.config_doctor"]),
@@ -133,7 +134,7 @@ def run_verify_release(
                 "-q",
                 "-o",
                 "cache_dir=.tmp/pytest-cache",
-                "--basetemp=.tmp/pytest-release-tmp",
+                f"--basetemp={pytest_basetemp}",
             ],
         ),
         ("alembic_check", [python, "-m", "alembic", "check"]),

@@ -1,58 +1,36 @@
 # MFU AI-Driven Log-Based Threat Detection and Response System
 
-ATDR is a defensive senior-project lab prototype for importing Palo Alto firewall/syslog logs, preserving raw evidence, normalizing key fields, generating explainable alerts, and simulating analyst-approved response actions with audit trails. It is lab-ready for controlled small-office validation, not certified production software.
+ATDR is a defensive senior-project lab prototype for AI-assisted firewall log monitoring. It imports Palo Alto firewall/syslog logs, preserves raw evidence, normalizes investigation fields, generates explainable SOC-style alerts, supports analyst review, and records simulated analyst-approved response actions with audit trails.
 
-## What Is Included
+ATDR is lab-ready for controlled small-office validation. It is not certified production software, does not perform real firewall blocking, and does not trigger automatic response actions.
 
-- FastAPI backend with log import, log explorer, alerts, detection, response, audit, and dashboard-summary endpoints.
-- Robust Palo Alto parser using `csv.reader` after splitting only the syslog timestamp and hostname.
-- SQLite by default, with SQLAlchemy models matching the prototype tables.
-- Rule-based detection plus optional IsolationForest anomaly scoring and supervised analyst-label decision support.
-- Incident-style alert grouping reduces per-log alert noise while preserving evidence log links.
-- Log source management tracks file import, replay, syslog, router, firewall, and sample sources with health/status counters.
-- React-first SOC dashboard with Overview, Alerts, Investigation, AI Governance, Threat Controls, Response & Audit, and Admin / Settings.
-- Streamlit dashboard remains available as a temporary demo/admin prototype while React is the priority dashboard path.
-- Source-aware scenario validation for normal traffic, port-scan-like traffic, deduplication, generic syslog, and raw fallback parser behavior.
-- SOC workflow support for alert assignment, analyst notes, status changes, timelines, and audited response actions.
-- Alert suppression rules with review state, watchlist indicators, escalation metadata, computed SLA signals, and exportable JSON/CSV/HTML/PDF incident reports.
-- Production-style tuning view for alert pressure, noisy rules, false-positive learning, suppression candidates, ML baseline health, and ownership gaps.
-- Production-style reliability basics: structured JSON logs, request IDs, richer health checks, and migration support.
-- Security hardening basics: configurable CORS origins and browser security headers.
-- Demo, architecture, operations, presentation, and production-readiness documentation in `docs/`.
-- Lab-pilot deployment guide with SQLite, PostgreSQL, and safe syslog receiver modes.
-- CLI scripts for import, replay, source registration, scenario validation, demo seeding, safe synthetic ML labels, ML training, anomaly scoring, release verification, lab smoke checks, backups, and export cleanup.
-- Unit and API tests for parsing, rules, auth, workflow, demo controls, and severity scoring.
+## Current v0.3 Snapshot
 
-## Project Layout
+- FastAPI backend with JWT auth, admin/analyst RBAC, SQLAlchemy/Alembic, and SQLite by default.
+- React-first SOC dashboard with Overview, Alerts, Investigation / Log Explorer, AI Governance, Response & Audit, Threat Controls, Detection Tuning, User Admin, and Demo Controls.
+- Palo Alto parser with raw evidence preservation, plus parser profiles for `palo_alto`, `generic_syslog`, and `raw_fallback`.
+- Log source management with source health, source-level data quality, replay/syslog lab support, and source-scoped detection.
+- Rule-based detection, alert deduplication, lightweight case grouping, ATT&CK-style mapping, and "Why flagged?" explanations.
+- IsolationForest anomaly scoring and supervised ML decision support with AI Governance, labeling workflow, active learning, and model validation gates.
+- Simulated response actions with confirmation, protected-IP safeguards, justification notes, and audit logs.
+- Safe synthetic scenario validation under `data/samples/scenarios/`.
+- Release gate, performance smoke, onboarding docs, IAM/RBAC docs, PRD, traceability, and university workflow documentation.
 
-```text
-atdr/
-  app/
-    main.py
-    core/
-    db/
-    parsers/
-    detection/
-    routers/
-    services/
-    schemas/
-  dashboard/
-    streamlit_app.py
-  data/
-  models/
-  scripts/
-  tests/
-frontend/
-  src/
-    React production dashboard migration
-migrations/
-```
+## Safety And Scope
 
-Keep real or large Palo Alto log files outside Git, for example in `Downloads`, `data/private/`, or `real_logs/`. Set `DEMO_SAMPLE_LOG_PATH` in `.env` to the absolute path when you want the demo scripts to use a private local log file.
+- Real or large firewall logs must stay outside Git, for example in `Downloads`, `data/private/`, or `real_logs/`.
+- `.env`, DB files, model artifacts, generated CSVs/reports, `ml_baseline_reviews/`, and `demo_exports/` must not be committed.
+- Response mode remains simulation unless a future approved connector is implemented.
+- ML is analyst decision support only; weak-label metrics are not production accuracy.
+- Docker/PostgreSQL is optional future/lab deployment work, not required for normal local testing.
 
-## Local Setup
+## Quick Start
 
-For a beginner-friendly Windows setup from a fresh clone or GitHub zip download, use `docs/QUICKSTART_FOR_TEAM.md`.
+For a beginner-friendly Windows setup from a fresh clone or GitHub zip download, use:
+
+- `docs/QUICKSTART_FOR_TEAM.md`
+
+Minimum local flow:
 
 ```powershell
 py -3.11 -m venv .venv
@@ -60,12 +38,28 @@ py -3.11 -m venv .venv
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 Copy-Item .env.example .env
-python -m atdr.scripts.config_doctor --pretty
+.\.venv\Scripts\alembic.exe upgrade head
+python -m atdr.scripts.seed_users
 ```
 
 If your system uses `python` instead of the Windows launcher, replace `py -3.11` with `python`.
 
-## Run The Backend
+Default local demo users from `.env.example`:
+
+```text
+admin / admin123
+analyst / analyst123
+```
+
+Replace demo secrets before shared lab or real deployment.
+
+Environment templates:
+
+- `.env.example` - normal local SQLite/demo setup.
+- `.env.lab.example` - optional PostgreSQL/shared lab starting point.
+- `.env.production.example` - future hardened deployment template, not a production guarantee.
+
+## Start The Backend
 
 ```powershell
 .\.venv\Scripts\python.exe -m uvicorn atdr.app.main:app --host 127.0.0.1 --port 8000 --reload
@@ -77,40 +71,37 @@ Health check:
 Invoke-RestMethod http://127.0.0.1:8000/health
 ```
 
-The health response includes database connectivity, ML model artifact readiness, response mode, environment, and service version.
-Every API response includes an `X-Request-ID` header. If a client sends `X-Request-ID`, ATDR preserves it; otherwise the API generates one for troubleshooting.
+## Start The React Dashboard
 
-## Demo Login
-
-Create demo users:
+Install Node.js 20.x LTS or newer. Node 16 may fail with the current Vite, ESLint, and Playwright toolchain.
 
 ```powershell
-python -m atdr.scripts.seed_users
+cd frontend
+Copy-Item .env.example .env
+npm.cmd install
+npm.cmd run dev
 ```
 
-Default demo accounts from `.env.example`:
+Open:
 
 ```text
-admin / admin123
-analyst / analyst123
+http://127.0.0.1:5173
 ```
 
-The admin role can run simulated block/unblock response actions. Analysts can investigate and update alert status.
-Alert workflow states are `open` (New), `investigating`, `needs_more_context`, `contained`, `resolved`, and `false_positive`.
-Alerts can be assigned to analysts, annotated with investigation notes, and reviewed through a timeline view.
-
-Most API endpoints now require a bearer token. Use `/api/auth/login` to receive a JWT and pass it as:
+FastAPI must be running at:
 
 ```text
-Authorization: Bearer <access_token>
+http://127.0.0.1:8000
 ```
 
-## Import Logs
+Streamlit remains available only as legacy/demo continuity. React is the priority dashboard path. See `docs/DASHBOARD_PRODUCTION_PATH.md` for the historical dashboard migration context.
 
-The default import limit is `5000` rows so the first demo stays responsive with large firewall files. Change `DEFAULT_IMPORT_LIMIT` in `.env`, pass `--limit`, or use `--limit 0` to import the full file. Keep private logs outside Git and pass an absolute path when importing real data.
+## Import Or Replay Logs
+
+Keep private logs outside Git and pass an absolute path when importing real data:
 
 ```powershell
-python -m atdr.scripts.import_logs "C:/path/to/private/paloalto-firewall.log" --limit 5000
+python -m atdr.scripts.import_logs "C:\Users\User\Downloads\paloalto-firewall.log" --limit 5000
 ```
 
 Run detection:
@@ -118,110 +109,6 @@ Run detection:
 ```powershell
 Invoke-RestMethod -Method Post "http://127.0.0.1:8000/api/detection/run?limit=5000&use_ml=false"
 ```
-
-Seed a quick demo from the provided sample:
-
-```powershell
-python -m atdr.scripts.seed_demo
-```
-
-Reset the local demo database and recreate grouped alerts:
-
-```powershell
-python -m atdr.scripts.reset_demo --yes --limit 5000
-```
-
-Grouped detection currently uses 5-minute buckets. Low-severity groups are suppressed unless at least 5 matching evidence logs are present.
-
-## Run The React Dashboard
-
-The production dashboard migration lives in `frontend/`. Keep FastAPI running, then start React:
-
-```powershell
-cd frontend
-npm.cmd run dev
-```
-
-Open `http://127.0.0.1:5173`.
-
-Streamlit remains available for continuity:
-
-```powershell
-.\.venv\Scripts\streamlit.exe run atdr/dashboard/streamlit_app.py --server.headless true --browser.gatherUsageStats false
-```
-
-Open `http://127.0.0.1:8501`.
-
-## React Frontend Setup
-
-After installing Node.js 20.x LTS or newer, run:
-
-```powershell
-cd frontend
-Copy-Item .env.example .env
-npm install
-npm run dev
-```
-
-On Windows, if PowerShell blocks `npm.ps1`, use `npm.cmd install` and `npm.cmd run dev`. Node 16 may fail with the current Vite, ESLint, and Playwright toolchain, so use Node 20.x for team setup and verification.
-
-Open `http://127.0.0.1:5173`. FastAPI must be running at `http://127.0.0.1:8000`.
-
-Frontend verification after Node is available:
-
-```powershell
-npm run build
-npm run lint
-npm run test:e2e
-```
-
-## Live Syslog Lab Test
-
-Run the localhost UDP receiver in one terminal:
-
-```powershell
-python -m atdr.scripts.run_syslog_receiver --host 127.0.0.1 --port 5514
-```
-
-Then send harmless sample Palo Alto traffic lines from another terminal:
-
-```powershell
-python -m atdr.scripts.send_sample_syslog --host 127.0.0.1 --port 5514 --count 3
-```
-
-Verify ingestion through the Log Explorer, ML Governance data-quality panel, or `GET /api/logs`. Keep the receiver bound to localhost for lab testing unless the host firewall and network scope are explicitly approved.
-
-## Optional Lab Scenario Runner
-
-For a safe end-to-end lab check that does not reset data by default:
-
-```powershell
-python -m atdr.scripts.run_lab_scenario --dry-run --use-sample-data --pretty
-python -m atdr.scripts.run_lab_scenario --use-sample-data --no-ml --pretty
-```
-
-Use `--reset-demo` only when you intentionally want to clear demo data. See `docs/LAB_RUNBOOK.md`.
-
-For v0.1 acceptance testing and current lab-readiness status, see `docs/ACCEPTANCE_TEST_CHECKLIST.md` and `docs/V0_1_STATUS.md`.
-
-For v0.2 replay ingestion and alert deduplication work, see `docs/V0_2_PLAN.md`.
-
-For v0.3 live/lab source management work, see `docs/V0_3_PLAN.md`.
-
-For current v0.3 release-candidate status, see `docs/V0_3_STATUS.md`.
-
-## Project Governance Docs
-
-ATDR-specific university workflow/process documents are available under `docs/`:
-
-- `docs/QUICKSTART_FOR_TEAM.md` - Windows PowerShell setup for teammates using clone or zip download.
-- `docs/ATDR_AI_WORKFLOW.md` - no-guessing, source-evidence, testing, PRD-update, safety, and handoff workflow.
-- `docs/prd/PRD-ATDR.md` - ATDR product requirements, constraints, capabilities, and PRD update rules.
-- `docs/agents/ATDR_AGENT_OPERATING_MODEL.md` - ATDR agent roles and handoff responsibilities.
-- `docs/templates/ATDR_T1_T20_CHANGE_DOCUMENT.md` - ATDR change document template.
-- `docs/ATDR_UNIVERSITY_COMPLIANCE_CHECKLIST.md` - mapping from university rules to current ATDR evidence and gaps.
-- `docs/security/ATDR_IAM_RBAC_MATRIX.md` - current admin/analyst permission matrix and IAM limitations.
-- `docs/ATDR_REQUIREMENT_TRACEABILITY.md` - source-backed mapping from major requirements to code, tests, docs, and gaps.
 
 Safe replay dry-run:
 
@@ -236,7 +123,11 @@ python -m atdr.scripts.register_log_source --name lab-firewall-1 --source-type f
 python -m atdr.scripts.replay_logs --send-to direct --source-name lab-firewall-1 --source-type firewall --source-host 192.0.2.10 --source-port 514 --limit 100 --rate 1 --pretty
 ```
 
-Run safe source-aware scenario validation without touching the current database:
+## Safe Scenario Validation
+
+Synthetic scenario files live under `data/samples/scenarios/`. They validate normal traffic, port-scan-like traffic, deduplication, generic syslog, and raw fallback behavior without using private logs.
+
+Run a scenario against a temporary database:
 
 ```powershell
 python -m atdr.scripts.run_source_scenario --scenario port_scan_like_traffic --use-temp-db --run-detection --pretty
@@ -248,290 +139,125 @@ Run a scenario into the current dashboard intentionally:
 python -m atdr.scripts.run_source_scenario --scenario port_scan_like_traffic --source-name scenario-lab-firewall-1 --run-detection --pretty
 ```
 
-The synthetic scenario files are under `data/samples/scenarios/`. They prove parser, source, detection, deduplication, and dashboard investigation behavior without using private logs.
+## ML And AI Governance
 
-## ML-Assisted Anomaly Detection
+ATDR combines:
 
-Train the optional IsolationForest after importing logs:
+- rule-based detection as the primary explainable signal
+- IsolationForest anomaly scoring as assistive unsupervised ML
+- supervised classifier output trained from reviewed/assisted labels
+- hybrid risk scoring for analyst triage
 
-```powershell
-python -m atdr.scripts.train_model --limit 20000
-```
+The model is analyst-review eligible, not production-promoted. Response automation remains disabled regardless of model output.
 
-Score imported logs without creating alerts:
-
-```powershell
-python -m atdr.scripts.predict_anomaly --limit 5000
-```
-
-Then run detection with ML enabled:
+Useful commands:
 
 ```powershell
-Invoke-RestMethod -Method Post "http://127.0.0.1:8000/api/detection/run?limit=5000&use_ml=true"
+python -m atdr.scripts.generate_assisted_labels --dry-run --limit 1000 --pretty
+python -m atdr.scripts.export_active_learning_review_sample --limit 200
+python -m atdr.scripts.train_supervised_model --split time --test-size 0.3 --min-samples 6
 ```
 
-The ML output is treated as assistance only. Rule explanations remain the primary reason an alert is created.
+See `docs/AI_TRAINING_RUNBOOK.md` and `docs/ML_BASELINE_TUNING.md`.
 
-The ML Governance dashboard and `/api/ml/*` endpoints record model training and scoring runs, including actor, training log count, feature columns, feature summary, model artifact hash, anomaly count, anomaly rate, run comparison, and baseline drift signals. The dataset profile also reports baseline candidate counts, high-risk traffic volume, deny/drop volume, unknown-app volume, and training recommendations. This keeps the AI layer explainable and auditable instead of treating the model as a black box.
+## Verification
 
-For safer training, use baseline-only mode first. It trains on allowed traffic, caps app risk, excludes unknown/incomplete applications, and can exclude logs already flagged as anomalous.
-
-The evaluation report compares recent scoring runs and summarizes top anomalous source IPs, apps, ports, protocols, sample logs, score statistics, and operator recommendations.
-
-Analyst-reviewed labels can be stored in `ml_labels` through `/api/ml/labels` or the React Log Explorer labeling panel. The ML Governance page includes a prioritized Label Review Queue and CSV import/export for analyst review workflows. After enough reviewed rows exist, train the supervised decision-support classifier:
+Backend:
 
 ```powershell
-python -m atdr.scripts.train_supervised_model --test-size 0.3
+.\.venv\Scripts\python.exe -m compileall -q atdr migrations
+.\.venv\Scripts\python.exe -m pytest atdr\tests -q
+.\.venv\Scripts\alembic.exe check
 ```
 
-The supervised classifier uses the original single-log features plus 5-minute source/destination context such as deny rate, unique destination ports, total bytes, unknown app count, high-risk app count, hour of day, and after-hours signal. Its output is combined with rule score and IsolationForest anomaly support in a hybrid risk score, but it remains analyst decision support only.
-
-For a safe synthetic training demo without private traffic:
+Frontend:
 
 ```powershell
-python -m atdr.scripts.seed_demo_labels
-python -m atdr.scripts.train_supervised_model --test-size 0.3
+cd frontend
+npm.cmd run lint
+npm.cmd run build
+npm.cmd run test:e2e
 ```
 
-For the complete end-to-end hybrid AI workflow, see `docs/AI_TRAINING_RUNBOOK.md`.
-
-For lab-pilot tuning, export an analyst review package:
+Release checks:
 
 ```powershell
-python -m atdr.scripts.ml_baseline_review --anomaly-limit 200 --baseline-limit 200
+.\.venv\Scripts\python.exe -m atdr.scripts.replay_logs --dry-run --limit 20 --rate 5 --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.performance_smoke --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.verify_release
 ```
 
-This writes JSON/CSV/Markdown evidence to `ml_baseline_reviews/`, including anomaly rows with raw evidence excerpts and blank analyst review columns. See `docs/ML_BASELINE_TUNING.md`.
-
-## API Highlights
-
-- `GET /health`
-- `POST /api/auth/login`
-- `GET /api/auth/me`
-- `POST /api/demo/reset`
-- `POST /api/demo/import-sample`
-- `POST /api/demo/run-detection`
-- `POST /api/demo/train-ml`
-- `POST /api/demo/apply-ml`
-- `POST /api/demo/export-bundle`
-- `GET /api/ml/status`
-- `GET /api/ml/runs`
-- `GET /api/ml/profile`
-- `GET /api/ml/report`
-- `GET /api/ml/labels`
-- `POST /api/ml/labels`
-- `PUT /api/ml/labels/{label_id}`
-- `GET /api/ml/labels/export`
-- `GET /api/ml/labels/template`
-- `POST /api/ml/labels/import`
-- `GET /api/ml/review-queue`
-- `GET /api/ml/review-queue/export`
-- `GET /api/ml/supervised/report`
-- `GET /api/ml/supervised/report/export`
-- `POST /api/ml/supervised/train`
-- `GET /api/ml/supervised/predict/{log_id}`
-- `POST /api/ml/train`
-- `POST /api/ml/score`
-- `POST /api/logs/import`
-- `GET /api/logs`
-- `GET /api/logs/{log_id}`
-- `GET /api/sources`
-- `GET /api/sources/{id}`
-- `POST /api/sources`
-- `PATCH /api/sources/{id}`
-- `GET /api/sources/{id}/health`
-- `GET /api/alerts`
-- `POST /api/alerts/{alert_id}/resolve`
-- `POST /api/alerts/{alert_id}/false-positive`
-- `POST /api/alerts/{alert_id}/investigate`
-- `POST /api/alerts/{alert_id}/contain`
-- `POST /api/alerts/{alert_id}/status`
-- `POST /api/alerts/{alert_id}/assign`
-- `POST /api/alerts/{alert_id}/assign/me`
-- `POST /api/alerts/{alert_id}/notes`
-- `GET /api/alerts/{alert_id}/notes`
-- `GET /api/alerts/{alert_id}/timeline`
-- `POST /api/alerts/{alert_id}/escalate`
-- `GET /api/alerts/{alert_id}/report`
-- `GET /api/suppressions`
-- `POST /api/suppressions`
-- `POST /api/suppressions/{id}/disable`
-- `POST /api/suppressions/{id}/review`
-- `GET /api/watchlists`
-- `POST /api/watchlists`
-- `POST /api/watchlists/{id}/disable`
-- `GET /api/users`
-- `POST /api/users`
-- `POST /api/users/{id}/disable`
-- `POST /api/users/{id}/reset-password`
-- `POST /api/users/{id}/role`
-- `POST /api/auth/change-password`
-- `POST /api/detection/run`
-- `GET /api/detection/summary`
-- `GET /api/detection/tuning`
-- `POST /api/response/block-ip`
-- `POST /api/response/unblock-ip`
-- `GET /api/response/blocked-ips`
-- `GET /api/audit`
-- `GET /api/dashboard/summary`
-
-## Tests
+Equivalent release-gate command from an activated virtual environment:
 
 ```powershell
-pytest atdr/tests
+python -m atdr.scripts.verify_release
 ```
 
-Run the full local release gate before a demo or release candidate:
-
-```powershell
-python -m atdr.scripts.verify_release --pretty
-```
-
-If API and Streamlit are already running, include local smoke checks:
-
-```powershell
-python -m atdr.scripts.verify_release --include-smoke --pretty
-```
-
-Playwright browser smoke tests are optional. Run them only after installing browser dependencies and starting API plus Streamlit:
+Optional browser smoke flag for legacy Python-driven dashboard smoke checks:
 
 ```powershell
 $env:ATDR_RUN_PLAYWRIGHT="1"
-pytest atdr/tests/test_dashboard_playwright_smoke.py -q
 ```
 
-## Database Migrations
+## Documentation Map
 
-SQLite demo mode can still auto-create tables with `AUTO_CREATE_TABLES=true`.
-For production-style environments, set:
+Start here:
+
+- `docs/QUICKSTART_FOR_TEAM.md` - Windows setup for teammates using clone or zip download.
+- `docs/LAB_RUNBOOK.md` - lab operations, replay, syslog, source validation, and troubleshooting.
+- `docs/V0_3_RELEASE_CANDIDATE.md` - current release-candidate summary.
+- `docs/V0_3_STATUS.md` - detailed current v0.3 status.
+- `docs/V0_3_PLAN.md` - v0.3 source-management and scenario-validation plan.
+
+Governance and university workflow:
+
+- `docs/ATDR_AI_WORKFLOW.md` - no-guessing, source-evidence, testing, PRD-update, safety, and handoff workflow.
+- `docs/prd/PRD-ATDR.md` - real ATDR PRD.
+- `docs/security/ATDR_IAM_RBAC_MATRIX.md` - admin/analyst permission matrix and IAM limitations.
+- `docs/ATDR_REQUIREMENT_TRACEABILITY.md` - source-backed mapping from requirements to code, tests, docs, and gaps.
+- `docs/agents/ATDR_AGENT_OPERATING_MODEL.md` - ATDR agent roles and handoff responsibilities.
+- `docs/templates/ATDR_T1_T20_CHANGE_DOCUMENT.md` - ATDR change document template.
+- `docs/changes/T1_T20_IAM_RBAC_COMPLIANCE.md` - completed change-document example.
+
+Other useful docs:
+
+- `docs/ACCEPTANCE_TEST_CHECKLIST.md`
+- `docs/ARCHITECTURE.md`
+- `docs/DEMO_DAY_RUNBOOK.md`
+- `docs/DASHBOARD_PRODUCTION_PATH.md`
+- `docs/ENVIRONMENT_GUIDE.md`
+- `docs/DEPLOYMENT_GUIDE.md`
+- `docs/OPERATIONS_RUNBOOK.md`
+- `docs/LIMITATIONS_AND_FUTURE_WORK.md`
+
+## Project Layout
 
 ```text
-AUTO_CREATE_TABLES=false
+atdr/
+  app/
+    main.py
+    core/
+    db/
+    parsers/
+    detection/
+    ml/
+    routers/
+    services/
+    schemas/
+  dashboard/        legacy Streamlit continuity
+  scripts/
+  tests/
+data/samples/       safe synthetic/demo samples only
+frontend/           React SOC dashboard
+migrations/         Alembic migrations
+docs/               runbooks, PRD, governance, status, release docs
 ```
 
-Then run migrations explicitly:
+## Current Limitations
 
-```powershell
-alembic upgrade head
-```
-
-Create future schema migrations after model changes:
-
-```powershell
-alembic revision --autogenerate -m "describe change"
-```
-
-If you already have a pre-Alembic local SQLite database with the current schema, back it up and mark it as migrated:
-
-```powershell
-alembic stamp head
-```
-
-## Docker
-
-SQLite demo:
-
-```powershell
-docker compose up --build
-```
-
-PostgreSQL profile:
-
-```powershell
-docker compose --profile postgres up -d postgres
-docker compose --profile postgres run --rm migrate
-docker compose --profile postgres up --build api dashboard
-```
-
-For PostgreSQL, start from `.env.lab.example`:
-
-```powershell
-Copy-Item .env.lab.example .env
-python -m atdr.scripts.config_doctor --pretty
-```
-
-Use `.env.example` for local demo, `.env.lab.example` for PostgreSQL lab pilot, and `.env.production.example` as a future hardened template. See `docs/ENVIRONMENT_GUIDE.md`, `docs/DEPLOYMENT_GUIDE.md`, `docs/OPERATIONS_RUNBOOK.md`, and `docs/PRODUCTION_READINESS.md` for lab-pilot deployment guidance, live syslog receiver usage, CORS/HTTPS/reverse-proxy guidance, backups, and retention policy.
-
-CI runs the same core quality gate on push and pull request: Config Doctor, compileall, pytest, Alembic drift check, and conservative Ruff linting. Docker and Playwright checks remain optional because they depend on host tooling.
-
-Run the local UDP syslog receiver in lab mode:
-
-```powershell
-python -m atdr.scripts.run_syslog_receiver --host 127.0.0.1 --port 5514
-```
-
-Prove the live ingestion path locally without a firewall:
-
-```powershell
-python -m atdr.scripts.syslog_lab_smoke --count 5
-```
-
-See `docs/SMALL_OFFICE_LAB_PILOT.md` for the controlled small-office pilot path, including real syslog forwarding and safe response requirements.
-
-## Clean Supervisor Demo Flow
-
-Use `docs/DEMO_DAY_RUNBOOK.md` as the authoritative local Windows checklist for demo day. Quick start:
-
-```powershell
-python -m atdr.scripts.seed_users
-python -m atdr.scripts.config_doctor --pretty
-uvicorn atdr.app.main:app --host 127.0.0.1 --port 8000
-streamlit run atdr/dashboard/streamlit_app.py --server.address 127.0.0.1 --server.port 8501 --server.headless true --browser.gatherUsageStats false
-python -m atdr.scripts.demo_health_check
-python -m atdr.scripts.lab_smoke_check --skip-docker
-```
-
-Then in the dashboard:
-
-1. Log in as `admin`.
-2. Keep **Presentation Mode** enabled in the sidebar.
-3. Open **Demo Controls**.
-4. Run **Reset Demo Data**.
-5. Run **Run Detection** if needed.
-6. Optionally run **Train ML Model** and **Apply ML Scoring**.
-7. Run **Generate Demo Evidence Bundle**.
-8. Present from **Executive Demo** first.
-
-CLI export option:
-
-```powershell
-python -m atdr.scripts.export_demo_bundle --actor admin
-```
-
-Lab-pilot utility scripts:
-
-```powershell
-python -m atdr.scripts.lab_smoke_check
-python -m atdr.scripts.backup_demo --dry-run
-python -m atdr.scripts.backup_postgres --dry-run
-python -m atdr.scripts.cleanup_exports --older-than-days 14
-python -m atdr.scripts.verify_release --pretty
-```
-
-On this development machine, Docker Compose validation may need to be run elsewhere if Docker is not installed. The smoke check reports that blocker clearly.
-
-## Assumptions
-
-- Response actions are simulated by default. The system records block and unblock actions but does not modify real firewall devices. If `RESPONSE_SIMULATION=false` is set before an approved connector exists, actions are recorded as `pending_connector`, not falsely reported as executed.
-- The parser focuses on Palo Alto TRAFFIC fields and safely normalizes useful THREAT fields. Full raw payload fields are stored in `parsed_json` for evidence and later mapping improvements.
-- Alert creation groups related evidence logs by rule, source or internet-sweep pattern, and 5-minute time bucket. Low-severity singletons are suppressed to keep the analyst view usable.
-- IsolationForest is an unsupervised assistive model. Train it on a representative baseline window and review anomaly-rate reports before using it to support real SOC decisions.
-- The default SQLite database is intended for local demonstrations. PostgreSQL is included for a more realistic deployment path.
-
-## Project Documentation
-
-- `docs/ARCHITECTURE.md`: subsystem diagram and data trust model.
-- `docs/DEMO_FLOW.md`: hands-on demo sequence.
-- `docs/DEMO_DAY_RUNBOOK.md`: local Windows supervisor demo checklist.
-- `docs/ENVIRONMENT_GUIDE.md`: demo, lab, and future production environment profiles.
-- `docs/FINAL_DEMO_SCRIPT.md`: final supervisor walkthrough script.
-- `docs/PRESENTATION_PACKAGE.md`: supervisor demo script and screenshot checklist.
-- `docs/RELEASE_CHECKLIST.md`: local demo and lab-pilot release gate checklist.
-- `docs/DASHBOARD_PRODUCTION_PATH.md`: honest path from Streamlit SOC console to enterprise frontend.
-- `docs/SUPERVISOR_QA.md`: prepared answers for likely evaluation questions.
-- `docs/SCREENSHOT_CHECKLIST.md`: exact screenshots to capture for slides/report.
-- `docs/DEPLOYMENT_GUIDE.md`: SQLite, PostgreSQL, and syslog receiver setup.
-- `docs/OPERATIONS_RUNBOOK.md`: HTTPS, backups, retention, and safe response procedure.
-- `docs/V0_3_PLAN.md`: live/lab log source management and parser profile readiness.
-- `docs/V0_3_STATUS.md`: current v0.3 lab-ready release-candidate status.
-- `docs/LIMITATIONS_AND_FUTURE_WORK.md`: honest production roadmap.
+- Real firewall blocking is not implemented.
+- Automatic response is not enabled.
+- Real router/firewall syslog forwarding still needs controlled lab validation.
+- SQLite is convenient for local use; PostgreSQL is recommended later for shared/larger lab deployment.
+- Supervised ML still needs more reviewed labels and live validation before stronger claims.
+- Case grouping is lightweight and not a full incident-management/ticketing platform.

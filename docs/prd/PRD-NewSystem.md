@@ -1,5 +1,7 @@
 # PRD: NewSystem
 
+> Reference/template note: this file is a university template reference for a different example project named NewSystem. It is not the ATDR product requirements document and it does not describe the ATDR FastAPI + React architecture. The active ATDR PRD is `docs/prd/PRD-ATDR.md`.
+
 ## Document Control
 
 | Field | Value |

@@ -1,5 +1,9 @@
 # T1-T20 Change Document Template
 
+> Reference/template note: this is the original university NewSystem-oriented
+> template. The active ATDR change template is
+> `docs/templates/ATDR_T1_T20_CHANGE_DOCUMENT.md`.
+
 ## T1 Change Title
 
 | Field | Value |

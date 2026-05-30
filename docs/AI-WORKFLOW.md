@@ -1,5 +1,9 @@
 # AI-WORKFLOW: NewSystem
 
+> Reference/template note: this is the original university NewSystem workflow
+> reference. It is kept for traceability only. The active ATDR workflow is
+> `docs/ATDR_AI_WORKFLOW.md`.
+
 อัปเดตจาก source repo `NewSystem` ณ วันที่ 2026-05-28
 
 เอกสารนี้เป็น workflow หลักสำหรับ AI/agents ทุกตัวใน repo นี้. `docs/agents/*` คือ role instructions ส่วน `AI-WORKFLOW.md` คือ sequence, gates, evidence, test, PRD และเอกสารส่งมอบที่ทุก role ต้องทำตาม.
