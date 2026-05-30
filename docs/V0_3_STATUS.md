@@ -59,6 +59,7 @@ Scenario output does not trigger response actions.
 ## Known Limitations
 
 - SQLite is suitable for local lab/demo use; PostgreSQL should be used for shared lab deployment.
+- A previous large local SQLite performance smoke showed budget warnings: Overview / ingestion summary around 10.7997s and ML Governance lightweight summary around 2.8009s. The final compliance rerun was healthy: Overview / ingestion summary 0.415s and ML Governance lightweight summary 1.3791s. Monitor for recurrence; do not reset or delete data to hide performance issues.
 - Real firewall enforcement is not implemented.
 - TCP syslog and vendor-specific device forwarding still need lab validation.
 - Case grouping is computed rather than persisted as full incident records.
@@ -73,4 +74,3 @@ Move to v0.4 only after the v0.3 release candidate is stable in daily use. The s
 - Real firewall/router syslog forwarding validation in a controlled lab.
 - React dashboard polish based on actual analyst usage.
 - More reviewed labels for suspicious/malicious boundary quality.
-

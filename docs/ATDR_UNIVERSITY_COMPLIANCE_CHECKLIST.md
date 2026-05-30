@@ -42,7 +42,35 @@ This checklist maps the university AI/project workflow rules to ATDR-specific ev
 
 ## Current Compliance Status
 
-ATDR now has ATDR-specific workflow governance, PRD, agent operating model, change template, and compliance checklist. The old template-style university docs can remain as historical references, but future ATDR work should use the ATDR-specific documents listed above.
+ATDR now has ATDR-specific workflow governance, PRD, agent operating model, change template, completed change example, IAM/RBAC matrix, requirement traceability, and release evidence. The old template-style university docs can remain as historical references, but future ATDR work should use the ATDR-specific documents listed above.
+
+| Compliance Item | Current Status | Evidence |
+| --- | --- | --- |
+| No-guessing/source evidence rule | Satisfied | `docs/ATDR_AI_WORKFLOW.md`, T3 in `docs/templates/ATDR_T1_T20_CHANGE_DOCUMENT.md` |
+| ATDR PRD exists | Satisfied | `docs/prd/PRD-ATDR.md` |
+| Agent operating model exists | Satisfied | `docs/agents/ATDR_AGENT_OPERATING_MODEL.md` |
+| T1-T20 template exists | Satisfied | `docs/templates/ATDR_T1_T20_CHANGE_DOCUMENT.md` |
+| Completed T1-T20 example exists | Satisfied | `docs/changes/T1_T20_IAM_RBAC_COMPLIANCE.md` |
+| IAM/RBAC matrix exists | Satisfied | `docs/security/ATDR_IAM_RBAC_MATRIX.md` |
+| Requirement traceability exists | Satisfied | `docs/ATDR_REQUIREMENT_TRACEABILITY.md` |
+| Release gate exists | Satisfied | `atdr/scripts/verify_release.py` |
+| Acceptance checklist exists | Satisfied | `docs/ACCEPTANCE_TEST_CHECKLIST.md` |
+| Lab runbook exists | Satisfied | `docs/LAB_RUNBOOK.md` |
+| AI safety documented | Satisfied | `docs/prd/PRD-ATDR.md`, `docs/AI_TRAINING_RUNBOOK.md`, `docs/V0_3_STATUS.md` |
+| Response safety documented | Satisfied | `docs/prd/PRD-ATDR.md`, `docs/security/ATDR_IAM_RBAC_MATRIX.md`, `atdr/tests/test_response_safety.py` |
+| Repo hygiene documented | Satisfied | `.gitignore`, `docs/ATDR_AI_WORKFLOW.md`, `docs/QUICKSTART_FOR_TEAM.md` |
+| Remaining gaps documented | Satisfied | Remaining Gaps section below |
+
+## Large SQLite Performance Monitoring Note
+
+During compliance closure, one large local SQLite performance smoke run showed budget warnings, but the final rerun completed within budget. Keep this note as a monitoring item because local SQLite timing can vary with concurrent backend/dashboard activity and DB lock contention.
+
+| Metric | Previous Warning Run | Final Rerun | Local Budget |
+| --- | ---: | ---: |
+| Overview / ingestion summary | 10.7997s | 0.415s | 1.0s for Overview, 2.0s for ingestion summary |
+| ML Governance lightweight summary | 2.8009s | 1.3791s | 2.0s |
+
+Do not reset or delete data to hide performance issues. If warnings recur, recommended next action is to profile the Overview/ingestion summary query path on the current large SQLite DB and consider a targeted cache/query/index improvement or PostgreSQL lab validation later.
 
 ## Remaining Gaps
 
@@ -55,8 +83,9 @@ ATDR now has ATDR-specific workflow governance, PRD, agent operating model, chan
 - Docker/PostgreSQL lab deployment validation is still optional/future on a Docker-capable host.
 - Production security hardening is pending.
 - Final report/slides are not finalized.
-- Future non-trivial changes should create completed T1-T20 change records, not only use the template.
+- Future non-trivial changes should create completed T1-T20 change records like `docs/changes/T1_T20_IAM_RBAC_COMPLIANCE.md`.
 - More human-reviewed suspicious/malicious labels are needed before stronger ML claims.
+- Large local SQLite DB performance should be monitored; investigate if the Overview/ML Governance warnings recur.
 
 ## Required Pre-Handoff Checks For Future Work
 

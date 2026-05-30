@@ -154,7 +154,7 @@ Open `http://127.0.0.1:8501`.
 
 ## React Frontend Setup
 
-After installing Node.js 20+ or the current LTS, run:
+After installing Node.js 20.x LTS or newer, run:
 
 ```powershell
 cd frontend
@@ -163,7 +163,7 @@ npm install
 npm run dev
 ```
 
-On Windows, if PowerShell blocks `npm.ps1`, use `npm.cmd install` and `npm.cmd run dev`.
+On Windows, if PowerShell blocks `npm.ps1`, use `npm.cmd install` and `npm.cmd run dev`. Node 16 may fail with the current Vite, ESLint, and Playwright toolchain, so use Node 20.x for team setup and verification.
 
 Open `http://127.0.0.1:5173`. FastAPI must be running at `http://127.0.0.1:8000`.
 

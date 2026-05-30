@@ -30,9 +30,11 @@ http://127.0.0.1:5173
 Install these first:
 
 - Python 3.11 or newer
-- Node.js current LTS, with npm
+- Node.js 20.x current LTS, with npm
 - Git, if cloning instead of downloading a zip
 - VS Code, recommended
+
+Node.js 20.x is recommended because the current Vite, ESLint, and Playwright toolchain expects newer Web APIs. Node 16 may fail during `npm.cmd run build`, `npm.cmd run lint`, or `npm.cmd run test:e2e`.
 
 ## Option A: Clone From GitHub
 
@@ -272,7 +274,7 @@ Use `npm.cmd` on Windows PowerShell:
 npm.cmd install
 ```
 
-If Node is missing, install Node.js LTS and reopen PowerShell.
+If Node is missing, install Node.js 20.x LTS and reopen PowerShell. If your machine still uses Node 16, upgrade before running frontend build or Playwright checks.
 
 ### Alembic Migration Error
 
