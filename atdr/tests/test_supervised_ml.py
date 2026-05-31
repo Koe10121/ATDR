@@ -26,7 +26,9 @@ from atdr.app.detection.threshold_tuning import tune_model_thresholds
 from atdr.app.detection.supervised_workflow import (
     activate_supervised_model,
     analyze_supervised_errors,
+    evaluate_active_supervised_model,
     export_supervised_dataset_snapshot,
+    generate_supervised_sanity_report,
     list_supervised_models,
     rollback_supervised_model,
     run_supervised_experiment,
@@ -1017,11 +1019,50 @@ def test_supervised_experiment_tuning_and_error_analysis_reports(tmp_path, monke
 
     assert experiment["ok"] is True
     assert any(model["name"] == "extra_trees" for model in experiment["models"])
+    assert experiment["threshold_profile"] == "balanced"
+    assert all("direct_model_metrics" in model for model in experiment["models"] if model["name"] != "hybrid_score_baseline")
     assert experiment["production_promoted"] is False
     assert tuning["status"] == "completed"
     assert tuning["response_automation_allowed"] is False
     assert analysis["status"] == "exported"
     assert "Supervised Error Analysis" in Path(analysis["report_path"]).read_text(encoding="utf-8")
+
+
+def test_supervised_sanity_report_evaluates_active_and_candidates(tmp_path, monkeypatch):
+    active_path = tmp_path / "active-supervised.joblib"
+    monkeypatch.setattr(
+        supervised_detector,
+        "get_settings",
+        lambda: SimpleNamespace(resolved_supervised_model_path=active_path),
+    )
+    Session = _test_session()
+    with Session() as db:
+        for index in range(1, 10):
+            _add_log(db, index, src_ip="10.0.0.5", action="allow", app="ssl", app_risk=2, label="benign")
+        for index in range(10, 18):
+            _add_log(db, index, src_ip="198.51.100.10", action="deny", app="unknown-tcp", app_risk=5, label="suspicious")
+        for index in range(18, 27):
+            _add_log(db, index, src_ip="198.51.100.11", action="drop", app="unknown-tcp", app_risk=5, label="malicious")
+        db.commit()
+
+        trained = supervised_detector.train_supervised_classifier(db, actor="tester", test_size=0.3, min_samples=6, split="time")
+        active = evaluate_active_supervised_model(db, split="time", test_size=0.3, min_samples=6)
+        sanity = generate_supervised_sanity_report(
+            db,
+            output_path=tmp_path / "sanity.md",
+            split="time",
+            test_size=0.3,
+            min_samples=6,
+        )
+
+    assert trained["trained"] is True
+    assert active["ok"] is True
+    assert active["threshold_profile"] == "balanced"
+    assert sanity["status"] == "exported"
+    assert sanity["production_promoted"] is False
+    assert sanity["response_automation_allowed"] is False
+    assert sanity["experiment"]["promotion_gate"]["production_promoted"] is False
+    assert "threshold-decision path" in Path(sanity["report_path"]).read_text(encoding="utf-8")
 
 
 def test_supervised_model_registry_activation_and_rollback(tmp_path, monkeypatch):

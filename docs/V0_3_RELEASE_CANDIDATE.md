@@ -23,7 +23,7 @@ ATDR v0.3 is a controlled lab-ready release candidate for small-office style fir
 - Rule-based detection, alert deduplication, lightweight case grouping, ATT&CK-style mapping, and "Why flagged?" explanations.
 - IsolationForest anomaly scoring and supervised ML decision support.
 - AI Governance for label review, active learning, supervised model reports, readiness status, model registry visibility, and weak-label warnings.
-- Reproducible supervised ML workflow with ignored dataset snapshots, feature-set metadata, candidate comparison, threshold tuning, error analysis, and explicit activation/rollback commands.
+- Reproducible supervised ML workflow with ignored dataset snapshots, feature-set metadata, candidate comparison, sanity/debug reports, threshold tuning, error analysis, and explicit activation/rollback commands.
 - Simulated block/unblock response with confirmation, justification, protected-IP denial, and audit logs.
 - Ingestion run history, detection run history, Operations Health, and performance smoke checks.
 - React dashboard with role-aware navigation and admin-only route protection.

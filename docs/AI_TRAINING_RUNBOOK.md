@@ -506,7 +506,15 @@ Run a comparison experiment without activating any model:
 python -m atdr.scripts.run_supervised_experiment --split time --test-size 0.3 --min-samples 6
 ```
 
-This writes reports under `ml_baseline_reviews/supervised_experiments/` and compares rule/hybrid baseline, Random Forest, Logistic Regression, HistGradientBoosting, ExtraTrees, and existing boundary-analysis candidates where available.
+This writes reports under `ml_baseline_reviews/supervised_experiments/` and compares rule/hybrid baseline, Random Forest, Logistic Regression, HistGradientBoosting, and ExtraTrees. Candidate metrics use the same probability-threshold decision path as supervised training when probabilities are available. Direct classifier metrics are kept separately in the JSON report for debugging.
+
+Run a supervised sanity/debug report when experiment metrics look unexpectedly different from the active model:
+
+```powershell
+python -m atdr.scripts.supervised_sanity_report --split time --test-size 0.3 --min-samples 6
+```
+
+This writes `ml_baseline_reviews/supervised_sanity_report.md` and checks active-model evaluation, candidate comparison, label/probability mapping, feature preprocessing, and weighting behavior. It does not activate or promote any model.
 
 Run safe tuning:
 

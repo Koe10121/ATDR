@@ -17,6 +17,7 @@ from atdr.app.detection.supervised_detector import (
     _label_source_distribution,
     _latest_labels,
     _sample_weights,
+    threshold_decision,
 )
 from atdr.app.ml.features import CATEGORICAL_FEATURES, FEATURE_COLUMNS, NUMERIC_FEATURES, build_feature_rows
 
@@ -346,11 +347,14 @@ Generated: {result.get("generated_at")}
 ## Label Quality
 
 - Dataset type: {result.get("label_quality")}
+- Split: {result.get("split")}
+- Threshold profile: {result.get("threshold_profile", "balanced")}
 - Training rows: {result.get("training_rows")}
 - Test rows: {result.get("test_rows")}
 - Decision support only: true
 
 These metrics are lab/development indicators only. They are not production accuracy because the dataset can contain weak assisted labels and only a reviewed sample.
+Candidate metrics use the same probability-threshold decision path as supervised training when probabilities are available; direct classifier metrics remain stored separately in the JSON report.
 
 ## Label Distribution
 
@@ -416,6 +420,7 @@ def compare_supervised_models(
     test_size: float = 0.3,
     min_samples: int = 6,
     split: str = "random",
+    threshold_profile: str = "balanced",
 ) -> dict[str, Any]:
     imports = _optional_imports()
     if imports is None:
@@ -492,7 +497,17 @@ def compare_supervised_models(
         pipeline.fit(X_train, y_train, model__sample_weight=_weights)
         training_seconds = time.perf_counter() - train_started
         predict_started = time.perf_counter()
-        predictions = list(pipeline.predict(X_test))
+        direct_predictions = list(pipeline.predict(X_test))
+        class_labels = [str(label) for label in getattr(pipeline.named_steps["model"], "classes_", [])]
+        probabilities = pipeline.predict_proba(X_test) if hasattr(pipeline, "predict_proba") else []
+        predictions = (
+            [
+                threshold_decision({label: float(prob) for label, prob in zip(class_labels, row, strict=False)}, profile=threshold_profile)
+                for row in probabilities
+            ]
+            if len(probabilities)
+            else direct_predictions
+        )
         prediction_seconds = time.perf_counter() - predict_started
         results.append(
             {
@@ -500,6 +515,8 @@ def compare_supervised_models(
                 "training_time_seconds": round(training_seconds, 4),
                 "prediction_time_seconds": round(prediction_seconds, 4),
                 "metrics": _metrics(imports, y_test, predictions, labels_order),
+                "direct_model_metrics": _metrics(imports, y_test, direct_predictions, labels_order),
+                "threshold_profile": threshold_profile,
                 "evaluation": _subset_metrics(imports, test_labels, y_test, predictions, labels_order),
             }
         )
@@ -530,6 +547,7 @@ def compare_supervised_models(
         "feature_columns": FEATURE_COLUMNS,
         "feature_generation": feature_generation,
         "sample_weighting": weight_summary,
+        "threshold_profile": threshold_profile,
         "models": results,
         "best_model": best["name"],
         "promotion_gate": promotion_gate,

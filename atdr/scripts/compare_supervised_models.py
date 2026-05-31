@@ -10,6 +10,7 @@ def main() -> None:
     parser.add_argument("--test-size", type=float, default=0.3)
     parser.add_argument("--min-samples", type=int, default=6)
     parser.add_argument("--split", choices=["random", "time"], default="time")
+    parser.add_argument("--threshold-profile", default="balanced")
     parser.add_argument("--output", default=str(DEFAULT_REPORT_PATH))
     args = parser.parse_args()
 
@@ -21,6 +22,7 @@ def main() -> None:
             test_size=args.test_size,
             min_samples=args.min_samples,
             split=args.split,
+            threshold_profile=args.threshold_profile,
         )
     print(json.dumps(result, indent=2, default=str))
 

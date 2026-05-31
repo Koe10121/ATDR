@@ -15,9 +15,15 @@ from atdr.app.detection.model_comparison import compare_supervised_models
 from atdr.app.detection.supervised_detector import (
     MODEL_NAME,
     THRESHOLD_PROFILES,
+    TRAINABLE_LABELS,
     _artifact_hash,
     _latest_labels,
+    _metrics_from_predictions,
+    _optional_imports,
+    _split_class_warnings,
+    _split_indices,
     supervised_model_path,
+    threshold_decision,
     training_dataset_diagnostics,
 )
 from atdr.app.detection.suspicious_recall_analysis import (
@@ -33,6 +39,7 @@ SNAPSHOT_DIR = Path("ml_baseline_reviews/supervised_snapshots")
 EXPERIMENT_DIR = Path("ml_baseline_reviews/supervised_experiments")
 TUNING_DIR = Path("ml_baseline_reviews/supervised_tuning")
 ERROR_REPORT_PATH = Path("ml_baseline_reviews/supervised_error_analysis.md")
+SANITY_REPORT_PATH = Path("ml_baseline_reviews/supervised_sanity_report.md")
 
 
 def _safe_timestamp() -> str:
@@ -155,19 +162,297 @@ def run_supervised_experiment(
     split: str = "time",
     test_size: float = 0.3,
     min_samples: int = 6,
+    threshold_profile: str = "balanced",
 ) -> dict[str, Any]:
     experiment_id = f"experiment-{_safe_timestamp()}"
     output_dir = Path(output_root)
     output_dir.mkdir(parents=True, exist_ok=True)
     report_path = output_dir / f"{experiment_id}.md"
     started = time.perf_counter()
-    result = compare_supervised_models(db, output_path=report_path, test_size=test_size, min_samples=min_samples, split=split)
+    result = compare_supervised_models(
+        db,
+        output_path=report_path,
+        test_size=test_size,
+        min_samples=min_samples,
+        split=split,
+        threshold_profile=threshold_profile,
+    )
     result["experiment_id"] = experiment_id
     result["duration_seconds"] = round(time.perf_counter() - started, 4)
     result["feature_set_metadata"] = feature_set_metadata(row_count=result.get("training_rows", 0) + result.get("test_rows", 0))
     result["production_promoted"] = False
     result["response_automation_allowed"] = False
     _write_json(output_dir / f"{experiment_id}.json", result)
+    return result
+
+
+def evaluate_active_supervised_model(
+    db: Session,
+    *,
+    split: str = "time",
+    test_size: float = 0.3,
+    min_samples: int = 6,
+) -> dict[str, Any]:
+    imports = _optional_imports()
+    active_path = supervised_model_path()
+    if imports is None:
+        return {"ok": False, "status": "skipped", "message": "Supervised ML dependencies are unavailable."}
+    if not active_path.exists():
+        return {"ok": False, "status": "skipped", "message": "Active supervised model artifact does not exist."}
+    (
+        joblib,
+        pd,
+        _ColumnTransformer,
+        _RandomForestClassifier,
+        _SimpleImputer,
+        accuracy_score,
+        confusion_matrix,
+        precision_recall_fscore_support,
+        train_test_split,
+        _Pipeline,
+        _OneHotEncoder,
+    ) = imports
+    labels = [label for label in _latest_labels(db) if label.log is not None and label.label in TRAINABLE_LABELS]
+    logs = [label.log for label in labels]
+    y = [label.label for label in labels]
+    if len(logs) < min_samples or len(set(y)) < 2:
+        return {
+            "ok": False,
+            "status": "skipped",
+            "message": "Need at least two classes and enough rows to evaluate the active supervised model.",
+        }
+    frame = pd.DataFrame(build_feature_rows(db, logs))
+    train_idx, test_idx, _y_train, y_test, split_warnings = _split_indices(
+        logs=logs,
+        y=y,
+        split=split,
+        test_size=test_size,
+        train_test_split=train_test_split,
+    )
+    split_warnings = [*split_warnings, *_split_class_warnings([y[index] for index in train_idx], y_test)]
+    artifact = joblib.load(active_path)
+    pipeline = artifact.get("pipeline") if isinstance(artifact, dict) else artifact
+    if pipeline is None:
+        return {"ok": False, "status": "failed", "message": "Active supervised model artifact is missing its pipeline."}
+    active_run = db.scalar(
+        select(MLModelRun)
+        .where(MLModelRun.model_path == str(active_path))
+        .order_by(desc(MLModelRun.created_at), desc(MLModelRun.id))
+    )
+    threshold_profile = str(artifact.get("threshold_profile", "balanced")) if isinstance(artifact, dict) else "balanced"
+    X_test = frame.iloc[test_idx]
+    direct_predictions = list(pipeline.predict(X_test))
+    class_labels = [str(label) for label in getattr(pipeline.named_steps["model"], "classes_", [])]
+    probabilities = pipeline.predict_proba(X_test) if hasattr(pipeline, "predict_proba") else []
+    predictions = (
+        [
+            threshold_decision({label: float(prob) for label, prob in zip(class_labels, row, strict=False)}, profile=threshold_profile)
+            for row in probabilities
+        ]
+        if len(probabilities)
+        else direct_predictions
+    )
+    labels_order = sorted(set(y))
+    metrics = _metrics_from_predictions(
+        accuracy_score=accuracy_score,
+        confusion_matrix=confusion_matrix,
+        precision_recall_fscore_support=precision_recall_fscore_support,
+        y_true=y_test,
+        predictions=predictions,
+        labels_order=labels_order,
+    )
+    direct_metrics = _metrics_from_predictions(
+        accuracy_score=accuracy_score,
+        confusion_matrix=confusion_matrix,
+        precision_recall_fscore_support=precision_recall_fscore_support,
+        y_true=y_test,
+        predictions=direct_predictions,
+        labels_order=labels_order,
+    )
+    return {
+        "ok": True,
+        "status": "evaluated",
+        "active_model_id": active_run.id if active_run else 0,
+        "active_model_version": active_run.model_version if active_run else "active-unregistered",
+        "active_model_path": str(active_path),
+        "active_artifact_sha256": _artifact_hash(active_path),
+        "model_type": str(artifact.get("model_type", "unknown")) if isinstance(artifact, dict) else "unknown",
+        "feature_set_version": ((artifact.get("feature_set_metadata") or {}).get("feature_set_version") if isinstance(artifact, dict) else None),
+        "dataset_snapshot_id": artifact.get("dataset_snapshot_id") if isinstance(artifact, dict) else None,
+        "threshold_profile": threshold_profile,
+        "split": split,
+        "training_rows": len(train_idx),
+        "test_rows": len(test_idx),
+        "split_warnings": split_warnings,
+        "metrics": metrics,
+        "direct_model_metrics": direct_metrics,
+        "production_promoted": False,
+        "response_automation_allowed": False,
+    }
+
+
+def _metric_line(name: str, metrics: dict[str, Any]) -> str:
+    per_class = metrics.get("per_class") or {}
+    threat = metrics.get("threat_positive") or {}
+    return (
+        f"| {name} | {metrics.get('f1', 'n/a')} | {(metrics.get('macro_average') or {}).get('f1', 'n/a')} | "
+        f"{(per_class.get('suspicious') or {}).get('recall', 'n/a')} | "
+        f"{(per_class.get('malicious') or {}).get('recall', 'n/a')} | {threat.get('f1', 'n/a')} |"
+    )
+
+
+def _render_sanity_report(result: dict[str, Any]) -> str:
+    active = result.get("active_model_evaluation") or {}
+    experiment = result.get("experiment") or {}
+    rows = []
+    if active.get("ok"):
+        rows.append(_metric_line("active_supervised_model", active.get("metrics") or {}))
+    for model in experiment.get("models", []):
+        rows.append(_metric_line(str(model.get("name")), model.get("metrics") or {}))
+    gate = experiment.get("promotion_gate") or {}
+    differences = result.get("pipeline_differences") or []
+    label_checks = result.get("label_mapping_checks") or []
+    feature_checks = result.get("feature_preprocessing_checks") or []
+    weighting_checks = result.get("weighting_checks") or []
+    return f"""# ATDR Supervised ML Sanity Report
+
+Generated: {result.get("generated_at")}
+
+This report checks why an experiment may differ from the active supervised model. It does not activate or promote any model, and response automation remains disabled.
+
+## Root Cause Summary
+
+{result.get("root_cause_summary")}
+
+## Training Path vs Experiment Path
+
+{chr(10).join(f"- {item}" for item in differences)}
+
+## Active Model Evaluation
+
+- Status: {active.get("status", "not_available")}
+- Active model ID: {active.get("active_model_id", "not_available")}
+- Active model version: {active.get("active_model_version", "not_available")}
+- Model type: {active.get("model_type", "unknown")}
+- Feature set version: {active.get("feature_set_version") or "unknown/legacy artifact"}
+- Dataset snapshot ID: {active.get("dataset_snapshot_id") or "not recorded"}
+- Threshold profile: {active.get("threshold_profile", "balanced")}
+- Split: {active.get("split", result.get("split"))}
+- Training rows: {active.get("training_rows", "n/a")}
+- Test rows: {active.get("test_rows", "n/a")}
+
+## Apples-To-Apples Comparison
+
+Candidate metrics use the same weighted training policy and probability-threshold decision path used by supervised training.
+
+| Model | Weighted F1 | Macro F1 | Suspicious Recall | Malicious Recall | Threat-Positive F1 |
+| --- | --- | --- | --- | --- | --- |
+{chr(10).join(rows) if rows else "| No evaluated model | - | - | - | - | - |"}
+
+## Experiment Gate
+
+- Decision: {gate.get("decision", "candidate_only")}
+- Analyst review eligible: {gate.get("analyst_review_eligible", False)}
+- Production promoted: {gate.get("production_promoted", False)}
+- Response automation allowed: {gate.get("response_automation_allowed", False)}
+
+### Gate Reasons
+
+{chr(10).join(f"- {reason}" for reason in gate.get("reasons", [])) or "- none"}
+
+## Label Mapping Checks
+
+{chr(10).join(f"- {item}" for item in label_checks)}
+
+## Feature / Preprocessing Checks
+
+{chr(10).join(f"- {item}" for item in feature_checks)}
+
+## Weighting Checks
+
+{chr(10).join(f"- {item}" for item in weighting_checks)}
+
+## Recommendation
+
+{result.get("recommendation")}
+"""
+
+
+def generate_supervised_sanity_report(
+    db: Session,
+    *,
+    output_path: str | Path = SANITY_REPORT_PATH,
+    split: str = "time",
+    test_size: float = 0.3,
+    min_samples: int = 6,
+    threshold_profile: str = "balanced",
+) -> dict[str, Any]:
+    active = evaluate_active_supervised_model(db, split=split, test_size=test_size, min_samples=min_samples)
+    experiment_path = Path(output_path).with_suffix(".experiment.md")
+    experiment = compare_supervised_models(
+        db,
+        output_path=experiment_path,
+        test_size=test_size,
+        min_samples=min_samples,
+        split=split,
+        threshold_profile=threshold_profile,
+    )
+    result = {
+        "ok": bool(experiment.get("ok")),
+        "status": "exported" if experiment.get("ok") else "failed",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "split": split,
+        "test_size": test_size,
+        "threshold_profile": threshold_profile,
+        "root_cause_summary": (
+            "A clear experiment-path bug was found: model comparison evaluated raw classifier predictions while "
+            "supervised training evaluated probability outputs through the configured threshold profile. Candidate "
+            "comparison now uses the same threshold-decision path as training. If metrics are still weak after this "
+            "fix, the previous stronger result is not reproducible on the current database/artifact state and should "
+            "be treated as a prior-run result rather than current evidence."
+        ),
+        "pipeline_differences": [
+            "Both paths use latest ml_labels joined to normalized logs; experiment filters labels to trainable classes explicitly.",
+            "Both paths use build_feature_rows and the behavior-window feature set.",
+            "Both paths use the same random/time split helper and cutoff behavior.",
+            "Both paths now apply the same reviewed/weak sample-weight policy.",
+            "Training saves one selected model artifact; experiment compares candidates and never overwrites the active artifact.",
+            "Training and experiment now both evaluate threshold-adjusted predictions when probabilities are available.",
+            "Hybrid score baseline remains a rule/risk baseline and does not use supervised sample weights.",
+        ],
+        "label_mapping_checks": [
+            "Class labels come from estimator classes_ and are mapped to probability columns before threshold decisions.",
+            "Confusion matrices use sorted label order from the evaluated dataset.",
+            "Suspicious and malicious labels are not swapped; both are treated as threat-positive for combined triage metrics.",
+            "needs_context remains a valid uncertainty class and is not forced into suspicious or malicious.",
+        ],
+        "feature_preprocessing_checks": [
+            "Numeric features are median-imputed.",
+            "Categorical features are most-frequent imputed and one-hot encoded with handle_unknown='ignore'.",
+            "HistGradientBoosting receives numeric transformed features from the preprocessing pipeline.",
+            "Train and test frames are produced from the same FEATURE_COLUMNS list.",
+        ],
+        "weighting_checks": [
+            "Reviewed labels receive higher sample weight than unreviewed assisted labels.",
+            "Reviewed suspicious and malicious rows receive additional class-specific weight.",
+            "RandomForest, ExtraTrees, and LogisticRegression still use class_weight='balanced'; HistGradientBoosting uses sample weights only.",
+            "The sanity report does not weaken promotion gates or activate candidates.",
+        ],
+        "active_model_evaluation": active,
+        "experiment": experiment,
+        "recommendation": (
+            "Keep the active model unchanged. Treat new comparison output as candidate-only until reviewed-label validation "
+            "and suspicious/malicious recall pass the readiness floors."
+        ),
+        "production_promoted": False,
+        "response_automation_allowed": False,
+    }
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    result["report_path"] = str(path)
+    result["experiment_report_path"] = str(experiment_path)
+    path.write_text(_render_sanity_report(result), encoding="utf-8")
+    _write_json(path.with_suffix(".json"), result)
     return result
 
 
@@ -178,6 +463,7 @@ def tune_supervised_model_candidates(
     split: str = "time",
     test_size: float = 0.3,
     min_samples: int = 6,
+    threshold_profile: str = "balanced",
 ) -> dict[str, Any]:
     tuning_id = f"tuning-{_safe_timestamp()}"
     output_dir = Path(output_root)
@@ -190,6 +476,7 @@ def tune_supervised_model_candidates(
         split=split,
         test_size=test_size,
         min_samples=min_samples,
+        threshold_profile=threshold_profile,
     )
     result = {
         "ok": bool(threshold_result.get("ok")) and bool(experiment_result.get("ok")),
