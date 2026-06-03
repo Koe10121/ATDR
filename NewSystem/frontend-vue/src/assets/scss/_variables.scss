@@ -1,0 +1,17 @@
+// Variable overrides
+
+
+$danger-dark:  #8c1515 !default;
+$danger:       #ac1515 !default;
+$danger-50:    #fc1515 !default;
+$danger-25:    #f9d4d4 !default;
+
+// scss-docs-start theme-colors-map
+$theme-colors: () !default;
+// stylelint-disable-next-line scss/dollar-variable-default
+$theme-colors: map-merge(
+                (
+                        "danger":     $danger
+                ),
+                $theme-colors
+);

@@ -1,0 +1,212 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+    "title": "My API",
+        "version": "1.0.0",
+        "description": "API documentation"
+},
+    "paths": {
+    "/users": {
+        "get": {
+            "summary": "Get all users",
+                "responses": {
+                "200": {
+                    "description": "Success"
+                }
+            }
+        },
+        "post": {
+            "summary": "Create a user",
+                "requestBody": {
+                "required": true,
+                    "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                                "required": ["name", "email"],
+                                "properties": {
+                                "name": {
+                                    "type": "string"
+                                },
+                                "email": {
+                                    "type": "string"
+                                },
+                                "age": {
+                                    "type": "number"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "responses": {
+                "201": {
+                    "description": "Created"
+                }
+            }
+        }
+    },
+    "/users/{id}": {
+        "put": {
+            "summary": "Update a user",
+                "parameters": [
+                {
+                    "in": "path",
+                    "name": "id",
+                    "schema": {
+                        "type": "string"
+                    },
+                    "required": true,
+                    "description": "The user ID"
+                }
+            ],
+                "requestBody": {
+                "required": true,
+                    "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                                "properties": {
+                                "name": {
+                                    "type": "string"
+                                },
+                                "email": {
+                                    "type": "string"
+                                },
+                                "age": {
+                                    "type": "number"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "responses": {
+                "200": {
+                    "description": "Updated"
+                }
+            }
+        },
+        "delete": {
+            "summary": "Delete a user",
+                "parameters": [
+                {
+                    "in": "path",
+                    "name": "id",
+                    "schema": {
+                        "type": "string"
+                    },
+                    "required": true,
+                    "description": "The user ID"
+                }
+            ],
+                "responses": {
+                "200": {
+                    "description": "Deleted"
+                }
+            }
+        }
+    },
+    "/products": {
+        "get": {
+            "summary": "Get all products",
+                "responses": {
+                "200": {
+                    "description": "Success"
+                }
+            }
+        },
+        "post": {
+            "summary": "Create a product",
+                "requestBody": {
+                "required": true,
+                    "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                                "required": ["name", "price"],
+                                "properties": {
+                                "name": {
+                                    "type": "string"
+                                },
+                                "price": {
+                                    "type": "number"
+                                },
+                                "description": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "responses": {
+                "201": {
+                    "description": "Created"
+                }
+            }
+        }
+    },
+    "/products/{id}": {
+        "put": {
+            "summary": "Update a product",
+                "parameters": [
+                {
+                    "in": "path",
+                    "name": "id",
+                    "schema": {
+                        "type": "string"
+                    },
+                    "required": true,
+                    "description": "The product ID"
+                }
+            ],
+                "requestBody": {
+                "required": true,
+                    "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                                "properties": {
+                                "name": {
+                                    "type": "string"
+                                },
+                                "price": {
+                                    "type": "number"
+                                },
+                                "description": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "responses": {
+                "200": {
+                    "description": "Updated"
+                }
+            }
+        },
+        "delete": {
+            "summary": "Delete a product",
+                "parameters": [
+                {
+                    "in": "path",
+                    "name": "id",
+                    "schema": {
+                        "type": "string"
+                    },
+                    "required": true,
+                    "description": "The product ID"
+                }
+            ],
+                "responses": {
+                "200": {
+                    "description": "Deleted"
+                }
+            }
+        }
+    }
+}
+}

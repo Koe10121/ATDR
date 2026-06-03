@@ -190,6 +190,10 @@ export const api = {
   downloadTrainingWindowThreatReviewSample: (params: Params = {}) =>
     apiDownload("/api/ml/training-window-threat-review/export", params),
   downloadSuspiciousMaliciousBoundaryReport: (params: Params = {}) => apiDownload("/api/ml/boundary-report/export", params),
+  downloadStage1ThreatRecallReviewSample: (params: Params = {}) => apiDownload("/api/ml/stage1-threat-recall-review/export", params),
+  downloadBenignFinalGapReviewSample: (params: Params = {}) => apiDownload("/api/ml/benign-final-gap-review/export", params),
+  downloadFinalSmallLabelGapSample: (params: Params = {}) => apiDownload("/api/ml/final-small-label-gap/export", params),
+  downloadSocTriageFinalRecommendation: (params: Params = {}) => apiDownload("/api/ml/soc-triage-final-recommendation/export", params),
   downloadSuspiciousRecallReviewSample: (params: Params = {}) => apiDownload("/api/ml/suspicious-recall-review/export", params),
   downloadSuspiciousRecallErrorReport: (params: Params = {}) => apiDownload("/api/ml/suspicious-recall-report/export", params),
   downloadLabelQualityIssues: (params: Params = {}) => apiDownload("/api/ml/labels/quality-issues/export", params),

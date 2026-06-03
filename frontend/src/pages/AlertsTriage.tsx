@@ -385,10 +385,14 @@ export function AlertsTriage() {
                   <div className="text-sm text-muted">Score {String(anomalySummary?.min_score ?? "-")}</div>
                 </div>
                 <div className="rounded border border-line bg-panel2 p-3">
-                  <div className="text-xs font-bold uppercase tracking-wide text-muted">Supervised</div>
+                  <div className="text-xs font-bold uppercase tracking-wide text-muted">Supervised Triage Signal</div>
                   <div className="mt-1 font-bold text-text">{String(supervisedSummary?.predicted_label ?? "not trained")}</div>
-                  <div className="text-sm text-muted">Probability {String(supervisedSummary?.malicious_probability ?? 0)}</div>
+                  <div className="text-sm text-muted">Threat-positive score {String(supervisedSummary?.malicious_probability ?? 0)}</div>
+                  <div className="mt-1 text-xs text-muted">Review priority only; not automatic truth.</div>
                 </div>
+              </div>
+              <div className="mt-3 rounded border border-amber/30 bg-amber/10 px-3 py-2 text-xs text-amber">
+                ML output is decision support. Verify rule evidence, anomaly context, and related logs before any simulated response.
               </div>
               <div className="mt-3 grid gap-2 md:grid-cols-2">
                 {(detectionSummary?.top_evidence_points ?? []).slice(0, 6).map((point) => (

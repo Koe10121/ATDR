@@ -58,6 +58,7 @@ class MLLabelImportResult(BaseModel):
     protected_reviewed: int = 0
     changed_decisions: int = 0
     failed: int
+    error_summary: dict[str, int] = Field(default_factory=dict)
     errors: list[dict[str, Any]] = Field(default_factory=list)
 
 

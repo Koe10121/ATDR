@@ -1,0 +1,40 @@
+.floating-group {
+  position: relative;
+}
+.form-group{
+  //margin-bottom: 0;
+}
+.floating-group label {
+  position: absolute;
+  top: 12px;
+  left: 14px;
+  font-size: 14px;
+  color: #6c757d;
+  transition: 0.2s ease-out;
+  pointer-events: none;
+}
+
+.floating-group label.active {
+  top: -10px;
+  left: 10px;
+  font-size: 12px;
+  background: #fff;
+  padding: 0 4px;
+  color: #0d6efd;
+}
+
+.required::after {
+  content: " *";
+  color: red;
+}
+
+
+::v-deep .is-invalid {
+  border: 0.5px solid #fb4958;
+  border-radius: 5px;
+}
+
+::v-deep .was-validated .form-control:invalid,
+::v-deep .form-control.is-invalid {
+  background-image: none;
+}

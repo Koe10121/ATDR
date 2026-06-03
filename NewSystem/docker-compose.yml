@@ -1,0 +1,67 @@
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend-node
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ${BACKEND_ENV_FILE:-./backend-node/.env.local}
+    environment:
+      NODE_ENV: ${BACKEND_NODE_ENV:-development}
+      PORT: 8082
+      BASE_SERVER_URL: ${BASE_SERVER_URL:-http://127.0.0.1:8097}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "${BACKEND_BIND_IP:-127.0.0.1}:${BACKEND_PORT:-8095}:8082"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:8082/healthz >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  frontend:
+    build:
+      context: ./frontend-vue
+      dockerfile: Dockerfile
+      target: server-runner
+      args:
+        VUE_APP_API_BASE_URL: /
+        VUE_APP_SOCKET_URL: same-origin
+        VUE_APP_CLIENTID: ${GOOGLE_CLIENT_ID:-}
+        VUE_APP_SCOPE: ${GOOGLE_OAUTH_SCOPE:-profile email}
+        VUE_APP_PROMPT: ${GOOGLE_OAUTH_PROMPT:-select_account}
+        VUE_APP_AUTH_SYSTEM: ${FRONTEND_AUTH_SYSTEM:-newSystem}
+        VUE_APP_PROJECT_APP_ID: ${FRONTEND_PROJECT_APP_ID:-newSystem}
+        VUE_APP_PROJECT_PERMISSION_ROOT_PATH: ${FRONTEND_PROJECT_PERMISSION_ROOT_PATH:-/new-system/security/permission}
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_BIND_IP:-127.0.0.1}:${FRONTEND_PORT:-8086}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1/ >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  redis-data:

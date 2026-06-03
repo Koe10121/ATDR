@@ -2,6 +2,7 @@ import hashlib
 import math
 import time
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -96,6 +97,16 @@ def _artifact_hash(path: Path) -> str | None:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+@lru_cache(maxsize=4)
+def _load_supervised_artifact(path_string: str, modified_ns: int) -> dict[str, Any] | None:
+    _ = modified_ns
+    imports = _optional_imports()
+    if imports is None:
+        return None
+    joblib = imports[0]
+    return joblib.load(Path(path_string))
 
 
 def _report_path_for_model(path: Path) -> Path:
@@ -606,6 +617,68 @@ def _split_indices(
         train_idx = ordered_indices[:-test_count]
         test_idx = ordered_indices[-test_count:]
         return train_idx, test_idx, [y[index] for index in train_idx], [y[index] for index in test_idx], warnings
+    if split == "grouped_stratified":
+        warnings.append("Grouped/stratified split is diagnostic only and may overestimate deployment performance.")
+        test_count = max(1, math.ceil(len(indices) * test_size))
+        test_count = min(test_count, len(indices) - 1)
+        target_by_label = {
+            label: max(1, min(y.count(label) - 1, round(y.count(label) * test_size)))
+            for label in sorted(set(y))
+            if y.count(label) > 1
+        }
+        groups: dict[tuple[str, str, str, str, str], list[int]] = {}
+        for index, log in enumerate(logs):
+            key = (
+                str(log.src_ip or "missing_src"),
+                str(log.dst_ip or "missing_dst"),
+                str(log.dst_port or "missing_port"),
+                str(log.app or "missing_app"),
+                str(log.action or "missing_action"),
+            )
+            groups.setdefault(key, []).append(index)
+        group_rows = [
+            {
+                "key": key,
+                "indices": group_indices,
+                "counts": _label_distribution([y[index] for index in group_indices]),
+                "size": len(group_indices),
+            }
+            for key, group_indices in groups.items()
+        ]
+        group_rows.sort(key=lambda item: (item["size"], "|".join(item["key"])))
+        test_idx_set: set[int] = set()
+        test_counts: dict[str, int] = {label: 0 for label in target_by_label}
+        used_groups: set[tuple[str, str, str, str, str]] = set()
+        for label, _target in sorted(target_by_label.items(), key=lambda item: y.count(item[0])):
+            for group in group_rows:
+                if group["key"] in used_groups:
+                    continue
+                if not group["counts"].get(label):
+                    continue
+                if len(test_idx_set) + group["size"] > test_count + max(2, math.ceil(test_count * 0.1)):
+                    continue
+                test_idx_set.update(group["indices"])
+                used_groups.add(group["key"])
+                for group_label, count in group["counts"].items():
+                    if group_label in test_counts:
+                        test_counts[group_label] += int(count)
+                if test_counts.get(label, 0) >= target_by_label[label]:
+                    break
+        for group in group_rows:
+            if len(test_idx_set) >= test_count:
+                break
+            if group["key"] in used_groups:
+                continue
+            if len(test_idx_set) + group["size"] > test_count + max(2, math.ceil(test_count * 0.1)):
+                continue
+            test_idx_set.update(group["indices"])
+            used_groups.add(group["key"])
+        if not test_idx_set or len(test_idx_set) >= len(indices):
+            warnings.append("Grouped/stratified split fell back to random stratified split because groups were too coarse.")
+        else:
+            test_idx = sorted(test_idx_set)
+            train_idx = [index for index in indices if index not in test_idx_set]
+            return train_idx, test_idx, [y[index] for index in train_idx], [y[index] for index in test_idx], warnings
     distribution = _label_distribution(y)
     estimated_test_rows = max(1, math.ceil(len(y) * test_size))
     stratify = y if min(distribution.values()) >= 2 and estimated_test_rows >= len(distribution) else None
@@ -902,8 +975,8 @@ def train_supervised_classifier(
         _OneHotEncoder,
     ) = imports
 
-    if split not in {"random", "time"}:
-        return {"trained": False, "status": "failed", "message": "split must be 'random' or 'time'."}
+    if split not in {"random", "time", "grouped_stratified"}:
+        return {"trained": False, "status": "failed", "message": "split must be 'random', 'time', or 'grouped_stratified'."}
     if model_type not in SUPPORTED_SUPERVISED_MODELS:
         return {
             "trained": False,
@@ -1193,8 +1266,64 @@ def supervised_model_report(db: Session) -> dict:
         "class_temporal_coverage": temporal_coverage,
         "model_readiness_checklist": (latest_report or {}).get("model_readiness_checklist")
         or _model_readiness_checklist(metrics=latest_metrics, reviewed_count=reviewed_count, temporal_coverage=temporal_coverage),
+        "soc_triage_mode": {
+            "recommended_ai_mode": "SOC triage decision support",
+            "primary_signal": "threat_positive review priority",
+            "flat_5_class_status": "not_production_promoted",
+            "response_automation_allowed": False,
+            "production_promoted": False,
+            "limitations": [
+                "Threat-positive triage is useful for analyst review.",
+                "Flat five-class exact classification is not production-promoted.",
+                "Benign and needs_context exact classification remain weak.",
+                "Response actions remain simulated and analyst-approved.",
+            ],
+            "review_profiles": _soc_review_profiles_from_metrics(latest_metrics),
+        },
         "decision_support_only": True,
     }
+
+
+def _soc_review_profiles_from_metrics(metrics: dict[str, Any]) -> list[dict[str, Any]]:
+    threat = metrics.get("threat_positive") or {}
+    true_positives = threat.get("true_positives")
+    false_positives = threat.get("false_positives")
+    estimated_queue = None
+    if true_positives is not None and false_positives is not None:
+        estimated_queue = int(true_positives or 0) + int(false_positives or 0)
+    return [
+        {
+            "profile": "conservative",
+            "precision": None,
+            "recall": None,
+            "false_positives": None,
+            "false_negatives": None,
+            "estimated_review_queue_size": None,
+            "guidance": "Fewer false positives and smaller review queue; run the final SOC report for measured profile metrics.",
+            "auto_activation_allowed": False,
+        },
+        {
+            "profile": "balanced",
+            "precision": threat.get("precision"),
+            "recall": threat.get("recall"),
+            "f1": threat.get("f1"),
+            "false_positives": false_positives,
+            "false_negatives": threat.get("false_negatives"),
+            "estimated_review_queue_size": estimated_queue,
+            "guidance": "Default dashboard framing from the latest supervised run.",
+            "auto_activation_allowed": False,
+        },
+        {
+            "profile": "recall_high",
+            "precision": None,
+            "recall": None,
+            "false_positives": None,
+            "false_negatives": None,
+            "estimated_review_queue_size": None,
+            "guidance": "Catches more threat-positive rows but increases analyst review queue; diagnostic only.",
+            "auto_activation_allowed": False,
+        },
+    ]
 
 
 def _run_to_report(run: MLModelRun) -> dict:
@@ -1300,14 +1429,16 @@ def predict_supervised_log(db: Session, log_id: int, *, rule_score: int = 0, ass
     imports = _optional_imports()
     if imports is None:
         return {"predicted_label": None, "malicious_probability": 0.0, "confidence": 0.0, "top_contributing_features": []}
-    joblib, pd, *_ = imports
+    _joblib, pd, *_ = imports
     path = supervised_model_path()
     if not path.exists():
         return {"predicted_label": None, "malicious_probability": 0.0, "confidence": 0.0, "top_contributing_features": []}
     log = db.get(NormalizedLog, log_id)
     if log is None:
         return {"predicted_label": None, "malicious_probability": 0.0, "confidence": 0.0, "top_contributing_features": []}
-    artifact = joblib.load(path)
+    artifact = _load_supervised_artifact(str(path.resolve()), path.stat().st_mtime_ns)
+    if artifact is None:
+        return {"predicted_label": None, "malicious_probability": 0.0, "confidence": 0.0, "top_contributing_features": []}
     pipeline = artifact["pipeline"]
     frame = pd.DataFrame([build_log_features(db, log)])
     direct_predicted = str(pipeline.predict(frame)[0])

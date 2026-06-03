@@ -94,6 +94,8 @@ Evidence: `atdr/app/services/detection_service.py`, `atdr/app/detection/*`, `atd
 
 Evidence: `atdr/app/db/models.py`, `atdr/app/routers/ml.py`, `atdr/app/detection/supervised_workflow.py`, `atdr/scripts/train_supervised_model.py`, `atdr/scripts/export_supervised_dataset_snapshot.py`, `atdr/scripts/run_supervised_experiment.py`, `atdr/scripts/tune_supervised_model.py`, `atdr/scripts/supervised_sanity_report.py`, `atdr/scripts/analyze_supervised_errors.py`, `atdr/scripts/generate_assisted_labels.py`, `docs/AI_TRAINING_RUNBOOK.md`.
 
+Recovery workflow evidence: `atdr/app/detection/supervised_recovery.py`, `atdr/scripts/supervised_dataset_audit.py`, `atdr/scripts/rebuild_supervised_baseline.py`, `atdr/scripts/run_binary_threat_experiment.py`, and `atdr/scripts/run_supervised_recovery_phase.py`. Recovery outputs are candidate-only diagnostics and must not be treated as production accuracy.
+
 ### Dashboard
 
 - React-first dashboard with protected routes.
@@ -189,7 +191,9 @@ Current limitations:
 
 - Rule evidence remains primary.
 - IsolationForest is anomaly support, not proof of malicious behavior.
-- Supervised ML is analyst decision support.
+- Supervised ML is SOC triage decision support.
+- Threat-positive triage can prioritize analyst review, but flat five-class predictions are not production-promoted.
+- Benign and needs_context exact classification remain known weak spots until reviewed coverage and live validation improve.
 - Model status must distinguish `candidate_only`, `candidate_improved`, `eligible_for_analyst_review`, and any future promotion state.
 - Production promotion cannot be claimed while reviewed labels and live validation are limited.
 - Assisted labels must be marked as weak unless reviewed.

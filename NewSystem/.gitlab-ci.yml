@@ -1,0 +1,57 @@
+stages:
+  - build
+  - push
+  - deploy
+
+variables:
+  GIT_STRATEGY: clone
+  BACKEND_IMAGE: "$HARBOR_HOST/newSystem/backend"
+  FRONTEND_IMAGE: "$HARBOR_HOST/newSystem/frontend"
+  IMAGE_TAG: "$CI_COMMIT_SHORT_SHA"
+
+build:
+  stage: build
+  script:
+    - docker build -f backend-node/Dockerfile -t "$BACKEND_IMAGE:$IMAGE_TAG" -t "$BACKEND_IMAGE:latest" backend-node
+    - >
+      docker build -f frontend-vue/Dockerfile --target server-runner
+      --build-arg VUE_APP_API_BASE_URL="${VUE_APP_API_BASE_URL:-/}"
+      --build-arg VUE_APP_SOCKET_URL="${VUE_APP_SOCKET_URL:-same-origin}"
+      --build-arg VUE_APP_CLIENTID="${GOOGLE_CLIENT_ID:-}"
+      --build-arg VUE_APP_SCOPE="${GOOGLE_OAUTH_SCOPE:-profile email}"
+      --build-arg VUE_APP_PROMPT="${GOOGLE_OAUTH_PROMPT:-select_account}"
+      --build-arg VUE_APP_AUTH_SYSTEM="${FRONTEND_AUTH_SYSTEM:-newSystem}"
+      --build-arg VUE_APP_PROJECT_APP_ID="${FRONTEND_PROJECT_APP_ID:-newSystem}"
+      --build-arg VUE_APP_PROJECT_PERMISSION_ROOT_PATH="${FRONTEND_PROJECT_PERMISSION_ROOT_PATH:-/new-system/security/permission}"
+      -t "$FRONTEND_IMAGE:$IMAGE_TAG" -t "$FRONTEND_IMAGE:latest" frontend-vue
+  only:
+    - main
+
+push:
+  stage: push
+  script:
+    - echo "$HARBOR_PASSWORD" | docker login "$HARBOR_HOST" -u "$HARBOR_USERNAME" --password-stdin
+    - docker push "$BACKEND_IMAGE:$IMAGE_TAG"
+    - docker push "$BACKEND_IMAGE:latest"
+    - docker push "$FRONTEND_IMAGE:$IMAGE_TAG"
+    - docker push "$FRONTEND_IMAGE:latest"
+  only:
+    - main
+
+deploy:
+  stage: deploy
+  script:
+    - mkdir -p ~/.ssh
+    - echo "$SSH_PRIVATE_KEY" > ~/.ssh/gitlab_deploy_newSystem
+    - chmod 600 ~/.ssh/gitlab_deploy_newSystem
+    - ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+    - |
+      ssh -i ~/.ssh/gitlab_deploy_newSystem "$DEPLOY_USER@$DEPLOY_HOST" "
+        echo '$HARBOR_PASSWORD' | docker login '$HARBOR_HOST' -u '$HARBOR_USERNAME' --password-stdin &&
+        cd /opt/service/newSystem &&
+        IMAGE_TAG='$IMAGE_TAG' HARBOR_HOST='$HARBOR_HOST' docker compose --env-file .env.prod -f docker-compose.gitlab.yml pull &&
+        IMAGE_TAG='$IMAGE_TAG' HARBOR_HOST='$HARBOR_HOST' docker compose --env-file .env.prod -f docker-compose.gitlab.yml up -d &&
+        docker compose --env-file .env.prod -f docker-compose.gitlab.yml ps
+      "
+  only:
+    - main

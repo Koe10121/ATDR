@@ -1,0 +1,68 @@
+{
+  "templateName": "new-system-project-template",
+  "templateVersion": "1.2.0",
+  "compatProfile": "b2b-admin-v1",
+  "sourceApplication": {
+    "name": "MOU",
+    "path": "/Users/m-vibe/masters/MOU",
+    "description": "Generated IAM-integrated application from the shared MFU IAM project template."
+  },
+  "requiredEnvKeys": [
+    "PROJECT_CODE",
+    "PROJECT_NAME",
+    "PROJECT_BASE_URL",
+    "IAM_SDK_BASE_URL",
+    "IAM_SDK_CLIENT_ID",
+    "IAM_SDK_CLIENT_SECRET",
+    "IAM_SDK_AUDIENCE",
+    "IAM_SDK_SCOPE",
+    "IAM_ADMIN_CLIENT_ID",
+    "IAM_ADMIN_CLIENT_SECRET",
+    "PROJECT_PERMISSION_TYPE_TITLE",
+    "PROJECT_PERMISSION_GROUP_TITLE",
+    "PROJECT_PERMISSION_ROOT_PATH",
+    "PROJECT_PERMISSION_PATHS"
+  ],
+  "generatedEnvFiles": [
+    ".env.local",
+    ".env.preprod",
+    ".env.prod",
+    "backend-node/.env.local",
+    "backend-node/.env.preprod",
+    "backend-node/.env.prod",
+    "frontend-vue/.env.localdev",
+    "frontend-vue/.env.preprod",
+    "frontend-vue/.env.production"
+  ],
+  "copyExcludesFile": ".templateignore",
+  "permissionMatrixStandard": {
+    "requiredPermissionPaths": [
+      "/accounts/directory",
+      "/accounts/lifecycle",
+      "/security/permissions/menu",
+      "/security/permissions/group",
+      "/security/permissions/matrix",
+      "/security/audit"
+    ],
+    "envSourceOfTruth": [
+      "PROJECT_PERMISSION_TYPE_TITLE",
+      "PROJECT_PERMISSION_GROUP_TITLE",
+      "PROJECT_PERMISSION_ROOT_PATH",
+      "PROJECT_PERMISSION_PATHS"
+    ]
+  },
+  "accountAdministrationStandard": {
+    "identitySource": "IAM is the source of truth for accounts; project services store only scoped app context.",
+    "routeContracts": [
+      "PUT /accounts/:id checks /accounts/directory edit in the project scope.",
+      "PUT /accounts/:id/status checks /accounts/directory action in the project scope.",
+      "GET /accounts/:id/effective-permissions is scoped to the project permission type."
+    ]
+  },
+  "validationCommands": [
+    "node -c backend-node/config/project.config.js",
+    "node -c backend-node/server/Project/accounts/accounts.routes.js",
+    "node -c backend-node/server/Project/security/service/iam-admin-client.js",
+    "node -c backend-node/scripts/bootstrap-iam-permissions.js"
+  ]
+}

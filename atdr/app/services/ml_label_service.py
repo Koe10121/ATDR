@@ -1,4 +1,5 @@
 import csv
+from collections import Counter
 from io import StringIO
 from typing import Any
 
@@ -171,9 +172,16 @@ def export_ml_labels_csv(labels: list[MLLabel]) -> str:
 
 
 def _parse_int(value: Any, *, field: str, row_number: int) -> int:
+    raw = str(value).strip()
     try:
-        return int(str(value).strip())
+        return int(raw)
     except (TypeError, ValueError) as exc:
+        try:
+            float_value = float(raw)
+        except (TypeError, ValueError):
+            raise ValueError(f"row {row_number}: invalid {field}") from exc
+        if float_value.is_integer():
+            return int(float_value)
         raise ValueError(f"row {row_number}: invalid {field}") from exc
 
 
@@ -252,6 +260,29 @@ def _validate_import_row(row: dict[str, Any], row_number: int) -> dict[str, Any]
     }
 
 
+def _classify_import_error(error: str) -> str:
+    text = error.lower()
+    if "log_id or label_id is required" in text:
+        return "missing_label_id_or_log_id"
+    if "invalid label_id" in text:
+        return "invalid_label_id"
+    if "invalid log_id" in text:
+        return "invalid_log_id"
+    if "label_id does not belong" in text:
+        return "label_id_log_id_mismatch"
+    if "normalized log" in text and "not found" in text:
+        return "log_missing"
+    if "label must be one of" in text:
+        return "invalid_label"
+    if "attack_type must be one of" in text:
+        return "invalid_attack_type"
+    if "confidence" in text:
+        return "invalid_confidence"
+    if "label_source" in text:
+        return "invalid_label_source"
+    return "other"
+
+
 def _merge_human_review_note(existing_note: str | None, imported_note: str | None, *, reviewer: str) -> str:
     human_note = (
         f"Human review by {reviewer}: {imported_note}"
@@ -283,6 +314,7 @@ def import_ml_labels_csv(
     changed_decisions = 0
     failed = 0
     errors: list[dict[str, Any]] = []
+    error_summary: Counter[str] = Counter()
 
     for row_number, row in enumerate(reader, start=2):
         try:
@@ -342,7 +374,9 @@ def import_ml_labels_csv(
                 updated += 1
         except ValueError as exc:
             failed += 1
-            errors.append({"row": row_number, "error": str(exc)})
+            reason = _classify_import_error(str(exc))
+            error_summary[reason] += 1
+            errors.append({"row": row_number, "reason": reason, "error": str(exc)})
 
     db.add(
         AuditLog(
@@ -363,6 +397,7 @@ def import_ml_labels_csv(
                 "overwrite_reviewed": overwrite_reviewed,
                 "correction_mode": correction_mode,
                 "preserve_label_source": preserve_label_source,
+                "error_summary": dict(error_summary),
                 "errors": errors[:20],
             },
         )
@@ -376,6 +411,7 @@ def import_ml_labels_csv(
         "protected_reviewed": protected_reviewed,
         "changed_decisions": changed_decisions,
         "failed": failed,
+        "error_summary": dict(error_summary),
         "errors": errors,
     }
 

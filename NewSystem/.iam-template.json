@@ -1,0 +1,70 @@
+{
+  "templateName": "new-system-project-template",
+  "templateVersion": "1.2.0",
+  "compatProfile": "b2b-admin-v1",
+  "generatedAt": "2026-05-28T01:21:09.468Z",
+  "sourceTemplatePath": "/Users/m-vibe/masters/MOU",
+  "generator": "scripts/create-iam-project-template.js",
+  "project": {
+    "name": "New System",
+    "code": "new-system",
+    "localBaseUrl": "http://127.0.0.1:8097",
+    "preprodBaseUrl": "https://preprod-new-system.mfu.ac.th",
+    "prodBaseUrl": "https://new-system.mfu.ac.th",
+    "audience": "new-system-api"
+  },
+  "iam": {
+    "baseUrl": "https://iam.mfu.ac.th",
+    "managedClientIdPattern": "new-system-gateway-<env>",
+    "adminBasePath": "/api/v1/b2b/admin"
+  },
+  "permission": {
+    "typeTitle": "New System Administration",
+    "groupTitle": "New System Admin",
+    "rootPath": "/new-system/security/permission",
+    "paths": [
+      "/new-system/security/permission",
+      "/dashboard",
+      "/operations/business",
+      "/management/category",
+      "/config/message-authen",
+      "/config/email-notifications",
+      "/config/workflow-actions",
+      "/config/runtime-access",
+      "/config/database-backup",
+      "/config/setting-message",
+      "/config/verification",
+      "/setting/group",
+      "/setting/message-status",
+      "/security/permissions/menu",
+      "/security/permissions/group",
+      "/security/permissions/matrix",
+      "/security/audit",
+      "/accounts/directory",
+      "/accounts/lifecycle"
+    ]
+  },
+  "adapter": {
+    "entryFile": "backend-node/server/integrations/iam/iam-sdk-adapter.js",
+    "serviceFile": "backend-node/server/integrations/iam/project-iam-service.js",
+    "authMiddlewareFile": "backend-node/server/integrations/iam/b2b-auth-middleware.js"
+  },
+  "generatedEnvFiles": [
+    ".env.local",
+    ".env.preprod",
+    ".env.prod",
+    "backend-node/.env.local",
+    "backend-node/.env.preprod",
+    "backend-node/.env.prod",
+    "frontend-vue/.env.localdev",
+    "frontend-vue/.env.preprod",
+    "frontend-vue/.env.production"
+  ],
+  "guardrails": [
+    "Do not import code from IAM/backend-node/server/*",
+    "Keep IAM integration behind backend-node/server/integrations/iam/*",
+    "Register the B2B client through register:iam:local before production use",
+    "Bootstrap project permissions through bootstrap:iam after IAM credentials are configured",
+    "Account Directory and Permission Matrix must be scoped by PROJECT_PERMISSION_PATHS"
+  ]
+}

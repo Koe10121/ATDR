@@ -19,6 +19,8 @@ atdr.db
 *.sqlite3
 atdr/models/*.joblib
 atdr/models/*.report.md
+atdr/models/**/*.joblib
+atdr/models/**/*.report.md
 atdr/data/processed/*
 !**/.gitkeep
 .streamlit/

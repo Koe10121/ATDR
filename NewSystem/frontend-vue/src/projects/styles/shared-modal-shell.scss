@@ -1,0 +1,57 @@
+@mixin project-modal-shell(
+  $root,
+  $header-selector,
+  $hero-selector,
+  $surface-overlay: null,
+  $surface-base: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%),
+  $hero-from: #5f0f12,
+  $hero-mid: #8c1515,
+  $hero-to: #c7662d
+) {
+  #{$root} {
+    .modal-content {
+      border: 1px solid #dfe6ee;
+      border-radius: 1.5rem;
+      box-shadow: 0 18px 44px rgba(36, 52, 71, 0.14);
+      @if $surface-overlay == null {
+        background: $surface-base;
+      } @else {
+        background: $surface-overlay, $surface-base;
+      }
+    }
+
+    .modal-body {
+      padding: 1.2rem 1.2rem 1.1rem;
+    }
+
+    #{$header-selector} {
+      margin: -1.2rem -1.2rem 0.85rem;
+    }
+
+    #{$hero-selector} {
+      width: 100%;
+      border-radius: 1.5rem 1.5rem 0 0;
+      padding: 1.15rem 1.2rem 1.05rem;
+      background:
+        radial-gradient(circle at top right, rgba(254, 194, 96, 0.2), transparent 22%),
+        linear-gradient(135deg, #{$hero-from} 0%, #{$hero-mid} 56%, #{$hero-to} 100%);
+      color: #fff;
+      box-shadow: 0 18px 38px rgba(95, 15, 18, 0.24);
+    }
+
+    #{$hero-selector} .h4 {
+      color: #fff;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      font-size: 1.28rem;
+    }
+
+    #{$hero-selector} .text-muted {
+      color: rgba(255, 244, 232, 0.9) !important;
+      max-width: 28rem;
+      margin-bottom: 0;
+      font-size: 0.78rem;
+    }
+  }
+}

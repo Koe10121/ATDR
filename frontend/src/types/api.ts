@@ -233,6 +233,7 @@ export interface MLLabelImportResult {
   protected_reviewed?: number;
   changed_decisions?: number;
   failed: number;
+  error_summary?: Record<string, number>;
   errors: Array<Record<string, unknown>>;
 }
 
@@ -549,6 +550,15 @@ export interface SupervisedModelReport {
   validation_warnings?: string[];
   class_temporal_coverage?: ClassTemporalCoverageReport;
   model_readiness_checklist?: ModelReadinessChecklist;
+  soc_triage_mode?: {
+    recommended_ai_mode: string;
+    primary_signal: string;
+    flat_5_class_status: string;
+    response_automation_allowed: boolean;
+    production_promoted: boolean;
+    limitations: string[];
+    review_profiles: Array<Record<string, unknown>>;
+  };
   decision_support_only: boolean;
 }
 

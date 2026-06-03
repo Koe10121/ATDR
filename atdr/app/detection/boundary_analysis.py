@@ -156,6 +156,22 @@ def build_boundary_analysis(db: Session, *, split: str = "time", test_size: floa
     ]
     if y_train.count("malicious") < 20:
         warnings.append("Malicious training-window support remains below the minimum target of 20.")
+    stage1_recall = float(stage1_metrics.get("recall") or 0)
+    stage2_weighted_f1 = float((stage2_metrics.get("weighted_average") or {}).get("f1") or 0)
+    stage2_suspicious_recall = float(((stage2_metrics.get("per_class") or {}).get("suspicious") or {}).get("recall") or 0)
+    stage2_malicious_recall = float(((stage2_metrics.get("per_class") or {}).get("malicious") or {}).get("recall") or 0)
+    overall_quality = {
+        "stage1_blocker": stage1_recall < 0.8,
+        "stage2_promising": stage2_weighted_f1 >= 0.7 or (stage2_suspicious_recall >= 0.8 and stage2_malicious_recall >= 0.5),
+        "stage1_false_negatives": stage1_metrics.get("false_negative", 0),
+        "stage1_false_positives": stage1_metrics.get("false_positive", 0),
+        "decision": "candidate_experimental",
+        "message": (
+            "Stage 2 suspicious/malicious separation is promising, but Stage 1 threat-positive recall is not ready."
+            if stage1_recall < 0.8 and (stage2_weighted_f1 >= 0.7 or stage2_suspicious_recall >= 0.8)
+            else "Hierarchical candidate remains experimental until both stages validate reliably."
+        ),
+    }
     return {
         "ok": True,
         "status": "completed",
@@ -173,6 +189,7 @@ def build_boundary_analysis(db: Session, *, split: str = "time", test_size: floa
         "hierarchical_candidate": {
             "stage1_threat_positive": stage1_metrics,
             "stage2_suspicious_malicious": stage2_metrics,
+            "overall_combined_decision_quality": overall_quality,
         },
         "warnings": warnings,
         "decision_support_only": True,
@@ -188,6 +205,7 @@ def render_boundary_report(report: dict[str, Any]) -> str:
     hierarchical = report.get("hierarchical_candidate") or {}
     stage1 = hierarchical.get("stage1_threat_positive") or {}
     stage2 = hierarchical.get("stage2_suspicious_malicious") or {}
+    overall = hierarchical.get("overall_combined_decision_quality") or {}
     stage2_per_class = stage2.get("per_class") or {}
     warnings = "\n".join(f"- {warning}" for warning in report.get("warnings", []))
     patterns = flat.get("common_patterns") or {}
@@ -226,18 +244,29 @@ This report diagnoses whether the supervised model is confusing suspicious and m
 
 ## Hierarchical Candidate
 
-Stage 1 threat-positive classifier:
+This candidate is evaluated in two separate stages. Stage 1 decides whether a row is threat-positive at all. Stage 2 only separates suspicious from malicious after Stage 1 has already selected a row.
+
+### Stage 1 Quality: Threat-Positive vs Non-Threat
 
 - Precision: {stage1.get("precision", "n/a")}
 - Recall: {stage1.get("recall", "n/a")}
 - F1: {stage1.get("f1", "n/a")}
+- False positives: {stage1.get("false_positive", "n/a")}
+- False negatives: {stage1.get("false_negative", "n/a")}
 
-Stage 2 suspicious vs malicious classifier:
+### Stage 2 Quality: Suspicious vs Malicious
 
 - Weighted F1: {(stage2.get("weighted_average") or {}).get("f1", "n/a")}
 - Macro F1: {(stage2.get("macro_average") or {}).get("f1", "n/a")}
 - Suspicious recall: {(stage2_per_class.get("suspicious") or {}).get("recall", "n/a")}
 - Malicious recall: {(stage2_per_class.get("malicious") or {}).get("recall", "n/a")}
+
+### Overall Combined Decision Quality
+
+- Stage 1 blocker: {overall.get("stage1_blocker", "n/a")}
+- Stage 2 promising: {overall.get("stage2_promising", "n/a")}
+- Decision: {overall.get("decision", "candidate_experimental")}
+- Interpretation: {overall.get("message", "Hierarchical candidate remains experimental.")}
 
 ## Warnings
 

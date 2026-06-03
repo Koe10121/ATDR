@@ -382,10 +382,11 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
         latest_run: {
           metrics: {
             f1: 0.72,
-            threat_positive: { precision: 0.87, recall: 0.95, f1: 0.91 },
+            threat_positive: { precision: 0.9663, recall: 0.7653, f1: 0.8542 },
             per_class: {
-              suspicious: { recall: 0.71 },
-              malicious: { recall: 0.54 }
+              benign: { recall: 0 },
+              suspicious: { recall: 0.4257 },
+              malicious: { recall: 0.6256 }
             }
           },
           promotion_gate: {
@@ -400,7 +401,7 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
         label_count: 0,
         label_distribution: {},
         label_source_distribution: {},
-        reviewed_label_distribution: {},
+        reviewed_label_distribution: { benign: 193, benign_unusual: 449, suspicious: 333, malicious: 331, needs_context: 19 },
         weak_label_distribution: {},
         reviewed_label_count: 0,
         reviewed_label_target: 300,
@@ -417,11 +418,97 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
           suspicious_test_count: 0,
           malicious_training_minimum: 20,
           malicious_training_better_target: 50,
-          class_coverage: {},
-          warnings: []
+          class_coverage: {
+            benign: {
+              label: "benign",
+              total: 407,
+              reviewed_total: 43,
+              train_count: 407,
+              test_count: 0,
+              reviewed_train_count: 43,
+              reviewed_test_count: 0,
+              exists_in_train: true,
+              exists_in_test: false
+            },
+            malicious: {
+              label: "malicious",
+              total: 315,
+              reviewed_total: 315,
+              train_count: 76,
+              test_count: 239,
+              reviewed_train_count: 76,
+              reviewed_test_count: 239,
+              exists_in_train: true,
+              exists_in_test: true
+            }
+          },
+          warnings: ["benign exists in training but not in the time-split test window."]
         },
         model_readiness_checklist: { status: "candidate_improved", passed: 6, total: 7, items: [], message: "candidate" },
+        soc_triage_mode: {
+          recommended_ai_mode: "SOC triage decision support",
+          primary_signal: "threat_positive review priority",
+          flat_5_class_status: "not_production_promoted",
+          response_automation_allowed: false,
+          production_promoted: false,
+          limitations: [
+            "Threat-positive triage is useful for analyst review.",
+            "Flat five-class exact classification is not production-promoted.",
+            "Benign and needs_context exact classification remain weak.",
+            "Response actions remain simulated and analyst-approved."
+          ],
+          review_profiles: [
+            {
+              profile: "conservative",
+              precision: null,
+              recall: null,
+              false_positives: null,
+              false_negatives: null,
+              estimated_review_queue_size: null,
+              guidance: "Fewer false positives and smaller review queue; run the final SOC report for measured profile metrics."
+            },
+            {
+              profile: "balanced",
+              precision: 0.9663,
+              recall: 0.7653,
+              f1: 0.8542,
+              false_positives: 8,
+              false_negatives: 23,
+              estimated_review_queue_size: 245,
+              guidance: "Default dashboard framing from the latest supervised run."
+            },
+            {
+              profile: "recall_high",
+              precision: null,
+              recall: null,
+              false_positives: null,
+              false_negatives: null,
+              estimated_review_queue_size: null,
+              guidance: "Catches more threat-positive rows but increases analyst review queue; diagnostic only."
+            }
+          ]
+        },
         decision_support_only: true
+      }
+    })
+  );
+  await page.route("**/api/ml/supervised/models", async (route) =>
+    route.fulfill({
+      json: {
+        active_artifact_exists: false,
+        response_automation_allowed: false,
+        models: [
+          {
+            model_id: 1,
+            model_type: "random_forest",
+            model_version: "candidate-smoke",
+            operation: "train_supervised",
+            readiness_decision: "eligible_for_analyst_review",
+            metrics: { f1: 0.72 },
+            created_at: "2026-05-22T00:00:00Z",
+            is_active_path: false
+          }
+        ]
       }
     })
   );
@@ -442,6 +529,30 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
     route.fulfill({
       body: "# Suspicious / Malicious Boundary Report\n",
       headers: { "content-type": "text/markdown", "content-disposition": 'attachment; filename="suspicious-malicious-boundary-report.md"' }
+    })
+  );
+  await page.route("**/api/ml/stage1-threat-recall-review/export**", async (route) =>
+    route.fulfill({
+      body: "log_id,timestamp,source,src_ip,dst_ip,dst_port,app,action,current_label,reviewed_status,model_prediction,threat_positive_score,rule_evidence,anomaly_score,hybrid_risk,reason_selected,evidence_summary,human_review_decision,human_review_attack_type,human_review_confidence,human_review_note\n1,2026-05-20T00:00:00Z,smoke,198.51.100.7,10.0.0.1,995,incomplete,allow,suspicious,true,benign,0.22,rule_score=45,-0.1,71,Stage 1 false negative,test,,unknown_anomaly,3,\n",
+      headers: { "content-type": "text/csv", "content-disposition": 'attachment; filename="stage1-threat-recall-review-sample.csv"' }
+    })
+  );
+  await page.route("**/api/ml/benign-final-gap-review/export**", async (route) =>
+    route.fulfill({
+      body: "log_id,timestamp,source,src_ip,dst_ip,dst_port,app,action,current_label,reviewed_status,model_prediction,benign_probability,threat_positive_probability,reason_selected,evidence_summary,human_review_decision,human_review_attack_type,human_review_confidence,human_review_note\n1,2026-05-20T00:00:00Z,smoke,10.0.0.5,203.0.113.1,443,ssl,allow,benign,true,suspicious,0.18,0.42,benign/suspicious boundary,test,,normal,3,\n",
+      headers: { "content-type": "text/csv", "content-disposition": 'attachment; filename="benign-needs-context-final-gap-sample.csv"' }
+    })
+  );
+  await page.route("**/api/ml/final-small-label-gap/export**", async (route) =>
+    route.fulfill({
+      body: "log_id,timestamp,source,src_ip,dst_ip,dst_port,app,action,current_label,reviewed_status,model_prediction,benign_probability,threat_positive_probability,reason_selected,evidence_summary,human_review_decision,human_review_attack_type,human_review_confidence,human_review_note\n1,2026-05-20T00:00:00Z,smoke,10.0.0.5,203.0.113.1,443,ssl,allow,benign,true,suspicious,0.18,0.42,final benign gap,test,,normal,3,\n",
+      headers: { "content-type": "text/csv", "content-disposition": 'attachment; filename="final-small-label-gap-sample.csv"' }
+    })
+  );
+  await page.route("**/api/ml/soc-triage-final-recommendation/export**", async (route) =>
+    route.fulfill({
+      body: "# SOC Triage Final Recommendation\n\nRecommended AI mode: SOC triage decision support.\n",
+      headers: { "content-type": "text/markdown", "content-disposition": 'attachment; filename="soc-triage-final-recommendation.md"' }
     })
   );
   await page.route("**/api/ml/suspicious-recall-review/export**", async (route) =>
@@ -475,8 +586,31 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
         suspicious_test_count: 0,
         malicious_training_minimum: 20,
         malicious_training_better_target: 50,
-        class_coverage: {},
-        warnings: []
+        class_coverage: {
+          benign: {
+            label: "benign",
+            total: 407,
+            reviewed_total: 43,
+            train_count: 407,
+            test_count: 0,
+            reviewed_train_count: 43,
+            reviewed_test_count: 0,
+            exists_in_train: true,
+            exists_in_test: false
+          },
+          malicious: {
+            label: "malicious",
+            total: 315,
+            reviewed_total: 315,
+            train_count: 76,
+            test_count: 239,
+            reviewed_train_count: 76,
+            reviewed_test_count: 239,
+            exists_in_train: true,
+            exists_in_test: true
+          }
+        },
+        warnings: ["benign exists in training but not in the time-split test window."]
       }
     })
   );
@@ -614,6 +748,21 @@ test("overview system health panel and ML governance wording render", async ({ p
 
   await page.goto("/ml");
   await expect(page.getByText("Model is eligible for analyst review, not production promotion.")).toBeVisible();
+  await expect(page.getByText("Recommended AI Mode")).toBeVisible();
+  await expect(page.getByText("SOC triage decision support")).toBeVisible();
+  await expect(page.getByText("Threat-positive triage is useful for analyst review.")).toBeVisible();
+  await expect(page.getByText("Flat 5-class model is not production-promoted.")).toBeVisible();
+  await expect(page.getByText("Benign and needs_context exact classification remain weak.")).toBeVisible();
+  await expect(page.getByText("Response automation disabled; simulated response requires analyst approval.")).toBeVisible();
+  await expect(page.getByText("Malicious reviewed target is met; do not prioritize malicious-heavy review unless evidence is strong.")).toBeVisible();
+  await expect(page.getByText("Suspicious reviewed target is met; continue only focused boundary cleanup.")).toBeVisible();
+  await expect(page.getByText("Benign labels are under-reviewed.")).toBeVisible();
+  await expect(page.getByText("Needs_context labels are under-reviewed.")).toBeVisible();
+  await expect(page.getByText("Benign recall is the current blocker")).toBeVisible();
+  await expect(page.getByText("Stage 1 threat-positive recall still needs calibration.")).toBeVisible();
+  await expect(page.getByText("Stage 2 suspicious/malicious separation is promising, but Stage 1 must catch threat-positive rows first.")).toBeVisible();
+  await expect(page.getByText("Current time split has class imbalance; metrics are unstable.")).toBeVisible();
+  await expect(page.getByText("Model remains candidate_only and decision support only.")).toBeVisible();
   await expect(page.getByText("Analyst Review Gate")).toBeVisible();
   await expect(page.getByText("Assisted labels are weak labels.")).toBeVisible();
 });
@@ -624,6 +773,9 @@ test("deep-linked alert and log drawers render", async ({ page }) => {
   await page.goto("/alerts?alert=1");
   await expect(page.getByRole("heading", { name: "Critical: Smoke alert" })).toBeVisible();
   await expect(page.getByText("Why flagged?")).toBeVisible();
+  await expect(page.getByText("Supervised Triage Signal")).toBeVisible();
+  await expect(page.getByText("Review priority only; not automatic truth.")).toBeVisible();
+  await expect(page.getByText("ML output is decision support.")).toBeVisible();
   await expect(page.getByText("Alert Occurrences")).toBeVisible();
   await expect(page.getByText("Related Log Count")).toBeVisible();
   await expect(page.getByText("Grouped alert metadata")).toBeVisible();
@@ -732,8 +884,13 @@ test("dashboard dropdowns close and do not block follow-up clicks", async ({ pag
   await expect(page.getByRole("button", { name: "Malicious-Focused Sample" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Round 5 Threat Boundary" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Training-Window Threat Sample" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Stage 1 Recall Sample" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Benign Gap Sample" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Final Small Gap Sample" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "SOC Triage Recommendation" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Suspicious Recall Sample" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Suspicious Recall Report" })).toBeVisible();
+  await expect(page.getByText("Benign recall is the current blocker")).toBeVisible();
   await page.getByRole("button", { name: "Human Review Sample" }).click();
   await page.getByRole("button", { name: "General Active Learning Sample" }).click();
   await page.getByRole("button", { name: "Malicious-Focused Sample" }).click();
@@ -742,6 +899,10 @@ test("dashboard dropdowns close and do not block follow-up clicks", async ({ pag
   await page.getByRole("button", { name: "Round 5 Threat Boundary" }).click();
   await page.getByRole("button", { name: "Training-Window Threat Sample" }).click();
   await page.getByRole("button", { name: "Boundary Report" }).click();
+  await page.getByRole("button", { name: "Stage 1 Recall Sample" }).click();
+  await page.getByRole("button", { name: "Benign Gap Sample" }).click();
+  await page.getByRole("button", { name: "Final Small Gap Sample" }).click();
+  await page.getByRole("button", { name: "SOC Triage Recommendation" }).click();
   await page.getByRole("button", { name: "Download Model Report" }).click();
   await expect(page.locator('[data-atdr-dropdown-open="true"]')).toHaveCount(0);
   expect(pageErrors).toEqual([]);

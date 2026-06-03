@@ -1,0 +1,11 @@
+.env
+.env.*
+
+node_modules/
+dist/
+coverage/
+frontend-vue/tests/e2e/reports/
+.cache/
+*.log
+backend-node/backups/
+.DS_Store

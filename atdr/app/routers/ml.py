@@ -21,6 +21,7 @@ from atdr.app.detection.suspicious_recall_analysis import (
     build_suspicious_recall_error_report,
     render_suspicious_recall_error_report,
 )
+from atdr.app.detection.supervised_recovery import build_soc_triage_final_recommendation, render_soc_triage_final_recommendation
 from atdr.app.schemas.ml import (
     MLDatasetProfileRead,
     MLEvaluationReportRead,
@@ -34,7 +35,10 @@ from atdr.app.schemas.ml import (
     MLStatusRead,
 )
 from atdr.app.services.active_learning_service import (
+    export_benign_needs_context_final_gap_sample_csv,
     export_active_learning_review_sample_csv,
+    export_final_small_label_gap_sample_csv,
+    export_stage1_threat_recall_review_sample_csv,
     export_suspicious_recall_review_sample_csv,
     export_training_window_threat_review_sample_csv,
 )
@@ -225,6 +229,60 @@ def export_suspicious_recall_review_sample(
         content=export_suspicious_recall_review_sample_csv(db, limit=limit),
         media_type="text/csv",
         headers={"Content-Disposition": 'attachment; filename="suspicious-recall-review-sample.csv"'},
+    )
+
+
+@router.get("/stage1-threat-recall-review/export")
+def export_stage1_threat_recall_review_sample(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+    limit: int = Query(default=300, ge=1, le=1000),
+) -> Response:
+    return Response(
+        content=export_stage1_threat_recall_review_sample_csv(db, limit=limit),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="stage1-threat-recall-review-sample.csv"'},
+    )
+
+
+@router.get("/benign-final-gap-review/export")
+def export_benign_final_gap_review_sample(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+    limit: int = Query(default=100, ge=1, le=1000),
+) -> Response:
+    return Response(
+        content=export_benign_needs_context_final_gap_sample_csv(db, limit=limit),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="benign-needs-context-final-gap-sample.csv"'},
+    )
+
+
+@router.get("/final-small-label-gap/export")
+def export_final_small_label_gap_sample(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+    limit: int = Query(default=64, ge=1, le=1000),
+) -> Response:
+    return Response(
+        content=export_final_small_label_gap_sample_csv(db, limit=limit),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="final-small-label-gap-sample.csv"'},
+    )
+
+
+@router.get("/soc-triage-final-recommendation/export")
+def export_soc_triage_final_recommendation(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+    split: str = Query(default="time", pattern="^(random|time)$"),
+    test_size: float = Query(default=0.3, ge=0.1, le=0.5),
+) -> Response:
+    report = build_soc_triage_final_recommendation(db, split=split, test_size=test_size)
+    return Response(
+        content=render_soc_triage_final_recommendation(report),
+        media_type="text/markdown",
+        headers={"Content-Disposition": 'attachment; filename="soc-triage-final-recommendation.md"'},
     )
 
 

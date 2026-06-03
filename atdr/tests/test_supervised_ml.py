@@ -23,6 +23,25 @@ from atdr.app.detection.suspicious_recall_analysis import (
     write_suspicious_recall_error_report,
 )
 from atdr.app.detection.threshold_tuning import tune_model_thresholds
+from atdr.app.detection.supervised_recovery import (
+    build_benign_class_debug_report,
+    build_current_supervised_dataset_audit,
+    build_evaluation_split_diagnostics,
+    build_supervised_label_target_plan,
+    evaluate_weak_label_impact,
+    export_supervised_recovery_review_sample,
+    rebuild_clean_registered_baseline,
+    render_evaluation_split_diagnostics,
+    run_binary_threat_positive_experiment,
+    run_benign_recovery_experiment,
+    run_stage1_threshold_tuning,
+    run_two_stage_recovery_experiment,
+    write_benign_class_debug_report,
+    write_evaluation_split_diagnostics,
+    write_soc_triage_final_recommendation,
+    write_soc_triage_model_strategy_report,
+    write_supervised_label_target_plan,
+)
 from atdr.app.detection.supervised_workflow import (
     activate_supervised_model,
     analyze_supervised_errors,
@@ -38,8 +57,18 @@ from atdr.app.detection.cost_sensitive import cost_sensitive_report
 from atdr.app.services.active_learning_service import (
     build_active_learning_review_sample,
     export_active_learning_review_sample_csv,
+    export_balanced_recovery_review_sample_csv,
+    export_benign_needs_context_final_gap_sample_csv,
+    export_final_small_label_gap_sample_csv,
+    export_large_pool_active_learning_sample_csv,
+    export_stage1_threat_recall_review_sample_csv,
     export_suspicious_recall_review_sample_csv,
     export_training_window_threat_review_sample_csv,
+    write_balanced_recovery_review_sample,
+    write_benign_needs_context_final_gap_sample,
+    write_final_small_label_gap_sample,
+    write_large_pool_active_learning_sample,
+    write_stage1_threat_recall_review_sample,
     write_suspicious_recall_review_sample,
     write_training_window_threat_review_sample,
     write_active_learning_review_sample,
@@ -273,6 +302,8 @@ def test_csv_import_service_reports_row_errors():
     assert result["created"] == 0
     assert result["failed"] == 2
     assert result["errors"]
+    assert result["error_summary"]["invalid_label"] == 1
+    assert result["error_summary"]["log_missing"] == 1
 
 
 def test_reviewed_csv_import_preserves_assisted_provenance_and_protects_manual_labels():
@@ -369,7 +400,7 @@ def test_active_learning_csv_import_skips_blank_rows_and_accepts_reviewed_decisi
 
         csv_body = (
             "label_id,log_id,current_label,current_attack_type,label_source,reviewed,model_prediction,confidence,human_review_decision,human_review_note\n"
-            f"{reviewed_label.id},{reviewed_log.id},suspicious,policy_violation,assisted_rule,false,malicious,0.9533,malicious,Confirmed malicious pattern\n"
+            f"{reviewed_label.id}.0,{reviewed_log.id},suspicious,policy_violation,assisted_rule,false,malicious,0.9533,malicious,Confirmed malicious pattern\n"
             f"{blank_label.id},{blank_log.id},benign,normal,assisted_rule,false,benign,0.9911,,\n"
         )
         result = import_ml_labels_csv(db, csv_body, reviewer="admin")
@@ -384,6 +415,36 @@ def test_active_learning_csv_import_skips_blank_rows_and_accepts_reviewed_decisi
     assert reviewed_label.confidence == 3
     assert reviewed_label.reviewed is True
     assert blank_label.reviewed is False
+
+
+def test_reviewed_csv_import_accepts_spreadsheet_integer_label_ids():
+    Session = _test_session()
+    with Session() as db:
+        log = _add_log(db, 1, action="deny", app="unknown-tcp", app_risk=5)
+        label = MLLabel(
+            log_id=log.id,
+            label="suspicious",
+            attack_type="unknown_anomaly",
+            confidence=3,
+            reviewer="codex_assisted",
+            review_note="Assisted label.",
+            label_source="assisted_rule",
+            reviewed=False,
+        )
+        db.add(label)
+        db.commit()
+
+        csv_body = (
+            "label_id,log_id,human_review_decision,human_review_attack_type,human_review_confidence,human_review_note\n"
+            f"{label.id}.0,{log.id},malicious,port_scan,4,spreadsheet kept id as float\n"
+        )
+        result = import_ml_labels_csv(db, csv_body, reviewer="reviewer")
+        db.refresh(label)
+
+    assert result["failed"] == 0
+    assert result["updated"] == 1
+    assert label.label == "malicious"
+    assert label.reviewed is True
 
 
 def test_label_import_protects_reviewed_assisted_labels_without_correction_mode():
@@ -1063,6 +1124,335 @@ def test_supervised_sanity_report_evaluates_active_and_candidates(tmp_path, monk
     assert sanity["response_automation_allowed"] is False
     assert sanity["experiment"]["promotion_gate"]["production_promoted"] is False
     assert "threshold-decision path" in Path(sanity["report_path"]).read_text(encoding="utf-8")
+
+
+def test_supervised_recovery_audit_binary_and_review_sample(tmp_path, monkeypatch):
+    active_path = tmp_path / "active-supervised.joblib"
+    monkeypatch.setattr(
+        supervised_detector,
+        "get_settings",
+        lambda: SimpleNamespace(resolved_supervised_model_path=active_path),
+    )
+    Session = _test_session()
+    with Session() as db:
+        for index in range(1, 10):
+            _add_log(db, index, src_ip="10.0.0.5", action="allow", app="ssl", app_risk=2, label="benign")
+        for index in range(10, 18):
+            _add_log(db, index, src_ip="198.51.100.10", action="deny", app="unknown-tcp", app_risk=5, label="suspicious")
+        for index in range(18, 27):
+            _add_log(db, index, src_ip="198.51.100.11", action="drop", app="unknown-tcp", app_risk=5, label="malicious")
+        for label in db.scalars(select(MLLabel)).all():
+            if label.label == "benign":
+                label.reviewed = False
+                label.label_source = "assisted_rule"
+        db.commit()
+
+        audit = build_current_supervised_dataset_audit(db, output_path=tmp_path / "audit.md", split="time", test_size=0.3)
+        weak = evaluate_weak_label_impact(db, split="time", test_size=0.3, min_samples=6)
+        binary = run_binary_threat_positive_experiment(db, output_path=tmp_path / "binary.md", split="time", test_size=0.3, min_samples=6)
+        two_stage = run_two_stage_recovery_experiment(db, output_path=tmp_path / "two-stage.md", split="time", test_size=0.3, min_samples=6)
+        sample = export_supervised_recovery_review_sample(db, output_path=tmp_path / "recovery.csv", limit=8)
+        label_plan = write_supervised_label_target_plan(db, output_path=tmp_path / "label-plan.md", split="time", test_size=0.3)
+        label_plan_raw = build_supervised_label_target_plan(db, split="time", test_size=0.3)
+        large_pool_csv = export_large_pool_active_learning_sample_csv(db, limit=5, candidate_pool_limit=20)
+        large_pool = write_large_pool_active_learning_sample(
+            db,
+            output_path=tmp_path / "large-pool.csv",
+            limit=8,
+            candidate_pool_limit=30,
+        )
+
+    assert audit["status"] == "exported"
+    assert audit["train_label_distribution"]
+    assert audit["missing_feature_summary"]
+    assert weak["status"] == "completed"
+    assert "mixed_default" in weak["diagnostics"]
+    assert binary["decision"] == "candidate_experimental"
+    assert binary["response_automation_allowed"] is False
+    assert two_stage["decision"] == "candidate_experimental"
+    assert sample["rows"] > 0
+    assert label_plan["reviewed_total"] > 0
+    assert label_plan_raw["reviewed_total"] == label_plan["reviewed_total"]
+    assert label_plan["production_promoted"] is False
+    assert large_pool["rows"] > 0
+    assert large_pool["response_automation_allowed"] is False
+    csv_header = Path(sample["path"]).read_text(encoding="utf-8").splitlines()[0]
+    assert "human_review_attack_type" in csv_header
+    assert "human_review_decision" in large_pool_csv.splitlines()[0]
+    assert "large log pool" in Path(label_plan["report_path"]).read_text(encoding="utf-8").lower()
+    assert "human_review_decision" in Path(large_pool["path"]).read_text(encoding="utf-8").splitlines()[0]
+
+
+def test_balanced_recovery_review_sample_avoids_malicious_heavy_selection(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "atdr.app.services.active_learning_service.predict_supervised_log",
+        lambda _db, log_id, rule_score=0: {
+            "predicted_label": "suspicious" if rule_score >= 55 else "benign",
+            "confidence": 0.72,
+            "class_probabilities": {"benign": 0.6, "suspicious": 0.35, "malicious": 0.05},
+        },
+    )
+    Session = _test_session()
+    with Session() as db:
+        for index in range(1, 21):
+            log = _add_log(db, index, action="allow", app="ssl", app_risk=2, label="benign" if index % 5 == 0 else None)
+            log.dst_port = 443
+            log.is_anomaly = False
+            log.anomaly_score = 0.02
+        for index in range(21, 29):
+            log = _add_log(db, index, action="allow", app="incomplete", app_risk=3, label="needs_context" if index % 2 == 0 else None)
+            log.dst_port = 0
+        for index in range(29, 39):
+            log = _add_log(db, index, src_ip="198.51.100.9", action="deny", app="unknown-tcp", app_risk=5, label="suspicious")
+            log.dst_port = 22 if index % 2 == 0 else 995
+            log.is_anomaly = True
+            log.anomaly_score = -0.35
+        for index in range(39, 43):
+            log = _add_log(db, index, src_ip="203.0.113.10", action="drop", app="unknown-tcp", app_risk=5, label="malicious")
+            log.dst_port = 4444
+        db.commit()
+
+        csv_text = export_balanced_recovery_review_sample_csv(db, limit=30)
+        written = write_balanced_recovery_review_sample(db, limit=30, output_path=tmp_path / "balanced.csv")
+
+    rows = list(csv.DictReader(StringIO(csv_text)))
+    assert written["rows"] > 0
+    assert written["bucket_distribution"].get("benign_candidate", 0) > 0
+    assert written["production_promoted"] is False
+    assert written["response_automation_allowed"] is False
+    assert "human_review_decision" in csv_text.splitlines()[0]
+    assert {row["current_label"] for row in rows}.isdisjoint({"malicious"})
+    assert any("benign gap recovery" in row["reason_selected"] for row in rows)
+    assert any("needs_context gap recovery" in row["reason_selected"] for row in rows)
+
+
+def test_stage1_recovery_review_sample_and_threshold_tuning(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "atdr.app.services.active_learning_service.predict_supervised_log",
+        lambda _db, log_id, rule_score=0: {
+            "predicted_label": "benign" if log_id % 3 else "suspicious",
+            "confidence": 0.61,
+            "malicious_probability": 0.28 if log_id % 3 else 0.76,
+            "class_probabilities": {"benign": 0.58, "benign_unusual": 0.12, "suspicious": 0.2, "malicious": 0.1},
+        },
+    )
+    Session = _test_session()
+    with Session() as db:
+        for index in range(1, 13):
+            log = _add_log(db, index, action="allow", app="ssl", app_risk=2, label="benign" if index % 4 == 0 else None)
+            log.dst_port = 443
+            log.is_anomaly = False
+            log.anomaly_score = 0.03
+        for index in range(13, 19):
+            _add_log(db, index, action="allow", app="incomplete", app_risk=3, label="needs_context")
+        for index in range(19, 29):
+            log = _add_log(db, index, src_ip="198.51.100.7", action="deny", app="unknown-tcp", app_risk=5, label="suspicious")
+            log.dst_port = 995
+        for index in range(29, 35):
+            log = _add_log(db, index, src_ip="198.51.100.8", action="drop", app="unknown-tcp", app_risk=5, label="malicious")
+            log.dst_port = 4444
+        db.commit()
+
+        csv_text = export_stage1_threat_recall_review_sample_csv(db, limit=40)
+        written_sample = write_stage1_threat_recall_review_sample(db, limit=40, output_path=tmp_path / "stage1.csv")
+        tuning = run_stage1_threshold_tuning(db, output_path=tmp_path / "stage1-threshold.md", split="time", test_size=0.3, min_samples=6)
+        boundary = write_boundary_report(db, output_path=tmp_path / "boundary.md", split="time", test_size=0.3, min_samples=6)
+
+    rows = list(csv.DictReader(StringIO(csv_text)))
+    malicious_rows = [row for row in rows if row["current_label"] == "malicious"]
+    assert written_sample["rows"] > 0
+    assert written_sample["production_promoted"] is False
+    assert written_sample["response_automation_allowed"] is False
+    assert "threat_positive_score" in csv_text.splitlines()[0]
+    assert len(malicious_rows) <= max(5, round(len(rows) * 0.25))
+    assert any("Stage 1" in row["reason_selected"] for row in rows)
+    assert {item["profile"] for item in tuning["profiles"]} == {
+        "conservative",
+        "balanced",
+        "recall_high",
+        "recall_max_review_queue",
+    }
+    assert tuning["production_promoted"] is False
+    assert tuning["response_automation_allowed"] is False
+    threshold_text = Path(tuning["report_path"]).read_text(encoding="utf-8")
+    assert "Estimated Review Queue" in threshold_text
+    boundary_text = Path(boundary["report_path"]).read_text(encoding="utf-8")
+    assert "Stage 1 Quality" in boundary_text
+    assert "Stage 2 Quality" in boundary_text
+    assert "Overall Combined Decision Quality" in boundary_text
+    assert boundary["hierarchical_candidate"]["overall_combined_decision_quality"]["decision"] == "candidate_experimental"
+
+
+def test_benign_recovery_diagnostics_and_final_gap_sample(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "atdr.app.services.active_learning_service.predict_supervised_log",
+        lambda _db, log_id, rule_score=0: {
+            "predicted_label": "suspicious" if log_id % 4 == 0 else "benign_unusual",
+            "confidence": 0.58,
+            "class_probabilities": {
+                "benign": 0.18 if log_id % 4 == 0 else 0.32,
+                "benign_unusual": 0.42,
+                "suspicious": 0.38 if log_id % 4 == 0 else 0.12,
+                "malicious": 0.04,
+                "needs_context": 0.06,
+            },
+        },
+    )
+    assert (
+        supervised_detector.threshold_decision(
+            {"benign": 0.72, "benign_unusual": 0.08, "suspicious": 0.04, "malicious": 0.02, "needs_context": 0.14},
+            profile="balanced",
+        )
+        == "benign"
+    )
+    Session = _test_session()
+    with Session() as db:
+        for index in range(1, 15):
+            log = _add_log(db, index, action="allow", app="ssl", app_risk=2, label="benign")
+            log.dst_port = 443
+        for index in range(15, 25):
+            log = _add_log(db, index, action="allow", app="quic-base", app_risk=2, label="benign_unusual")
+            log.dst_port = 443
+        for index in range(25, 31):
+            log = _add_log(db, index, action="allow", app="incomplete", app_risk=3, label="needs_context")
+            log.dst_port = 0
+        for index in range(31, 43):
+            log = _add_log(db, index, action="deny", app="unknown-tcp", app_risk=5, label="suspicious")
+            log.dst_port = 995
+        for index in range(43, 51):
+            log = _add_log(db, index, action="drop", app="unknown-tcp", app_risk=5, label="malicious")
+            log.dst_port = 4444
+        db.commit()
+
+        debug = write_benign_class_debug_report(db, output_path=tmp_path / "benign-debug.md", split="time", test_size=0.3, min_samples=6)
+        raw_debug = build_benign_class_debug_report(db, split="time", test_size=0.3, min_samples=6)
+        experiment = run_benign_recovery_experiment(db, output_path=tmp_path / "benign-experiment.md", split="time", test_size=0.3, min_samples=6)
+        strategy = write_soc_triage_model_strategy_report(db, output_path=tmp_path / "soc-strategy.md", split="time", test_size=0.3, min_samples=6)
+        final_recommendation = write_soc_triage_final_recommendation(
+            db,
+            output_path=tmp_path / "soc-final.md",
+            split="time",
+            test_size=0.3,
+            min_samples=6,
+        )
+        csv_text = export_benign_needs_context_final_gap_sample_csv(db, limit=40)
+        sample = write_benign_needs_context_final_gap_sample(db, limit=40, output_path=tmp_path / "benign-gap.csv")
+        final_csv_text = export_final_small_label_gap_sample_csv(db, limit=24)
+        final_sample = write_final_small_label_gap_sample(db, limit=24, output_path=tmp_path / "final-gap.csv")
+
+    rows = list(csv.DictReader(StringIO(csv_text)))
+    final_rows = list(csv.DictReader(StringIO(final_csv_text)))
+    assert debug["mapping_checks"]["benign_in_model_classes"] is True
+    assert raw_debug["mapping_checks"]["threshold_can_output_benign"] is True
+    assert "Likely Cause" in Path(debug["report_path"]).read_text(encoding="utf-8")
+    assert experiment["production_promoted"] is False
+    assert experiment["response_automation_allowed"] is False
+    assert any(item["name"] == "binary_benign_like_vs_threat" for item in experiment["variants"])
+    assert strategy["production_promoted"] is False
+    assert "three_class_soc_triage" in strategy["strategies"]
+    assert final_recommendation["production_promoted"] is False
+    assert final_recommendation["response_automation_allowed"] is False
+    assert final_recommendation["recommended_dashboard_strategy"]["mode"] == "SOC triage decision support"
+    assert {item["profile"] for item in final_recommendation["stage1_review_profiles"]}.issuperset({"conservative", "balanced", "recall_high"})
+    assert "Recommended AI mode: SOC triage decision support" in Path(final_recommendation["report_path"]).read_text(encoding="utf-8")
+    assert sample["rows"] > 0
+    assert "benign_probability" in csv_text.splitlines()[0]
+    assert {row["current_label"] for row in rows}.isdisjoint({"malicious"})
+    assert sample["bucket_distribution"].get("benign_training_candidate", 0) > 0
+    assert final_sample["rows"] > 0
+    assert final_sample["production_promoted"] is False
+    assert final_sample["response_automation_allowed"] is False
+    assert {row["current_label"] for row in final_rows}.isdisjoint({"malicious"})
+    assert "benign_training_candidate" in final_sample["bucket_distribution"]
+
+
+def test_label_target_plan_and_split_diagnostics_warn_without_promotion(tmp_path, monkeypatch):
+    active_path = tmp_path / "active-supervised.joblib"
+    monkeypatch.setattr(
+        supervised_detector,
+        "get_settings",
+        lambda: SimpleNamespace(resolved_supervised_model_path=active_path),
+    )
+    Session = _test_session()
+    with Session() as db:
+        for index in range(1, 9):
+            _add_log(db, index, action="allow", app="ssl", app_risk=2, label="benign")
+        for index in range(9, 13):
+            _add_log(db, index, action="allow", app="incomplete", app_risk=3, label="needs_context")
+        for index in range(13, 21):
+            _add_log(db, index, src_ip="198.51.100.7", action="deny", app="unknown-tcp", app_risk=5, label="suspicious")
+        for index in range(21, 29):
+            _add_log(db, index, src_ip="198.51.100.8", action="drop", app="unknown-tcp", app_risk=5, label="malicious")
+        db.commit()
+
+        plan = build_supervised_label_target_plan(
+            db,
+            split="time",
+            test_size=0.3,
+            targets={"benign": 12, "benign_unusual": 2, "suspicious": 10, "malicious": 4, "needs_context": 6},
+        )
+        diagnostics = build_evaluation_split_diagnostics(db, test_size=0.3, min_samples=6)
+        written = write_evaluation_split_diagnostics(db, output_path=tmp_path / "split-diagnostics.md", test_size=0.3, min_samples=6)
+        grouped = supervised_detector.train_supervised_classifier(
+            db,
+            actor="tester",
+            split="grouped_stratified",
+            test_size=0.3,
+            min_samples=6,
+            model_path=tmp_path / "grouped-diagnostic.joblib",
+            save_candidate=True,
+        )
+
+    recommendations = " ".join(plan["recommendations"])
+    report_text = Path(written["report_path"]).read_text(encoding="utf-8")
+    rendered = render_evaluation_split_diagnostics(diagnostics)
+    assert "benign" in recommendations
+    assert "needs_context" in recommendations
+    assert "suspicious" in recommendations
+    assert "Stage 1 threat-positive false negatives" in recommendations
+    assert "Malicious reviewed target is met" in recommendations
+    assert diagnostics["production_promoted"] is False
+    assert diagnostics["response_automation_allowed"] is False
+    assert "Grouped/stratified split is diagnostic only" in rendered
+    assert "Grouped/stratified split is diagnostic only" in report_text
+    assert "Grouped/stratified split is diagnostic only" in " ".join(grouped["split_warnings"])
+    assert (grouped["promotion_gate"] or {}).get("production_promoted") is False
+    assert grouped["response_automation_allowed"] is False
+
+
+def test_rebuild_clean_registered_baseline_saves_candidate_only(tmp_path, monkeypatch):
+    active_path = tmp_path / "active-supervised.joblib"
+    monkeypatch.setattr(
+        supervised_detector,
+        "get_settings",
+        lambda: SimpleNamespace(resolved_supervised_model_path=active_path),
+    )
+    Session = _test_session()
+    with Session() as db:
+        for index in range(1, 9):
+            _add_log(db, index, src_ip="10.0.0.5", action="allow", app_risk=2, label="benign")
+        for index in range(9, 17):
+            _add_log(db, index, src_ip="198.51.100.7", action="deny", app="unknown-tcp", app_risk=5, label="suspicious")
+        for index in range(17, 25):
+            _add_log(db, index, src_ip="198.51.100.8", action="drop", app="unknown-tcp", app_risk=5, label="malicious")
+        db.commit()
+
+        result = rebuild_clean_registered_baseline(
+            db,
+            output_root=tmp_path / "recovery",
+            split="time",
+            test_size=0.3,
+            min_samples=6,
+            actor="tester",
+        )
+
+    assert result["status"] == "completed"
+    assert result["decision"] == "candidate_only"
+    assert result["response_automation_allowed"] is False
+    assert len(result["candidates"]) == 4
+    assert all(candidate["model_id"] for candidate in result["candidates"])
+    assert all(candidate["readiness_decision"] in {"candidate_only", "eligible_for_analyst_review"} for candidate in result["candidates"])
+    assert active_path.exists() is False
 
 
 def test_supervised_model_registry_activation_and_rollback(tmp_path, monkeypatch):

@@ -15,7 +15,7 @@ import {
   useSupervisedModels,
   useSupervisedReport
 } from "../hooks/useApiQueries";
-import type { MLAttackType, MLLabelValue, MLReviewQueueItem } from "../types/api";
+import type { ClassTemporalCoverageRow, MLAttackType, MLLabelValue, MLReviewQueueItem } from "../types/api";
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -37,11 +37,14 @@ export function MLGovernance() {
   const supervisedData = supervised.data;
   const supervisedMetrics = supervisedData?.latest_run?.metrics ?? {};
   const threatPositive = (supervisedMetrics.threat_positive ?? {}) as Record<string, unknown>;
+  const socTriageMode = supervisedData?.soc_triage_mode;
+  const socReviewProfiles = socTriageMode?.review_profiles ?? [];
   const topFeatures = supervisedData?.latest_run?.top_features ?? [];
   const dataQuality = data?.data_quality;
   const validationWarnings = supervisedData?.validation_warnings ?? supervisedData?.latest_run?.validation_warnings ?? [];
   const reviewedTarget = supervisedData?.reviewed_label_target ?? 300;
   const reviewedCoverage = supervisedData?.reviewed_label_count ? Math.round((supervisedData.reviewed_label_count / reviewedTarget) * 100) : 0;
+  const reviewedDistribution = supervisedData?.reviewed_label_distribution ?? {};
   const promotionGate = supervisedData?.latest_run?.promotion_gate ?? {};
   const featureGeneration = supervisedData?.latest_run?.feature_generation ?? {};
   const trainingDiagnostics = supervisedData?.latest_run?.training_dataset_diagnostics ?? {};
@@ -49,14 +52,28 @@ export function MLGovernance() {
   const readiness = supervisedData?.model_readiness_checklist ?? supervisedData?.latest_run?.model_readiness_checklist;
   const drift = data?.baseline_drift_report;
   const perClass = (supervisedMetrics.per_class ?? {}) as Record<string, Record<string, unknown>>;
+  const benignMetrics = perClass.benign ?? {};
   const suspiciousMetrics = perClass.suspicious ?? {};
   const maliciousMetrics = perClass.malicious ?? {};
+  const benignRecall = Number(benignMetrics.recall ?? 0);
   const suspiciousRecall = Number(suspiciousMetrics.recall ?? 0);
   const maliciousRecall = Number(maliciousMetrics.recall ?? 0);
+  const threatPositiveRecall = Number(threatPositive.recall ?? 0);
   const productionPromoted = Boolean(promotionGate.production_promoted);
   const analystReviewEligible = Boolean(promotionGate.analyst_review_eligible);
+  const reviewedBenign = Number(reviewedDistribution.benign ?? 0);
+  const reviewedNeedsContext = Number(reviewedDistribution.needs_context ?? 0);
+  const reviewedMalicious = Number(reviewedDistribution.malicious ?? temporal?.reviewed_malicious_count ?? 0);
+  const reviewedSuspicious = Number(reviewedDistribution.suspicious ?? temporal?.reviewed_suspicious_count ?? 0);
+  const classCoverage: Record<string, ClassTemporalCoverageRow> =
+    temporal?.class_coverage ?? supervisedData?.class_temporal_coverage?.class_coverage ?? {};
+  const unstableTimeSplit = Object.values(classCoverage).some((row) => {
+    return Number(row.train_count ?? 0) === 0 || Number(row.test_count ?? 0) === 0;
+  });
   const registry = supervisedModels.data;
   const activeRegistryModel = registry?.models.find((model) => model.is_active_path) ?? registry?.models[0];
+  const activeArtifactMetadataUnknown =
+    activeRegistryModel?.model_version === "active-unregistered" || activeRegistryModel?.model_type === "unknown";
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<string | null>(null);
   const [quickReviewMessage, setQuickReviewMessage] = useState<string | null>(null);
@@ -74,6 +91,10 @@ export function MLGovernance() {
       | "active_learning_threat_boundary"
       | "training_window_threat"
       | "boundary_report"
+      | "stage1_threat_recall_sample"
+      | "benign_final_gap_sample"
+      | "final_small_gap_sample"
+      | "soc_triage_final_report"
       | "suspicious_recall_sample"
       | "suspicious_recall_report"
       | "label_quality"
@@ -121,6 +142,18 @@ export function MLGovernance() {
         case "boundary_report":
           file = await api.downloadSuspiciousMaliciousBoundaryReport();
           break;
+        case "stage1_threat_recall_sample":
+          file = await api.downloadStage1ThreatRecallReviewSample({ limit: 300 });
+          break;
+        case "benign_final_gap_sample":
+          file = await api.downloadBenignFinalGapReviewSample({ limit: 100 });
+          break;
+        case "final_small_gap_sample":
+          file = await api.downloadFinalSmallLabelGapSample({ limit: 64 });
+          break;
+        case "soc_triage_final_report":
+          file = await api.downloadSocTriageFinalRecommendation();
+          break;
         case "suspicious_recall_sample":
           file = await api.downloadSuspiciousRecallReviewSample({ limit: 150 });
           break;
@@ -151,10 +184,14 @@ export function MLGovernance() {
     labelMutations.importCsv.mutate(
       correctionMode ? { file, params: { correction_mode: true, overwrite_reviewed: true } } : file,
       {
-      onSuccess: (result) =>
+      onSuccess: (result) => {
+        const errorSummary = Object.entries(result.error_summary ?? {})
+          .map(([reason, count]) => `${reason}: ${count}`)
+          .join(", ");
         setImportResult(
-          `Reviewed import complete: ${result.created} created, ${result.updated} reviewed/updated, ${result.changed_decisions ?? 0} decision changes, ${result.skipped ?? 0} skipped, ${result.protected_manual ?? 0} manual labels protected, ${result.protected_reviewed ?? 0} reviewed labels protected, ${result.failed} failed.`
-        )
+          `Reviewed import complete: ${result.created} created, ${result.updated} reviewed/updated, ${result.changed_decisions ?? 0} decision changes, ${result.skipped ?? 0} skipped, ${result.protected_manual ?? 0} manual labels protected, ${result.protected_reviewed ?? 0} reviewed labels protected, ${result.failed} failed.${errorSummary ? ` Failure reasons: ${errorSummary}.` : ""}`
+        );
+      }
       }
     );
   }
@@ -305,6 +342,60 @@ export function MLGovernance() {
             </div>
           </details>
         </div>
+        <div className="mt-4 rounded-lg border border-amber/30 bg-amber/10 p-3 text-sm text-amber">
+          Current supervised recovery status: candidates are weak and remain candidate-only.{" "}
+          {activeArtifactMetadataUnknown ? "The active supervised artifact exists, but its registry metadata is unknown/legacy. " : ""}
+          A clean registered baseline should be rebuilt before using supervised results in advisor-facing evidence. Binary threat-positive
+          experiments are experimental only, and response automation remains disabled.
+        </div>
+        <div className="mt-4 rounded-lg border border-cyan/30 bg-cyan/10 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div className="text-xs font-extrabold uppercase tracking-wide text-cyan">Recommended AI Mode</div>
+              <div className="mt-1 text-lg font-black text-text">{socTriageMode?.recommended_ai_mode ?? "SOC triage decision support"}</div>
+            </div>
+            <Badge value="Decision Support Only" />
+          </div>
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">Threat-positive triage is useful for analyst review.</div>
+            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">Flat 5-class model is not production-promoted.</div>
+            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">Benign and needs_context exact classification remain weak.</div>
+            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">Response automation disabled; simulated response requires analyst approval.</div>
+          </div>
+          {socReviewProfiles.length ? (
+            <details className="mt-3">
+              <summary className="cursor-pointer text-sm font-bold text-text">SOC review profiles</summary>
+              <div className="mt-3 overflow-auto">
+                <table className="soc-table soc-table-compact">
+                  <thead>
+                    <tr>
+                      <th>Profile</th>
+                      <th>Precision</th>
+                      <th>Recall</th>
+                      <th>False Positives</th>
+                      <th>False Negatives</th>
+                      <th>Queue</th>
+                      <th>Guidance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {socReviewProfiles.map((profile) => (
+                      <tr key={String(profile.profile)}>
+                        <td>{String(profile.profile ?? "-")}</td>
+                        <td>{String(profile.precision ?? "report")}</td>
+                        <td>{String(profile.recall ?? "report")}</td>
+                        <td>{String(profile.false_positives ?? "report")}</td>
+                        <td>{String(profile.false_negatives ?? "report")}</td>
+                        <td>{String(profile.estimated_review_queue_size ?? "report")}</td>
+                        <td>{String(profile.guidance ?? "Diagnostic only; no auto activation.")}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          ) : null}
+        </div>
         <div className="mt-4 grid gap-4 md:grid-cols-3">
           <MetricCard label="Reviewed Labels" value={supervisedData?.reviewed_label_count ?? 0} detail="Human-reviewed/manual rows" tone="teal" />
           <MetricCard label="Assisted Pending Review" value={supervisedData?.unreviewed_assisted_label_count ?? 0} detail="Weak labels needing validation" tone="amber" />
@@ -315,11 +406,17 @@ export function MLGovernance() {
           <MetricCard label="Threat-Positive Recall" value={String(threatPositive.recall ?? "-")} detail="Combined SOC catch rate" tone="danger" />
           <MetricCard label="Threat-Positive F1" value={String(threatPositive.f1 ?? "-")} detail="Strong SOC triage signal; not production accuracy" tone="cyan" />
         </div>
-        <div className="mt-4 grid gap-4 md:grid-cols-3">
+        <div className="mt-4 grid gap-4 md:grid-cols-4">
+          <MetricCard
+            label="Benign Recall"
+            value={String(benignMetrics.recall ?? "-")}
+            detail={benignRecall <= 0 ? "Current blocker: benign rows are not recovered" : "Benign calibration signal"}
+            tone={benignRecall <= 0 ? "danger" : "teal"}
+          />
           <MetricCard
             label="Suspicious Recall"
             value={String(suspiciousMetrics.recall ?? "-")}
-            detail={suspiciousRecall < 0.8 ? "Current model blocker: target >= 0.8" : "Meets current recall target"}
+            detail={suspiciousRecall < 0.8 ? "Still below target >= 0.8" : "Meets current recall target"}
             tone={suspiciousRecall < 0.8 ? "amber" : "teal"}
           />
           <MetricCard
@@ -335,17 +432,31 @@ export function MLGovernance() {
             tone="cyan"
           />
         </div>
-        {suspiciousRecall < 0.8 ? (
+        {benignRecall <= 0 || suspiciousRecall < 0.8 ? (
           <div className="mt-4 rounded-lg border border-amber/30 bg-amber/10 p-3 text-sm text-amber">
-            Current blocker: suspicious recall is below the 0.8 target. Threat-positive triage can still be useful, but exact suspicious
-            versus malicious separation needs more reviewed boundary labels before promotion.
+            Current blocker: benign recall and benign/benign_unusual/suspicious separation are not reliable enough for promotion.
+            Threat-positive triage can still be useful as analyst decision support, but exact five-class metrics are not production accuracy.
           </div>
         ) : null}
+        <div className="mt-4 rounded-lg border border-amber/30 bg-amber/10 p-3 text-sm text-amber">
+          <div className="font-bold">Supervised recovery focus</div>
+          <ul className="mt-2 space-y-1">
+            {reviewedMalicious >= 150 ? <li>Malicious reviewed target is met; do not prioritize malicious-heavy review unless evidence is strong.</li> : null}
+            {reviewedSuspicious >= 300 ? <li>Suspicious reviewed target is met; continue only focused boundary cleanup.</li> : null}
+            {reviewedBenign < 300 ? <li>Benign labels are under-reviewed.</li> : null}
+            {reviewedNeedsContext < 50 ? <li>Needs_context labels are under-reviewed.</li> : null}
+            {benignRecall <= 0 ? <li>Benign recall is the current blocker; many true benign rows are predicted as benign_unusual or suspicious.</li> : null}
+            {threatPositiveRecall < 0.85 ? <li>Stage 1 threat-positive recall still needs calibration.</li> : null}
+            <li>Stage 2 suspicious/malicious separation is promising, but Stage 1 must catch threat-positive rows first.</li>
+            {unstableTimeSplit ? <li>Current time split has class imbalance; metrics are unstable.</li> : null}
+            <li>Model remains candidate_only and decision support only.</li>
+          </ul>
+        </div>
         <div className="mt-4 rounded-lg border border-cyan/30 bg-cyan/10 p-3 text-sm text-cyan">
           {analystReviewEligible
             ? "Model is eligible for analyst review, not production promotion."
             : "Model remains candidate-only until analyst review criteria are met."}{" "}
-          Threat-positive triage is strong, exact suspicious recall is still below target, and response actions remain analyst-approved.
+          SOC triage metrics are useful, exact five-class separation is still limited, and response actions remain analyst-approved.
         </div>
         <div className="mt-4 grid gap-4 md:grid-cols-4">
           <MetricCard label="Reviewed Malicious" value={temporal?.reviewed_malicious_count ?? 0} detail="Human-reviewed threat class" tone="danger" />
@@ -586,6 +697,10 @@ export function MLGovernance() {
             <button className="btn-secondary" type="button" onClick={() => void downloadExport("active_learning_threat_boundary")}>Round 5 Threat Boundary</button>
             <button className="btn-secondary" type="button" onClick={() => void downloadExport("training_window_threat")}>Training-Window Threat Sample</button>
             <button className="btn-secondary" type="button" onClick={() => void downloadExport("boundary_report")}>Boundary Report</button>
+            <button className="btn-secondary" type="button" onClick={() => void downloadExport("stage1_threat_recall_sample")}>Stage 1 Recall Sample</button>
+            <button className="btn-secondary" type="button" onClick={() => void downloadExport("benign_final_gap_sample")}>Benign Gap Sample</button>
+            <button className="btn-secondary" type="button" onClick={() => void downloadExport("final_small_gap_sample")}>Final Small Gap Sample</button>
+            <button className="btn-secondary" type="button" onClick={() => void downloadExport("soc_triage_final_report")}>SOC Triage Recommendation</button>
             <button className="btn-secondary" type="button" onClick={() => void downloadExport("suspicious_recall_sample")}>Suspicious Recall Sample</button>
             <button className="btn-secondary" type="button" onClick={() => void downloadExport("suspicious_recall_report")}>Suspicious Recall Report</button>
             <button className="btn-secondary" type="button" onClick={() => void downloadExport("label_quality")}>Label Quality Issues</button>

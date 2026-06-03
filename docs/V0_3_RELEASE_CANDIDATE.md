@@ -11,7 +11,7 @@ ATDR v0.3 is a controlled lab-ready release candidate for small-office style fir
 - Docker/PostgreSQL is optional future/lab deployment work.
 - Real firewall blocking is not implemented.
 - Automatic response is not enabled.
-- ML remains analyst decision support only.
+- ML remains SOC triage decision support only.
 
 ## What Works
 
@@ -21,9 +21,10 @@ ATDR v0.3 is a controlled lab-ready release candidate for small-office style fir
 - Source health, parser profile visibility, source-level quality, and source-scoped detection.
 - Parser profiles: `palo_alto`, `generic_syslog`, and `raw_fallback`.
 - Rule-based detection, alert deduplication, lightweight case grouping, ATT&CK-style mapping, and "Why flagged?" explanations.
-- IsolationForest anomaly scoring and supervised ML decision support.
+- IsolationForest anomaly scoring and supervised ML SOC triage decision support.
 - AI Governance for label review, active learning, supervised model reports, readiness status, model registry visibility, and weak-label warnings.
 - Reproducible supervised ML workflow with ignored dataset snapshots, feature-set metadata, candidate comparison, sanity/debug reports, threshold tuning, error analysis, and explicit activation/rollback commands.
+- Supervised ML recovery workflow for dataset audits, weak-label diagnostics, clean registered baseline rebuilding, binary threat-positive experiments, SOC triage final recommendation, and recovery review samples. All outputs remain candidate-only and ignored from Git.
 - Simulated block/unblock response with confirmation, justification, protected-IP denial, and audit logs.
 - Ingestion run history, detection run history, Operations Health, and performance smoke checks.
 - React dashboard with role-aware navigation and admin-only route protection.
@@ -45,13 +46,16 @@ Scenario output does not trigger response actions.
 
 ## AI Status
 
+- Recommended AI mode: SOC triage decision support.
 - Model status: analyst-review eligible / candidate, not production-promoted.
 - Rule evidence remains primary.
 - IsolationForest anomaly scoring is assistive.
 - Supervised ML is decision support trained from mixed assisted and reviewed labels.
 - Feature pipelines are versioned in supervised model metadata.
 - Candidate model activation is explicit and does not equal production promotion.
-- Threat-positive triage is useful, but suspicious vs malicious separation still needs more reviewed labels and real lab validation.
+- Threat-positive triage is useful for analyst review, but exact five-class classification is not production-promoted.
+- Benign and needs_context exact classification remain weak.
+- Suspicious vs malicious separation still needs more reviewed labels and real lab validation.
 - Weak-label metrics must not be presented as production accuracy.
 
 ## Response Safety Status

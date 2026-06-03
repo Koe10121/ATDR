@@ -1,0 +1,101 @@
+@font-face {
+  font-family: 'mfu';
+  /*src: url('/fonts/mfu.eot?15839698');*/
+  /*src: url('/fonts/mfu.eot?15839698#iefix') format('embedded-opentype'),*/
+  /*     url('/fonts/mfu.woff2?15839698') format('woff2'),*/
+  /*     url('/fonts/mfu.woff?15839698') format('woff'),*/
+  /*     url('/fonts/mfu.ttf?15839698') format('truetype'),*/
+  /*     url('/fonts/mfu.svg?15839698#mfu') format('svg');*/
+
+  src: url('/fonts/mfu.woff2') format('woff2'),
+  url('/fonts/mfu.woff') format('woff'),
+  url('/fonts/mfu.ttf') format('truetype');
+
+  font-weight: normal;
+  font-style: normal;
+}
+/* Chrome hack: SVG is rendered more smooth in Windozze. 100% magic, uncomment if you need it. */
+/* Note, that will break hinting! In other OS-es font will be not as sharp as it could be */
+/*
+@media screen and (-webkit-min-device-pixel-ratio:0) {
+  @font-face {
+    font-family: 'mfu';
+    src: url('../font/mfu.svg?15839698#mfu') format('svg');
+  }
+}
+*/
+[class^="mfu-"]:before, [class*=" mfu-"]:before {
+  font-family: "mfu";
+  font-style: normal;
+  font-weight: normal;
+  speak: never;
+
+  display: inline-block;
+  text-decoration: inherit;
+  width: 1em;
+  margin-right: .2em;
+  text-align: center;
+  /* opacity: .8; */
+
+  /* For safety - reset parent styles, that can break glyph codes*/
+  font-variant: normal;
+  text-transform: none;
+
+  /* fix buttons height, for twitter bootstrap */
+  line-height: 1em;
+
+  /* Animation center compensation - margins should be symmetric */
+  /* remove if not needed */
+  margin-left: .2em;
+
+  /* you can be more comfortable with increased icons size */
+  /* font-size: 120%; */
+
+  /* Font smoothing. That was taken from TWBS */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* Uncomment for 3D effect */
+  /* text-shadow: 1px 1px 1px rgba(127, 127, 127, 0.3); */
+}
+
+.mfu-tags:before { content: '\e800'; } /* '' */
+.mfu-tag:before { content: '\e801'; } /* '' */
+.mfu-eye:before { content: '\e802'; } /* '' */
+.mfu-eye-outline:before { content: '\e803'; } /* '' */
+.mfu-star:before { content: '\e804'; } /* '' */
+.mfu-star-filled:before { content: '\e805'; } /* '' */
+.mfu-videocam-outline:before { content: '\e806'; } /* '' */
+.mfu-videocam:before { content: '\e807'; } /* '' */
+.mfu-picture-outline:before { content: '\e808'; } /* '' */
+.mfu-picture:before { content: '\e809'; } /* '' */
+.mfu-users-outline:before { content: '\e80a'; } /* '' */
+.mfu-users:before { content: '\e80b'; } /* '' */
+.mfu-user-outline:before { content: '\e80c'; } /* '' */
+.mfu-user:before { content: '\e80d'; } /* '' */
+.mfu-user-add-outline:before { content: '\e80e'; } /* '' */
+.mfu-user-add:before { content: '\e80f'; } /* '' */
+.mfu-user-delete-outline:before { content: '\e810'; } /* '' */
+.mfu-user-delete:before { content: '\e811'; } /* '' */
+.mfu-lock-open-filled:before { content: '\e812'; } /* '' */
+.mfu-lock-open:before { content: '\e813'; } /* '' */
+.mfu-lock-filled:before { content: '\e814'; } /* '' */
+.mfu-lock:before { content: '\e815'; } /* '' */
+.mfu-comment:before { content: '\e816'; } /* '' */
+.mfu-location-outline:before { content: '\e817'; } /* '' */
+.mfu-location:before { content: '\e818'; } /* '' */
+.mfu-address:before { content: '\e819'; } /* '' */
+.mfu-vcard:before { content: '\e81a'; } /* '' */
+.mfu-chat-alt:before { content: '\e81b'; } /* '' */
+.mfu-contacts:before { content: '\e81c'; } /* '' */
+.mfu-attention:before { content: '\e81d'; } /* '' */
+.mfu-attention-filled:before { content: '\e81e'; } /* '' */
+.mfu-bell:before { content: '\e81f'; } /* '' */
+.mfu-thumbs-up:before { content: '\e820'; } /* '' */
+.mfu-thumbs-down:before { content: '\e821'; } /* '' */
+.mfu-heart-1:before { content: '\e82c'; } /* '' */
+.mfu-heart-filled:before { content: '\e82d'; } /* '' */
+.mfu-camera:before { content: '\e82f'; } /* '' */
+.mfu-camera-outline:before { content: '\e830'; } /* '' */
+.mfu-home-outline:before { content: '\e831'; } /* '' */
+.mfu-home:before { content: '\e832'; } /* '' */

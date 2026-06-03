@@ -550,3 +550,215 @@ Activation never means production promotion. It does not enable automatic respon
 Recommended wording:
 
 > We now snapshot the supervised dataset, version the feature pipeline, compare candidate models, tune thresholds with threat-focused metrics, and keep a model registry. The model remains decision support only; metrics are weak-label or mixed-label indicators unless separately validated with enough reviewed labels.
+
+## 22. Supervised ML Recovery Workflow
+
+Use this workflow when the active supervised artifact is unregistered/legacy or when current model metrics do not reproduce an older stronger run.
+
+Export the current supervised dataset audit:
+
+```powershell
+python -m atdr.scripts.supervised_dataset_audit --split time --test-size 0.3
+```
+
+Run the full recovery workflow:
+
+```powershell
+python -m atdr.scripts.run_supervised_recovery_phase --split time --test-size 0.3 --min-samples 6 --review-limit 150
+```
+
+This creates ignored recovery artifacts under `ml_baseline_reviews/`, including:
+
+- `current_supervised_dataset_audit.md`
+- `current_supervised_error_analysis.md`
+- `supervised_binary_threat_positive_experiment.md`
+- `supervised_two_stage_experiment.md`
+- `supervised_recovery_review_sample.csv`
+- `supervised_label_target_plan.md`
+- `supervised_recovery/latest_status.json`
+- candidate-only registered baseline artifacts
+
+The recovery command writes progress to the console and to `ml_baseline_reviews/supervised_recovery/latest_status.json`. On a large SQLite database, a terminal wrapper may time out even after intermediate reports are written. If that happens, inspect the latest `supervised_recovery_phase-*.json` file and the status file before rerunning.
+
+Run individual recovery commands if you do not want the full workflow:
+
+```powershell
+python -m atdr.scripts.rebuild_supervised_baseline --split time --test-size 0.3 --min-samples 6
+python -m atdr.scripts.run_binary_threat_experiment --split time --test-size 0.3 --min-samples 6
+python -m atdr.scripts.current_supervised_error_analysis --split time --test-size 0.3 --min-samples 6
+python -m atdr.scripts.export_supervised_recovery_review_sample --limit 150
+python -m atdr.scripts.generate_supervised_label_target_plan --split time --test-size 0.3 --pretty
+```
+
+Recovery outputs are for diagnosis and active learning. They must not be committed and must not be presented as production accuracy. Rebuilt baselines are registered candidates only; activation and production promotion remain separate manual decisions, and response automation remains disabled.
+
+## 23. Large-Pool Active Learning
+
+Do not manually label all available logs. Use all logs for baseline statistics, source behavior, IsolationForest anomaly scoring, drift checks, and active-learning selection. Use reviewed labels for supervised model training and validation.
+
+Export high-value review rows from the full normalized log pool:
+
+```powershell
+python -m atdr.scripts.export_large_pool_active_learning_sample --limit 300 --pretty
+```
+
+This writes `ml_baseline_reviews/large_pool_active_learning_sample.csv`. It prioritizes high anomaly score, high hybrid risk, rule/anomaly/model disagreement, unlabeled threat-positive predictions, rare apps/ports, repeated external-to-internal behavior, source-specific unusual behavior, and confusing `ssl`/`quic-base` allow/443 cases. The export is intentionally small, usually 200-500 rows, so humans review the most useful rows instead of random logs.
+
+Use the label target plan to guide the next review batch:
+
+```powershell
+python -m atdr.scripts.generate_supervised_label_target_plan --split time --test-size 0.3 --pretty
+```
+
+Suggested reviewed-label targets:
+
+- benign: 300
+- benign_unusual: 300
+- suspicious: 300
+- malicious: 150
+- needs_context: 50
+
+Recommended wording:
+
+> We use the full log pool to learn behavior baselines and select high-value examples for human review. The supervised model trains on reviewed labels, while weak labels remain bootstrap data and are not treated as perfect ground truth.
+
+## 24. Balanced Supervised Recovery Review
+
+Use this phase after malicious reviewed-label coverage is already above target and exact evaluation is unstable because the time split is class-imbalanced. The goal is to rebalance reviewed labels, not to chase another malicious-heavy review batch.
+
+Generate a balanced recovery sample:
+
+```powershell
+python -m atdr.scripts.export_balanced_recovery_review_sample --limit 300 --pretty
+```
+
+This writes `ml_baseline_reviews/balanced_recovery_review_sample.csv`. The target composition is:
+
+- 150 benign candidates
+- 50 needs_context candidates
+- 75 suspicious boundary candidates
+- 25 miscellaneous rule/anomaly/model disagreement cases
+
+The sample intentionally avoids malicious-heavy selection. It focuses on normal SSL/QUIC/DNS/web traffic, ambiguous rows with limited evidence, suspicious rows predicted benign-like, and benign/benign_unusual rows predicted threat-like.
+
+Create split diagnostics:
+
+```powershell
+python -m atdr.scripts.evaluation_split_diagnostics --test-size 0.3 --min-samples 6 --pretty
+```
+
+This writes `ml_baseline_reviews/evaluation_split_diagnostics.md` and compares the primary time split with `grouped_stratified` as a diagnostic-only split. Time split remains the deployment-style validation. Grouped/stratified split may overestimate performance and must not be used to claim production accuracy.
+
+Refresh the target plan:
+
+```powershell
+python -m atdr.scripts.generate_supervised_label_target_plan --split time --test-size 0.3 --pretty
+```
+
+When malicious target is met, the next review focus should be benign, needs_context, and suspicious boundary cleanup. ML remains decision support only, candidate-only unless future validation criteria are explicitly met, and response automation remains disabled.
+
+## 25. Stage 1 Threat-Positive Recovery
+
+Use this phase after balanced recovery if the two-stage/hierarchical candidate shows promising Stage 2 suspicious-versus-malicious separation but weak Stage 1 threat-positive recall. Stage 1 must first catch suspicious/malicious-like traffic before Stage 2 can classify it.
+
+Generate the Stage 1 recall review sample:
+
+```powershell
+python -m atdr.scripts.export_stage1_threat_recall_review_sample --limit 300 --pretty
+```
+
+This writes `ml_baseline_reviews/stage1_threat_recall_review_sample.csv`. The target composition is:
+
+- 120 threat-positive false negatives
+- 80 benign candidates
+- 50 benign versus benign_unusual boundary cases
+- 30 needs_context candidates
+- 20 miscellaneous rule/anomaly/model disagreement cases
+
+The sample should not become malicious-heavy. Malicious and suspicious targets may already be met; use this sample to improve Stage 1 recall and complete benign/needs_context coverage.
+
+Tune Stage 1 thresholds:
+
+```powershell
+python -m atdr.scripts.run_stage1_threshold_tuning --split time --test-size 0.3 --min-samples 6 --pretty
+```
+
+This writes `ml_baseline_reviews/stage1_threshold_tuning_report.md` and compares:
+
+- conservative
+- balanced
+- recall_high
+- recall_max_review_queue
+
+Recall-heavy profiles catch more threat-positive rows but increase analyst review queue size. This is diagnostic only. Do not activate or promote a model from this report, and do not enable automatic response.
+
+Recommended wording:
+
+> Stage 2 suspicious-versus-malicious separation is promising, but Stage 1 threat-positive recall remains the blocker. The next review batch focuses on Stage 1 false negatives plus benign and needs_context coverage. The model remains candidate-only and decision support only.
+
+## 26. Benign Class Recovery
+
+Use this phase when malicious and suspicious reviewed targets are met but benign recall remains weak or `0.0`. Do not add another malicious-heavy batch. Focus on benign, needs_context, and benign/benign_unusual/suspicious boundary cleanup.
+
+Write the benign debug report:
+
+```powershell
+python -m atdr.scripts.write_benign_class_debug_report --split time --test-size 0.3 --min-samples 6 --pretty
+```
+
+Run the benign recovery experiment:
+
+```powershell
+python -m atdr.scripts.run_benign_recovery_experiment --split time --test-size 0.3 --min-samples 6 --pretty
+```
+
+Export the final small review sample:
+
+```powershell
+python -m atdr.scripts.export_benign_needs_context_final_gap_sample --limit 100 --pretty
+```
+
+Expected outputs:
+
+- `ml_baseline_reviews/benign_class_debug_report.md`
+- `ml_baseline_reviews/benign_recovery_experiment.md`
+- `ml_baseline_reviews/benign_needs_context_final_gap_sample.csv`
+
+When the full supervised recovery phase runs, it also writes `ml_baseline_reviews/soc_triage_model_strategy_report.md`.
+
+Interpretation:
+
+- Benign recall near `0.0` usually means trusted benign training-window support is too small, benign overlaps with `benign_unusual`, or benign rows share features with weak suspicious rows.
+- Threshold logic should be checked, but this phase must not activate or promote any model.
+- SOC triage can use a `benign_like` versus `threat_positive` framing for analyst review while exact five-class separation remains future work.
+- ML remains decision support only, production promotion remains false, and response automation remains disabled.
+
+## 27. Final SOC Triage Recommendation
+
+After the final benign/needs_context recovery pass, use the supervised model as SOC triage decision support rather than an exact automated classifier.
+
+Write the final recommendation report:
+
+```powershell
+python -m atdr.scripts.write_soc_triage_final_recommendation --split time --test-size 0.3 --min-samples 6 --pretty
+```
+
+This writes `ml_baseline_reviews/soc_triage_final_recommendation.md`. The report compares:
+
+- flat five-class supervised classification
+- binary `benign_like` versus `threat_positive`
+- three-class `benign_like` / `suspicious` / `malicious`
+- hierarchical Stage 1 + Stage 2 candidate behavior
+- conservative, balanced, and recall-high SOC review profiles
+
+Export the final small label-gap sample only if another small review batch is useful:
+
+```powershell
+python -m atdr.scripts.export_final_small_label_gap_sample --limit 64 --pretty
+```
+
+This writes `ml_baseline_reviews/final_small_label_gap_sample.csv`. It targets the remaining benign and needs_context gaps plus a small benign/suspicious boundary set. It intentionally avoids another malicious-heavy batch.
+
+Recommended wording:
+
+> ATDR uses supervised ML as SOC triage decision support. Threat-positive triage is useful for analyst review, but the flat five-class model is not production-promoted. Benign and needs_context exact classification remain weak, and all response actions remain simulated and analyst-approved.
