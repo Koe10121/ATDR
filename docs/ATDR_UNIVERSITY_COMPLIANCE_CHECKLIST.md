@@ -11,6 +11,7 @@ This checklist maps the university AI/project workflow rules to ATDR-specific ev
 | Agent operating model | `docs/agents/ATDR_AGENT_OPERATING_MODEL.md` |
 | Change template | `docs/templates/ATDR_T1_T20_CHANGE_DOCUMENT.md` |
 | IAM/RBAC permission matrix | `docs/security/ATDR_IAM_RBAC_MATRIX.md` |
+| External IAM groundwork plan | `docs/security/ATDR_EXTERNAL_IAM_PLAN.md` |
 | NewSystem template alignment | `docs/ATDR_NEWSYSTEM_TEMPLATE_ALIGNMENT.md` |
 | ATDR template manifest | `docs/ATDR_TEMPLATE_MANIFEST.json` |
 | ATDR permission path registry | `docs/security/ATDR_PERMISSION_PATHS.md` |
@@ -41,7 +42,7 @@ This checklist maps the university AI/project workflow rules to ATDR-specific ev
 | Production claim control | Satisfied: docs state lab-ready prototype, not certified production | `README.md`, `docs/V0_3_STATUS.md`, `docs/prd/PRD-ATDR.md` | Keep wording honest in future presentation/docs | Product Owner |
 | Docker/PostgreSQL validation | Partially satisfied: optional docs/config exist, but local Docker validation is not required | `docker-compose.yml`, `docs/LAB_RUNBOOK.md`, `docs/DEPLOYMENT_GUIDE.md` | Validate on Docker-capable lab host later | Release/Ops |
 | Real device validation | Partially satisfied: local replay/syslog and source scenarios exist | `docs/LAB_RUNBOOK.md`, `atdr/scripts/run_source_scenario.py`, `data/samples/scenarios/*` | Test with actual firewall/router forwarding in controlled lab | Release/Ops |
-| IAM/RBAC adaptation | Satisfied for local lab roles: JWT auth, admin/analyst RBAC, frontend guards, response permission checks, and audit requirements are documented | `docs/security/ATDR_IAM_RBAC_MATRIX.md`, `atdr/app/core/security.py`, `frontend/src/components/AdminRoute.tsx` | External IAM provider and viewer role are future work, not current ATDR scope | Security / Response Safety |
+| IAM/RBAC adaptation | Satisfied for local lab roles: JWT auth, admin/analyst RBAC, school-email account metadata, frontend guards, response permission checks, and audit requirements are documented | `docs/security/ATDR_IAM_RBAC_MATRIX.md`, `atdr/app/core/security.py`, `frontend/src/components/AdminRoute.tsx` | Full external login provider, SMTP invite email, and viewer role are future work; OIDC status/config groundwork is now documented | Security / Response Safety |
 | NewSystem template adaptation | Satisfied: ATDR maps template concepts to FastAPI/React/SQLAlchemy equivalents and documents what was intentionally not copied | `docs/ATDR_NEWSYSTEM_TEMPLATE_ALIGNMENT.md`, `docs/ATDR_TEMPLATE_MANIFEST.json` | Keep this updated if external IAM, PostgreSQL/Docker, or real response connectors become approved scope | Orchestrator |
 | Permission path registry | Satisfied: ATDR has a NewSystem-style permission path registry backed by current FastAPI and React sources | `docs/security/ATDR_PERMISSION_PATHS.md`, `docs/security/ATDR_IAM_RBAC_MATRIX.md` | Future external IAM can register these paths if approved | Security / Response Safety |
 | OWASP/security review discipline | Satisfied for lab baseline: security posture, controls, and gaps are documented without production claim | `docs/security/ATDR_OWASP_LAB_SECURITY_REVIEW.md` | Add dependency scanning and stronger auth hardening before shared lab/production | Security / Response Safety |
@@ -86,7 +87,7 @@ Do not reset or delete data to hide performance issues. If warnings recur, recom
 ## Remaining Gaps
 
 - Real device syslog forwarding validation is not complete.
-- External IAM provider integration is not implemented. ATDR currently uses local JWT auth and admin/analyst RBAC.
+- Full external IAM provider login is not implemented. ATDR currently uses local JWT auth and admin/analyst RBAC; v0.4 adds disabled OIDC config/status groundwork only.
 - Viewer/read-only role is not implemented.
 - Demo JWT secrets must be replaced before shared lab or real deployment.
 - Real firewall/router validation is pending.

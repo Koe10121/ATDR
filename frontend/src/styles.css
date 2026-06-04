@@ -4,14 +4,14 @@
 
 @layer base {
   html {
-    color-scheme: dark;
+    color-scheme: light;
   }
 
   body {
     margin: 0;
     min-width: 320px;
     min-height: 100vh;
-    background: #070b10;
+    background: #f4f7fb;
     font-family: Inter, "Segoe UI", Arial, sans-serif;
     overflow-x: hidden;
   }
@@ -29,8 +29,8 @@
   .hero-panel {
     @apply relative min-w-0 overflow-hidden rounded-lg border border-line bg-panel p-6 shadow-panel;
     background:
-      linear-gradient(135deg, rgba(20, 184, 166, 0.14), rgba(239, 68, 68, 0.06) 48%, rgba(15, 21, 29, 0.96)),
-      #0f151d;
+      linear-gradient(135deg, rgba(14, 165, 183, 0.12), rgba(217, 119, 6, 0.08) 52%, rgba(255, 255, 255, 0.96)),
+      #ffffff;
   }
 
   .hero-panel::before {

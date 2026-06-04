@@ -6,6 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from atdr.app.core.config import get_settings
 from atdr.app.db.database import Base, get_db
 from atdr.app.db.models import Alert
 from atdr.app.main import app
@@ -77,6 +78,39 @@ def test_login_and_me_api():
         assert me.json()["role"] == "admin"
     finally:
         app.dependency_overrides.clear()
+
+
+def test_oidc_status_is_authenticated_and_does_not_expose_secret(monkeypatch):
+    monkeypatch.setenv("OIDC_ENABLED", "false")
+    monkeypatch.setenv("OIDC_PROVIDER_NAME", "")
+    monkeypatch.setenv("OIDC_CLIENT_ID", "")
+    monkeypatch.setenv("OIDC_CLIENT_SECRET", "secret-that-must-not-leak")
+    monkeypatch.setenv("OIDC_ISSUER_URL", "")
+    monkeypatch.setenv("OIDC_ALLOWED_DOMAINS", "")
+    monkeypatch.setenv("OIDC_DEFAULT_ROLE", "analyst")
+    get_settings.cache_clear()
+    client = _client()
+    try:
+        unauthorized = client.get("/api/auth/oidc/status")
+        assert unauthorized.status_code == 401
+
+        headers = _login(client, "analyst", "analyst123")
+        response = client.get("/api/auth/oidc/status", headers=headers)
+        assert response.status_code == 200
+        payload = response.json()
+
+        assert payload["enabled"] is False
+        assert payload["mode"] == "local_login_only"
+        assert payload["default_role"] == "analyst"
+        assert payload["local_email_login_enabled"] is True
+        assert payload["smtp_enabled"] is False
+        assert payload["school_email_domains"] == []
+        assert "client_secret" not in payload
+        assert "OIDC_CLIENT_SECRET" not in str(payload)
+        assert "SMTP_PASSWORD" not in str(payload)
+    finally:
+        app.dependency_overrides.clear()
+        get_settings.cache_clear()
 
 
 def test_detection_tuning_report_requires_auth_and_returns_shape():
@@ -804,11 +838,48 @@ def test_user_admin_and_password_change_controls():
         admin_headers = _login(client, "admin", "admin123")
         created = client.post(
             "/api/users",
-            json={"username": "tier2", "password": "tier2pass123", "role": "analyst", "full_name": "Tier 2 Analyst"},
+            json={
+                "username": "tier2",
+                "email": "tier2@school.example",
+                "password": "tier2pass123",
+                "role": "analyst",
+                "full_name": "Tier 2 Analyst",
+                "email_verified": True,
+            },
             headers=admin_headers,
         )
         assert created.status_code == 200
+        assert created.json()["email"] == "tier2@school.example"
+        assert created.json()["email_verified"] is True
+        assert created.json()["auth_provider"] == "local"
         user_id = created.json()["id"]
+
+        email_login = client.post("/api/auth/login", json={"username": "tier2@school.example", "password": "tier2pass123"})
+        assert email_login.status_code == 200
+
+        duplicate_email = client.post(
+            "/api/users",
+            json={"username": "tier3", "email": "tier2@school.example", "password": "tier3pass123", "role": "analyst"},
+            headers=admin_headers,
+        )
+        assert duplicate_email.status_code == 400
+        assert "Email already exists" in duplicate_email.json()["detail"]
+
+        invalid_email = client.post(
+            "/api/users",
+            json={"username": "tier4", "email": "not-an-email", "password": "tier4pass123", "role": "analyst"},
+            headers=admin_headers,
+        )
+        assert invalid_email.status_code == 422
+
+        patched = client.patch(
+            f"/api/users/{user_id}",
+            json={"email": "tier2-updated@school.example", "email_verified": False},
+            headers=admin_headers,
+        )
+        assert patched.status_code == 200
+        assert patched.json()["email"] == "tier2-updated@school.example"
+        assert patched.json()["email_verified"] is False
 
         changed_role = client.post(f"/api/users/{user_id}/role", json={"role": "admin"}, headers=admin_headers)
         assert changed_role.status_code == 200
@@ -835,6 +906,33 @@ def test_user_admin_and_password_change_controls():
         assert client.post("/api/auth/login", json={"username": "analyst", "password": "analyst456"}).status_code == 200
     finally:
         app.dependency_overrides.clear()
+
+
+def test_school_email_domain_policy_can_be_required(monkeypatch):
+    monkeypatch.setenv("REQUIRE_SCHOOL_EMAIL", "true")
+    monkeypatch.setenv("SCHOOL_EMAIL_DOMAINS", "school.example,mfu.ac.th")
+    get_settings.cache_clear()
+    client = _client()
+    try:
+        admin_headers = _login(client, "admin", "admin123")
+        rejected = client.post(
+            "/api/users",
+            json={"username": "outsider", "email": "outsider@example.com", "password": "outsider123", "role": "analyst"},
+            headers=admin_headers,
+        )
+        assert rejected.status_code == 400
+        assert "Email domain must be one of" in rejected.json()["detail"]
+
+        accepted = client.post(
+            "/api/users",
+            json={"username": "student", "email": "student@mfu.ac.th", "password": "student123", "role": "analyst"},
+            headers=admin_headers,
+        )
+        assert accepted.status_code == 200
+        assert accepted.json()["email"] == "student@mfu.ac.th"
+    finally:
+        app.dependency_overrides.clear()
+        get_settings.cache_clear()
 
 
 def test_failed_login_is_audited_and_rate_limited():

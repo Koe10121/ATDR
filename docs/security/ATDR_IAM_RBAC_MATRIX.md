@@ -1,6 +1,6 @@
 # ATDR IAM / RBAC Matrix
 
-ATDR adapts the university IAM requirement as local authentication, authorization, role-based access control, response-safety permission checks, and auditability. ATDR does not currently implement external SSO, OAuth, SAML, LDAP, or an enterprise identity provider.
+ATDR adapts the university IAM requirement as local authentication, authorization, role-based access control, response-safety permission checks, and auditability. ATDR does not currently implement full external SSO, OAuth callback login, SAML, LDAP, or an enterprise identity provider. v0.4 adds disabled-by-default generic OIDC configuration/status groundwork for future school-email login.
 
 ATDR is a controlled lab-ready prototype. The current IAM/RBAC model is suitable for local and lab validation, not final production identity governance.
 
@@ -10,6 +10,7 @@ ATDR is a controlled lab-ready prototype. The current IAM/RBAC model is suitable
 | --- | --- |
 | JWT auth, active-user check, role dependencies | `atdr/app/core/security.py` |
 | Login, current-user, password-change routes | `atdr/app/routers/auth.py` |
+| External IAM groundwork plan | `docs/security/ATDR_EXTERNAL_IAM_PLAN.md` |
 | User model and role field | `atdr/app/db/models.py` |
 | User lifecycle and demo users | `atdr/app/services/user_service.py` |
 | User admin routes | `atdr/app/routers/users.py` |
@@ -37,6 +38,8 @@ ATDR is a controlled lab-ready prototype. The current IAM/RBAC model is suitable
 | Capability | Admin | Analyst | Viewer / Read-only | Evidence |
 | --- | --- | --- | --- | --- |
 | Login and view own session | Supported now | Supported now | Future work | `atdr/app/routers/auth.py` |
+| Login by local username or email | Supported now | Supported now | Future work | `atdr/app/routers/auth.py`, `atdr/app/services/user_service.py` |
+| View OIDC status | Supported now | Supported now | Future work | `atdr/app/routers/auth.py`, `docs/security/ATDR_EXTERNAL_IAM_PLAN.md` |
 | Overview dashboard | Supported now | Supported now | Future work | `atdr/app/routers/dashboard.py`, `frontend/src/App.tsx` |
 | Alerts / Alert Workbench list and details | Supported now | Supported now | Future work | `atdr/app/routers/alerts.py` |
 | Alert lifecycle: investigating, needs context, contained, resolved, false positive | Supported now | Supported now | Future work | `atdr/app/routers/alerts.py` |
@@ -56,6 +59,7 @@ ATDR is a controlled lab-ready prototype. The current IAM/RBAC model is suitable
 | Response & Audit view | Supported now | Supported now | Future work | `atdr/app/routers/response.py`, `atdr/app/routers/audit.py` |
 | Simulated block/unblock response | Supported now | Not allowed | Future work | `atdr/app/routers/response.py` |
 | User Admin | Supported now | Not allowed | Future work | `atdr/app/routers/users.py`, `frontend/src/components/AdminRoute.tsx` |
+| User email, verified-email, provider status management | Supported now | Not allowed | Future work | `atdr/app/routers/users.py`, `frontend/src/pages/UserAdmin.tsx` |
 | Demo Controls | Supported now | Not allowed | Future work | `atdr/app/routers/demo.py`, `frontend/src/components/AdminRoute.tsx` |
 | Threat Controls view suppressions/watchlists | Supported now | Supported now | Future work | `atdr/app/routers/suppressions.py`, `atdr/app/routers/watchlists.py` |
 | Threat Controls create/review/disable suppressions | Supported now | Not allowed | Future work | `atdr/app/routers/suppressions.py`, `frontend/src/pages/ThreatControls.tsx` |

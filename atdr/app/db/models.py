@@ -62,10 +62,17 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     username: Mapped[str] = mapped_column(String(128), unique=True, index=True, nullable=False)
+    email: Mapped[str | None] = mapped_column(String(255), unique=True, index=True)
     full_name: Mapped[str | None] = mapped_column(String(255))
     role: Mapped[str] = mapped_column(String(32), index=True, nullable=False, default="analyst")
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    auth_provider: Mapped[str] = mapped_column(String(32), default="local", nullable=False, index=True)
+    external_subject: Mapped[str | None] = mapped_column(String(255), index=True)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    invited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    disabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 

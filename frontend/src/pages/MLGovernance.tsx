@@ -298,7 +298,7 @@ export function MLGovernance() {
             <div>
               <div className="text-xs font-extrabold uppercase tracking-wide text-muted">Supervised Model Registry</div>
               <div className="mt-1 text-sm text-muted">
-                Active and candidate artifacts are tracked for analyst decision support only. Activation is explicit and never enables response automation.
+                Active and candidate artifacts are tracked for decision support. Automation stays disabled.
               </div>
             </div>
             <Badge value={registry?.active_artifact_exists ? "active artifact ready" : "no active artifact"} />
@@ -343,10 +343,11 @@ export function MLGovernance() {
           </details>
         </div>
         <div className="mt-4 rounded-lg border border-amber/30 bg-amber/10 p-3 text-sm text-amber">
-          Current supervised recovery status: candidates are weak and remain candidate-only.{" "}
-          {activeArtifactMetadataUnknown ? "The active supervised artifact exists, but its registry metadata is unknown/legacy. " : ""}
-          A clean registered baseline should be rebuilt before using supervised results in advisor-facing evidence. Binary threat-positive
-          experiments are experimental only, and response automation remains disabled.
+          <div className="font-bold">Analyst Review</div>
+          <div className="mt-1">
+            Supervised output is decision support. Automation is disabled.
+            {activeArtifactMetadataUnknown ? " Active artifact metadata should be refreshed with a registered training run." : ""}
+          </div>
         </div>
         <div className="mt-4 rounded-lg border border-cyan/30 bg-cyan/10 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -354,13 +355,13 @@ export function MLGovernance() {
               <div className="text-xs font-extrabold uppercase tracking-wide text-cyan">Recommended AI Mode</div>
               <div className="mt-1 text-lg font-black text-text">{socTriageMode?.recommended_ai_mode ?? "SOC triage decision support"}</div>
             </div>
-            <Badge value="Decision Support Only" />
+            <Badge value="Decision Support" />
           </div>
           <div className="mt-3 grid gap-2 md:grid-cols-2">
-            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">Threat-positive triage is useful for analyst review.</div>
-            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">Flat 5-class model is not production-promoted.</div>
-            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">Benign and needs_context exact classification remain weak.</div>
-            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">Response automation disabled; simulated response requires analyst approval.</div>
+            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">SOC Triage Mode</div>
+            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">Analyst Review</div>
+            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">Manual Approval Required</div>
+            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">Automation Disabled</div>
           </div>
           {socReviewProfiles.length ? (
             <details className="mt-3">
@@ -404,13 +405,13 @@ export function MLGovernance() {
         <div className="mt-4 grid gap-4 md:grid-cols-3">
           <MetricCard label="Threat-Positive Precision" value={String(threatPositive.precision ?? "-")} detail="Suspicious + malicious triage grouping" tone="amber" />
           <MetricCard label="Threat-Positive Recall" value={String(threatPositive.recall ?? "-")} detail="Combined SOC catch rate" tone="danger" />
-          <MetricCard label="Threat-Positive F1" value={String(threatPositive.f1 ?? "-")} detail="Strong SOC triage signal; not production accuracy" tone="cyan" />
+          <MetricCard label="Threat-Positive F1" value={String(threatPositive.f1 ?? "-")} detail="SOC triage signal" tone="cyan" />
         </div>
         <div className="mt-4 grid gap-4 md:grid-cols-4">
           <MetricCard
             label="Benign Recall"
             value={String(benignMetrics.recall ?? "-")}
-            detail={benignRecall <= 0 ? "Current blocker: benign rows are not recovered" : "Benign calibration signal"}
+            detail={benignRecall <= 0 ? "Needs review" : "Calibration signal"}
             tone={benignRecall <= 0 ? "danger" : "teal"}
           />
           <MetricCard
@@ -428,18 +429,17 @@ export function MLGovernance() {
           <MetricCard
             label="Model Status"
             value={readiness?.status ?? "candidate_only"}
-            detail="Analyst review eligible is not production promotion"
+            detail="Decision support"
             tone="cyan"
           />
         </div>
         {benignRecall <= 0 || suspiciousRecall < 0.8 ? (
           <div className="mt-4 rounded-lg border border-amber/30 bg-amber/10 p-3 text-sm text-amber">
-            Current blocker: benign recall and benign/benign_unusual/suspicious separation are not reliable enough for promotion.
-            Threat-positive triage can still be useful as analyst decision support, but exact five-class metrics are not production accuracy.
+            Review focus: benign and suspicious separation need more analyst-verified examples.
           </div>
         ) : null}
-        <div className="mt-4 rounded-lg border border-amber/30 bg-amber/10 p-3 text-sm text-amber">
-          <div className="font-bold">Supervised recovery focus</div>
+        <details className="mt-4 rounded-lg border border-amber/30 bg-amber/10 p-3 text-sm text-amber">
+          <summary className="cursor-pointer font-bold">Technical Review Notes</summary>
           <ul className="mt-2 space-y-1">
             {reviewedMalicious >= 150 ? <li>Malicious reviewed target is met; do not prioritize malicious-heavy review unless evidence is strong.</li> : null}
             {reviewedSuspicious >= 300 ? <li>Suspicious reviewed target is met; continue only focused boundary cleanup.</li> : null}
@@ -449,14 +449,14 @@ export function MLGovernance() {
             {threatPositiveRecall < 0.85 ? <li>Stage 1 threat-positive recall still needs calibration.</li> : null}
             <li>Stage 2 suspicious/malicious separation is promising, but Stage 1 must catch threat-positive rows first.</li>
             {unstableTimeSplit ? <li>Current time split has class imbalance; metrics are unstable.</li> : null}
-            <li>Model remains candidate_only and decision support only.</li>
+            <li>Model remains decision support only.</li>
           </ul>
-        </div>
+        </details>
         <div className="mt-4 rounded-lg border border-cyan/30 bg-cyan/10 p-3 text-sm text-cyan">
           {analystReviewEligible
-            ? "Model is eligible for analyst review, not production promotion."
-            : "Model remains candidate-only until analyst review criteria are met."}{" "}
-          SOC triage metrics are useful, exact five-class separation is still limited, and response actions remain analyst-approved.
+            ? "Analyst Review Eligible."
+            : "Analyst review criteria still need work."}{" "}
+          Response actions remain analyst-approved.
         </div>
         <div className="mt-4 grid gap-4 md:grid-cols-4">
           <MetricCard label="Reviewed Malicious" value={temporal?.reviewed_malicious_count ?? 0} detail="Human-reviewed threat class" tone="danger" />
@@ -510,7 +510,7 @@ export function MLGovernance() {
           </div>
         ) : null}
         <div className="mt-4 rounded-lg border border-amber/30 bg-amber/10 p-3 text-sm text-amber">
-          Assisted labels are weak labels. Review a representative sample before presenting supervised metrics as final model performance.
+          Weak labels require analyst review before model claims.
         </div>
         {validationWarnings.length ? (
           <div className="mt-4 rounded-lg border border-danger/30 bg-danger/10 p-3">
@@ -593,12 +593,12 @@ export function MLGovernance() {
                 <span className="font-bold text-text">{String(analystReviewEligible)}</span>
               </div>
               <div className="flex justify-between rounded border border-line bg-panel px-3 py-2">
-                <span>Production promoted</span>
-                <span className="font-bold text-text">{String(productionPromoted)}</span>
+                <span>Deployment Mode</span>
+                <span className="font-bold text-text">{productionPromoted ? "Promoted" : "Lab only"}</span>
               </div>
               <div className="flex justify-between rounded border border-line bg-panel px-3 py-2">
-                <span>Auto response</span>
-                <span className="font-bold text-text">{String(promotionGate.response_automation_allowed ?? false)}</span>
+                <span>Automation</span>
+                <span className="font-bold text-text">{promotionGate.response_automation_allowed ? "Enabled" : "Disabled"}</span>
               </div>
               <div className="flex justify-between rounded border border-line bg-panel px-3 py-2">
                 <span>Split</span>

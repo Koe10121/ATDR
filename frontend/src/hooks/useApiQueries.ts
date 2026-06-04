@@ -7,6 +7,7 @@ import type { AlertStatus, MLLabelPayload } from "../types/api";
 export const queryKeys = {
   health: ["health"],
   me: ["me"],
+  oidcStatus: ["oidc-status"],
   summary: ["dashboard-summary"],
   ingestionRuns: (params?: Record<string, unknown>) => ["ingestion-runs", params ?? {}],
   detectionRuns: (params?: Record<string, unknown>) => ["detection-runs", params ?? {}],
@@ -73,6 +74,10 @@ export function useHealth() {
 
 export function useMe(enabled: boolean) {
   return useQuery({ queryKey: queryKeys.me, queryFn: api.me, enabled, retry: false });
+}
+
+export function useOidcStatus() {
+  return useQuery({ queryKey: queryKeys.oidcStatus, queryFn: api.oidcStatus, retry: false });
 }
 
 export function useDashboardSummary() {
@@ -255,6 +260,10 @@ export function useUserMutations() {
   return {
     createUser: useMutation({ mutationFn: api.createUser, onSuccess: invalidate }),
     disableUser: useMutation({ mutationFn: api.disableUser, onSuccess: invalidate }),
+    updateUser: useMutation({
+      mutationFn: ({ id, payload }: { id: number; payload: Parameters<typeof api.updateUser>[1] }) => api.updateUser(id, payload),
+      onSuccess: invalidate
+    }),
     resetPassword: useMutation({
       mutationFn: ({ id, password }: { id: number; password: string }) => api.resetPassword(id, password),
       onSuccess: invalidate

@@ -7,12 +7,14 @@ ATDR is lab-ready for controlled small-office validation. It is not certified pr
 ## Current v0.3 Snapshot
 
 - FastAPI backend with JWT auth, admin/analyst RBAC, SQLAlchemy/Alembic, and SQLite by default.
+- Local account management supports username/password plus optional school-email fields, verified-email status, and email login for local users.
 - React-first SOC dashboard with Overview, Alerts, Investigation / Log Explorer, AI Governance, Response & Audit, Threat Controls, Detection Tuning, User Admin, and Demo Controls.
 - Palo Alto parser with raw evidence preservation, plus parser profiles for `palo_alto`, `generic_syslog`, and `raw_fallback`.
 - Log source management with source health, source-level data quality, replay/syslog lab support, and source-scoped detection.
 - Rule-based detection, alert deduplication, lightweight case grouping, ATT&CK-style mapping, and "Why flagged?" explanations.
 - IsolationForest anomaly scoring and supervised ML decision support with AI Governance, labeling workflow, active learning, and model validation gates.
 - Simulated response actions with confirmation, protected-IP safeguards, justification notes, and audit logs.
+- External school-email IAM groundwork via disabled-by-default generic OIDC configuration/status. Local login remains the default, and SMTP/email invites are disabled future work.
 - Safe synthetic scenario validation under `data/samples/scenarios/`.
 - Release gate, performance smoke, onboarding docs, IAM/RBAC docs, PRD, traceability, and university workflow documentation.
 
@@ -206,6 +208,7 @@ Start here:
 - `docs/QUICKSTART_FOR_TEAM.md` - Windows setup for teammates using clone or zip download.
 - `docs/LAB_RUNBOOK.md` - lab operations, replay, syslog, source validation, and troubleshooting.
 - `docs/V0_3_RELEASE_CANDIDATE.md` - current release-candidate summary.
+- `docs/V0_4_STATUS.md` - current dashboard/IAM/performance checkpoint.
 - `docs/V0_3_STATUS.md` - detailed current v0.3 status.
 - `docs/V0_3_PLAN.md` - v0.3 source-management and scenario-validation plan.
 
@@ -216,6 +219,7 @@ Governance and university workflow:
 - `docs/ATDR_TEMPLATE_MANIFEST.json` - ATDR-specific template manifest with env keys, permission paths, validation commands, and safety constraints.
 - `docs/prd/PRD-ATDR.md` - real ATDR PRD.
 - `docs/security/ATDR_IAM_RBAC_MATRIX.md` - admin/analyst permission matrix and IAM limitations.
+- `docs/security/ATDR_EXTERNAL_IAM_PLAN.md` - disabled-by-default OIDC groundwork for future school-email login.
 - `docs/security/ATDR_PERMISSION_PATHS.md` - NewSystem-style ATDR permission path registry.
 - `docs/security/ATDR_OWASP_LAB_SECURITY_REVIEW.md` - lab security review baseline and remaining hardening gaps.
 - `docs/ATDR_REQUIREMENT_TRACEABILITY.md` - source-backed mapping from requirements to code, tests, docs, and gaps.

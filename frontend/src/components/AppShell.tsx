@@ -56,10 +56,10 @@ export function AppShell() {
 
   return (
     <div className="min-h-screen bg-shell text-text">
-      <aside className="fixed inset-y-0 left-0 z-20 hidden w-72 border-r border-line bg-[#0b1118] p-5 lg:block">
-        <div className="border-b border-line pb-5">
-          <div className="text-lg font-black">MFU ATDR</div>
-          <div className="mt-1 text-sm text-muted">AI-driven threat detection console</div>
+      <aside className="fixed inset-y-0 left-0 z-20 hidden w-72 border-r border-slate-800 bg-[#08111f] p-5 text-slate-100 lg:block">
+        <div className="border-b border-slate-800 pb-5">
+          <div className="text-lg font-black text-white">MFU ATDR</div>
+          <div className="mt-1 text-sm text-slate-400">SOC triage console</div>
         </div>
         <nav className="mt-6 space-y-5">
           {navGroups.map((group) => {
@@ -67,7 +67,7 @@ export function AppShell() {
             if (!visibleItems.length) return null;
             return (
               <div key={group.label}>
-                <div className="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-muted">{group.label}</div>
+                <div className="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">{group.label}</div>
                 <div className="space-y-1.5">
                   {visibleItems.map((item) => {
                     const Icon = item.icon;
@@ -78,7 +78,7 @@ export function AppShell() {
                         className={({ isActive }) =>
                           clsx(
                             "flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-bold transition",
-                            isActive ? "border-cyan/50 bg-cyan/10 text-cyan" : "border-transparent text-muted hover:border-line hover:bg-panel"
+                            isActive ? "border-cyan/50 bg-cyan/15 text-cyan" : "border-transparent text-slate-300 hover:border-slate-700 hover:bg-slate-800/70"
                           )
                         }
                       >

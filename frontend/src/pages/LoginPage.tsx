@@ -41,8 +41,7 @@ export function LoginPage() {
           <div className="text-sm font-extrabold uppercase tracking-wide text-cyan">MFU ATDR SOC Console</div>
           <h1 className="mt-3 text-4xl font-black leading-tight">AI-driven log-based threat detection and response.</h1>
           <p className="mt-4 max-w-xl text-muted">
-            Production migration dashboard for Palo Alto firewall monitoring, explainable detection, ML-assisted anomaly review,
-            simulated response, and audit evidence.
+            SOC lab console for firewall logs, explainable alerts, AI-assisted review, simulated response, and audit evidence.
           </p>
           <div className="mt-8 grid gap-3 sm:grid-cols-3">
             {["Rule-first", "ML assistive", "Response simulated"].map((item) => (
@@ -57,7 +56,7 @@ export function LoginPage() {
           <div className="text-xl font-black">Sign in</div>
           <div className="mt-1 text-sm text-muted">Use your ATDR analyst or admin account.</div>
           <label className="mt-6 block text-sm font-bold text-muted">
-            Username
+            Username or email
             <input className="input mt-2" value={username} onChange={(event) => setUsername(event.target.value)} />
           </label>
           <label className="mt-4 block text-sm font-bold text-muted">

@@ -11,7 +11,7 @@ from atdr.app.db.models import Alert, NormalizedLog, RawLog
 from atdr.app.ml.features import build_log_features
 from atdr.app.services.alert_service import list_alerts
 from atdr.app.services.case_service import list_alert_cases
-from atdr.app.services.dashboard_service import build_dashboard_summary
+from atdr.app.services.dashboard_service import build_dashboard_summary, build_dashboard_summary_cached, clear_dashboard_summary_cache
 from atdr.app.services.operation_run_service import list_detection_runs, list_ingestion_runs
 from atdr.app.services.ml_service import evaluation_report
 from atdr.app.detection.supervised_detector import supervised_model_report
@@ -39,6 +39,11 @@ def run_performance_smoke(*, feature_limit: int = 20) -> dict[str, Any]:
         _, summary, seconds = _timed("overview_summary", lambda: build_dashboard_summary(db))
         timings["overview_summary_seconds"] = seconds
         timings["ingestion_summary_query_seconds"] = seconds
+        clear_dashboard_summary_cache()
+        _, cached_summary, seconds = _timed("overview_summary_cached_first", lambda: build_dashboard_summary_cached(db))
+        timings["overview_summary_cached_first_seconds"] = seconds
+        _, cached_summary, seconds = _timed("overview_summary_cached", lambda: build_dashboard_summary_cached(db))
+        timings["overview_summary_cached_seconds"] = seconds
         _, ingestion_runs, seconds = _timed("ingestion_run_history", lambda: list_ingestion_runs(db, limit=20))
         timings["ingestion_run_history_query_seconds"] = seconds
         _, detection_runs, seconds = _timed("detection_run_history", lambda: list_detection_runs(db, limit=20))
@@ -68,6 +73,8 @@ def run_performance_smoke(*, feature_limit: int = 20) -> dict[str, Any]:
         warnings: list[str] = []
         budgets = {
             "overview_summary_seconds": 1.0,
+            "overview_summary_cached_first_seconds": 1.5,
+            "overview_summary_cached_seconds": 0.5,
             "ml_governance_lightweight_summary_seconds": 2.0,
             "ml_heavy_supervised_report_seconds": 5.0,
             "ingestion_run_history_query_seconds": 1.0,
@@ -89,6 +96,7 @@ def run_performance_smoke(*, feature_limit: int = 20) -> dict[str, Any]:
             "normalized_logs": total_normalized,
             "alert_count": alert_count,
             "dashboard_total_logs": summary.get("total_logs"),
+            "overview_cache": cached_summary.get("performance", {}),
             "alert_rows_sampled": len(alerts),
             "case_rows_sampled": len(cases),
             "ingestion_runs_sampled": len(ingestion_runs),

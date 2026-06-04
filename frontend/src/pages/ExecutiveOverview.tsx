@@ -62,7 +62,7 @@ export function ExecutiveOverview() {
         <div className="text-sm font-extrabold uppercase tracking-wide text-cyan">Executive Overview</div>
         <h1 className="mt-2 text-3xl font-black">Operational posture for MFU firewall monitoring.</h1>
         <p className="mt-2 max-w-4xl text-muted">
-          Rule-first detection, ML-assisted scoring, evidence retention, simulated response, and audit trails in one production migration console.
+          Rule-first detection, ML-assisted scoring, evidence retention, simulated response, and audit trails in one SOC triage console.
         </p>
       </section>
 
@@ -98,8 +98,8 @@ export function ExecutiveOverview() {
             </div>
           ))}
         </div>
-        <div className="mt-3 rounded-lg border border-amber/30 bg-amber/10 p-3 text-sm text-amber">
-          Config warnings are checked by Config Doctor. In local demo mode, the default JWT-secret warning is expected; replace it before shared lab use.
+        <div className="mt-3 rounded-lg border border-cyan/30 bg-cyan/10 p-3 text-sm text-cyan">
+          Config: local lab profile. Replace demo secrets before shared lab use.
         </div>
         <details className="mt-3">
           <summary className="cursor-pointer text-sm font-extrabold uppercase tracking-wide text-muted">Ingestion Quality Snapshot</summary>

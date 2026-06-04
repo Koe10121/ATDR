@@ -17,6 +17,7 @@ ATDR is a defensive FastAPI + React AI-assisted log-based threat detection and r
 | Release gate commands | `atdr/scripts/verify_release.py` |
 | Current lab status and limitations | `docs/V0_3_STATUS.md`, `docs/LAB_RUNBOOK.md` |
 | IAM/RBAC adaptation and permission matrix | `docs/security/ATDR_IAM_RBAC_MATRIX.md` |
+| External school-email IAM groundwork | `docs/security/ATDR_EXTERNAL_IAM_PLAN.md` |
 | NewSystem template alignment, ATDR manifest, and permission path registry | `docs/ATDR_NEWSYSTEM_TEMPLATE_ALIGNMENT.md`, `docs/ATDR_TEMPLATE_MANIFEST.json`, `docs/security/ATDR_PERMISSION_PATHS.md` |
 | Requirement traceability | `docs/ATDR_REQUIREMENT_TRACEABILITY.md` |
 | Test inventory | `atdr/tests/*`, `frontend/tests` where present |
@@ -150,7 +151,7 @@ ATDR follows these NewSystem-style ideas:
 - T1-T20 change handoff: `docs/templates/ATDR_T1_T20_CHANGE_DOCUMENT.md`
 - security review discipline: `docs/security/ATDR_OWASP_LAB_SECURITY_REVIEW.md`
 
-Do not copy NewSystem-specific Node.js, Vue, MongoDB, Google SSO, B2B IAM SDK, or Docker requirements into ATDR unless a future approved requirement explicitly asks for that migration. The active adaptation guide is `docs/ATDR_NEWSYSTEM_TEMPLATE_ALIGNMENT.md`.
+Do not copy NewSystem-specific Node.js, Vue, MongoDB, Google SSO, B2B IAM SDK, or Docker requirements into ATDR unless a future approved requirement explicitly asks for that migration. v0.4 uses generic OIDC groundwork only, disabled by default, so a future school-email provider can be added without changing the ATDR stack. The active adaptation guide is `docs/ATDR_NEWSYSTEM_TEMPLATE_ALIGNMENT.md`.
 
 ## T1-T20 Change Document Requirement
 

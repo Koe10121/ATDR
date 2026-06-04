@@ -43,7 +43,7 @@ export function DetectionTuning() {
           )}
         </ChartCard>
         <section className="panel">
-          <div className="mb-4 text-sm font-extrabold uppercase tracking-wide text-muted">Production Readiness</div>
+          <div className="mb-4 text-sm font-extrabold uppercase tracking-wide text-muted">Operational Readiness</div>
           <div className="space-y-3">
             {(data?.production_readiness ?? []).map((item) => (
               <div key={item.name} className="rounded-lg border border-line bg-panel2 p-3">

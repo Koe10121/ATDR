@@ -1,12 +1,17 @@
+from copy import deepcopy
+from time import monotonic
+
 from sqlalchemy import case, desc, func, or_, select
 from sqlalchemy.orm import Session
 
+from atdr.app.core.config import get_settings
 from atdr.app.db.models import Alert, AuditLog, DetectionRun, IngestionRun, NormalizedLog, RawLog, SuppressionRule, WatchlistItem
 from atdr.app.services.alert_service import alert_sla
 from atdr.app.services.operation_run_service import detection_run_to_dict, ingestion_run_to_dict
 
 UNKNOWN_APPS = {"unknown", "unknown-tcp", "unknown-udp", "unknown-p2p", "incomplete", "not-applicable"}
 EXACT_JSON_QUALITY_LIMIT = 50_000
+_SUMMARY_CACHE: dict[str, object] = {"expires_at": 0.0, "payload": None, "signature": None}
 
 
 def _group_counts(db: Session, column, limit: int = 10) -> list[dict]:
@@ -199,3 +204,40 @@ def build_dashboard_summary(db: Session) -> dict:
         "latest_ingestion_run": ingestion_run_to_dict(latest_ingestion_run) if latest_ingestion_run else None,
         "latest_detection_run": detection_run_to_dict(latest_detection_run) if latest_detection_run else None,
     }
+
+
+def clear_dashboard_summary_cache() -> None:
+    _SUMMARY_CACHE["expires_at"] = 0.0
+    _SUMMARY_CACHE["payload"] = None
+    _SUMMARY_CACHE["signature"] = None
+
+
+def _dashboard_cache_signature(db: Session) -> tuple:
+    bind = db.get_bind()
+    return (
+        str(bind.url) if hasattr(bind, "url") else id(bind),
+        int(db.scalar(select(func.count(NormalizedLog.id))) or 0),
+        int(db.scalar(select(func.count(Alert.id))) or 0),
+        int(db.scalar(select(func.coalesce(func.max(IngestionRun.id), 0))) or 0),
+        int(db.scalar(select(func.coalesce(func.max(DetectionRun.id), 0))) or 0),
+        int(db.scalar(select(func.coalesce(func.max(AuditLog.id), 0))) or 0),
+    )
+
+
+def build_dashboard_summary_cached(db: Session) -> dict:
+    ttl = max(0, get_settings().dashboard_summary_cache_seconds)
+    if ttl <= 0:
+        return build_dashboard_summary(db)
+    now = monotonic()
+    signature = _dashboard_cache_signature(db)
+    cached_payload = _SUMMARY_CACHE.get("payload")
+    if cached_payload is not None and _SUMMARY_CACHE.get("signature") == signature and now < float(_SUMMARY_CACHE.get("expires_at") or 0):
+        payload = deepcopy(cached_payload)
+        payload["performance"] = {"cached": True, "cache_ttl_seconds": ttl}
+        return payload
+    payload = build_dashboard_summary(db)
+    payload["performance"] = {"cached": False, "cache_ttl_seconds": ttl}
+    _SUMMARY_CACHE["payload"] = deepcopy(payload)
+    _SUMMARY_CACHE["expires_at"] = now + ttl
+    _SUMMARY_CACHE["signature"] = signature
+    return payload

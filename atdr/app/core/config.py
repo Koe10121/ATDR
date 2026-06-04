@@ -52,6 +52,23 @@ class Settings(BaseSettings):
     syslog_batch_size: int = Field(default=100, alias="SYSLOG_BATCH_SIZE")
     login_rate_limit_attempts: int = Field(default=5, alias="LOGIN_RATE_LIMIT_ATTEMPTS")
     login_rate_limit_window_seconds: int = Field(default=300, alias="LOGIN_RATE_LIMIT_WINDOW_SECONDS")
+    oidc_enabled: bool = Field(default=False, alias="OIDC_ENABLED")
+    oidc_provider_name: str = Field(default="", alias="OIDC_PROVIDER_NAME")
+    oidc_client_id: str = Field(default="", alias="OIDC_CLIENT_ID")
+    oidc_client_secret: str = Field(default="", alias="OIDC_CLIENT_SECRET")
+    oidc_issuer_url: str = Field(default="", alias="OIDC_ISSUER_URL")
+    oidc_allowed_domains: str = Field(default="", alias="OIDC_ALLOWED_DOMAINS")
+    oidc_default_role: str = Field(default="analyst", alias="OIDC_DEFAULT_ROLE")
+    school_email_domains: str = Field(default="", alias="SCHOOL_EMAIL_DOMAINS")
+    require_school_email: bool = Field(default=False, alias="REQUIRE_SCHOOL_EMAIL")
+    local_email_login_enabled: bool = Field(default=True, alias="LOCAL_EMAIL_LOGIN_ENABLED")
+    smtp_enabled: bool = Field(default=False, alias="SMTP_ENABLED")
+    smtp_host: str = Field(default="", alias="SMTP_HOST")
+    smtp_port: int = Field(default=587, alias="SMTP_PORT")
+    smtp_username: str = Field(default="", alias="SMTP_USERNAME")
+    smtp_password: str = Field(default="", alias="SMTP_PASSWORD")
+    smtp_from_email: str = Field(default="", alias="SMTP_FROM_EMAIL")
+    dashboard_summary_cache_seconds: int = Field(default=30, alias="DASHBOARD_SUMMARY_CACHE_SECONDS")
 
     @property
     def resolved_model_path(self) -> Path:
@@ -72,6 +89,11 @@ class Settings(BaseSettings):
         origins = [origin.strip() for origin in self.cors_allowed_origins.split(",") if origin.strip()]
         return origins or ["http://127.0.0.1:8501"]
 
+    @property
+    def school_email_domain_list(self) -> list[str]:
+        domains = self.school_email_domains or self.oidc_allowed_domains
+        return [domain.strip().lower() for domain in domains.split(",") if domain.strip()]
+
 
 def validate_runtime_settings(settings: Settings) -> list[str]:
     issues: list[str] = []
@@ -88,6 +110,28 @@ def validate_runtime_settings(settings: Settings) -> list[str]:
         issues.append("SYSLOG_HOST binds publicly outside production; use 127.0.0.1 for lab demo mode.")
     if not settings.response_simulation and settings.response_provider.lower() in {"simulation", "none", "manual"}:
         issues.append("RESPONSE_PROVIDER must name an approved connector before RESPONSE_SIMULATION is disabled.")
+    if settings.oidc_default_role not in {"admin", "analyst"}:
+        issues.append("OIDC_DEFAULT_ROLE must be 'admin' or 'analyst'.")
+    if settings.oidc_enabled:
+        if not settings.oidc_provider_name.strip():
+            issues.append("OIDC_PROVIDER_NAME is required when OIDC_ENABLED=true.")
+        if not settings.oidc_client_id.strip():
+            issues.append("OIDC_CLIENT_ID is required when OIDC_ENABLED=true.")
+        if not settings.oidc_client_secret.strip():
+            issues.append("OIDC_CLIENT_SECRET is required when OIDC_ENABLED=true.")
+        if not settings.oidc_issuer_url.strip():
+            issues.append("OIDC_ISSUER_URL is required when OIDC_ENABLED=true.")
+        if not settings.oidc_allowed_domains.strip():
+            issues.append("OIDC_ALLOWED_DOMAINS is required when OIDC_ENABLED=true.")
+    if settings.require_school_email and not settings.school_email_domain_list:
+        issues.append("SCHOOL_EMAIL_DOMAINS or OIDC_ALLOWED_DOMAINS is required when REQUIRE_SCHOOL_EMAIL=true.")
+    if settings.smtp_enabled:
+        if not settings.smtp_host.strip():
+            issues.append("SMTP_HOST is required when SMTP_ENABLED=true.")
+        if not settings.smtp_from_email.strip():
+            issues.append("SMTP_FROM_EMAIL is required when SMTP_ENABLED=true.")
+    if settings.dashboard_summary_cache_seconds < 0:
+        issues.append("DASHBOARD_SUMMARY_CACHE_SECONDS must be zero or greater.")
     return issues
 
 

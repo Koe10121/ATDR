@@ -21,6 +21,7 @@ import type {
   MLLabelPayload,
   MLReviewQueueItem,
   NormalizedLog,
+  OidcStatus,
   ResponseAction,
   SupervisedModelReport,
   SupervisedModelRegistry,
@@ -144,6 +145,7 @@ export const api = {
       body: JSON.stringify({ username, password })
     }),
   me: () => apiRequest<User>("/api/auth/me"),
+  oidcStatus: () => apiRequest<OidcStatus>("/api/auth/oidc/status"),
   dashboardSummary: () => apiRequest<DashboardSummary>("/api/dashboard/summary"),
   ingestionRuns: (params: Params = {}) => apiRequest<IngestionRun[]>("/api/ingestion/runs", { params }),
   ingestionRun: (id: number) => apiRequest<IngestionRun>(`/api/ingestion/runs/${id}`),
@@ -230,8 +232,10 @@ export const api = {
       body: JSON.stringify({ target_ip: targetIp, reason })
     }),
   users: () => apiRequest<User[]>("/api/users"),
-  createUser: (payload: { username: string; password: string; role: string; full_name?: string }) =>
+  createUser: (payload: { username: string; password?: string; role: string; full_name?: string; email?: string; email_verified?: boolean; auth_provider?: string; is_active?: boolean }) =>
     apiRequest<User>("/api/users", { method: "POST", body: JSON.stringify(payload) }),
+  updateUser: (id: number, payload: Partial<{ username: string; role: string; full_name: string | null; email: string | null; email_verified: boolean; auth_provider: string; is_active: boolean }>) =>
+    apiRequest<User>(`/api/users/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
   disableUser: (id: number) => apiRequest<User>(`/api/users/${id}/disable`, { method: "POST" }),
   resetPassword: (id: number, new_password: string) =>
     apiRequest<User>(`/api/users/${id}/reset-password`, { method: "POST", body: JSON.stringify({ new_password }) }),

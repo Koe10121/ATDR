@@ -4,13 +4,14 @@ from sqlalchemy.orm import Session
 from atdr.app.core.security import require_admin
 from atdr.app.db.database import get_db
 from atdr.app.db.models import User
-from atdr.app.schemas.users import UserCreateRequest, UserRead, UserResetPasswordRequest, UserRoleRequest
+from atdr.app.schemas.users import UserCreateRequest, UserRead, UserResetPasswordRequest, UserRoleRequest, UserUpdateRequest
 from atdr.app.services.user_service import (
     change_user_role,
     create_managed_user,
     disable_user,
     list_users,
     reset_user_password,
+    update_managed_user,
 )
 
 router = APIRouter(prefix="/api/users", tags=["users"])
@@ -37,6 +38,10 @@ def api_create_user(
             password=request.password,
             role=request.role,
             full_name=request.full_name,
+            email=request.email,
+            email_verified=request.email_verified,
+            auth_provider=request.auth_provider,
+            is_active=request.is_active,
             actor=current_user.username,
         )
     except ValueError as exc:
@@ -51,6 +56,33 @@ def api_disable_user(
 ):
     try:
         user = disable_user(db, user_id, actor=current_user.username)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found.")
+    return user
+
+
+@router.patch("/{user_id}", response_model=UserRead)
+def api_update_user(
+    user_id: int,
+    request: UserUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    try:
+        user = update_managed_user(
+            db,
+            user_id,
+            actor=current_user.username,
+            username=request.username,
+            full_name=request.full_name,
+            email=request.email,
+            role=request.role,
+            is_active=request.is_active,
+            email_verified=request.email_verified,
+            auth_provider=request.auth_provider,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if user is None:

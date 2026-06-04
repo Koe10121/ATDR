@@ -5,9 +5,16 @@ export type AlertStatus = "open" | "investigating" | "contained" | "resolved" | 
 export interface User {
   id: number;
   username: string;
+  email?: string | null;
   full_name?: string | null;
   role: Role;
   is_active: boolean;
+  email_verified?: boolean;
+  auth_provider?: "local" | "external" | string;
+  external_subject?: string | null;
+  last_login_at?: string | null;
+  invited_at?: string | null;
+  disabled_at?: string | null;
   created_at?: string;
 }
 
@@ -17,6 +24,20 @@ export interface TokenResponse {
   expires_in_minutes: number;
   username: string;
   role: Role;
+}
+
+export interface OidcStatus {
+  enabled: boolean;
+  provider_name?: string | null;
+  issuer_configured: boolean;
+  client_configured: boolean;
+  allowed_domains: string[];
+  default_role: Role | string;
+  mode: "local_login_only" | "external_oidc" | string;
+  school_email_domains: string[];
+  require_school_email: boolean;
+  local_email_login_enabled: boolean;
+  smtp_enabled: boolean;
 }
 
 export interface HealthResponse {

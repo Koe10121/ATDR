@@ -91,6 +91,23 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
   await page.route("**/api/auth/me", async (route) =>
     route.fulfill({ json: { id: 1, username: role, full_name: "Smoke User", role, is_active: true, created_at: "2026-05-22T00:00:00Z" } })
   );
+  await page.route("**/api/auth/oidc/status", async (route) =>
+    route.fulfill({
+      json: {
+        enabled: false,
+        provider_name: null,
+        issuer_configured: false,
+        client_configured: false,
+        allowed_domains: [],
+        default_role: "analyst",
+        mode: "local_login_only",
+        school_email_domains: [],
+        require_school_email: false,
+        local_email_login_enabled: true,
+        smtp_enabled: false
+      }
+    })
+  );
   await page.route("**/api/dashboard/summary", async (route) =>
     route.fulfill({
       json: {
@@ -453,7 +470,7 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
           production_promoted: false,
           limitations: [
             "Threat-positive triage is useful for analyst review.",
-            "Flat five-class exact classification is not production-promoted.",
+            "Exact class separation still needs review.",
             "Benign and needs_context exact classification remain weak.",
             "Response actions remain simulated and analyst-approved."
           ],
@@ -633,7 +650,27 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
   });
   await page.route("**/api/suppressions**", async (route) => route.fulfill({ json: [] }));
   await page.route("**/api/watchlists**", async (route) => route.fulfill({ json: [] }));
-  await page.route("**/api/users", async (route) => route.fulfill({ json: [{ id: 1, username: "admin", full_name: "Admin", role: "admin", is_active: true, created_at: "2026-05-22T00:00:00Z" }] }));
+  await page.route("**/api/users", async (route) =>
+    route.fulfill({
+      json: [
+        {
+          id: 1,
+          username: "admin",
+          email: "admin@school.example",
+          full_name: "Admin",
+          role: "admin",
+          is_active: true,
+          email_verified: true,
+          auth_provider: "local",
+          external_subject: null,
+          last_login_at: "2026-05-22T00:00:00Z",
+          invited_at: null,
+          disabled_at: null,
+          created_at: "2026-05-22T00:00:00Z"
+        }
+      ]
+    })
+  );
   await page.route("**/api/demo/import-sample", async (route) =>
     {
       const body = JSON.parse(route.request().postData() || "{}") as { limit?: number | null; sample_path?: string | null };
@@ -744,16 +781,18 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByText("Latest Ingestion Run")).toBeVisible();
   await expect(page.getByText("Latest Detection Run")).toBeVisible();
   await expect(page.getByText("Response Mode")).toBeVisible();
-  await expect(page.getByText("Config warnings are checked by Config Doctor")).toBeVisible();
+  await expect(page.getByText("Config: local lab profile")).toBeVisible();
 
   await page.goto("/ml");
-  await expect(page.getByText("Model is eligible for analyst review, not production promotion.")).toBeVisible();
+  await expect(page.getByText("Analyst Review Eligible.")).toBeVisible();
   await expect(page.getByText("Recommended AI Mode")).toBeVisible();
   await expect(page.getByText("SOC triage decision support")).toBeVisible();
-  await expect(page.getByText("Threat-positive triage is useful for analyst review.")).toBeVisible();
-  await expect(page.getByText("Flat 5-class model is not production-promoted.")).toBeVisible();
-  await expect(page.getByText("Benign and needs_context exact classification remain weak.")).toBeVisible();
-  await expect(page.getByText("Response automation disabled; simulated response requires analyst approval.")).toBeVisible();
+  await expect(page.getByText("SOC Triage Mode")).toBeVisible();
+  await expect(page.getByText("Analyst Review", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Manual Approval Required")).toBeVisible();
+  await expect(page.getByText("Automation Disabled")).toBeVisible();
+  await expect(page.getByText("Technical Review Notes")).toBeVisible();
+  await page.getByText("Technical Review Notes").click();
   await expect(page.getByText("Malicious reviewed target is met; do not prioritize malicious-heavy review unless evidence is strong.")).toBeVisible();
   await expect(page.getByText("Suspicious reviewed target is met; continue only focused boundary cleanup.")).toBeVisible();
   await expect(page.getByText("Benign labels are under-reviewed.")).toBeVisible();
@@ -762,9 +801,9 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByText("Stage 1 threat-positive recall still needs calibration.")).toBeVisible();
   await expect(page.getByText("Stage 2 suspicious/malicious separation is promising, but Stage 1 must catch threat-positive rows first.")).toBeVisible();
   await expect(page.getByText("Current time split has class imbalance; metrics are unstable.")).toBeVisible();
-  await expect(page.getByText("Model remains candidate_only and decision support only.")).toBeVisible();
+  await expect(page.getByText("Model remains decision support only.")).toBeVisible();
   await expect(page.getByText("Analyst Review Gate")).toBeVisible();
-  await expect(page.getByText("Assisted labels are weak labels.")).toBeVisible();
+  await expect(page.getByText("Weak labels require analyst review before model claims.")).toBeVisible();
 });
 
 test("deep-linked alert and log drawers render", async ({ page }) => {
@@ -790,6 +829,21 @@ test("analyst cannot access admin routes", async ({ page }) => {
   await seedSession(page, "analyst");
   await page.goto("/users");
   await expect(page.getByText("Access denied")).toBeVisible();
+});
+
+test("admin settings shows external IAM groundwork", async ({ page }) => {
+  await mockApi(page);
+  await seedSession(page);
+  await page.goto("/users");
+
+  await expect(page.getByText("External IAM")).toBeVisible();
+  await expect(page.getByText("School-email login groundwork")).toBeVisible();
+  await expect(page.getByText("Local login only").first()).toBeVisible();
+  await expect(page.getByText("School Email Policy")).toBeVisible();
+  await expect(page.getByText("Email Login", { exact: true })).toBeVisible();
+  await expect(page.getByText("Enabled", { exact: true })).toBeVisible();
+  expect(await page.getByText("Not configured").count()).toBeGreaterThanOrEqual(2);
+  await expect(page.getByText("External school-email login can be enabled later through OIDC.")).toBeVisible();
 });
 
 test("simulated response confirmation and denied audit are visible", async ({ page }) => {
@@ -890,7 +944,7 @@ test("dashboard dropdowns close and do not block follow-up clicks", async ({ pag
   await expect(page.getByRole("button", { name: "SOC Triage Recommendation" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Suspicious Recall Sample" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Suspicious Recall Report" })).toBeVisible();
-  await expect(page.getByText("Benign recall is the current blocker")).toBeVisible();
+  await expect(page.getByText("Review focus: benign and suspicious separation need more analyst-verified examples.")).toBeVisible();
   await page.getByRole("button", { name: "Human Review Sample" }).click();
   await page.getByRole("button", { name: "General Active Learning Sample" }).click();
   await page.getByRole("button", { name: "Malicious-Focused Sample" }).click();

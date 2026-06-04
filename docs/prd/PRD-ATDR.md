@@ -28,6 +28,7 @@
 | Lab operations | `docs/LAB_RUNBOOK.md` |
 | AI workflow | `docs/AI_TRAINING_RUNBOOK.md`, `docs/ML_BASELINE_TUNING.md` |
 | IAM/RBAC permission matrix | `docs/security/ATDR_IAM_RBAC_MATRIX.md` |
+| External IAM groundwork | `docs/security/ATDR_EXTERNAL_IAM_PLAN.md` |
 | NewSystem template alignment and permission path registry | `docs/ATDR_NEWSYSTEM_TEMPLATE_ALIGNMENT.md`, `docs/ATDR_TEMPLATE_MANIFEST.json`, `docs/security/ATDR_PERMISSION_PATHS.md` |
 | Requirement traceability | `docs/ATDR_REQUIREMENT_TRACEABILITY.md` |
 
@@ -53,11 +54,11 @@ ATDR exists to demonstrate and validate:
 
 | Role | Purpose | Current Evidence |
 | --- | --- | --- |
-| Admin | Configure users, demo controls, source management, threat controls, response simulation actions | `atdr/app/routers/users.py`, `atdr/app/routers/demo.py`, `atdr/app/routers/response.py` |
+| Admin | Configure users, school-email account metadata, demo controls, source management, threat controls, response simulation actions | `atdr/app/routers/users.py`, `atdr/app/routers/demo.py`, `atdr/app/routers/response.py` |
 | Analyst | Investigate alerts/logs, update alert status, review evidence, label logs, view audit and ML governance | `atdr/app/routers/alerts.py`, `atdr/app/routers/logs.py`, `atdr/app/routers/ml.py` |
 | Supervisor/advisor | Review dashboard, evidence, runbooks, acceptance status, and lab-readiness claims | `docs/V0_3_STATUS.md`, `docs/ACCEPTANCE_TEST_CHECKLIST.md` |
 
-The current role and permission matrix is documented in `docs/security/ATDR_IAM_RBAC_MATRIX.md`. ATDR does not currently include a viewer/read-only role, external SSO, OAuth, SAML, LDAP, or an enterprise identity provider.
+The current role and permission matrix is documented in `docs/security/ATDR_IAM_RBAC_MATRIX.md`. Local accounts now support optional school-email fields and email login for local users. ATDR does not currently include a viewer/read-only role or full external SSO/OAuth/SAML/LDAP login. v0.4 includes disabled-by-default OIDC configuration/status groundwork only.
 
 ## Current Capabilities
 
@@ -146,6 +147,7 @@ Evidence: `atdr/app/db/models.py`, `atdr/scripts/performance_smoke.py`, `atdr/sc
 | FR-ATDR-015 | Provide lab scenario validation with expected outcomes | Implemented |
 | FR-ATDR-016 | Provide release verification and performance smoke checks | Implemented |
 | FR-ATDR-017 | Enforce JWT authentication and admin/analyst RBAC on protected workflows | Implemented for lab roles |
+| FR-ATDR-018 | Support local school-email account metadata while preserving username/password login | Implemented for local lab accounts |
 
 ## Non-Functional Requirements
 

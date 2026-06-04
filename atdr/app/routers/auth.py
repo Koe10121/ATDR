@@ -4,11 +4,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from atdr.app.core.config import get_settings
-from atdr.app.core.security import create_access_token, get_current_user
+from atdr.app.core.security import create_access_token, get_current_user, require_analyst_or_admin
 from atdr.app.db.database import get_db
 from atdr.app.db.models import AuditLog, User
-from atdr.app.schemas.auth import ChangePasswordRequest, LoginRequest, TokenResponse, UserRead
-from atdr.app.services.user_service import authenticate_user, change_own_password
+from atdr.app.schemas.auth import ChangePasswordRequest, LoginRequest, OidcStatusRead, TokenResponse, UserRead
+from atdr.app.services.user_service import authenticate_user, change_own_password, record_successful_login
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 _login_failures: dict[str, list[float]] = {}
@@ -49,6 +49,10 @@ def _clear_failed_logins(request: Request, username: str) -> None:
     _login_failures.pop(_rate_key(request, username), None)
 
 
+def _split_allowed_domains(value: str) -> list[str]:
+    return [domain.strip().lower() for domain in value.split(",") if domain.strip()]
+
+
 @router.post("/login", response_model=TokenResponse)
 def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)) -> dict:
     _check_rate_limit(request, payload.username)
@@ -61,6 +65,7 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
             headers={"WWW-Authenticate": "Bearer"},
         )
     _clear_failed_logins(request, payload.username)
+    record_successful_login(db, user)
     settings = get_settings()
     token = create_access_token(subject=user.username, role=user.role)
     return {
@@ -93,3 +98,22 @@ def change_password(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"changed": True}
+
+
+@router.get("/oidc/status", response_model=OidcStatusRead)
+def oidc_status(current_user: User = Depends(require_analyst_or_admin)) -> dict:
+    del current_user
+    settings = get_settings()
+    return {
+        "enabled": settings.oidc_enabled,
+        "provider_name": settings.oidc_provider_name.strip() or None,
+        "issuer_configured": bool(settings.oidc_issuer_url.strip()),
+        "client_configured": bool(settings.oidc_client_id.strip()),
+        "allowed_domains": _split_allowed_domains(settings.oidc_allowed_domains),
+        "default_role": settings.oidc_default_role,
+        "mode": "external_oidc" if settings.oidc_enabled else "local_login_only",
+        "school_email_domains": settings.school_email_domain_list,
+        "require_school_email": settings.require_school_email,
+        "local_email_login_enabled": settings.local_email_login_enabled,
+        "smtp_enabled": settings.smtp_enabled,
+    }
