@@ -25,6 +25,9 @@ LOW_SEVERITY_GROUP_MIN_EVIDENCE = 5
 INTERNET_SWEEP_RULES = {"unusual_destination_port", "unknown_or_incomplete_app", "outside_to_inside"}
 PRIMARY_RULE_PRIORITY = {
     "possible_port_scan": 100,
+    "connection_flood_suspicion": 98,
+    "brute_force_like_attempts": 97,
+    "beaconing_like_outbound": 96,
     "multiple_denied_connections": 95,
     "paloalto_threat_log": 90,
     "watchlist_match": 88,
@@ -37,6 +40,7 @@ PRIMARY_RULE_PRIORITY = {
     "unusual_destination_port": 55,
     "unknown_or_incomplete_app": 50,
     "outside_to_inside": 40,
+    "high_outbound_bytes": 38,
     "high_bytes_outlier": 35,
     "high_packets_outlier": 35,
 }
@@ -86,8 +90,8 @@ def _group_key(candidate: DetectionCandidate) -> tuple:
     source_group = log.src_ip or "unknown-source"
     if primary_code in INTERNET_SWEEP_RULES and _outside_to_inside(log):
         source_group = "multiple-internet-sources"
-    dst_port = log.dst_port if primary_code in {"deny_drop_action", "unusual_destination_port"} else None
-    app = log.app if primary_code in {"paloalto_threat_log", "app_risk_4", "app_risk_5", "suspicious_app_characteristic"} else None
+    dst_port = log.dst_port if primary_code in {"deny_drop_action", "unusual_destination_port", "brute_force_like_attempts"} else None
+    app = log.app if primary_code in {"paloalto_threat_log", "app_risk_4", "app_risk_5", "suspicious_app_characteristic", "beaconing_like_outbound"} else None
     zone_path = f"{log.src_zone or 'unknown'}->{log.dst_zone or 'unknown'}"
     return (
         primary_code,

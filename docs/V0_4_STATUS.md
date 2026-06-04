@@ -53,5 +53,10 @@ Current user fields include:
 - Mock-provider OIDC integration tests.
 - SMTP invite/reset email flow.
 - Viewer/read-only role.
-- Real router/firewall syslog validation.
+- v0.6 controlled small-subnet threat detection capability validation.
+- Real router/firewall syslog validation with lab hardware.
 - PostgreSQL/Docker lab deployment validation.
+
+## v0.6 Handoff
+
+The active controlled threat detection validation phase is documented in `docs/V0_6_THREAT_DETECTION_VALIDATION.md`. It keeps v0.4 behavior intact while adding expectation-based safe scenarios, defensive detection checks, and ignored validation reports. `docs/V0_5_REAL_SOURCE_VALIDATION_PLAN.md` remains the future hardware validation plan.

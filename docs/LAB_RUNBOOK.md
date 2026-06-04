@@ -166,6 +166,81 @@ Invoke-RestMethod "http://127.0.0.1:8000/api/detection/run?limit=1000&use_ml=tru
 
 The unfiltered detection command remains unchanged. Source-scoped detection is optional and useful for confirming that recent replay or syslog activity from one lab source can be traced into source-linked detection run history.
 
+## v0.6 Controlled Small-Subnet Threat Detection Validation
+
+ATDR v0.6 validates defensive detection capability with safe synthetic/replayed logs. This is controlled small-subnet/lab-scale validation, not production certification and not an offensive test.
+
+Run the expectation-based suite against a temporary database:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_detection_validation_suite --all --pretty
+```
+
+The suite reads `data/samples/scenarios/scenario_expectations.json`, imports each scenario, runs detection, compares actual results to expected outcomes, checks raw evidence preservation, verifies no response actions were created, and writes JSON/Markdown reports to ignored `demo_exports/detection_validation/`.
+
+Current v0.6 scenarios:
+
+- `normal_allowed_traffic`: clean allowed traffic, no high/critical alert.
+- `port_scan_like_traffic`: port-scan-style evidence from repeated ports.
+- `brute_force_like_traffic`: repeated denied attempts against a service/authentication port.
+- `malware_c2_like_beaconing`: repeated outbound destination behavior with risky/uncommon app context.
+- `data_exfiltration_suspicion`: high outbound byte-volume pattern.
+- `policy_violation_suspicious_app`: high-risk app and suspicious app characteristics.
+- `ddos_or_connection_flood_like`: repeated connection flood-like behavior.
+- `malformed_raw_fallback`: raw evidence preserved and parser failures counted without crashing.
+
+Only write validation rows to the current dashboard database when you intentionally want to inspect them in React:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_detection_validation_suite --scenario port_scan_like_traffic --write-to-current-db --pretty
+```
+
+## v0.5 Controlled Replay Validation Archive
+
+ATDR v0.5 uses controlled simulation and replay as the current validation path because real firewall/router hardware is not available yet. This validates source health, parser behavior, source-scoped detection, alert evidence, deduplication, case grouping, simulated response safety, and dashboard investigation flow. It does not validate real device forwarding or real firewall enforcement.
+
+See `docs/V0_5_SIMULATION_DEMO_PLAN.md` for the advisor/demo script and scenario catalog. `docs/V0_5_REAL_SOURCE_VALIDATION_PLAN.md` is kept for future hardware validation.
+
+Use this flow when proving ATDR can receive and investigate traffic from a controlled simulated lab source. It does not reset the database and it does not enable automatic response.
+
+Validate a named source after replay/syslog activity:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.validate_live_source --source-name lab-firewall-1 --source-type firewall --parser-profile palo_alto --duration 60 --run-detection --pretty
+```
+
+Useful flags:
+
+- `--duration 0`: check current source state without waiting.
+- `--require-activity`: fail validation if no new raw logs arrive during the validation window.
+- `--run-detection`: run source-scoped detection and record alert/dedup counts.
+- `--no-report`: skip writing the validation report.
+- `--report-dir <path>`: write the report somewhere other than the default ignored report folder.
+
+Export a source validation report without running detection:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.export_lab_validation_report --source-name lab-firewall-1 --pretty
+```
+
+Reports are written to:
+
+```text
+demo_exports/lab_validation_reports/
+```
+
+This folder is ignored by Git. A validation report includes source details, parser quality, ingestion and detection run summaries, alert and case summaries, response/audit summary, performance timings, and safety limitations. It explicitly states that response is simulated and ML is decision support only.
+
+Recommended v0.5 dashboard verification:
+
+1. Open Overview and confirm source health, latest ingestion run, latest detection run, and alert count are understandable.
+2. Open the source detail drawer and inspect parser profile, quality warnings, parser errors, and recent runs.
+3. Open Investigation, filter by source, and confirm raw/normalized evidence is visible.
+4. Open Alerts, filter by source, and confirm evidence count, occurrence count, and **Why flagged?** are clear.
+5. For repeated replay, confirm raw logs remain available while alerts deduplicate.
+6. In Response & Audit, confirm response remains simulated, requires justification, and protected IP attempts are denied/audited.
+7. In Admin / Settings, confirm External IAM remains not configured unless explicitly enabled later.
+
 ## Source Scenario Validation
 
 ATDR includes small synthetic scenario files in `data/samples/scenarios/` for controlled source-aware validation. These files are safe examples, not private firewall logs.
@@ -176,8 +251,13 @@ Run every scenario against a temporary database when you want proof without touc
 .\.venv\Scripts\python.exe -m atdr.scripts.run_source_scenario --scenario normal_allowed_traffic --use-temp-db --run-detection --pretty
 .\.venv\Scripts\python.exe -m atdr.scripts.run_source_scenario --scenario port_scan_like_traffic --use-temp-db --run-detection --pretty
 .\.venv\Scripts\python.exe -m atdr.scripts.run_source_scenario --scenario repeated_dedup_traffic --use-temp-db --run-detection --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_source_scenario --scenario brute_force_like_traffic --use-temp-db --run-detection --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_source_scenario --scenario malware_c2_like_beaconing --use-temp-db --run-detection --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_source_scenario --scenario data_exfiltration_suspicion --use-temp-db --run-detection --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_source_scenario --scenario ddos_or_connection_flood_like --use-temp-db --run-detection --pretty
 .\.venv\Scripts\python.exe -m atdr.scripts.run_source_scenario --scenario generic_syslog_mixed --use-temp-db --pretty
 .\.venv\Scripts\python.exe -m atdr.scripts.run_source_scenario --scenario malformed_raw_fallback --use-temp-db --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_source_scenario --scenario policy_violation_suspicious_app --use-temp-db --run-detection --pretty
 ```
 
 Expected outcomes:
@@ -185,8 +265,13 @@ Expected outcomes:
 - `normal_allowed_traffic`: imports and parses clean allowed traffic; no high or critical alerts should be created.
 - `port_scan_like_traffic`: creates at least one suspicious/port-scan-style alert when detection runs.
 - `repeated_dedup_traffic`: imports and detects the same pattern twice; raw evidence is preserved, while matching active alerts should update `occurrence_count` instead of flooding the queue.
+- `brute_force_like_traffic`: creates a brute-force-like service-attempt alert from repeated denied service traffic.
+- `malware_c2_like_beaconing`: creates a C2/beaconing-style alert from repeated outbound uncommon/risky app behavior.
+- `data_exfiltration_suspicion`: creates a high outbound data-transfer alert.
+- `ddos_or_connection_flood_like`: creates a connection flood-style alert from repeated same-target connections.
 - `generic_syslog_mixed`: preserves raw evidence and minimal syslog wrapper fields; source health may show warning because firewall-specific fields are limited.
 - `malformed_raw_fallback`: preserves raw evidence, counts parser failures, and does not crash.
+- `policy_violation_suspicious_app`: creates at least one suspicious/policy-style alert from high app risk and suspicious app characteristics.
 
 Dry-run a scenario without writing rows:
 

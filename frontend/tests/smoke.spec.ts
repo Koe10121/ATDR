@@ -764,17 +764,22 @@ test("overview system health panel and ML governance wording render", async ({ p
 
   await page.goto("/overview");
   await expect(page.getByText("System Health")).toBeVisible();
+  await expect(page.getByText("Controlled Validation")).toBeVisible();
+  await expect(page.getByText("Lab-Scale Validation")).toBeVisible();
+  await expect(page.getByText("Manual Approval Required")).toBeVisible();
+  await expect(page.getByText("Hardware Validation Pending")).toBeVisible();
+  await expect(page.getByText("Real device validation remains future work.")).toBeVisible();
   await expect(page.getByText("Operations Health")).toBeVisible();
   await expect(page.getByText("Log Sources")).toBeVisible();
   await expect(page.getByText("local_import")).toBeVisible();
-  await expect(page.getByText("scenario-raw-fallback")).toBeVisible();
+  await expect(page.getByRole("button", { name: /scenario-raw-fallback/ })).toBeVisible();
   await page.getByText("local_import").click();
   await expect(page.getByText("Parser Profile", { exact: true })).toBeVisible();
   await expect(page.getByText("Troubleshooting Hints")).toBeVisible();
   await expect(page.getByText("Parser profile behavior")).toBeVisible();
   await expect(page.getByText("Recent Detection Runs")).toBeVisible();
   await page.getByRole("button", { name: "Close details" }).click();
-  await page.getByText("scenario-raw-fallback").click();
+  await page.getByRole("button", { name: /scenario-raw-fallback/ }).click();
   await expect(page.getByText("Raw fallback preserves evidence but structured fields may be limited.")).toBeVisible();
   await expect(page.getByText("raw fallback preserved evidence")).toBeVisible();
   await page.getByRole("button", { name: "Close details" }).click();

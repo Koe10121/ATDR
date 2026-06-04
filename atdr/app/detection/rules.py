@@ -46,6 +46,8 @@ COMMON_PORTS = {
     8443,
 }
 
+AUTH_SERVICE_PORTS = {21, 22, 23, 25, 110, 143, 389, 445, 465, 587, 993, 995, 1433, 3306, 3389, 5432, 5900}
+
 
 @dataclass(frozen=True, slots=True)
 class RuleMatch:
@@ -60,6 +62,8 @@ class DetectionContext:
     source_counts: Counter[str]
     source_deny_drop_counts: Counter[str]
     source_distinct_ports: dict[str, set[int]]
+    source_auth_deny_counts: Counter[str]
+    source_destination_counts: Counter[tuple[str, str, int | None]]
     byte_outlier_threshold: float
     packet_outlier_threshold: float
 
@@ -98,6 +102,14 @@ def _is_outside_to_inside(log: NormalizedLog) -> bool:
     return src_outside and dst_inside
 
 
+def _is_internal_to_external(log: NormalizedLog) -> bool:
+    src_zone = _lower(log.src_zone)
+    dst_zone = _lower(log.dst_zone)
+    src_inside = any(token in src_zone for token in ("inside", "trust", "lan", "wlan", "corp"))
+    dst_outside = "outside" in dst_zone or "untrust" in dst_zone or "internet" in dst_zone
+    return src_inside and dst_outside
+
+
 def _characteristic_set(value: str | None) -> set[str]:
     if not value:
         return set()
@@ -108,6 +120,8 @@ def build_detection_context(logs: Iterable[NormalizedLog]) -> DetectionContext:
     source_counts: Counter[str] = Counter()
     source_deny_drop_counts: Counter[str] = Counter()
     source_distinct_ports: dict[str, set[int]] = defaultdict(set)
+    source_auth_deny_counts: Counter[str] = Counter()
+    source_destination_counts: Counter[tuple[str, str, int | None]] = Counter()
     byte_values: list[int] = []
     packet_values: list[int] = []
 
@@ -116,8 +130,12 @@ def build_detection_context(logs: Iterable[NormalizedLog]) -> DetectionContext:
             source_counts[log.src_ip] += 1
             if _is_deny_or_drop(log):
                 source_deny_drop_counts[log.src_ip] += 1
+                if log.dst_port in AUTH_SERVICE_PORTS:
+                    source_auth_deny_counts[log.src_ip] += 1
             if log.dst_port is not None:
                 source_distinct_ports[log.src_ip].add(log.dst_port)
+            if log.dst_ip:
+                source_destination_counts[(log.src_ip, log.dst_ip, log.dst_port)] += 1
         if log.bytes is not None:
             byte_values.append(log.bytes)
         if log.packets is not None:
@@ -134,6 +152,8 @@ def build_detection_context(logs: Iterable[NormalizedLog]) -> DetectionContext:
         source_counts=source_counts,
         source_deny_drop_counts=source_deny_drop_counts,
         source_distinct_ports=source_distinct_ports,
+        source_auth_deny_counts=source_auth_deny_counts,
+        source_destination_counts=source_destination_counts,
         byte_outlier_threshold=byte_threshold,
         packet_outlier_threshold=packet_threshold,
     )
@@ -225,6 +245,17 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
             )
         )
 
+    auth_deny_count = context.source_auth_deny_counts.get(src_ip, 0)
+    if auth_deny_count >= 5:
+        matches.append(
+            RuleMatch(
+                code="brute_force_like_attempts",
+                title="Brute-force-like service attempts",
+                score=30,
+                explanation=f"{src_ip} has {auth_deny_count} denied or reset attempts against authentication/service ports.",
+            )
+        )
+
     distinct_ports = len(context.source_distinct_ports.get(src_ip, set()))
     if distinct_ports >= 10:
         matches.append(
@@ -236,6 +267,40 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
             )
         )
 
+    destination_repeat_count = context.source_destination_counts.get((src_ip, log.dst_ip or "", log.dst_port), 0)
+    if destination_repeat_count >= 6 and _is_internal_to_external(log):
+        uncommon_or_risky = (
+            (log.dst_port is not None and log.dst_port not in COMMON_PORTS)
+            or (log.app_risk is not None and log.app_risk >= 4)
+            or bool(_characteristic_set(log.app_characteristic) & SUSPICIOUS_CHARACTERISTICS)
+            or _lower(log.app) in {"unknown", "incomplete", "not-applicable", "unknown-tcp"}
+        )
+        if uncommon_or_risky:
+            matches.append(
+                RuleMatch(
+                    code="beaconing_like_outbound",
+                    title="Beaconing-like repeated outbound behavior",
+                    score=30,
+                    explanation=(
+                        f"{src_ip} made {destination_repeat_count} repeated outbound connections to "
+                        f"{log.dst_ip or 'unknown destination'}:{log.dst_port or 'unknown port'}."
+                    ),
+                )
+            )
+
+    if destination_repeat_count >= 20:
+        matches.append(
+            RuleMatch(
+                code="connection_flood_suspicion",
+                title="Connection flood-like behavior",
+                score=35,
+                explanation=(
+                    f"{src_ip} made {destination_repeat_count} repeated connections to "
+                    f"{log.dst_ip or 'unknown destination'}:{log.dst_port or 'unknown port'} in the detection batch."
+                ),
+            )
+        )
+
     if log.dst_port is not None and log.dst_port not in COMMON_PORTS and _is_outside_to_inside(log):
         matches.append(
             RuleMatch(
@@ -243,6 +308,16 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
                 title="Unusual destination port",
                 score=10,
                 explanation=f"Outside-to-inside traffic used uncommon destination port {log.dst_port}.",
+            )
+        )
+
+    if log.bytes is not None and log.bytes > context.byte_outlier_threshold and _is_internal_to_external(log):
+        matches.append(
+            RuleMatch(
+                code="high_outbound_bytes",
+                title="High outbound byte volume",
+                score=35,
+                explanation=f"Outbound byte count {log.bytes} is above the batch outlier threshold.",
             )
         )
 

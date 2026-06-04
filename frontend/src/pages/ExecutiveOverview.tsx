@@ -9,6 +9,7 @@ import { Badge } from "../components/Badge";
 import {
   useAlerts,
   useAuditPage,
+  useAlertCases,
   useDashboardSummary,
   useDetectionRuns,
   useHealth,
@@ -32,6 +33,7 @@ export function ExecutiveOverview() {
   const ingestionRuns = useIngestionRuns({ limit: 5 });
   const detectionRuns = useDetectionRuns({ limit: 5 });
   const sources = useSources({ limit: 5 });
+  const activeCases = useAlertCases({ active_only: true, limit: 20 });
   const [selectedSourceId, setSelectedSourceId] = useState<number | null>(null);
   const sourceDetail = useSource(selectedSourceId);
   const critical = useAlerts({ severity: "Critical", status: "open", limit: 5 });
@@ -55,6 +57,14 @@ export function ExecutiveOverview() {
   const quality = data?.data_quality;
   const latestIngestionRun = data?.latest_ingestion_run ?? ingestionRuns.data?.[0] ?? null;
   const latestDetectionRun = data?.latest_detection_run ?? detectionRuns.data?.[0] ?? null;
+  const latestScenarioRun =
+    (ingestionRuns.data ?? []).find(
+      (run) =>
+        String(run.details?.actor ?? "").includes("source_scenario") ||
+        String(run.input_name ?? "").includes("_traffic") ||
+        String(run.input_name ?? "").includes("syslog")
+    ) ?? null;
+  const demoSource = (sources.data ?? []).find((source) => source.name.startsWith("scenario-")) ?? (sources.data ?? [])[0] ?? null;
 
   return (
     <div className="space-y-5">
@@ -121,6 +131,55 @@ export function ExecutiveOverview() {
             ))}
           </div>
         </details>
+      </section>
+
+      <section className="panel">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-sm font-extrabold uppercase tracking-wide text-muted">Controlled Validation</div>
+            <p className="mt-1 text-sm text-muted">
+              Small-subnet scenario validation with replayed logs. Real device validation remains future work.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Badge value="Lab-Scale Validation" />
+            <Badge value="Manual Approval Required" />
+          </div>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-lg border border-line bg-panel2 p-3">
+            <div className="text-xs font-bold uppercase tracking-wide text-muted">Demo Source</div>
+            <div className="mt-1 break-words font-bold text-text">{demoSource?.name ?? "No source yet"}</div>
+            <div className="mt-1 text-xs text-muted">
+              {demoSource ? `${demoSource.source_type} / ${demoSource.parser_profile}` : "Run a source scenario or replay first."}
+            </div>
+          </div>
+          <div className="rounded-lg border border-line bg-panel2 p-3">
+            <div className="text-xs font-bold uppercase tracking-wide text-muted">Source Health</div>
+            <div className="mt-1 font-bold text-text">{demoSource?.health.status ?? "-"}</div>
+            <div className="mt-1 text-xs text-muted">Last log {demoSource?.last_log_received_at ?? "-"}</div>
+          </div>
+          <div className="rounded-lg border border-line bg-panel2 p-3">
+            <div className="text-xs font-bold uppercase tracking-wide text-muted">Latest Scenario Run</div>
+            <div className="mt-1 break-words font-bold text-text">{latestScenarioRun?.input_name ?? latestIngestionRun?.input_name ?? "-"}</div>
+            <div className="mt-1 text-xs text-muted">
+              Parsed {latestScenarioRun?.parsed_successfully ?? latestIngestionRun?.parsed_successfully ?? "-"} | failed{" "}
+              {latestScenarioRun?.parse_failures ?? latestIngestionRun?.parse_failures ?? "-"}
+            </div>
+          </div>
+          <div className="rounded-lg border border-line bg-panel2 p-3">
+            <div className="text-xs font-bold uppercase tracking-wide text-muted">Detection Result</div>
+            <div className="mt-1 font-bold text-text">Created {latestDetectionRun?.alerts_created ?? "-"}</div>
+            <div className="mt-1 text-xs text-muted">
+              Dedup {latestDetectionRun?.alerts_deduplicated ?? "-"} | cases {activeCases.data?.length ?? "-"}
+            </div>
+          </div>
+        </div>
+        <div className="mt-3 grid gap-3 md:grid-cols-3">
+          <div className="rounded-lg border border-success/30 bg-success/10 p-3 text-sm text-success">Simulated Response</div>
+          <div className="rounded-lg border border-cyan/30 bg-cyan/10 p-3 text-sm text-cyan">Decision Support Only</div>
+          <div className="rounded-lg border border-amber/30 bg-amber/10 p-3 text-sm text-amber">Hardware Validation Pending</div>
+        </div>
       </section>
 
       <section className="panel">

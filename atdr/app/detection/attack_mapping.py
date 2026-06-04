@@ -54,14 +54,34 @@ ATTACK_TYPE_MAPPINGS: dict[str, dict[str, str]] = {
 
 RULE_ATTACK_HINTS = {
     "possible_port_scan": "port_scan",
+    "brute_force_like_attempts": "brute_force",
+    "beaconing_like_outbound": "malware_c2",
+    "connection_flood_suspicion": "dos_ddos",
     "multiple_denied_connections": "policy_violation",
     "deny_drop_action": "policy_violation",
     "paloalto_threat_log": "malware_c2",
     "suspicious_app_characteristic": "malware_c2",
+    "high_outbound_bytes": "data_exfiltration_suspicion",
     "high_bytes_outlier": "data_exfiltration_suspicion",
     "high_packets_outlier": "dos_ddos",
     "ml_anomaly_detected": "unknown_anomaly",
     "unknown_or_incomplete_app": "unknown_anomaly",
+}
+
+RULE_ATTACK_PRIORITY = {
+    "possible_port_scan": 100,
+    "connection_flood_suspicion": 95,
+    "brute_force_like_attempts": 92,
+    "beaconing_like_outbound": 90,
+    "high_outbound_bytes": 88,
+    "high_bytes_outlier": 80,
+    "high_packets_outlier": 78,
+    "paloalto_threat_log": 75,
+    "suspicious_app_characteristic": 70,
+    "ml_anomaly_detected": 65,
+    "unknown_or_incomplete_app": 40,
+    "multiple_denied_connections": 35,
+    "deny_drop_action": 30,
 }
 
 
@@ -71,8 +91,12 @@ def attack_mapping_for_type(attack_type: str | None) -> dict[str, str]:
 
 
 def infer_attack_type_from_rules(matched_rules: list[dict[str, Any]]) -> str:
-    for rule in matched_rules:
-        code = str(rule.get("code") or "").strip()
-        if code in RULE_ATTACK_HINTS:
-            return RULE_ATTACK_HINTS[code]
+    ranked_codes = [
+        str(rule.get("code") or "").strip()
+        for rule in matched_rules
+        if str(rule.get("code") or "").strip() in RULE_ATTACK_HINTS
+    ]
+    if ranked_codes:
+        code = max(ranked_codes, key=lambda item: RULE_ATTACK_PRIORITY.get(item, 0))
+        return RULE_ATTACK_HINTS[code]
     return "unknown_anomaly"

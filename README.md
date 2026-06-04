@@ -125,9 +125,15 @@ python -m atdr.scripts.register_log_source --name lab-firewall-1 --source-type f
 python -m atdr.scripts.replay_logs --send-to direct --source-name lab-firewall-1 --source-type firewall --source-host 192.0.2.10 --source-port 514 --limit 100 --rate 1 --pretty
 ```
 
-## Safe Scenario Validation
+## Controlled Threat Detection Validation
 
-Synthetic scenario files live under `data/samples/scenarios/`. They validate normal traffic, port-scan-like traffic, deduplication, generic syslog, and raw fallback behavior without using private logs.
+Synthetic scenario files live under `data/samples/scenarios/`. They validate normal traffic, scanning-like traffic, brute-force-like service attempts, C2/beaconing-like activity, data exfiltration suspicion, connection flood behavior, raw fallback, and policy/suspicious-app behavior without using private logs or offensive tooling.
+
+Run the full v0.6 validation suite safely against a temporary database:
+
+```powershell
+python -m atdr.scripts.run_detection_validation_suite --all --pretty
+```
 
 Run a scenario against a temporary database:
 
@@ -140,6 +146,15 @@ Run a scenario into the current dashboard intentionally:
 ```powershell
 python -m atdr.scripts.run_source_scenario --scenario port_scan_like_traffic --source-name scenario-lab-firewall-1 --run-detection --pretty
 ```
+
+Validate a controlled replay source and export advisor-friendly JSON/Markdown reports:
+
+```powershell
+python -m atdr.scripts.validate_live_source --source-name scenario-lab-firewall-1 --source-type firewall --parser-profile palo_alto --duration 0 --run-detection --pretty
+python -m atdr.scripts.export_lab_validation_report --source-name scenario-lab-firewall-1 --format both --pretty
+```
+
+Real firewall/router hardware validation remains future work. ATDR is intended for controlled small-subnet/lab-scale validation, not production certification.
 
 ## ML And AI Governance
 
@@ -207,6 +222,9 @@ Start here:
 
 - `docs/QUICKSTART_FOR_TEAM.md` - Windows setup for teammates using clone or zip download.
 - `docs/LAB_RUNBOOK.md` - lab operations, replay, syslog, source validation, and troubleshooting.
+- `docs/V0_6_THREAT_DETECTION_VALIDATION.md` - active controlled threat detection validation plan.
+- `docs/V0_5_SIMULATION_DEMO_PLAN.md` - earlier controlled replay validation plan.
+- `docs/V0_5_REAL_SOURCE_VALIDATION_PLAN.md` - future controlled hardware source validation plan.
 - `docs/V0_3_RELEASE_CANDIDATE.md` - current release-candidate summary.
 - `docs/V0_4_STATUS.md` - current dashboard/IAM/performance checkpoint.
 - `docs/V0_3_STATUS.md` - detailed current v0.3 status.

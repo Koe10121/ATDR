@@ -108,13 +108,27 @@ def build_alert_detection_summary(db: Session, alert: Alert) -> dict[str, Any]:
         evidence_points.append(f"Source had {behavior['src_ip_5min_deny_count']} deny/drop/reset events in 5 minutes.")
     if behavior.get("src_ip_5min_unique_dst_ports"):
         evidence_points.append(f"Source touched {behavior['src_ip_5min_unique_dst_ports']} unique destination ports in 5 minutes.")
+    if behavior.get("src_ip_5min_unique_dst_ips"):
+        evidence_points.append(f"Source reached {behavior['src_ip_5min_unique_dst_ips']} unique destination IPs in 5 minutes.")
+    if behavior.get("repeated_connection_attempts"):
+        evidence_points.append(f"Repeated connection attempts observed: {behavior['repeated_connection_attempts']}.")
     if behavior.get("scanning_like_behavior_score"):
         evidence_points.append(f"Scanning-like behavior score is {behavior['scanning_like_behavior_score']}.")
+    if behavior.get("rare_dst_port_flag"):
+        evidence_points.append("Destination port is rare for the current dataset.")
+    if behavior.get("rare_app_flag"):
+        evidence_points.append("Application is rare for the current dataset.")
+    if behavior.get("unknown_app_flag"):
+        evidence_points.append("Application is unknown or incomplete.")
+    if behavior.get("external_to_internal_flag"):
+        evidence_points.append("Traffic direction is external to internal.")
+    elif behavior.get("internal_to_external_flag"):
+        evidence_points.append("Traffic direction is internal to external.")
     if anomaly_scores:
         evidence_points.append(f"IsolationForest anomaly score range: {round(min(anomaly_scores), 6)} to {round(max(anomaly_scores), 6)}.")
     if supervised.get("predicted_label"):
         evidence_points.append(
-            f"Supervised model predicted {supervised.get('predicted_label')} with malicious probability {supervised.get('malicious_probability')}."
+            f"Supervised triage predicted {supervised.get('predicted_label')} with confidence {supervised.get('confidence', 0.0)}."
         )
 
     why = "Flagged for analyst review because "

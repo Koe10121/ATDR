@@ -48,6 +48,34 @@ SCENARIOS: dict[str, ScenarioSpec] = {
         default_parser_profile="palo_alto",
         expected="At least one suspicious/port-scan alert should be created.",
     ),
+    "brute_force_like_traffic": ScenarioSpec(
+        name="brute_force_like_traffic",
+        filename="brute_force_like_traffic.txt",
+        default_source_type="firewall",
+        default_parser_profile="palo_alto",
+        expected="At least one brute-force-like repeated service attempt alert should be created.",
+    ),
+    "malware_c2_like_beaconing": ScenarioSpec(
+        name="malware_c2_like_beaconing",
+        filename="malware_c2_like_beaconing.txt",
+        default_source_type="firewall",
+        default_parser_profile="palo_alto",
+        expected="At least one C2/beaconing-like repeated outbound alert should be created.",
+    ),
+    "data_exfiltration_suspicion": ScenarioSpec(
+        name="data_exfiltration_suspicion",
+        filename="data_exfiltration_suspicion.txt",
+        default_source_type="firewall",
+        default_parser_profile="palo_alto",
+        expected="At least one high outbound data transfer alert should be created.",
+    ),
+    "ddos_or_connection_flood_like": ScenarioSpec(
+        name="ddos_or_connection_flood_like",
+        filename="ddos_or_connection_flood_like.txt",
+        default_source_type="firewall",
+        default_parser_profile="palo_alto",
+        expected="At least one connection flood-like alert should be created.",
+    ),
     "repeated_dedup_traffic": ScenarioSpec(
         name="repeated_dedup_traffic",
         filename="repeated_dedup_traffic.txt",
@@ -69,6 +97,13 @@ SCENARIOS: dict[str, ScenarioSpec] = {
         default_source_type="sample",
         default_parser_profile="raw_fallback",
         expected="Parser failures should be counted without crashing, while raw evidence is preserved.",
+    ),
+    "policy_violation_suspicious_app": ScenarioSpec(
+        name="policy_violation_suspicious_app",
+        filename="policy_violation_suspicious_app.txt",
+        default_source_type="firewall",
+        default_parser_profile="palo_alto",
+        expected="At least one policy/suspicious-application alert should be created.",
     ),
 }
 
@@ -171,6 +206,38 @@ def _validate_expected(
             or any(rule.get("code") == "possible_port_scan" for rule in alert.matched_rules_json)
         ]
         add("port_scan_alert_created", bool(port_scan_alerts), f"Port-scan alert count: {len(port_scan_alerts)}")
+    elif spec.name == "brute_force_like_traffic":
+        brute_force_alerts = [
+            alert
+            for alert in alerts
+            if alert.alert_type == "brute_force_like_attempts"
+            or any(rule.get("code") == "brute_force_like_attempts" for rule in alert.matched_rules_json)
+        ]
+        add("brute_force_alert_created", bool(brute_force_alerts), f"Brute-force-like alert count: {len(brute_force_alerts)}")
+    elif spec.name == "malware_c2_like_beaconing":
+        beaconing_alerts = [
+            alert
+            for alert in alerts
+            if alert.alert_type == "beaconing_like_outbound"
+            or any(rule.get("code") == "beaconing_like_outbound" for rule in alert.matched_rules_json)
+        ]
+        add("beaconing_alert_created", bool(beaconing_alerts), f"Beaconing-like alert count: {len(beaconing_alerts)}")
+    elif spec.name == "data_exfiltration_suspicion":
+        exfil_alerts = [
+            alert
+            for alert in alerts
+            if alert.alert_type == "high_outbound_bytes"
+            or any(rule.get("code") in {"high_outbound_bytes", "high_bytes_outlier"} for rule in alert.matched_rules_json)
+        ]
+        add("exfiltration_alert_created", bool(exfil_alerts), f"High outbound transfer alert count: {len(exfil_alerts)}")
+    elif spec.name == "ddos_or_connection_flood_like":
+        flood_alerts = [
+            alert
+            for alert in alerts
+            if alert.alert_type == "connection_flood_suspicion"
+            or any(rule.get("code") == "connection_flood_suspicion" for rule in alert.matched_rules_json)
+        ]
+        add("connection_flood_alert_created", bool(flood_alerts), f"Connection flood-like alert count: {len(flood_alerts)}")
     elif spec.name == "repeated_dedup_traffic":
         deduped = [alert for alert in alert_summaries if alert["deduplicated"] or alert["occurrence_count"] > 1]
         add("alert_deduplicated", bool(deduped), f"Deduplicated alert count: {len(deduped)}")
@@ -191,6 +258,16 @@ def _validate_expected(
     elif spec.name == "malformed_raw_fallback":
         add("raw_fallback_failures_counted", source.parse_failure_count >= 1, f"Parse failures: {source.parse_failure_count}")
         add("raw_fallback_preserves_rows", counts["raw_logs"] >= 1, f"Raw logs linked to source: {counts['raw_logs']}")
+    elif spec.name == "policy_violation_suspicious_app":
+        suspicious_app_alerts = [
+            alert
+            for alert in alerts
+            if any(
+                rule.get("code") in {"app_risk_5", "suspicious_app_characteristic", "unusual_destination_port"}
+                for rule in alert.matched_rules_json
+            )
+        ]
+        add("suspicious_app_alert_created", bool(suspicious_app_alerts), f"Suspicious-app alert count: {len(suspicious_app_alerts)}")
 
     current_response_action_count = int(db.query(ResponseAction).count())
     add(

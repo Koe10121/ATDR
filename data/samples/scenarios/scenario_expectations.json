@@ -1,0 +1,82 @@
+{
+  "normal_allowed_traffic": {
+    "expected_alert_present": false,
+    "expected_attack_type": "normal",
+    "expected_min_severity": "Low",
+    "expected_min_risk_score": 0,
+    "expected_parser_success_min": 1,
+    "expected_raw_preserved": true,
+    "expected_no_response_actions": true,
+    "expected_evidence_keywords": ["allow", "ssl"]
+  },
+  "port_scan_like_traffic": {
+    "expected_alert_present": true,
+    "expected_attack_type": "port_scan",
+    "expected_min_severity": "High",
+    "expected_min_risk_score": 70,
+    "expected_parser_success_min": 8,
+    "expected_raw_preserved": true,
+    "expected_no_response_actions": true,
+    "expected_evidence_keywords": ["port", "distinct", "scan"]
+  },
+  "brute_force_like_traffic": {
+    "expected_alert_present": true,
+    "expected_attack_type": "brute_force",
+    "expected_min_severity": "High",
+    "expected_min_risk_score": 70,
+    "expected_parser_success_min": 5,
+    "expected_raw_preserved": true,
+    "expected_no_response_actions": true,
+    "expected_evidence_keywords": ["denied", "service", "attempt"]
+  },
+  "malware_c2_like_beaconing": {
+    "expected_alert_present": true,
+    "expected_attack_type": "malware_c2",
+    "expected_min_severity": "High",
+    "expected_min_risk_score": 70,
+    "expected_parser_success_min": 6,
+    "expected_raw_preserved": true,
+    "expected_no_response_actions": true,
+    "expected_evidence_keywords": ["repeated", "outbound", "destination"]
+  },
+  "data_exfiltration_suspicion": {
+    "expected_alert_present": true,
+    "expected_attack_type": "data_exfiltration_suspicion",
+    "expected_min_severity": "Medium",
+    "expected_min_risk_score": 35,
+    "expected_parser_success_min": 1,
+    "expected_raw_preserved": true,
+    "expected_no_response_actions": true,
+    "expected_evidence_keywords": ["outbound", "byte", "transfer"]
+  },
+  "policy_violation_suspicious_app": {
+    "expected_alert_present": true,
+    "expected_attack_type": "malware_c2",
+    "expected_min_severity": "Medium",
+    "expected_min_risk_score": 40,
+    "expected_parser_success_min": 1,
+    "expected_raw_preserved": true,
+    "expected_no_response_actions": true,
+    "expected_evidence_keywords": ["risk", "application", "characteristic"]
+  },
+  "ddos_or_connection_flood_like": {
+    "expected_alert_present": true,
+    "expected_attack_type": "dos_ddos",
+    "expected_min_severity": "Medium",
+    "expected_min_risk_score": 35,
+    "expected_parser_success_min": 20,
+    "expected_raw_preserved": true,
+    "expected_no_response_actions": true,
+    "expected_evidence_keywords": ["repeated", "connection", "flood"]
+  },
+  "malformed_raw_fallback": {
+    "expected_alert_present": false,
+    "expected_attack_type": "unknown_anomaly",
+    "expected_min_severity": "Low",
+    "expected_min_risk_score": 0,
+    "expected_parser_success_min": 0,
+    "expected_raw_preserved": true,
+    "expected_no_response_actions": true,
+    "expected_evidence_keywords": ["raw", "fallback", "preserved"]
+  }
+}
