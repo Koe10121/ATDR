@@ -17,6 +17,7 @@ ATDR is a defensive FastAPI + React AI-assisted log-based threat detection and r
 | Release gate commands | `atdr/scripts/verify_release.py` |
 | Current lab status and limitations | `docs/V0_3_STATUS.md`, `docs/LAB_RUNBOOK.md` |
 | IAM/RBAC adaptation and permission matrix | `docs/security/ATDR_IAM_RBAC_MATRIX.md` |
+| NewSystem template alignment, ATDR manifest, and permission path registry | `docs/ATDR_NEWSYSTEM_TEMPLATE_ALIGNMENT.md`, `docs/ATDR_TEMPLATE_MANIFEST.json`, `docs/security/ATDR_PERMISSION_PATHS.md` |
 | Requirement traceability | `docs/ATDR_REQUIREMENT_TRACEABILITY.md` |
 | Test inventory | `atdr/tests/*`, `frontend/tests` where present |
 | Migration truth | `migrations/versions/*`, `alembic.ini` |
@@ -135,6 +136,21 @@ Current IAM limitations must remain explicit:
 - Demo JWT secrets must be replaced before shared lab or real deployment.
 - Current role model is suitable for lab prototype validation, not production IAM.
 - Role permissions must be reviewed before any real deployment or response connector work.
+
+## NewSystem Template Adaptation Rule
+
+The repository includes `NewSystem/` as the university template reference. Use it as a process and control reference only.
+
+ATDR follows these NewSystem-style ideas:
+
+- project manifest: `docs/ATDR_TEMPLATE_MANIFEST.json`
+- permission paths: `docs/security/ATDR_PERMISSION_PATHS.md`
+- IAM/RBAC matrix: `docs/security/ATDR_IAM_RBAC_MATRIX.md`
+- PRD update gate: `docs/prd/PRD-ATDR.md`
+- T1-T20 change handoff: `docs/templates/ATDR_T1_T20_CHANGE_DOCUMENT.md`
+- security review discipline: `docs/security/ATDR_OWASP_LAB_SECURITY_REVIEW.md`
+
+Do not copy NewSystem-specific Node.js, Vue, MongoDB, Google SSO, B2B IAM SDK, or Docker requirements into ATDR unless a future approved requirement explicitly asks for that migration. The active adaptation guide is `docs/ATDR_NEWSYSTEM_TEMPLATE_ALIGNMENT.md`.
 
 ## T1-T20 Change Document Requirement
 

@@ -1,0 +1,102 @@
+{
+  "templateName": "atdr-project-template-adaptation",
+  "templateVersion": "0.3.0",
+  "compatProfile": "mfu-lab-jwt-rbac-v1",
+  "sourceTemplateReference": {
+    "name": "NewSystem",
+    "path": "NewSystem/",
+    "note": "University reference template only. ATDR adapts workflow, IAM/RBAC, audit, environment, and release standards without copying Node/Vue/Mongo implementation."
+  },
+  "application": {
+    "name": "MFU ATDR",
+    "description": "AI-assisted log-based threat detection and response lab prototype.",
+    "backend": "FastAPI",
+    "frontend": "React",
+    "database": "SQLAlchemy/Alembic with SQLite by default",
+    "responseMode": "simulation",
+    "productionClaim": "none"
+  },
+  "requiredEnvKeys": [
+    "APP_NAME",
+    "DATABASE_URL",
+    "AUTO_CREATE_TABLES",
+    "RESPONSE_SIMULATION",
+    "RESPONSE_PROVIDER",
+    "JWT_SECRET_KEY",
+    "JWT_ALGORITHM",
+    "ACCESS_TOKEN_EXPIRE_MINUTES",
+    "DEMO_ADMIN_USERNAME",
+    "DEMO_ADMIN_PASSWORD",
+    "DEMO_ANALYST_USERNAME",
+    "DEMO_ANALYST_PASSWORD",
+    "DEMO_SAMPLE_LOG_PATH",
+    "ENVIRONMENT",
+    "CORS_ALLOWED_ORIGINS",
+    "SECURITY_HEADERS_ENABLED"
+  ],
+  "frontendEnvKeys": [
+    "VITE_API_BASE_URL"
+  ],
+  "permissionMatrixStandard": {
+    "roles": [
+      "admin",
+      "analyst"
+    ],
+    "futureRoles": [
+      "viewer"
+    ],
+    "actions": [
+      "view",
+      "edit",
+      "action",
+      "admin",
+      "logs"
+    ],
+    "requiredPermissionPaths": [
+      "/overview",
+      "/alerts",
+      "/logs",
+      "/sources",
+      "/ingestion/runs",
+      "/detection/run",
+      "/detection/runs",
+      "/ml",
+      "/ml/labels",
+      "/ml/train",
+      "/ml/supervised/train",
+      "/response",
+      "/audit",
+      "/controls",
+      "/tuning",
+      "/users",
+      "/demo"
+    ],
+    "sourceOfTruth": [
+      "docs/security/ATDR_PERMISSION_PATHS.md",
+      "docs/security/ATDR_IAM_RBAC_MATRIX.md",
+      "atdr/app/core/security.py",
+      "atdr/app/routers/*.py",
+      "frontend/src/App.tsx"
+    ]
+  },
+  "validationCommands": [
+    ".\\.venv\\Scripts\\python.exe -m compileall -q atdr migrations",
+    ".\\.venv\\Scripts\\python.exe -m pytest atdr\\tests -q",
+    ".\\.venv\\Scripts\\alembic.exe check",
+    "cd frontend; npm.cmd run lint",
+    "cd frontend; npm.cmd run build",
+    "cd frontend; npm.cmd run test:e2e",
+    ".\\.venv\\Scripts\\python.exe -m atdr.scripts.replay_logs --dry-run --limit 20 --rate 5 --pretty",
+    ".\\.venv\\Scripts\\python.exe -m atdr.scripts.performance_smoke --pretty",
+    ".\\.venv\\Scripts\\python.exe -m atdr.scripts.verify_release"
+  ],
+  "safetyConstraints": [
+    "Do not reset or delete local data without explicit approval.",
+    "Do not commit real logs, database files, model artifacts, .env files, ml_baseline_reviews, demo_exports, or generated reports.",
+    "Do not enable real firewall blocking.",
+    "Do not enable automatic response.",
+    "Do not claim production readiness.",
+    "ML remains decision support only."
+  ]
+}
+

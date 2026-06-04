@@ -212,8 +212,12 @@ Start here:
 Governance and university workflow:
 
 - `docs/ATDR_AI_WORKFLOW.md` - no-guessing, source-evidence, testing, PRD-update, safety, and handoff workflow.
+- `docs/ATDR_NEWSYSTEM_TEMPLATE_ALIGNMENT.md` - how ATDR adapts the university NewSystem template without copying Node/Vue/Mongo implementation.
+- `docs/ATDR_TEMPLATE_MANIFEST.json` - ATDR-specific template manifest with env keys, permission paths, validation commands, and safety constraints.
 - `docs/prd/PRD-ATDR.md` - real ATDR PRD.
 - `docs/security/ATDR_IAM_RBAC_MATRIX.md` - admin/analyst permission matrix and IAM limitations.
+- `docs/security/ATDR_PERMISSION_PATHS.md` - NewSystem-style ATDR permission path registry.
+- `docs/security/ATDR_OWASP_LAB_SECURITY_REVIEW.md` - lab security review baseline and remaining hardening gaps.
 - `docs/ATDR_REQUIREMENT_TRACEABILITY.md` - source-backed mapping from requirements to code, tests, docs, and gaps.
 - `docs/agents/ATDR_AGENT_OPERATING_MODEL.md` - ATDR agent roles and handoff responsibilities.
 - `docs/templates/ATDR_T1_T20_CHANGE_DOCUMENT.md` - ATDR change document template.

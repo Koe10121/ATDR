@@ -28,6 +28,7 @@
 | Lab operations | `docs/LAB_RUNBOOK.md` |
 | AI workflow | `docs/AI_TRAINING_RUNBOOK.md`, `docs/ML_BASELINE_TUNING.md` |
 | IAM/RBAC permission matrix | `docs/security/ATDR_IAM_RBAC_MATRIX.md` |
+| NewSystem template alignment and permission path registry | `docs/ATDR_NEWSYSTEM_TEMPLATE_ALIGNMENT.md`, `docs/ATDR_TEMPLATE_MANIFEST.json`, `docs/security/ATDR_PERMISSION_PATHS.md` |
 | Requirement traceability | `docs/ATDR_REQUIREMENT_TRACEABILITY.md` |
 
 ## Product Overview
@@ -176,6 +177,37 @@ Current limitations:
 - Demo JWT secret must be replaced before shared lab or real deployment.
 - Current role model is suitable for lab prototype validation, not production IAM.
 - Role permissions must be fully reviewed before real deployment or response connector implementation.
+
+## University Template Alignment
+
+ATDR uses `NewSystem/` as a university reference template, not as implementation truth. The active ATDR adaptation is documented in:
+
+- `docs/ATDR_NEWSYSTEM_TEMPLATE_ALIGNMENT.md`
+- `docs/ATDR_TEMPLATE_MANIFEST.json`
+- `docs/security/ATDR_PERMISSION_PATHS.md`
+- `docs/security/ATDR_IAM_RBAC_MATRIX.md`
+- `docs/security/ATDR_OWASP_LAB_SECURITY_REVIEW.md`
+
+Template ideas adopted by ATDR:
+
+- explicit environment keys and startup workflow
+- permission path registry
+- admin/analyst access matrix
+- route-level authorization evidence
+- audit logging expectation
+- PRD and T1-T20 change gates
+- release/verification gate
+- OWASP-style security review discipline
+
+Template ideas not adopted in v0.3:
+
+- Node.js backend migration
+- Vue/Vuex frontend migration
+- MongoDB migration
+- external IAM/B2B SDK integration
+- OAuth/SSO/SAML/LDAP
+- real firewall enforcement
+- production readiness claim
 
 ## Safety Constraints
 
