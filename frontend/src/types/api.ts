@@ -424,6 +424,7 @@ export interface DashboardValidationSummary {
   message?: string;
   generalization?: DashboardGeneralizationSummary;
   layered?: DashboardLayeredValidationSummary;
+  e2e_workflow?: DashboardE2EWorkflowSummary;
 }
 
 export interface DashboardGeneralizationSummary {
@@ -473,6 +474,26 @@ export interface DashboardLayeredValidationSummary {
   false_positive_count?: number;
   false_negative_count?: number;
   mode_summary?: DashboardLayeredValidationModeSummary[];
+  latest_report_name?: string | null;
+  latest_markdown_name?: string | null;
+  validation_scope?: string | null;
+  use_temp_db?: boolean;
+  response_mode?: string | null;
+  production_readiness_claim?: boolean;
+  message?: string;
+}
+
+export interface DashboardE2EWorkflowSummary {
+  available: boolean;
+  ok?: boolean;
+  generated_at?: string | null;
+  scenario_count?: number;
+  passed_count?: number;
+  failed_count?: number;
+  simulate_response?: boolean;
+  response_actions_created?: number;
+  alert_count?: number;
+  case_count?: number;
   latest_report_name?: string | null;
   latest_markdown_name?: string | null;
   validation_scope?: string | null;

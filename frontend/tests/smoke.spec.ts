@@ -576,6 +576,24 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
           use_temp_db: true,
           response_mode: "simulated analyst-approved only",
           production_readiness_claim: false
+        },
+        e2e_workflow: {
+          available: true,
+          ok: true,
+          generated_at: "2026-06-05T02:00:00Z",
+          scenario_count: 3,
+          passed_count: 3,
+          failed_count: 0,
+          simulate_response: true,
+          response_actions_created: 3,
+          alert_count: 6,
+          case_count: 3,
+          latest_report_name: "e2e_workflow_validation_20260605T020000Z.json",
+          latest_markdown_name: "e2e_workflow_validation_20260605T020000Z.md",
+          validation_scope: "controlled end-to-end ATDR workflow validation",
+          use_temp_db: true,
+          response_mode: "simulated analyst-approved only",
+          production_readiness_claim: false
         }
       }
     })
@@ -836,11 +854,13 @@ test("overview system health panel and ML governance wording render", async ({ p
   await page.goto("/overview");
   await expect(page.getByText("System Health")).toBeVisible();
   await expect(page.getByText("Controlled Validation")).toBeVisible();
-  await expect(page.getByText("Generalization")).toBeVisible();
+  await expect(page.getByText("Generalization", { exact: true })).toBeVisible();
   await expect(page.getByText("70/70 variants")).toBeVisible();
   await expect(page.getByText("FP 0 | FN 0")).toHaveCount(2);
   await expect(page.getByText("Layered Modes")).toBeVisible();
   await expect(page.getByText("168/168 mode runs")).toBeVisible();
+  await expect(page.getByText("E2E Workflow")).toBeVisible();
+  await expect(page.getByText("3/3 passed")).toBeVisible();
   await expect(page.getByText("Lab-Scale Validation")).toBeVisible();
   await expect(page.getByText("Manual Approval Required")).toBeVisible();
   await expect(page.getByText("Hardware Validation Pending")).toBeVisible();

@@ -119,13 +119,16 @@ def test_dashboard_validation_summary_reports_latest_file_without_private_paths(
     report_dir = Path(".pytest_tmp") / "dashboard_validation_summary" / "detection_validation"
     generalization_dir = Path(".pytest_tmp") / "dashboard_validation_summary" / "detection_generalization"
     layered_dir = Path(".pytest_tmp") / "dashboard_validation_summary" / "layered_detection"
+    e2e_dir = Path(".pytest_tmp") / "dashboard_validation_summary" / "e2e_validation"
     shutil.rmtree(report_dir.parent, ignore_errors=True)
     report_dir.mkdir(parents=True)
     generalization_dir.mkdir(parents=True)
     layered_dir.mkdir(parents=True)
+    e2e_dir.mkdir(parents=True)
     report_path = report_dir / "detection_validation_20260604T110000Z.json"
     generalization_path = generalization_dir / "detection_generalization_20260605T010000Z.json"
     layered_path = layered_dir / "layered_detection_20260605T014000Z.json"
+    e2e_path = e2e_dir / "e2e_workflow_validation_20260605T020000Z.json"
     report_path.write_text(
         json.dumps(
             {
@@ -201,9 +204,39 @@ def test_dashboard_validation_summary_reports_latest_file_without_private_paths(
         ),
         encoding="utf-8",
     )
+    e2e_path.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "generated_at": "2026-06-05T02:00:00+00:00",
+                "validation_scope": "controlled end-to-end ATDR workflow validation",
+                "scenario_count": 3,
+                "passed_count": 3,
+                "failed_count": 0,
+                "simulate_response": True,
+                "scenarios": [
+                    {
+                        "alert_count": 2,
+                        "case_count": 1,
+                        "audit_summary": {"response_actions_created": 3},
+                    }
+                ],
+                "safety": {
+                    "response_mode": "simulated analyst-approved only",
+                    "production_readiness_claim": False,
+                },
+                "paths": {
+                    "json": str(e2e_path),
+                    "markdown": str(e2e_dir / "e2e_workflow_validation_20260605T020000Z.md"),
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
     monkeypatch.setattr(dashboard_router, "VALIDATION_REPORT_DIR", report_dir)
     monkeypatch.setattr(dashboard_router, "GENERALIZATION_REPORT_DIR", generalization_dir)
     monkeypatch.setattr(dashboard_router, "LAYERED_REPORT_DIR", layered_dir)
+    monkeypatch.setattr(dashboard_router, "E2E_REPORT_DIR", e2e_dir)
     client = _client()
     try:
         unauthorized = client.get("/api/dashboard/validation-summary")
@@ -230,12 +263,21 @@ def test_dashboard_validation_summary_reports_latest_file_without_private_paths(
         assert payload["layered"]["false_positive_count"] == 0
         assert payload["layered"]["false_negative_count"] == 0
         assert payload["layered"]["latest_report_name"] == layered_path.name
+        assert payload["e2e_workflow"]["available"] is True
+        assert payload["e2e_workflow"]["scenario_count"] == 3
+        assert payload["e2e_workflow"]["passed_count"] == 3
+        assert payload["e2e_workflow"]["alert_count"] == 2
+        assert payload["e2e_workflow"]["case_count"] == 1
+        assert payload["e2e_workflow"]["response_actions_created"] == 3
+        assert payload["e2e_workflow"]["latest_report_name"] == e2e_path.name
         assert str(report_dir) not in json.dumps(payload)
         assert str(generalization_dir) not in json.dumps(payload)
         assert str(layered_dir) not in json.dumps(payload)
+        assert str(e2e_dir) not in json.dumps(payload)
         assert payload["production_readiness_claim"] is False
         assert payload["generalization"]["production_readiness_claim"] is False
         assert payload["layered"]["production_readiness_claim"] is False
+        assert payload["e2e_workflow"]["production_readiness_claim"] is False
     finally:
         app.dependency_overrides.clear()
         shutil.rmtree(report_dir.parent, ignore_errors=True)

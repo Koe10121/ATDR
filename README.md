@@ -153,6 +153,15 @@ python -m atdr.scripts.run_layered_detection_validation --all --variants 3 --pre
 
 Layered reports are written under ignored `demo_exports/layered_detection/`.
 
+Run the v1.0 end-to-end workflow validation suite to prove safe ingestion, parsing, source health, detection, alert explanation, investigation evidence, optional simulated response checks, audit trail, and report generation:
+
+```powershell
+python -m atdr.scripts.run_e2e_workflow_validation --pretty
+python -m atdr.scripts.run_e2e_workflow_validation --scenario port_scan_like_traffic --simulate-response --pretty
+```
+
+End-to-end reports are written under ignored `demo_exports/e2e_validation/`. The default mode uses a temporary database and does not modify current dashboard data.
+
 Run a scenario against a temporary database:
 
 ```powershell
@@ -243,6 +252,7 @@ Start here:
 - `docs/V0_6_THREAT_DETECTION_VALIDATION.md` - active controlled threat detection validation plan.
 - `docs/V0_8_DETECTION_GENERALIZATION.md` - synthetic variant validation and anti-overfitting checks.
 - `docs/V0_9_LAYERED_DETECTION_VALIDATION.md` - layered rules/anomaly/ML/hybrid contribution validation.
+- `docs/V1_0_E2E_WORKFLOW_VALIDATION.md` - controlled ingestion-to-investigation workflow validation with optional simulated response/audit checks.
 - `docs/V0_5_SIMULATION_DEMO_PLAN.md` - earlier controlled replay validation plan.
 - `docs/V0_5_REAL_SOURCE_VALIDATION_PLAN.md` - future controlled hardware source validation plan.
 - `docs/V0_3_RELEASE_CANDIDATE.md` - current release-candidate summary.

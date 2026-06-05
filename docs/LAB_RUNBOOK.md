@@ -256,6 +256,39 @@ Use current-database mode only when you intentionally want to inspect generated 
 
 See `docs/V0_9_LAYERED_DETECTION_VALIDATION.md` for layer definitions, current results, and limitations.
 
+## v1.0 End-to-End Workflow Validation
+
+ATDR v1.0 validates the complete controlled SOC workflow: safe log ingestion, raw evidence preservation, parsing, source health, source-scoped detection, alert creation, **Why flagged?** explanation, investigation evidence links, case grouping, optional simulated response approval/denial, audit trail, and report generation.
+
+Run the default end-to-end validation against a temporary database:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_e2e_workflow_validation --pretty
+```
+
+Exercise simulated response safety as part of the workflow:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_e2e_workflow_validation --scenario port_scan_like_traffic --simulate-response --pretty
+```
+
+Reports are written to ignored `demo_exports/e2e_validation/`. The default temporary database mode does not modify your current dashboard data. Only use current-database mode when you intentionally want the validation source, logs, alerts, and audit rows visible in React:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_e2e_workflow_validation --scenario port_scan_like_traffic --source-name e2e-dashboard-check --write-to-current-db --simulate-response --pretty
+```
+
+Dashboard verification:
+
+1. Open Overview and confirm the **E2E Workflow** validation card is visible.
+2. Check Log Sources for the validation source when current-database mode is used.
+3. Open Alerts and confirm **Why flagged?**, evidence count, attack type, and source context are visible.
+4. Open Investigation and filter by the validation source to inspect normalized rows and raw evidence.
+5. Open Response & Audit and confirm simulated response attempts are audited when `--simulate-response` was used.
+6. Confirm no automatic response or real firewall blocking occurred.
+
+See `docs/V1_0_E2E_WORKFLOW_VALIDATION.md` for report fields, safety defaults, and limitations.
+
 ## v0.5 Controlled Replay Validation Archive
 
 ATDR v0.5 uses controlled simulation and replay as the current validation path because real firewall/router hardware is not available yet. This validates source health, parser behavior, source-scoped detection, alert evidence, deduplication, case grouping, simulated response safety, and dashboard investigation flow. It does not validate real device forwarding or real firewall enforcement.

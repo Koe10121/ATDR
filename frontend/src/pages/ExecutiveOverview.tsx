@@ -148,7 +148,7 @@ export function ExecutiveOverview() {
             <Badge value="Manual Approval Required" />
           </div>
         </div>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
           <div className="rounded-lg border border-line bg-panel2 p-3">
             <div className="text-xs font-bold uppercase tracking-wide text-muted">Validation Suite</div>
             <div className="mt-1 font-bold text-text">
@@ -182,6 +182,19 @@ export function ExecutiveOverview() {
               {validation?.layered?.available
                 ? `FP ${validation.layered.false_positive_count ?? 0} | FN ${validation.layered.false_negative_count ?? 0}`
                 : validation?.layered?.message ?? "Run layered detection validation to publish a report."}
+            </div>
+          </div>
+          <div className="rounded-lg border border-line bg-panel2 p-3">
+            <div className="text-xs font-bold uppercase tracking-wide text-muted">E2E Workflow</div>
+            <div className="mt-1 font-bold text-text">
+              {validation?.e2e_workflow?.available
+                ? `${validation.e2e_workflow.passed_count ?? 0}/${validation.e2e_workflow.scenario_count ?? 0} passed`
+                : "No e2e run yet"}
+            </div>
+            <div className="mt-1 text-xs text-muted">
+              {validation?.e2e_workflow?.available
+                ? `${validation.e2e_workflow.alert_count ?? 0} alerts | ${validation.e2e_workflow.case_count ?? 0} cases`
+                : validation?.e2e_workflow?.message ?? "Run e2e workflow validation to publish a report."}
             </div>
           </div>
           <div className="rounded-lg border border-line bg-panel2 p-3">
