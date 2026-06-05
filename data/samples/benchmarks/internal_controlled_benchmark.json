@@ -1,0 +1,136 @@
+{
+  "name": "internal_controlled_benchmark",
+  "version": "v1.1",
+  "scope": "safe synthetic ATDR scenario families",
+  "production_readiness_claim": false,
+  "automatic_response_expected": false,
+  "entries": [
+    {
+      "scenario": "normal_allowed_traffic",
+      "expected_label": "benign",
+      "expected_attack_type": "normal",
+      "expected_severity_range": ["Low", "Low"],
+      "expected_risk_range": [0, 0],
+      "expected_detection_mode_contribution": ["none"],
+      "expected_no_automatic_response": true
+    },
+    {
+      "scenario": "normal_web_dns_quic_traffic",
+      "expected_label": "benign",
+      "expected_attack_type": "normal",
+      "expected_severity_range": ["Low", "Low"],
+      "expected_risk_range": [0, 0],
+      "expected_detection_mode_contribution": ["none"],
+      "expected_no_automatic_response": true
+    },
+    {
+      "scenario": "normal_high_volume_but_allowed_traffic",
+      "expected_label": "benign",
+      "expected_attack_type": "normal",
+      "expected_severity_range": ["Low", "Low"],
+      "expected_risk_range": [0, 0],
+      "expected_detection_mode_contribution": ["none"],
+      "expected_no_automatic_response": true
+    },
+    {
+      "scenario": "normal_repeated_same_service_traffic",
+      "expected_label": "benign",
+      "expected_attack_type": "normal",
+      "expected_severity_range": ["Low", "Low"],
+      "expected_risk_range": [0, 0],
+      "expected_detection_mode_contribution": ["none"],
+      "expected_no_automatic_response": true
+    },
+    {
+      "scenario": "port_scan_like_traffic",
+      "expected_label": "threat",
+      "expected_attack_type": "port_scan",
+      "expected_severity_range": ["High", "Critical"],
+      "expected_risk_range": [70, 100],
+      "expected_detection_mode_contribution": ["rules", "hybrid"],
+      "expected_no_automatic_response": true
+    },
+    {
+      "scenario": "brute_force_like_traffic",
+      "expected_label": "threat",
+      "expected_attack_type": "brute_force",
+      "expected_severity_range": ["High", "Critical"],
+      "expected_risk_range": [70, 100],
+      "expected_detection_mode_contribution": ["rules", "hybrid"],
+      "expected_no_automatic_response": true
+    },
+    {
+      "scenario": "malware_c2_like_beaconing",
+      "expected_label": "threat",
+      "expected_attack_type": "malware_c2",
+      "expected_severity_range": ["High", "Critical"],
+      "expected_risk_range": [70, 100],
+      "expected_detection_mode_contribution": ["rules", "hybrid"],
+      "expected_no_automatic_response": true
+    },
+    {
+      "scenario": "data_exfiltration_suspicion",
+      "expected_label": "threat",
+      "expected_attack_type": "data_exfiltration_suspicion",
+      "expected_severity_range": ["Medium", "Critical"],
+      "expected_risk_range": [35, 100],
+      "expected_detection_mode_contribution": ["rules", "hybrid"],
+      "expected_no_automatic_response": true
+    },
+    {
+      "scenario": "ddos_or_connection_flood_like",
+      "expected_label": "threat",
+      "expected_attack_type": "dos_ddos",
+      "expected_severity_range": ["Medium", "Critical"],
+      "expected_risk_range": [35, 100],
+      "expected_detection_mode_contribution": ["rules", "hybrid"],
+      "expected_no_automatic_response": true
+    },
+    {
+      "scenario": "repeated_dedup_traffic",
+      "expected_label": "threat",
+      "expected_attack_type": "brute_force",
+      "expected_severity_range": ["High", "Critical"],
+      "expected_risk_range": [70, 100],
+      "expected_detection_mode_contribution": ["rules", "hybrid"],
+      "expected_deduplication": true,
+      "expected_no_automatic_response": true
+    },
+    {
+      "scenario": "mixed_small_subnet_validation",
+      "expected_label": "mixed",
+      "expected_attack_type": "multiple",
+      "expected_severity_range": ["High", "Critical"],
+      "expected_risk_range": [70, 100],
+      "expected_detection_mode_contribution": ["rules", "hybrid"],
+      "expected_no_automatic_response": true
+    },
+    {
+      "scenario": "generic_syslog_mixed",
+      "expected_label": "benign_or_unknown",
+      "expected_attack_type": "unknown_anomaly",
+      "expected_severity_range": ["Low", "Low"],
+      "expected_risk_range": [0, 0],
+      "expected_detection_mode_contribution": ["parser_fallback"],
+      "expected_no_automatic_response": true
+    },
+    {
+      "scenario": "malformed_raw_fallback",
+      "expected_label": "unknown",
+      "expected_attack_type": "unknown_anomaly",
+      "expected_severity_range": ["Low", "Low"],
+      "expected_risk_range": [0, 0],
+      "expected_detection_mode_contribution": ["raw_fallback"],
+      "expected_no_automatic_response": true
+    },
+    {
+      "scenario": "policy_violation_suspicious_app",
+      "expected_label": "threat",
+      "expected_attack_type": "malware_c2",
+      "expected_severity_range": ["Medium", "Critical"],
+      "expected_risk_range": [40, 100],
+      "expected_detection_mode_contribution": ["rules", "hybrid"],
+      "expected_no_automatic_response": true
+    }
+  ]
+}

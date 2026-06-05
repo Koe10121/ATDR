@@ -16,6 +16,7 @@ VALIDATION_REPORT_DIR = PROJECT_ROOT / "demo_exports" / "detection_validation"
 GENERALIZATION_REPORT_DIR = PROJECT_ROOT / "demo_exports" / "detection_generalization"
 LAYERED_REPORT_DIR = PROJECT_ROOT / "demo_exports" / "layered_detection"
 E2E_REPORT_DIR = PROJECT_ROOT / "demo_exports" / "e2e_validation"
+RELIABILITY_REPORT_DIR = PROJECT_ROOT / "demo_exports" / "detection_reliability"
 
 
 def _latest_validation_summary(report_dir: Path = VALIDATION_REPORT_DIR) -> dict[str, Any]:
@@ -232,6 +233,102 @@ def _latest_e2e_summary(report_dir: Path = E2E_REPORT_DIR) -> dict[str, Any]:
     }
 
 
+def _latest_reliability_file_summary(report_dir: Path, pattern: str, *, missing_message: str) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    if not report_dir.exists():
+        return {"available": False, "message": missing_message}, None
+    candidates = sorted(report_dir.glob(pattern), key=lambda path: path.stat().st_mtime, reverse=True)
+    if not candidates:
+        return {"available": False, "message": missing_message}, None
+    latest = candidates[0]
+    try:
+        payload = json.loads(latest.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return {
+            "available": False,
+            "message": f"Latest reliability report could not be read: {exc}",
+            "latest_report_name": latest.name,
+        }, None
+    paths = payload.get("paths") or {}
+    return {
+        "available": True,
+        "ok": bool(payload.get("ok")),
+        "generated_at": payload.get("generated_at"),
+        "latest_report_name": latest.name,
+        "latest_markdown_name": Path(paths.get("markdown") or latest.with_suffix(".md")).name,
+        "validation_scope": payload.get("validation_scope"),
+        "production_readiness_claim": bool((payload.get("safety") or {}).get("production_readiness_claim")),
+    }, payload
+
+
+def _latest_v11_reliability_summary(report_dir: Path = RELIABILITY_REPORT_DIR) -> dict[str, Any]:
+    summary, payload = _latest_reliability_file_summary(
+        report_dir,
+        "detection_reliability_baseline_*.json",
+        missing_message="No v1.1 detection reliability baseline has been generated yet.",
+    )
+    if payload is None:
+        return summary
+    scenario = payload.get("scenario_validation") or {}
+    generalization = payload.get("generalization_validation") or {}
+    layered = payload.get("layered_validation") or {}
+    e2e = payload.get("e2e_workflow_validation") or {}
+    return {
+        **summary,
+        "scenario_count": int(scenario.get("scenario_count") or 0),
+        "scenario_passed_count": int(scenario.get("passed_count") or 0),
+        "variant_count": int(generalization.get("variant_count") or 0),
+        "variant_passed_count": int(generalization.get("passed_count") or 0),
+        "mode_run_count": int(layered.get("mode_run_count") or 0),
+        "mode_passed_count": int(layered.get("passed_count") or 0),
+        "e2e_scenario_count": int(e2e.get("scenario_count") or 0),
+        "e2e_passed_count": int(e2e.get("passed_count") or 0),
+        "false_positive_count": int(payload.get("false_positive_count") or 0),
+        "false_negative_count": int(payload.get("false_negative_count") or 0),
+        "alert_volume": int(payload.get("alert_volume") or 0),
+    }
+
+
+def _latest_v11_benchmark_summary(report_dir: Path = RELIABILITY_REPORT_DIR) -> dict[str, Any]:
+    summary, payload = _latest_reliability_file_summary(
+        report_dir,
+        "detection_benchmark_*.json",
+        missing_message="No mapped benchmark run has been generated yet.",
+    )
+    if payload is None:
+        return summary
+    metrics = payload.get("metrics") or {}
+    return {
+        **summary,
+        "total_rows": int(payload.get("total_rows") or 0),
+        "rows_mapped": int(payload.get("rows_mapped") or 0),
+        "precision": metrics.get("precision"),
+        "recall": metrics.get("recall"),
+        "f1": metrics.get("f1"),
+        "false_positive_count": int(metrics.get("false_positives") or 0),
+        "false_negative_count": int(metrics.get("false_negatives") or 0),
+        "alert_volume": int(payload.get("alert_volume") or 0),
+    }
+
+
+def _latest_v11_drift_summary(report_dir: Path = RELIABILITY_REPORT_DIR) -> dict[str, Any]:
+    summary, payload = _latest_reliability_file_summary(
+        report_dir,
+        "drift_report_*.json",
+        missing_message="No drift report has been generated yet.",
+    )
+    if payload is None:
+        return summary
+    return {
+        **summary,
+        "recent_rows": int(payload.get("recent_rows") or 0),
+        "baseline_rows": int(payload.get("baseline_rows") or 0),
+        "unknown_app_rate": payload.get("unknown_app_rate"),
+        "parse_failure_rate": payload.get("parse_failure_rate"),
+        "alert_rate": payload.get("alert_rate"),
+        "warning_count": len(payload.get("warnings") or []),
+    }
+
+
 @router.get("/summary")
 def dashboard_summary(
     db: Session = Depends(get_db),
@@ -248,4 +345,7 @@ def dashboard_validation_summary(
     summary["generalization"] = _latest_generalization_summary(GENERALIZATION_REPORT_DIR)
     summary["layered"] = _latest_layered_summary(LAYERED_REPORT_DIR)
     summary["e2e_workflow"] = _latest_e2e_summary(E2E_REPORT_DIR)
+    summary["reliability"] = _latest_v11_reliability_summary(RELIABILITY_REPORT_DIR)
+    summary["benchmark"] = _latest_v11_benchmark_summary(RELIABILITY_REPORT_DIR)
+    summary["drift"] = _latest_v11_drift_summary(RELIABILITY_REPORT_DIR)
     return summary

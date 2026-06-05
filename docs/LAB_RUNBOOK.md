@@ -289,6 +289,47 @@ Dashboard verification:
 
 See `docs/V1_0_E2E_WORKFLOW_VALIDATION.md` for report fields, safety defaults, and limitations.
 
+## v1.1 Detection Reliability And Benchmarking
+
+ATDR v1.1 adds reliability and benchmarking reports around the existing controlled validation suites. Reports are written to ignored `demo_exports/detection_reliability/`.
+
+Run the full v1.1 reliability baseline against a temporary database:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_detection_reliability_baseline --pretty
+```
+
+Run a mapped CSV benchmark without committing the dataset:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_detection_benchmark --csv-path C:\path\to\benchmark.csv --limit 1000 --pretty
+```
+
+Analyze controlled false positives/false negatives and risk calibration:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.analyze_detection_errors --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.calibrate_detection_risk --pretty
+```
+
+Generate ML/SOC triage reliability, drift, and stress reports:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_ml_reliability_report --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.monitor_detection_drift --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_detection_stress_test --iterations 10 --pretty
+```
+
+The internal controlled benchmark manifest is:
+
+```text
+data/samples/benchmarks/internal_controlled_benchmark.json
+```
+
+The dashboard Overview page shows only compact reliability, benchmark, and drift indicators. Detailed evidence remains in reports. These reports do not execute real attacks, do not use offensive tooling, do not enable automatic response, do not perform real firewall blocking, and do not claim production readiness.
+
+See `docs/V1_1_DETECTION_RELIABILITY_AND_BENCHMARKING.md`.
+
 ## v0.5 Controlled Replay Validation Archive
 
 ATDR v0.5 uses controlled simulation and replay as the current validation path because real firewall/router hardware is not available yet. This validates source health, parser behavior, source-scoped detection, alert evidence, deduplication, case grouping, simulated response safety, and dashboard investigation flow. It does not validate real device forwarding or real firewall enforcement.

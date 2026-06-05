@@ -594,6 +594,46 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
           use_temp_db: true,
           response_mode: "simulated analyst-approved only",
           production_readiness_claim: false
+        },
+        reliability: {
+          available: true,
+          ok: true,
+          scenario_count: 14,
+          scenario_passed_count: 14,
+          variant_count: 70,
+          variant_passed_count: 70,
+          mode_run_count: 168,
+          mode_passed_count: 168,
+          e2e_scenario_count: 3,
+          e2e_passed_count: 3,
+          false_positive_count: 0,
+          false_negative_count: 0,
+          alert_volume: 18,
+          production_readiness_claim: false
+        },
+        benchmark: {
+          available: true,
+          ok: true,
+          total_rows: 10,
+          rows_mapped: 10,
+          precision: 1,
+          recall: 1,
+          f1: 1,
+          false_positive_count: 0,
+          false_negative_count: 0,
+          alert_volume: 1,
+          production_readiness_claim: false
+        },
+        drift: {
+          available: true,
+          ok: true,
+          recent_rows: 1000,
+          baseline_rows: 5000,
+          unknown_app_rate: 0.05,
+          parse_failure_rate: 0,
+          alert_rate: 0.02,
+          warning_count: 0,
+          production_readiness_claim: false
         }
       }
     })
@@ -856,11 +896,17 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByText("Controlled Validation")).toBeVisible();
   await expect(page.getByText("Generalization", { exact: true })).toBeVisible();
   await expect(page.getByText("70/70 variants")).toBeVisible();
-  await expect(page.getByText("FP 0 | FN 0")).toHaveCount(2);
+  await expect(page.getByText("FP 0 | FN 0")).toHaveCount(3);
   await expect(page.getByText("Layered Modes")).toBeVisible();
   await expect(page.getByText("168/168 mode runs")).toBeVisible();
   await expect(page.getByText("E2E Workflow")).toBeVisible();
   await expect(page.getByText("3/3 passed")).toBeVisible();
+  await expect(page.getByText("Reliability")).toBeVisible();
+  await expect(page.getByText("14/14 scenarios")).toBeVisible();
+  await expect(page.getByText("Benchmark")).toBeVisible();
+  await expect(page.getByText("F1 1")).toBeVisible();
+  await expect(page.getByText("Drift")).toBeVisible();
+  await expect(page.getByText("0 warnings")).toBeVisible();
   await expect(page.getByText("Lab-Scale Validation")).toBeVisible();
   await expect(page.getByText("Manual Approval Required")).toBeVisible();
   await expect(page.getByText("Hardware Validation Pending")).toBeVisible();

@@ -162,6 +162,14 @@ python -m atdr.scripts.run_e2e_workflow_validation --scenario port_scan_like_tra
 
 End-to-end reports are written under ignored `demo_exports/e2e_validation/`. The default mode uses a temporary database and does not modify current dashboard data.
 
+Run the v1.1 detection reliability baseline to aggregate scenario validation, generalization, layered detection, E2E workflow, false-positive/false-negative counts, risk/severity distribution, and detection layer contribution:
+
+```powershell
+python -m atdr.scripts.run_detection_reliability_baseline --pretty
+```
+
+v1.1 reliability, benchmark, error-analysis, calibration, drift, ML reliability, and stress reports are written under ignored `demo_exports/detection_reliability/`.
+
 Run a scenario against a temporary database:
 
 ```powershell
@@ -253,6 +261,7 @@ Start here:
 - `docs/V0_8_DETECTION_GENERALIZATION.md` - synthetic variant validation and anti-overfitting checks.
 - `docs/V0_9_LAYERED_DETECTION_VALIDATION.md` - layered rules/anomaly/ML/hybrid contribution validation.
 - `docs/V1_0_E2E_WORKFLOW_VALIDATION.md` - controlled ingestion-to-investigation workflow validation with optional simulated response/audit checks.
+- `docs/V1_1_DETECTION_RELIABILITY_AND_BENCHMARKING.md` - reliability baselines, generic benchmark adapter, error analysis, risk calibration, drift, ML reliability, and stress testing.
 - `docs/V0_5_SIMULATION_DEMO_PLAN.md` - earlier controlled replay validation plan.
 - `docs/V0_5_REAL_SOURCE_VALIDATION_PLAN.md` - future controlled hardware source validation plan.
 - `docs/V0_3_RELEASE_CANDIDATE.md` - current release-candidate summary.

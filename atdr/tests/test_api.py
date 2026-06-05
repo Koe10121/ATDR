@@ -120,15 +120,20 @@ def test_dashboard_validation_summary_reports_latest_file_without_private_paths(
     generalization_dir = Path(".pytest_tmp") / "dashboard_validation_summary" / "detection_generalization"
     layered_dir = Path(".pytest_tmp") / "dashboard_validation_summary" / "layered_detection"
     e2e_dir = Path(".pytest_tmp") / "dashboard_validation_summary" / "e2e_validation"
+    reliability_dir = Path(".pytest_tmp") / "dashboard_validation_summary" / "detection_reliability"
     shutil.rmtree(report_dir.parent, ignore_errors=True)
     report_dir.mkdir(parents=True)
     generalization_dir.mkdir(parents=True)
     layered_dir.mkdir(parents=True)
     e2e_dir.mkdir(parents=True)
+    reliability_dir.mkdir(parents=True)
     report_path = report_dir / "detection_validation_20260604T110000Z.json"
     generalization_path = generalization_dir / "detection_generalization_20260605T010000Z.json"
     layered_path = layered_dir / "layered_detection_20260605T014000Z.json"
     e2e_path = e2e_dir / "e2e_workflow_validation_20260605T020000Z.json"
+    reliability_path = reliability_dir / "detection_reliability_baseline_20260605T030000Z.json"
+    benchmark_path = reliability_dir / "detection_benchmark_20260605T031000Z.json"
+    drift_path = reliability_dir / "drift_report_20260605T032000Z.json"
     report_path.write_text(
         json.dumps(
             {
@@ -233,10 +238,64 @@ def test_dashboard_validation_summary_reports_latest_file_without_private_paths(
         ),
         encoding="utf-8",
     )
+    reliability_path.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "generated_at": "2026-06-05T03:00:00+00:00",
+                "validation_scope": "controlled detection reliability baseline",
+                "scenario_validation": {"scenario_count": 14, "passed_count": 14},
+                "generalization_validation": {"variant_count": 70, "passed_count": 70},
+                "layered_validation": {"mode_run_count": 168, "passed_count": 168},
+                "e2e_workflow_validation": {"scenario_count": 3, "passed_count": 3},
+                "false_positive_count": 0,
+                "false_negative_count": 0,
+                "alert_volume": 18,
+                "safety": {"production_readiness_claim": False},
+                "paths": {"markdown": str(reliability_dir / "detection_reliability_baseline_20260605T030000Z.md")},
+            }
+        ),
+        encoding="utf-8",
+    )
+    benchmark_path.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "generated_at": "2026-06-05T03:10:00+00:00",
+                "validation_scope": "generic external/public-style benchmark adapter",
+                "total_rows": 10,
+                "rows_mapped": 10,
+                "alert_volume": 1,
+                "metrics": {"precision": 1, "recall": 1, "f1": 1, "false_positives": 0, "false_negatives": 0},
+                "safety": {"production_readiness_claim": False},
+                "paths": {"markdown": str(reliability_dir / "detection_benchmark_20260605T031000Z.md")},
+            }
+        ),
+        encoding="utf-8",
+    )
+    drift_path.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "generated_at": "2026-06-05T03:20:00+00:00",
+                "validation_scope": "lightweight detection drift monitoring groundwork",
+                "recent_rows": 1000,
+                "baseline_rows": 5000,
+                "unknown_app_rate": 0.05,
+                "parse_failure_rate": 0,
+                "alert_rate": 0.02,
+                "warnings": [],
+                "safety": {"production_readiness_claim": False},
+                "paths": {"markdown": str(reliability_dir / "drift_report_20260605T032000Z.md")},
+            }
+        ),
+        encoding="utf-8",
+    )
     monkeypatch.setattr(dashboard_router, "VALIDATION_REPORT_DIR", report_dir)
     monkeypatch.setattr(dashboard_router, "GENERALIZATION_REPORT_DIR", generalization_dir)
     monkeypatch.setattr(dashboard_router, "LAYERED_REPORT_DIR", layered_dir)
     monkeypatch.setattr(dashboard_router, "E2E_REPORT_DIR", e2e_dir)
+    monkeypatch.setattr(dashboard_router, "RELIABILITY_REPORT_DIR", reliability_dir)
     client = _client()
     try:
         unauthorized = client.get("/api/dashboard/validation-summary")
@@ -270,14 +329,31 @@ def test_dashboard_validation_summary_reports_latest_file_without_private_paths(
         assert payload["e2e_workflow"]["case_count"] == 1
         assert payload["e2e_workflow"]["response_actions_created"] == 3
         assert payload["e2e_workflow"]["latest_report_name"] == e2e_path.name
+        assert payload["reliability"]["available"] is True
+        assert payload["reliability"]["scenario_count"] == 14
+        assert payload["reliability"]["scenario_passed_count"] == 14
+        assert payload["reliability"]["variant_count"] == 70
+        assert payload["reliability"]["mode_run_count"] == 168
+        assert payload["reliability"]["false_positive_count"] == 0
+        assert payload["reliability"]["false_negative_count"] == 0
+        assert payload["benchmark"]["available"] is True
+        assert payload["benchmark"]["total_rows"] == 10
+        assert payload["benchmark"]["f1"] == 1
+        assert payload["drift"]["available"] is True
+        assert payload["drift"]["warning_count"] == 0
+        assert payload["drift"]["alert_rate"] == 0.02
         assert str(report_dir) not in json.dumps(payload)
         assert str(generalization_dir) not in json.dumps(payload)
         assert str(layered_dir) not in json.dumps(payload)
         assert str(e2e_dir) not in json.dumps(payload)
+        assert str(reliability_dir) not in json.dumps(payload)
         assert payload["production_readiness_claim"] is False
         assert payload["generalization"]["production_readiness_claim"] is False
         assert payload["layered"]["production_readiness_claim"] is False
         assert payload["e2e_workflow"]["production_readiness_claim"] is False
+        assert payload["reliability"]["production_readiness_claim"] is False
+        assert payload["benchmark"]["production_readiness_claim"] is False
+        assert payload["drift"]["production_readiness_claim"] is False
     finally:
         app.dependency_overrides.clear()
         shutil.rmtree(report_dir.parent, ignore_errors=True)

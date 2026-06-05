@@ -148,7 +148,7 @@ export function ExecutiveOverview() {
             <Badge value="Manual Approval Required" />
           </div>
         </div>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <div className="rounded-lg border border-line bg-panel2 p-3">
             <div className="text-xs font-bold uppercase tracking-wide text-muted">Validation Suite</div>
             <div className="mt-1 font-bold text-text">
@@ -195,6 +195,41 @@ export function ExecutiveOverview() {
               {validation?.e2e_workflow?.available
                 ? `${validation.e2e_workflow.alert_count ?? 0} alerts | ${validation.e2e_workflow.case_count ?? 0} cases`
                 : validation?.e2e_workflow?.message ?? "Run e2e workflow validation to publish a report."}
+            </div>
+          </div>
+          <div className="rounded-lg border border-line bg-panel2 p-3">
+            <div className="text-xs font-bold uppercase tracking-wide text-muted">Reliability</div>
+            <div className="mt-1 font-bold text-text">
+              {validation?.reliability?.available
+                ? `${validation.reliability.scenario_passed_count ?? 0}/${validation.reliability.scenario_count ?? 0} scenarios`
+                : "No v1.1 baseline yet"}
+            </div>
+            <div className="mt-1 text-xs text-muted">
+              {validation?.reliability?.available
+                ? `FP ${validation.reliability.false_positive_count ?? 0} | FN ${validation.reliability.false_negative_count ?? 0}`
+                : validation?.reliability?.message ?? "Run detection reliability baseline."}
+            </div>
+          </div>
+          <div className="rounded-lg border border-line bg-panel2 p-3">
+            <div className="text-xs font-bold uppercase tracking-wide text-muted">Benchmark</div>
+            <div className="mt-1 font-bold text-text">
+              {validation?.benchmark?.available ? `F1 ${validation.benchmark.f1 ?? "-"}` : "No benchmark yet"}
+            </div>
+            <div className="mt-1 text-xs text-muted">
+              {validation?.benchmark?.available
+                ? `${validation.benchmark.rows_mapped ?? 0}/${validation.benchmark.total_rows ?? 0} rows mapped`
+                : validation?.benchmark?.message ?? "Run mapped benchmark adapter."}
+            </div>
+          </div>
+          <div className="rounded-lg border border-line bg-panel2 p-3">
+            <div className="text-xs font-bold uppercase tracking-wide text-muted">Drift</div>
+            <div className="mt-1 font-bold text-text">
+              {validation?.drift?.available ? `${validation.drift.warning_count ?? 0} warnings` : "No drift report yet"}
+            </div>
+            <div className="mt-1 text-xs text-muted">
+              {validation?.drift?.available
+                ? `Alert rate ${validation.drift.alert_rate ?? "-"}`
+                : validation?.drift?.message ?? "Run detection drift monitor."}
             </div>
           </div>
           <div className="rounded-lg border border-line bg-panel2 p-3">

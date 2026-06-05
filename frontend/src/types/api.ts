@@ -425,6 +425,9 @@ export interface DashboardValidationSummary {
   generalization?: DashboardGeneralizationSummary;
   layered?: DashboardLayeredValidationSummary;
   e2e_workflow?: DashboardE2EWorkflowSummary;
+  reliability?: DashboardReliabilitySummary;
+  benchmark?: DashboardBenchmarkSummary;
+  drift?: DashboardDriftSummary;
 }
 
 export interface DashboardGeneralizationSummary {
@@ -499,6 +502,64 @@ export interface DashboardE2EWorkflowSummary {
   validation_scope?: string | null;
   use_temp_db?: boolean;
   response_mode?: string | null;
+  production_readiness_claim?: boolean;
+  message?: string;
+}
+
+export interface DashboardReliabilitySummary {
+  available: boolean;
+  ok?: boolean;
+  generated_at?: string | null;
+  scenario_count?: number;
+  scenario_passed_count?: number;
+  variant_count?: number;
+  variant_passed_count?: number;
+  mode_run_count?: number;
+  mode_passed_count?: number;
+  e2e_scenario_count?: number;
+  e2e_passed_count?: number;
+  false_positive_count?: number;
+  false_negative_count?: number;
+  alert_volume?: number;
+  latest_report_name?: string | null;
+  latest_markdown_name?: string | null;
+  validation_scope?: string | null;
+  production_readiness_claim?: boolean;
+  message?: string;
+}
+
+export interface DashboardBenchmarkSummary {
+  available: boolean;
+  ok?: boolean;
+  generated_at?: string | null;
+  total_rows?: number;
+  rows_mapped?: number;
+  precision?: number | string | null;
+  recall?: number | string | null;
+  f1?: number | string | null;
+  false_positive_count?: number;
+  false_negative_count?: number;
+  alert_volume?: number;
+  latest_report_name?: string | null;
+  latest_markdown_name?: string | null;
+  validation_scope?: string | null;
+  production_readiness_claim?: boolean;
+  message?: string;
+}
+
+export interface DashboardDriftSummary {
+  available: boolean;
+  ok?: boolean;
+  generated_at?: string | null;
+  recent_rows?: number;
+  baseline_rows?: number;
+  unknown_app_rate?: number | null;
+  parse_failure_rate?: number | null;
+  alert_rate?: number | null;
+  warning_count?: number;
+  latest_report_name?: string | null;
+  latest_markdown_name?: string | null;
+  validation_scope?: string | null;
   production_readiness_claim?: boolean;
   message?: string;
 }
