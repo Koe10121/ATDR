@@ -543,6 +543,39 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
           response_mode: "simulated analyst-approved only",
           production_readiness_claim: false,
           synthetic_variants_only: true
+        },
+        layered: {
+          available: true,
+          ok: true,
+          generated_at: "2026-06-05T01:40:00Z",
+          scenario_count: 14,
+          variant_count: 42,
+          mode_count: 4,
+          mode_run_count: 168,
+          passed_count: 168,
+          failed_count: 0,
+          false_positive_count: 0,
+          false_negative_count: 0,
+          mode_summary: [
+            {
+              mode: "rules_only",
+              tests: 42,
+              passed_count: 42,
+              failed_count: 0,
+              false_positive_count: 0,
+              false_negative_count: 0,
+              rule_contribution_count: 24,
+              anomaly_contribution_count: 0,
+              supervised_contribution_count: 0,
+              hybrid_contribution_count: 0
+            }
+          ],
+          latest_report_name: "layered_detection_20260605T014000Z.json",
+          latest_markdown_name: "layered_detection_20260605T014000Z.md",
+          validation_scope: "controlled layered detection contribution validation",
+          use_temp_db: true,
+          response_mode: "simulated analyst-approved only",
+          production_readiness_claim: false
         }
       }
     })
@@ -805,7 +838,9 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByText("Controlled Validation")).toBeVisible();
   await expect(page.getByText("Generalization")).toBeVisible();
   await expect(page.getByText("70/70 variants")).toBeVisible();
-  await expect(page.getByText("FP 0 | FN 0")).toBeVisible();
+  await expect(page.getByText("FP 0 | FN 0")).toHaveCount(2);
+  await expect(page.getByText("Layered Modes")).toBeVisible();
+  await expect(page.getByText("168/168 mode runs")).toBeVisible();
   await expect(page.getByText("Lab-Scale Validation")).toBeVisible();
   await expect(page.getByText("Manual Approval Required")).toBeVisible();
   await expect(page.getByText("Hardware Validation Pending")).toBeVisible();

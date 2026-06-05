@@ -1,0 +1,133 @@
+{
+  "_metadata": {
+    "purpose": "ATDR v0.9 layered detection contribution expectations for controlled synthetic/replay scenarios.",
+    "scope": "Lab-scale defensive validation only; not production certification.",
+    "response_safety": "No automatic response actions may be created by validation runs."
+  },
+  "normal_allowed_traffic": {
+    "scenario_family": "normal",
+    "rules": "quiet",
+    "anomaly": "quiet_or_optional",
+    "supervised": "advisory_only",
+    "hybrid": "quiet",
+    "best_mode": "all_quiet",
+    "notes": "Routine allowed traffic should avoid noisy high/critical alerts."
+  },
+  "normal_web_dns_quic_traffic": {
+    "scenario_family": "normal",
+    "rules": "quiet",
+    "anomaly": "quiet_or_optional",
+    "supervised": "advisory_only",
+    "hybrid": "quiet",
+    "best_mode": "all_quiet",
+    "notes": "Common web, DNS, and QUIC traffic should remain quiet."
+  },
+  "normal_high_volume_but_allowed_traffic": {
+    "scenario_family": "normal",
+    "rules": "quiet",
+    "anomaly": "quiet_or_optional",
+    "supervised": "advisory_only",
+    "hybrid": "quiet",
+    "best_mode": "all_quiet",
+    "notes": "Approved high-volume traffic should not be treated as exfiltration by default."
+  },
+  "normal_repeated_same_service_traffic": {
+    "scenario_family": "normal",
+    "rules": "quiet",
+    "anomaly": "quiet_or_optional",
+    "supervised": "advisory_only",
+    "hybrid": "quiet",
+    "best_mode": "all_quiet",
+    "notes": "Repeated same-service access should not look like scanning."
+  },
+  "mixed_small_subnet_validation": {
+    "scenario_family": "mixed_threat",
+    "rules": "required",
+    "anomaly": "optional",
+    "supervised": "advisory_only",
+    "hybrid": "required",
+    "best_mode": "hybrid",
+    "notes": "Rules should catch known mixed patterns; hybrid should preserve those detections and add layered context."
+  },
+  "port_scan_like_traffic": {
+    "scenario_family": "port_scan",
+    "rules": "required",
+    "anomaly": "optional",
+    "supervised": "advisory_only",
+    "hybrid": "required",
+    "best_mode": "hybrid",
+    "notes": "Rules should catch repeated unique destination-port behavior; anomaly may add supporting signal."
+  },
+  "brute_force_like_traffic": {
+    "scenario_family": "brute_force",
+    "rules": "required",
+    "anomaly": "optional",
+    "supervised": "advisory_only",
+    "hybrid": "required",
+    "best_mode": "hybrid",
+    "notes": "Rules should catch repeated denied service/authentication attempts."
+  },
+  "malware_c2_like_beaconing": {
+    "scenario_family": "malware_c2",
+    "rules": "required",
+    "anomaly": "optional",
+    "supervised": "advisory_only",
+    "hybrid": "required",
+    "best_mode": "hybrid",
+    "notes": "Rules should catch repeated outbound beacon-like behavior; hybrid should show combined risk."
+  },
+  "data_exfiltration_suspicion": {
+    "scenario_family": "data_exfiltration",
+    "rules": "required",
+    "anomaly": "optional",
+    "supervised": "advisory_only",
+    "hybrid": "required",
+    "best_mode": "hybrid",
+    "notes": "Rules should catch high outbound byte-volume suspicion; anomaly may support unusual volume."
+  },
+  "ddos_or_connection_flood_like": {
+    "scenario_family": "connection_flood",
+    "rules": "required",
+    "anomaly": "optional",
+    "supervised": "advisory_only",
+    "hybrid": "required",
+    "best_mode": "hybrid",
+    "notes": "Rules should catch repeated connection-flood-like behavior."
+  },
+  "repeated_dedup_traffic": {
+    "scenario_family": "dedup",
+    "rules": "required",
+    "anomaly": "optional",
+    "supervised": "advisory_only",
+    "hybrid": "required",
+    "best_mode": "hybrid",
+    "notes": "Rules and hybrid should deduplicate repeated evidence instead of creating endless duplicate alerts."
+  },
+  "generic_syslog_mixed": {
+    "scenario_family": "parser_fallback",
+    "rules": "quiet",
+    "anomaly": "quiet_or_optional",
+    "supervised": "advisory_only",
+    "hybrid": "quiet",
+    "best_mode": "parser_visibility",
+    "notes": "Generic syslog should preserve raw evidence and parser visibility without forcing threat alerts."
+  },
+  "malformed_raw_fallback": {
+    "scenario_family": "parser_fallback",
+    "rules": "quiet",
+    "anomaly": "quiet_or_optional",
+    "supervised": "advisory_only",
+    "hybrid": "quiet",
+    "best_mode": "parser_visibility",
+    "notes": "Malformed raw fallback should not crash and should not create automatic response."
+  },
+  "policy_violation_suspicious_app": {
+    "scenario_family": "policy_violation",
+    "rules": "required",
+    "anomaly": "optional",
+    "supervised": "advisory_only",
+    "hybrid": "required",
+    "best_mode": "hybrid",
+    "notes": "Rules should catch risky app characteristics; hybrid should describe combined SOC triage evidence."
+  }
+}

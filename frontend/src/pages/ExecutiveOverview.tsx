@@ -148,7 +148,7 @@ export function ExecutiveOverview() {
             <Badge value="Manual Approval Required" />
           </div>
         </div>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
           <div className="rounded-lg border border-line bg-panel2 p-3">
             <div className="text-xs font-bold uppercase tracking-wide text-muted">Validation Suite</div>
             <div className="mt-1 font-bold text-text">
@@ -169,6 +169,19 @@ export function ExecutiveOverview() {
               {validation?.generalization?.available
                 ? `FP ${validation.generalization.false_positive_count ?? 0} | FN ${validation.generalization.false_negative_count ?? 0}`
                 : validation?.generalization?.message ?? "Run detection generalization to publish a report."}
+            </div>
+          </div>
+          <div className="rounded-lg border border-line bg-panel2 p-3">
+            <div className="text-xs font-bold uppercase tracking-wide text-muted">Layered Modes</div>
+            <div className="mt-1 font-bold text-text">
+              {validation?.layered?.available
+                ? `${validation.layered.passed_count ?? 0}/${validation.layered.mode_run_count ?? 0} mode runs`
+                : "No layered run yet"}
+            </div>
+            <div className="mt-1 text-xs text-muted">
+              {validation?.layered?.available
+                ? `FP ${validation.layered.false_positive_count ?? 0} | FN ${validation.layered.false_negative_count ?? 0}`
+                : validation?.layered?.message ?? "Run layered detection validation to publish a report."}
             </div>
           </div>
           <div className="rounded-lg border border-line bg-panel2 p-3">

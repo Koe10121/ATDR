@@ -423,6 +423,7 @@ export interface DashboardValidationSummary {
   production_readiness_claim?: boolean;
   message?: string;
   generalization?: DashboardGeneralizationSummary;
+  layered?: DashboardLayeredValidationSummary;
 }
 
 export interface DashboardGeneralizationSummary {
@@ -443,6 +444,41 @@ export interface DashboardGeneralizationSummary {
   response_mode?: string | null;
   production_readiness_claim?: boolean;
   synthetic_variants_only?: boolean;
+  message?: string;
+}
+
+export interface DashboardLayeredValidationModeSummary {
+  mode: string;
+  tests: number;
+  passed_count: number;
+  failed_count: number;
+  false_positive_count: number;
+  false_negative_count: number;
+  rule_contribution_count: number;
+  anomaly_contribution_count: number;
+  supervised_contribution_count: number;
+  hybrid_contribution_count: number;
+}
+
+export interface DashboardLayeredValidationSummary {
+  available: boolean;
+  ok?: boolean;
+  generated_at?: string | null;
+  scenario_count?: number;
+  variant_count?: number;
+  mode_count?: number;
+  mode_run_count?: number;
+  passed_count?: number;
+  failed_count?: number;
+  false_positive_count?: number;
+  false_negative_count?: number;
+  mode_summary?: DashboardLayeredValidationModeSummary[];
+  latest_report_name?: string | null;
+  latest_markdown_name?: string | null;
+  validation_scope?: string | null;
+  use_temp_db?: boolean;
+  response_mode?: string | null;
+  production_readiness_claim?: boolean;
   message?: string;
 }
 

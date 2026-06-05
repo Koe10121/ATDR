@@ -231,6 +231,31 @@ Use current-database mode only when you intentionally want to inspect generated 
 
 See `docs/V0_8_DETECTION_GENERALIZATION.md` for report interpretation, safety boundaries, and known limits.
 
+## v0.9 Layered Detection Validation
+
+ATDR v0.9 compares detection layers across controlled scenarios:
+
+- `rules_only`
+- `anomaly_only`
+- `supervised_only`
+- `hybrid`
+
+Run the full layered validation suite against a temporary database:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_layered_detection_validation --all --variants 3 --pretty
+```
+
+The report explains what rules caught, where anomaly scoring contributed, where supervised SOC triage produced advisory signals, and how hybrid scoring combines the evidence. Reports are written to ignored `demo_exports/layered_detection/`. The Overview page shows a compact latest layered validation status.
+
+Use current-database mode only when you intentionally want to inspect generated layered validation rows in React:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_layered_detection_validation --scenario port_scan_like_traffic --variants 1 --write-to-current-db --pretty
+```
+
+See `docs/V0_9_LAYERED_DETECTION_VALIDATION.md` for layer definitions, current results, and limitations.
+
 ## v0.5 Controlled Replay Validation Archive
 
 ATDR v0.5 uses controlled simulation and replay as the current validation path because real firewall/router hardware is not available yet. This validates source health, parser behavior, source-scoped detection, alert evidence, deduplication, case grouping, simulated response safety, and dashboard investigation flow. It does not validate real device forwarding or real firewall enforcement.

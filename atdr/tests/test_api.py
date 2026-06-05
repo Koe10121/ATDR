@@ -118,11 +118,14 @@ def test_oidc_status_is_authenticated_and_does_not_expose_secret(monkeypatch):
 def test_dashboard_validation_summary_reports_latest_file_without_private_paths(monkeypatch):
     report_dir = Path(".pytest_tmp") / "dashboard_validation_summary" / "detection_validation"
     generalization_dir = Path(".pytest_tmp") / "dashboard_validation_summary" / "detection_generalization"
+    layered_dir = Path(".pytest_tmp") / "dashboard_validation_summary" / "layered_detection"
     shutil.rmtree(report_dir.parent, ignore_errors=True)
     report_dir.mkdir(parents=True)
     generalization_dir.mkdir(parents=True)
+    layered_dir.mkdir(parents=True)
     report_path = report_dir / "detection_validation_20260604T110000Z.json"
     generalization_path = generalization_dir / "detection_generalization_20260605T010000Z.json"
+    layered_path = layered_dir / "layered_detection_20260605T014000Z.json"
     report_path.write_text(
         json.dumps(
             {
@@ -171,8 +174,36 @@ def test_dashboard_validation_summary_reports_latest_file_without_private_paths(
         ),
         encoding="utf-8",
     )
+    layered_path.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "generated_at": "2026-06-05T01:40:00+00:00",
+                "validation_scope": "controlled layered detection contribution validation",
+                "scenario_count": 14,
+                "variant_count": 42,
+                "mode_count": 4,
+                "mode_run_count": 168,
+                "passed_count": 168,
+                "failed_count": 0,
+                "false_positive_count": 0,
+                "false_negative_count": 0,
+                "mode_summary": [{"mode": "rules_only", "tests": 42, "passed_count": 42}],
+                "safety": {
+                    "response_mode": "simulated analyst-approved only",
+                    "production_readiness_claim": False,
+                },
+                "paths": {
+                    "json": str(layered_path),
+                    "markdown": str(layered_dir / "layered_detection_20260605T014000Z.md"),
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
     monkeypatch.setattr(dashboard_router, "VALIDATION_REPORT_DIR", report_dir)
     monkeypatch.setattr(dashboard_router, "GENERALIZATION_REPORT_DIR", generalization_dir)
+    monkeypatch.setattr(dashboard_router, "LAYERED_REPORT_DIR", layered_dir)
     client = _client()
     try:
         unauthorized = client.get("/api/dashboard/validation-summary")
@@ -193,10 +224,18 @@ def test_dashboard_validation_summary_reports_latest_file_without_private_paths(
         assert payload["generalization"]["false_positive_count"] == 0
         assert payload["generalization"]["false_negative_count"] == 0
         assert payload["generalization"]["latest_report_name"] == generalization_path.name
+        assert payload["layered"]["available"] is True
+        assert payload["layered"]["mode_run_count"] == 168
+        assert payload["layered"]["passed_count"] == 168
+        assert payload["layered"]["false_positive_count"] == 0
+        assert payload["layered"]["false_negative_count"] == 0
+        assert payload["layered"]["latest_report_name"] == layered_path.name
         assert str(report_dir) not in json.dumps(payload)
         assert str(generalization_dir) not in json.dumps(payload)
+        assert str(layered_dir) not in json.dumps(payload)
         assert payload["production_readiness_claim"] is False
         assert payload["generalization"]["production_readiness_claim"] is False
+        assert payload["layered"]["production_readiness_claim"] is False
     finally:
         app.dependency_overrides.clear()
         shutil.rmtree(report_dir.parent, ignore_errors=True)

@@ -145,6 +145,14 @@ python -m atdr.scripts.run_detection_generalization_suite --all --variants 5 --p
 
 Generalization reports are written under ignored `demo_exports/detection_generalization/`, and generated variants are written under ignored `demo_exports/detection_variants/`.
 
+Run the v0.9 layered detection validation suite to compare rules, anomaly scoring, supervised SOC triage, and hybrid scoring:
+
+```powershell
+python -m atdr.scripts.run_layered_detection_validation --all --variants 3 --pretty
+```
+
+Layered reports are written under ignored `demo_exports/layered_detection/`.
+
 Run a scenario against a temporary database:
 
 ```powershell
@@ -234,6 +242,7 @@ Start here:
 - `docs/LAB_RUNBOOK.md` - lab operations, replay, syslog, source validation, and troubleshooting.
 - `docs/V0_6_THREAT_DETECTION_VALIDATION.md` - active controlled threat detection validation plan.
 - `docs/V0_8_DETECTION_GENERALIZATION.md` - synthetic variant validation and anti-overfitting checks.
+- `docs/V0_9_LAYERED_DETECTION_VALIDATION.md` - layered rules/anomaly/ML/hybrid contribution validation.
 - `docs/V0_5_SIMULATION_DEMO_PLAN.md` - earlier controlled replay validation plan.
 - `docs/V0_5_REAL_SOURCE_VALIDATION_PLAN.md` - future controlled hardware source validation plan.
 - `docs/V0_3_RELEASE_CANDIDATE.md` - current release-candidate summary.
