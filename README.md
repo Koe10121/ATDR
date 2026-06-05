@@ -127,13 +127,15 @@ python -m atdr.scripts.replay_logs --send-to direct --source-name lab-firewall-1
 
 ## Controlled Threat Detection Validation
 
-Synthetic scenario files live under `data/samples/scenarios/`. They validate normal traffic, scanning-like traffic, brute-force-like service attempts, C2/beaconing-like activity, data exfiltration suspicion, connection flood behavior, raw fallback, and policy/suspicious-app behavior without using private logs or offensive tooling.
+Synthetic scenario files live under `data/samples/scenarios/`. They validate normal traffic, negative controls, mixed small-subnet traffic, scanning-like traffic, brute-force-like service attempts, C2/beaconing-like activity, data exfiltration suspicion, connection flood behavior, deduplication, parser fallback, and policy/suspicious-app behavior without using private logs or offensive tooling.
 
-Run the full v0.6 validation suite safely against a temporary database:
+Run the full v0.7 validation suite safely against a temporary database:
 
 ```powershell
 python -m atdr.scripts.run_detection_validation_suite --all --pretty
 ```
+
+The suite writes ignored JSON/Markdown reports plus a risk-calibration report under `demo_exports/detection_validation/`. The React Overview page shows a compact latest validation summary, but generated reports should not be committed.
 
 Run a scenario against a temporary database:
 

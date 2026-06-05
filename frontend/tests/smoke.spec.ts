@@ -509,6 +509,25 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
       }
     })
   );
+  await page.route("**/api/dashboard/validation-summary", async (route) =>
+    route.fulfill({
+      json: {
+        available: true,
+        ok: true,
+        generated_at: "2026-06-04T11:00:00Z",
+        scenario_count: 14,
+        passed_count: 14,
+        failed_count: 0,
+        failed_scenarios: [],
+        latest_report_name: "detection_validation_20260604T110000Z.json",
+        latest_markdown_name: "detection_validation_20260604T110000Z.md",
+        latest_risk_calibration_name: "detection_validation_20260604T110000Z_risk_calibration.md",
+        validation_scope: "controlled small-subnet / lab-scale threat detection validation",
+        response_mode: "simulated analyst-approved only",
+        production_readiness_claim: false
+      }
+    })
+  );
   await page.route("**/api/ml/supervised/models", async (route) =>
     route.fulfill({
       json: {

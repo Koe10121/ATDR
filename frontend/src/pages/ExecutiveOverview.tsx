@@ -9,8 +9,8 @@ import { Badge } from "../components/Badge";
 import {
   useAlerts,
   useAuditPage,
-  useAlertCases,
   useDashboardSummary,
+  useDashboardValidationSummary,
   useDetectionRuns,
   useHealth,
   useIngestionRuns,
@@ -25,6 +25,7 @@ const chartColors = ["#ef4444", "#f97316", "#f59e0b", "#22c55e", "#22d3ee", "#94
 
 export function ExecutiveOverview() {
   const summary = useDashboardSummary();
+  const validationSummary = useDashboardValidationSummary();
   const health = useHealth();
   const mlReport = useMlReport();
   const supervised = useSupervisedReport();
@@ -33,7 +34,6 @@ export function ExecutiveOverview() {
   const ingestionRuns = useIngestionRuns({ limit: 5 });
   const detectionRuns = useDetectionRuns({ limit: 5 });
   const sources = useSources({ limit: 5 });
-  const activeCases = useAlertCases({ active_only: true, limit: 20 });
   const [selectedSourceId, setSelectedSourceId] = useState<number | null>(null);
   const sourceDetail = useSource(selectedSourceId);
   const critical = useAlerts({ severity: "Critical", status: "open", limit: 5 });
@@ -65,6 +65,7 @@ export function ExecutiveOverview() {
         String(run.input_name ?? "").includes("syslog")
     ) ?? null;
   const demoSource = (sources.data ?? []).find((source) => source.name.startsWith("scenario-")) ?? (sources.data ?? [])[0] ?? null;
+  const validation = validationSummary.data;
 
   return (
     <div className="space-y-5">
@@ -143,10 +144,20 @@ export function ExecutiveOverview() {
           </div>
           <div className="flex flex-wrap gap-2">
             <Badge value="Lab-Scale Validation" />
+            <Badge value={validation?.available ? (validation.ok ? "Validation Passing" : "Validation Review") : "Run Validation Suite"} />
             <Badge value="Manual Approval Required" />
           </div>
         </div>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-lg border border-line bg-panel2 p-3">
+            <div className="text-xs font-bold uppercase tracking-wide text-muted">Validation Suite</div>
+            <div className="mt-1 font-bold text-text">
+              {validation?.available ? `${validation.passed_count ?? 0}/${validation.scenario_count ?? 0} passed` : "No report yet"}
+            </div>
+            <div className="mt-1 text-xs text-muted">
+              {validation?.available ? `Generated ${validation.generated_at ?? "-"}` : validation?.message ?? "Run detection validation to publish a report."}
+            </div>
+          </div>
           <div className="rounded-lg border border-line bg-panel2 p-3">
             <div className="text-xs font-bold uppercase tracking-wide text-muted">Demo Source</div>
             <div className="mt-1 break-words font-bold text-text">{demoSource?.name ?? "No source yet"}</div>
@@ -168,10 +179,10 @@ export function ExecutiveOverview() {
             </div>
           </div>
           <div className="rounded-lg border border-line bg-panel2 p-3">
-            <div className="text-xs font-bold uppercase tracking-wide text-muted">Detection Result</div>
-            <div className="mt-1 font-bold text-text">Created {latestDetectionRun?.alerts_created ?? "-"}</div>
+            <div className="text-xs font-bold uppercase tracking-wide text-muted">Risk Calibration</div>
+            <div className="mt-1 break-words font-bold text-text">{validation?.latest_risk_calibration_name ?? "Not generated"}</div>
             <div className="mt-1 text-xs text-muted">
-              Dedup {latestDetectionRun?.alerts_deduplicated ?? "-"} | cases {activeCases.data?.length ?? "-"}
+              Latest report {validation?.latest_report_name ?? "-"}
             </div>
           </div>
         </div>

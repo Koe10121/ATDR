@@ -9,6 +9,7 @@ export const queryKeys = {
   me: ["me"],
   oidcStatus: ["oidc-status"],
   summary: ["dashboard-summary"],
+  validationSummary: ["dashboard-validation-summary"],
   ingestionRuns: (params?: Record<string, unknown>) => ["ingestion-runs", params ?? {}],
   detectionRuns: (params?: Record<string, unknown>) => ["detection-runs", params ?? {}],
   sources: (params?: Record<string, unknown>) => ["sources", params ?? {}],
@@ -82,6 +83,15 @@ export function useOidcStatus() {
 
 export function useDashboardSummary() {
   return useQuery({ queryKey: queryKeys.summary, queryFn: api.dashboardSummary, refetchInterval: 30_000 });
+}
+
+export function useDashboardValidationSummary() {
+  return useQuery({
+    queryKey: queryKeys.validationSummary,
+    queryFn: api.dashboardValidationSummary,
+    refetchInterval: 60_000,
+    retry: 1
+  });
 }
 
 export function useIngestionRuns(params: Params = {}) {

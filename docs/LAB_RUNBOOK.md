@@ -166,9 +166,9 @@ Invoke-RestMethod "http://127.0.0.1:8000/api/detection/run?limit=1000&use_ml=tru
 
 The unfiltered detection command remains unchanged. Source-scoped detection is optional and useful for confirming that recent replay or syslog activity from one lab source can be traced into source-linked detection run history.
 
-## v0.6 Controlled Small-Subnet Threat Detection Validation
+## v0.7 Controlled Detection Quality Validation
 
-ATDR v0.6 validates defensive detection capability with safe synthetic/replayed logs. This is controlled small-subnet/lab-scale validation, not production certification and not an offensive test.
+ATDR v0.7 validates defensive detection quality with safe synthetic/replayed logs. This is controlled small-subnet/lab-scale validation, not production certification and not an offensive test.
 
 Run the expectation-based suite against a temporary database:
 
@@ -176,24 +176,34 @@ Run the expectation-based suite against a temporary database:
 .\.venv\Scripts\python.exe -m atdr.scripts.run_detection_validation_suite --all --pretty
 ```
 
-The suite reads `data/samples/scenarios/scenario_expectations.json`, imports each scenario, runs detection, compares actual results to expected outcomes, checks raw evidence preservation, verifies no response actions were created, and writes JSON/Markdown reports to ignored `demo_exports/detection_validation/`.
+The suite reads `data/samples/scenarios/scenario_expectations.json`, imports each scenario, runs detection, compares actual results to expected outcomes, checks raw evidence preservation, checks evidence quality, verifies no response actions were created, and writes JSON/Markdown reports plus a risk-calibration report to ignored `demo_exports/detection_validation/`.
 
-Current v0.6 scenarios:
+Current v0.7 scenarios:
 
 - `normal_allowed_traffic`: clean allowed traffic, no high/critical alert.
+- `normal_web_dns_quic_traffic`: routine web, DNS, and QUIC traffic, no noisy alert creation.
+- `normal_high_volume_but_allowed_traffic`: approved moderate-volume business traffic below exfiltration threshold.
+- `normal_repeated_same_service_traffic`: repeated allowed common-service access, no scan/beacon alert.
+- `mixed_small_subnet_validation`: benign plus scan-like, brute-force-like, beacon-like, and odd rows in one source.
 - `port_scan_like_traffic`: port-scan-style evidence from repeated ports.
 - `brute_force_like_traffic`: repeated denied attempts against a service/authentication port.
 - `malware_c2_like_beaconing`: repeated outbound destination behavior with risky/uncommon app context.
 - `data_exfiltration_suspicion`: high outbound byte-volume pattern.
 - `policy_violation_suspicious_app`: high-risk app and suspicious app characteristics.
 - `ddos_or_connection_flood_like`: repeated connection flood-like behavior.
+- `repeated_dedup_traffic`: repeated alert evidence updates occurrence count instead of creating endless duplicate alerts.
+- `generic_syslog_mixed`: raw evidence preserved with limited generic parser fields.
 - `malformed_raw_fallback`: raw evidence preserved and parser failures counted without crashing.
+
+The Overview page reads the latest generated validation report through `/api/dashboard/validation-summary` and shows only safe metadata such as pass count and report filenames.
 
 Only write validation rows to the current dashboard database when you intentionally want to inspect them in React:
 
 ```powershell
 .\.venv\Scripts\python.exe -m atdr.scripts.run_detection_validation_suite --scenario port_scan_like_traffic --write-to-current-db --pretty
 ```
+
+See `docs/V0_7_DETECTION_QUALITY_HARDENING.md` for the v0.7 scenario catalog, risk calibration behavior, and dashboard summary details.
 
 ## v0.5 Controlled Replay Validation Archive
 

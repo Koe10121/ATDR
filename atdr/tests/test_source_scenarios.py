@@ -41,6 +41,23 @@ def test_normal_allowed_scenario_does_not_create_high_critical_alerts():
     assert result["expected_outcome"]["source_counts"]["alerts"] == 0
 
 
+def test_negative_control_scenarios_do_not_create_high_critical_alerts():
+    for scenario in [
+        "normal_web_dns_quic_traffic",
+        "normal_high_volume_but_allowed_traffic",
+        "normal_repeated_same_service_traffic",
+    ]:
+        result = run_source_scenario(
+            scenario=scenario,
+            use_temp_db=True,
+            run_detection_after=True,
+        )
+
+        checks = {item["name"]: item for item in result["expected_outcome"]["checks"]}
+        assert result["ok"] is True
+        assert checks["no_high_or_critical_alerts"]["passed"] is True
+
+
 def test_port_scan_scenario_creates_source_scoped_alert():
     result = run_source_scenario(
         scenario="port_scan_like_traffic",
@@ -65,6 +82,21 @@ def test_policy_violation_suspicious_app_scenario_creates_alert():
     assert result["ok"] is True
     assert checks["suspicious_app_alert_created"]["passed"] is True
     assert result["expected_outcome"]["source_counts"]["alerts"] >= 1
+
+
+def test_mixed_small_subnet_scenario_exercises_multiple_threat_types():
+    result = run_source_scenario(
+        scenario="mixed_small_subnet_validation",
+        use_temp_db=True,
+        run_detection_after=True,
+    )
+
+    checks = {item["name"]: item for item in result["expected_outcome"]["checks"]}
+    assert result["ok"] is True
+    assert checks["mixed_port_scan_alert_created"]["passed"] is True
+    assert checks["mixed_brute_force_alert_created"]["passed"] is True
+    assert checks["mixed_beaconing_alert_created"]["passed"] is True
+    assert result["expected_outcome"]["source_counts"]["raw_logs"] == 27
 
 
 def test_repeated_dedup_scenario_updates_occurrence_count():

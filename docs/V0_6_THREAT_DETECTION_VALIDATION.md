@@ -2,6 +2,8 @@
 
 ATDR v0.6 validates defensive detection capability in a controlled small-subnet / lab-scale setting. It does not claim production readiness, does not execute attacks, and does not enable real firewall blocking.
 
+For the newer detection-quality hardening pass, including negative controls, mixed traffic, evidence quality checks, and risk/severity calibration, see `docs/V0_7_DETECTION_QUALITY_HARDENING.md`.
+
 ## Scope
 
 This phase proves that ATDR can:

@@ -407,6 +407,23 @@ export interface DashboardSummary {
   latest_detection_run?: DetectionRun | null;
 }
 
+export interface DashboardValidationSummary {
+  available: boolean;
+  ok?: boolean;
+  generated_at?: string | null;
+  scenario_count?: number;
+  passed_count?: number;
+  failed_count?: number;
+  failed_scenarios?: string[];
+  latest_report_name?: string | null;
+  latest_markdown_name?: string | null;
+  latest_risk_calibration_name?: string | null;
+  validation_scope?: string | null;
+  response_mode?: string | null;
+  production_readiness_claim?: boolean;
+  message?: string;
+}
+
 export interface TuningReadinessItem {
   name: string;
   status: string;

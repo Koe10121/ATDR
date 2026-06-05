@@ -1,4 +1,6 @@
 from collections.abc import Generator
+import json
+import shutil
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -10,6 +12,7 @@ from atdr.app.core.config import get_settings
 from atdr.app.db.database import Base, get_db
 from atdr.app.db.models import Alert
 from atdr.app.main import app
+from atdr.app.routers import dashboard as dashboard_router
 from atdr.app.services.user_service import create_user
 from atdr.tests.test_parser import TRAFFIC_LINE
 
@@ -110,6 +113,55 @@ def test_oidc_status_is_authenticated_and_does_not_expose_secret(monkeypatch):
         assert "SMTP_PASSWORD" not in str(payload)
     finally:
         app.dependency_overrides.clear()
+
+
+def test_dashboard_validation_summary_reports_latest_file_without_private_paths(monkeypatch):
+    report_dir = Path(".pytest_tmp") / "dashboard_validation_summary" / "detection_validation"
+    shutil.rmtree(report_dir.parent, ignore_errors=True)
+    report_dir.mkdir(parents=True)
+    report_path = report_dir / "detection_validation_20260604T110000Z.json"
+    report_path.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "generated_at": "2026-06-04T11:00:00+00:00",
+                "validation_scope": "controlled small-subnet / lab-scale threat detection validation",
+                "scenario_count": 14,
+                "passed_count": 14,
+                "scenarios": [{"scenario": "port_scan_like_traffic", "passed": True}],
+                "safety": {
+                    "response_mode": "simulated analyst-approved only",
+                    "production_readiness_claim": False,
+                },
+                "paths": {
+                    "json": str(report_path),
+                    "markdown": str(report_dir / "detection_validation_20260604T110000Z.md"),
+                    "risk_calibration": str(report_dir / "detection_validation_20260604T110000Z_risk_calibration.md"),
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(dashboard_router, "VALIDATION_REPORT_DIR", report_dir)
+    client = _client()
+    try:
+        unauthorized = client.get("/api/dashboard/validation-summary")
+        assert unauthorized.status_code == 401
+        headers = _login(client, "analyst", "analyst123")
+        response = client.get("/api/dashboard/validation-summary", headers=headers)
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["available"] is True
+        assert payload["ok"] is True
+        assert payload["scenario_count"] == 14
+        assert payload["passed_count"] == 14
+        assert payload["latest_report_name"] == report_path.name
+        assert payload["latest_risk_calibration_name"].endswith("_risk_calibration.md")
+        assert str(report_dir) not in json.dumps(payload)
+        assert payload["production_readiness_claim"] is False
+    finally:
+        app.dependency_overrides.clear()
+        shutil.rmtree(report_dir.parent, ignore_errors=True)
         get_settings.cache_clear()
 
 

@@ -22,6 +22,24 @@ SCENARIO_DIR = PROJECT_ROOT / "data" / "samples" / "scenarios"
 EXPECTATIONS_PATH = SCENARIO_DIR / "scenario_expectations.json"
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "demo_exports" / "detection_validation"
 SEVERITY_RANK = {"Low": 1, "Medium": 2, "High": 3, "Critical": 4}
+EVIDENCE_QUALITY_TERMS = {
+    "action",
+    "allow",
+    "byte",
+    "connection",
+    "denied",
+    "destination",
+    "distinct",
+    "external",
+    "outbound",
+    "port",
+    "repeated",
+    "risk",
+    "scan",
+    "service",
+    "source",
+    "transfer",
+}
 
 
 def _json_default(value: Any) -> str:
@@ -99,6 +117,14 @@ def _check_expectations(
     max_severity = max((alert.severity for alert in alerts), key=lambda value: SEVERITY_RANK.get(value, 0), default="Low")
     attack_types = {str(summary.get("attack_type") or "") for summary in summaries}
     evidence_corpus = " ".join(_alert_text(alert, summary) for alert, summary in zip(alerts, summaries, strict=False))
+    dedup_count = 0
+    for alert in alerts:
+        metadata = next((rule for rule in (alert.matched_rules_json or []) if rule.get("code") == "group_metadata"), {})
+        if metadata.get("deduplicated"):
+            occurrence_count = int(metadata.get("occurrence_count") or metadata.get("evidence_count") or len(alert.evidence) or 1)
+            dedup_count += max(0, occurrence_count - 1)
+    if dedup_count:
+        evidence_corpus += " deduplicated"
     if source.latest_error:
         evidence_corpus += f" {source.latest_error.lower()}"
 
@@ -108,18 +134,32 @@ def _check_expectations(
         f"Parser successes: {source.parse_success_count}; expected at least {expectation.get('expected_parser_success_min', 0)}.",
     )
     add(
+        "parser_failure_min",
+        source.parse_failure_count >= int(expectation.get("expected_parse_failures_min", 0)),
+        f"Parse failures: {source.parse_failure_count}; expected at least {expectation.get('expected_parse_failures_min', 0)}.",
+    )
+    add(
         "raw_evidence_preserved",
         not expectation.get("expected_raw_preserved") or source_counts["raw_logs"] > 0,
         f"Source-linked raw logs: {source_counts['raw_logs']}.",
     )
     if expected_alert_present:
         add("alert_present", alert_present, f"Alert count: {len(alerts)}.")
+        expected_attack_types = [str(item) for item in expectation.get("expected_attack_types", [])]
         expected_attack_type = str(expectation.get("expected_attack_type") or "")
-        add(
-            "expected_attack_type",
-            expected_attack_type in attack_types,
-            f"Expected {expected_attack_type}; actual {sorted(attack_types)}.",
-        )
+        if expected_attack_types:
+            missing_attack_types = [attack_type for attack_type in expected_attack_types if attack_type not in attack_types]
+            add(
+                "expected_attack_types",
+                not missing_attack_types,
+                f"Expected {expected_attack_types}; actual {sorted(attack_types)}; missing {missing_attack_types or 'none'}.",
+            )
+        else:
+            add(
+                "expected_attack_type",
+                expected_attack_type in attack_types,
+                f"Expected {expected_attack_type}; actual {sorted(attack_types)}.",
+            )
         add(
             "min_severity",
             _severity_at_least(max_severity, expectation.get("expected_min_severity")),
@@ -129,6 +169,24 @@ def _check_expectations(
             "min_risk_score",
             max_score >= int(expectation.get("expected_min_risk_score", 0)),
             f"Max risk score: {max_score}; expected at least {expectation.get('expected_min_risk_score', 0)}.",
+        )
+        if expectation.get("expected_max_risk_score") is not None:
+            add(
+                "max_risk_score",
+                max_score <= int(expectation["expected_max_risk_score"]),
+                f"Max risk score: {max_score}; expected at most {expectation['expected_max_risk_score']}.",
+            )
+        evidence_points = [
+            str(point)
+            for summary in summaries
+            for point in (summary.get("top_evidence_points") or [])
+        ]
+        evidence_quality_hits = sorted({term for term in EVIDENCE_QUALITY_TERMS if term in evidence_corpus})
+        expected_quality_min = int(expectation.get("expected_evidence_quality_min", 0))
+        add(
+            "evidence_quality",
+            len(evidence_points) >= expected_quality_min and len(evidence_quality_hits) >= min(expected_quality_min, 2),
+            f"Evidence points: {len(evidence_points)}; concrete terms: {evidence_quality_hits or 'none'}; expected quality min {expected_quality_min}.",
         )
         missing_keywords = [
             keyword for keyword in expectation.get("expected_evidence_keywords", []) if str(keyword).lower() not in evidence_corpus
@@ -141,6 +199,25 @@ def _check_expectations(
     else:
         severe_alerts = [alert for alert in alerts if SEVERITY_RANK.get(alert.severity, 0) >= SEVERITY_RANK["High"]]
         add("no_high_or_critical_alerts", not severe_alerts, f"High/critical alert count: {len(severe_alerts)}.")
+        if expectation.get("expected_alert_count_max") is not None:
+            add(
+                "alert_count_max",
+                len(alerts) <= int(expectation["expected_alert_count_max"]),
+                f"Alert count: {len(alerts)}; expected at most {expectation['expected_alert_count_max']}.",
+            )
+
+    if expectation.get("expected_alert_count_max") is not None and expected_alert_present:
+        add(
+            "alert_count_max",
+            len(alerts) <= int(expectation["expected_alert_count_max"]),
+            f"Alert count: {len(alerts)}; expected at most {expectation['expected_alert_count_max']}.",
+        )
+    if expectation.get("expected_dedup_min") is not None:
+        add(
+            "dedup_min",
+            dedup_count >= int(expectation["expected_dedup_min"]),
+            f"Deduplicated updates observed: {dedup_count}; expected at least {expectation['expected_dedup_min']}.",
+        )
 
     response_actions_after = int(db.query(ResponseAction).count())
     add(
@@ -149,6 +226,35 @@ def _check_expectations(
         f"Response actions before/after: {response_actions_before}/{response_actions_after}.",
     )
     return checks, evidence_corpus
+
+
+def _risk_calibration_for_result(result: dict[str, Any]) -> dict[str, Any]:
+    expectation = result.get("expected", {})
+    alerts = result.get("alerts", [])
+    max_risk_score = max((int(alert.get("risk_score") or 0) for alert in alerts), default=0)
+    max_severity = max(
+        (str(alert.get("severity") or "Low") for alert in alerts),
+        key=lambda value: SEVERITY_RANK.get(value, 0),
+        default="Low",
+    )
+    expected_min_score = int(expectation.get("expected_min_risk_score", 0) or 0)
+    expected_max_score = expectation.get("expected_max_risk_score")
+    expected_max_score_value = int(expected_max_score) if expected_max_score is not None else None
+    severity_ok = _severity_at_least(max_severity, expectation.get("expected_min_severity"))
+    min_score_ok = max_risk_score >= expected_min_score
+    max_score_ok = expected_max_score_value is None or max_risk_score <= expected_max_score_value
+    return {
+        "scenario": result["scenario"],
+        "expected_alert_present": bool(expectation.get("expected_alert_present")),
+        "expected_min_severity": expectation.get("expected_min_severity"),
+        "actual_max_severity": max_severity,
+        "expected_min_risk_score": expected_min_score,
+        "expected_max_risk_score": expected_max_score_value,
+        "actual_max_risk_score": max_risk_score,
+        "alert_count": int(result.get("alert_count") or 0),
+        "evidence_point_count": sum(len(alert.get("top_evidence_points") or []) for alert in alerts),
+        "passed": bool(result.get("passed")) and severity_ok and min_score_ok and max_score_ok,
+    }
 
 
 def run_detection_validation_scenario(
@@ -203,6 +309,30 @@ def run_detection_validation_scenario(
                 source_name=source.name,
                 source_type=source.source_type,
             )
+            detection_results = [detection_result]
+            import_results = [import_result]
+            if spec.repeat_import_detection:
+                import_results.append(
+                    import_log_file(
+                        db,
+                        path,
+                        actor="detection_validation",
+                        source_id=source.id,
+                        parser_profile=spec.default_parser_profile,
+                    )
+                )
+                detection_results.append(
+                    run_detection(
+                        db,
+                        limit=max(100, count_nonblank_log_lines(path) * 3),
+                        use_ml=use_ml,
+                        actor="detection_validation",
+                        source_id=source.id,
+                        source_name=source.name,
+                        source_type=source.source_type,
+                    )
+                )
+                detection_result = detection_results[-1]
             db.refresh(source)
             alerts = list_alerts(db, source_id=source.id, limit=50)
             summaries = [build_alert_detection_summary(db, alert) for alert in alerts]
@@ -225,7 +355,9 @@ def run_detection_validation_scenario(
                 "checks": checks,
                 "source": source_detail,
                 "import_result": import_result,
+                "import_results": import_results,
                 "detection_result": detection_result,
+                "detection_results": detection_results,
                 "alert_count": len(alerts),
                 "alerts": [
                     {
@@ -328,15 +460,55 @@ def render_markdown_report(report: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def render_risk_calibration_report(report: dict[str, Any]) -> str:
+    lines = [
+        "# ATDR Risk And Severity Calibration",
+        "",
+        f"- Generated at: {report['generated_at']}",
+        "- Scope: controlled synthetic/replay validation only",
+        "- Response mode: simulated and analyst-approved only",
+        "",
+        "| Scenario | Result | Alerts | Severity expected/actual | Risk expected/actual | Evidence points |",
+        "| --- | --- | ---: | --- | --- | ---: |",
+    ]
+    for item in report.get("risk_calibration", []):
+        expected_risk = f"{item['expected_min_risk_score']}"
+        if item.get("expected_max_risk_score") is not None:
+            expected_risk += f"-{item['expected_max_risk_score']}"
+        lines.append(
+            "| "
+            f"{item['scenario']} | "
+            f"{'PASS' if item['passed'] else 'FAIL'} | "
+            f"{item['alert_count']} | "
+            f"{item.get('expected_min_severity')}/{item['actual_max_severity']} | "
+            f"{expected_risk}/{item['actual_max_risk_score']} | "
+            f"{item['evidence_point_count']} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Interpretation",
+            "",
+            "- Positive scenarios should create explainable alerts with severity and risk inside the expected lab range.",
+            "- Negative-control scenarios should avoid high/critical alerts and avoid noisy alert creation.",
+            "- This calibration is for lab scenario quality, not production accuracy.",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
 def write_report(report: dict[str, Any], output_dir: Path = DEFAULT_OUTPUT_DIR) -> dict[str, str]:
     output_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     stem = f"detection_validation_{timestamp}"
     json_path = output_dir / f"{stem}.json"
     md_path = output_dir / f"{stem}.md"
+    risk_path = output_dir / f"{stem}_risk_calibration.md"
     json_path.write_text(json.dumps(report, default=_json_default, indent=2), encoding="utf-8")
     md_path.write_text(render_markdown_report(report), encoding="utf-8")
-    return {"json": str(json_path), "markdown": str(md_path)}
+    risk_path.write_text(render_risk_calibration_report(report), encoding="utf-8")
+    return {"json": str(json_path), "markdown": str(md_path), "risk_calibration": str(risk_path)}
 
 
 def run_detection_validation_suite(
@@ -374,6 +546,7 @@ def run_detection_validation_suite(
             "production_readiness_claim": False,
         },
     }
+    report["risk_calibration"] = [_risk_calibration_for_result(item) for item in results]
     if write_output:
         report["paths"] = write_report(report, output_dir=output_dir)
     return report

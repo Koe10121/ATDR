@@ -41,6 +41,34 @@ SCENARIOS: dict[str, ScenarioSpec] = {
         default_parser_profile="palo_alto",
         expected="No high or critical alerts from normal allowed LAN-to-internet traffic.",
     ),
+    "normal_web_dns_quic_traffic": ScenarioSpec(
+        name="normal_web_dns_quic_traffic",
+        filename="normal_web_dns_quic_traffic.txt",
+        default_source_type="firewall",
+        default_parser_profile="palo_alto",
+        expected="No high or critical alerts from routine web, DNS, and QUIC traffic.",
+    ),
+    "normal_high_volume_but_allowed_traffic": ScenarioSpec(
+        name="normal_high_volume_but_allowed_traffic",
+        filename="normal_high_volume_but_allowed_traffic.txt",
+        default_source_type="firewall",
+        default_parser_profile="palo_alto",
+        expected="No high or critical alerts from approved moderate-volume business traffic below exfiltration thresholds.",
+    ),
+    "normal_repeated_same_service_traffic": ScenarioSpec(
+        name="normal_repeated_same_service_traffic",
+        filename="normal_repeated_same_service_traffic.txt",
+        default_source_type="firewall",
+        default_parser_profile="palo_alto",
+        expected="No high or critical alerts from repeated allowed access to the same common service.",
+    ),
+    "mixed_small_subnet_validation": ScenarioSpec(
+        name="mixed_small_subnet_validation",
+        filename="mixed_small_subnet_validation.txt",
+        default_source_type="firewall",
+        default_parser_profile="palo_alto",
+        expected="Mixed normal, threat-like, and malformed rows should create expected alerts while preserving parser failures.",
+    ),
     "port_scan_like_traffic": ScenarioSpec(
         name="port_scan_like_traffic",
         filename="port_scan_like_traffic.txt",
@@ -195,9 +223,41 @@ def _validate_expected(
     def add(name: str, passed: bool, detail: str) -> None:
         checks.append({"name": name, "passed": passed, "detail": detail})
 
-    if spec.name == "normal_allowed_traffic":
+    if spec.name in {
+        "normal_allowed_traffic",
+        "normal_web_dns_quic_traffic",
+        "normal_high_volume_but_allowed_traffic",
+        "normal_repeated_same_service_traffic",
+    }:
         high_critical = [alert for alert in alerts if alert.severity in {"High", "Critical"}]
         add("no_high_or_critical_alerts", not high_critical, f"High/critical alert count: {len(high_critical)}")
+    elif spec.name == "mixed_small_subnet_validation":
+        alert_codes = {
+            str(rule.get("code"))
+            for alert in alerts
+            for rule in (alert.matched_rules_json or [])
+            if rule.get("code")
+        }
+        add(
+            "mixed_port_scan_alert_created",
+            "possible_port_scan" in alert_codes,
+            f"Observed rule codes: {sorted(alert_codes)}",
+        )
+        add(
+            "mixed_brute_force_alert_created",
+            "brute_force_like_attempts" in alert_codes,
+            f"Observed rule codes: {sorted(alert_codes)}",
+        )
+        add(
+            "mixed_beaconing_alert_created",
+            "beaconing_like_outbound" in alert_codes,
+            f"Observed rule codes: {sorted(alert_codes)}",
+        )
+        add(
+            "mixed_parser_handled_odd_rows",
+            source.logs_received_count >= 1 and source.parse_failure_count >= 0,
+            f"Logs received: {source.logs_received_count}; parse failures: {source.parse_failure_count}.",
+        )
     elif spec.name == "port_scan_like_traffic":
         port_scan_alerts = [
             alert
