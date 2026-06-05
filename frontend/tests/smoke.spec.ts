@@ -524,7 +524,26 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
         latest_risk_calibration_name: "detection_validation_20260604T110000Z_risk_calibration.md",
         validation_scope: "controlled small-subnet / lab-scale threat detection validation",
         response_mode: "simulated analyst-approved only",
-        production_readiness_claim: false
+        production_readiness_claim: false,
+        generalization: {
+          available: true,
+          ok: true,
+          generated_at: "2026-06-05T01:00:00Z",
+          scenario_count: 14,
+          variant_count: 70,
+          passed_count: 70,
+          failed_count: 0,
+          false_positive_count: 0,
+          false_negative_count: 0,
+          failed_families: [],
+          latest_report_name: "detection_generalization_20260605T010000Z.json",
+          latest_markdown_name: "detection_generalization_20260605T010000Z.md",
+          validation_scope: "controlled synthetic detection generalization validation",
+          use_temp_db: true,
+          response_mode: "simulated analyst-approved only",
+          production_readiness_claim: false,
+          synthetic_variants_only: true
+        }
       }
     })
   );
@@ -784,6 +803,9 @@ test("overview system health panel and ML governance wording render", async ({ p
   await page.goto("/overview");
   await expect(page.getByText("System Health")).toBeVisible();
   await expect(page.getByText("Controlled Validation")).toBeVisible();
+  await expect(page.getByText("Generalization")).toBeVisible();
+  await expect(page.getByText("70/70 variants")).toBeVisible();
+  await expect(page.getByText("FP 0 | FN 0")).toBeVisible();
   await expect(page.getByText("Lab-Scale Validation")).toBeVisible();
   await expect(page.getByText("Manual Approval Required")).toBeVisible();
   await expect(page.getByText("Hardware Validation Pending")).toBeVisible();

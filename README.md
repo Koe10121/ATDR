@@ -137,6 +137,14 @@ python -m atdr.scripts.run_detection_validation_suite --all --pretty
 
 The suite writes ignored JSON/Markdown reports plus a risk-calibration report under `demo_exports/detection_validation/`. The React Overview page shows a compact latest validation summary, but generated reports should not be committed.
 
+Run the v0.8 generalization suite to generate safe synthetic variants and check for false positives/false negatives without touching the current database:
+
+```powershell
+python -m atdr.scripts.run_detection_generalization_suite --all --variants 5 --pretty
+```
+
+Generalization reports are written under ignored `demo_exports/detection_generalization/`, and generated variants are written under ignored `demo_exports/detection_variants/`.
+
 Run a scenario against a temporary database:
 
 ```powershell
@@ -225,6 +233,7 @@ Start here:
 - `docs/QUICKSTART_FOR_TEAM.md` - Windows setup for teammates using clone or zip download.
 - `docs/LAB_RUNBOOK.md` - lab operations, replay, syslog, source validation, and troubleshooting.
 - `docs/V0_6_THREAT_DETECTION_VALIDATION.md` - active controlled threat detection validation plan.
+- `docs/V0_8_DETECTION_GENERALIZATION.md` - synthetic variant validation and anti-overfitting checks.
 - `docs/V0_5_SIMULATION_DEMO_PLAN.md` - earlier controlled replay validation plan.
 - `docs/V0_5_REAL_SOURCE_VALIDATION_PLAN.md` - future controlled hardware source validation plan.
 - `docs/V0_3_RELEASE_CANDIDATE.md` - current release-candidate summary.

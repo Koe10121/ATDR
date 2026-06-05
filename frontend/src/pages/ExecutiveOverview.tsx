@@ -148,7 +148,7 @@ export function ExecutiveOverview() {
             <Badge value="Manual Approval Required" />
           </div>
         </div>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <div className="rounded-lg border border-line bg-panel2 p-3">
             <div className="text-xs font-bold uppercase tracking-wide text-muted">Validation Suite</div>
             <div className="mt-1 font-bold text-text">
@@ -156,6 +156,19 @@ export function ExecutiveOverview() {
             </div>
             <div className="mt-1 text-xs text-muted">
               {validation?.available ? `Generated ${validation.generated_at ?? "-"}` : validation?.message ?? "Run detection validation to publish a report."}
+            </div>
+          </div>
+          <div className="rounded-lg border border-line bg-panel2 p-3">
+            <div className="text-xs font-bold uppercase tracking-wide text-muted">Generalization</div>
+            <div className="mt-1 font-bold text-text">
+              {validation?.generalization?.available
+                ? `${validation.generalization.passed_count ?? 0}/${validation.generalization.variant_count ?? 0} variants`
+                : "No variant run yet"}
+            </div>
+            <div className="mt-1 text-xs text-muted">
+              {validation?.generalization?.available
+                ? `FP ${validation.generalization.false_positive_count ?? 0} | FN ${validation.generalization.false_negative_count ?? 0}`
+                : validation?.generalization?.message ?? "Run detection generalization to publish a report."}
             </div>
           </div>
           <div className="rounded-lg border border-line bg-panel2 p-3">

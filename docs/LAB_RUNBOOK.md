@@ -205,6 +205,32 @@ Only write validation rows to the current dashboard database when you intentiona
 
 See `docs/V0_7_DETECTION_QUALITY_HARDENING.md` for the v0.7 scenario catalog, risk calibration behavior, and dashboard summary details.
 
+## v0.8 Detection Generalization Validation
+
+ATDR v0.8 checks whether detection behavior still holds when the safe scenario samples are varied. The suite generates synthetic defensive variants with shifted timestamps, safe IP changes, safe port changes, byte/session variation, and benign noise. It does not create offensive payloads, does not execute attacks, and does not create response actions.
+
+Generate variants without importing them into the current dashboard database:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.generate_detection_variants --scenario port_scan_like_traffic --variants 3 --pretty
+```
+
+Run the full generalization suite against a temporary database:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_detection_generalization_suite --all --variants 5 --pretty
+```
+
+Reports are written to ignored `demo_exports/detection_generalization/`; generated variant files are written to ignored `demo_exports/detection_variants/`. The Overview page shows a compact latest generalization status with pass count and false-positive/false-negative counts.
+
+Use current-database mode only when you intentionally want to inspect generated variants in React:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_detection_generalization_suite --scenario port_scan_like_traffic --variants 2 --write-to-current-db --pretty
+```
+
+See `docs/V0_8_DETECTION_GENERALIZATION.md` for report interpretation, safety boundaries, and known limits.
+
 ## v0.5 Controlled Replay Validation Archive
 
 ATDR v0.5 uses controlled simulation and replay as the current validation path because real firewall/router hardware is not available yet. This validates source health, parser behavior, source-scoped detection, alert evidence, deduplication, case grouping, simulated response safety, and dashboard investigation flow. It does not validate real device forwarding or real firewall enforcement.

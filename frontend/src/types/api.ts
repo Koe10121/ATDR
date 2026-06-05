@@ -422,6 +422,28 @@ export interface DashboardValidationSummary {
   response_mode?: string | null;
   production_readiness_claim?: boolean;
   message?: string;
+  generalization?: DashboardGeneralizationSummary;
+}
+
+export interface DashboardGeneralizationSummary {
+  available: boolean;
+  ok?: boolean;
+  generated_at?: string | null;
+  scenario_count?: number;
+  variant_count?: number;
+  passed_count?: number;
+  failed_count?: number;
+  false_positive_count?: number;
+  false_negative_count?: number;
+  failed_families?: string[];
+  latest_report_name?: string | null;
+  latest_markdown_name?: string | null;
+  validation_scope?: string | null;
+  use_temp_db?: boolean;
+  response_mode?: string | null;
+  production_readiness_claim?: boolean;
+  synthetic_variants_only?: boolean;
+  message?: string;
 }
 
 export interface TuningReadinessItem {
