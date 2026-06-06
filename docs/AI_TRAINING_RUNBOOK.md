@@ -784,3 +784,20 @@ The experiment compares RandomForest, ExtraTrees, LogisticRegression, HistGradie
 Recommended wording:
 
 > Benchmark experiments help evaluate model architecture and feature behavior on broader labeled data. They are not mixed with local firewall-log metrics by default, and they do not prove production accuracy. ATDR remains decision support only.
+
+## 29. v1.3 Larger Reviewed-Label Workflow
+
+```powershell
+python -m atdr.scripts.audit_training_data_quality --split time --test-size 0.3 --pretty
+python -m atdr.scripts.generate_v13_label_target_plan --split time --test-size 0.3 --pretty
+python -m atdr.scripts.export_v13_ai_training_review_sample --limit 500 --focus balanced --pretty
+```
+
+After human review and React AI Governance import:
+
+```powershell
+python -m atdr.scripts.train_v13_supervised_candidates --split time --test-size 0.3 --min-samples 6 --pretty
+python -m atdr.scripts.analyze_v13_ml_errors --split time --test-size 0.3 --min-samples 6 --pretty
+```
+
+See `docs/V1_3_LARGER_LABELED_DATA_AND_AI_TRAINING.md` for target definitions, focus modes, benchmark intake, readiness gate v3, and limitations. All outputs remain ignored, candidate-only, and unable to trigger response actions.

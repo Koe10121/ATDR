@@ -53,6 +53,7 @@ export function MLGovernance() {
   const temporal = temporalCoverage.data;
   const readiness = supervisedData?.model_readiness_checklist ?? supervisedData?.latest_run?.model_readiness_checklist;
   const benchmark = validationSummary.data?.benchmark;
+  const v13Ai = validationSummary.data?.v13_ai;
   const drift = data?.baseline_drift_report;
   const perClass = (supervisedMetrics.per_class ?? {}) as Record<string, Record<string, unknown>>;
   const benignMetrics = perClass.benign ?? {};
@@ -374,6 +375,16 @@ export function MLGovernance() {
                     benchmark.readiness_decision ?? "candidate_only"
                   }`
                 : "not generated"}
+            </span>
+          </div>
+          <div className="mt-2 rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
+            Training data:{" "}
+            <span className="font-bold text-text">
+              {v13Ai?.available
+                ? `${v13Ai.reviewed_label_count ?? 0} reviewed | minimum gaps ${v13Ai.minimum_label_gap ?? 0} | ${
+                    v13Ai.readiness_decision ?? "candidate_only"
+                  }`
+                : "v1.3 audit not generated"}
             </span>
           </div>
           {socReviewProfiles.length ? (

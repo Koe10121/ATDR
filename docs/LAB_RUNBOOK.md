@@ -736,3 +736,22 @@ Use `--yes` only when you understand it clears local demo data.
 - Do not enable automatic response.
 - Do not claim certified production readiness.
 - Do not commit real logs, DB files, model artifacts, generated CSV/reports, `.env`, `ml_baseline_reviews/`, or `demo_exports/`.
+
+## v1.3 Reviewed-Label Validation
+
+Run from the repository root:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.audit_training_data_quality --split time --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.generate_v13_label_target_plan --split time --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.export_v13_ai_training_review_sample --limit 500 --focus balanced --pretty
+```
+
+Review and import the CSV through React AI Governance. Then run:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.train_v13_supervised_candidates --split time --test-size 0.3 --min-samples 6 --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.analyze_v13_ml_errors --split time --test-size 0.3 --min-samples 6 --pretty
+```
+
+All outputs stay under ignored `ml_baseline_reviews/`. No candidate is activated and response automation remains disabled.

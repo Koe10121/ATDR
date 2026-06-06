@@ -428,6 +428,7 @@ export interface DashboardValidationSummary {
   reliability?: DashboardReliabilitySummary;
   benchmark?: DashboardBenchmarkSummary;
   drift?: DashboardDriftSummary;
+  v13_ai?: DashboardV13AiSummary;
 }
 
 export interface DashboardGeneralizationSummary {
@@ -549,6 +550,27 @@ export interface DashboardBenchmarkSummary {
   latest_markdown_name?: string | null;
   validation_scope?: string | null;
   production_readiness_claim?: boolean;
+  message?: string;
+}
+
+export interface DashboardV13AiSummary {
+  available: boolean;
+  ok?: boolean;
+  generated_at?: string | null;
+  reviewed_label_count?: number;
+  weak_label_count?: number;
+  minimum_target_classes_met?: number;
+  minimum_target_class_count?: number;
+  minimum_label_gap?: number;
+  best_candidate?: string | null;
+  threat_positive_f1?: number | null;
+  suspicious_recall?: number | null;
+  malicious_recall?: number | null;
+  readiness_decision?: string | null;
+  production_status?: string | null;
+  response_automation_allowed?: boolean;
+  latest_audit_report_name?: string | null;
+  latest_candidate_report_name?: string | null;
   message?: string;
 }
 

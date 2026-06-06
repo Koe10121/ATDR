@@ -273,6 +273,7 @@ Start here:
 - `docs/V1_0_E2E_WORKFLOW_VALIDATION.md` - controlled ingestion-to-investigation workflow validation with optional simulated response/audit checks.
 - `docs/V1_1_DETECTION_RELIABILITY_AND_BENCHMARKING.md` - reliability baselines, generic benchmark adapter, error analysis, risk calibration, drift, ML reliability, and stress testing.
 - `docs/V1_2_REALISTIC_BENCHMARK_AND_ML_STRENGTHENING.md` - sanitized benchmark snapshots, benchmark detection/ML experiments, layered comparison, and readiness gate v2.
+- `docs/V1_3_LARGER_LABELED_DATA_AND_AI_TRAINING.md` - reviewed-label audit, class targets, larger review samples, candidate training, error analysis, and readiness gate v3.
 - `docs/V0_5_SIMULATION_DEMO_PLAN.md` - earlier controlled replay validation plan.
 - `docs/V0_5_REAL_SOURCE_VALIDATION_PLAN.md` - future controlled hardware source validation plan.
 - `docs/V0_3_RELEASE_CANDIDATE.md` - current release-candidate summary.

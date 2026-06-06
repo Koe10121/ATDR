@@ -18,6 +18,7 @@ LAYERED_REPORT_DIR = PROJECT_ROOT / "demo_exports" / "layered_detection"
 E2E_REPORT_DIR = PROJECT_ROOT / "demo_exports" / "e2e_validation"
 RELIABILITY_REPORT_DIR = PROJECT_ROOT / "demo_exports" / "detection_reliability"
 BENCHMARK_REPORT_DIR = PROJECT_ROOT / "demo_exports" / "benchmarks"
+V13_REPORT_DIR = PROJECT_ROOT / "ml_baseline_reviews"
 
 
 def _latest_validation_summary(report_dir: Path = VALIDATION_REPORT_DIR) -> dict[str, Any]:
@@ -343,6 +344,56 @@ def _latest_v11_drift_summary(report_dir: Path = RELIABILITY_REPORT_DIR) -> dict
     }
 
 
+def _latest_v13_ai_summary(report_dir: Path = V13_REPORT_DIR) -> dict[str, Any]:
+    audit_summary, audit = _latest_reliability_file_summary(
+        report_dir,
+        "training_data_quality_audit_*.json",
+        missing_message="No v1.3 training-data audit has been generated yet.",
+    )
+    candidate_summary, candidate = _latest_reliability_file_summary(
+        report_dir,
+        "v1_3_supervised_candidate_report_*.json",
+        missing_message="No v1.3 supervised candidate report has been generated yet.",
+    )
+    target_path = report_dir / "v1_3_label_target_plan.json"
+    target = None
+    if target_path.exists():
+        try:
+            target = json.loads(target_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            target = None
+    if audit is None and candidate is None and target is None:
+        return audit_summary
+    readiness = (candidate or {}).get("readiness_gate_v3") or {}
+    best = (candidate or {}).get("best_flat_candidate") or {}
+    metrics = best.get("metrics") or {}
+    training_readiness = (audit or {}).get("training_readiness") or {}
+    class_rows = (target or {}).get("class_rows") or []
+    return {
+        "available": True,
+        "ok": bool((audit or candidate or target or {}).get("ok", True)),
+        "generated_at": (candidate or audit or target or {}).get("generated_at"),
+        "reviewed_label_count": int(
+            (audit or {}).get("reviewed_label_count")
+            or (candidate or {}).get("reviewed_label_count")
+            or 0
+        ),
+        "weak_label_count": int((audit or {}).get("weak_label_count") or 0),
+        "minimum_target_classes_met": int(training_readiness.get("minimum_target_classes_met") or 0),
+        "minimum_target_class_count": int(training_readiness.get("minimum_target_class_count") or 5),
+        "minimum_label_gap": sum(int(row.get("minimum_gap") or 0) for row in class_rows),
+        "best_candidate": best.get("name"),
+        "threat_positive_f1": (metrics.get("threat_positive") or {}).get("f1"),
+        "suspicious_recall": ((metrics.get("per_class") or {}).get("suspicious") or {}).get("recall"),
+        "malicious_recall": ((metrics.get("per_class") or {}).get("malicious") or {}).get("recall"),
+        "readiness_decision": readiness.get("decision") or "candidate_only",
+        "production_status": readiness.get("production_status") or "not_production_promoted",
+        "response_automation_allowed": False,
+        "latest_audit_report_name": audit_summary.get("latest_report_name"),
+        "latest_candidate_report_name": candidate_summary.get("latest_report_name"),
+    }
+
+
 @router.get("/summary")
 def dashboard_summary(
     db: Session = Depends(get_db),
@@ -362,4 +413,5 @@ def dashboard_validation_summary(
     summary["reliability"] = _latest_v11_reliability_summary(RELIABILITY_REPORT_DIR)
     summary["benchmark"] = _latest_v11_benchmark_summary(RELIABILITY_REPORT_DIR, BENCHMARK_REPORT_DIR)
     summary["drift"] = _latest_v11_drift_summary(RELIABILITY_REPORT_DIR)
+    summary["v13_ai"] = _latest_v13_ai_summary(V13_REPORT_DIR)
     return summary

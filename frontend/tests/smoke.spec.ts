@@ -629,6 +629,22 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
           readiness_decision: "candidate_only",
           production_readiness_claim: false
         },
+        v13_ai: {
+          available: true,
+          ok: true,
+          reviewed_label_count: 1528,
+          weak_label_count: 437,
+          minimum_target_classes_met: 3,
+          minimum_target_class_count: 5,
+          minimum_label_gap: 44,
+          best_candidate: "extra_trees",
+          threat_positive_f1: 0.91,
+          suspicious_recall: 0.75,
+          malicious_recall: 0.6,
+          readiness_decision: "analyst_review_eligible",
+          production_status: "not_production_promoted",
+          response_automation_allowed: false
+        },
         drift: {
           available: true,
           ok: true,
@@ -937,6 +953,7 @@ test("overview system health panel and ML governance wording render", async ({ p
 
   await page.goto("/ml");
   await expect(page.getByText("Analyst Review Eligible.")).toBeVisible();
+  await expect(page.getByText(/1528 reviewed \| minimum gaps 44/)).toBeVisible();
   await expect(page.getByText("Recommended AI Mode")).toBeVisible();
   await expect(page.getByText("SOC triage decision support")).toBeVisible();
   await expect(page.getByText("SOC Triage Mode")).toBeVisible();

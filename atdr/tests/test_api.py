@@ -134,6 +134,9 @@ def test_dashboard_validation_summary_reports_latest_file_without_private_paths(
     reliability_path = reliability_dir / "detection_reliability_baseline_20260605T030000Z.json"
     benchmark_path = reliability_dir / "benchmark_evaluation_20260605T031000Z.json"
     drift_path = reliability_dir / "drift_report_20260605T032000Z.json"
+    v13_audit_path = reliability_dir / "training_data_quality_audit_20260605T033000Z.json"
+    v13_target_path = reliability_dir / "v1_3_label_target_plan.json"
+    v13_candidate_path = reliability_dir / "v1_3_supervised_candidate_report_20260605T034000Z.json"
     report_path.write_text(
         json.dumps(
             {
@@ -301,12 +304,63 @@ def test_dashboard_validation_summary_reports_latest_file_without_private_paths(
         ),
         encoding="utf-8",
     )
+    v13_audit_path.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "generated_at": "2026-06-05T03:30:00+00:00",
+                "reviewed_label_count": 1528,
+                "weak_label_count": 437,
+                "training_readiness": {
+                    "minimum_target_classes_met": 3,
+                    "minimum_target_class_count": 5,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    v13_target_path.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "class_rows": [
+                    {"label": "benign", "minimum_gap": 34},
+                    {"label": "needs_context", "minimum_gap": 10},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    v13_candidate_path.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "generated_at": "2026-06-05T03:40:00+00:00",
+                "best_flat_candidate": {
+                    "name": "extra_trees",
+                    "metrics": {
+                        "threat_positive": {"f1": 0.91},
+                        "per_class": {
+                            "suspicious": {"recall": 0.75},
+                            "malicious": {"recall": 0.6},
+                        },
+                    },
+                },
+                "readiness_gate_v3": {
+                    "decision": "analyst_review_eligible",
+                    "production_status": "not_production_promoted",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
     monkeypatch.setattr(dashboard_router, "VALIDATION_REPORT_DIR", report_dir)
     monkeypatch.setattr(dashboard_router, "GENERALIZATION_REPORT_DIR", generalization_dir)
     monkeypatch.setattr(dashboard_router, "LAYERED_REPORT_DIR", layered_dir)
     monkeypatch.setattr(dashboard_router, "E2E_REPORT_DIR", e2e_dir)
     monkeypatch.setattr(dashboard_router, "RELIABILITY_REPORT_DIR", reliability_dir)
     monkeypatch.setattr(dashboard_router, "BENCHMARK_REPORT_DIR", reliability_dir)
+    monkeypatch.setattr(dashboard_router, "V13_REPORT_DIR", reliability_dir)
     client = _client()
     try:
         unauthorized = client.get("/api/dashboard/validation-summary")
@@ -356,6 +410,12 @@ def test_dashboard_validation_summary_reports_latest_file_without_private_paths(
         assert payload["drift"]["available"] is True
         assert payload["drift"]["warning_count"] == 0
         assert payload["drift"]["alert_rate"] == 0.02
+        assert payload["v13_ai"]["available"] is True
+        assert payload["v13_ai"]["reviewed_label_count"] == 1528
+        assert payload["v13_ai"]["minimum_label_gap"] == 44
+        assert payload["v13_ai"]["best_candidate"] == "extra_trees"
+        assert payload["v13_ai"]["readiness_decision"] == "analyst_review_eligible"
+        assert payload["v13_ai"]["response_automation_allowed"] is False
         assert str(report_dir) not in json.dumps(payload)
         assert str(generalization_dir) not in json.dumps(payload)
         assert str(layered_dir) not in json.dumps(payload)
