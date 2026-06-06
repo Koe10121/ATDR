@@ -1,0 +1,27 @@
+{
+  "description": "Example label and attack-type mapping for benchmark-style CSVs. Keep benchmark metrics separate from local firewall-log metrics.",
+  "labels": {
+    "0": "benign",
+    "1": "threat",
+    "BENIGN": "benign",
+    "Normal": "benign",
+    "Attack": "threat",
+    "Malicious": "threat",
+    "Suspicious": "threat"
+  },
+  "attack_types": {
+    "normal": "normal",
+    "benign": "normal",
+    "scan": "port_scan",
+    "portscan": "port_scan",
+    "port_scan": "port_scan",
+    "bruteforce": "brute_force",
+    "brute_force": "brute_force",
+    "dos": "dos_ddos",
+    "ddos": "dos_ddos",
+    "c2": "malware_c2",
+    "malware_c2": "malware_c2",
+    "exfil": "data_exfiltration_suspicion",
+    "exfiltration": "data_exfiltration_suspicion"
+  }
+}

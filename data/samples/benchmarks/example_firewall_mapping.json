@@ -1,0 +1,26 @@
+{
+  "description": "Example ATDR benchmark CSV field mapping. Adjust column names to match the public/synthetic benchmark CSV you are preparing.",
+  "fields": {
+    "timestamp": "event_time",
+    "src_ip": "source_ip",
+    "dst_ip": "destination_ip",
+    "src_port": "source_port",
+    "dst_port": "destination_port",
+    "protocol": "protocol",
+    "action": "firewall_action",
+    "app": "application",
+    "bytes": "bytes_total",
+    "packets": "packet_count",
+    "label": "label",
+    "attack_type": "attack_type"
+  },
+  "required_fields": [
+    "timestamp",
+    "src_ip",
+    "dst_ip",
+    "action",
+    "app",
+    "label",
+    "attack_type"
+  ]
+}

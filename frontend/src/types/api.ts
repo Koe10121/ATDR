@@ -534,12 +534,17 @@ export interface DashboardBenchmarkSummary {
   generated_at?: string | null;
   total_rows?: number;
   rows_mapped?: number;
+  dataset_name?: string | null;
+  snapshot_id?: string | null;
+  detection_mode?: string | null;
   precision?: number | string | null;
   recall?: number | string | null;
   f1?: number | string | null;
+  threat_positive_f1?: number | string | null;
   false_positive_count?: number;
   false_negative_count?: number;
   alert_volume?: number;
+  readiness_decision?: string | null;
   latest_report_name?: string | null;
   latest_markdown_name?: string | null;
   validation_scope?: string | null;

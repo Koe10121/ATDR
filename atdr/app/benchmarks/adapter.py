@@ -1,5 +1,7 @@
 import csv
+import hashlib
 import json
+import random
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -50,6 +52,18 @@ DEFAULT_ATTACK_TYPE_MAPPING = {
     "exfiltration": "data_exfiltration_suspicion",
 }
 
+SNAPSHOT_SCHEMA = "atdr_benchmark_snapshot_v1"
+PRIVATE_RAW_FIELDS = {
+    "payload",
+    "raw",
+    "raw_payload",
+    "message",
+    "event.original",
+    "http_request_body",
+    "request_body",
+    "response_body",
+}
+
 
 @dataclass(frozen=True, slots=True)
 class BenchmarkRecord:
@@ -64,6 +78,32 @@ def load_mapping_config(path: Path | None) -> dict[str, Any]:
     if path is None:
         return {}
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def load_benchmark_config(mapping_path: Path | None = None, label_path: Path | None = None) -> dict[str, Any]:
+    """Load optional field and label mapping configs without requiring one combined file."""
+    mapping_config = load_mapping_config(mapping_path)
+    label_config = load_mapping_config(label_path)
+    merged = {
+        "fields": {**(mapping_config.get("fields") or {}), **(label_config.get("fields") or {})},
+        "labels": {**(mapping_config.get("labels") or {}), **(label_config.get("labels") or {})},
+        "attack_types": {**(mapping_config.get("attack_types") or {}), **(label_config.get("attack_types") or {})},
+        "required_fields": list(
+            dict.fromkeys(
+                [
+                    *(mapping_config.get("required_fields") or []),
+                    *(label_config.get("required_fields") or []),
+                ]
+            )
+        ),
+    }
+    for key, value in mapping_config.items():
+        if key not in merged:
+            merged[key] = value
+    for key, value in label_config.items():
+        if key not in merged:
+            merged[key] = value
+    return merged
 
 
 def _value(row: dict[str, str], mapping: dict[str, str], field: str) -> str | None:
@@ -91,6 +131,20 @@ def _timestamp_value(row: dict[str, str], mapping: dict[str, str]) -> datetime |
     raw = _value(row, mapping, "timestamp")
     if raw is None:
         return None
+    for candidate in (raw, raw.replace("Z", "+00:00")):
+        try:
+            return datetime.fromisoformat(candidate)
+        except ValueError:
+            continue
+    return None
+
+
+def _timestamp_from_snapshot(value: Any) -> datetime | None:
+    if value in (None, ""):
+        return None
+    if isinstance(value, datetime):
+        return value
+    raw = str(value)
     for candidate in (raw, raw.replace("Z", "+00:00")):
         try:
             return datetime.fromisoformat(candidate)
@@ -164,5 +218,186 @@ def load_benchmark_csv(
         "label_mapping": label_mapping,
         "attack_type_mapping": attack_mapping,
         "mapping_errors": errors[:25],
+    }
+    return records, summary
+
+
+def _json_normalized(record: BenchmarkRecord) -> dict[str, Any]:
+    normalized = dict(record.normalized)
+    timestamp = normalized.get("timestamp")
+    if isinstance(timestamp, datetime):
+        normalized["timestamp"] = timestamp.isoformat()
+    return normalized
+
+
+def record_to_snapshot_row(record: BenchmarkRecord, *, include_raw: bool = False) -> dict[str, Any]:
+    row = {
+        "row_number": record.row_number,
+        "normalized": _json_normalized(record),
+        "label": record.label,
+        "attack_type": record.attack_type,
+    }
+    if include_raw:
+        row["raw"] = {
+            key: value
+            for key, value in record.raw.items()
+            if key.strip().lower() not in PRIVATE_RAW_FIELDS
+        }
+    return row
+
+
+def snapshot_row_to_record(row: dict[str, Any]) -> BenchmarkRecord:
+    normalized = dict(row.get("normalized") or {})
+    normalized["timestamp"] = _timestamp_from_snapshot(normalized.get("timestamp"))
+    return BenchmarkRecord(
+        row_number=int(row.get("row_number") or 0),
+        raw={str(k): "" if v is None else str(v) for k, v in (row.get("raw") or {}).items()},
+        normalized=normalized,
+        label=str(row.get("label") or "unknown"),
+        attack_type=str(row.get("attack_type") or "unknown_anomaly"),
+    )
+
+
+def select_benchmark_records(
+    records: list[BenchmarkRecord],
+    *,
+    limit: int | None = None,
+    sample_strategy: str = "random",
+) -> list[BenchmarkRecord]:
+    if limit is None or limit >= len(records):
+        return list(records)
+    if limit <= 0:
+        return []
+    strategy = sample_strategy.lower()
+    if strategy == "time":
+        return sorted(records, key=lambda item: (item.normalized.get("timestamp") is None, item.normalized.get("timestamp") or datetime.max))[
+            :limit
+        ]
+    if strategy == "balanced":
+        buckets: dict[str, list[BenchmarkRecord]] = {}
+        for record in records:
+            buckets.setdefault(record.label, []).append(record)
+        selected: list[BenchmarkRecord] = []
+        labels = sorted(buckets)
+        cursor = 0
+        while len(selected) < limit and any(buckets.values()):
+            label = labels[cursor % len(labels)]
+            if buckets[label]:
+                selected.append(buckets[label].pop(0))
+            cursor += 1
+        return selected[:limit]
+    rng = random.Random(42)
+    shuffled = list(records)
+    rng.shuffle(shuffled)
+    return shuffled[:limit]
+
+
+def _counter(values: list[str]) -> dict[str, int]:
+    result: dict[str, int] = {}
+    for value in values:
+        result[value] = result.get(value, 0) + 1
+    return dict(sorted(result.items()))
+
+
+def benchmark_dataset_profile(records: list[BenchmarkRecord], *, required_fields: list[str] | None = None) -> dict[str, Any]:
+    required = required_fields or ["timestamp", "src_ip", "dst_ip", "action", "app", "label", "attack_type"]
+    total = len(records)
+    missing_rates = {}
+    for field in required:
+        if field == "label":
+            missing = sum(1 for record in records if not record.label or record.label == "unknown")
+        elif field == "attack_type":
+            missing = sum(1 for record in records if not record.attack_type or record.attack_type == "unknown_anomaly")
+        else:
+            missing = sum(1 for record in records if record.normalized.get(field) in (None, ""))
+        missing_rates[field] = {
+            "missing": missing,
+            "rate": round(missing / total, 4) if total else 0.0,
+        }
+    timestamps = [
+        value
+        for value in (record.normalized.get("timestamp") for record in records)
+        if isinstance(value, datetime)
+    ]
+    label_distribution = _counter([record.label for record in records])
+    attack_distribution = _counter([record.attack_type for record in records])
+    max_label = max(label_distribution.values(), default=0)
+    min_label = min(label_distribution.values(), default=0)
+    return {
+        "total_rows": total,
+        "missing_field_rates": missing_rates,
+        "label_distribution": label_distribution,
+        "attack_type_distribution": attack_distribution,
+        "time_range": {
+            "start": min(timestamps).isoformat() if timestamps else None,
+            "end": max(timestamps).isoformat() if timestamps else None,
+            "timestamps_available": len(timestamps),
+        },
+        "class_imbalance": {
+            "max_class_count": max_label,
+            "min_class_count": min_label,
+            "imbalance_ratio": round(max_label / min_label, 4) if min_label else None,
+            "warning": "Class imbalance is high; prefer balanced sampling or per-class metrics."
+            if min_label and max_label / min_label >= 5
+            else None,
+        },
+    }
+
+
+def write_benchmark_snapshot(
+    records: list[BenchmarkRecord],
+    *,
+    input_name: str,
+    mapping_summary: dict[str, Any],
+    output_dir: Path,
+    sample_strategy: str,
+    requested_limit: int | None,
+    include_raw: bool = False,
+) -> dict[str, Any]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    profile = benchmark_dataset_profile(records, required_fields=mapping_summary.get("required_fields"))
+    digest = hashlib.sha256()
+    for record in records:
+        digest.update(json.dumps(record_to_snapshot_row(record, include_raw=False), sort_keys=True, default=str).encode("utf-8"))
+    snapshot_id = digest.hexdigest()[:16]
+    stem = f"benchmark_snapshot_{snapshot_id}"
+    snapshot_path = output_dir / f"{stem}.json"
+    payload = {
+        "snapshot_schema": SNAPSHOT_SCHEMA,
+        "snapshot_id": snapshot_id,
+        "created_at": datetime.utcnow().isoformat() + "Z",
+        "input_name": input_name,
+        "requested_limit": requested_limit,
+        "sample_strategy": sample_strategy,
+        "private_raw_payloads_excluded": not include_raw,
+        "mapping_summary": mapping_summary,
+        "profile": profile,
+        "records": [record_to_snapshot_row(record, include_raw=include_raw) for record in records],
+        "safety": {
+            "benchmark_data_not_for_commit": True,
+            "production_readiness_claim": False,
+            "automatic_response_enabled": False,
+        },
+    }
+    snapshot_path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
+    payload["snapshot_path"] = str(snapshot_path)
+    return payload
+
+
+def load_prepared_benchmark_snapshot(snapshot_path: Path, *, limit: int | None = None) -> tuple[list[BenchmarkRecord], dict[str, Any]]:
+    payload = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    if payload.get("snapshot_schema") != SNAPSHOT_SCHEMA:
+        raise ValueError(f"Unsupported benchmark snapshot schema: {payload.get('snapshot_schema')}")
+    rows = payload.get("records") or []
+    if limit is not None:
+        rows = rows[:limit]
+    records = [snapshot_row_to_record(row) for row in rows]
+    summary = {
+        "csv_name": payload.get("input_name") or snapshot_path.name,
+        "snapshot_id": payload.get("snapshot_id"),
+        "snapshot_path_name": snapshot_path.name,
+        "prepared_snapshot": True,
+        "profile": payload.get("profile") or {},
+        "mapping_errors": (payload.get("mapping_summary") or {}).get("mapping_errors", []),
     }
     return records, summary

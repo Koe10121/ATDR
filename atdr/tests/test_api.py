@@ -132,7 +132,7 @@ def test_dashboard_validation_summary_reports_latest_file_without_private_paths(
     layered_path = layered_dir / "layered_detection_20260605T014000Z.json"
     e2e_path = e2e_dir / "e2e_workflow_validation_20260605T020000Z.json"
     reliability_path = reliability_dir / "detection_reliability_baseline_20260605T030000Z.json"
-    benchmark_path = reliability_dir / "detection_benchmark_20260605T031000Z.json"
+    benchmark_path = reliability_dir / "benchmark_evaluation_20260605T031000Z.json"
     drift_path = reliability_dir / "drift_report_20260605T032000Z.json"
     report_path.write_text(
         json.dumps(
@@ -263,12 +263,22 @@ def test_dashboard_validation_summary_reports_latest_file_without_private_paths(
                 "ok": True,
                 "generated_at": "2026-06-05T03:10:00+00:00",
                 "validation_scope": "generic external/public-style benchmark adapter",
+                "detection_mode": "hybrid",
+                "dataset": {"csv_name": "benchmark_snapshot_demo", "snapshot_id": "demo1234"},
                 "total_rows": 10,
                 "rows_mapped": 10,
                 "alert_volume": 1,
-                "metrics": {"precision": 1, "recall": 1, "f1": 1, "false_positives": 0, "false_negatives": 0},
+                "metrics": {
+                    "precision": 1,
+                    "recall": 1,
+                    "f1": 1,
+                    "threat_positive_f1": 1,
+                    "false_positives": 0,
+                    "false_negatives": 0,
+                },
+                "readiness_gate_v2": {"decision": "candidate_only", "production_promoted": False},
                 "safety": {"production_readiness_claim": False},
-                "paths": {"markdown": str(reliability_dir / "detection_benchmark_20260605T031000Z.md")},
+                "paths": {"markdown": str(reliability_dir / "benchmark_evaluation_20260605T031000Z.md")},
             }
         ),
         encoding="utf-8",
@@ -296,6 +306,7 @@ def test_dashboard_validation_summary_reports_latest_file_without_private_paths(
     monkeypatch.setattr(dashboard_router, "LAYERED_REPORT_DIR", layered_dir)
     monkeypatch.setattr(dashboard_router, "E2E_REPORT_DIR", e2e_dir)
     monkeypatch.setattr(dashboard_router, "RELIABILITY_REPORT_DIR", reliability_dir)
+    monkeypatch.setattr(dashboard_router, "BENCHMARK_REPORT_DIR", reliability_dir)
     client = _client()
     try:
         unauthorized = client.get("/api/dashboard/validation-summary")
@@ -339,6 +350,9 @@ def test_dashboard_validation_summary_reports_latest_file_without_private_paths(
         assert payload["benchmark"]["available"] is True
         assert payload["benchmark"]["total_rows"] == 10
         assert payload["benchmark"]["f1"] == 1
+        assert payload["benchmark"]["dataset_name"] == "benchmark_snapshot_demo"
+        assert payload["benchmark"]["detection_mode"] == "hybrid"
+        assert payload["benchmark"]["readiness_decision"] == "candidate_only"
         assert payload["drift"]["available"] is True
         assert payload["drift"]["warning_count"] == 0
         assert payload["drift"]["alert_rate"] == 0.02

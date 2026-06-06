@@ -4,7 +4,7 @@ ATDR is a defensive senior-project lab prototype for AI-assisted firewall log mo
 
 ATDR is lab-ready for controlled small-office validation. It is not certified production software, does not perform real firewall blocking, and does not trigger automatic response actions.
 
-## Current v0.3 Snapshot
+## Current Lab Snapshot
 
 - FastAPI backend with JWT auth, admin/analyst RBAC, SQLAlchemy/Alembic, and SQLite by default.
 - Local account management supports username/password plus optional school-email fields, verified-email status, and email login for local users.
@@ -170,6 +170,16 @@ python -m atdr.scripts.run_detection_reliability_baseline --pretty
 
 v1.1 reliability, benchmark, error-analysis, calibration, drift, ML reliability, and stress reports are written under ignored `demo_exports/detection_reliability/`.
 
+For larger benchmark-style CSVs, v1.2 adds sanitized benchmark snapshot preparation, multi-mode detection benchmarking, benchmark ML experiments, layered rule/ML/hybrid comparison, and readiness gate v2:
+
+```powershell
+python -m atdr.scripts.prepare_benchmark_dataset --input-csv C:\path\to\benchmark.csv --mapping-config data\samples\benchmarks\example_firewall_mapping.json --label-config data\samples\benchmarks\example_label_mapping.json --limit 5000 --pretty
+python -m atdr.scripts.run_detection_benchmark --prepared-snapshot demo_exports\benchmarks\benchmark_snapshot_<id>.json --detection-mode hybrid --pretty
+python -m atdr.scripts.run_benchmark_ml_experiment --prepared-snapshot demo_exports\benchmarks\benchmark_snapshot_<id>.json --split time --test-size 0.3 --pretty
+```
+
+v1.2 reports are ignored under `demo_exports/benchmarks/` and `ml_baseline_reviews/benchmark_ml_experiments/`. Benchmark metrics stay separate from local firewall-log metrics and are not production accuracy.
+
 Run a scenario against a temporary database:
 
 ```powershell
@@ -262,6 +272,7 @@ Start here:
 - `docs/V0_9_LAYERED_DETECTION_VALIDATION.md` - layered rules/anomaly/ML/hybrid contribution validation.
 - `docs/V1_0_E2E_WORKFLOW_VALIDATION.md` - controlled ingestion-to-investigation workflow validation with optional simulated response/audit checks.
 - `docs/V1_1_DETECTION_RELIABILITY_AND_BENCHMARKING.md` - reliability baselines, generic benchmark adapter, error analysis, risk calibration, drift, ML reliability, and stress testing.
+- `docs/V1_2_REALISTIC_BENCHMARK_AND_ML_STRENGTHENING.md` - sanitized benchmark snapshots, benchmark detection/ML experiments, layered comparison, and readiness gate v2.
 - `docs/V0_5_SIMULATION_DEMO_PLAN.md` - earlier controlled replay validation plan.
 - `docs/V0_5_REAL_SOURCE_VALIDATION_PLAN.md` - future controlled hardware source validation plan.
 - `docs/V0_3_RELEASE_CANDIDATE.md` - current release-candidate summary.

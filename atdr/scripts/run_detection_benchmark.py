@@ -8,15 +8,27 @@ from typing import Any
 
 from sqlalchemy import select
 
-from atdr.app.benchmarks.adapter import BenchmarkRecord, load_benchmark_csv, load_mapping_config
+from atdr.app.benchmarks.adapter import (
+    BenchmarkRecord,
+    load_benchmark_csv,
+    load_mapping_config,
+    load_prepared_benchmark_snapshot,
+)
+from atdr.app.benchmarks.readiness import readiness_gate_v2
 from atdr.app.core.config import PROJECT_ROOT
 from atdr.app.db.database import SessionLocal, init_db
 from atdr.app.db.models import AlertEvidence, NormalizedLog, RawLog, ResponseAction
+from atdr.app.detection.ml_detector import apply_model_to_db
+from atdr.app.detection.supervised_detector import POSITIVE_LABELS, predict_supervised_log
 from atdr.app.services.alert_service import list_alerts
 from atdr.app.services.detection_service import run_detection
 from atdr.app.services.source_service import get_or_create_source
-from atdr.scripts.detection_reliability_common import RELIABILITY_OUTPUT_DIR, json_default, write_report_files
+from atdr.scripts.detection_reliability_common import json_default, write_report_files
 from atdr.scripts.run_source_scenario import _temp_session_factory
+
+
+BENCHMARK_OUTPUT_DIR = PROJECT_ROOT / "demo_exports" / "benchmarks"
+DETECTION_MODES = ("rules_only", "anomaly_only", "supervised_only", "hybrid")
 
 
 def _is_threat(record: BenchmarkRecord) -> bool:
@@ -84,14 +96,36 @@ def _linked_alert_ids_by_log(db, normalized_ids: list[int]) -> dict[int, set[int
     return linked
 
 
-def _metrics(records: list[BenchmarkRecord], normalized_ids: list[int], linked: dict[int, set[int]]) -> dict[str, Any]:
+def _class_metrics(confusion: dict[str, dict[str, int]], labels: list[str]) -> dict[str, Any]:
+    rows: dict[str, Any] = {}
+    for label in labels:
+        tp = confusion[label][label]
+        fp = sum(confusion[actual][label] for actual in labels if actual != label)
+        fn = sum(confusion[label][predicted] for predicted in labels if predicted != label)
+        precision = _safe_div(tp, tp + fp)
+        recall = _safe_div(tp, tp + fn)
+        rows[label] = {
+            "precision": precision,
+            "recall": recall,
+            "f1": _f1(precision, recall),
+            "support": sum(confusion[label].values()),
+        }
+    return rows
+
+
+def _metrics(records: list[BenchmarkRecord], normalized_ids: list[int], predicted_threat_by_log: dict[int, bool]) -> dict[str, Any]:
     tp = fp = fn = tn = 0
     per_attack: dict[str, Counter[str]] = defaultdict(Counter)
     false_positives: list[dict[str, Any]] = []
     false_negatives: list[dict[str, Any]] = []
+    labels = ["benign", "threat"]
+    confusion: dict[str, dict[str, int]] = {actual: {predicted: 0 for predicted in labels} for actual in labels}
     for record, log_id in zip(records, normalized_ids, strict=False):
         expected_threat = _is_threat(record)
-        detected = bool(linked.get(log_id))
+        detected = bool(predicted_threat_by_log.get(log_id))
+        actual_label = "threat" if expected_threat else "benign"
+        predicted_label = "threat" if detected else "benign"
+        confusion[actual_label][predicted_label] += 1
         if expected_threat and detected:
             tp += 1
             per_attack[record.attack_type]["tp"] += 1
@@ -108,6 +142,14 @@ def _metrics(records: list[BenchmarkRecord], normalized_ids: list[int], linked: 
             per_attack["normal"]["tn"] += 1
     precision = _safe_div(tp, tp + fp)
     recall = _safe_div(tp, tp + fn)
+    per_class = _class_metrics(confusion, labels)
+    macro_f1 = round(sum(item["f1"] for item in per_class.values()) / len(per_class), 4) if per_class else 0.0
+    total = len(records)
+    weighted_f1 = (
+        round(sum(item["f1"] * item["support"] for item in per_class.values()) / total, 4)
+        if total
+        else 0.0
+    )
     return {
         "true_positives": tp,
         "false_positives": fp,
@@ -116,6 +158,16 @@ def _metrics(records: list[BenchmarkRecord], normalized_ids: list[int], linked: 
         "precision": precision,
         "recall": recall,
         "f1": _f1(precision, recall),
+        "threat_positive_precision": precision,
+        "threat_positive_recall": recall,
+        "threat_positive_f1": _f1(precision, recall),
+        "macro_f1": macro_f1,
+        "weighted_f1": weighted_f1,
+        "per_class_metrics": per_class,
+        "confusion_matrix": {
+            "labels": labels,
+            "matrix": [[confusion[actual][predicted] for predicted in labels] for actual in labels],
+        },
         "per_attack_metrics": {
             attack: {
                 "support": counts["tp"] + counts["fn"],
@@ -131,12 +183,54 @@ def _metrics(records: list[BenchmarkRecord], normalized_ids: list[int], linked: 
     }
 
 
+def _records_from_inputs(
+    *,
+    csv_path: Path | None,
+    prepared_snapshot: Path | None,
+    mapping_config_path: Path | None,
+    limit: int | None,
+) -> tuple[list[BenchmarkRecord], dict[str, Any]]:
+    if prepared_snapshot is not None:
+        return load_prepared_benchmark_snapshot(prepared_snapshot, limit=limit)
+    if csv_path is None:
+        raise ValueError("Either csv_path or prepared_snapshot is required.")
+    return load_benchmark_csv(csv_path, mapping_config=load_mapping_config(mapping_config_path), limit=limit)
+
+
+def _diagnostic_predictions(db, normalized_ids: list[int], *, mode: str) -> tuple[dict[int, bool], dict[str, Any]]:
+    if mode == "anomaly_only":
+        result = apply_model_to_db(db, limit=None)
+        logs = {log.id: log for log in db.scalars(select(NormalizedLog).where(NormalizedLog.id.in_(normalized_ids)))}
+        return {log_id: bool(logs[log_id].is_anomaly) for log_id in normalized_ids if log_id in logs}, {
+            "scored_logs": len(result),
+            "diagnostic_alerts_created": 0,
+            "mode_note": "Anomaly-only benchmark uses IsolationForest diagnostic flags and does not create persistent alerts.",
+        }
+    if mode == "supervised_only":
+        predictions: dict[int, bool] = {}
+        available = 0
+        for log_id in normalized_ids:
+            prediction = predict_supervised_log(db, log_id)
+            predicted_label = prediction.get("predicted_label")
+            malicious_probability = float(prediction.get("malicious_probability") or 0.0)
+            if predicted_label:
+                available += 1
+            predictions[log_id] = bool(predicted_label in POSITIVE_LABELS or malicious_probability >= 0.5)
+        return predictions, {
+            "predictions_available": available,
+            "diagnostic_alerts_created": 0,
+            "mode_note": "Supervised-only benchmark uses model predictions as decision support and does not create persistent alerts.",
+        }
+    raise ValueError(f"Unsupported diagnostic mode: {mode}")
+
+
 def render_markdown(report: dict[str, Any]) -> str:
     lines = [
         "# ATDR Detection Benchmark Report",
         "",
         f"- Generated at: {report['generated_at']}",
         f"- Dataset: {report['dataset']['csv_name']}",
+        f"- Detection mode: {report['detection_mode']}",
         f"- Database mode: {'temporary SQLite' if report['use_temp_db'] else 'current local database'}",
         "- Production readiness claim: none",
         "",
@@ -146,10 +240,13 @@ def render_markdown(report: dict[str, Any]) -> str:
         f"- Precision: {report['metrics']['precision']}",
         f"- Recall: {report['metrics']['recall']}",
         f"- F1: {report['metrics']['f1']}",
+        f"- Macro F1: {report['metrics']['macro_f1']}",
+        f"- Weighted F1: {report['metrics']['weighted_f1']}",
         f"- False positives: {report['metrics']['false_positives']}",
         f"- False negatives: {report['metrics']['false_negatives']}",
         f"- Alert volume: {report['alert_volume']}",
         f"- Runtime seconds: {report['runtime_seconds']}",
+        f"- Readiness decision: {(report.get('readiness_gate_v2') or {}).get('decision')}",
         "",
         "## Limitations",
         "",
@@ -162,16 +259,25 @@ def render_markdown(report: dict[str, Any]) -> str:
 
 def run_detection_benchmark(
     *,
-    csv_path: Path,
+    csv_path: Path | None = None,
+    prepared_snapshot: Path | None = None,
     mapping_config_path: Path | None = None,
     limit: int | None = None,
+    detection_mode: str = "hybrid",
     use_temp_db: bool = True,
     use_ml: bool = False,
     write_output: bool = True,
-    output_dir: Path = RELIABILITY_OUTPUT_DIR,
+    output_dir: Path = BENCHMARK_OUTPUT_DIR,
 ) -> dict[str, Any]:
+    if detection_mode not in DETECTION_MODES:
+        raise ValueError(f"detection_mode must be one of {DETECTION_MODES}")
     started = time.perf_counter()
-    records, dataset_summary = load_benchmark_csv(csv_path, mapping_config=load_mapping_config(mapping_config_path), limit=limit)
+    records, dataset_summary = _records_from_inputs(
+        csv_path=csv_path,
+        prepared_snapshot=prepared_snapshot,
+        mapping_config_path=mapping_config_path,
+        limit=limit,
+    )
     temp_engine = None
     if use_temp_db:
         temp_engine, SessionFactory = _temp_session_factory()
@@ -181,20 +287,27 @@ def run_detection_benchmark(
     try:
         with SessionFactory() as db:
             response_actions_before = int(db.query(ResponseAction).count())
-            source_name = f"benchmark-{csv_path.stem}"
+            source_stem = (prepared_snapshot or csv_path or Path("benchmark")).stem
+            source_name = f"benchmark-{source_stem}"
             normalized_ids, source_id = _insert_records(db, records, source_name=source_name)
-            detection_result = run_detection(
-                db,
-                limit=max(100, len(records) * 3),
-                use_ml=use_ml,
-                actor="detection_benchmark",
-                source_id=source_id,
-                source_name=source_name,
-                source_type="benchmark",
-            )
-            linked = _linked_alert_ids_by_log(db, normalized_ids)
-            alerts = list_alerts(db, source_id=source_id, limit=200)
-            metrics = _metrics(records, normalized_ids, linked)
+            detection_result: dict[str, Any]
+            alerts = []
+            if detection_mode in {"rules_only", "hybrid"}:
+                detection_result = run_detection(
+                    db,
+                    limit=max(100, len(records) * 3),
+                    use_ml=detection_mode == "hybrid" or use_ml,
+                    actor="detection_benchmark",
+                    source_id=source_id,
+                    source_name=source_name,
+                    source_type="benchmark",
+                )
+                linked = _linked_alert_ids_by_log(db, normalized_ids)
+                predicted = {log_id: bool(linked.get(log_id)) for log_id in normalized_ids}
+                alerts = list_alerts(db, source_id=source_id, limit=500)
+            else:
+                predicted, detection_result = _diagnostic_predictions(db, normalized_ids, mode=detection_mode)
+            metrics = _metrics(records, normalized_ids, predicted)
             response_actions_after = int(db.query(ResponseAction).count())
     finally:
         if temp_engine is not None:
@@ -202,12 +315,20 @@ def run_detection_benchmark(
 
     label_distribution = Counter(record.label for record in records)
     attack_distribution = Counter(record.attack_type for record in records)
+    readiness = readiness_gate_v2(
+        label_count=len(records),
+        label_distribution=dict(label_distribution),
+        metrics=metrics,
+        benchmark_metrics=metrics,
+        response_automation_allowed=False,
+    )
     report = {
         "ok": True,
         "generated_at": datetime.now(timezone.utc),
         "validation_scope": "generic external/public-style benchmark adapter",
         "use_temp_db": use_temp_db,
-        "use_ml": use_ml,
+        "use_ml": detection_mode == "hybrid" or use_ml,
+        "detection_mode": detection_mode,
         "dataset": dataset_summary,
         "total_rows": len(records),
         "rows_mapped": len(records) - len(dataset_summary.get("mapping_errors", [])),
@@ -215,6 +336,7 @@ def run_detection_benchmark(
         "attack_type_distribution": dict(sorted(attack_distribution.items())),
         "detection_result": detection_result,
         "metrics": metrics,
+        "readiness_gate_v2": readiness,
         "alert_volume": len(alerts),
         "runtime_seconds": round(time.perf_counter() - started, 4),
         "safety": {
@@ -233,7 +355,7 @@ def run_detection_benchmark(
         report["paths"] = write_report_files(
             report,
             output_dir=output_dir,
-            stem_prefix="detection_benchmark",
+            stem_prefix="benchmark_evaluation",
             markdown=render_markdown(report),
         )
     return report
@@ -241,9 +363,11 @@ def run_detection_benchmark(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run a generic mapped CSV detection benchmark.")
-    parser.add_argument("--csv-path", required=True)
+    parser.add_argument("--csv-path", default=None)
+    parser.add_argument("--prepared-snapshot", default=None)
     parser.add_argument("--mapping-config", default=None)
     parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument("--detection-mode", choices=DETECTION_MODES, default="hybrid")
     parser.add_argument("--use-temp-db", action="store_true", default=True)
     parser.add_argument("--write-to-current-db", action="store_true")
     parser.add_argument("--use-ml", action="store_true")
@@ -252,13 +376,15 @@ def main() -> None:
     parser.add_argument("--pretty", action="store_true")
     args = parser.parse_args()
     report = run_detection_benchmark(
-        csv_path=Path(args.csv_path),
+        csv_path=Path(args.csv_path) if args.csv_path else None,
+        prepared_snapshot=Path(args.prepared_snapshot) if args.prepared_snapshot else None,
         mapping_config_path=Path(args.mapping_config) if args.mapping_config else None,
         limit=args.limit,
+        detection_mode=args.detection_mode,
         use_temp_db=not args.write_to_current_db,
         use_ml=args.use_ml,
         write_output=not args.no_report,
-        output_dir=Path(args.output_dir) if args.output_dir else RELIABILITY_OUTPUT_DIR,
+        output_dir=Path(args.output_dir) if args.output_dir else BENCHMARK_OUTPUT_DIR,
     )
     print(json.dumps(report, default=json_default, indent=2 if args.pretty else None))
     raise SystemExit(0 if report["ok"] else 1)

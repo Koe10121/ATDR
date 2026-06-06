@@ -762,3 +762,25 @@ This writes `ml_baseline_reviews/final_small_label_gap_sample.csv`. It targets t
 Recommended wording:
 
 > ATDR uses supervised ML as SOC triage decision support. Threat-positive triage is useful for analyst review, but the flat five-class model is not production-promoted. Benign and needs_context exact classification remain weak, and all response actions remain simulated and analyst-approved.
+
+## 28. Benchmark-Style ML Experiment Mode
+
+Use this phase when you have a safe public-style, synthetic, or approved benchmark CSV. Do not import benchmark labels into the main `ml_labels` table by default. Do not commit benchmark data, prepared snapshots, generated reports, model artifacts, or `ml_baseline_reviews/`.
+
+Prepare a sanitized snapshot:
+
+```powershell
+python -m atdr.scripts.prepare_benchmark_dataset --input-csv "C:\path\to\benchmark.csv" --mapping-config data\samples\benchmarks\example_firewall_mapping.json --label-config data\samples\benchmarks\example_label_mapping.json --limit 5000 --sample-strategy balanced --pretty
+```
+
+Run an in-memory benchmark ML experiment:
+
+```powershell
+python -m atdr.scripts.run_benchmark_ml_experiment --prepared-snapshot "demo_exports\benchmarks\benchmark_snapshot_<id>.json" --split time --test-size 0.3 --pretty
+```
+
+The experiment compares RandomForest, ExtraTrees, LogisticRegression, HistGradientBoosting, binary threat-positive, and three-class SOC triage candidates. It writes reports only and does not activate a model.
+
+Recommended wording:
+
+> Benchmark experiments help evaluate model architecture and feature behavior on broader labeled data. They are not mixed with local firewall-log metrics by default, and they do not prove production accuracy. ATDR remains decision support only.

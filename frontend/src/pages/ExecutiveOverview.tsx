@@ -213,11 +213,11 @@ export function ExecutiveOverview() {
           <div className="rounded-lg border border-line bg-panel2 p-3">
             <div className="text-xs font-bold uppercase tracking-wide text-muted">Benchmark</div>
             <div className="mt-1 font-bold text-text">
-              {validation?.benchmark?.available ? `F1 ${validation.benchmark.f1 ?? "-"}` : "No benchmark yet"}
+              {validation?.benchmark?.available ? `Threat F1 ${validation.benchmark.threat_positive_f1 ?? validation.benchmark.f1 ?? "-"}` : "No benchmark yet"}
             </div>
             <div className="mt-1 text-xs text-muted">
               {validation?.benchmark?.available
-                ? `${validation.benchmark.rows_mapped ?? 0}/${validation.benchmark.total_rows ?? 0} rows mapped`
+                ? `${validation.benchmark.detection_mode ?? "benchmark"} | ${validation.benchmark.readiness_decision ?? "candidate_only"}`
                 : validation?.benchmark?.message ?? "Run mapped benchmark adapter."}
             </div>
           </div>

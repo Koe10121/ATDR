@@ -17,6 +17,7 @@ GENERALIZATION_REPORT_DIR = PROJECT_ROOT / "demo_exports" / "detection_generaliz
 LAYERED_REPORT_DIR = PROJECT_ROOT / "demo_exports" / "layered_detection"
 E2E_REPORT_DIR = PROJECT_ROOT / "demo_exports" / "e2e_validation"
 RELIABILITY_REPORT_DIR = PROJECT_ROOT / "demo_exports" / "detection_reliability"
+BENCHMARK_REPORT_DIR = PROJECT_ROOT / "demo_exports" / "benchmarks"
 
 
 def _latest_validation_summary(report_dir: Path = VALIDATION_REPORT_DIR) -> dict[str, Any]:
@@ -288,25 +289,38 @@ def _latest_v11_reliability_summary(report_dir: Path = RELIABILITY_REPORT_DIR) -
     }
 
 
-def _latest_v11_benchmark_summary(report_dir: Path = RELIABILITY_REPORT_DIR) -> dict[str, Any]:
+def _latest_v11_benchmark_summary(report_dir: Path = RELIABILITY_REPORT_DIR, benchmark_dir: Path = BENCHMARK_REPORT_DIR) -> dict[str, Any]:
     summary, payload = _latest_reliability_file_summary(
-        report_dir,
-        "detection_benchmark_*.json",
+        benchmark_dir,
+        "benchmark_evaluation_*.json",
         missing_message="No mapped benchmark run has been generated yet.",
     )
     if payload is None:
+        summary, payload = _latest_reliability_file_summary(
+            report_dir,
+            "detection_benchmark_*.json",
+            missing_message="No mapped benchmark run has been generated yet.",
+        )
+    if payload is None:
         return summary
     metrics = payload.get("metrics") or {}
+    dataset = payload.get("dataset") or {}
+    readiness = payload.get("readiness_gate_v2") or {}
     return {
         **summary,
         "total_rows": int(payload.get("total_rows") or 0),
         "rows_mapped": int(payload.get("rows_mapped") or 0),
+        "dataset_name": dataset.get("csv_name"),
+        "snapshot_id": dataset.get("snapshot_id"),
+        "detection_mode": payload.get("detection_mode"),
         "precision": metrics.get("precision"),
         "recall": metrics.get("recall"),
         "f1": metrics.get("f1"),
+        "threat_positive_f1": metrics.get("threat_positive_f1") or metrics.get("f1"),
         "false_positive_count": int(metrics.get("false_positives") or 0),
         "false_negative_count": int(metrics.get("false_negatives") or 0),
         "alert_volume": int(payload.get("alert_volume") or 0),
+        "readiness_decision": readiness.get("decision"),
     }
 
 
@@ -346,6 +360,6 @@ def dashboard_validation_summary(
     summary["layered"] = _latest_layered_summary(LAYERED_REPORT_DIR)
     summary["e2e_workflow"] = _latest_e2e_summary(E2E_REPORT_DIR)
     summary["reliability"] = _latest_v11_reliability_summary(RELIABILITY_REPORT_DIR)
-    summary["benchmark"] = _latest_v11_benchmark_summary(RELIABILITY_REPORT_DIR)
+    summary["benchmark"] = _latest_v11_benchmark_summary(RELIABILITY_REPORT_DIR, BENCHMARK_REPORT_DIR)
     summary["drift"] = _latest_v11_drift_summary(RELIABILITY_REPORT_DIR)
     return summary

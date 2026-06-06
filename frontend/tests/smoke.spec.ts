@@ -616,12 +616,17 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
           ok: true,
           total_rows: 10,
           rows_mapped: 10,
+          dataset_name: "benchmark_snapshot_demo",
+          snapshot_id: "demo1234",
+          detection_mode: "hybrid",
           precision: 1,
           recall: 1,
           f1: 1,
+          threat_positive_f1: 1,
           false_positive_count: 0,
           false_negative_count: 0,
           alert_volume: 1,
+          readiness_decision: "candidate_only",
           production_readiness_claim: false
         },
         drift: {
@@ -904,7 +909,7 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByText("Reliability")).toBeVisible();
   await expect(page.getByText("14/14 scenarios")).toBeVisible();
   await expect(page.getByText("Benchmark")).toBeVisible();
-  await expect(page.getByText("F1 1")).toBeVisible();
+  await expect(page.getByText("Threat F1 1")).toBeVisible();
   await expect(page.getByText("Drift")).toBeVisible();
   await expect(page.getByText("0 warnings")).toBeVisible();
   await expect(page.getByText("Lab-Scale Validation")).toBeVisible();

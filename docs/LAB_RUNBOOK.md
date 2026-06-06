@@ -330,6 +330,53 @@ The dashboard Overview page shows only compact reliability, benchmark, and drift
 
 See `docs/V1_1_DETECTION_RELIABILITY_AND_BENCHMARKING.md`.
 
+## v1.2 Realistic Benchmark And ML Strengthening
+
+ATDR v1.2 separates larger benchmark-style data from the main local firewall-log database. Use it for public-style, synthetic, or approved benchmark CSVs. Do not commit benchmark CSVs, prepared snapshots, or generated reports.
+
+Prepare a sanitized benchmark snapshot:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.prepare_benchmark_dataset `
+  --input-csv "C:\path\to\benchmark.csv" `
+  --mapping-config data\samples\benchmarks\example_firewall_mapping.json `
+  --label-config data\samples\benchmarks\example_label_mapping.json `
+  --limit 5000 `
+  --sample-strategy balanced `
+  --pretty
+```
+
+Run detection benchmark evaluation against the prepared snapshot:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_detection_benchmark `
+  --prepared-snapshot "demo_exports\benchmarks\benchmark_snapshot_<id>.json" `
+  --detection-mode hybrid `
+  --pretty
+```
+
+Run safe benchmark ML experiments without activating a model:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_benchmark_ml_experiment `
+  --prepared-snapshot "demo_exports\benchmarks\benchmark_snapshot_<id>.json" `
+  --split time `
+  --test-size 0.3 `
+  --pretty
+```
+
+Compare rule-only, anomaly-only, supervised-only, and hybrid behavior:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.compare_layered_benchmark_reliability `
+  --prepared-snapshot "demo_exports\benchmarks\benchmark_snapshot_<id>.json" `
+  --pretty
+```
+
+Outputs are ignored under `demo_exports/benchmarks/` and `ml_baseline_reviews/benchmark_ml_experiments/`. The dashboard shows only compact benchmark/readiness status. Benchmark metrics must not be described as production accuracy or mixed with local firewall-log metrics by default.
+
+See `docs/V1_2_REALISTIC_BENCHMARK_AND_ML_STRENGTHENING.md`.
+
 ## v0.5 Controlled Replay Validation Archive
 
 ATDR v0.5 uses controlled simulation and replay as the current validation path because real firewall/router hardware is not available yet. This validates source health, parser behavior, source-scoped detection, alert evidence, deduplication, case grouping, simulated response safety, and dashboard investigation flow. It does not validate real device forwarding or real firewall enforcement.

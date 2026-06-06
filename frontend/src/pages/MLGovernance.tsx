@@ -9,6 +9,7 @@ import { ErrorBanner } from "../components/ErrorBanner";
 import { api } from "../lib/api";
 import {
   useClassTemporalCoverage,
+  useDashboardValidationSummary,
   useMlLabelMutations,
   useMlReport,
   useMlReviewQueue,
@@ -29,6 +30,7 @@ function downloadBlob(blob: Blob, filename: string) {
 export function MLGovernance() {
   const report = useMlReport();
   const supervised = useSupervisedReport();
+  const validationSummary = useDashboardValidationSummary();
   const supervisedModels = useSupervisedModels();
   const temporalCoverage = useClassTemporalCoverage();
   const reviewQueue = useMlReviewQueue({ limit: 25 });
@@ -50,6 +52,7 @@ export function MLGovernance() {
   const trainingDiagnostics = supervisedData?.latest_run?.training_dataset_diagnostics ?? {};
   const temporal = temporalCoverage.data;
   const readiness = supervisedData?.model_readiness_checklist ?? supervisedData?.latest_run?.model_readiness_checklist;
+  const benchmark = validationSummary.data?.benchmark;
   const drift = data?.baseline_drift_report;
   const perClass = (supervisedMetrics.per_class ?? {}) as Record<string, Record<string, unknown>>;
   const benignMetrics = perClass.benign ?? {};
@@ -362,6 +365,16 @@ export function MLGovernance() {
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">Analyst Review</div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">Manual Approval Required</div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">Automation Disabled</div>
+          </div>
+          <div className="mt-3 rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
+            Benchmark:{" "}
+            <span className="font-bold text-text">
+              {benchmark?.available
+                ? `${benchmark.detection_mode ?? "hybrid"} | Threat F1 ${benchmark.threat_positive_f1 ?? benchmark.f1 ?? "-"} | ${
+                    benchmark.readiness_decision ?? "candidate_only"
+                  }`
+                : "not generated"}
+            </span>
           </div>
           {socReviewProfiles.length ? (
             <details className="mt-3">
