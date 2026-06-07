@@ -794,3 +794,18 @@ The v1.5 manifest builds a safe 240-row benchmark with normal, near-boundary, su
 Verify the concise result in React AI Governance. Detailed generated evidence remains under ignored `demo_exports/benchmarks/` and `ml_baseline_reviews/`.
 
 Interpret `benchmark_validated_candidate` as internal benchmark evidence for analyst review only. Production promotion, model activation, automatic response, and real firewall blocking remain disabled.
+
+## v1.6 Unseen Holdout Validation
+
+Run the fixed safe holdout from the repository root:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.build_fixed_unseen_holdout --dry-run --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_external_benchmark_validation --holdout-from-current-data --pretty
+```
+
+The holdout contains 320 synthetic labeled rows across five source names and 14 scenarios. Despite the historical switch name, no private current-database rows are copied.
+
+Verify the concise status in Overview and AI Governance. Detailed transfer, calibration, per-attack, false-positive, false-negative, and overfitting evidence remains under ignored `demo_exports/benchmarks/`.
+
+The current holdout exposes a significant generalization gap, so the correct interpretation is `internal_benchmark_validated_candidate`. Do not activate the candidate or describe internal benchmark metrics as deployment accuracy.

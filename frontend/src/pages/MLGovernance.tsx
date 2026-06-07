@@ -56,6 +56,7 @@ export function MLGovernance() {
   const v13Ai = validationSummary.data?.v13_ai;
   const v14Ai = validationSummary.data?.v14_ai;
   const v15Ai = validationSummary.data?.v15_ai;
+  const v16Ai = validationSummary.data?.v16_ai;
   const drift = data?.baseline_drift_report;
   const perClass = (supervisedMetrics.per_class ?? {}) as Record<string, Record<string, unknown>>;
   const benignMetrics = perClass.benign ?? {};
@@ -372,7 +373,11 @@ export function MLGovernance() {
           <div className="mt-3 rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
             Benchmark:{" "}
             <span className="font-bold text-text">
-              {v15Ai?.available
+              {v16Ai?.available
+                ? `${v16Ai.external_label_count ?? 0} unseen labels | Threat F1 ${
+                    v16Ai.threat_positive_f1 ?? "-"
+                  } | ${v16Ai.readiness_decision ?? "candidate_only"}`
+                : v15Ai?.available
                 ? `${v15Ai.benchmark_label_count ?? 0} labels | Threat F1 ${
                     v15Ai.threat_positive_f1 ?? "-"
                   } | ${v15Ai.readiness_decision ?? "candidate_only"}`
@@ -400,7 +405,7 @@ export function MLGovernance() {
             </div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
               <span className="font-bold text-text">Calibration:</span>{" "}
-              {v15Ai?.calibration_status ?? v14Ai?.calibration_status ?? "pending"}
+              {v16Ai?.calibration_status ?? v15Ai?.calibration_status ?? v14Ai?.calibration_status ?? "pending"}
             </div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
               <span className="font-bold text-text">Confirmed noisy pattern:</span>{" "}
@@ -427,9 +432,21 @@ export function MLGovernance() {
               Not production-promoted
             </div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-              {v15Ai?.available
+              {v16Ai?.available
+                ? `External readiness checks ${v16Ai.checks_passed ?? 0}/${v16Ai.checks_total ?? 0}`
+                : v15Ai?.available
                 ? `Benchmark readiness checks ${v15Ai.checks_passed ?? 0}/${v15Ai.checks_total ?? 0}`
                 : "Benchmark readiness pending"}
+            </div>
+            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
+              <span className="font-bold text-text">Generalization:</span>{" "}
+              {v16Ai?.available
+                ? `${v16Ai.overfitting_status ?? "not evaluated"} | F1 gap ${v16Ai.threat_f1_gap ?? "-"}`
+                : "external holdout pending"}
+            </div>
+            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
+              <span className="font-bold text-text">External validation:</span>{" "}
+              {v16Ai?.external_benchmark_validated ? "passed" : "not yet passed"}
             </div>
           </div>
           {socReviewProfiles.length ? (

@@ -189,6 +189,15 @@ python -m atdr.scripts.run_v15_ai_readiness_validation --pretty
 
 The 240-row benchmark is generated from a small committed manifest. Generated data and reports remain ignored. A `benchmark_validated_candidate` result strengthens analyst-review evidence only; it does not activate or production-promote a model.
 
+Run the v1.6 fixed unseen-holdout transfer check:
+
+```powershell
+python -m atdr.scripts.build_fixed_unseen_holdout --dry-run --pretty
+python -m atdr.scripts.run_external_benchmark_validation --holdout-from-current-data --pretty
+```
+
+The 320-row holdout uses separate synthetic sources and scenarios. Current results show a meaningful internal-to-unseen generalization gap, so status remains `internal_benchmark_validated_candidate`. No model or response action is activated.
+
 Run a scenario against a temporary database:
 
 ```powershell
@@ -287,6 +296,7 @@ Start here:
 - `docs/V1_4B_FALSE_POSITIVE_MITIGATION.md` - actionable review sampling and evidence-aware normal QUIC/443 false-positive mitigation.
 - `docs/V1_4C_MALICIOUS_RECALL_RECOVERY_AND_CALIBRATION.md` - malicious-recall boundary analysis, low-noise recovery profiles, and held-out confidence calibration.
 - `docs/V1_5_AI_READINESS_BENCHMARK_VALIDATION.md` - safe internal benchmark generation, layered/ML comparison, readiness gate v4, and final decision-support status.
+- `docs/V1_6_EXTERNAL_BENCHMARK_VALIDATION.md` - unseen holdout transfer metrics, calibration, overfitting analysis, and readiness gate v5.
 - `docs/V0_5_SIMULATION_DEMO_PLAN.md` - earlier controlled replay validation plan.
 - `docs/V0_5_REAL_SOURCE_VALIDATION_PLAN.md` - future controlled hardware source validation plan.
 - `docs/V0_3_RELEASE_CANDIDATE.md` - current release-candidate summary.

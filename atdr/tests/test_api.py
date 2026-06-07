@@ -141,6 +141,7 @@ def test_dashboard_validation_summary_reports_latest_file_without_private_paths(
     v14b_candidate_path = reliability_dir / "v1_4b_quic_false_positive_mitigation.json"
     v14c_candidate_path = reliability_dir / "v1_4c_malicious_recall_recovery.json"
     v15_candidate_path = reliability_dir / "final_ai_readiness_report_20260605T041000Z.json"
+    v16_candidate_path = reliability_dir / "external_benchmark_validation_20260605T042000Z.json"
     report_path.write_text(
         json.dumps(
             {
@@ -462,6 +463,52 @@ def test_dashboard_validation_summary_reports_latest_file_without_private_paths(
         ),
         encoding="utf-8",
     )
+    v16_candidate_path.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "generated_at": "2026-06-05T04:20:00+00:00",
+                "external_snapshot": {
+                    "benchmark_label_count": 320,
+                    "preferred_target_met": True,
+                    "profile": {
+                        "source_count": 5,
+                        "scenario_count": 14,
+                    },
+                },
+                "cross_dataset_candidate": {
+                    "candidate_name": "v1_5_random_forest_three_class_transfer",
+                    "metrics": {
+                        "threat_positive_f1": 0.7278,
+                        "threat_positive_recall": 0.7471,
+                        "benign_false_positive_rate": 0.3467,
+                        "per_class": {
+                            "suspicious": {"recall": 0.35},
+                            "malicious": {"recall": 0.8889},
+                        },
+                    },
+                    "calibration": {"status": "weak"},
+                },
+                "overfitting_check": {
+                    "status": "significant_generalization_gap",
+                    "overfitting_warning": True,
+                    "metric_gaps": {
+                        "threat_positive_f1": {"gap": 0.2722}
+                    },
+                },
+                "readiness_gate_v5": {
+                    "decision": "internal_benchmark_validated_candidate",
+                    "passed": 4,
+                    "total": 8,
+                    "external_benchmark_validated": False,
+                },
+                "production_promoted": False,
+                "model_activated": False,
+                "response_automation_allowed": False,
+            }
+        ),
+        encoding="utf-8",
+    )
     monkeypatch.setattr(dashboard_router, "VALIDATION_REPORT_DIR", report_dir)
     monkeypatch.setattr(dashboard_router, "GENERALIZATION_REPORT_DIR", generalization_dir)
     monkeypatch.setattr(dashboard_router, "LAYERED_REPORT_DIR", layered_dir)
@@ -553,6 +600,25 @@ def test_dashboard_validation_summary_reports_latest_file_without_private_paths(
         assert payload["v15_ai"]["production_promoted"] is False
         assert payload["v15_ai"]["model_activated"] is False
         assert payload["v15_ai"]["response_automation_allowed"] is False
+        assert payload["v16_ai"]["available"] is True
+        assert payload["v16_ai"]["external_label_count"] == 320
+        assert payload["v16_ai"]["source_count"] == 5
+        assert payload["v16_ai"]["scenario_count"] == 14
+        assert payload["v16_ai"]["threat_positive_f1"] == 0.7278
+        assert payload["v16_ai"]["benign_like_false_positive_rate"] == 0.3467
+        assert payload["v16_ai"]["calibration_status"] == "weak"
+        assert (
+            payload["v16_ai"]["overfitting_status"]
+            == "significant_generalization_gap"
+        )
+        assert (
+            payload["v16_ai"]["readiness_decision"]
+            == "internal_benchmark_validated_candidate"
+        )
+        assert payload["v16_ai"]["external_benchmark_validated"] is False
+        assert payload["v16_ai"]["production_promoted"] is False
+        assert payload["v16_ai"]["model_activated"] is False
+        assert payload["v16_ai"]["response_automation_allowed"] is False
         assert str(report_dir) not in json.dumps(payload)
         assert str(generalization_dir) not in json.dumps(payload)
         assert str(layered_dir) not in json.dumps(payload)

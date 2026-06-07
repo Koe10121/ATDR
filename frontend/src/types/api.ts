@@ -431,6 +431,7 @@ export interface DashboardValidationSummary {
   v13_ai?: DashboardV13AiSummary;
   v14_ai?: DashboardV14AiSummary;
   v15_ai?: DashboardV15AiSummary;
+  v16_ai?: DashboardV16AiSummary;
 }
 
 export interface DashboardGeneralizationSummary {
@@ -624,6 +625,36 @@ export interface DashboardV15AiSummary {
   readiness_decision?: string | null;
   checks_passed?: number;
   checks_total?: number;
+  production_promoted?: boolean;
+  model_activated?: boolean;
+  response_automation_allowed?: boolean;
+  latest_report_name?: string | null;
+  latest_markdown_name?: string | null;
+  message?: string;
+}
+
+export interface DashboardV16AiSummary {
+  available: boolean;
+  ok?: boolean;
+  generated_at?: string | null;
+  external_label_count?: number;
+  preferred_target_met?: boolean;
+  source_count?: number;
+  scenario_count?: number;
+  candidate_name?: string | null;
+  threat_positive_f1?: number | null;
+  threat_positive_recall?: number | null;
+  benign_like_false_positive_rate?: number | null;
+  suspicious_recall?: number | null;
+  malicious_recall?: number | null;
+  calibration_status?: string | null;
+  overfitting_status?: string | null;
+  overfitting_warning?: boolean;
+  threat_f1_gap?: number | null;
+  readiness_decision?: string | null;
+  checks_passed?: number;
+  checks_total?: number;
+  external_benchmark_validated?: boolean;
   production_promoted?: boolean;
   model_activated?: boolean;
   response_automation_allowed?: boolean;

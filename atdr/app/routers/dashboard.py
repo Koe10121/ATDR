@@ -517,6 +517,59 @@ def _latest_v15_ai_summary(report_dir: Path = V13_REPORT_DIR) -> dict[str, Any]:
     }
 
 
+def _latest_v16_ai_summary(report_dir: Path = BENCHMARK_REPORT_DIR) -> dict[str, Any]:
+    summary, payload = _latest_reliability_file_summary(
+        report_dir,
+        "external_benchmark_validation_*.json",
+        missing_message="No v1.6 external holdout validation has been generated yet.",
+    )
+    if payload is None:
+        return summary
+    snapshot = payload.get("external_snapshot") or {}
+    profile = snapshot.get("profile") or {}
+    candidate = payload.get("cross_dataset_candidate") or {}
+    metrics = candidate.get("metrics") or {}
+    calibration = candidate.get("calibration") or {}
+    overfitting = payload.get("overfitting_check") or {}
+    readiness = payload.get("readiness_gate_v5") or {}
+    return {
+        **summary,
+        "external_label_count": int(snapshot.get("benchmark_label_count") or 0),
+        "preferred_target_met": bool(snapshot.get("preferred_target_met")),
+        "source_count": int(profile.get("source_count") or 0),
+        "scenario_count": int(profile.get("scenario_count") or 0),
+        "candidate_name": candidate.get("candidate_name"),
+        "threat_positive_f1": metrics.get("threat_positive_f1"),
+        "threat_positive_recall": metrics.get("threat_positive_recall"),
+        "benign_like_false_positive_rate": metrics.get(
+            "benign_false_positive_rate"
+        ),
+        "suspicious_recall": (
+            (metrics.get("per_class") or {}).get("suspicious") or {}
+        ).get("recall"),
+        "malicious_recall": (
+            (metrics.get("per_class") or {}).get("malicious") or {}
+        ).get("recall"),
+        "calibration_status": calibration.get("status") or "missing",
+        "overfitting_status": overfitting.get("status") or "not_evaluated",
+        "overfitting_warning": bool(overfitting.get("overfitting_warning")),
+        "threat_f1_gap": (
+            (overfitting.get("metric_gaps") or {})
+            .get("threat_positive_f1", {})
+            .get("gap")
+        ),
+        "readiness_decision": readiness.get("decision") or "candidate_only",
+        "checks_passed": int(readiness.get("passed") or 0),
+        "checks_total": int(readiness.get("total") or 0),
+        "external_benchmark_validated": bool(
+            readiness.get("external_benchmark_validated")
+        ),
+        "production_promoted": False,
+        "model_activated": False,
+        "response_automation_allowed": False,
+    }
+
+
 @router.get("/summary")
 def dashboard_summary(
     db: Session = Depends(get_db),
@@ -539,4 +592,5 @@ def dashboard_validation_summary(
     summary["v13_ai"] = _latest_v13_ai_summary(V13_REPORT_DIR)
     summary["v14_ai"] = _latest_v14_ai_summary(V13_REPORT_DIR)
     summary["v15_ai"] = _latest_v15_ai_summary(V13_REPORT_DIR)
+    summary["v16_ai"] = _latest_v16_ai_summary(BENCHMARK_REPORT_DIR)
     return summary

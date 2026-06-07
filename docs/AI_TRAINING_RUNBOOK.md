@@ -863,3 +863,25 @@ The committed manifest generates 240 synthetic labels across benign-like, suspic
 `benchmark_validated_candidate` means the internal benchmark gate passed for analyst decision support. It does not activate a model, promote it to production, enable response automation, or prove deployment accuracy.
 
 See `docs/V1_5_AI_READINESS_BENCHMARK_VALIDATION.md`.
+
+## 34. v1.6 External / Unseen Holdout Validation
+
+Preview the 320-row fixed safe holdout:
+
+```powershell
+python -m atdr.scripts.build_fixed_unseen_holdout --dry-run --pretty
+```
+
+Run transfer evaluation without changing the active model:
+
+```powershell
+python -m atdr.scripts.run_external_benchmark_validation --holdout-from-current-data --pretty
+```
+
+The switch uses a separate synthetic holdout with different source names, timestamps, and scenarios. It does not extract private local database rows. An approved external CSV can be supplied with `--input-csv`, mapping, and label configuration.
+
+The workflow compares internal and unseen metrics, checks per-class and per-attack performance, measures confidence calibration, and reports a generalization gap. Generated snapshots and reports remain under ignored `demo_exports/benchmarks/`.
+
+Current readiness is `internal_benchmark_validated_candidate`, not external-benchmark validated. No model is written or activated, production promotion remains false, and response automation remains disabled.
+
+See `docs/V1_6_EXTERNAL_BENCHMARK_VALIDATION.md`.

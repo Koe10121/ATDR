@@ -213,7 +213,11 @@ export function ExecutiveOverview() {
           <div className="rounded-lg border border-line bg-panel2 p-3">
             <div className="text-xs font-bold uppercase tracking-wide text-muted">Benchmark</div>
             <div className="mt-1 font-bold text-text">
-              {validation?.v15_ai?.available
+              {validation?.v16_ai?.available
+                ? `${validation.v16_ai.external_label_count ?? 0} unseen | F1 ${
+                    validation.v16_ai.threat_positive_f1 ?? "-"
+                  }`
+                : validation?.v15_ai?.available
                 ? `${validation.v15_ai.benchmark_label_count ?? 0} labels | F1 ${
                     validation.v15_ai.threat_positive_f1 ?? "-"
                   }`
@@ -222,7 +226,9 @@ export function ExecutiveOverview() {
                   : "No benchmark yet"}
             </div>
             <div className="mt-1 text-xs text-muted">
-              {validation?.v15_ai?.available
+              {validation?.v16_ai?.available
+                ? `${validation.v16_ai.readiness_decision ?? "candidate_only"} | external holdout`
+                : validation?.v15_ai?.available
                 ? `${validation.v15_ai.readiness_decision ?? "candidate_only"} | decision support only`
                 : validation?.benchmark?.available
                 ? `${validation.benchmark.detection_mode ?? "benchmark"} | ${validation.benchmark.readiness_decision ?? "candidate_only"}`

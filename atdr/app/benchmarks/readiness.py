@@ -425,3 +425,130 @@ def readiness_gate_v4(
             "Production promotion, model activation, and response automation remain disabled."
         ),
     }
+
+
+def readiness_gate_v5(
+    *,
+    external_label_count: int,
+    external_metrics: dict[str, Any],
+    calibration_status: str,
+    controlled_validations_passed: bool,
+    internal_benchmark_validated: bool,
+    response_automation_allowed: bool = False,
+) -> dict[str, Any]:
+    """External/holdout benchmark gate that remains decision-support only."""
+    threat_f1 = _metric(
+        external_metrics,
+        "threat_positive_f1",
+        default=_metric(external_metrics, "f1"),
+    )
+    threat_recall = _metric(
+        external_metrics,
+        "threat_positive_recall",
+        default=_metric(external_metrics, "recall"),
+    )
+    benign_fp_rate = _metric(
+        external_metrics,
+        "benign_false_positive_rate",
+        default=_metric(external_metrics, "benign_like_false_positive_rate"),
+    )
+    calibration_normalized = calibration_status.strip().lower()
+    calibration_acceptable = calibration_normalized in {
+        "passed",
+        "pass",
+        "not_available",
+        "not available",
+    }
+    checks = [
+        {
+            "name": "external_benchmark_minimum_rows",
+            "passed": external_label_count >= 100,
+            "detail": f"{external_label_count} external/holdout labels available.",
+            "target": ">= 100; >= 300 preferred",
+        },
+        {
+            "name": "external_benchmark_preferred_rows",
+            "passed": external_label_count >= 300,
+            "detail": f"{external_label_count} external/holdout labels available.",
+            "target": ">= 300 preferred",
+            "advisory": True,
+        },
+        {
+            "name": "external_threat_positive_f1",
+            "passed": threat_f1 >= 0.85,
+            "detail": f"External threat-positive F1={round(threat_f1, 4)}.",
+            "target": ">= 0.85",
+        },
+        {
+            "name": "external_threat_positive_recall",
+            "passed": threat_recall >= 0.85,
+            "detail": f"External threat-positive recall={round(threat_recall, 4)}.",
+            "target": ">= 0.85",
+        },
+        {
+            "name": "external_benign_like_false_positive_rate",
+            "passed": benign_fp_rate <= 0.15,
+            "detail": f"External benign-like false-positive rate={round(benign_fp_rate, 4)}.",
+            "target": "<= 0.15",
+        },
+        {
+            "name": "confidence_calibration",
+            "passed": calibration_acceptable,
+            "detail": f"Calibration status={calibration_status or 'missing'}.",
+            "target": "passed or not_available",
+        },
+        {
+            "name": "controlled_validations",
+            "passed": controlled_validations_passed,
+            "detail": (
+                "Latest controlled validations passed."
+                if controlled_validations_passed
+                else "One or more controlled validations are missing or failed."
+            ),
+            "target": "passed",
+        },
+        {
+            "name": "response_automation_disabled",
+            "passed": not response_automation_allowed,
+            "detail": f"response_automation_allowed={response_automation_allowed}.",
+            "target": "False",
+        },
+    ]
+    required_checks = [item for item in checks if not item.get("advisory")]
+    passed_required = sum(1 for item in required_checks if item["passed"])
+    passed_total = sum(1 for item in checks if item["passed"])
+    external_validated = all(item["passed"] for item in required_checks)
+    analyst_review_eligible = (
+        external_label_count >= 100
+        and threat_f1 >= 0.75
+        and threat_recall >= 0.75
+        and not response_automation_allowed
+    )
+    if external_validated:
+        decision = "external_benchmark_validated_candidate"
+    elif internal_benchmark_validated:
+        decision = "internal_benchmark_validated_candidate"
+    elif analyst_review_eligible:
+        decision = "analyst_review_eligible"
+    else:
+        decision = "candidate_only"
+    return {
+        "version": "v5",
+        "decision": decision,
+        "production_status": "not_production_promoted",
+        "production_promoted": False,
+        "model_activated": False,
+        "response_automation_allowed": False,
+        "analyst_review_eligible": analyst_review_eligible,
+        "internal_benchmark_validated": internal_benchmark_validated,
+        "external_benchmark_validated": external_validated,
+        "passed": passed_total,
+        "total": len(checks),
+        "required_passed": passed_required,
+        "required_total": len(required_checks),
+        "checks": checks,
+        "message": (
+            "External/holdout validation strengthens SOC triage evidence only. "
+            "Production promotion, automatic model activation, and response automation remain disabled."
+        ),
+    }
