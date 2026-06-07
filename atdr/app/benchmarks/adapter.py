@@ -10,6 +10,8 @@ from typing import Any
 
 DEFAULT_FIELD_MAPPING = {
     "timestamp": "timestamp",
+    "source_name": "source_name",
+    "scenario": "scenario",
     "src_ip": "src_ip",
     "dst_ip": "dst_ip",
     "src_port": "src_port",
@@ -32,8 +34,8 @@ DEFAULT_LABEL_MAPPING = {
     "normal": "benign",
     "clean": "benign",
     "attack": "threat",
-    "malicious": "threat",
-    "suspicious": "threat",
+    "malicious": "malicious",
+    "suspicious": "suspicious",
     "threat": "threat",
 }
 
@@ -190,6 +192,8 @@ def load_benchmark_csv(
             attack_type = _mapped_attack_type(_value(row, field_mapping, "attack_type"), attack_mapping, label)
             normalized = {
                 "timestamp": _timestamp_value(row, field_mapping),
+                "source_name": _value(row, field_mapping, "source_name"),
+                "scenario": _value(row, field_mapping, "scenario"),
                 "src_ip": _value(row, field_mapping, "src_ip"),
                 "dst_ip": _value(row, field_mapping, "dst_ip"),
                 "src_port": _int_value(row, field_mapping, "src_port"),
@@ -321,6 +325,18 @@ def benchmark_dataset_profile(records: list[BenchmarkRecord], *, required_fields
     ]
     label_distribution = _counter([record.label for record in records])
     attack_distribution = _counter([record.attack_type for record in records])
+    source_distribution = _counter(
+        [
+            str(record.normalized.get("source_name") or "unspecified")
+            for record in records
+        ]
+    )
+    scenario_distribution = _counter(
+        [
+            str(record.normalized.get("scenario") or "unspecified")
+            for record in records
+        ]
+    )
     max_label = max(label_distribution.values(), default=0)
     min_label = min(label_distribution.values(), default=0)
     return {
@@ -328,6 +344,10 @@ def benchmark_dataset_profile(records: list[BenchmarkRecord], *, required_fields
         "missing_field_rates": missing_rates,
         "label_distribution": label_distribution,
         "attack_type_distribution": attack_distribution,
+        "source_distribution": source_distribution,
+        "source_count": len(source_distribution),
+        "scenario_distribution": scenario_distribution,
+        "scenario_count": len(scenario_distribution),
         "time_range": {
             "start": min(timestamps).isoformat() if timestamps else None,
             "end": max(timestamps).isoformat() if timestamps else None,

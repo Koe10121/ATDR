@@ -37,6 +37,14 @@ def render_markdown(snapshot: dict[str, Any]) -> str:
     lines.extend(["", "## Attack Type Distribution", ""])
     for attack_type, count in (profile.get("attack_type_distribution") or {}).items():
         lines.append(f"- {attack_type}: {count}")
+    lines.extend(["", "## Source Diversity", ""])
+    lines.append(f"- Source count: {profile.get('source_count', 0)}")
+    for source, count in (profile.get("source_distribution") or {}).items():
+        lines.append(f"- {source}: {count}")
+    lines.extend(["", "## Scenario Diversity", ""])
+    lines.append(f"- Scenario count: {profile.get('scenario_count', 0)}")
+    for scenario, count in (profile.get("scenario_distribution") or {}).items():
+        lines.append(f"- {scenario}: {count}")
     lines.extend(["", "## Missing Field Rates", ""])
     for field, item in (profile.get("missing_field_rates") or {}).items():
         lines.append(f"- {field}: {item.get('missing')} missing ({item.get('rate')})")

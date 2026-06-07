@@ -476,6 +476,47 @@ def _latest_v14_ai_summary(report_dir: Path = V13_REPORT_DIR) -> dict[str, Any]:
     }
 
 
+def _latest_v15_ai_summary(report_dir: Path = V13_REPORT_DIR) -> dict[str, Any]:
+    summary, payload = _latest_reliability_file_summary(
+        report_dir,
+        "final_ai_readiness_report_*.json",
+        missing_message="No v1.5 final AI readiness report has been generated yet.",
+    )
+    if payload is None:
+        return summary
+    benchmark = payload.get("benchmark") or {}
+    candidate = payload.get("best_benchmark_candidate") or {}
+    metrics = candidate.get("metrics") or {}
+    readiness = payload.get("readiness_gate_v4") or {}
+    current = payload.get("current_v14c") or {}
+    calibration = current.get("selected_calibration") or {}
+    return {
+        **summary,
+        "benchmark_label_count": int(benchmark.get("row_count") or 0),
+        "benchmark_target_met": bool(benchmark.get("target_met")),
+        "best_candidate": candidate.get("candidate_name"),
+        "best_profile": current.get("best_profile"),
+        "threat_positive_f1": metrics.get("threat_positive_f1"),
+        "threat_positive_recall": metrics.get("threat_positive_recall"),
+        "benign_like_false_positive_rate": metrics.get(
+            "benign_false_positive_rate"
+        ),
+        "suspicious_recall": (
+            (metrics.get("per_class") or {}).get("suspicious") or {}
+        ).get("recall"),
+        "malicious_recall": (
+            (metrics.get("per_class") or {}).get("malicious") or {}
+        ).get("recall"),
+        "calibration_status": calibration.get("status") or "missing",
+        "readiness_decision": readiness.get("decision") or "candidate_only",
+        "checks_passed": int(readiness.get("passed") or 0),
+        "checks_total": int(readiness.get("total") or 0),
+        "production_promoted": False,
+        "model_activated": False,
+        "response_automation_allowed": False,
+    }
+
+
 @router.get("/summary")
 def dashboard_summary(
     db: Session = Depends(get_db),
@@ -497,4 +538,5 @@ def dashboard_validation_summary(
     summary["drift"] = _latest_v11_drift_summary(RELIABILITY_REPORT_DIR)
     summary["v13_ai"] = _latest_v13_ai_summary(V13_REPORT_DIR)
     summary["v14_ai"] = _latest_v14_ai_summary(V13_REPORT_DIR)
+    summary["v15_ai"] = _latest_v15_ai_summary(V13_REPORT_DIR)
     return summary

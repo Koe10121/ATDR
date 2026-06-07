@@ -669,6 +669,26 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
           actionable_review_excludes_manual: true,
           malicious_recovery_review_rows: 150
         },
+        v15_ai: {
+          available: true,
+          ok: true,
+          benchmark_label_count: 240,
+          benchmark_target_met: true,
+          best_candidate: "hierarchical_two_stage_extra_trees",
+          best_profile: "malicious_recall_recovery",
+          threat_positive_f1: 0.91,
+          threat_positive_recall: 0.92,
+          benign_like_false_positive_rate: 0.08,
+          suspicious_recall: 0.9,
+          malicious_recall: 0.66,
+          calibration_status: "passed",
+          readiness_decision: "benchmark_validated_candidate",
+          checks_passed: 8,
+          checks_total: 8,
+          production_promoted: false,
+          model_activated: false,
+          response_automation_allowed: false
+        },
         drift: {
           available: true,
           ok: true,
@@ -948,8 +968,8 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByText("3/3 passed")).toBeVisible();
   await expect(page.getByText("Reliability")).toBeVisible();
   await expect(page.getByText("14/14 scenarios")).toBeVisible();
-  await expect(page.getByText("Benchmark")).toBeVisible();
-  await expect(page.getByText("Threat F1 1")).toBeVisible();
+  await expect(page.getByText("Benchmark", { exact: true })).toBeVisible();
+  await expect(page.getByText("240 labels | F1 0.91")).toBeVisible();
   await expect(page.getByText("Drift")).toBeVisible();
   await expect(page.getByText("0 warnings")).toBeVisible();
   await expect(page.getByText("Lab-Scale Validation")).toBeVisible();
@@ -986,6 +1006,8 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByText("Automation Disabled", { exact: true })).toBeVisible();
   await expect(page.getByText(/Main blocker:\s*malicious recall and calibration/)).toBeVisible();
   await expect(page.getByText(/Calibration:\s*passed/)).toBeVisible();
+  await expect(page.getByText(/240 labels \| Threat F1 0.91 \| benchmark_validated_candidate/)).toBeVisible();
+  await expect(page.getByText("Benchmark readiness checks 8/8")).toBeVisible();
   await expect(page.getByText(/Confirmed noisy pattern:\s*normal QUIC\/443/)).toBeVisible();
   await expect(page.getByText(/False positives:\s*improved/)).toBeVisible();
   await expect(page.getByText(/QUIC\/443 mitigation:\s*validated candidate; not activated/)).toBeVisible();

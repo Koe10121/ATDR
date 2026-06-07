@@ -1,0 +1,89 @@
+{
+  "name": "internal_ai_readiness_benchmark",
+  "version": "v1.5",
+  "description": "Deterministic safe synthetic benchmark manifest for ATDR SOC triage validation.",
+  "target_rows": 240,
+  "private_raw_payloads_allowed": false,
+  "production_readiness_claim": false,
+  "automatic_response_expected": false,
+  "scenarios": [
+    {
+      "name": "normal_quic_443",
+      "count": 30,
+      "label": "benign_like",
+      "attack_type": "normal",
+      "source_name": "benchmark-office-firewall"
+    },
+    {
+      "name": "normal_web_dns",
+      "count": 30,
+      "label": "benign_like",
+      "attack_type": "normal",
+      "source_name": "benchmark-office-router"
+    },
+    {
+      "name": "benign_near_threat_boundary",
+      "count": 25,
+      "label": "benign_like",
+      "attack_type": "normal",
+      "source_name": "benchmark-office-firewall"
+    },
+    {
+      "name": "port_scan_like",
+      "count": 35,
+      "label": "suspicious",
+      "attack_type": "port_scan",
+      "source_name": "benchmark-edge-firewall"
+    },
+    {
+      "name": "policy_violation",
+      "count": 20,
+      "label": "suspicious",
+      "attack_type": "policy_violation",
+      "source_name": "benchmark-office-firewall"
+    },
+    {
+      "name": "brute_force_like",
+      "count": 25,
+      "label": "malicious",
+      "attack_type": "brute_force",
+      "source_name": "benchmark-edge-firewall"
+    },
+    {
+      "name": "malware_c2_beaconing",
+      "count": 25,
+      "label": "malicious",
+      "attack_type": "malware_c2",
+      "source_name": "benchmark-office-firewall"
+    },
+    {
+      "name": "data_exfiltration_suspicion",
+      "count": 20,
+      "label": "malicious",
+      "attack_type": "data_exfiltration_suspicion",
+      "source_name": "benchmark-office-router"
+    },
+    {
+      "name": "connection_flood_like",
+      "count": 15,
+      "label": "malicious",
+      "attack_type": "dos_ddos",
+      "source_name": "benchmark-edge-firewall"
+    },
+    {
+      "name": "malformed_or_limited_context",
+      "count": 15,
+      "label": "needs_context",
+      "attack_type": "unknown",
+      "source_name": "benchmark-generic-syslog"
+    }
+  ],
+  "safety": {
+    "synthetic_only": true,
+    "offensive_tooling_used": false,
+    "real_attacks_executed": false,
+    "generated_csv_must_remain_ignored": true,
+    "model_activation_allowed": false,
+    "response_automation_allowed": false
+  }
+}

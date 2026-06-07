@@ -430,6 +430,7 @@ export interface DashboardValidationSummary {
   drift?: DashboardDriftSummary;
   v13_ai?: DashboardV13AiSummary;
   v14_ai?: DashboardV14AiSummary;
+  v15_ai?: DashboardV15AiSummary;
 }
 
 export interface DashboardGeneralizationSummary {
@@ -601,6 +602,31 @@ export interface DashboardV14AiSummary {
   malicious_recovery_review_rows?: number | null;
   latest_mitigation_report_name?: string | null;
   latest_recovery_report_name?: string | null;
+  latest_report_name?: string | null;
+  latest_markdown_name?: string | null;
+  message?: string;
+}
+
+export interface DashboardV15AiSummary {
+  available: boolean;
+  ok?: boolean;
+  generated_at?: string | null;
+  benchmark_label_count?: number;
+  benchmark_target_met?: boolean;
+  best_candidate?: string | null;
+  best_profile?: string | null;
+  threat_positive_f1?: number | null;
+  threat_positive_recall?: number | null;
+  benign_like_false_positive_rate?: number | null;
+  suspicious_recall?: number | null;
+  malicious_recall?: number | null;
+  calibration_status?: string | null;
+  readiness_decision?: string | null;
+  checks_passed?: number;
+  checks_total?: number;
+  production_promoted?: boolean;
+  model_activated?: boolean;
+  response_automation_allowed?: boolean;
   latest_report_name?: string | null;
   latest_markdown_name?: string | null;
   message?: string;

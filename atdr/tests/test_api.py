@@ -140,6 +140,7 @@ def test_dashboard_validation_summary_reports_latest_file_without_private_paths(
     v14_candidate_path = reliability_dir / "v1_4_false_positive_reduction_20260605T035000Z.json"
     v14b_candidate_path = reliability_dir / "v1_4b_quic_false_positive_mitigation.json"
     v14c_candidate_path = reliability_dir / "v1_4c_malicious_recall_recovery.json"
+    v15_candidate_path = reliability_dir / "final_ai_readiness_report_20260605T041000Z.json"
     report_path.write_text(
         json.dumps(
             {
@@ -424,6 +425,43 @@ def test_dashboard_validation_summary_reports_latest_file_without_private_paths(
         ),
         encoding="utf-8",
     )
+    v15_candidate_path.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "generated_at": "2026-06-05T04:10:00+00:00",
+                "benchmark": {
+                    "row_count": 240,
+                    "target_met": True,
+                },
+                "best_benchmark_candidate": {
+                    "candidate_name": "hierarchical_two_stage_extra_trees",
+                    "metrics": {
+                        "threat_positive_f1": 0.91,
+                        "threat_positive_recall": 0.92,
+                        "benign_false_positive_rate": 0.08,
+                        "per_class": {
+                            "suspicious": {"recall": 0.9},
+                            "malicious": {"recall": 0.66},
+                        },
+                    },
+                },
+                "current_v14c": {
+                    "best_profile": "malicious_recall_recovery",
+                    "selected_calibration": {"status": "passed"},
+                },
+                "readiness_gate_v4": {
+                    "decision": "benchmark_validated_candidate",
+                    "passed": 8,
+                    "total": 8,
+                },
+                "production_promoted": False,
+                "model_activated": False,
+                "response_automation_allowed": False,
+            }
+        ),
+        encoding="utf-8",
+    )
     monkeypatch.setattr(dashboard_router, "VALIDATION_REPORT_DIR", report_dir)
     monkeypatch.setattr(dashboard_router, "GENERALIZATION_REPORT_DIR", generalization_dir)
     monkeypatch.setattr(dashboard_router, "LAYERED_REPORT_DIR", layered_dir)
@@ -504,6 +542,17 @@ def test_dashboard_validation_summary_reports_latest_file_without_private_paths(
         assert payload["v14_ai"]["actionable_review_rows"] == 200
         assert payload["v14_ai"]["actionable_review_excludes_manual"] is True
         assert payload["v14_ai"]["malicious_recovery_review_rows"] == 150
+        assert payload["v15_ai"]["available"] is True
+        assert payload["v15_ai"]["benchmark_label_count"] == 240
+        assert payload["v15_ai"]["benchmark_target_met"] is True
+        assert (
+            payload["v15_ai"]["readiness_decision"]
+            == "benchmark_validated_candidate"
+        )
+        assert payload["v15_ai"]["calibration_status"] == "passed"
+        assert payload["v15_ai"]["production_promoted"] is False
+        assert payload["v15_ai"]["model_activated"] is False
+        assert payload["v15_ai"]["response_automation_allowed"] is False
         assert str(report_dir) not in json.dumps(payload)
         assert str(generalization_dir) not in json.dumps(payload)
         assert str(layered_dir) not in json.dumps(payload)

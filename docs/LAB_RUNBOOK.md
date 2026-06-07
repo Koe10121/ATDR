@@ -781,3 +781,16 @@ Review `ml_baseline_reviews/v1_4b_actionable_false_positive_review_sample.csv`, 
 Use this after v1.4b review import. It checks whether malicious recall can recover while keeping benign-like false positives at or below `0.15`, verifies that QUIC mitigation does not suppress strong threat evidence, compares confidence calibration methods, and optionally exports `ml_baseline_reviews/v1_4c_malicious_recall_review_sample.csv`.
 
 All v1.4c outputs are ignored. The runner does not write or activate a model artifact and cannot enable response automation.
+
+## v1.5 Internal AI Readiness Benchmark
+
+The v1.5 manifest builds a safe 240-row benchmark with normal, near-boundary, suspicious, malicious, and limited-context traffic. It uses synthetic reserved addresses and never executes attacks.
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.build_internal_ai_readiness_benchmark --dry-run --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v15_ai_readiness_validation --pretty
+```
+
+Verify the concise result in React AI Governance. Detailed generated evidence remains under ignored `demo_exports/benchmarks/` and `ml_baseline_reviews/`.
+
+Interpret `benchmark_validated_candidate` as internal benchmark evidence for analyst review only. Production promotion, model activation, automatic response, and real firewall blocking remain disabled.

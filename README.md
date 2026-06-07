@@ -180,6 +180,15 @@ python -m atdr.scripts.run_benchmark_ml_experiment --prepared-snapshot demo_expo
 
 v1.2 reports are ignored under `demo_exports/benchmarks/` and `ml_baseline_reviews/benchmark_ml_experiments/`. Benchmark metrics stay separate from local firewall-log metrics and are not production accuracy.
 
+Run the safe v1.5 internal AI-readiness benchmark:
+
+```powershell
+python -m atdr.scripts.build_internal_ai_readiness_benchmark --dry-run --pretty
+python -m atdr.scripts.run_v15_ai_readiness_validation --pretty
+```
+
+The 240-row benchmark is generated from a small committed manifest. Generated data and reports remain ignored. A `benchmark_validated_candidate` result strengthens analyst-review evidence only; it does not activate or production-promote a model.
+
 Run a scenario against a temporary database:
 
 ```powershell
@@ -277,6 +286,7 @@ Start here:
 - `docs/V1_4_FALSE_POSITIVE_REDUCTION_AND_CONFIDENCE_CALIBRATION.md` - low-noise SOC queue experiments, hard-gated thresholds, confidence calibration, and targeted false-positive review.
 - `docs/V1_4B_FALSE_POSITIVE_MITIGATION.md` - actionable review sampling and evidence-aware normal QUIC/443 false-positive mitigation.
 - `docs/V1_4C_MALICIOUS_RECALL_RECOVERY_AND_CALIBRATION.md` - malicious-recall boundary analysis, low-noise recovery profiles, and held-out confidence calibration.
+- `docs/V1_5_AI_READINESS_BENCHMARK_VALIDATION.md` - safe internal benchmark generation, layered/ML comparison, readiness gate v4, and final decision-support status.
 - `docs/V0_5_SIMULATION_DEMO_PLAN.md` - earlier controlled replay validation plan.
 - `docs/V0_5_REAL_SOURCE_VALIDATION_PLAN.md` - future controlled hardware source validation plan.
 - `docs/V0_3_RELEASE_CANDIDATE.md` - current release-candidate summary.

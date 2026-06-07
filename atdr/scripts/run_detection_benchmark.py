@@ -55,6 +55,17 @@ def _insert_records(db, records: list[BenchmarkRecord], *, source_name: str) -> 
         db.add(raw)
         db.flush()
         timestamp = record.normalized.get("timestamp")
+        total_bytes = record.normalized.get("bytes")
+        total_packets = record.normalized.get("packets")
+        app = str(record.normalized.get("app") or "").lower()
+        dst_port = record.normalized.get("dst_port")
+        app_risk = (
+            4
+            if dst_port in {22, 23, 3389, 4444}
+            else 3
+            if app in {"incomplete", "unknown", "unknown-tcp", "unknown-udp"}
+            else 1
+        )
         log = NormalizedLog(
             raw_log_id=raw.id,
             receive_time=timestamp,
@@ -66,8 +77,14 @@ def _insert_records(db, records: list[BenchmarkRecord], *, source_name: str) -> 
             protocol=record.normalized.get("protocol"),
             action=record.normalized.get("action"),
             app=record.normalized.get("app"),
-            bytes=record.normalized.get("bytes"),
-            packets=record.normalized.get("packets"),
+            bytes=total_bytes,
+            bytes_sent=int(total_bytes * 0.7) if total_bytes is not None else None,
+            bytes_received=int(total_bytes * 0.3) if total_bytes is not None else None,
+            packets=total_packets,
+            packets_sent=int(total_packets * 0.7) if total_packets is not None else None,
+            packets_received=int(total_packets * 0.3) if total_packets is not None else None,
+            elapsed_time=max(1, int(total_packets or 1)),
+            app_risk=app_risk,
             src_zone="outside",
             dst_zone="inside",
             parsed_json={
@@ -75,6 +92,8 @@ def _insert_records(db, records: list[BenchmarkRecord], *, source_name: str) -> 
                 "row_number": record.row_number,
                 "label": record.label,
                 "attack_type": record.attack_type,
+                "benchmark_source_name": record.normalized.get("source_name"),
+                "benchmark_scenario": record.normalized.get("scenario"),
             },
         )
         db.add(log)
@@ -150,6 +169,17 @@ def _metrics(records: list[BenchmarkRecord], normalized_ids: list[int], predicte
         if total
         else 0.0
     )
+    benign_support = tn + fp
+    suspicious_rows = [
+        (record, log_id)
+        for record, log_id in zip(records, normalized_ids, strict=False)
+        if record.label.lower() == "suspicious"
+    ]
+    malicious_rows = [
+        (record, log_id)
+        for record, log_id in zip(records, normalized_ids, strict=False)
+        if record.label.lower() == "malicious"
+    ]
     return {
         "true_positives": tp,
         "false_positives": fp,
@@ -163,6 +193,23 @@ def _metrics(records: list[BenchmarkRecord], normalized_ids: list[int], predicte
         "threat_positive_f1": _f1(precision, recall),
         "macro_f1": macro_f1,
         "weighted_f1": weighted_f1,
+        "benign_false_positive_rate": _safe_div(fp, benign_support),
+        "suspicious_recall": _safe_div(
+            sum(
+                1
+                for _record, log_id in suspicious_rows
+                if predicted_threat_by_log.get(log_id)
+            ),
+            len(suspicious_rows),
+        ),
+        "malicious_recall": _safe_div(
+            sum(
+                1
+                for _record, log_id in malicious_rows
+                if predicted_threat_by_log.get(log_id)
+            ),
+            len(malicious_rows),
+        ),
         "per_class_metrics": per_class,
         "confusion_matrix": {
             "labels": labels,

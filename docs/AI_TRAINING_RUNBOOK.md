@@ -843,3 +843,23 @@ The workflow preserves the evidence-aware QUIC/443 safeguard while comparing mal
 Review `ml_baseline_reviews/v1_4c_malicious_recall_review_sample.csv` only if the report identifies actionable unlabeled or unreviewed rows. Protected manual and reviewed labels remain excluded.
 
 See `docs/V1_4C_MALICIOUS_RECALL_RECOVERY_AND_CALIBRATION.md`. No model artifact is activated, production promotion remains false, and response automation remains disabled.
+
+## 33. v1.5 Internal Benchmark And Final Readiness
+
+Preview the safe deterministic benchmark without writing output:
+
+```powershell
+python -m atdr.scripts.build_internal_ai_readiness_benchmark --dry-run --pretty
+```
+
+Run the complete isolated benchmark and readiness workflow:
+
+```powershell
+python -m atdr.scripts.run_v15_ai_readiness_validation --pretty
+```
+
+The committed manifest generates 240 synthetic labels across benign-like, suspicious, malicious, and needs-context scenarios. Generated CSVs, snapshots, and reports stay under ignored `demo_exports/benchmarks/` and `ml_baseline_reviews/`.
+
+`benchmark_validated_candidate` means the internal benchmark gate passed for analyst decision support. It does not activate a model, promote it to production, enable response automation, or prove deployment accuracy.
+
+See `docs/V1_5_AI_READINESS_BENCHMARK_VALIDATION.md`.

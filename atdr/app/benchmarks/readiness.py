@@ -272,3 +272,156 @@ def readiness_gate_v3(
         "checks": checks,
         "message": "Readiness v3 is a supervised decision-support gate. It cannot activate a model or authorize response automation.",
     }
+
+
+def readiness_gate_v4(
+    *,
+    benchmark_label_count: int,
+    benchmark_label_distribution: dict[str, int],
+    benchmark_metrics: dict[str, Any],
+    calibration_status: str,
+    controlled_validations_passed: bool,
+    response_automation_allowed: bool = False,
+) -> dict[str, Any]:
+    """Final benchmark-aware decision-support readiness gate.
+
+    v4 may classify a candidate as benchmark validated, but it deliberately
+    cannot activate a model, production-promote it, or authorize response.
+    """
+    threat_f1 = _metric(
+        benchmark_metrics,
+        "threat_positive_f1",
+        default=_metric(benchmark_metrics, "f1"),
+    )
+    threat_recall = _metric(
+        benchmark_metrics,
+        "threat_positive_recall",
+        default=_metric(benchmark_metrics, "recall"),
+    )
+    benign_fp_rate = _metric(
+        benchmark_metrics,
+        "benign_false_positive_rate",
+        default=_metric(benchmark_metrics, "benign_like_false_positive_rate"),
+    )
+    suspicious_recall = _metric(
+        benchmark_metrics,
+        "per_class",
+        "suspicious",
+        "recall",
+        default=_metric(benchmark_metrics, "suspicious_recall"),
+    )
+    malicious_recall = _metric(
+        benchmark_metrics,
+        "per_class",
+        "malicious",
+        "recall",
+        default=_metric(benchmark_metrics, "malicious_recall"),
+    )
+    normalized_distribution = {
+        str(label).lower(): int(count)
+        for label, count in benchmark_label_distribution.items()
+    }
+    benign_support = sum(
+        normalized_distribution.get(label, 0)
+        for label in ("benign", "benign_like", "benign_unusual")
+    )
+    suspicious_support = normalized_distribution.get("suspicious", 0)
+    malicious_support = normalized_distribution.get("malicious", 0)
+    calibration_passed = calibration_status.strip().lower() in {
+        "passed",
+        "pass",
+        "calibrated",
+    }
+    checks = [
+        {
+            "name": "benchmark_label_count",
+            "passed": benchmark_label_count >= 100,
+            "detail": f"{benchmark_label_count} benchmark labels available.",
+            "target": ">= 100",
+        },
+        {
+            "name": "benchmark_class_coverage",
+            "passed": benign_support > 0
+            and suspicious_support > 0
+            and malicious_support > 0,
+            "detail": f"Benchmark distribution: {benchmark_label_distribution}.",
+            "target": "Benign-like, suspicious, and malicious support.",
+        },
+        {
+            "name": "benchmark_threat_positive_f1",
+            "passed": threat_f1 >= 0.85,
+            "detail": f"Threat-positive F1={round(threat_f1, 4)}.",
+            "target": ">= 0.85",
+        },
+        {
+            "name": "benchmark_threat_positive_recall",
+            "passed": threat_recall >= 0.85,
+            "detail": f"Threat-positive recall={round(threat_recall, 4)}.",
+            "target": ">= 0.85",
+        },
+        {
+            "name": "benchmark_benign_like_false_positive_rate",
+            "passed": benign_fp_rate <= 0.15,
+            "detail": f"Benign-like false-positive rate={round(benign_fp_rate, 4)}.",
+            "target": "<= 0.15",
+        },
+        {
+            "name": "confidence_calibration",
+            "passed": calibration_passed,
+            "detail": f"Calibration status={calibration_status or 'missing'}.",
+            "target": "passed",
+        },
+        {
+            "name": "controlled_validations",
+            "passed": controlled_validations_passed,
+            "detail": (
+                "Latest controlled validations passed."
+                if controlled_validations_passed
+                else "One or more controlled validations are missing or failed."
+            ),
+            "target": "passed",
+        },
+        {
+            "name": "response_automation_disabled",
+            "passed": not response_automation_allowed,
+            "detail": f"response_automation_allowed={response_automation_allowed}.",
+            "target": "False",
+        },
+    ]
+    passed = sum(1 for item in checks if item["passed"])
+    all_required_passed = passed == len(checks)
+    analyst_review_eligible = (
+        benchmark_label_count >= 100
+        and threat_f1 >= 0.75
+        and threat_recall >= 0.75
+        and not response_automation_allowed
+    )
+    if all_required_passed:
+        decision = "benchmark_validated_candidate"
+    elif analyst_review_eligible:
+        decision = "analyst_review_eligible"
+    else:
+        decision = "candidate_only"
+    return {
+        "version": "v4",
+        "decision": decision,
+        "production_status": "not_production_promoted",
+        "production_promoted": False,
+        "model_activated": False,
+        "response_automation_allowed": False,
+        "analyst_review_eligible": analyst_review_eligible,
+        "benchmark_validated": decision == "benchmark_validated_candidate",
+        "passed": passed,
+        "total": len(checks),
+        "checks": checks,
+        "advisory_metrics": {
+            "suspicious_recall": suspicious_recall,
+            "malicious_recall": malicious_recall,
+            "malicious_recall_ideal_target": 0.7,
+            "malicious_recall_is_blocking": False,
+        },
+        "message": (
+            "Benchmark validation strengthens analyst-review evidence only. "
+            "Production promotion, model activation, and response automation remain disabled."
+        ),
+    }

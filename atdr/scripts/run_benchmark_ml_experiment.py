@@ -38,6 +38,9 @@ def _is_threat(record: BenchmarkRecord) -> bool:
 
 
 def _triage_label(record: BenchmarkRecord) -> str:
+    explicit = record.label.lower()
+    if explicit in {"suspicious", "malicious"}:
+        return explicit
     if not _is_threat(record):
         return "benign_like"
     if record.attack_type in MALICIOUS_LIKE_ATTACKS:
@@ -137,9 +140,103 @@ def _confidence_buckets(y_true: list[str], y_pred: list[str], probabilities: Any
                 "bucket": name,
                 "count": len(indexes),
                 "accuracy": round(correct / len(indexes), 4) if indexes else None,
+                "average_confidence": (
+                    round(sum(confidences[idx] for idx in indexes) / len(indexes), 4)
+                    if indexes
+                    else None
+                ),
             }
         )
     return rows
+
+
+def _evaluate_hierarchical_candidate(
+    *,
+    imports,
+    frame,
+    records: list[BenchmarkRecord],
+    triage_labels: list[str],
+    split: str,
+    test_size: float,
+) -> dict[str, Any]:
+    (
+        _joblib,
+        _pd,
+        _ColumnTransformer,
+        _RandomForestClassifier,
+        _SimpleImputer,
+        accuracy_score,
+        confusion_matrix,
+        precision_recall_fscore_support,
+        train_test_split,
+        _Pipeline,
+        _OneHotEncoder,
+    ) = imports
+    train_idx, test_idx, split_warnings = _split_indices(
+        records,
+        triage_labels,
+        split=split,
+        test_size=test_size,
+        train_test_split=train_test_split,
+    )
+    binary_labels = [
+        "threat_positive" if label in {"suspicious", "malicious"} else "benign_like"
+        for label in triage_labels
+    ]
+    stage1 = _build_pipeline(imports, model_type="extra_trees", class_weight="balanced")
+    stage1.fit(frame.iloc[train_idx], [binary_labels[idx] for idx in train_idx])
+    threat_train_idx = [
+        idx for idx in train_idx if triage_labels[idx] in {"suspicious", "malicious"}
+    ]
+    if len({triage_labels[idx] for idx in threat_train_idx}) < 2:
+        return {
+            "model_type": "hierarchical_extra_trees",
+            "status": "skipped",
+            "message": "Stage 2 training split lacks suspicious/malicious coverage.",
+            "split_warnings": split_warnings,
+        }
+    stage2 = _build_pipeline(imports, model_type="extra_trees", class_weight="balanced")
+    stage2.fit(
+        frame.iloc[threat_train_idx],
+        [triage_labels[idx] for idx in threat_train_idx],
+    )
+    stage1_predictions = list(stage1.predict(frame.iloc[test_idx]))
+    threat_positions = [
+        position
+        for position, prediction in enumerate(stage1_predictions)
+        if prediction == "threat_positive"
+    ]
+    predictions = ["benign_like"] * len(test_idx)
+    if threat_positions:
+        stage2_predictions = list(
+            stage2.predict(frame.iloc[[test_idx[position] for position in threat_positions]])
+        )
+        for position, prediction in zip(
+            threat_positions, stage2_predictions, strict=False
+        ):
+            predictions[position] = prediction
+    y_test = [triage_labels[idx] for idx in test_idx]
+    labels_order = ["benign_like", "malicious", "suspicious"]
+    return {
+        "model_type": "hierarchical_extra_trees",
+        "status": "evaluated",
+        "training_rows": len(train_idx),
+        "stage2_training_rows": len(threat_train_idx),
+        "test_rows": len(test_idx),
+        "split_strategy": split,
+        "split_warnings": split_warnings,
+        "metrics": _metrics(
+            y_test,
+            predictions,
+            labels_order,
+            accuracy_score=accuracy_score,
+            confusion_matrix=confusion_matrix,
+            precision_recall_fscore_support=precision_recall_fscore_support,
+        ),
+        "confidence_buckets": [],
+        "model_artifact_written": False,
+        "model_activated": False,
+    }
 
 
 def _evaluate_candidate(
@@ -296,6 +393,19 @@ def run_benchmark_ml_experiment(
     binary["candidate_name"] = "random_forest_binary_threat_positive"
     binary["label_space"] = "benign_like/threat_positive"
     candidates.append(binary)
+    hierarchical = _evaluate_hierarchical_candidate(
+        imports=imports,
+        frame=frame,
+        records=records,
+        triage_labels=triage_labels,
+        split=split,
+        test_size=test_size,
+    )
+    hierarchical["candidate_name"] = "hierarchical_two_stage_extra_trees"
+    hierarchical["label_space"] = (
+        "stage1 benign_like/threat_positive; stage2 suspicious/malicious"
+    )
+    candidates.append(hierarchical)
 
     evaluated = [item for item in candidates if item.get("status") == "evaluated"]
     best = max(evaluated, key=lambda item: (item["metrics"].get("threat_positive_f1", 0), item["metrics"].get("macro_f1", 0)), default=None)
