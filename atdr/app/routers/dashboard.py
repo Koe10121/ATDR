@@ -394,6 +394,88 @@ def _latest_v13_ai_summary(report_dir: Path = V13_REPORT_DIR) -> dict[str, Any]:
     }
 
 
+def _latest_v14_ai_summary(report_dir: Path = V13_REPORT_DIR) -> dict[str, Any]:
+    summary, payload = _latest_reliability_file_summary(
+        report_dir,
+        "v1_4_false_positive_reduction_*.json",
+        missing_message="No v1.4 false-positive reduction report has been generated yet.",
+    )
+    if payload is None:
+        return summary
+    best_metrics = payload.get("best_metrics") or {}
+    readiness = payload.get("readiness") or {}
+    mitigation_summary, mitigation = _latest_reliability_file_summary(
+        report_dir,
+        "v1_4b_quic_false_positive_mitigation.json",
+        missing_message="No v1.4b QUIC mitigation report has been generated yet.",
+    )
+    mitigation_analysis = (mitigation or {}).get("analysis") or {}
+    actionable_review = (mitigation or {}).get("review_sample") or {}
+    recovery_summary, recovery = _latest_reliability_file_summary(
+        report_dir,
+        "v1_4c_malicious_recall_recovery.json",
+        missing_message="No v1.4c malicious-recall recovery report has been generated yet.",
+    )
+    effective_payload = recovery or payload
+    effective_metrics = effective_payload.get("best_metrics") or best_metrics
+    effective_readiness = effective_payload.get("readiness") or readiness
+    selected_calibration = effective_payload.get("selected_calibration") or {}
+    recovery_review = (recovery or {}).get("review_sample") or {}
+    return {
+        **summary,
+        "best_strategy": effective_payload.get("best_strategy"),
+        "best_profile": effective_payload.get("best_profile"),
+        "threat_positive_precision": effective_metrics.get("threat_positive_precision"),
+        "threat_positive_recall": effective_metrics.get("threat_positive_recall"),
+        "threat_positive_f1": effective_metrics.get("threat_positive_f1"),
+        "benign_like_false_positive_rate": effective_metrics.get(
+            "benign_like_false_positive_rate"
+        ),
+        "suspicious_recall": effective_metrics.get("suspicious_recall"),
+        "malicious_recall": effective_metrics.get("malicious_recall"),
+        "calibration_status": (
+            selected_calibration.get("status")
+            or effective_payload.get("calibration_status")
+            or "pending"
+        ),
+        "readiness_decision": effective_readiness.get("decision") or "candidate_only",
+        "production_promoted": False,
+        "response_automation_allowed": False,
+        "false_positives_improved": mitigation is not None,
+        "current_blocker": (
+            "malicious recall and calibration"
+            if recovery is not None
+            else "false positives"
+        ),
+        "quic_mitigation_status": (
+            "validated candidate; not activated"
+            if mitigation is not None
+            else "pending"
+        ),
+        "confirmed_noisy_pattern": (
+            "normal QUIC/443"
+            if mitigation_analysis.get("quic_false_positive_count") is not None
+            else None
+        ),
+        "quic_false_positive_count": mitigation_analysis.get(
+            "quic_false_positive_count"
+        ),
+        "actionable_review_rows": actionable_review.get("rows"),
+        "actionable_review_excludes_manual": (
+            int(actionable_review.get("protected_manual_rows") or 0) == 0
+            if actionable_review
+            else None
+        ),
+        "latest_mitigation_report_name": mitigation_summary.get(
+            "latest_report_name"
+        ),
+        "malicious_recovery_review_rows": recovery_review.get("rows"),
+        "latest_recovery_report_name": recovery_summary.get(
+            "latest_report_name"
+        ),
+    }
+
+
 @router.get("/summary")
 def dashboard_summary(
     db: Session = Depends(get_db),
@@ -414,4 +496,5 @@ def dashboard_validation_summary(
     summary["benchmark"] = _latest_v11_benchmark_summary(RELIABILITY_REPORT_DIR, BENCHMARK_REPORT_DIR)
     summary["drift"] = _latest_v11_drift_summary(RELIABILITY_REPORT_DIR)
     summary["v13_ai"] = _latest_v13_ai_summary(V13_REPORT_DIR)
+    summary["v14_ai"] = _latest_v14_ai_summary(V13_REPORT_DIR)
     return summary

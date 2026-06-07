@@ -645,6 +645,30 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
           production_status: "not_production_promoted",
           response_automation_allowed: false
         },
+        v14_ai: {
+          available: true,
+          ok: true,
+          best_strategy: "three_class_soc_triage",
+          best_profile: "calibrated_low_noise",
+          threat_positive_precision: 0.91,
+          threat_positive_recall: 0.92,
+          threat_positive_f1: 0.915,
+          benign_like_false_positive_rate: 0.06,
+          suspicious_recall: 0.95,
+          malicious_recall: 0.7,
+          calibration_status: "passed",
+          readiness_decision: "analyst_review_eligible",
+          production_promoted: false,
+          response_automation_allowed: false,
+          false_positives_improved: true,
+          current_blocker: "malicious recall and calibration",
+          quic_mitigation_status: "validated candidate; not activated",
+          confirmed_noisy_pattern: "normal QUIC/443",
+          quic_false_positive_count: 42,
+          actionable_review_rows: 200,
+          actionable_review_excludes_manual: true,
+          malicious_recovery_review_rows: 150
+        },
         drift: {
           available: true,
           ok: true,
@@ -959,7 +983,16 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByText("SOC Triage Mode")).toBeVisible();
   await expect(page.getByText("Analyst Review", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Manual Approval Required")).toBeVisible();
-  await expect(page.getByText("Automation Disabled")).toBeVisible();
+  await expect(page.getByText("Automation Disabled", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Main blocker:\s*malicious recall and calibration/)).toBeVisible();
+  await expect(page.getByText(/Calibration:\s*passed/)).toBeVisible();
+  await expect(page.getByText(/Confirmed noisy pattern:\s*normal QUIC\/443/)).toBeVisible();
+  await expect(page.getByText(/False positives:\s*improved/)).toBeVisible();
+  await expect(page.getByText(/QUIC\/443 mitigation:\s*validated candidate; not activated/)).toBeVisible();
+  await expect(page.getByText("Actionable review sample excludes protected manual labels", { exact: true })).toBeVisible();
+  await expect(page.getByText("Model remains decision support only", { exact: true })).toBeVisible();
+  await expect(page.getByText("Response automation disabled", { exact: true })).toBeVisible();
+  await expect(page.getByText("Not production-promoted", { exact: true })).toBeVisible();
   await expect(page.getByText("Technical Review Notes")).toBeVisible();
   await page.getByText("Technical Review Notes").click();
   await expect(page.getByText("Malicious reviewed target is met; do not prioritize malicious-heavy review unless evidence is strong.")).toBeVisible();

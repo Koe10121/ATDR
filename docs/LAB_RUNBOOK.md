@@ -755,3 +755,29 @@ Review and import the CSV through React AI Governance. Then run:
 ```
 
 All outputs stay under ignored `ml_baseline_reviews/`. No candidate is activated and response automation remains disabled.
+
+## v1.4 Low-Noise SOC Queue Validation
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v14_false_positive_reduction --split time --test-size 0.3 --min-samples 6 --review-limit 200 --pretty
+```
+
+Review the generated comparison and calibration reports under ignored `ml_baseline_reviews/`. The command does not activate a model. AI Governance reads only the latest lightweight report summary and continues to show decision-support and automation-disabled status.
+
+## v1.4b Actionable QUIC Review
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v14b_false_positive_mitigation --split time --test-size 0.3 --min-samples 6 --review-limit 200 --pretty
+```
+
+Review `ml_baseline_reviews/v1_4b_actionable_false_positive_review_sample.csv`, fill the human-review columns, and import it through React AI Governance. The default file excludes protected manual labels. No candidate is activated by the command or by CSV import.
+
+## v1.4c Malicious Recall And Calibration Validation
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v14c_malicious_recovery --split time --test-size 0.3 --min-samples 6 --review-limit 150 --pretty
+```
+
+Use this after v1.4b review import. It checks whether malicious recall can recover while keeping benign-like false positives at or below `0.15`, verifies that QUIC mitigation does not suppress strong threat evidence, compares confidence calibration methods, and optionally exports `ml_baseline_reviews/v1_4c_malicious_recall_review_sample.csv`.
+
+All v1.4c outputs are ignored. The runner does not write or activate a model artifact and cannot enable response automation.

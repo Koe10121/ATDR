@@ -274,6 +274,9 @@ Start here:
 - `docs/V1_1_DETECTION_RELIABILITY_AND_BENCHMARKING.md` - reliability baselines, generic benchmark adapter, error analysis, risk calibration, drift, ML reliability, and stress testing.
 - `docs/V1_2_REALISTIC_BENCHMARK_AND_ML_STRENGTHENING.md` - sanitized benchmark snapshots, benchmark detection/ML experiments, layered comparison, and readiness gate v2.
 - `docs/V1_3_LARGER_LABELED_DATA_AND_AI_TRAINING.md` - reviewed-label audit, class targets, larger review samples, candidate training, error analysis, and readiness gate v3.
+- `docs/V1_4_FALSE_POSITIVE_REDUCTION_AND_CONFIDENCE_CALIBRATION.md` - low-noise SOC queue experiments, hard-gated thresholds, confidence calibration, and targeted false-positive review.
+- `docs/V1_4B_FALSE_POSITIVE_MITIGATION.md` - actionable review sampling and evidence-aware normal QUIC/443 false-positive mitigation.
+- `docs/V1_4C_MALICIOUS_RECALL_RECOVERY_AND_CALIBRATION.md` - malicious-recall boundary analysis, low-noise recovery profiles, and held-out confidence calibration.
 - `docs/V0_5_SIMULATION_DEMO_PLAN.md` - earlier controlled replay validation plan.
 - `docs/V0_5_REAL_SOURCE_VALIDATION_PLAN.md` - future controlled hardware source validation plan.
 - `docs/V0_3_RELEASE_CANDIDATE.md` - current release-candidate summary.

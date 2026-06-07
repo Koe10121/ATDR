@@ -801,3 +801,45 @@ python -m atdr.scripts.analyze_v13_ml_errors --split time --test-size 0.3 --min-
 ```
 
 See `docs/V1_3_LARGER_LABELED_DATA_AND_AI_TRAINING.md` for target definitions, focus modes, benchmark intake, readiness gate v3, and limitations. All outputs remain ignored, candidate-only, and unable to trigger response actions.
+
+## 30. v1.4 False Positive Reduction And Calibration
+
+Run the candidate-only comparison after v1.3 evaluation or reviewed-label import:
+
+```powershell
+python -m atdr.scripts.run_v14_false_positive_reduction --split time --test-size 0.3 --min-samples 6 --review-limit 200 --pretty
+```
+
+The workflow compares hard-gated threshold profiles, ExtraTrees weighting strategies, calibrated Logistic Regression, binary and three-class SOC triage, and a hierarchical candidate. It reports benign-like false-positive rate, threat-positive metrics, class recall, review queue size, calibration buckets, Brier score, and readiness checks.
+
+No candidate is written to the model registry or activated. If generated, review `ml_baseline_reviews/v1_4_false_positive_review_sample.csv` before importing it through AI Governance.
+
+See `docs/V1_4_FALSE_POSITIVE_REDUCTION_AND_CONFIDENCE_CALIBRATION.md`.
+
+## 31. v1.4b Actionable False Positive Review
+
+The original v1.4 diagnostic sample may contain protected labels. Use v1.4b for an importable review queue:
+
+```powershell
+python -m atdr.scripts.run_v14b_false_positive_mitigation --split time --test-size 0.3 --min-samples 6 --review-limit 200 --pretty
+```
+
+By default, protected manual and reviewed labels are excluded. The generated `v1_4b_actionable_false_positive_review_sample.csv` focuses on unlabeled and unreviewed assisted rows, especially normal QUIC/443 traffic predicted as threat-like.
+
+Use `--include-manual` or `--include-reviewed` only for explicit diagnostics. These options do not disable import protection.
+
+See `docs/V1_4B_FALSE_POSITIVE_MITIGATION.md`.
+
+## 32. v1.4c Malicious Recall Recovery And Calibration
+
+Run this after importing the v1.4b actionable false-positive review:
+
+```powershell
+python -m atdr.scripts.run_v14c_malicious_recovery --split time --test-size 0.3 --min-samples 6 --review-limit 150 --pretty
+```
+
+The workflow preserves the evidence-aware QUIC/443 safeguard while comparing malicious-recall, balanced low-noise, calibrated low-noise, and high-confidence triage profiles. Calibration methods are fit on held-out training-window rows and checked again on the chronological test window.
+
+Review `ml_baseline_reviews/v1_4c_malicious_recall_review_sample.csv` only if the report identifies actionable unlabeled or unreviewed rows. Protected manual and reviewed labels remain excluded.
+
+See `docs/V1_4C_MALICIOUS_RECALL_RECOVERY_AND_CALIBRATION.md`. No model artifact is activated, production promotion remains false, and response automation remains disabled.

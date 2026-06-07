@@ -137,6 +137,9 @@ def test_dashboard_validation_summary_reports_latest_file_without_private_paths(
     v13_audit_path = reliability_dir / "training_data_quality_audit_20260605T033000Z.json"
     v13_target_path = reliability_dir / "v1_3_label_target_plan.json"
     v13_candidate_path = reliability_dir / "v1_3_supervised_candidate_report_20260605T034000Z.json"
+    v14_candidate_path = reliability_dir / "v1_4_false_positive_reduction_20260605T035000Z.json"
+    v14b_candidate_path = reliability_dir / "v1_4b_quic_false_positive_mitigation.json"
+    v14c_candidate_path = reliability_dir / "v1_4c_malicious_recall_recovery.json"
     report_path.write_text(
         json.dumps(
             {
@@ -354,6 +357,73 @@ def test_dashboard_validation_summary_reports_latest_file_without_private_paths(
         ),
         encoding="utf-8",
     )
+    v14_candidate_path.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "generated_at": "2026-06-05T03:50:00+00:00",
+                "best_strategy": "flat_extra_trees_strong_benign",
+                "best_profile": "precision_focused",
+                "best_metrics": {
+                    "threat_positive_precision": 0.9,
+                    "threat_positive_recall": 0.82,
+                    "threat_positive_f1": 0.858,
+                    "benign_like_false_positive_rate": 0.12,
+                    "suspicious_recall": 0.71,
+                    "malicious_recall": 0.68,
+                },
+                "calibration_status": "weak",
+                "readiness": {"decision": "analyst_review_eligible"},
+                "production_promoted": False,
+                "response_automation_allowed": False,
+                "report_path": str(
+                    reliability_dir
+                    / "v1_4_false_positive_reduction_20260605T035000Z.md"
+                ),
+            }
+        ),
+        encoding="utf-8",
+    )
+    v14b_candidate_path.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "generated_at": "2026-06-05T03:55:00+00:00",
+                "analysis": {"quic_false_positive_count": 42},
+                "review_sample": {
+                    "rows": 200,
+                    "protected_manual_rows": 0,
+                },
+                "production_promoted": False,
+                "response_automation_allowed": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+    v14c_candidate_path.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "generated_at": "2026-06-05T04:00:00+00:00",
+                "best_profile": "calibrated_low_noise",
+                "best_metrics": {
+                    "threat_positive_precision": 0.91,
+                    "threat_positive_recall": 0.92,
+                    "threat_positive_f1": 0.915,
+                    "benign_like_false_positive_rate": 0.06,
+                    "suspicious_recall": 0.95,
+                    "malicious_recall": 0.7,
+                },
+                "selected_calibration": {"status": "passed"},
+                "readiness": {"decision": "analyst_review_eligible"},
+                "review_sample": {"rows": 150, "protected_manual_rows": 0},
+                "production_promoted": False,
+                "model_activated": False,
+                "response_automation_allowed": False,
+            }
+        ),
+        encoding="utf-8",
+    )
     monkeypatch.setattr(dashboard_router, "VALIDATION_REPORT_DIR", report_dir)
     monkeypatch.setattr(dashboard_router, "GENERALIZATION_REPORT_DIR", generalization_dir)
     monkeypatch.setattr(dashboard_router, "LAYERED_REPORT_DIR", layered_dir)
@@ -416,6 +486,24 @@ def test_dashboard_validation_summary_reports_latest_file_without_private_paths(
         assert payload["v13_ai"]["best_candidate"] == "extra_trees"
         assert payload["v13_ai"]["readiness_decision"] == "analyst_review_eligible"
         assert payload["v13_ai"]["response_automation_allowed"] is False
+        assert payload["v14_ai"]["available"] is True
+        assert payload["v14_ai"]["best_profile"] == "calibrated_low_noise"
+        assert payload["v14_ai"]["benign_like_false_positive_rate"] == 0.06
+        assert payload["v14_ai"]["malicious_recall"] == 0.7
+        assert payload["v14_ai"]["calibration_status"] == "passed"
+        assert payload["v14_ai"]["production_promoted"] is False
+        assert payload["v14_ai"]["response_automation_allowed"] is False
+        assert payload["v14_ai"]["false_positives_improved"] is True
+        assert payload["v14_ai"]["current_blocker"] == "malicious recall and calibration"
+        assert (
+            payload["v14_ai"]["quic_mitigation_status"]
+            == "validated candidate; not activated"
+        )
+        assert payload["v14_ai"]["confirmed_noisy_pattern"] == "normal QUIC/443"
+        assert payload["v14_ai"]["quic_false_positive_count"] == 42
+        assert payload["v14_ai"]["actionable_review_rows"] == 200
+        assert payload["v14_ai"]["actionable_review_excludes_manual"] is True
+        assert payload["v14_ai"]["malicious_recovery_review_rows"] == 150
         assert str(report_dir) not in json.dumps(payload)
         assert str(generalization_dir) not in json.dumps(payload)
         assert str(layered_dir) not in json.dumps(payload)

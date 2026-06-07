@@ -54,6 +54,7 @@ export function MLGovernance() {
   const readiness = supervisedData?.model_readiness_checklist ?? supervisedData?.latest_run?.model_readiness_checklist;
   const benchmark = validationSummary.data?.benchmark;
   const v13Ai = validationSummary.data?.v13_ai;
+  const v14Ai = validationSummary.data?.v14_ai;
   const drift = data?.baseline_drift_report;
   const perClass = (supervisedMetrics.per_class ?? {}) as Record<string, Record<string, unknown>>;
   const benignMetrics = perClass.benign ?? {};
@@ -386,6 +387,40 @@ export function MLGovernance() {
                   }`
                 : "v1.3 audit not generated"}
             </span>
+          </div>
+          <div className="mt-2 grid gap-2 md:grid-cols-2">
+            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
+              <span className="font-bold text-text">Main blocker:</span>{" "}
+              {v14Ai?.available ? v14Ai.current_blocker ?? "model validation" : "v1.4 evaluation pending"}
+            </div>
+            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
+              <span className="font-bold text-text">Calibration:</span>{" "}
+              {v14Ai?.calibration_status ?? "pending"}
+            </div>
+            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
+              <span className="font-bold text-text">Confirmed noisy pattern:</span>{" "}
+              {v14Ai?.confirmed_noisy_pattern ?? "analysis pending"}
+            </div>
+            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
+              <span className="font-bold text-text">False positives:</span>{" "}
+              {v14Ai?.false_positives_improved ? "improved" : "validation pending"}
+            </div>
+            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
+              <span className="font-bold text-text">QUIC/443 mitigation:</span>{" "}
+              {v14Ai?.quic_mitigation_status ?? "pending"}
+            </div>
+            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
+              Actionable review sample excludes protected manual labels
+            </div>
+            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
+              Model remains decision support only
+            </div>
+            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
+              Response automation disabled
+            </div>
+            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
+              Not production-promoted
+            </div>
           </div>
           {socReviewProfiles.length ? (
             <details className="mt-3">
