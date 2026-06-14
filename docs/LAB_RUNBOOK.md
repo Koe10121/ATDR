@@ -809,3 +809,37 @@ The holdout contains 320 synthetic labeled rows across five source names and 14 
 Verify the concise status in Overview and AI Governance. Detailed transfer, calibration, per-attack, false-positive, false-negative, and overfitting evidence remains under ignored `demo_exports/benchmarks/`.
 
 The current holdout exposes a significant generalization gap, so the correct interpretation is `internal_benchmark_validated_candidate`. Do not activate the candidate or describe internal benchmark metrics as deployment accuracy.
+
+## v1.7 External Generalization Improvement
+
+Run the external profile comparison and boundary review export:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v17_external_generalization --review-limit 300 --pretty
+```
+
+The v1.7 pass compares lower-noise, suspicious-recall, calibrated, hybrid, three-class, and hierarchical external profiles. It writes an external error-analysis report and exports `ml_baseline_reviews/v1_7_external_boundary_review_sample.csv` for analyst review.
+
+Current v1.7 evidence lowers benign false positives and improves suspicious recall on the unseen holdout, but calibration and external-readiness checks remain conservative. Production promotion, model activation, automatic response, and real firewall blocking remain disabled.
+
+### Importing Reviewed v1.7 Benchmark Rows
+
+The v1.7 boundary file uses `benchmark_row_id`, so it must not be sent to the normal reviewed-label importer.
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.import_benchmark_review_csv `
+  --input-csv "C:\path\to\v1_7_external_boundary_review_sample_REVIEWED.csv" `
+  --benchmark-kind external_holdout `
+  --pretty
+```
+
+Apply those reviews during external validation:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_external_benchmark_validation `
+  --holdout-from-current-data `
+  --reviewed-benchmark-csv "C:\path\to\v1_7_external_boundary_review_sample_REVIEWED.csv" `
+  --pretty
+```
+
+The React AI Governance page exposes a separate **Import Benchmark Review CSV** action. Benchmark artifacts remain ignored and separate from `ml_labels`.

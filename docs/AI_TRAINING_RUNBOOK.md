@@ -6,6 +6,8 @@ This runbook explains the supervised AI workflow for the MFU ATDR senior project
 
 Current supervised ML status is `candidate_improved`: it is eligible for analyst review as decision support, but it is not production promoted. Threat-positive triage is strong, while exact suspicious-versus-malicious separation remains imperfect and suspicious recall is still below the project target. Automatic response remains disabled.
 
+The latest external-holdout workflow is v1.7. It improves unseen-holdout false-positive behavior and suspicious recall, but readiness remains conservative because external recall, calibration, and overfitting gap checks still need more evidence.
+
 Recommended demo wording:
 
 > The model helps prioritize analyst attention. It is not a production-accuracy claim and it cannot trigger containment automatically. Response actions still require reviewed evidence and analyst approval.
@@ -885,3 +887,48 @@ The workflow compares internal and unseen metrics, checks per-class and per-atta
 Current readiness is `internal_benchmark_validated_candidate`, not external-benchmark validated. No model is written or activated, production promotion remains false, and response automation remains disabled.
 
 See `docs/V1_6_EXTERNAL_BENCHMARK_VALIDATION.md`.
+
+## 35. v1.7 External Generalization Improvement
+
+Run the v1.7 profile comparison, error analysis, calibration check, and boundary review export:
+
+```powershell
+python -m atdr.scripts.run_v17_external_generalization --review-limit 300 --pretty
+```
+
+The script uses the latest v1.6 external holdout snapshot, rebuilds the safe internal benchmark snapshot, compares external profiles, applies an overfitting guard, and exports:
+
+- `demo_exports/benchmarks/v1_7_external_generalization_<timestamp>.json`
+- `demo_exports/benchmarks/v1_7_external_generalization_<timestamp>.md`
+- `demo_exports/benchmarks/v1_7_external_error_analysis_<timestamp>.md`
+- `ml_baseline_reviews/v1_7_external_boundary_review_sample.csv`
+
+Current v1.7 evidence improves external threat-positive F1 and benign false-positive rate, but the model is still not externally validated or production-promoted. Use the boundary review sample to add human-reviewed evidence before another training pass.
+
+See `docs/V1_7_EXTERNAL_GENERALIZATION_IMPROVEMENT.md`.
+
+## 36. v1.7b Benchmark Review Import
+
+The v1.7 external boundary CSV is benchmark review data keyed by `benchmark_row_id`. Do not import it through the normal reviewed-label importer, which requires database `log_id` or `label_id` values.
+
+Import the completed benchmark review:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.import_benchmark_review_csv `
+  --input-csv "C:\path\to\v1_7_external_boundary_review_sample_REVIEWED.csv" `
+  --benchmark-kind external_holdout `
+  --pretty
+```
+
+Then evaluate against the reviewed holdout labels:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_external_benchmark_validation `
+  --holdout-from-current-data `
+  --reviewed-benchmark-csv "C:\path\to\v1_7_external_boundary_review_sample_REVIEWED.csv" `
+  --pretty
+```
+
+The reviewed benchmark artifact and reviewed snapshot remain under ignored storage. They never create or update `ml_labels`.
+
+See `docs/V1_7B_BENCHMARK_REVIEW_IMPORT.md`.

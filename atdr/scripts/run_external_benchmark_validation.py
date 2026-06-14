@@ -11,6 +11,11 @@ from sqlalchemy import select
 from atdr.app.benchmarks.adapter import (
     BenchmarkRecord,
     load_prepared_benchmark_snapshot,
+    write_benchmark_snapshot,
+)
+from atdr.app.benchmarks.review import (
+    apply_benchmark_reviews,
+    parse_benchmark_review_csv,
 )
 from atdr.app.benchmarks.readiness import readiness_gate_v5
 from atdr.app.core.config import PROJECT_ROOT
@@ -179,6 +184,8 @@ def _cross_dataset_candidate(
     *,
     training_snapshot: Path,
     holdout_snapshot: Path,
+    holdout_records_override: list[BenchmarkRecord] | None = None,
+    review_metadata: dict[int, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     imports = _optional_imports()
     if imports is None:
@@ -204,9 +211,10 @@ def _cross_dataset_candidate(
     training_records, training_summary = load_prepared_benchmark_snapshot(
         training_snapshot
     )
-    holdout_records, holdout_summary = load_prepared_benchmark_snapshot(
+    loaded_holdout_records, holdout_summary = load_prepared_benchmark_snapshot(
         holdout_snapshot
     )
+    holdout_records = holdout_records_override or loaded_holdout_records
     training_frame = _feature_frame(
         training_records,
         source_name="v16-internal-training",
@@ -258,6 +266,17 @@ def _cross_dataset_candidate(
             "actual": actual,
             "predicted": predicted,
         }
+        review = (review_metadata or {}).get(record.row_number)
+        if review:
+            row["human_review"] = {
+                "decision": review.get("human_review_decision"),
+                "attack_type": review.get("human_review_attack_type"),
+                "confidence": review.get("human_review_confidence"),
+                "normalized_confidence": review.get(
+                    "normalized_confidence"
+                ),
+                "note": review.get("human_review_note"),
+            }
         if not actual_threat and predicted_threat:
             false_positives.append(row)
         elif actual_threat and not predicted_threat:
@@ -289,6 +308,58 @@ def _cross_dataset_candidate(
         "model_artifact_written": False,
         "model_activated": False,
         "response_automation_allowed": False,
+        "reviewed_labels_applied": len(review_metadata or {}),
+    }
+
+
+def _metrics_comparison(
+    before: dict[str, Any],
+    after: dict[str, Any],
+) -> dict[str, Any]:
+    before_per_class = before.get("per_class") or {}
+    after_per_class = after.get("per_class") or {}
+    fields = {
+        "threat_positive_precision": (
+            before.get("threat_positive_precision"),
+            after.get("threat_positive_precision"),
+        ),
+        "threat_positive_recall": (
+            before.get("threat_positive_recall"),
+            after.get("threat_positive_recall"),
+        ),
+        "threat_positive_f1": (
+            before.get("threat_positive_f1"),
+            after.get("threat_positive_f1"),
+        ),
+        "benign_false_positive_rate": (
+            before.get("benign_false_positive_rate"),
+            after.get("benign_false_positive_rate"),
+        ),
+        "suspicious_recall": (
+            (before_per_class.get("suspicious") or {}).get("recall"),
+            (after_per_class.get("suspicious") or {}).get("recall"),
+        ),
+        "malicious_recall": (
+            (before_per_class.get("malicious") or {}).get("recall"),
+            (after_per_class.get("malicious") or {}).get("recall"),
+        ),
+        "macro_f1": (before.get("macro_f1"), after.get("macro_f1")),
+        "weighted_f1": (
+            before.get("weighted_f1"),
+            after.get("weighted_f1"),
+        ),
+    }
+    return {
+        name: {
+            "before": old,
+            "after": new,
+            "change": (
+                round(float(new) - float(old), 4)
+                if old is not None and new is not None
+                else None
+            ),
+        }
+        for name, (old, new) in fields.items()
     }
 
 
@@ -385,8 +456,34 @@ def _render_report(report: dict[str, Any]) -> str:
         "- Model activated: false",
         "- Response automation allowed: false",
         "",
-        "## Transfer Metrics",
-        "",
+    ]
+    reviewed = report.get("reviewed_benchmark_labels") or {}
+    comparison = report.get("reviewed_metrics_comparison") or {}
+    if reviewed.get("applied_count"):
+        lines.extend(
+            [
+                "## Human-Reviewed Holdout Labels",
+                "",
+                f"- Reviewed CSV: {reviewed.get('input_name')}",
+                f"- Reviews imported: {reviewed.get('imported')}",
+                f"- Reviews applied: {reviewed.get('applied_count')}",
+                f"- Unmatched review IDs: {reviewed.get('unmatched_count')}",
+                "- Benchmark reviews remain outside `ml_labels`.",
+                "",
+                "| Metric | Before review | After review | Change |",
+                "| --- | ---: | ---: | ---: |",
+            ]
+        )
+        for name, values in comparison.items():
+            lines.append(
+                f"| {name} | {values.get('before')} | "
+                f"{values.get('after')} | {values.get('change')} |"
+            )
+        lines.append("")
+    lines.extend(
+        [
+            "## Transfer Metrics",
+            "",
         f"- Threat-positive precision: {metrics.get('threat_positive_precision')}",
         f"- Threat-positive recall: {metrics.get('threat_positive_recall')}",
         f"- Threat-positive F1: {metrics.get('threat_positive_f1')}",
@@ -416,7 +513,8 @@ def _render_report(report: dict[str, Any]) -> str:
         "",
         "| Mode | Precision | Recall | F1 | Benign FPR | FP | FN | Runtime |",
         "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
-    ]
+        ]
+    )
     for item in report["layered_detection"]["mode_results"]:
         item_metrics = item.get("metrics") or {}
         lines.append(
@@ -473,6 +571,7 @@ def run_external_benchmark_validation(
     limit: int | None = None,
     sample_strategy: str = "balanced",
     holdout_from_current_data: bool = False,
+    reviewed_benchmark_csv: Path | None = None,
     output_dir: Path = FINAL_OUTPUT_DIR,
 ) -> dict[str, Any]:
     generated_at = datetime.now(timezone.utc).isoformat()
@@ -493,13 +592,95 @@ def run_external_benchmark_validation(
     )
     external_snapshot_path = Path(external_snapshot["snapshot_path"])
     internal_snapshot_path = Path(internal_snapshot["snapshot_path"])
+    evaluation_snapshot_path = external_snapshot_path
+    review_metadata: dict[int, dict[str, Any]] = {}
+    reviewed_benchmark_labels: dict[str, Any] = {
+        "applied": False,
+        "input_name": None,
+        "imported": 0,
+        "applied_count": 0,
+        "unmatched_count": 0,
+    }
+    baseline_candidate: dict[str, Any] | None = None
+    if reviewed_benchmark_csv is not None:
+        parsed_reviews = parse_benchmark_review_csv(
+            reviewed_benchmark_csv.read_text(
+                encoding="utf-8-sig",
+                errors="replace",
+            ),
+            benchmark_kind="external_holdout",
+            input_name=reviewed_benchmark_csv.name,
+            reviewer="external-benchmark-validation",
+        )
+        if not parsed_reviews.get("ok"):
+            reasons = ", ".join(
+                str(item.get("reason"))
+                for item in parsed_reviews.get("errors") or []
+            )
+            raise ValueError(
+                "Reviewed benchmark CSV failed validation"
+                + (f": {reasons}" if reasons else ".")
+            )
+        original_records, _ = load_prepared_benchmark_snapshot(
+            external_snapshot_path
+        )
+        reviewed_records, apply_summary, review_metadata = (
+            apply_benchmark_reviews(
+                original_records,
+                parsed_reviews["reviews"],
+            )
+        )
+        baseline_candidate = _cross_dataset_candidate(
+            training_snapshot=internal_snapshot_path,
+            holdout_snapshot=external_snapshot_path,
+        )
+        reviewed_snapshot = write_benchmark_snapshot(
+            reviewed_records,
+            input_name=f"{external_snapshot_path.stem}_human_reviewed",
+            mapping_summary={
+                **(external_snapshot.get("mapping_summary") or {}),
+                "reviewed_benchmark": {
+                    "input_name": reviewed_benchmark_csv.name,
+                    **apply_summary,
+                },
+            },
+            output_dir=output_dir,
+            sample_strategy="reviewed_override",
+            requested_limit=limit,
+            include_raw=False,
+        )
+        evaluation_snapshot_path = Path(reviewed_snapshot["snapshot_path"])
+        reviewed_benchmark_labels = {
+            "applied": True,
+            "input_name": reviewed_benchmark_csv.name,
+            "imported": parsed_reviews["imported"],
+            "skipped": parsed_reviews["skipped"],
+            "failed": parsed_reviews["failed"],
+            "decision_distribution": parsed_reviews[
+                "decision_distribution"
+            ],
+            "attack_type_distribution": parsed_reviews[
+                "attack_type_distribution"
+            ],
+            "reviewed_snapshot_id": reviewed_snapshot["snapshot_id"],
+            "reviewed_snapshot_path": str(evaluation_snapshot_path),
+            **apply_summary,
+        }
+        external_snapshot = {
+            **external_snapshot,
+            "original_snapshot_path": str(external_snapshot_path),
+            "snapshot_path": str(evaluation_snapshot_path),
+            "reviewed_snapshot_id": reviewed_snapshot["snapshot_id"],
+            "reviewed_labels_applied": apply_summary["applied_count"],
+        }
     layered = compare_layered_benchmark_reliability(
-        prepared_snapshot=external_snapshot_path,
+        prepared_snapshot=evaluation_snapshot_path,
         output_dir=output_dir,
     )
     candidate = _cross_dataset_candidate(
         training_snapshot=internal_snapshot_path,
-        holdout_snapshot=external_snapshot_path,
+        holdout_snapshot=evaluation_snapshot_path,
+        review_metadata=review_metadata,
     )
     v15 = _latest_json(V15_REPORT_DIR, "final_ai_readiness_report_*.json")
     internal_candidate = v15.get("best_benchmark_candidate") or {}
@@ -522,6 +703,14 @@ def run_external_benchmark_validation(
         ),
         response_automation_allowed=False,
     )
+    reviewed_metrics_comparison = (
+        _metrics_comparison(
+            baseline_candidate.get("metrics") or {},
+            candidate.get("metrics") or {},
+        )
+        if baseline_candidate
+        else {}
+    )
     report = {
         "ok": True,
         "status": "completed",
@@ -539,7 +728,10 @@ def run_external_benchmark_validation(
             "row_count": internal_snapshot.get("rows_selected"),
         },
         "layered_detection": layered,
+        "baseline_unreviewed_candidate": baseline_candidate,
         "cross_dataset_candidate": candidate,
+        "reviewed_benchmark_labels": reviewed_benchmark_labels,
+        "reviewed_metrics_comparison": reviewed_metrics_comparison,
         "current_active_supervised_artifact": next(
             (
                 row
@@ -610,6 +802,7 @@ def main() -> None:
         default="balanced",
     )
     parser.add_argument("--holdout-from-current-data", action="store_true")
+    parser.add_argument("--reviewed-benchmark-csv", default=None)
     parser.add_argument("--output-dir", default=None)
     parser.add_argument("--pretty", action="store_true")
     args = parser.parse_args()
@@ -620,6 +813,11 @@ def main() -> None:
         limit=args.limit,
         sample_strategy=args.sample_strategy,
         holdout_from_current_data=args.holdout_from_current_data,
+        reviewed_benchmark_csv=(
+            Path(args.reviewed_benchmark_csv)
+            if args.reviewed_benchmark_csv
+            else None
+        ),
         output_dir=Path(args.output_dir) if args.output_dir else FINAL_OUTPUT_DIR,
     )
     print(json.dumps(result, indent=2 if args.pretty else None, default=str))

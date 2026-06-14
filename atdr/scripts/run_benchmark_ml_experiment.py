@@ -30,7 +30,16 @@ MALICIOUS_LIKE_ATTACKS = {
 
 
 def _is_threat(record: BenchmarkRecord) -> bool:
-    return record.label.lower() in {"threat", "attack", "malicious", "suspicious"} or record.attack_type not in {
+    explicit = record.label.lower()
+    if explicit in {
+        "benign",
+        "benign_like",
+        "benign_unusual",
+        "normal",
+        "needs_context",
+    }:
+        return False
+    return explicit in {"threat", "attack", "malicious", "suspicious"} or record.attack_type not in {
         "normal",
         "benign",
         "unknown",
@@ -41,6 +50,14 @@ def _triage_label(record: BenchmarkRecord) -> str:
     explicit = record.label.lower()
     if explicit in {"suspicious", "malicious"}:
         return explicit
+    if explicit in {
+        "benign",
+        "benign_like",
+        "benign_unusual",
+        "normal",
+        "needs_context",
+    }:
+        return "benign_like"
     if not _is_threat(record):
         return "benign_like"
     if record.attack_type in MALICIOUS_LIKE_ATTACKS:

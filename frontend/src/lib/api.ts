@@ -7,6 +7,7 @@ import type {
   AlertTimelineEvent,
   AuditLog,
   BlockedIP,
+  BenchmarkReviewImportResult,
   ClassTemporalCoverageReport,
   DashboardSummary,
   DashboardValidationSummary,
@@ -208,6 +209,15 @@ export const api = {
     const form = new FormData();
     form.append("upload", file);
     return apiRequest<MLLabelImportResult>("/api/ml/labels/import", { method: "POST", body: form, params });
+  },
+  importBenchmarkReview: (file: File, params: Params = {}) => {
+    const form = new FormData();
+    form.append("upload", file);
+    return apiRequest<BenchmarkReviewImportResult>("/api/ml/benchmark-reviews/import", {
+      method: "POST",
+      body: form,
+      params
+    });
   },
   suppressions: (params: Params = {}) => apiRequest<Suppression[]>("/api/suppressions", { params }),
   createSuppression: (payload: { src_ip?: string; app?: string; alert_type?: string; reason: string }) =>

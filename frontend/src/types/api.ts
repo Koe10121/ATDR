@@ -258,6 +258,20 @@ export interface MLLabelImportResult {
   errors: Array<Record<string, unknown>>;
 }
 
+export interface BenchmarkReviewImportResult {
+  ok: boolean;
+  status: string;
+  benchmark_kind: string;
+  input_name: string;
+  imported: number;
+  skipped: number;
+  failed: number;
+  decision_distribution: Record<string, number>;
+  attack_type_distribution: Record<string, number>;
+  artifact_name?: string | null;
+  errors: Array<Record<string, unknown>>;
+}
+
 export interface MLReviewQueueItem {
   log_id: number;
   generated_time?: string | null;
@@ -432,6 +446,7 @@ export interface DashboardValidationSummary {
   v14_ai?: DashboardV14AiSummary;
   v15_ai?: DashboardV15AiSummary;
   v16_ai?: DashboardV16AiSummary;
+  v17_ai?: DashboardV17AiSummary;
 }
 
 export interface DashboardGeneralizationSummary {
@@ -655,6 +670,41 @@ export interface DashboardV16AiSummary {
   checks_passed?: number;
   checks_total?: number;
   external_benchmark_validated?: boolean;
+  production_promoted?: boolean;
+  model_activated?: boolean;
+  response_automation_allowed?: boolean;
+  latest_report_name?: string | null;
+  latest_markdown_name?: string | null;
+  message?: string;
+}
+
+export interface DashboardV17AiSummary {
+  available: boolean;
+  ok?: boolean;
+  generated_at?: string | null;
+  external_label_count?: number;
+  best_profile?: string | null;
+  threat_positive_precision?: number | null;
+  threat_positive_recall?: number | null;
+  threat_positive_f1?: number | null;
+  benign_like_false_positive_rate?: number | null;
+  suspicious_recall?: number | null;
+  malicious_recall?: number | null;
+  macro_f1?: number | null;
+  calibration_status?: string | null;
+  calibration_ece?: number | null;
+  calibration_brier?: number | null;
+  calibration_max_gap?: number | null;
+  queue_size?: number;
+  cost_sensitive_total?: number | null;
+  overfitting_status?: string | null;
+  overfitting_warning?: boolean;
+  readiness_decision?: string | null;
+  checks_passed?: number;
+  checks_total?: number;
+  external_benchmark_validated?: boolean;
+  failed_checks?: Array<string | null | undefined>;
+  review_sample_rows?: number;
   production_promoted?: boolean;
   model_activated?: boolean;
   response_automation_allowed?: boolean;

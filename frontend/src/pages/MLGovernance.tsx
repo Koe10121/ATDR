@@ -57,6 +57,7 @@ export function MLGovernance() {
   const v14Ai = validationSummary.data?.v14_ai;
   const v15Ai = validationSummary.data?.v15_ai;
   const v16Ai = validationSummary.data?.v16_ai;
+  const v17Ai = validationSummary.data?.v17_ai;
   const drift = data?.baseline_drift_report;
   const perClass = (supervisedMetrics.per_class ?? {}) as Record<string, Record<string, unknown>>;
   const benignMetrics = perClass.benign ?? {};
@@ -83,6 +84,7 @@ export function MLGovernance() {
     activeRegistryModel?.model_version === "active-unregistered" || activeRegistryModel?.model_type === "unknown";
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<string | null>(null);
+  const [benchmarkImportResult, setBenchmarkImportResult] = useState<string | null>(null);
   const [quickReviewMessage, setQuickReviewMessage] = useState<string | null>(null);
 
   async function downloadExport(
@@ -201,6 +203,20 @@ export function MLGovernance() {
       }
       }
     );
+  }
+
+  function importBenchmarkReview(file?: File) {
+    if (!file) {
+      return;
+    }
+    setBenchmarkImportResult(null);
+    labelMutations.importBenchmarkCsv.mutate(file, {
+      onSuccess: (result) => {
+        setBenchmarkImportResult(
+          `Benchmark review import complete: ${result.imported} reviewed rows stored separately, ${result.skipped} skipped, ${result.failed} failed. Artifact: ${result.artifact_name ?? "created"}. No ml_labels rows were changed.`
+        );
+      }
+    });
   }
 
   function attackTypeForQuickLabel(label: MLLabelValue): MLAttackType {
@@ -373,7 +389,11 @@ export function MLGovernance() {
           <div className="mt-3 rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
             Benchmark:{" "}
             <span className="font-bold text-text">
-              {v16Ai?.available
+              {v17Ai?.available
+                ? `${v17Ai.external_label_count ?? 0} unseen labels | Threat F1 ${
+                    v17Ai.threat_positive_f1 ?? "-"
+                  } | ${v17Ai.readiness_decision ?? "candidate_only"}`
+                : v16Ai?.available
                 ? `${v16Ai.external_label_count ?? 0} unseen labels | Threat F1 ${
                     v16Ai.threat_positive_f1 ?? "-"
                   } | ${v16Ai.readiness_decision ?? "candidate_only"}`
@@ -405,7 +425,7 @@ export function MLGovernance() {
             </div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
               <span className="font-bold text-text">Calibration:</span>{" "}
-              {v16Ai?.calibration_status ?? v15Ai?.calibration_status ?? v14Ai?.calibration_status ?? "pending"}
+              {v17Ai?.calibration_status ?? v16Ai?.calibration_status ?? v15Ai?.calibration_status ?? v14Ai?.calibration_status ?? "pending"}
             </div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
               <span className="font-bold text-text">Confirmed noisy pattern:</span>{" "}
@@ -432,7 +452,9 @@ export function MLGovernance() {
               Not production-promoted
             </div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-              {v16Ai?.available
+              {v17Ai?.available
+                ? `External readiness checks ${v17Ai.checks_passed ?? 0}/${v17Ai.checks_total ?? 0}`
+                : v16Ai?.available
                 ? `External readiness checks ${v16Ai.checks_passed ?? 0}/${v16Ai.checks_total ?? 0}`
                 : v15Ai?.available
                 ? `Benchmark readiness checks ${v15Ai.checks_passed ?? 0}/${v15Ai.checks_total ?? 0}`
@@ -440,13 +462,31 @@ export function MLGovernance() {
             </div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
               <span className="font-bold text-text">Generalization:</span>{" "}
-              {v16Ai?.available
+              {v17Ai?.available
+                ? `${v17Ai.overfitting_status ?? "not evaluated"} | FPR ${v17Ai.benign_like_false_positive_rate ?? "-"}`
+                : v16Ai?.available
                 ? `${v16Ai.overfitting_status ?? "not evaluated"} | F1 gap ${v16Ai.threat_f1_gap ?? "-"}`
                 : "external holdout pending"}
             </div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
               <span className="font-bold text-text">External validation:</span>{" "}
-              {v16Ai?.external_benchmark_validated ? "passed" : "not yet passed"}
+              {v17Ai?.available
+                ? v17Ai.external_benchmark_validated
+                  ? "passed"
+                  : "not yet passed"
+                : v16Ai?.external_benchmark_validated
+                ? "passed"
+                : "not yet passed"}
+            </div>
+            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
+              <span className="font-bold text-text">External blocker:</span>{" "}
+              {v17Ai?.available
+                ? (v17Ai.failed_checks ?? []).filter(Boolean).join(", ") || "none"
+                : "v1.7 profile comparison pending"}
+            </div>
+            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
+              <span className="font-bold text-text">Boundary review:</span>{" "}
+              {v17Ai?.available ? `${v17Ai.review_sample_rows ?? 0} rows exported` : "pending"}
             </div>
           </div>
           {socReviewProfiles.length ? (
@@ -803,18 +843,24 @@ export function MLGovernance() {
               Import Correction CSV
               <input className="hidden" type="file" accept=".csv,text/csv" onChange={(event) => importLabels(event.target.files?.[0], true)} />
             </label>
+            <label className="btn-secondary cursor-pointer">
+              Import Benchmark Review CSV
+              <input className="hidden" type="file" accept=".csv,text/csv" onChange={(event) => importBenchmarkReview(event.target.files?.[0])} />
+            </label>
             <button className="btn-secondary" type="button" onClick={() => void downloadExport("report")}>Download Model Report</button>
             <span className="text-xs text-muted">
               Reviewed CSV import marks completed rows as reviewed, skips empty review rows, preserves assisted provenance, and protects manual labels.
             </span>
           </div>
           {importResult ? <div className="mt-3 rounded border border-success/30 bg-success/10 p-2 text-sm text-success">{importResult}</div> : null}
+          {benchmarkImportResult ? <div className="mt-3 rounded border border-cyan/30 bg-cyan/10 p-2 text-sm text-cyan">{benchmarkImportResult}</div> : null}
           {downloadError ? <div className="mt-3 text-sm text-danger">{downloadError}</div> : null}
           {labelMutations.importCsv.isError ? <div className="mt-3"><ErrorBanner error={labelMutations.importCsv.error} /></div> : null}
+          {labelMutations.importBenchmarkCsv.isError ? <div className="mt-3"><ErrorBanner error={labelMutations.importBenchmarkCsv.error} /></div> : null}
           {quickReviewMessage ? <div className="mt-3 rounded border border-cyan/30 bg-cyan/10 p-2 text-sm text-cyan">{quickReviewMessage}</div> : null}
           <div className="mt-3 rounded border border-line bg-panel px-3 py-2 text-xs text-muted">
             For active-learning CSVs, fill at least `human_review_decision` with one of benign, benign_unusual, suspicious, malicious, or needs_context.
-            Blank review rows are skipped safely.
+            Blank review rows are skipped safely. Files containing `benchmark_row_id` must use Benchmark Review Import and remain separate from database-backed labels.
           </div>
         </div>
         {reviewQueue.isLoading ? (

@@ -552,3 +552,108 @@ def readiness_gate_v5(
             "Production promotion, automatic model activation, and response automation remain disabled."
         ),
     }
+
+
+def readiness_gate_v6_external_generalization(
+    *,
+    external_label_count: int,
+    external_metrics: dict[str, Any],
+    calibration_status: str,
+    controlled_validations_passed: bool,
+    internal_benchmark_validated: bool,
+    overfitting_status: str,
+    response_automation_allowed: bool = False,
+) -> dict[str, Any]:
+    """v1.7 external generalization gate with explicit boundary/overfit checks.
+
+    This remains a decision-support gate. It cannot activate a model, production
+    promote a model, or allow response automation.
+    """
+    result = readiness_gate_v5(
+        external_label_count=external_label_count,
+        external_metrics=external_metrics,
+        calibration_status=calibration_status,
+        controlled_validations_passed=controlled_validations_passed,
+        internal_benchmark_validated=internal_benchmark_validated,
+        response_automation_allowed=response_automation_allowed,
+    )
+    suspicious_recall = _metric(
+        external_metrics,
+        "per_class",
+        "suspicious",
+        "recall",
+        default=_metric(external_metrics, "suspicious_recall"),
+    )
+    malicious_recall = _metric(
+        external_metrics,
+        "per_class",
+        "malicious",
+        "recall",
+        default=_metric(external_metrics, "malicious_recall"),
+    )
+    benign_fp_rate = _metric(
+        external_metrics,
+        "benign_false_positive_rate",
+        default=_metric(external_metrics, "benign_like_false_positive_rate"),
+    )
+    overfitting_limited = overfitting_status.strip().lower() == "limited_generalization_gap"
+    extra_checks = [
+        {
+            "name": "external_suspicious_recall",
+            "passed": suspicious_recall >= 0.8,
+            "detail": f"External suspicious recall={round(suspicious_recall, 4)}.",
+            "target": ">= 0.80",
+        },
+        {
+            "name": "external_malicious_recall",
+            "passed": malicious_recall >= 0.65,
+            "detail": f"External malicious recall={round(malicious_recall, 4)}.",
+            "target": ">= 0.65",
+        },
+        {
+            "name": "external_low_noise",
+            "passed": benign_fp_rate <= 0.15,
+            "detail": f"External benign-like false-positive rate={round(benign_fp_rate, 4)}.",
+            "target": "<= 0.15",
+        },
+        {
+            "name": "overfitting_gap_limited",
+            "passed": overfitting_limited,
+            "detail": f"Overfitting status={overfitting_status or 'missing'}.",
+            "target": "limited_generalization_gap",
+        },
+    ]
+    checks = [*result["checks"], *extra_checks]
+    passed = sum(1 for item in checks if item["passed"])
+    required_checks = [item for item in checks if not item.get("advisory")]
+    required_passed = sum(1 for item in required_checks if item["passed"])
+    external_validated = all(item["passed"] for item in required_checks)
+    if external_validated:
+        decision = "external_benchmark_validated_candidate"
+    elif internal_benchmark_validated:
+        decision = "internal_benchmark_validated_candidate"
+    elif result["analyst_review_eligible"]:
+        decision = "analyst_review_eligible"
+    else:
+        decision = "candidate_only"
+    return {
+        **result,
+        "version": "v6",
+        "decision": decision,
+        "external_benchmark_validated": external_validated,
+        "passed": passed,
+        "total": len(checks),
+        "required_passed": required_passed,
+        "required_total": len(required_checks),
+        "checks": checks,
+        "advisory_metrics": {
+            "suspicious_recall": suspicious_recall,
+            "malicious_recall": malicious_recall,
+            "benign_false_positive_rate": benign_fp_rate,
+            "overfitting_status": overfitting_status,
+        },
+        "message": (
+            "v1.7 external generalization strengthens analyst-review evidence only. "
+            "Production promotion, automatic model activation, and response automation remain disabled."
+        ),
+    }

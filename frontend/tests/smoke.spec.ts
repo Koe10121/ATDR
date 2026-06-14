@@ -714,6 +714,36 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
           model_activated: false,
           response_automation_allowed: false
         },
+        v17_ai: {
+          available: true,
+          ok: true,
+          external_label_count: 320,
+          best_profile: "hybrid_external_balanced",
+          threat_positive_precision: 0.9533,
+          threat_positive_recall: 0.8412,
+          threat_positive_f1: 0.8937,
+          benign_like_false_positive_rate: 0.0467,
+          suspicious_recall: 0.7875,
+          malicious_recall: 0.7222,
+          macro_f1: 0.8328,
+          calibration_status: "weak",
+          calibration_ece: 0.0867,
+          calibration_brier: 0.0848,
+          calibration_max_gap: 0.2246,
+          queue_size: 150,
+          cost_sensitive_total: 313,
+          overfitting_status: "significant_generalization_gap",
+          overfitting_warning: true,
+          readiness_decision: "internal_benchmark_validated_candidate",
+          checks_passed: 8,
+          checks_total: 12,
+          external_benchmark_validated: false,
+          failed_checks: ["external_threat_positive_recall", "confidence_calibration", "external_suspicious_recall", "overfitting_gap_limited"],
+          review_sample_rows: 300,
+          production_promoted: false,
+          model_activated: false,
+          response_automation_allowed: false
+        },
         drift: {
           available: true,
           ok: true,
@@ -994,7 +1024,7 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByText("Reliability")).toBeVisible();
   await expect(page.getByText("14/14 scenarios")).toBeVisible();
   await expect(page.getByText("Benchmark", { exact: true })).toBeVisible();
-  await expect(page.getByText("320 unseen | F1 0.7278")).toBeVisible();
+  await expect(page.getByText("320 unseen | F1 0.8937")).toBeVisible();
   await expect(page.getByText("Drift")).toBeVisible();
   await expect(page.getByText("0 warnings")).toBeVisible();
   await expect(page.getByText("Lab-Scale Validation")).toBeVisible();
@@ -1032,11 +1062,15 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByText(/Main blocker:\s*malicious recall and calibration/)).toBeVisible();
   await expect(page.getByText(/Calibration:\s*weak/)).toBeVisible();
   await expect(
-    page.getByText(/320 unseen labels \| Threat F1 0.7278 \| internal_benchmark_validated_candidate/),
+    page.getByText(/320 unseen labels \| Threat F1 0.8937 \| internal_benchmark_validated_candidate/),
   ).toBeVisible();
-  await expect(page.getByText("External readiness checks 4/8")).toBeVisible();
-  await expect(page.getByText(/significant_generalization_gap/)).toBeVisible();
+  await expect(page.getByText("External readiness checks 8/12")).toBeVisible();
+  await expect(page.getByText(/significant_generalization_gap \| FPR 0.0467/)).toBeVisible();
   await expect(page.getByText("not yet passed")).toBeVisible();
+  await expect(page.getByText(/External blocker:\s*external_threat_positive_recall, confidence_calibration/)).toBeVisible();
+  await expect(page.getByText(/Boundary review:\s*300 rows exported/)).toBeVisible();
+  await expect(page.getByText("Import Benchmark Review CSV")).toBeVisible();
+  await expect(page.getByText(/Files containing `benchmark_row_id` must use Benchmark Review Import/)).toBeVisible();
   await expect(page.getByText(/Confirmed noisy pattern:\s*normal QUIC\/443/)).toBeVisible();
   await expect(page.getByText(/False positives:\s*improved/)).toBeVisible();
   await expect(page.getByText(/QUIC\/443 mitigation:\s*validated candidate; not activated/)).toBeVisible();

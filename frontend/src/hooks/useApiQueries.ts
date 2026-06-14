@@ -319,6 +319,17 @@ export function useMlLabelMutations() {
       mutationFn: (input: File | { file: File; params?: Record<string, string | number | boolean | null | undefined> }) =>
         input instanceof File ? api.importMlLabels(input) : api.importMlLabels(input.file, input.params),
       onSuccess: invalidate
+    }),
+    importBenchmarkCsv: useMutation({
+      mutationFn: (file: File) =>
+        api.importBenchmarkReview(file, {
+          benchmark_kind: "external_holdout"
+        }),
+      onSuccess: () => {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.validationSummary
+        });
+      }
     })
   };
 }

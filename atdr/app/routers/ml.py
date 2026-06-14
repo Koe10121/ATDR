@@ -2,6 +2,10 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
+from atdr.app.benchmarks.review import (
+    import_benchmark_review_csv_text,
+    is_benchmark_review_csv,
+)
 from atdr.app.core.security import require_admin, require_analyst_or_admin
 from atdr.app.db.database import get_db
 from atdr.app.db.models import User
@@ -130,6 +134,14 @@ async def import_ml_labels(
 ) -> dict:
     content = await upload.read()
     decoded = content.decode("utf-8-sig", errors="replace")
+    if is_benchmark_review_csv(decoded):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "This file contains benchmark_row_id and must be imported "
+                "through Benchmark Review Import, not Reviewed Label Import."
+            ),
+        )
     return import_ml_labels_csv(
         db,
         decoded,
@@ -140,6 +152,50 @@ async def import_ml_labels(
         correction_mode=correction_mode,
         preserve_label_source=preserve_label_source,
     )
+
+
+@router.post("/benchmark-reviews/import")
+async def import_benchmark_reviews(
+    upload: UploadFile = File(...),
+    current_user: User = Depends(require_analyst_or_admin),
+    benchmark_kind: str = Query(
+        default="external_holdout",
+        pattern="^[a-z0-9_-]{1,64}$",
+    ),
+) -> dict:
+    content = await upload.read()
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(
+            status_code=413,
+            detail="Benchmark review CSV exceeds the 10 MB upload limit.",
+        )
+    decoded = content.decode("utf-8-sig", errors="replace")
+    result = import_benchmark_review_csv_text(
+        decoded,
+        benchmark_kind=benchmark_kind,
+        input_name=upload.filename or "benchmark-review.csv",
+        reviewer=current_user.username,
+    )
+    if not result.get("reviews"):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": (
+                    "No valid benchmark review rows were found. The file must "
+                    "contain benchmark_row_id and completed "
+                    "human_review_decision values."
+                ),
+                "errors": result.get("errors") or [],
+            },
+        )
+    response = {
+        key: value
+        for key, value in result.items()
+        if key not in {"reviews", "artifact_path"}
+    }
+    artifact_path = str(result.get("artifact_path") or "")
+    response["artifact_name"] = artifact_path.replace("\\", "/").split("/")[-1]
+    return response
 
 
 @router.get("/labels/export")

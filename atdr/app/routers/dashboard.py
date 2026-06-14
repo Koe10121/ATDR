@@ -570,6 +570,63 @@ def _latest_v16_ai_summary(report_dir: Path = BENCHMARK_REPORT_DIR) -> dict[str,
     }
 
 
+def _latest_v17_ai_summary(report_dir: Path = BENCHMARK_REPORT_DIR) -> dict[str, Any]:
+    summary, payload = _latest_reliability_file_summary(
+        report_dir,
+        "v1_7_external_generalization_*.json",
+        missing_message="No v1.7 external generalization improvement report has been generated yet.",
+    )
+    if payload is None:
+        return summary
+    best = payload.get("best_profile") or {}
+    metrics = best.get("metrics") or {}
+    per_class = metrics.get("per_class") or {}
+    calibration = best.get("calibration") or {}
+    overfitting = payload.get("overfitting_guard") or {}
+    readiness = payload.get("readiness_gate_v6") or {}
+    review_sample = payload.get("review_sample") or {}
+    failed_checks = [
+        item.get("name")
+        for item in readiness.get("checks", [])
+        if not bool(item.get("passed")) and not bool(item.get("advisory"))
+    ]
+    return {
+        **summary,
+        "external_label_count": int(payload.get("external_label_count") or 0),
+        "best_profile": best.get("profile"),
+        "threat_positive_precision": metrics.get("threat_positive_precision"),
+        "threat_positive_recall": metrics.get("threat_positive_recall"),
+        "threat_positive_f1": metrics.get("threat_positive_f1"),
+        "benign_like_false_positive_rate": metrics.get(
+            "benign_false_positive_rate"
+        ),
+        "suspicious_recall": (per_class.get("suspicious") or {}).get("recall"),
+        "malicious_recall": (per_class.get("malicious") or {}).get("recall"),
+        "macro_f1": metrics.get("macro_f1"),
+        "calibration_status": calibration.get("status") or "missing",
+        "calibration_ece": calibration.get("expected_calibration_error"),
+        "calibration_brier": calibration.get("brier_score_threat_positive"),
+        "calibration_max_gap": calibration.get("max_confidence_accuracy_gap"),
+        "queue_size": int(best.get("queue_size") or 0),
+        "cost_sensitive_total": (best.get("cost_sensitive") or {}).get(
+            "total_cost"
+        ),
+        "overfitting_status": overfitting.get("status") or "not_evaluated",
+        "overfitting_warning": bool(overfitting.get("overfitting_warning")),
+        "readiness_decision": readiness.get("decision") or "candidate_only",
+        "checks_passed": int(readiness.get("passed") or 0),
+        "checks_total": int(readiness.get("total") or 0),
+        "external_benchmark_validated": bool(
+            readiness.get("external_benchmark_validated")
+        ),
+        "failed_checks": failed_checks,
+        "review_sample_rows": int(review_sample.get("rows") or 0),
+        "production_promoted": False,
+        "model_activated": False,
+        "response_automation_allowed": False,
+    }
+
+
 @router.get("/summary")
 def dashboard_summary(
     db: Session = Depends(get_db),
@@ -593,4 +650,5 @@ def dashboard_validation_summary(
     summary["v14_ai"] = _latest_v14_ai_summary(V13_REPORT_DIR)
     summary["v15_ai"] = _latest_v15_ai_summary(V13_REPORT_DIR)
     summary["v16_ai"] = _latest_v16_ai_summary(BENCHMARK_REPORT_DIR)
+    summary["v17_ai"] = _latest_v17_ai_summary(BENCHMARK_REPORT_DIR)
     return summary

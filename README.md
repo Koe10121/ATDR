@@ -198,6 +198,22 @@ python -m atdr.scripts.run_external_benchmark_validation --holdout-from-current-
 
 The 320-row holdout uses separate synthetic sources and scenarios. Current results show a meaningful internal-to-unseen generalization gap, so status remains `internal_benchmark_validated_candidate`. No model or response action is activated.
 
+Run the v1.7 external generalization improvement pass:
+
+```powershell
+python -m atdr.scripts.run_v17_external_generalization --review-limit 300 --pretty
+```
+
+v1.7 compares external profiles, reduces noisy benign false positives, exports a boundary review sample, and keeps readiness conservative. No model is activated and no response action is automated.
+
+Reviewed v1.7 benchmark files use `benchmark_row_id`, not database log IDs. Import them through the dedicated workflow:
+
+```powershell
+python -m atdr.scripts.import_benchmark_review_csv --input-csv "C:\path\to\v1_7_external_boundary_review_sample_REVIEWED.csv" --benchmark-kind external_holdout --pretty
+```
+
+See `docs/V1_7B_BENCHMARK_REVIEW_IMPORT.md`.
+
 Run a scenario against a temporary database:
 
 ```powershell
@@ -297,6 +313,8 @@ Start here:
 - `docs/V1_4C_MALICIOUS_RECALL_RECOVERY_AND_CALIBRATION.md` - malicious-recall boundary analysis, low-noise recovery profiles, and held-out confidence calibration.
 - `docs/V1_5_AI_READINESS_BENCHMARK_VALIDATION.md` - safe internal benchmark generation, layered/ML comparison, readiness gate v4, and final decision-support status.
 - `docs/V1_6_EXTERNAL_BENCHMARK_VALIDATION.md` - unseen holdout transfer metrics, calibration, overfitting analysis, and readiness gate v5.
+- `docs/V1_7_EXTERNAL_GENERALIZATION_IMPROVEMENT.md` - external boundary profiles, error analysis, calibration, and review sampling.
+- `docs/V1_7B_BENCHMARK_REVIEW_IMPORT.md` - dedicated `benchmark_row_id` review import kept separate from `ml_labels`.
 - `docs/V0_5_SIMULATION_DEMO_PLAN.md` - earlier controlled replay validation plan.
 - `docs/V0_5_REAL_SOURCE_VALIDATION_PLAN.md` - future controlled hardware source validation plan.
 - `docs/V0_3_RELEASE_CANDIDATE.md` - current release-candidate summary.
