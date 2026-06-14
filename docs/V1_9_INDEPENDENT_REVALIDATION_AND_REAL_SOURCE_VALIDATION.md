@@ -73,6 +73,21 @@ current local budgets.
 The correct status remains `external_benchmark_validated_candidate`, not
 independently revalidated and not production promoted.
 
+## v1.9b Follow-Up
+
+v1.9b found that all 37 false positives were ambiguous `needs_context` rows,
+not normal benign traffic, and none was created by a behavior-window overlay.
+The identity-independent `independent_fpr_stabilized` profile routes 15
+unresolved allowed high-port services to analyst review while preserving
+rule-backed and behavior-backed threats.
+
+The follow-up reaches benign-like FPR `0.0917`, threat F1 `0.9257`, suspicious
+recall `0.9538`, and malicious recall `0.8769`. See
+`docs/V1_9B_INDEPENDENT_FPR_STABILIZATION.md`.
+
+Because the policy was informed by the v1.9 error analysis, a fresh future
+holdout is still recommended before stronger deployment claims.
+
 ## Controlled Source Result
 
 The isolated temporary-database workflow validates:

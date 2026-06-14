@@ -766,6 +766,84 @@ def _latest_v19_ai_summary(report_dir: Path = BENCHMARK_REPORT_DIR) -> dict[str,
     }
 
 
+def _latest_v19b_ai_summary(report_dir: Path = BENCHMARK_REPORT_DIR) -> dict[str, Any]:
+    summary, payload = _latest_reliability_file_summary(
+        report_dir,
+        "v1_9b_independent_fpr_stabilization_*.json",
+        missing_message="No v1.9b FPR stabilization report has been generated yet.",
+    )
+    if payload is None:
+        return summary
+    best = payload.get("best_profile") or {}
+    metrics = best.get("metrics") or {}
+    per_class = metrics.get("per_class") or {}
+    calibration = best.get("calibration") or {}
+    readiness = payload.get("readiness_gate_v7b") or {}
+    holdout = payload.get("independent_holdout") or {}
+    controlled = payload.get("controlled_real_source_validation") or {}
+    before_after = payload.get("before_after") or {}
+    analysis = payload.get("false_positive_analysis") or {}
+    failed_checks = [
+        item.get("name")
+        for item in readiness.get("checks", [])
+        if not bool(item.get("passed"))
+    ]
+    fpr = metrics.get("benign_false_positive_rate")
+    return {
+        **summary,
+        "independent_label_count": int(holdout.get("row_count") or 0),
+        "independent_source_count": int(holdout.get("source_count") or 0),
+        "independent_scenario_count": int(holdout.get("scenario_count") or 0),
+        "exact_overlap_rows": int(
+            (holdout.get("previous_holdout_overlap") or {}).get(
+                "exact_overlap_rows"
+            )
+            or 0
+        ),
+        "best_profile": best.get("profile"),
+        "threat_positive_precision": metrics.get("threat_positive_precision"),
+        "threat_positive_recall": metrics.get("threat_positive_recall"),
+        "threat_positive_f1": metrics.get("threat_positive_f1"),
+        "benign_like_false_positive_rate": fpr,
+        "suspicious_recall": (per_class.get("suspicious") or {}).get("recall"),
+        "malicious_recall": (per_class.get("malicious") or {}).get("recall"),
+        "macro_f1": metrics.get("macro_f1"),
+        "weighted_f1": metrics.get("weighted_f1"),
+        "calibration_status": calibration.get("status") or "missing",
+        "calibration_method": best.get("calibration_method") or "none",
+        "calibration_ece": calibration.get("expected_calibration_error"),
+        "calibration_brier": calibration.get("brier_score_threat_positive"),
+        "calibration_max_gap": calibration.get(
+            "max_confidence_accuracy_gap"
+        ),
+        "controlled_real_source_available": bool(controlled.get("available")),
+        "controlled_real_source_validated": bool(controlled.get("passed")),
+        "readiness_decision": readiness.get("decision")
+        or "analyst_review_eligible",
+        "readiness_version": readiness.get("version") or "v7b",
+        "checks_passed": int(readiness.get("passed") or 0),
+        "checks_total": int(readiness.get("total") or 0),
+        "independent_holdout_validated": bool(
+            readiness.get("independent_holdout_validated")
+        ),
+        "failed_checks": failed_checks,
+        "fpr_blocker_resolved": fpr is not None and float(fpr) <= 0.15,
+        "false_positives_reduced": int(
+            before_after.get("false_positives_reduced") or 0
+        ),
+        "analyst_review_boundary_count": int(
+            best.get("analyst_review_boundary_count") or 0
+        ),
+        "minimum_false_positive_reduction_needed": int(
+            analysis.get("minimum_reduction_needed") or 0
+        ),
+        "production_promoted": False,
+        "model_activated": False,
+        "response_automation_allowed": False,
+        "real_firewall_blocking_enabled": False,
+    }
+
+
 @router.get("/summary")
 def dashboard_summary(
     db: Session = Depends(get_db),
@@ -792,4 +870,5 @@ def dashboard_validation_summary(
     summary["v17_ai"] = _latest_v17_ai_summary(BENCHMARK_REPORT_DIR)
     summary["v18_ai"] = _latest_v18_ai_summary(BENCHMARK_REPORT_DIR)
     summary["v19_ai"] = _latest_v19_ai_summary(BENCHMARK_REPORT_DIR)
+    summary["v19b_ai"] = _latest_v19b_ai_summary(BENCHMARK_REPORT_DIR)
     return summary

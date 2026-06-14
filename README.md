@@ -240,6 +240,17 @@ source evidence separate. Current readiness remains decision support only:
 production promotion, model activation, automatic response, and real firewall
 blocking are disabled.
 
+Run the v1.9b identity-independent FPR stabilization comparison:
+
+```powershell
+python -m atdr.scripts.run_v19b_independent_fpr_stabilization --pretty
+```
+
+v1.9b routes unresolved allowed high-port services to analyst review only when
+they lack rule and behavior-window threat evidence. The current candidate
+passes readiness v7b, but it remains decision support and requires confirmation
+on a fresh future holdout.
+
 Run a scenario against a temporary database:
 
 ```powershell
@@ -343,6 +354,7 @@ Start here:
 - `docs/V1_7B_BENCHMARK_REVIEW_IMPORT.md` - dedicated `benchmark_row_id` review import kept separate from `ml_labels`.
 - `docs/V1_8_EXTERNAL_BENCHMARK_FINALIZATION.md` - external miss recovery, fixed profile comparison, out-of-fold calibration, and readiness v6.
 - `docs/V1_9_INDEPENDENT_REVALIDATION_AND_REAL_SOURCE_VALIDATION.md` - new independent holdout, controlled source workflow, and readiness v7.
+- `docs/V1_9B_INDEPENDENT_FPR_STABILIZATION.md` - identity-independent benign-boundary stabilization, profile comparison, and readiness v7b.
 - `docs/V0_5_SIMULATION_DEMO_PLAN.md` - earlier controlled replay validation plan.
 - `docs/V0_5_REAL_SOURCE_VALIDATION_PLAN.md` - future controlled hardware source validation plan.
 - `docs/V0_3_RELEASE_CANDIDATE.md` - current release-candidate summary.

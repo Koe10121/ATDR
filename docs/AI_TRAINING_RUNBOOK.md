@@ -989,3 +989,34 @@ independent holdout. Generated data and reports stay under ignored
 `demo_exports/benchmarks/`.
 
 See `docs/V1_9_INDEPENDENT_REVALIDATION_AND_REAL_SOURCE_VALIDATION.md`.
+
+## 39. v1.9b Independent FPR Stabilization
+
+Run the narrow identity-independent boundary comparison:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v19b_independent_fpr_stabilization --pretty
+```
+
+The runner compares the current v1.9 profile with four stabilization profiles
+and two existing baselines. It rejects profiles that miss recall/FPR targets,
+use source or scenario identity, or fail to preserve behavior-window evidence.
+
+The selected `independent_fpr_stabilized` profile routes unresolved
+`unknown-tcp` allowed high-port rows to analyst review only when rule and
+behavior-window evidence are absent. It does not write or activate a model.
+
+Current result:
+
+- benign-like FPR: `0.0917`;
+- threat F1: `0.9257`;
+- suspicious recall: `0.9538`;
+- malicious recall: `0.8769`;
+- readiness v7b: `controlled_real_source_validated_candidate`;
+- production promotion, model activation, response automation, and real
+  firewall blocking: disabled.
+
+Generated analysis and comparison reports remain under ignored
+`demo_exports/benchmarks/`.
+
+See `docs/V1_9B_INDEPENDENT_FPR_STABILIZATION.md`.

@@ -449,6 +449,7 @@ export interface DashboardValidationSummary {
   v17_ai?: DashboardV17AiSummary;
   v18_ai?: DashboardV18AiSummary;
   v19_ai?: DashboardV19AiSummary;
+  v19b_ai?: DashboardV19BAiSummary;
 }
 
 export interface DashboardGeneralizationSummary {
@@ -735,6 +736,13 @@ export interface DashboardV19AiSummary extends DashboardV18AiSummary {
   controlled_real_source_validated?: boolean;
   independent_holdout_validated?: boolean;
   real_firewall_blocking_enabled?: boolean;
+}
+
+export interface DashboardV19BAiSummary extends DashboardV19AiSummary {
+  fpr_blocker_resolved?: boolean;
+  false_positives_reduced?: number;
+  analyst_review_boundary_count?: number;
+  minimum_false_positive_reduction_needed?: number;
 }
 
 export interface DashboardDriftSummary {

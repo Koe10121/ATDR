@@ -815,6 +815,45 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
           response_automation_allowed: false,
           real_firewall_blocking_enabled: false
         },
+        v19b_ai: {
+          available: true,
+          ok: true,
+          independent_label_count: 500,
+          independent_source_count: 6,
+          independent_scenario_count: 16,
+          exact_overlap_rows: 0,
+          best_profile: "independent_fpr_stabilized",
+          threat_positive_precision: 0.917,
+          threat_positive_recall: 0.9346,
+          threat_positive_f1: 0.9257,
+          benign_like_false_positive_rate: 0.0917,
+          suspicious_recall: 0.9538,
+          malicious_recall: 0.8769,
+          macro_f1: 0.91,
+          weighted_f1: 0.91,
+          calibration_status: "passed",
+          calibration_method: "bucket_smoothing",
+          calibration_ece: 0.0027,
+          calibration_brier: 0.0646,
+          calibration_max_gap: 0.04,
+          controlled_real_source_available: true,
+          controlled_real_source_validated: true,
+          readiness_decision: "controlled_real_source_validated_candidate",
+          readiness_version: "v7b",
+          checks_passed: 20,
+          checks_total: 20,
+          external_benchmark_validated: true,
+          independent_holdout_validated: true,
+          failed_checks: [],
+          fpr_blocker_resolved: true,
+          false_positives_reduced: 15,
+          analyst_review_boundary_count: 15,
+          minimum_false_positive_reduction_needed: 1,
+          production_promoted: false,
+          model_activated: false,
+          response_automation_allowed: false,
+          real_firewall_blocking_enabled: false
+        },
         drift: {
           available: true,
           ok: true,
@@ -1131,20 +1170,21 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByText("Manual Approval Required")).toBeVisible();
   await expect(page.getByText("Automation Disabled", { exact: true })).toBeVisible();
   await expect(page.getByText(/Main blocker:\s*malicious recall and calibration/)).toBeVisible();
-  await expect(page.getByText(/Calibration:\s*passed \/ isotonic/)).toBeVisible();
+  await expect(page.getByText(/Calibration:\s*passed \/ bucket_smoothing/)).toBeVisible();
   await expect(
-    page.getByText(/500 independent rows \| Threat F1 0.9 \| external_benchmark_validated_candidate/),
+    page.getByText(/500 independent rows \| Threat F1 0.9257 \| controlled_real_source_validated_candidate/),
   ).toBeVisible();
-  await expect(page.getByText("Independent readiness v7 15/17")).toBeVisible();
-  await expect(page.getByText(/significant_independent_gap \| FPR 0.1542/)).toBeVisible();
+  await expect(page.getByText("Independent readiness v7b 20/20")).toBeVisible();
+  await expect(page.getByText(/FPR blocker resolved \| FPR 0.0917/)).toBeVisible();
   await expect(page.getByText("v1.8 external benchmark passed")).toBeVisible();
-  await expect(
-    page.getByText(/Current blockers:\s*independent_benign_false_positive_rate, performance_smoke_healthy/),
-  ).toBeVisible();
-  await expect(page.getByText(/Independent holdout:\s*500 rows \| 6 sources \| review required/)).toBeVisible();
-  await expect(page.getByText(/Validation profile:\s*external_recall_plus/)).toBeVisible();
-  await expect(page.getByText(/Independent metrics:\s*F1 0.9 \| Recall 0.9346 \| FPR 0.1542/)).toBeVisible();
+  await expect(page.getByText(/Current blockers:\s*none/)).toBeVisible();
+  await expect(page.getByText(/Independent holdout:\s*500 rows \| 6 sources \| passed/)).toBeVisible();
+  await expect(page.getByText(/Validation profile:\s*independent_fpr_stabilized/)).toBeVisible();
+  await expect(page.getByText(/Independent metrics:\s*F1 0.9257 \| Recall 0.9346 \| FPR 0.0917/)).toBeVisible();
   await expect(page.getByText(/Controlled source:\s*validated in safe replay\/source workflow/)).toBeVisible();
+  await expect(
+    page.getByText(/Review boundary:\s*15 ambiguous rows routed to analyst review; 15 false positives removed/),
+  ).toBeVisible();
   await expect(page.getByText("Decision Support Only", { exact: true })).toBeVisible();
   await expect(page.getByText("Response Automation Disabled", { exact: true })).toBeVisible();
   await expect(page.getByText("Import Benchmark Review CSV")).toBeVisible();

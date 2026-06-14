@@ -895,3 +895,25 @@ real router/firewall forwarding certification.
 Review the compact v1.8 external, v1.9 independent, controlled-source, readiness,
 calibration, and blocker indicators in Overview and AI Governance. Detailed
 reports remain under ignored `demo_exports/benchmarks/`.
+
+## v1.9b FPR Stabilization Check
+
+After v1.9 independent and controlled-source validation, run:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v19b_independent_fpr_stabilization --pretty
+```
+
+Verify in Overview and AI Governance:
+
+1. profile is `independent_fpr_stabilized`;
+2. benign-like FPR is at or below `0.15`;
+3. suspicious and malicious recall remain above their safety thresholds;
+4. ambiguous boundary rows are shown as analyst-review work;
+5. controlled-source validation remains passed;
+6. Decision Support Only, Response Automation Disabled, and Not Production
+   Promoted remain visible.
+
+The stabilization rule does not use source/scenario names and does not suppress
+behavior-window evidence. A fresh future holdout and real hardware forwarding
+test remain recommended.

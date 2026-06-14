@@ -1028,3 +1028,100 @@ def readiness_gate_v7_independent_validation(
             "SOC triage decision support. It is not production deployment approval."
         ),
     }
+
+
+def readiness_gate_v7b_fpr_stabilization(
+    *,
+    independent_label_count: int,
+    independent_metrics: dict[str, Any],
+    calibration_status: str,
+    external_benchmark_passed: bool,
+    independent_overlap_passed: bool,
+    controlled_real_source_passed: bool,
+    controlled_validations_passed: bool,
+    performance_smoke_healthy: bool,
+    uses_source_or_scenario_identity: bool,
+    preserves_behavior_evidence: bool,
+    ambiguous_rows_routed_to_review: bool,
+    production_promoted: bool = False,
+    model_activated: bool = False,
+    response_automation_allowed: bool = False,
+    real_firewall_blocking_enabled: bool = False,
+) -> dict[str, Any]:
+    """Extend v7 with explicit anti-overfitting checks for v1.9b."""
+    base = readiness_gate_v7_independent_validation(
+        independent_label_count=independent_label_count,
+        independent_metrics=independent_metrics,
+        calibration_status=calibration_status,
+        external_benchmark_passed=external_benchmark_passed,
+        independent_overlap_passed=independent_overlap_passed,
+        controlled_real_source_passed=controlled_real_source_passed,
+        controlled_validations_passed=controlled_validations_passed,
+        performance_smoke_healthy=performance_smoke_healthy,
+        production_promoted=production_promoted,
+        model_activated=model_activated,
+        response_automation_allowed=response_automation_allowed,
+        real_firewall_blocking_enabled=real_firewall_blocking_enabled,
+    )
+    stabilization_checks = [
+        {
+            "name": "identity_independent_boundary",
+            "passed": not uses_source_or_scenario_identity,
+            "detail": (
+                "Boundary logic does not use source or scenario identity."
+                if not uses_source_or_scenario_identity
+                else "Boundary logic depends on source or scenario identity."
+            ),
+            "target": "No source/scenario identity inputs",
+        },
+        {
+            "name": "behavior_evidence_preserved",
+            "passed": preserves_behavior_evidence,
+            "detail": (
+                "Behavior-window threat evidence remains authoritative."
+                if preserves_behavior_evidence
+                else "Useful behavior-window evidence can be suppressed."
+            ),
+            "target": "True",
+        },
+        {
+            "name": "ambiguous_boundary_review_routing",
+            "passed": ambiguous_rows_routed_to_review,
+            "detail": (
+                "Ambiguous unresolved rows are routed to analyst review."
+                if ambiguous_rows_routed_to_review
+                else "Ambiguous boundary rows are not explicitly routed to review."
+            ),
+            "target": "True",
+        },
+    ]
+    checks = [*base["checks"], *stabilization_checks]
+    passed = sum(1 for item in checks if item["passed"])
+    independent_validated = bool(base["independent_holdout_validated"]) and all(
+        item["passed"] for item in stabilization_checks
+    )
+    controlled_validated = bool(base["controlled_real_source_validated"])
+    if (
+        independent_validated
+        and controlled_validated
+        and passed == len(checks)
+    ):
+        decision = "controlled_real_source_validated_candidate"
+    elif independent_validated:
+        decision = "independently_revalidated_candidate"
+    else:
+        decision = str(base["decision"])
+    return {
+        **base,
+        "version": "v7b",
+        "decision": decision,
+        "independent_holdout_validated": independent_validated,
+        "passed": passed,
+        "total": len(checks),
+        "checks": checks,
+        "message": (
+            "v1.9b stabilizes an identity-independent analyst-review boundary. "
+            "Production promotion, model activation, automated response, and "
+            "real firewall enforcement remain disabled."
+        ),
+    }
