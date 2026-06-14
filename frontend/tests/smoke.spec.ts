@@ -744,6 +744,41 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
           model_activated: false,
           response_automation_allowed: false
         },
+        v18_ai: {
+          available: true,
+          ok: true,
+          external_label_count: 320,
+          best_profile: "external_recall_plus",
+          threat_positive_precision: 0.9568,
+          threat_positive_recall: 0.9118,
+          threat_positive_f1: 0.9338,
+          benign_like_false_positive_rate: 0.0467,
+          suspicious_recall: 0.9375,
+          malicious_recall: 0.8556,
+          macro_f1: 0.9201,
+          weighted_f1: 0.9215,
+          calibration_status: "passed",
+          calibration_method: "bucket_smoothing",
+          calibration_ece: 0.0118,
+          calibration_brier: 0.0607,
+          calibration_max_gap: 0.0418,
+          queue_size: 162,
+          overfitting_status: "moderate_generalization_gap",
+          overfitting_warning: true,
+          readiness_decision: "external_benchmark_validated_candidate",
+          readiness_version: "v6",
+          checks_passed: 12,
+          checks_total: 12,
+          external_benchmark_validated: true,
+          failed_checks: [],
+          baseline_false_negatives: 27,
+          remaining_false_negatives: 15,
+          recovered_false_negatives: 12,
+          independent_revalidation_recommended: true,
+          production_promoted: false,
+          model_activated: false,
+          response_automation_allowed: false
+        },
         drift: {
           available: true,
           ok: true,
@@ -1060,15 +1095,19 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByText("Manual Approval Required")).toBeVisible();
   await expect(page.getByText("Automation Disabled", { exact: true })).toBeVisible();
   await expect(page.getByText(/Main blocker:\s*malicious recall and calibration/)).toBeVisible();
-  await expect(page.getByText(/Calibration:\s*weak/)).toBeVisible();
+  await expect(page.getByText(/Calibration:\s*passed \/ bucket_smoothing/)).toBeVisible();
   await expect(
-    page.getByText(/320 unseen labels \| Threat F1 0.8937 \| internal_benchmark_validated_candidate/),
+    page.getByText(/320 reviewed benchmark rows \| Threat F1 0.9338 \| external_benchmark_validated_candidate/),
   ).toBeVisible();
-  await expect(page.getByText("External readiness checks 8/12")).toBeVisible();
-  await expect(page.getByText(/significant_generalization_gap \| FPR 0.0467/)).toBeVisible();
-  await expect(page.getByText("not yet passed")).toBeVisible();
-  await expect(page.getByText(/External blocker:\s*external_threat_positive_recall, confidence_calibration/)).toBeVisible();
-  await expect(page.getByText(/Boundary review:\s*300 rows exported/)).toBeVisible();
+  await expect(page.getByText("External readiness v6 12/12")).toBeVisible();
+  await expect(page.getByText(/moderate_generalization_gap \| FPR 0.0467/)).toBeVisible();
+  await expect(page.getByText("external benchmark candidate passed")).toBeVisible();
+  await expect(page.getByText(/External blocker:\s*none/)).toBeVisible();
+  await expect(page.getByText(/Boundary review:\s*12 threat misses recovered; 15 remain/)).toBeVisible();
+  await expect(page.getByText(/External profile:\s*external_recall_plus/)).toBeVisible();
+  await expect(page.getByText(/External recall:\s*Threat 0.9118 \| Suspicious 0.9375/)).toBeVisible();
+  await expect(page.getByText("Decision Support Only", { exact: true })).toBeVisible();
+  await expect(page.getByText("Response Automation Disabled", { exact: true })).toBeVisible();
   await expect(page.getByText("Import Benchmark Review CSV")).toBeVisible();
   await expect(page.getByText(/Files containing `benchmark_row_id` must use Benchmark Review Import/)).toBeVisible();
   await expect(page.getByText(/Confirmed noisy pattern:\s*normal QUIC\/443/)).toBeVisible();

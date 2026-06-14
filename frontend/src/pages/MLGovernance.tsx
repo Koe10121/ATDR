@@ -58,6 +58,7 @@ export function MLGovernance() {
   const v15Ai = validationSummary.data?.v15_ai;
   const v16Ai = validationSummary.data?.v16_ai;
   const v17Ai = validationSummary.data?.v17_ai;
+  const v18Ai = validationSummary.data?.v18_ai;
   const drift = data?.baseline_drift_report;
   const perClass = (supervisedMetrics.per_class ?? {}) as Record<string, Record<string, unknown>>;
   const benignMetrics = perClass.benign ?? {};
@@ -389,7 +390,11 @@ export function MLGovernance() {
           <div className="mt-3 rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
             Benchmark:{" "}
             <span className="font-bold text-text">
-              {v17Ai?.available
+              {v18Ai?.available
+                ? `${v18Ai.external_label_count ?? 0} reviewed benchmark rows | Threat F1 ${
+                    v18Ai.threat_positive_f1 ?? "-"
+                  } | ${v18Ai.readiness_decision ?? "candidate_only"}`
+                : v17Ai?.available
                 ? `${v17Ai.external_label_count ?? 0} unseen labels | Threat F1 ${
                     v17Ai.threat_positive_f1 ?? "-"
                   } | ${v17Ai.readiness_decision ?? "candidate_only"}`
@@ -425,7 +430,9 @@ export function MLGovernance() {
             </div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
               <span className="font-bold text-text">Calibration:</span>{" "}
-              {v17Ai?.calibration_status ?? v16Ai?.calibration_status ?? v15Ai?.calibration_status ?? v14Ai?.calibration_status ?? "pending"}
+              {v18Ai?.available
+                ? `${v18Ai.calibration_status ?? "pending"} / ${v18Ai.calibration_method ?? "none"}`
+                : v17Ai?.calibration_status ?? v16Ai?.calibration_status ?? v15Ai?.calibration_status ?? v14Ai?.calibration_status ?? "pending"}
             </div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
               <span className="font-bold text-text">Confirmed noisy pattern:</span>{" "}
@@ -452,7 +459,9 @@ export function MLGovernance() {
               Not production-promoted
             </div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-              {v17Ai?.available
+              {v18Ai?.available
+                ? `External readiness v6 ${v18Ai.checks_passed ?? 0}/${v18Ai.checks_total ?? 0}`
+                : v17Ai?.available
                 ? `External readiness checks ${v17Ai.checks_passed ?? 0}/${v17Ai.checks_total ?? 0}`
                 : v16Ai?.available
                 ? `External readiness checks ${v16Ai.checks_passed ?? 0}/${v16Ai.checks_total ?? 0}`
@@ -462,7 +471,9 @@ export function MLGovernance() {
             </div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
               <span className="font-bold text-text">Generalization:</span>{" "}
-              {v17Ai?.available
+              {v18Ai?.available
+                ? `${v18Ai.overfitting_status ?? "not evaluated"} | FPR ${v18Ai.benign_like_false_positive_rate ?? "-"}`
+                : v17Ai?.available
                 ? `${v17Ai.overfitting_status ?? "not evaluated"} | FPR ${v17Ai.benign_like_false_positive_rate ?? "-"}`
                 : v16Ai?.available
                 ? `${v16Ai.overfitting_status ?? "not evaluated"} | F1 gap ${v16Ai.threat_f1_gap ?? "-"}`
@@ -470,7 +481,11 @@ export function MLGovernance() {
             </div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
               <span className="font-bold text-text">External validation:</span>{" "}
-              {v17Ai?.available
+              {v18Ai?.available
+                ? v18Ai.external_benchmark_validated
+                  ? "external benchmark candidate passed"
+                  : "not yet passed"
+                : v17Ai?.available
                 ? v17Ai.external_benchmark_validated
                   ? "passed"
                   : "not yet passed"
@@ -480,13 +495,35 @@ export function MLGovernance() {
             </div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
               <span className="font-bold text-text">External blocker:</span>{" "}
-              {v17Ai?.available
+              {v18Ai?.available
+                ? (v18Ai.failed_checks ?? []).filter(Boolean).join(", ") || "none"
+                : v17Ai?.available
                 ? (v17Ai.failed_checks ?? []).filter(Boolean).join(", ") || "none"
                 : "v1.7 profile comparison pending"}
             </div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
               <span className="font-bold text-text">Boundary review:</span>{" "}
-              {v17Ai?.available ? `${v17Ai.review_sample_rows ?? 0} rows exported` : "pending"}
+              {v18Ai?.available
+                ? `${v18Ai.recovered_false_negatives ?? 0} threat misses recovered; ${v18Ai.remaining_false_negatives ?? 0} remain`
+                : v17Ai?.available
+                ? `${v17Ai.review_sample_rows ?? 0} rows exported`
+                : "pending"}
+            </div>
+            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
+              <span className="font-bold text-text">External profile:</span>{" "}
+              {v18Ai?.available ? v18Ai.best_profile ?? "not selected" : v17Ai?.best_profile ?? "pending"}
+            </div>
+            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
+              <span className="font-bold text-text">External recall:</span>{" "}
+              {v18Ai?.available
+                ? `Threat ${v18Ai.threat_positive_recall ?? "-"} | Suspicious ${v18Ai.suspicious_recall ?? "-"}`
+                : "v1.8 pending"}
+            </div>
+            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
+              Decision Support Only
+            </div>
+            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
+              Response Automation Disabled
             </div>
           </div>
           {socReviewProfiles.length ? (

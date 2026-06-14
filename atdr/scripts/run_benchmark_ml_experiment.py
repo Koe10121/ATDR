@@ -69,10 +69,27 @@ def _binary_label(record: BenchmarkRecord) -> str:
     return "threat_positive" if _is_threat(record) else "benign_like"
 
 
+def _timestamp_sort_key(record: BenchmarkRecord) -> datetime:
+    value = record.normalized.get("timestamp")
+    if isinstance(value, str):
+        try:
+            value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            value = None
+    if not isinstance(value, datetime):
+        return datetime.max.replace(tzinfo=timezone.utc)
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
 def _split_indices(records: list[BenchmarkRecord], labels: list[str], *, split: str, test_size: float, train_test_split) -> tuple[list[int], list[int], list[str]]:
     warnings: list[str] = []
     if split == "time" and any(record.normalized.get("timestamp") for record in records):
-        ordered = sorted(range(len(records)), key=lambda idx: records[idx].normalized.get("timestamp") or datetime.max)
+        ordered = sorted(
+            range(len(records)),
+            key=lambda idx: _timestamp_sort_key(records[idx]),
+        )
         cutoff = max(1, min(len(ordered) - 1, int(len(ordered) * (1 - test_size))))
         return ordered[:cutoff], ordered[cutoff:], warnings
     if split == "time":

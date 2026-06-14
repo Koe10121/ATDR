@@ -196,7 +196,10 @@ python -m atdr.scripts.build_fixed_unseen_holdout --dry-run --pretty
 python -m atdr.scripts.run_external_benchmark_validation --holdout-from-current-data --pretty
 ```
 
-The 320-row holdout uses separate synthetic sources and scenarios. Current results show a meaningful internal-to-unseen generalization gap, so status remains `internal_benchmark_validated_candidate`. No model or response action is activated.
+The 320-row holdout uses separate synthetic sources and scenarios. The original
+v1.6 transfer result exposed a meaningful internal-to-unseen generalization
+gap; v1.8 now reports the reviewed benchmark candidate separately. No model or
+response action is activated.
 
 Run the v1.7 external generalization improvement pass:
 
@@ -213,6 +216,16 @@ python -m atdr.scripts.import_benchmark_review_csv --input-csv "C:\path\to\v1_7_
 ```
 
 See `docs/V1_7B_BENCHMARK_REVIEW_IMPORT.md`.
+
+Run the v1.8 external benchmark finalization and confidence calibration pass:
+
+```powershell
+python -m atdr.scripts.run_v18_external_benchmark_finalization --pretty
+```
+
+v1.8 uses behavior-window evidence and out-of-fold confidence calibration to
+evaluate an external benchmark candidate. Passing the benchmark gate does not
+activate or production-promote a model, and response automation stays disabled.
 
 Run a scenario against a temporary database:
 
@@ -315,6 +328,7 @@ Start here:
 - `docs/V1_6_EXTERNAL_BENCHMARK_VALIDATION.md` - unseen holdout transfer metrics, calibration, overfitting analysis, and readiness gate v5.
 - `docs/V1_7_EXTERNAL_GENERALIZATION_IMPROVEMENT.md` - external boundary profiles, error analysis, calibration, and review sampling.
 - `docs/V1_7B_BENCHMARK_REVIEW_IMPORT.md` - dedicated `benchmark_row_id` review import kept separate from `ml_labels`.
+- `docs/V1_8_EXTERNAL_BENCHMARK_FINALIZATION.md` - external miss recovery, fixed profile comparison, out-of-fold calibration, and readiness v6.
 - `docs/V0_5_SIMULATION_DEMO_PLAN.md` - earlier controlled replay validation plan.
 - `docs/V0_5_REAL_SOURCE_VALIDATION_PLAN.md` - future controlled hardware source validation plan.
 - `docs/V0_3_RELEASE_CANDIDATE.md` - current release-candidate summary.

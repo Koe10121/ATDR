@@ -6,7 +6,10 @@ This runbook explains the supervised AI workflow for the MFU ATDR senior project
 
 Current supervised ML status is `candidate_improved`: it is eligible for analyst review as decision support, but it is not production promoted. Threat-positive triage is strong, while exact suspicious-versus-malicious separation remains imperfect and suspicious recall is still below the project target. Automatic response remains disabled.
 
-The latest external-holdout workflow is v1.7. It improves unseen-holdout false-positive behavior and suspicious recall, but readiness remains conservative because external recall, calibration, and overfitting gap checks still need more evidence.
+The latest external-holdout workflow is v1.8. It finalizes the reviewed
+synthetic benchmark profile and out-of-fold confidence calibration while
+keeping production promotion, model activation, and response automation
+disabled.
 
 Recommended demo wording:
 
@@ -932,3 +935,24 @@ Then evaluate against the reviewed holdout labels:
 The reviewed benchmark artifact and reviewed snapshot remain under ignored storage. They never create or update `ml_labels`.
 
 See `docs/V1_7B_BENCHMARK_REVIEW_IMPORT.md`.
+
+## 37. v1.8 External Benchmark Finalization
+
+Run the narrow external profile, miss-analysis, and calibration pass:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v18_external_benchmark_finalization --pretty
+```
+
+The workflow compares fixed external profiles, rejects candidates with benign
+FPR above `0.15` or threat precision below `0.80`, and evaluates temperature,
+sigmoid, isotonic, and confidence-bucket calibration. Confidence calibration is
+stratified and out-of-fold, so a row is not calibrated by a fit that used that
+same row.
+
+Current v1.8 evidence selects `external_recall_plus` and reaches
+`external_benchmark_validated_candidate`. This remains reviewed synthetic
+benchmark evidence for analyst decision support. It does not production-promote
+or activate a model, and it cannot enable response automation.
+
+See `docs/V1_8_EXTERNAL_BENCHMARK_FINALIZATION.md`.

@@ -1,11 +1,16 @@
 import csv
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
+from atdr.app.benchmarks.adapter import BenchmarkRecord
 from atdr.app.benchmarks.readiness import readiness_gate_v2
 from atdr.scripts.compare_layered_benchmark_reliability import compare_layered_benchmark_reliability
 from atdr.scripts.prepare_benchmark_dataset import prepare_benchmark_dataset
-from atdr.scripts.run_benchmark_ml_experiment import run_benchmark_ml_experiment
+from atdr.scripts.run_benchmark_ml_experiment import (
+    _split_indices,
+    run_benchmark_ml_experiment,
+)
 from atdr.scripts.run_detection_benchmark import run_detection_benchmark
 
 
@@ -135,6 +140,44 @@ def test_benchmark_ml_experiment_does_not_activate_model(tmp_path):
     assert report["safety"]["model_activated"] is False
     assert report["safety"]["automatic_response_enabled"] is False
     assert Path(report["paths"]["json"]).exists()
+
+
+def test_benchmark_time_split_handles_aware_naive_and_missing_timestamps():
+    records = [
+        BenchmarkRecord(
+            row_number=2,
+            raw={},
+            normalized={"timestamp": datetime(2026, 1, 2, tzinfo=timezone.utc)},
+            label="benign",
+            attack_type="normal",
+        ),
+        BenchmarkRecord(
+            row_number=3,
+            raw={},
+            normalized={"timestamp": datetime(2026, 1, 1)},
+            label="suspicious",
+            attack_type="port_scan",
+        ),
+        BenchmarkRecord(
+            row_number=4,
+            raw={},
+            normalized={"timestamp": None},
+            label="malicious",
+            attack_type="brute_force",
+        ),
+    ]
+
+    train, test, warnings = _split_indices(
+        records,
+        ["benign_like", "suspicious", "malicious"],
+        split="time",
+        test_size=0.34,
+        train_test_split=None,
+    )
+
+    assert train == [1]
+    assert test == [0, 2]
+    assert warnings == []
 
 
 def test_layered_benchmark_comparison_report_and_ignored_output_policy(tmp_path):

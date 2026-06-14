@@ -843,3 +843,25 @@ Apply those reviews during external validation:
 ```
 
 The React AI Governance page exposes a separate **Import Benchmark Review CSV** action. Benchmark artifacts remain ignored and separate from `ml_labels`.
+
+## v1.8 External Benchmark Finalization
+
+After reviewed v1.7 benchmark labels have been applied, run:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v18_external_benchmark_finalization --pretty
+```
+
+Verify in React AI Governance:
+
+1. External profile is `external_recall_plus`.
+2. Threat F1, threat recall, suspicious recall, malicious recall, and benign FPR
+   are visible.
+3. Calibration shows the selected method and status.
+4. Readiness says `external_benchmark_validated_candidate`.
+5. Decision Support Only and Response Automation Disabled remain visible.
+
+Detailed reports remain under ignored `demo_exports/benchmarks/`. The external
+holdout is reviewed and separate from local firewall labels, but it is still a
+synthetic benchmark. Run a new independent holdout and controlled real-source
+validation before making deployment claims.

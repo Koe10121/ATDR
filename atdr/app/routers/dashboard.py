@@ -627,6 +627,76 @@ def _latest_v17_ai_summary(report_dir: Path = BENCHMARK_REPORT_DIR) -> dict[str,
     }
 
 
+def _latest_v18_ai_summary(report_dir: Path = BENCHMARK_REPORT_DIR) -> dict[str, Any]:
+    summary, payload = _latest_reliability_file_summary(
+        report_dir,
+        "v1_8_external_benchmark_finalization_*.json",
+        missing_message="No v1.8 external benchmark finalization report has been generated yet.",
+    )
+    if payload is None:
+        return summary
+    best = payload.get("best_profile") or {}
+    metrics = best.get("metrics") or {}
+    per_class = metrics.get("per_class") or {}
+    calibration = best.get("calibration") or {}
+    readiness = payload.get("readiness_gate_v6") or {}
+    generalization = best.get("generalization") or {}
+    miss_analysis = payload.get("miss_analysis") or {}
+    failed_checks = [
+        item.get("name")
+        for item in readiness.get("checks", [])
+        if not bool(item.get("passed")) and not bool(item.get("advisory"))
+    ]
+    return {
+        **summary,
+        "external_label_count": int(payload.get("external_label_count") or 0),
+        "best_profile": best.get("profile"),
+        "threat_positive_precision": metrics.get("threat_positive_precision"),
+        "threat_positive_recall": metrics.get("threat_positive_recall"),
+        "threat_positive_f1": metrics.get("threat_positive_f1"),
+        "benign_like_false_positive_rate": metrics.get(
+            "benign_false_positive_rate"
+        ),
+        "suspicious_recall": (per_class.get("suspicious") or {}).get("recall"),
+        "malicious_recall": (per_class.get("malicious") or {}).get("recall"),
+        "macro_f1": metrics.get("macro_f1"),
+        "weighted_f1": metrics.get("weighted_f1"),
+        "calibration_status": best.get("calibration_readiness_status")
+        or calibration.get("status")
+        or "missing",
+        "calibration_method": best.get("calibration_method") or "none",
+        "calibration_ece": calibration.get("expected_calibration_error"),
+        "calibration_brier": calibration.get("brier_score_threat_positive"),
+        "calibration_max_gap": calibration.get("max_confidence_accuracy_gap"),
+        "queue_size": int(best.get("queue_size") or 0),
+        "overfitting_status": generalization.get("status") or "not_evaluated",
+        "overfitting_warning": bool(generalization.get("overfitting_warning")),
+        "readiness_decision": readiness.get("decision") or "candidate_only",
+        "readiness_version": readiness.get("version") or "v6",
+        "checks_passed": int(readiness.get("passed") or 0),
+        "checks_total": int(readiness.get("total") or 0),
+        "external_benchmark_validated": bool(
+            readiness.get("external_benchmark_validated")
+        ),
+        "failed_checks": failed_checks,
+        "baseline_false_negatives": int(
+            miss_analysis.get("before_threat_false_negatives") or 0
+        ),
+        "remaining_false_negatives": int(
+            miss_analysis.get("after_threat_false_negatives") or 0
+        ),
+        "recovered_false_negatives": int(
+            miss_analysis.get("recovered_threat_false_negatives") or 0
+        ),
+        "independent_revalidation_recommended": bool(
+            payload.get("independent_revalidation_recommended")
+        ),
+        "production_promoted": False,
+        "model_activated": False,
+        "response_automation_allowed": False,
+    }
+
+
 @router.get("/summary")
 def dashboard_summary(
     db: Session = Depends(get_db),
@@ -651,4 +721,5 @@ def dashboard_validation_summary(
     summary["v15_ai"] = _latest_v15_ai_summary(V13_REPORT_DIR)
     summary["v16_ai"] = _latest_v16_ai_summary(BENCHMARK_REPORT_DIR)
     summary["v17_ai"] = _latest_v17_ai_summary(BENCHMARK_REPORT_DIR)
+    summary["v18_ai"] = _latest_v18_ai_summary(BENCHMARK_REPORT_DIR)
     return summary

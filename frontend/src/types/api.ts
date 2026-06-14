@@ -447,6 +447,7 @@ export interface DashboardValidationSummary {
   v15_ai?: DashboardV15AiSummary;
   v16_ai?: DashboardV16AiSummary;
   v17_ai?: DashboardV17AiSummary;
+  v18_ai?: DashboardV18AiSummary;
 }
 
 export interface DashboardGeneralizationSummary {
@@ -711,6 +712,16 @@ export interface DashboardV17AiSummary {
   latest_report_name?: string | null;
   latest_markdown_name?: string | null;
   message?: string;
+}
+
+export interface DashboardV18AiSummary extends DashboardV17AiSummary {
+  weighted_f1?: number | null;
+  calibration_method?: string | null;
+  readiness_version?: string | null;
+  baseline_false_negatives?: number;
+  remaining_false_negatives?: number;
+  recovered_false_negatives?: number;
+  independent_revalidation_recommended?: boolean;
 }
 
 export interface DashboardDriftSummary {
