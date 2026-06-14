@@ -227,6 +227,19 @@ v1.8 uses behavior-window evidence and out-of-fold confidence calibration to
 evaluate an external benchmark candidate. Passing the benchmark gate does not
 activate or production-promote a model, and response automation stays disabled.
 
+Run the v1.9 independent and controlled-source validation:
+
+```powershell
+python -m atdr.scripts.build_independent_holdout --pretty
+python -m atdr.scripts.run_controlled_real_source_validation --pretty
+python -m atdr.scripts.run_v19_independent_revalidation --pretty
+```
+
+v1.9 keeps the external benchmark, new independent holdout, and controlled
+source evidence separate. Current readiness remains decision support only:
+production promotion, model activation, automatic response, and real firewall
+blocking are disabled.
+
 Run a scenario against a temporary database:
 
 ```powershell
@@ -329,6 +342,7 @@ Start here:
 - `docs/V1_7_EXTERNAL_GENERALIZATION_IMPROVEMENT.md` - external boundary profiles, error analysis, calibration, and review sampling.
 - `docs/V1_7B_BENCHMARK_REVIEW_IMPORT.md` - dedicated `benchmark_row_id` review import kept separate from `ml_labels`.
 - `docs/V1_8_EXTERNAL_BENCHMARK_FINALIZATION.md` - external miss recovery, fixed profile comparison, out-of-fold calibration, and readiness v6.
+- `docs/V1_9_INDEPENDENT_REVALIDATION_AND_REAL_SOURCE_VALIDATION.md` - new independent holdout, controlled source workflow, and readiness v7.
 - `docs/V0_5_SIMULATION_DEMO_PLAN.md` - earlier controlled replay validation plan.
 - `docs/V0_5_REAL_SOURCE_VALIDATION_PLAN.md` - future controlled hardware source validation plan.
 - `docs/V0_3_RELEASE_CANDIDATE.md` - current release-candidate summary.

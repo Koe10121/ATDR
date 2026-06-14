@@ -86,6 +86,11 @@ decision support. It is not a production promotion. Because v1.8 was informed
 by the v1.7 miss analysis, a new independent holdout and controlled real-source
 validation are still recommended before stronger deployment claims.
 
+That follow-up is implemented in
+`docs/V1_9_INDEPENDENT_REVALIDATION_AND_REAL_SOURCE_VALIDATION.md`. v1.9 keeps
+the v1.8 result as external synthetic evidence and reports independent holdout
+and controlled source results separately.
+
 ## Safety
 
 - Response remains simulated and analyst-approved.

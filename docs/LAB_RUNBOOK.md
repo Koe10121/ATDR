@@ -865,3 +865,33 @@ Detailed reports remain under ignored `demo_exports/benchmarks/`. The external
 holdout is reviewed and separate from local firewall labels, but it is still a
 synthetic benchmark. Run a new independent holdout and controlled real-source
 validation before making deployment claims.
+
+## v1.9 Independent And Controlled Source Validation
+
+Generate the separate v1.9 holdout:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.build_independent_holdout --pretty
+```
+
+Exercise Palo Alto-style replay, generic syslog, raw fallback, deduplication,
+source health, alert evidence, cases, protected-IP denial, and audit behavior in
+temporary SQLite databases:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_controlled_real_source_validation --pretty
+```
+
+Then run independent profile revalidation:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v19_independent_revalidation --pretty
+```
+
+The controlled source command does not write to the current local database. Its
+explicit response check remains simulated and analyst-approved. It is not a
+real router/firewall forwarding certification.
+
+Review the compact v1.8 external, v1.9 independent, controlled-source, readiness,
+calibration, and blocker indicators in Overview and AI Governance. Detailed
+reports remain under ignored `demo_exports/benchmarks/`.

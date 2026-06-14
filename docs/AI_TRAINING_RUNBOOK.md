@@ -956,3 +956,36 @@ benchmark evidence for analyst decision support. It does not production-promote
 or activate a model, and it cannot enable response automation.
 
 See `docs/V1_8_EXTERNAL_BENCHMARK_FINALIZATION.md`.
+
+## 38. v1.9 Independent Revalidation
+
+Build a new seeded holdout that is separate from the v1.6-v1.8 reviewed
+external benchmark:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.build_independent_holdout --pretty
+```
+
+Run the safe source/parser validation before calculating readiness v7:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_controlled_real_source_validation --pretty
+```
+
+Run the eight-profile independent comparison:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v19_independent_revalidation --pretty
+```
+
+The default holdout contains 500 synthetic rows across at least five logical
+sources. The workflow reports exact overlap, near-duplicate families, per-class
+metrics, calibration, internal/external/independent gaps, controlled-source
+status, performance warnings, and readiness v7.
+
+Do not tune a profile directly against this independent result and then describe
+the same holdout as unseen. Any change informed by v1.9 requires another
+independent holdout. Generated data and reports stay under ignored
+`demo_exports/benchmarks/`.
+
+See `docs/V1_9_INDEPENDENT_REVALIDATION_AND_REAL_SOURCE_VALIDATION.md`.

@@ -184,6 +184,7 @@ def _alert_metadata(alert: Alert) -> dict[str, Any]:
         "severity": alert.severity,
         "status": alert.status,
         "threat_score": alert.threat_score,
+        "why_flagged": alert.explanation,
         "occurrence_count": metadata.get("occurrence_count", metadata.get("evidence_count", len(alert.evidence))),
         "related_log_count": metadata.get("related_log_count", len(alert.evidence)),
         "deduplicated": bool(metadata.get("deduplicated")),

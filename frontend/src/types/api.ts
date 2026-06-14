@@ -448,6 +448,7 @@ export interface DashboardValidationSummary {
   v16_ai?: DashboardV16AiSummary;
   v17_ai?: DashboardV17AiSummary;
   v18_ai?: DashboardV18AiSummary;
+  v19_ai?: DashboardV19AiSummary;
 }
 
 export interface DashboardGeneralizationSummary {
@@ -722,6 +723,18 @@ export interface DashboardV18AiSummary extends DashboardV17AiSummary {
   remaining_false_negatives?: number;
   recovered_false_negatives?: number;
   independent_revalidation_recommended?: boolean;
+}
+
+export interface DashboardV19AiSummary extends DashboardV18AiSummary {
+  independent_label_count?: number;
+  independent_source_count?: number;
+  independent_scenario_count?: number;
+  exact_overlap_rows?: number;
+  generalization_status?: string | null;
+  controlled_real_source_available?: boolean;
+  controlled_real_source_validated?: boolean;
+  independent_holdout_validated?: boolean;
+  real_firewall_blocking_enabled?: boolean;
 }
 
 export interface DashboardDriftSummary {

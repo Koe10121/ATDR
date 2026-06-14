@@ -213,7 +213,15 @@ export function ExecutiveOverview() {
           <div className="rounded-lg border border-line bg-panel2 p-3">
             <div className="text-xs font-bold uppercase tracking-wide text-muted">Benchmark</div>
             <div className="mt-1 font-bold text-text">
-              {validation?.v17_ai?.available
+              {validation?.v19_ai?.available
+                ? `${validation.v19_ai.independent_label_count ?? 0} independent | F1 ${
+                    validation.v19_ai.threat_positive_f1 ?? "-"
+                  }`
+                : validation?.v18_ai?.available
+                ? `${validation.v18_ai.external_label_count ?? 0} external | F1 ${
+                    validation.v18_ai.threat_positive_f1 ?? "-"
+                  }`
+                : validation?.v17_ai?.available
                 ? `${validation.v17_ai.external_label_count ?? 0} unseen | F1 ${
                     validation.v17_ai.threat_positive_f1 ?? "-"
                   }`
@@ -230,7 +238,13 @@ export function ExecutiveOverview() {
                   : "No benchmark yet"}
             </div>
             <div className="mt-1 text-xs text-muted">
-              {validation?.v17_ai?.available
+              {validation?.v19_ai?.available
+                ? `${validation.v19_ai.readiness_decision ?? "analyst_review_eligible"} | FPR ${
+                    validation.v19_ai.benign_like_false_positive_rate ?? "-"
+                  }`
+                : validation?.v18_ai?.available
+                ? `${validation.v18_ai.readiness_decision ?? "external_benchmark_validated_candidate"} | v1.8`
+                : validation?.v17_ai?.available
                 ? `${validation.v17_ai.readiness_decision ?? "candidate_only"} | FPR ${
                     validation.v17_ai.benign_like_false_positive_rate ?? "-"
                   }`
@@ -285,7 +299,11 @@ export function ExecutiveOverview() {
         <div className="mt-3 grid gap-3 md:grid-cols-3">
           <div className="rounded-lg border border-success/30 bg-success/10 p-3 text-sm text-success">Simulated Response</div>
           <div className="rounded-lg border border-cyan/30 bg-cyan/10 p-3 text-sm text-cyan">Decision Support Only</div>
-          <div className="rounded-lg border border-amber/30 bg-amber/10 p-3 text-sm text-amber">Hardware Validation Pending</div>
+          <div className="rounded-lg border border-amber/30 bg-amber/10 p-3 text-sm text-amber">
+            {validation?.v19_ai?.controlled_real_source_validated
+              ? "Controlled Source Validated"
+              : "Hardware Validation Pending"}
+          </div>
         </div>
       </section>
 

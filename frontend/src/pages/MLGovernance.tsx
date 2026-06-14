@@ -59,6 +59,7 @@ export function MLGovernance() {
   const v16Ai = validationSummary.data?.v16_ai;
   const v17Ai = validationSummary.data?.v17_ai;
   const v18Ai = validationSummary.data?.v18_ai;
+  const v19Ai = validationSummary.data?.v19_ai;
   const drift = data?.baseline_drift_report;
   const perClass = (supervisedMetrics.per_class ?? {}) as Record<string, Record<string, unknown>>;
   const benignMetrics = perClass.benign ?? {};
@@ -390,7 +391,11 @@ export function MLGovernance() {
           <div className="mt-3 rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
             Benchmark:{" "}
             <span className="font-bold text-text">
-              {v18Ai?.available
+              {v19Ai?.available
+                ? `${v19Ai.independent_label_count ?? 0} independent rows | Threat F1 ${
+                    v19Ai.threat_positive_f1 ?? "-"
+                  } | ${v19Ai.readiness_decision ?? "analyst_review_eligible"}`
+                : v18Ai?.available
                 ? `${v18Ai.external_label_count ?? 0} reviewed benchmark rows | Threat F1 ${
                     v18Ai.threat_positive_f1 ?? "-"
                   } | ${v18Ai.readiness_decision ?? "candidate_only"}`
@@ -430,7 +435,9 @@ export function MLGovernance() {
             </div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
               <span className="font-bold text-text">Calibration:</span>{" "}
-              {v18Ai?.available
+              {v19Ai?.available
+                ? `${v19Ai.calibration_status ?? "pending"} / ${v19Ai.calibration_method ?? "none"}`
+                : v18Ai?.available
                 ? `${v18Ai.calibration_status ?? "pending"} / ${v18Ai.calibration_method ?? "none"}`
                 : v17Ai?.calibration_status ?? v16Ai?.calibration_status ?? v15Ai?.calibration_status ?? v14Ai?.calibration_status ?? "pending"}
             </div>
@@ -459,7 +466,9 @@ export function MLGovernance() {
               Not production-promoted
             </div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-              {v18Ai?.available
+              {v19Ai?.available
+                ? `Independent readiness v7 ${v19Ai.checks_passed ?? 0}/${v19Ai.checks_total ?? 0}`
+                : v18Ai?.available
                 ? `External readiness v6 ${v18Ai.checks_passed ?? 0}/${v18Ai.checks_total ?? 0}`
                 : v17Ai?.available
                 ? `External readiness checks ${v17Ai.checks_passed ?? 0}/${v17Ai.checks_total ?? 0}`
@@ -471,7 +480,9 @@ export function MLGovernance() {
             </div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
               <span className="font-bold text-text">Generalization:</span>{" "}
-              {v18Ai?.available
+              {v19Ai?.available
+                ? `${v19Ai.generalization_status ?? "not evaluated"} | FPR ${v19Ai.benign_like_false_positive_rate ?? "-"}`
+                : v18Ai?.available
                 ? `${v18Ai.overfitting_status ?? "not evaluated"} | FPR ${v18Ai.benign_like_false_positive_rate ?? "-"}`
                 : v17Ai?.available
                 ? `${v17Ai.overfitting_status ?? "not evaluated"} | FPR ${v17Ai.benign_like_false_positive_rate ?? "-"}`
@@ -481,7 +492,11 @@ export function MLGovernance() {
             </div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
               <span className="font-bold text-text">External validation:</span>{" "}
-              {v18Ai?.available
+              {v19Ai?.available
+                ? v19Ai.external_benchmark_validated
+                  ? "v1.8 external benchmark passed"
+                  : "external benchmark not yet passed"
+                : v18Ai?.available
                 ? v18Ai.external_benchmark_validated
                   ? "external benchmark candidate passed"
                   : "not yet passed"
@@ -494,30 +509,48 @@ export function MLGovernance() {
                 : "not yet passed"}
             </div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-              <span className="font-bold text-text">External blocker:</span>{" "}
-              {v18Ai?.available
+              <span className="font-bold text-text">Current blockers:</span>{" "}
+              {v19Ai?.available
+                ? (v19Ai.failed_checks ?? []).filter(Boolean).join(", ") || "none"
+                : v18Ai?.available
                 ? (v18Ai.failed_checks ?? []).filter(Boolean).join(", ") || "none"
                 : v17Ai?.available
                 ? (v17Ai.failed_checks ?? []).filter(Boolean).join(", ") || "none"
                 : "v1.7 profile comparison pending"}
             </div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-              <span className="font-bold text-text">Boundary review:</span>{" "}
-              {v18Ai?.available
+              <span className="font-bold text-text">Independent holdout:</span>{" "}
+              {v19Ai?.available
+                ? `${v19Ai.independent_label_count ?? 0} rows | ${v19Ai.independent_source_count ?? 0} sources | ${v19Ai.independent_holdout_validated ? "passed" : "review required"}`
+                : v18Ai?.available
                 ? `${v18Ai.recovered_false_negatives ?? 0} threat misses recovered; ${v18Ai.remaining_false_negatives ?? 0} remain`
                 : v17Ai?.available
                 ? `${v17Ai.review_sample_rows ?? 0} rows exported`
                 : "pending"}
             </div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-              <span className="font-bold text-text">External profile:</span>{" "}
-              {v18Ai?.available ? v18Ai.best_profile ?? "not selected" : v17Ai?.best_profile ?? "pending"}
+              <span className="font-bold text-text">Validation profile:</span>{" "}
+              {v19Ai?.available
+                ? v19Ai.best_profile ?? "not selected"
+                : v18Ai?.available
+                ? v18Ai.best_profile ?? "not selected"
+                : v17Ai?.best_profile ?? "pending"}
             </div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-              <span className="font-bold text-text">External recall:</span>{" "}
-              {v18Ai?.available
+              <span className="font-bold text-text">Independent metrics:</span>{" "}
+              {v19Ai?.available
+                ? `F1 ${v19Ai.threat_positive_f1 ?? "-"} | Recall ${v19Ai.threat_positive_recall ?? "-"} | FPR ${v19Ai.benign_like_false_positive_rate ?? "-"}`
+                : v18Ai?.available
                 ? `Threat ${v18Ai.threat_positive_recall ?? "-"} | Suspicious ${v18Ai.suspicious_recall ?? "-"}`
                 : "v1.8 pending"}
+            </div>
+            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
+              <span className="font-bold text-text">Controlled source:</span>{" "}
+              {v19Ai?.available
+                ? v19Ai.controlled_real_source_validated
+                  ? "validated in safe replay/source workflow"
+                  : "validation pending or requires review"
+                : "v1.9 pending"}
             </div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
               Decision Support Only
