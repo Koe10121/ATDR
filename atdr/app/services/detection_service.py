@@ -11,9 +11,9 @@ from atdr.app.detection.rules import DetectionResult, RuleMatch, build_detection
 from atdr.app.detection.scoring import clamp_score, severity_from_score
 from atdr.app.services.alert_service import create_grouped_alert_from_detections, existing_evidence_log_ids
 from atdr.app.services.operation_run_service import (
+    attack_type_counts_for_alerts,
     complete_detection_run,
     fail_detection_run,
-    recent_attack_type_counts,
     start_detection_run,
 )
 from atdr.app.services.suppression_service import matching_suppression, record_suppression_hit
@@ -195,6 +195,7 @@ def run_detection(
         deduplicated_alert_updates = 0
         suppressed_groups = 0
         suppressed_by_rules = 0
+        touched_alerts = []
         for grouped_candidates in grouped.values():
             if not _should_create_group_alert(grouped_candidates):
                 suppressed_groups += 1
@@ -215,11 +216,13 @@ def run_detection(
                 detections,
                 primary_rule_code=grouped_candidates[0].primary_rule.code,
             )
+            touched_alerts.append(alert)
             if alert.id is None:
                 created += 1
             else:
                 deduplicated_alert_updates += 1
 
+        run_attack_types = attack_type_counts_for_alerts(touched_alerts)
         run_details = {
             "evaluated": evaluated,
             "candidate_logs": len(candidates),
@@ -235,6 +238,7 @@ def run_detection(
             "source_type": source_type,
             "group_bucket_minutes": GROUP_BUCKET_MINUTES,
             "low_severity_group_min_evidence": LOW_SEVERITY_GROUP_MIN_EVIDENCE,
+            "top_attack_types": run_attack_types,
         }
         complete_detection_run(
             db,
@@ -243,7 +247,7 @@ def run_detection(
             alerts_created=created,
             alerts_deduplicated=deduplicated_alert_updates,
             alerts_suppressed=suppressed_groups + suppressed_by_rules,
-            top_attack_types=recent_attack_type_counts(db),
+            top_attack_types=run_attack_types,
             details=run_details,
         )
         db.add(

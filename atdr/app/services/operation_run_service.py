@@ -176,6 +176,21 @@ def recent_attack_type_counts(db: Session, *, limit: int = 500, top_n: int = 10)
     return [{"name": name, "count": count} for name, count in counts.most_common(top_n)]
 
 
+def attack_type_counts_for_alerts(
+    alerts: list[Alert],
+    *,
+    top_n: int = 10,
+) -> list[dict[str, Any]]:
+    counts: Counter[str] = Counter(
+        infer_attack_type_from_rules(alert.matched_rules_json or [])
+        for alert in alerts
+    )
+    return [
+        {"name": name, "count": count}
+        for name, count in counts.most_common(top_n)
+    ]
+
+
 def list_ingestion_runs(db: Session, *, limit: int = 20, offset: int = 0) -> list[IngestionRun]:
     return list(db.scalars(select(IngestionRun).order_by(desc(IngestionRun.started_at), desc(IngestionRun.id)).limit(limit).offset(offset)))
 

@@ -1163,7 +1163,7 @@ test("overview system health panel and ML governance wording render", async ({ p
 
   await page.goto("/overview");
   await expect(page.getByText("System Health")).toBeVisible();
-  await expect(page.getByText("Controlled Validation")).toBeVisible();
+  await expect(page.getByText("Controlled Validation", { exact: true })).toBeVisible();
   await expect(page.getByText("Generalization", { exact: true })).toBeVisible();
   await expect(page.getByText("70/70 variants")).toBeVisible();
   await expect(page.getByText("FP 0 | FN 0")).toHaveCount(3);
@@ -1179,7 +1179,7 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByText("0 warnings")).toBeVisible();
   await expect(page.getByText("Lab-Scale Validation")).toBeVisible();
   await expect(page.getByText("Manual Approval Required")).toBeVisible();
-  await expect(page.getByText("Controlled Source Validated")).toBeVisible();
+  await expect(page.getByText("Final Controlled Validation Candidate", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Real device validation remains future work.")).toBeVisible();
   await expect(page.getByText("Operations Health")).toBeVisible();
   await expect(page.getByText("Log Sources")).toBeVisible();
@@ -1190,6 +1190,7 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByText("Troubleshooting Hints")).toBeVisible();
   await expect(page.getByText("Parser profile behavior")).toBeVisible();
   await expect(page.getByText("Recent Detection Runs")).toBeVisible();
+  await expect(page.getByText("Run attack types: port_scan (1)")).toBeVisible();
   await page.getByRole("button", { name: "Close details" }).click();
   await page.getByRole("button", { name: /scenario-raw-fallback/ }).click();
   await expect(page.getByText("Raw fallback preserves evidence but structured fields may be limited.")).toBeVisible();
@@ -1208,7 +1209,7 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByText("SOC Triage Mode")).toBeVisible();
   await expect(page.getByText("Analyst Review", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Manual Approval Required")).toBeVisible();
-  await expect(page.getByText("Automation Disabled", { exact: true })).toBeVisible();
+  await expect(page.getByText("Response Automation Disabled", { exact: true }).first()).toBeVisible();
   await expect(
     page.getByText(/Main blocker:\s*No v2.0 metric blocker; real hardware validation remains future work/),
   ).toBeVisible();
@@ -1230,8 +1231,8 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(
     page.getByText(/Final controlled validation:\s*passed; candidate remains decision support only/),
   ).toBeVisible();
-  await expect(page.getByText("Decision Support Only", { exact: true })).toBeVisible();
-  await expect(page.getByText("Response Automation Disabled", { exact: true })).toBeVisible();
+  await expect(page.getByText("Decision Support Only", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Response Automation Disabled", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Import Benchmark Review CSV")).toBeVisible();
   await expect(page.getByText(/Files containing `benchmark_row_id` must use Benchmark Review Import/)).toBeVisible();
   await expect(page.getByText(/Confirmed noisy pattern:\s*normal QUIC\/443/)).toBeVisible();
@@ -1240,7 +1241,8 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByText("Actionable review sample excludes protected manual labels", { exact: true })).toBeVisible();
   await expect(page.getByText("Model remains decision support only", { exact: true })).toBeVisible();
   await expect(page.getByText("Response automation disabled", { exact: true })).toBeVisible();
-  await expect(page.getByText("Not production-promoted", { exact: true })).toBeVisible();
+  await expect(page.getByText("Not Production Promoted", { exact: true })).toBeVisible();
+  await expect(page.getByText("Final Controlled Validation Candidate", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Technical Review Notes")).toBeVisible();
   await page.getByText("Technical Review Notes").click();
   await expect(page.getByText("Malicious reviewed target is met; do not prioritize malicious-heavy review unless evidence is strong.")).toBeVisible();

@@ -9,7 +9,7 @@ from atdr.app.db.models import Alert, AlertEvidence, AuditLog, DetectionRun, Ing
 from atdr.app.services.dashboard_service import build_dashboard_summary
 from atdr.app.services.detection_service import run_detection
 from atdr.app.services.log_service import import_log_file, import_raw_log_line
-from atdr.app.services.source_service import recent_source_detection_runs
+from atdr.app.services.source_service import get_or_create_source, recent_source_detection_runs
 from atdr.scripts.performance_smoke import run_performance_smoke
 from atdr.scripts.register_log_source import register_log_source
 from atdr.scripts.replay_logs import replay_logs
@@ -224,6 +224,61 @@ def test_alert_dedup_updates_existing_alert_and_keeps_raw_logs():
     assert metadata["occurrence_count"] >= 2
     assert audit is not None
     assert detection_runs[-1].alerts_deduplicated >= 1
+
+
+def test_detection_run_attack_types_exclude_unrelated_historical_alerts():
+    Session = _session()
+    with Session() as db:
+        db.add(
+            Alert(
+                title="Historical unrelated alert",
+                alert_type="paloalto_threat_log",
+                src_ip="198.51.100.20",
+                dst_ip="203.0.113.20",
+                threat_score=90,
+                severity="Critical",
+                status="open",
+                explanation="Historical alert outside the current run.",
+                matched_rules_json=[
+                    {
+                        "code": "paloalto_threat_log",
+                        "title": "Historical threat",
+                        "score": 90,
+                    }
+                ],
+                recommended_response="Review.",
+            )
+        )
+        source = get_or_create_source(
+            db,
+            name="run-scoped-port-scan",
+            source_type="firewall",
+            parser_profile="palo_alto",
+        )
+        db.commit()
+        db.refresh(source)
+        import_log_file(
+            db,
+            "data/samples/scenarios/port_scan_like_traffic.txt",
+            actor="unit_test",
+            source_id=source.id,
+            parser_profile="palo_alto",
+        )
+
+        result = run_detection(
+            db,
+            limit=100,
+            use_ml=False,
+            actor="unit_test",
+            source_id=source.id,
+            source_name=source.name,
+            source_type=source.source_type,
+        )
+        run = db.get(DetectionRun, result["detection_run_id"])
+
+    assert result["top_attack_types"] == [{"name": "port_scan", "count": 1}]
+    assert run is not None
+    assert run.top_attack_types_json == [{"name": "port_scan", "count": 1}]
 
 
 def test_dashboard_data_quality_counts_parser_errors_and_duplicates():

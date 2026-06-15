@@ -303,13 +303,14 @@ export function ExecutiveOverview() {
             </div>
           </div>
         </div>
-        <div className="mt-3 grid gap-3 md:grid-cols-3">
-          <div className="rounded-lg border border-success/30 bg-success/10 p-3 text-sm text-success">Simulated Response</div>
+        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-lg border border-cyan/30 bg-cyan/10 p-3 text-sm text-cyan">Decision Support Only</div>
-          <div className="rounded-lg border border-amber/30 bg-amber/10 p-3 text-sm text-amber">
-            {independentAi?.controlled_real_source_validated
-              ? "Controlled Source Validated"
-              : "Hardware Validation Pending"}
+          <div className="rounded-lg border border-amber/30 bg-amber/10 p-3 text-sm text-amber">Response Automation Disabled</div>
+          <div className="rounded-lg border border-line bg-panel2 p-3 text-sm text-muted">Not Production Promoted</div>
+          <div className="rounded-lg border border-success/30 bg-success/10 p-3 text-sm text-success">
+            {validation?.v20_ai?.final_controlled_validation_passed
+              ? "Final Controlled Validation Candidate"
+              : "Controlled Validation Pending"}
           </div>
         </div>
       </section>
@@ -446,7 +447,7 @@ export function ExecutiveOverview() {
               <div>Created: {latestDetectionRun?.alerts_created ?? "-"}</div>
               <div>Deduped: {latestDetectionRun?.alerts_deduplicated ?? "-"}</div>
               <div>Suppressed: {latestDetectionRun?.alerts_suppressed ?? "-"}</div>
-              <div>Top: {latestDetectionRun?.top_attack_types?.[0]?.name ?? "-"}</div>
+              <div>Run top attack type: {latestDetectionRun?.top_attack_types?.[0]?.name ?? "-"}</div>
             </div>
           </div>
         </div>
@@ -563,6 +564,7 @@ export function ExecutiveOverview() {
                       {run.detection_type} | evaluated {run.logs_evaluated} | created {run.alerts_created} | dedup {run.alerts_deduplicated} |{" "}
                       {run.runtime_seconds ?? "-"}s
                     </div>
+                    <div>Run attack types: {run.top_attack_types?.map((item) => `${item.name} (${item.count})`).join(", ") || "none"}</div>
                   </div>
                 ))}
                 {!(sourceDetail.data.recent_detection_runs ?? []).length ? (

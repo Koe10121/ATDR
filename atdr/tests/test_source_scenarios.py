@@ -67,8 +67,25 @@ def test_port_scan_scenario_creates_source_scoped_alert():
 
     assert result["ok"] is True
     assert result["detection_results"][0]["source_id"] == result["source_after"]["source_id"]
+    assert result["detection_results"][0]["top_attack_types"] == [
+        {"name": "port_scan", "count": 1}
+    ]
+    assert result["source_after"]["recent_detection_runs"][0][
+        "top_attack_types"
+    ] == [{"name": "port_scan", "count": 1}]
     assert result["expected_outcome"]["source_counts"]["alerts"] >= 1
     assert any(alert["alert_type"] == "possible_port_scan" for alert in result["expected_outcome"]["alert_summaries"])
+    assert result["expected_outcome"]["response_safety"] == {
+        "response_actions_before": 0,
+        "response_actions_after": 0,
+        "automatic_response_actions_created": 0,
+        "response_automation_allowed": False,
+        "real_firewall_blocking_enabled": False,
+    }
+    assert any(
+        "Data quality note:" in warning
+        for warning in result["source_after"]["quality"]["warnings"]
+    )
 
 
 def test_policy_violation_suspicious_app_scenario_creates_alert():

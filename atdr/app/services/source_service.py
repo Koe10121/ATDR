@@ -320,7 +320,12 @@ def source_quality(db: Session, source_id: int) -> dict[str, Any]:
     unknown_app_rate = round((unknown_app_count / normalized_logs) * 100, 2) if normalized_logs else 0.0
     warnings = []
     if unknown_app_rate >= 25:
-        warnings.append(f"Unknown/incomplete app rate is high at {unknown_app_rate}%.")
+        warnings.append(
+            "Data quality note: unknown/incomplete application values are "
+            f"present in {unknown_app_rate}% of this source's normalized logs. "
+            "This can be expected for scan-style or partially established "
+            "sessions and does not by itself mean source failure."
+        )
     if parse_failure_examples:
         warnings.append("Parser failure examples are available for review.")
     return {

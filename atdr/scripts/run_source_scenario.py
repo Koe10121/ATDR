@@ -331,9 +331,13 @@ def _validate_expected(
         add("suspicious_app_alert_created", bool(suspicious_app_alerts), f"Suspicious-app alert count: {len(suspicious_app_alerts)}")
 
     current_response_action_count = int(db.query(ResponseAction).count())
+    automatic_response_actions = max(
+        0,
+        current_response_action_count - baseline_response_action_count,
+    )
     add(
         "no_new_response_actions",
-        current_response_action_count == baseline_response_action_count,
+        automatic_response_actions == 0,
         f"Response actions before/after: {baseline_response_action_count}/{current_response_action_count}.",
     )
     passed = all(item["passed"] for item in checks)
@@ -344,6 +348,13 @@ def _validate_expected(
         "source_counts": counts,
         "alert_summaries": alert_summaries[:10],
         "cases": list_alert_cases(db, source_id=source.id, limit=10),
+        "response_safety": {
+            "response_actions_before": baseline_response_action_count,
+            "response_actions_after": current_response_action_count,
+            "automatic_response_actions_created": automatic_response_actions,
+            "response_automation_allowed": False,
+            "real_firewall_blocking_enabled": False,
+        },
     }
 
 

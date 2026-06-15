@@ -4,6 +4,30 @@ ATDR is a defensive senior-project lab prototype for AI-assisted firewall log mo
 
 ATDR is lab-ready for controlled small-office validation. It is not certified production software, does not perform real firewall blocking, and does not trigger automatic response actions.
 
+## Final Academic Checkpoint
+
+- Readiness: `final_controlled_validation_candidate`
+- Candidate: `independent_fpr_stabilized`
+- Fresh blind validation: 700 rows, 7 sources, 16 scenarios
+- Threat precision / recall / F1: `0.8906 / 0.9459 / 0.9174`
+- Benign-like false-positive rate: `0.1303`
+- Readiness v8: 22/22 checks
+- Production promoted: false
+- Model activated: false
+- Response automation: disabled
+- Real firewall blocking: disabled
+
+This checkpoint validates controlled lab SOC triage behavior. It does not claim
+production accuracy or deployment readiness.
+
+Final presentation material:
+
+- `docs/FINAL_DEMO_RUNBOOK.md`
+- `docs/FINAL_DEFENSE_TALKING_POINTS.md`
+- `docs/FINAL_ACCEPTANCE_CHECKLIST.md`
+- `docs/FINAL_SYSTEM_STATUS.md`
+- `docs/FINAL_ENGINEERING_VALIDATION_SUMMARY.md`
+
 ## Current Lab Snapshot
 
 - FastAPI backend with JWT auth, admin/analyst RBAC, SQLAlchemy/Alembic, and SQLite by default.
@@ -351,6 +375,10 @@ Start here:
 
 - `docs/QUICKSTART_FOR_TEAM.md` - Windows setup for teammates using clone or zip download.
 - `docs/LAB_RUNBOOK.md` - lab operations, replay, syslog, source validation, and troubleshooting.
+- `docs/FINAL_DEMO_RUNBOOK.md` - final dashboard demonstration sequence and safe scenario.
+- `docs/FINAL_DEFENSE_TALKING_POINTS.md` - academic defense narrative, architecture, metrics, safety, and limitations.
+- `docs/FINAL_ACCEPTANCE_CHECKLIST.md` - final manual and automated sign-off checklist.
+- `docs/FINAL_SYSTEM_STATUS.md` - concise v2.0 capability, metrics, safety, and future-work status.
 - `docs/V0_6_THREAT_DETECTION_VALIDATION.md` - active controlled threat detection validation plan.
 - `docs/V0_8_DETECTION_GENERALIZATION.md` - synthetic variant validation and anti-overfitting checks.
 - `docs/V0_9_LAYERED_DETECTION_VALIDATION.md` - layered rules/anomaly/ML/hybrid contribution validation.

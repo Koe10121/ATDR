@@ -383,13 +383,16 @@ export function MLGovernance() {
               <div className="text-xs font-extrabold uppercase tracking-wide text-cyan">Recommended AI Mode</div>
               <div className="mt-1 text-lg font-black text-text">{socTriageMode?.recommended_ai_mode ?? "SOC triage decision support"}</div>
             </div>
-            <Badge value="Decision Support" />
+            <div className="flex flex-wrap gap-2">
+              <Badge value="Decision Support Only" />
+              {v20Ai?.final_controlled_validation_passed ? <Badge value="Final Controlled Validation Candidate" /> : null}
+            </div>
           </div>
           <div className="mt-3 grid gap-2 md:grid-cols-2">
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">SOC Triage Mode</div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">Analyst Review</div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">Manual Approval Required</div>
-            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">Automation Disabled</div>
+            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">Response Automation Disabled</div>
           </div>
           <div className="mt-3 rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
             Benchmark:{" "}
@@ -472,7 +475,7 @@ export function MLGovernance() {
               Response automation disabled
             </div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-              Not production-promoted
+              Not Production Promoted
             </div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
               {independentAi?.available
