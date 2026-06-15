@@ -66,7 +66,11 @@ export function ExecutiveOverview() {
     ) ?? null;
   const demoSource = (sources.data ?? []).find((source) => source.name.startsWith("scenario-")) ?? (sources.data ?? [])[0] ?? null;
   const validation = validationSummary.data;
-  const independentAi = validation?.v19b_ai?.available ? validation.v19b_ai : validation?.v19_ai;
+  const independentAi = validation?.v20_ai?.available
+    ? validation.v20_ai
+    : validation?.v19b_ai?.available
+      ? validation.v19b_ai
+      : validation?.v19_ai;
 
   return (
     <div className="space-y-5">
@@ -215,7 +219,9 @@ export function ExecutiveOverview() {
             <div className="text-xs font-bold uppercase tracking-wide text-muted">Benchmark</div>
             <div className="mt-1 font-bold text-text">
               {independentAi?.available
-                ? `${independentAi.independent_label_count ?? 0} independent | F1 ${
+                ? `${independentAi.independent_label_count ?? 0} ${
+                    validation?.v20_ai?.available ? "fresh blind" : "independent"
+                  } | F1 ${
                     independentAi.threat_positive_f1 ?? "-"
                   }`
                 : validation?.v18_ai?.available

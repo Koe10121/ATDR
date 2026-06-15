@@ -450,6 +450,7 @@ export interface DashboardValidationSummary {
   v18_ai?: DashboardV18AiSummary;
   v19_ai?: DashboardV19AiSummary;
   v19b_ai?: DashboardV19BAiSummary;
+  v20_ai?: DashboardV20AiSummary;
 }
 
 export interface DashboardGeneralizationSummary {
@@ -743,6 +744,14 @@ export interface DashboardV19BAiSummary extends DashboardV19AiSummary {
   false_positives_reduced?: number;
   analyst_review_boundary_count?: number;
   minimum_false_positive_reduction_needed?: number;
+}
+
+export interface DashboardV20AiSummary extends DashboardV19BAiSummary {
+  near_overlap_rows?: number;
+  candidate_hash?: string | null;
+  fresh_blind_revalidated?: boolean;
+  final_controlled_validation_passed?: boolean;
+  threshold_tuning_performed?: boolean;
 }
 
 export interface DashboardDriftSummary {

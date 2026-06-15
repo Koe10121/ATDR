@@ -251,6 +251,19 @@ they lack rule and behavior-window threat evidence. The current candidate
 passes readiness v7b, but it remains decision support and requires confirmation
 on a fresh future holdout.
 
+Run the v2.0 frozen-candidate blind and final controlled validation:
+
+```powershell
+python -m atdr.scripts.lock_v20_candidate --pretty
+python -m atdr.scripts.build_fresh_blind_holdout --pretty
+python -m atdr.scripts.run_v20_fresh_blind_revalidation --pretty
+python -m atdr.scripts.run_final_controlled_source_acceptance --pretty
+```
+
+The 700-row fresh blind holdout passes without threshold tuning. Readiness v8
+reports `final_controlled_validation_candidate`. This is controlled
+decision-support evidence, not production promotion or deployment approval.
+
 Run a scenario against a temporary database:
 
 ```powershell
@@ -355,6 +368,7 @@ Start here:
 - `docs/V1_8_EXTERNAL_BENCHMARK_FINALIZATION.md` - external miss recovery, fixed profile comparison, out-of-fold calibration, and readiness v6.
 - `docs/V1_9_INDEPENDENT_REVALIDATION_AND_REAL_SOURCE_VALIDATION.md` - new independent holdout, controlled source workflow, and readiness v7.
 - `docs/V1_9B_INDEPENDENT_FPR_STABILIZATION.md` - identity-independent benign-boundary stabilization, profile comparison, and readiness v7b.
+- `docs/FINAL_ENGINEERING_VALIDATION_SUMMARY.md` - v0.7-v2.0 evidence chain, fresh blind metrics, final controlled acceptance, safety posture, and remaining production work.
 - `docs/V0_5_SIMULATION_DEMO_PLAN.md` - earlier controlled replay validation plan.
 - `docs/V0_5_REAL_SOURCE_VALIDATION_PLAN.md` - future controlled hardware source validation plan.
 - `docs/V0_3_RELEASE_CANDIDATE.md` - current release-candidate summary.

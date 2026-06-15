@@ -1125,3 +1125,261 @@ def readiness_gate_v7b_fpr_stabilization(
             "real firewall enforcement remain disabled."
         ),
     }
+
+
+def readiness_gate_v8_fresh_blind_validation(
+    *,
+    candidate_lock_valid: bool,
+    fresh_blind_label_count: int,
+    fresh_blind_source_count: int,
+    fresh_blind_scenario_count: int,
+    fresh_blind_metrics: dict[str, Any],
+    calibration_status: str,
+    exact_overlap_passed: bool,
+    threshold_tuning_performed: bool,
+    uses_source_or_scenario_identity: bool,
+    controlled_real_source_passed: bool,
+    final_controlled_acceptance_passed: bool,
+    controlled_validations_passed: bool,
+    performance_smoke_healthy: bool,
+    external_benchmark_passed: bool = True,
+    production_promoted: bool = False,
+    model_activated: bool = False,
+    response_automation_allowed: bool = False,
+    real_firewall_blocking_enabled: bool = False,
+) -> dict[str, Any]:
+    """Conservative v2.0 gate for a frozen candidate on a fresh holdout."""
+    threat_recall = _metric(
+        fresh_blind_metrics,
+        "threat_positive_recall",
+    )
+    threat_f1 = _metric(fresh_blind_metrics, "threat_positive_f1")
+    benign_fp_rate = _metric(
+        fresh_blind_metrics,
+        "benign_false_positive_rate",
+        default=_metric(
+            fresh_blind_metrics,
+            "benign_like_false_positive_rate",
+        ),
+    )
+    suspicious_recall = _metric(
+        fresh_blind_metrics,
+        "per_class",
+        "suspicious",
+        "recall",
+        default=_metric(fresh_blind_metrics, "suspicious_recall"),
+    )
+    malicious_recall = _metric(
+        fresh_blind_metrics,
+        "per_class",
+        "malicious",
+        "recall",
+        default=_metric(fresh_blind_metrics, "malicious_recall"),
+    )
+    calibration_acceptable = calibration_status.strip().lower() in {
+        "passed",
+        "calibrated",
+        "limited",
+    }
+    checks = [
+        {
+            "name": "candidate_lock_valid",
+            "passed": candidate_lock_valid,
+            "detail": f"candidate_lock_valid={candidate_lock_valid}.",
+            "target": "True",
+        },
+        {
+            "name": "external_benchmark_passed",
+            "passed": external_benchmark_passed,
+            "detail": f"external_benchmark_passed={external_benchmark_passed}.",
+            "target": "True",
+        },
+        {
+            "name": "fresh_blind_rows",
+            "passed": fresh_blind_label_count >= 500,
+            "detail": f"{fresh_blind_label_count} blind rows evaluated.",
+            "target": ">= 500",
+        },
+        {
+            "name": "fresh_blind_source_diversity",
+            "passed": fresh_blind_source_count >= 6,
+            "detail": f"{fresh_blind_source_count} sources represented.",
+            "target": ">= 6",
+        },
+        {
+            "name": "fresh_blind_scenario_diversity",
+            "passed": fresh_blind_scenario_count >= 16,
+            "detail": f"{fresh_blind_scenario_count} scenarios represented.",
+            "target": ">= 16",
+        },
+        {
+            "name": "fresh_blind_exact_overlap",
+            "passed": exact_overlap_passed,
+            "detail": f"exact_overlap_passed={exact_overlap_passed}.",
+            "target": "No exact overlap with earlier holdouts",
+        },
+        {
+            "name": "no_blind_holdout_tuning",
+            "passed": not threshold_tuning_performed,
+            "detail": (
+                f"threshold_tuning_performed={threshold_tuning_performed}."
+            ),
+            "target": "False",
+        },
+        {
+            "name": "identity_independent_validation",
+            "passed": not uses_source_or_scenario_identity,
+            "detail": (
+                "Candidate does not use source/scenario identity."
+                if not uses_source_or_scenario_identity
+                else "Candidate uses prohibited source/scenario identity."
+            ),
+            "target": "No source/scenario identity",
+        },
+        {
+            "name": "fresh_blind_threat_f1",
+            "passed": threat_f1 >= 0.85,
+            "detail": f"Threat F1={round(threat_f1, 4)}.",
+            "target": ">= 0.85",
+        },
+        {
+            "name": "fresh_blind_threat_recall",
+            "passed": threat_recall >= 0.85,
+            "detail": f"Threat recall={round(threat_recall, 4)}.",
+            "target": ">= 0.85",
+        },
+        {
+            "name": "fresh_blind_benign_false_positive_rate",
+            "passed": benign_fp_rate <= 0.15,
+            "detail": f"Benign-like FPR={round(benign_fp_rate, 4)}.",
+            "target": "<= 0.15",
+        },
+        {
+            "name": "fresh_blind_suspicious_recall",
+            "passed": suspicious_recall >= 0.8,
+            "detail": f"Suspicious recall={round(suspicious_recall, 4)}.",
+            "target": ">= 0.80",
+        },
+        {
+            "name": "fresh_blind_malicious_recall",
+            "passed": malicious_recall >= 0.6,
+            "detail": f"Malicious recall={round(malicious_recall, 4)}.",
+            "target": ">= 0.60",
+        },
+        {
+            "name": "fresh_blind_calibration",
+            "passed": calibration_acceptable,
+            "detail": f"Calibration status={calibration_status or 'missing'}.",
+            "target": "passed, calibrated, or explicitly limited",
+        },
+        {
+            "name": "controlled_real_source_validation",
+            "passed": controlled_real_source_passed,
+            "detail": (
+                "Controlled source validation passed."
+                if controlled_real_source_passed
+                else "Controlled source validation failed or is missing."
+            ),
+            "target": "passed",
+        },
+        {
+            "name": "final_controlled_acceptance",
+            "passed": final_controlled_acceptance_passed,
+            "detail": (
+                "Final controlled acceptance passed."
+                if final_controlled_acceptance_passed
+                else "Final controlled acceptance failed or is pending."
+            ),
+            "target": "passed",
+        },
+        {
+            "name": "controlled_validation_regression",
+            "passed": controlled_validations_passed,
+            "detail": (
+                "Existing controlled validations passed."
+                if controlled_validations_passed
+                else "Existing controlled validations failed or are missing."
+            ),
+            "target": "passed",
+        },
+        {
+            "name": "performance_smoke_healthy",
+            "passed": performance_smoke_healthy,
+            "detail": f"performance_smoke_healthy={performance_smoke_healthy}.",
+            "target": "True",
+        },
+        {
+            "name": "production_promotion_disabled",
+            "passed": not production_promoted,
+            "detail": f"production_promoted={production_promoted}.",
+            "target": "False",
+        },
+        {
+            "name": "model_activation_disabled",
+            "passed": not model_activated,
+            "detail": f"model_activated={model_activated}.",
+            "target": "False",
+        },
+        {
+            "name": "response_automation_disabled",
+            "passed": not response_automation_allowed,
+            "detail": (
+                f"response_automation_allowed={response_automation_allowed}."
+            ),
+            "target": "False",
+        },
+        {
+            "name": "real_firewall_blocking_disabled",
+            "passed": not real_firewall_blocking_enabled,
+            "detail": (
+                "real_firewall_blocking_enabled="
+                f"{real_firewall_blocking_enabled}."
+            ),
+            "target": "False",
+        },
+    ]
+    passed = sum(1 for item in checks if item["passed"])
+    fresh_blind_passed = checks[0]["passed"] and all(
+        item["passed"] for item in checks[2:14]
+    )
+    if (
+        fresh_blind_passed
+        and controlled_real_source_passed
+        and final_controlled_acceptance_passed
+        and controlled_validations_passed
+        and performance_smoke_healthy
+        and passed == len(checks)
+    ):
+        decision = "final_controlled_validation_candidate"
+    elif fresh_blind_passed:
+        decision = "fresh_blind_revalidated_candidate"
+    elif controlled_real_source_passed:
+        decision = "controlled_real_source_validated_candidate"
+    elif external_benchmark_passed:
+        decision = "external_benchmark_validated_candidate"
+    else:
+        decision = "analyst_review_eligible"
+    return {
+        "version": "v8",
+        "decision": decision,
+        "production_status": "not_production_promoted",
+        "production_promoted": False,
+        "model_activated": False,
+        "response_automation_allowed": False,
+        "real_firewall_blocking_enabled": False,
+        "analyst_review_eligible": True,
+        "external_benchmark_validated": external_benchmark_passed,
+        "fresh_blind_revalidated": fresh_blind_passed,
+        "controlled_real_source_validated": controlled_real_source_passed,
+        "final_controlled_validation_passed": (
+            final_controlled_acceptance_passed
+        ),
+        "passed": passed,
+        "total": len(checks),
+        "checks": checks,
+        "message": (
+            "v2.0 evaluates a frozen decision-support candidate on a fresh "
+            "blind holdout and controlled source workflow. It is not "
+            "production deployment approval."
+        ),
+    }

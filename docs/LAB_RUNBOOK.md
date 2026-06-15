@@ -917,3 +917,28 @@ Verify in Overview and AI Governance:
 The stabilization rule does not use source/scenario names and does not suppress
 behavior-window evidence. A fresh future holdout and real hardware forwarding
 test remain recommended.
+
+## v2.0 Final Controlled Validation
+
+Run the frozen-candidate sequence from the repository root:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.lock_v20_candidate --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.build_fresh_blind_holdout --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v20_fresh_blind_revalidation --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_final_controlled_source_acceptance --pretty
+```
+
+Expected current status:
+
+- fresh blind holdout: passed without tuning;
+- final controlled source acceptance: passed;
+- readiness v8: `final_controlled_validation_candidate`;
+- response mode: simulated and analyst-approved;
+- production promotion/model activation/real blocking: disabled.
+
+The controlled source workflow uses temporary databases and does not change the
+current dashboard database. Real router/firewall forwarding remains future
+hardware validation.
+
+See `docs/FINAL_ENGINEERING_VALIDATION_SUMMARY.md`.

@@ -1020,3 +1020,49 @@ Generated analysis and comparison reports remain under ignored
 `demo_exports/benchmarks/`.
 
 See `docs/V1_9B_INDEPENDENT_FPR_STABILIZATION.md`.
+
+## 40. v2.0 Fresh Blind And Final Controlled Validation
+
+Freeze the selected v1.9b policy before generating the new holdout:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.lock_v20_candidate --pretty
+```
+
+Generate the 700-row blind holdout:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.build_fresh_blind_holdout --pretty
+```
+
+Evaluate the frozen candidate once:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v20_fresh_blind_revalidation --pretty
+```
+
+Do not change thresholds, select another profile, or use source/scenario names
+after inspecting this holdout. A failed check requires a separate future phase.
+
+Run final controlled source acceptance:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_final_controlled_source_acceptance --pretty
+```
+
+Current fresh blind result:
+
+- 700 rows, 7 sources, 16 scenarios;
+- exact overlap: 0; near-pattern overlap: 335;
+- threat F1: `0.9174`;
+- threat recall: `0.9459`;
+- benign-like FPR: `0.1303`;
+- suspicious recall: `0.8556`;
+- malicious recall: `0.9000`;
+- no-fit raw-confidence calibration: passed;
+- final readiness v8: `final_controlled_validation_candidate`.
+
+Production promotion, model activation, automatic response, and real firewall
+blocking remain disabled.
+
+See `docs/FINAL_ENGINEERING_VALIDATION_SUMMARY.md`.

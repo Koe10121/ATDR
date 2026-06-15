@@ -844,6 +844,106 @@ def _latest_v19b_ai_summary(report_dir: Path = BENCHMARK_REPORT_DIR) -> dict[str
     }
 
 
+def _latest_v20_ai_summary(report_dir: Path = BENCHMARK_REPORT_DIR) -> dict[str, Any]:
+    summary, blind = _latest_reliability_file_summary(
+        report_dir,
+        "v2_0_fresh_blind_revalidation_*.json",
+        missing_message="No v2.0 fresh blind revalidation report has been generated yet.",
+    )
+    if blind is None:
+        return summary
+    _final_summary, final_payload = _latest_reliability_file_summary(
+        report_dir,
+        "v2_0_final_controlled_source_acceptance_*.json",
+        missing_message="No v2.0 final controlled acceptance report is available.",
+    )
+    final = final_payload or {}
+    metrics = blind.get("metrics") or {}
+    per_class = metrics.get("per_class") or {}
+    calibration = (blind.get("calibration") or {}).get("metrics") or {}
+    holdout = blind.get("fresh_blind_holdout") or {}
+    candidate = blind.get("candidate") or {}
+    readiness = (
+        (final.get("readiness_gate_v8") or {})
+        if final
+        else (blind.get("readiness_gate_v8") or {})
+    )
+    controlled = (
+        final.get("controlled_real_source_validation") or {}
+        if final
+        else blind.get("controlled_real_source_validation") or {}
+    )
+    failed_checks = [
+        item.get("name")
+        for item in readiness.get("checks", [])
+        if not bool(item.get("passed"))
+    ]
+    fresh_passed = bool(readiness.get("fresh_blind_revalidated"))
+    final_passed = bool(
+        readiness.get("final_controlled_validation_passed")
+    )
+    return {
+        **summary,
+        "independent_label_count": int(holdout.get("row_count") or 0),
+        "independent_source_count": int(holdout.get("source_count") or 0),
+        "independent_scenario_count": int(holdout.get("scenario_count") or 0),
+        "exact_overlap_rows": int(
+            (holdout.get("previous_holdout_overlap") or {}).get(
+                "exact_overlap_rows"
+            )
+            or 0
+        ),
+        "near_overlap_rows": int(
+            (holdout.get("previous_holdout_overlap") or {}).get(
+                "near_overlap_rows"
+            )
+            or 0
+        ),
+        "best_profile": candidate.get("name"),
+        "candidate_hash": candidate.get("hash"),
+        "threat_positive_precision": metrics.get("threat_positive_precision"),
+        "threat_positive_recall": metrics.get("threat_positive_recall"),
+        "threat_positive_f1": metrics.get("threat_positive_f1"),
+        "benign_like_false_positive_rate": metrics.get(
+            "benign_false_positive_rate"
+        ),
+        "suspicious_recall": (per_class.get("suspicious") or {}).get("recall"),
+        "malicious_recall": (per_class.get("malicious") or {}).get("recall"),
+        "macro_f1": metrics.get("macro_f1"),
+        "weighted_f1": metrics.get("weighted_f1"),
+        "calibration_status": calibration.get("status") or "missing",
+        "calibration_method": (
+            (blind.get("calibration") or {}).get("locked_method") or "none"
+        ),
+        "calibration_ece": calibration.get("expected_calibration_error"),
+        "calibration_brier": calibration.get("brier_score_threat_positive"),
+        "calibration_max_gap": calibration.get(
+            "max_confidence_accuracy_gap"
+        ),
+        "controlled_real_source_available": bool(controlled),
+        "controlled_real_source_validated": bool(
+            controlled.get("controlled_real_source_validated")
+            or readiness.get("controlled_real_source_validated")
+        ),
+        "readiness_decision": readiness.get("decision")
+        or "analyst_review_eligible",
+        "readiness_version": readiness.get("version") or "v8",
+        "checks_passed": int(readiness.get("passed") or 0),
+        "checks_total": int(readiness.get("total") or 0),
+        "independent_holdout_validated": fresh_passed,
+        "fresh_blind_revalidated": fresh_passed,
+        "final_controlled_validation_passed": final_passed,
+        "failed_checks": failed_checks,
+        "threshold_tuning_performed": bool(
+            blind.get("threshold_tuning_performed")
+        ),
+        "production_promoted": False,
+        "model_activated": False,
+        "response_automation_allowed": False,
+        "real_firewall_blocking_enabled": False,
+    }
+
+
 @router.get("/summary")
 def dashboard_summary(
     db: Session = Depends(get_db),
@@ -871,4 +971,5 @@ def dashboard_validation_summary(
     summary["v18_ai"] = _latest_v18_ai_summary(BENCHMARK_REPORT_DIR)
     summary["v19_ai"] = _latest_v19_ai_summary(BENCHMARK_REPORT_DIR)
     summary["v19b_ai"] = _latest_v19b_ai_summary(BENCHMARK_REPORT_DIR)
+    summary["v20_ai"] = _latest_v20_ai_summary(BENCHMARK_REPORT_DIR)
     return summary

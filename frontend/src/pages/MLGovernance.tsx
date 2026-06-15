@@ -61,7 +61,8 @@ export function MLGovernance() {
   const v18Ai = validationSummary.data?.v18_ai;
   const v19Ai = validationSummary.data?.v19_ai;
   const v19bAi = validationSummary.data?.v19b_ai;
-  const independentAi = v19bAi?.available ? v19bAi : v19Ai;
+  const v20Ai = validationSummary.data?.v20_ai;
+  const independentAi = v20Ai?.available ? v20Ai : v19bAi?.available ? v19bAi : v19Ai;
   const drift = data?.baseline_drift_report;
   const perClass = (supervisedMetrics.per_class ?? {}) as Record<string, Record<string, unknown>>;
   const benignMetrics = perClass.benign ?? {};
@@ -433,7 +434,13 @@ export function MLGovernance() {
           <div className="mt-2 grid gap-2 md:grid-cols-2">
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
               <span className="font-bold text-text">Main blocker:</span>{" "}
-              {v14Ai?.available ? v14Ai.current_blocker ?? "model validation" : "v1.4 evaluation pending"}
+              {v20Ai?.available
+                ? v20Ai.fresh_blind_revalidated
+                  ? "No v2.0 metric blocker; real hardware validation remains future work"
+                  : "Fresh blind validation requires review"
+                : v14Ai?.available
+                ? v14Ai.current_blocker ?? "model validation"
+                : "v1.4 evaluation pending"}
             </div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
               <span className="font-bold text-text">Calibration:</span>{" "}
@@ -469,7 +476,9 @@ export function MLGovernance() {
             </div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
               {independentAi?.available
-                ? `Independent readiness ${independentAi.readiness_version ?? "v7"} ${
+                ? `${v20Ai?.available ? "Fresh blind" : "Independent"} readiness ${
+                    independentAi.readiness_version ?? "v7"
+                  } ${
                     independentAi.checks_passed ?? 0
                   }/${independentAi.checks_total ?? 0}`
                 : v18Ai?.available
@@ -485,7 +494,7 @@ export function MLGovernance() {
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
               <span className="font-bold text-text">Generalization:</span>{" "}
               {independentAi?.available
-                ? `${v19bAi?.available ? (v19bAi.fpr_blocker_resolved ? "FPR blocker resolved" : "FPR blocker active") : independentAi.generalization_status ?? "not evaluated"} | FPR ${
+                ? `${v20Ai?.available ? (v20Ai.fresh_blind_revalidated ? "fresh blind passed" : "fresh blind review required") : v19bAi?.available ? (v19bAi.fpr_blocker_resolved ? "FPR blocker resolved" : "FPR blocker active") : independentAi.generalization_status ?? "not evaluated"} | FPR ${
                     independentAi.benign_like_false_positive_rate ?? "-"
                   }`
                 : v18Ai?.available
@@ -525,7 +534,7 @@ export function MLGovernance() {
                 : "v1.7 profile comparison pending"}
             </div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-              <span className="font-bold text-text">Independent holdout:</span>{" "}
+              <span className="font-bold text-text">{v20Ai?.available ? "Fresh blind holdout:" : "Independent holdout:"}</span>{" "}
               {independentAi?.available
                 ? `${independentAi.independent_label_count ?? 0} rows | ${
                     independentAi.independent_source_count ?? 0
@@ -545,7 +554,7 @@ export function MLGovernance() {
                 : v17Ai?.best_profile ?? "pending"}
             </div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-              <span className="font-bold text-text">Independent metrics:</span>{" "}
+              <span className="font-bold text-text">{v20Ai?.available ? "Fresh blind metrics:" : "Independent metrics:"}</span>{" "}
               {independentAi?.available
                 ? `F1 ${independentAi.threat_positive_f1 ?? "-"} | Recall ${
                     independentAi.threat_positive_recall ?? "-"
@@ -567,6 +576,14 @@ export function MLGovernance() {
                 <span className="font-bold text-text">Review boundary:</span>{" "}
                 {v19bAi.analyst_review_boundary_count ?? 0} ambiguous rows routed to analyst review;{" "}
                 {v19bAi.false_positives_reduced ?? 0} false positives removed
+              </div>
+            ) : null}
+            {v20Ai?.available ? (
+              <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
+                <span className="font-bold text-text">Final controlled validation:</span>{" "}
+                {v20Ai.final_controlled_validation_passed
+                  ? "passed; candidate remains decision support only"
+                  : "pending or requires review"}
               </div>
             ) : null}
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
