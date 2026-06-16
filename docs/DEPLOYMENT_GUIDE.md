@@ -14,8 +14,10 @@ Copy-Item .env.example .env
 python -m atdr.scripts.config_doctor --pretty
 python -m atdr.scripts.verify_release --pretty
 python -m atdr.scripts.seed_users
-uvicorn atdr.app.main:app --reload
-streamlit run atdr/dashboard/streamlit_app.py --server.headless true --browser.gatherUsageStats false
+.\.venv\Scripts\python.exe -m uvicorn atdr.app.main:app --host 127.0.0.1 --port 8000 --reload
+cd frontend
+npm.cmd install
+npm.cmd run dev
 ```
 
 Recommended settings:
@@ -131,3 +133,23 @@ python -m atdr.scripts.cleanup_exports --older-than-days 14 --execute
 
 For HTTPS, reverse proxy, backup, retention, and recovery procedures, use `docs/OPERATIONS_RUNBOOK.md`.
 For release candidate validation, use `docs/RELEASE_CHECKLIST.md`.
+
+## v3.0 Production-Readiness Track
+
+ATDR is not production ready. v3.0 adds non-destructive validation commands for the next lab-hardening track:
+
+```powershell
+python -m atdr.scripts.production_readiness_doctor --pretty
+python -m atdr.scripts.run_v30_real_source_pilot_validation --pretty
+python -m atdr.scripts.run_postgres_lab_validation --pretty
+python -m atdr.scripts.run_real_source_ml_monitoring --pretty
+```
+
+Use:
+
+- `docs/V3_0_PRODUCTION_READINESS_GAP_ASSESSMENT.md`
+- `docs/V3_0_REAL_DEVICE_SYSLOG_PILOT_PLAN.md`
+- `docs/V3_0_POSTGRESQL_LAB_DEPLOYMENT_VALIDATION.md`
+- `docs/V3_0_PRODUCTION_READINESS_TRACK.md`
+
+The v3.0 track keeps response simulation enabled and does not activate a model or enable real firewall blocking.

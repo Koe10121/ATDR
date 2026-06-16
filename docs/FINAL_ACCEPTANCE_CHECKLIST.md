@@ -33,7 +33,7 @@ Record the test date, tester, result, and evidence for each item.
 
 ## Detection And Investigation
 
-- [ ] Final scenario source `final-demo-firewall` is healthy.
+- [ ] Final scenario source `final-demo-firewall-live` is healthy.
 - [ ] Final scenario shows 10 logs received, 10 normalized, 10 parsed, and 0 parse failures.
 - [ ] Rule detection runs successfully.
 - [ ] Detection run history records evaluated logs and results.

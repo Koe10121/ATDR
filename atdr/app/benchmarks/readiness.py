@@ -1383,3 +1383,151 @@ def readiness_gate_v8_fresh_blind_validation(
             "production deployment approval."
         ),
     }
+
+
+def readiness_gate_v9_production_readiness_track(
+    *,
+    final_controlled_validation_passed: bool,
+    real_source_pilot_validated: bool,
+    postgres_lab_validated: bool,
+    production_doctor_blockers: list[str] | None = None,
+    production_doctor_warnings: list[str] | None = None,
+    observability_plan_exists: bool = False,
+    ml_monitoring_plan_exists: bool = False,
+    runbook_updated: bool = False,
+    production_promoted: bool = False,
+    model_activated: bool = False,
+    response_automation_allowed: bool = False,
+    real_firewall_blocking_enabled: bool = False,
+) -> dict[str, Any]:
+    """v3.0 gate for production-readiness track planning.
+
+    This gate deliberately never returns ``production_ready``. It separates
+    academic controlled validation from future real-device and deployment
+    hardening milestones.
+    """
+    blockers = production_doctor_blockers or []
+    warnings = production_doctor_warnings or []
+    checks = [
+        {
+            "name": "final_controlled_validation",
+            "passed": final_controlled_validation_passed,
+            "detail": (
+                "Final controlled validation evidence is available."
+                if final_controlled_validation_passed
+                else "Final controlled validation evidence is missing or failed."
+            ),
+            "target": "passed",
+        },
+        {
+            "name": "real_source_pilot_validation",
+            "passed": real_source_pilot_validated,
+            "detail": (
+                "A controlled real-device/source pilot has been validated."
+                if real_source_pilot_validated
+                else "Real-device/source pilot validation is pending."
+            ),
+            "target": "validated before deployment claims",
+        },
+        {
+            "name": "postgres_lab_validation",
+            "passed": postgres_lab_validated,
+            "detail": (
+                "PostgreSQL lab deployment validation has passed."
+                if postgres_lab_validated
+                else "PostgreSQL lab deployment validation is pending or blocked by environment."
+            ),
+            "target": "validated before shared lab deployment",
+        },
+        {
+            "name": "production_doctor_blockers_clear",
+            "passed": not blockers,
+            "detail": (
+                "No production-readiness doctor blockers."
+                if not blockers
+                else "; ".join(blockers[:5])
+            ),
+            "target": "zero blockers",
+        },
+        {
+            "name": "observability_plan",
+            "passed": observability_plan_exists,
+            "detail": "Observability and operations plan exists." if observability_plan_exists else "Observability plan pending.",
+            "target": "documented",
+        },
+        {
+            "name": "real_source_ml_monitoring_plan",
+            "passed": ml_monitoring_plan_exists,
+            "detail": "Real-source ML monitoring plan exists." if ml_monitoring_plan_exists else "Real-source ML monitoring plan pending.",
+            "target": "documented",
+        },
+        {
+            "name": "runbook_updated",
+            "passed": runbook_updated,
+            "detail": "Lab/deployment docs reference the v3.0 track." if runbook_updated else "Runbook update pending.",
+            "target": "documented",
+        },
+        {
+            "name": "production_promotion_disabled",
+            "passed": not production_promoted,
+            "detail": f"production_promoted={production_promoted}.",
+            "target": "False",
+        },
+        {
+            "name": "model_activation_disabled",
+            "passed": not model_activated,
+            "detail": f"model_activated={model_activated}.",
+            "target": "False",
+        },
+        {
+            "name": "response_automation_disabled",
+            "passed": not response_automation_allowed,
+            "detail": f"response_automation_allowed={response_automation_allowed}.",
+            "target": "False",
+        },
+        {
+            "name": "real_firewall_blocking_disabled",
+            "passed": not real_firewall_blocking_enabled,
+            "detail": f"real_firewall_blocking_enabled={real_firewall_blocking_enabled}.",
+            "target": "False",
+        },
+    ]
+    passed = sum(1 for item in checks if item["passed"])
+    safety_clear = all(item["passed"] for item in checks[7:])
+    planning_clear = all(item["passed"] for item in checks[4:7])
+    if not safety_clear or blockers:
+        decision = "not_production_ready"
+    elif final_controlled_validation_passed and real_source_pilot_validated and postgres_lab_validated and planning_clear:
+        decision = "production_readiness_candidate"
+    elif final_controlled_validation_passed and real_source_pilot_validated:
+        decision = "real_source_pilot_validated"
+    elif final_controlled_validation_passed and postgres_lab_validated:
+        decision = "postgres_lab_validated"
+    elif final_controlled_validation_passed:
+        decision = "real_source_pilot_ready"
+    else:
+        decision = "final_controlled_validation_candidate"
+    return {
+        "version": "v9",
+        "decision": decision,
+        "production_status": "not_production_ready",
+        "production_ready": False,
+        "production_readiness_claim": False,
+        "production_promoted": False,
+        "model_activated": False,
+        "response_automation_allowed": False,
+        "real_firewall_blocking_enabled": False,
+        "final_controlled_validation_passed": final_controlled_validation_passed,
+        "real_source_pilot_validated": real_source_pilot_validated,
+        "postgres_lab_validated": postgres_lab_validated,
+        "passed": passed,
+        "total": len(checks),
+        "checks": checks,
+        "blockers": blockers,
+        "warnings": warnings,
+        "message": (
+            "v3.0 is a production-readiness track gate. It can document pilot "
+            "readiness, real-source pilot validation, or PostgreSQL lab "
+            "validation, but it does not certify production deployment."
+        ),
+    }

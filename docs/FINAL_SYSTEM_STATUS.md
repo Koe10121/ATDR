@@ -92,7 +92,7 @@ databases.
 The final dashboard scenario uses:
 
 ```powershell
-.\.venv\Scripts\python.exe -m atdr.scripts.run_source_scenario --scenario port_scan_like_traffic --source-name final-demo-firewall --source-type firewall --parser-profile palo_alto --run-detection --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_source_scenario --scenario port_scan_like_traffic --source-name final-demo-firewall-live --source-type firewall --parser-profile palo_alto --run-detection --pretty
 ```
 
 Expected demonstration result:

@@ -62,6 +62,7 @@ export function MLGovernance() {
   const v19Ai = validationSummary.data?.v19_ai;
   const v19bAi = validationSummary.data?.v19b_ai;
   const v20Ai = validationSummary.data?.v20_ai;
+  const v30Readiness = validationSummary.data?.v30_production_readiness;
   const independentAi = v20Ai?.available ? v20Ai : v19bAi?.available ? v19bAi : v19Ai;
   const drift = data?.baseline_drift_report;
   const perClass = (supervisedMetrics.per_class ?? {}) as Record<string, Record<string, unknown>>;
@@ -393,6 +394,43 @@ export function MLGovernance() {
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">Analyst Review</div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">Manual Approval Required</div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">Response Automation Disabled</div>
+          </div>
+          <div className="mt-3 rounded border border-line bg-panel px-3 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-xs font-extrabold uppercase tracking-wide text-muted">Production Readiness Track</div>
+                <div className="mt-1 text-sm font-bold text-text">
+                  {v30Readiness?.status ?? "final_controlled_validation_candidate"}
+                </div>
+              </div>
+              <Badge value="Not Production Ready" />
+            </div>
+            <div className="mt-3 grid gap-2 text-sm text-muted md:grid-cols-2">
+              <div>
+                Real-source pilot:{" "}
+                <span className="font-bold text-text">{v30Readiness?.real_source_pilot_validated ? "validated" : "pending"}</span>
+              </div>
+              <div>
+                PostgreSQL lab:{" "}
+                <span className="font-bold text-text">{v30Readiness?.postgres_lab_validated ? "validated" : "pending"}</span>
+              </div>
+              <div>
+                Doctor: <span className="font-bold text-text">{v30Readiness?.production_doctor_status ?? "not run"}</span>
+              </div>
+              <div>
+                Safety: <span className="font-bold text-text">automation off, real blocking off</span>
+              </div>
+            </div>
+            {v30Readiness?.production_doctor_blockers?.length ? (
+              <details className="mt-3">
+                <summary className="cursor-pointer text-xs font-bold text-amber">View readiness blockers</summary>
+                <ul className="mt-2 space-y-1 text-xs text-muted">
+                  {v30Readiness.production_doctor_blockers.slice(0, 4).map((blocker) => (
+                    <li key={blocker}>{blocker}</li>
+                  ))}
+                </ul>
+              </details>
+            ) : null}
           </div>
           <div className="mt-3 rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
             Benchmark:{" "}

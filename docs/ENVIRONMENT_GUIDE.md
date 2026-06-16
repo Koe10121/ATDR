@@ -30,6 +30,14 @@ Run Config Doctor after editing `.env`:
 python -m atdr.scripts.config_doctor --pretty
 ```
 
+For production-readiness planning, also run:
+
+```powershell
+python -m atdr.scripts.production_readiness_doctor --pretty
+```
+
+This stricter doctor reports blockers and warnings for shared lab and future production-like planning. It does not make ATDR production ready and does not mutate the database.
+
 Before a demo or lab-pilot handoff, run the release gate:
 
 ```powershell
@@ -106,3 +114,12 @@ RESPONSE_PROVIDER=simulation
 ```
 
 Real firewall enforcement is unsupported until an approved connector, allowlist, dry-run preview, rollback process, and change approval flow exist. If simulation is disabled before a connector exists, ATDR records response actions as `pending_connector`.
+
+## v3.0 Validation Profiles
+
+- Real-device/source pilot planning: `docs/V3_0_REAL_DEVICE_SYSLOG_PILOT_PLAN.md`
+- PostgreSQL lab validation: `docs/V3_0_POSTGRESQL_LAB_DEPLOYMENT_VALIDATION.md`
+- Observability plan: `docs/V3_0_OBSERVABILITY_AND_OPERATIONS_PLAN.md`
+- Real-source ML monitoring: `docs/V3_0_REAL_SOURCE_ML_MONITORING_PLAN.md`
+
+SQLite remains the normal local workflow. PostgreSQL validation is optional and should be run only on a PostgreSQL/Docker-capable lab host.

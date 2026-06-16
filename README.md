@@ -20,8 +20,53 @@ ATDR is lab-ready for controlled small-office validation. It is not certified pr
 This checkpoint validates controlled lab SOC triage behavior. It does not claim
 production accuracy or deployment readiness.
 
+## v3.0 Production-Readiness Track
+
+The next track is real-source and lab-deployment hardening, not production approval. It adds:
+
+- production-readiness gap assessment
+- real-device/syslog pilot plan
+- PostgreSQL lab validation plan
+- observability and operations plan
+- real-source ML monitoring plan
+- conservative readiness gate v9
+
+Key docs:
+
+- `docs/V3_0_PRODUCTION_READINESS_TRACK.md`
+- `docs/V3_0_PRODUCTION_READINESS_GAP_ASSESSMENT.md`
+- `docs/V3_0_REAL_DEVICE_SYSLOG_PILOT_PLAN.md`
+- `docs/V3_0_POSTGRESQL_LAB_DEPLOYMENT_VALIDATION.md`
+- `docs/V3_0_OBSERVABILITY_AND_OPERATIONS_PLAN.md`
+- `docs/V3_0_REAL_SOURCE_ML_MONITORING_PLAN.md`
+
+Useful commands:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.production_readiness_doctor --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v30_real_source_pilot_validation --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_postgres_lab_validation --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_real_source_ml_monitoring --pretty
+```
+
+These commands are non-destructive. They do not enable automatic response, real firewall blocking, model activation, or production promotion.
+
 Final presentation material:
 
+- `docs/FINAL_REPORT_OUTLINE.md`
+- `docs/FINAL_REPORT_DRAFT.md`
+- `docs/FINAL_PRESENTATION_SLIDE_CONTENT.md`
+- `docs/FINAL_PRESENTATION_DESIGN_GUIDE.md`
+- `docs/FINAL_SCREENSHOT_CAPTURE_PLAN.md`
+- `docs/FINAL_REHEARSAL_CHECKLIST.md`
+- `docs/FINAL_5_MINUTE_SCRIPT.md`
+- `docs/FINAL_10_MINUTE_SCRIPT.md`
+- `docs/FINAL_ONE_PAGE_SUMMARY.md`
+- `docs/FINAL_SLIDE_ASSET_GUIDE.md`
+- `docs/FINAL_DEMO_SCRIPT.md`
+- `docs/FINAL_DEFENSE_QA.md`
+- `docs/FINAL_EVIDENCE_CHECKLIST.md`
+- `docs/SUPERVISOR_FINAL_STATUS_SUMMARY.md`
 - `docs/FINAL_DEMO_RUNBOOK.md`
 - `docs/FINAL_DEFENSE_TALKING_POINTS.md`
 - `docs/FINAL_ACCEPTANCE_CHECKLIST.md`
@@ -318,7 +363,7 @@ ATDR combines:
 - supervised classifier output trained from reviewed/assisted labels
 - hybrid risk scoring for analyst triage
 
-The model is analyst-review eligible, not production-promoted. Response automation remains disabled regardless of model output.
+The frozen candidate is a Final Controlled Validation Candidate for SOC triage decision support. It is Not Production Promoted, and Response Automation remains disabled regardless of model output.
 
 Useful commands:
 
@@ -375,6 +420,20 @@ Start here:
 
 - `docs/QUICKSTART_FOR_TEAM.md` - Windows setup for teammates using clone or zip download.
 - `docs/LAB_RUNBOOK.md` - lab operations, replay, syslog, source validation, and troubleshooting.
+- `docs/FINAL_REPORT_OUTLINE.md` - complete ATDR-specific senior-project report structure.
+- `docs/FINAL_REPORT_DRAFT.md` - academic draft covering architecture, detection, validation, limitations, and conclusion.
+- `docs/FINAL_PRESENTATION_SLIDE_CONTENT.md` - slide-by-slide final defense content, visuals, and speaker notes.
+- `docs/FINAL_PRESENTATION_DESIGN_GUIDE.md` - PowerPoint visual system, slide layouts, screenshot placement, and final QA.
+- `docs/FINAL_SCREENSHOT_CAPTURE_PLAN.md` - slide-mapped, privacy-safe evidence capture instructions.
+- `docs/FINAL_REHEARSAL_CHECKLIST.md` - presentation-day setup, timing, recovery, and cleanup checklist.
+- `docs/FINAL_5_MINUTE_SCRIPT.md` - concise academic defense script.
+- `docs/FINAL_10_MINUTE_SCRIPT.md` - expanded academic defense script.
+- `docs/FINAL_ONE_PAGE_SUMMARY.md` - committee-ready project overview and final status.
+- `docs/FINAL_SLIDE_ASSET_GUIDE.md` - recommended diagrams, screenshots, metrics, and local asset organization.
+- `docs/FINAL_DEMO_SCRIPT.md` - exact commands, clicks, expected results, and spoken demonstration sequence.
+- `docs/FINAL_DEFENSE_QA.md` - likely committee questions with concise, defensible answers.
+- `docs/FINAL_EVIDENCE_CHECKLIST.md` - screenshot, metric, safety, verification, and submission evidence checklist.
+- `docs/SUPERVISOR_FINAL_STATUS_SUMMARY.md` - concise final academic status for supervisor review.
 - `docs/FINAL_DEMO_RUNBOOK.md` - final dashboard demonstration sequence and safe scenario.
 - `docs/FINAL_DEFENSE_TALKING_POINTS.md` - academic defense narrative, architecture, metrics, safety, and limitations.
 - `docs/FINAL_ACCEPTANCE_CHECKLIST.md` - final manual and automated sign-off checklist.

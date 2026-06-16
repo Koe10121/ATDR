@@ -5,11 +5,13 @@ from typing import Any
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from atdr.app.benchmarks.readiness import readiness_gate_v9_production_readiness_track
 from atdr.app.core.config import PROJECT_ROOT
 from atdr.app.core.security import require_analyst_or_admin
 from atdr.app.db.database import get_db
 from atdr.app.db.models import User
 from atdr.app.services.dashboard_service import build_dashboard_summary_cached
+from atdr.scripts.production_readiness_doctor import run_production_readiness_doctor
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 VALIDATION_REPORT_DIR = PROJECT_ROOT / "demo_exports" / "detection_validation"
@@ -944,6 +946,50 @@ def _latest_v20_ai_summary(report_dir: Path = BENCHMARK_REPORT_DIR) -> dict[str,
     }
 
 
+def _v30_production_readiness_summary() -> dict[str, Any]:
+    docs = {
+        "gap_assessment": PROJECT_ROOT / "docs" / "V3_0_PRODUCTION_READINESS_GAP_ASSESSMENT.md",
+        "real_device_pilot": PROJECT_ROOT / "docs" / "V3_0_REAL_DEVICE_SYSLOG_PILOT_PLAN.md",
+        "postgres_lab": PROJECT_ROOT / "docs" / "V3_0_POSTGRESQL_LAB_DEPLOYMENT_VALIDATION.md",
+        "observability": PROJECT_ROOT / "docs" / "V3_0_OBSERVABILITY_AND_OPERATIONS_PLAN.md",
+        "ml_monitoring": PROJECT_ROOT / "docs" / "V3_0_REAL_SOURCE_ML_MONITORING_PLAN.md",
+        "track": PROJECT_ROOT / "docs" / "V3_0_PRODUCTION_READINESS_TRACK.md",
+    }
+    doctor = run_production_readiness_doctor()
+    v20 = _latest_v20_ai_summary(BENCHMARK_REPORT_DIR)
+    readiness = readiness_gate_v9_production_readiness_track(
+        final_controlled_validation_passed=bool(v20.get("final_controlled_validation_passed")),
+        real_source_pilot_validated=False,
+        postgres_lab_validated=False,
+        production_doctor_blockers=list(doctor.get("blockers") or []),
+        production_doctor_warnings=list(doctor.get("warnings") or []),
+        observability_plan_exists=docs["observability"].exists(),
+        ml_monitoring_plan_exists=docs["ml_monitoring"].exists(),
+        runbook_updated=(PROJECT_ROOT / "docs" / "LAB_RUNBOOK.md").exists()
+        and (PROJECT_ROOT / "docs" / "DEPLOYMENT_GUIDE.md").exists(),
+    )
+    return {
+        "available": True,
+        "status": readiness["decision"],
+        "version": readiness["version"],
+        "checks_passed": readiness["passed"],
+        "checks_total": readiness["total"],
+        "production_ready": False,
+        "production_readiness_claim": False,
+        "production_promoted": False,
+        "model_activated": False,
+        "response_automation_allowed": False,
+        "real_firewall_blocking_enabled": False,
+        "real_source_pilot_validated": False,
+        "postgres_lab_validated": False,
+        "production_doctor_status": doctor["status"],
+        "production_doctor_blockers": doctor["blockers"],
+        "production_doctor_warnings": doctor["warnings"],
+        "docs": {name: path.exists() for name, path in docs.items()},
+        "message": readiness["message"],
+    }
+
+
 @router.get("/summary")
 def dashboard_summary(
     db: Session = Depends(get_db),
@@ -972,4 +1018,5 @@ def dashboard_validation_summary(
     summary["v19_ai"] = _latest_v19_ai_summary(BENCHMARK_REPORT_DIR)
     summary["v19b_ai"] = _latest_v19b_ai_summary(BENCHMARK_REPORT_DIR)
     summary["v20_ai"] = _latest_v20_ai_summary(BENCHMARK_REPORT_DIR)
+    summary["v30_production_readiness"] = _v30_production_readiness_summary()
     return summary

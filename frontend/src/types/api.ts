@@ -451,6 +451,7 @@ export interface DashboardValidationSummary {
   v19_ai?: DashboardV19AiSummary;
   v19b_ai?: DashboardV19BAiSummary;
   v20_ai?: DashboardV20AiSummary;
+  v30_production_readiness?: DashboardV30ProductionReadinessSummary;
 }
 
 export interface DashboardGeneralizationSummary {
@@ -752,6 +753,27 @@ export interface DashboardV20AiSummary extends DashboardV19BAiSummary {
   fresh_blind_revalidated?: boolean;
   final_controlled_validation_passed?: boolean;
   threshold_tuning_performed?: boolean;
+}
+
+export interface DashboardV30ProductionReadinessSummary {
+  available: boolean;
+  status?: string;
+  version?: string;
+  checks_passed?: number;
+  checks_total?: number;
+  production_ready?: boolean;
+  production_readiness_claim?: boolean;
+  production_promoted?: boolean;
+  model_activated?: boolean;
+  response_automation_allowed?: boolean;
+  real_firewall_blocking_enabled?: boolean;
+  real_source_pilot_validated?: boolean;
+  postgres_lab_validated?: boolean;
+  production_doctor_status?: string;
+  production_doctor_blockers?: string[];
+  production_doctor_warnings?: string[];
+  docs?: Record<string, boolean>;
+  message?: string;
 }
 
 export interface DashboardDriftSummary {

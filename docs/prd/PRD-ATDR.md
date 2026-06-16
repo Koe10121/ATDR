@@ -4,7 +4,7 @@
 | --- | --- |
 | Product | MFU AI-Driven Log-Based Threat Detection and Response System |
 | Short name | ATDR |
-| Current stage | v0.3 controlled lab-ready release candidate |
+| Current stage | v2.1b final controlled validation candidate |
 | Production claim | None. ATDR is not certified production software. |
 | Main workflow doc | `docs/ATDR_AI_WORKFLOW.md` |
 | Agent model | `docs/agents/ATDR_AGENT_OPERATING_MODEL.md` |
@@ -24,7 +24,7 @@
 | AI feature generation | `atdr/app/ml/features.py` |
 | Detection and explanation services | `atdr/app/detection/*`, `atdr/app/services/detection_service.py` |
 | Release gate | `atdr/scripts/verify_release.py` |
-| Current status | `docs/V0_3_STATUS.md` |
+| Current status | `docs/FINAL_SYSTEM_STATUS.md` |
 | Lab operations | `docs/LAB_RUNBOOK.md` |
 | AI workflow | `docs/AI_TRAINING_RUNBOOK.md`, `docs/ML_BASELINE_TUNING.md` |
 | IAM/RBAC permission matrix | `docs/security/ATDR_IAM_RBAC_MATRIX.md` |

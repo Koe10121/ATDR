@@ -23,7 +23,7 @@ flowchart LR
     J --> M
     N[Suppressions] --> H
     O[Watchlists] --> H
-    P[Streamlit dashboard] --> Q[FastAPI API]
+    P[React SOC dashboard] --> Q[FastAPI API]
     Q --> C
     Q --> E
     Q --> I

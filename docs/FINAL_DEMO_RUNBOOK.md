@@ -57,7 +57,7 @@ Invoke-RestMethod http://127.0.0.1:8000/health
 To place a safe port-scan-like scenario in the current dashboard intentionally:
 
 ```powershell
-.\.venv\Scripts\python.exe -m atdr.scripts.run_source_scenario --scenario port_scan_like_traffic --source-name final-demo-firewall --source-type firewall --parser-profile palo_alto --run-detection --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_source_scenario --scenario port_scan_like_traffic --source-name final-demo-firewall-live --source-type firewall --parser-profile palo_alto --run-detection --pretty
 ```
 
 Expected result:
@@ -103,7 +103,7 @@ production approval.
 
 ### 2. Log Source Detail
 
-Open `final-demo-firewall` in the Log Sources panel.
+Open `final-demo-firewall-live` in the Log Sources panel.
 
 Show:
 
@@ -119,7 +119,7 @@ Explain that source health is based on recent activity and parser quality.
 
 ### 3. Investigation / Log Explorer
 
-Filter by `final-demo-firewall`.
+Filter by `final-demo-firewall-live`.
 
 Show:
 

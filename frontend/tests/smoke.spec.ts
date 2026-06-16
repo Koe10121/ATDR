@@ -894,6 +894,33 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
           response_automation_allowed: false,
           real_firewall_blocking_enabled: false
         },
+        v30_production_readiness: {
+          available: true,
+          status: "real_source_pilot_ready",
+          version: "v9",
+          checks_passed: 8,
+          checks_total: 11,
+          production_ready: false,
+          production_readiness_claim: false,
+          production_promoted: false,
+          model_activated: false,
+          response_automation_allowed: false,
+          real_firewall_blocking_enabled: false,
+          real_source_pilot_validated: false,
+          postgres_lab_validated: false,
+          production_doctor_status: "warnings",
+          production_doctor_blockers: [],
+          production_doctor_warnings: ["Real-device pilot pending."],
+          docs: {
+            gap_assessment: true,
+            real_device_pilot: true,
+            postgres_lab: true,
+            observability: true,
+            ml_monitoring: true,
+            track: true
+          },
+          message: "v3.0 is a production-readiness track gate."
+        },
         drift: {
           available: true,
           ok: true,
@@ -1386,6 +1413,10 @@ test("dashboard dropdowns close and do not block follow-up clicks", async ({ pag
   await page.goto("/ml");
   await expect(page.getByRole("heading", { name: "AI is assistive, explainable, and audited." })).toBeVisible();
   await expect(page.getByText("AI Model Evaluation")).toBeVisible();
+  await expect(page.getByText("Production Readiness Track")).toBeVisible();
+  await expect(page.getByText("Not Production Ready")).toBeVisible();
+  await expect(page.getByText("real_source_pilot_ready")).toBeVisible();
+  await expect(page.getByText("automation off, real blocking off")).toBeVisible();
   await expect(page.getByRole("button", { name: "General Active Learning Sample" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Malicious-Focused Sample" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Round 5 Threat Boundary" })).toBeVisible();

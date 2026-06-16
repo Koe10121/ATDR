@@ -166,6 +166,44 @@ Invoke-RestMethod "http://127.0.0.1:8000/api/detection/run?limit=1000&use_ml=tru
 
 The unfiltered detection command remains unchanged. Source-scoped detection is optional and useful for confirming that recent replay or syslog activity from one lab source can be traced into source-linked detection run history.
 
+## v3.0 Production-Readiness Track
+
+v3.0 is the next hardening track after the final controlled academic prototype. It does not claim production readiness.
+
+Run the stricter readiness doctor:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.production_readiness_doctor --pretty
+```
+
+Validate a real/lab source after logs have arrived:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v30_real_source_pilot_validation --source-name lab-firewall-real-1 --expected-min-logs 100 --window-minutes 60 --pretty
+```
+
+Validate optional PostgreSQL lab deployment on a PostgreSQL/Docker-capable host:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_postgres_lab_validation --pretty
+```
+
+Run read-only real-source ML monitoring:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_real_source_ml_monitoring --pretty
+```
+
+Use these docs:
+
+- `docs/V3_0_PRODUCTION_READINESS_TRACK.md`
+- `docs/V3_0_REAL_DEVICE_SYSLOG_PILOT_PLAN.md`
+- `docs/V3_0_POSTGRESQL_LAB_DEPLOYMENT_VALIDATION.md`
+- `docs/V3_0_OBSERVABILITY_AND_OPERATIONS_PLAN.md`
+- `docs/V3_0_REAL_SOURCE_ML_MONITORING_PLAN.md`
+
+Response automation, real firewall blocking, production promotion, and model activation remain disabled.
+
 ## v0.7 Controlled Detection Quality Validation
 
 ATDR v0.7 validates defensive detection quality with safe synthetic/replayed logs. This is controlled small-subnet/lab-scale validation, not production certification and not an offensive test.
