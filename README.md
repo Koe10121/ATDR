@@ -39,6 +39,9 @@ Key docs:
 - `docs/V3_0_POSTGRESQL_LAB_DEPLOYMENT_VALIDATION.md`
 - `docs/V3_0_OBSERVABILITY_AND_OPERATIONS_PLAN.md`
 - `docs/V3_0_REAL_SOURCE_ML_MONITORING_PLAN.md`
+- `docs/V3_1_PERFORMANCE_STABILIZATION_PLAN.md`
+- `docs/V3_1_POSTGRESQL_PERFORMANCE_VALIDATION_PLAN.md`
+- `docs/V3_2_NO_HARDWARE_SOURCE_PILOT.md`
 
 Useful commands:
 
@@ -47,6 +50,8 @@ Useful commands:
 .\.venv\Scripts\python.exe -m atdr.scripts.run_v30_real_source_pilot_validation --pretty
 .\.venv\Scripts\python.exe -m atdr.scripts.run_postgres_lab_validation --pretty
 .\.venv\Scripts\python.exe -m atdr.scripts.run_real_source_ml_monitoring --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.performance_smoke --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v32_no_hardware_source_pilot --pretty
 ```
 
 These commands are non-destructive. They do not enable automatic response, real firewall blocking, model activation, or production promotion.

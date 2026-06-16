@@ -6,7 +6,7 @@ from sqlalchemy.pool import StaticPool
 
 from atdr.app.db.database import Base
 from atdr.app.db.models import Alert, AlertEvidence, AuditLog, DetectionRun, IngestionRun, LogSource, NormalizedLog, RawLog
-from atdr.app.services.dashboard_service import build_dashboard_summary
+from atdr.app.services.dashboard_service import build_dashboard_summary, build_dashboard_summary_cached, clear_dashboard_summary_cache
 from atdr.app.services.detection_service import run_detection
 from atdr.app.services.log_service import import_log_file, import_raw_log_line
 from atdr.app.services.source_service import get_or_create_source, recent_source_detection_runs
@@ -297,6 +297,24 @@ def test_dashboard_data_quality_counts_parser_errors_and_duplicates():
     assert "syslog timestamp" in summary["data_quality"]["parser_error_examples"][0]["parser_error"]
     assert len(runs) == 2
     assert runs[-1].duplicate_raw_logs == 1
+
+
+def test_dashboard_summary_cache_hits_and_invalidates_after_ingestion():
+    Session = _session()
+    clear_dashboard_summary_cache()
+    with Session() as db:
+        import_log_file(db, "data/samples/paloalto-demo.txt", limit=1, actor="unit_test")
+
+        first = build_dashboard_summary_cached(db)
+        second = build_dashboard_summary_cached(db)
+        import_log_file(db, "data/samples/paloalto-demo.txt", limit=1, actor="unit_test")
+        third = build_dashboard_summary_cached(db)
+
+    clear_dashboard_summary_cache()
+    assert first["performance"]["cached"] is False
+    assert second["performance"]["cached"] is True
+    assert third["performance"]["cached"] is False
+    assert third["total_logs"] == 2
 
 
 def test_performance_smoke_runs_read_only(monkeypatch):

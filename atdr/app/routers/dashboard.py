@@ -3,14 +3,16 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from atdr.app.benchmarks.readiness import readiness_gate_v9_production_readiness_track
 from atdr.app.core.config import PROJECT_ROOT
 from atdr.app.core.security import require_analyst_or_admin
 from atdr.app.db.database import get_db
-from atdr.app.db.models import User
+from atdr.app.db.models import DetectionRun, LogSource, NormalizedLog, RawLog, User
 from atdr.app.services.dashboard_service import build_dashboard_summary_cached
+from atdr.app.services.source_service import source_health
 from atdr.scripts.production_readiness_doctor import run_production_readiness_doctor
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
@@ -946,7 +948,45 @@ def _latest_v20_ai_summary(report_dir: Path = BENCHMARK_REPORT_DIR) -> dict[str,
     }
 
 
-def _v30_production_readiness_summary() -> dict[str, Any]:
+def _v32_simulated_source_status(db: Session) -> dict[str, Any]:
+    source = db.scalar(select(LogSource).where(LogSource.name == "lab-firewall-sim-1").limit(1))
+    if source is None:
+        return {
+            "status": "not_run",
+            "simulated_source_validated": False,
+            "real_device_forwarding_validated": False,
+            "source_name": "lab-firewall-sim-1",
+            "message": "No no-hardware simulated source pilot has been run yet.",
+        }
+    source_id = int(source.id)
+    raw_logs = int(db.scalar(select(func.count(RawLog.id)).where(RawLog.source_id == source_id)) or 0)
+    normalized_logs = int(
+        db.scalar(select(func.count(NormalizedLog.id)).join(RawLog).where(RawLog.source_id == source_id)) or 0
+    )
+    detection_runs = int(
+        db.scalar(
+            select(func.count(DetectionRun.id)).where(DetectionRun.details_json["source_id"].as_integer() == source_id)
+        )
+        or 0
+    )
+    health = source_health(source)
+    validated = raw_logs >= 100 and normalized_logs > 0 and detection_runs > 0 and health["status"] in {"healthy", "warning"}
+    return {
+        "status": "validated" if validated else "review_required",
+        "simulated_source_validated": validated,
+        "real_device_forwarding_validated": False,
+        "source_name": source.name,
+        "source_health": health["status"],
+        "raw_logs": raw_logs,
+        "normalized_logs": normalized_logs,
+        "parse_success_count": source.parse_success_count,
+        "parse_failure_count": source.parse_failure_count,
+        "detection_runs": detection_runs,
+        "message": "No-hardware source pilot validates the ATDR source pipeline only; real device forwarding remains pending.",
+    }
+
+
+def _v30_production_readiness_summary(db: Session) -> dict[str, Any]:
     docs = {
         "gap_assessment": PROJECT_ROOT / "docs" / "V3_0_PRODUCTION_READINESS_GAP_ASSESSMENT.md",
         "real_device_pilot": PROJECT_ROOT / "docs" / "V3_0_REAL_DEVICE_SYSLOG_PILOT_PLAN.md",
@@ -954,8 +994,10 @@ def _v30_production_readiness_summary() -> dict[str, Any]:
         "observability": PROJECT_ROOT / "docs" / "V3_0_OBSERVABILITY_AND_OPERATIONS_PLAN.md",
         "ml_monitoring": PROJECT_ROOT / "docs" / "V3_0_REAL_SOURCE_ML_MONITORING_PLAN.md",
         "track": PROJECT_ROOT / "docs" / "V3_0_PRODUCTION_READINESS_TRACK.md",
+        "v32_no_hardware": PROJECT_ROOT / "docs" / "V3_2_NO_HARDWARE_SOURCE_PILOT.md",
     }
     doctor = run_production_readiness_doctor()
+    v32_status = _v32_simulated_source_status(db)
     v20 = _latest_v20_ai_summary(BENCHMARK_REPORT_DIR)
     readiness = readiness_gate_v9_production_readiness_track(
         final_controlled_validation_passed=bool(v20.get("final_controlled_validation_passed")),
@@ -981,6 +1023,10 @@ def _v30_production_readiness_summary() -> dict[str, Any]:
         "response_automation_allowed": False,
         "real_firewall_blocking_enabled": False,
         "real_source_pilot_validated": False,
+        "real_device_forwarding_validated": False,
+        "simulated_source_pilot_status": v32_status["status"],
+        "simulated_source_validated": v32_status["simulated_source_validated"],
+        "simulated_source": v32_status,
         "postgres_lab_validated": False,
         "production_doctor_status": doctor["status"],
         "production_doctor_blockers": doctor["blockers"],
@@ -1000,6 +1046,7 @@ def dashboard_summary(
 
 @router.get("/validation-summary")
 def dashboard_validation_summary(
+    db: Session = Depends(get_db),
     current_user: User = Depends(require_analyst_or_admin),
 ) -> dict:
     summary = _latest_validation_summary(VALIDATION_REPORT_DIR)
@@ -1018,5 +1065,5 @@ def dashboard_validation_summary(
     summary["v19_ai"] = _latest_v19_ai_summary(BENCHMARK_REPORT_DIR)
     summary["v19b_ai"] = _latest_v19b_ai_summary(BENCHMARK_REPORT_DIR)
     summary["v20_ai"] = _latest_v20_ai_summary(BENCHMARK_REPORT_DIR)
-    summary["v30_production_readiness"] = _v30_production_readiness_summary()
+    summary["v30_production_readiness"] = _v30_production_readiness_summary(db)
     return summary

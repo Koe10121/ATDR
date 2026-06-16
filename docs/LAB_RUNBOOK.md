@@ -194,6 +194,12 @@ Run read-only real-source ML monitoring:
 .\.venv\Scripts\python.exe -m atdr.scripts.run_real_source_ml_monitoring --pretty
 ```
 
+Run the no-hardware source pilot when a real firewall/router is not available:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v32_no_hardware_source_pilot --pretty
+```
+
 Use these docs:
 
 - `docs/V3_0_PRODUCTION_READINESS_TRACK.md`
@@ -201,6 +207,9 @@ Use these docs:
 - `docs/V3_0_POSTGRESQL_LAB_DEPLOYMENT_VALIDATION.md`
 - `docs/V3_0_OBSERVABILITY_AND_OPERATIONS_PLAN.md`
 - `docs/V3_0_REAL_SOURCE_ML_MONITORING_PLAN.md`
+- `docs/V3_1_PERFORMANCE_STABILIZATION_PLAN.md`
+- `docs/V3_1_POSTGRESQL_PERFORMANCE_VALIDATION_PLAN.md`
+- `docs/V3_2_NO_HARDWARE_SOURCE_PILOT.md`
 
 Response automation, real firewall blocking, production promotion, and model activation remain disabled.
 

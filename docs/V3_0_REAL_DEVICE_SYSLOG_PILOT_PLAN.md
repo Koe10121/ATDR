@@ -2,6 +2,18 @@
 
 This plan validates ATDR with a real or lab-simulated router/firewall source without changing the normal local workflow.
 
+## No-Hardware Bridge
+
+If no real firewall/router is available, use the v3.2 no-hardware source pilot first:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v32_no_hardware_source_pilot --pretty
+```
+
+See `docs/V3_2_NO_HARDWARE_SOURCE_PILOT.md`.
+
+The v3.2 pilot validates source registration, safe ingestion, parser quality, source health, source-scoped detection, alert/case traceability, and response-safety behavior. It does not validate real device forwarding.
+
 ## Safety Rules
 
 - Do not reset or delete the current database.

@@ -49,6 +49,7 @@ def test_production_readiness_doctor_is_secret_safe(monkeypatch):
     assert result["response_automation_allowed"] is False
     assert "super-secret-value" not in rendered
     assert any("jwt" in item.lower() for item in result["warnings"])
+    assert any("performance_smoke" in step for step in result["recommended_next_steps"])
 
 
 def test_postgres_lab_validation_blocks_cleanly_on_sqlite():

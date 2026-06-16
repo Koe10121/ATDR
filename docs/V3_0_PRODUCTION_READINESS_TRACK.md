@@ -75,6 +75,31 @@ Read-only ML monitoring:
 9. Collect reviewed labels from real-source rows.
 10. Re-evaluate ML only as decision support.
 
+## v3.1 Performance Stabilization
+
+The v3.1 follow-up documents large-SQLite performance behavior and the PostgreSQL performance validation path:
+
+- `docs/V3_1_PERFORMANCE_STABILIZATION_PLAN.md`
+- `docs/V3_1_POSTGRESQL_PERFORMANCE_VALIDATION_PLAN.md`
+
+Run performance smoke after large imports:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.performance_smoke --pretty
+```
+
+## v3.2 No-Hardware Source Pilot
+
+When no real firewall/router is available, run the safe no-hardware pilot:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v32_no_hardware_source_pilot --pretty
+```
+
+This validates the source pipeline with safe synthetic logs only. It reports `real_device_forwarding_validated=false` and `production_ready=false`.
+
+See `docs/V3_2_NO_HARDWARE_SOURCE_PILOT.md`.
+
 ## Production Claim Policy
 
 Do not claim production readiness until real-device forwarding, PostgreSQL/shared deployment, external IAM, TLS/secrets, backup/retention, monitoring, security review, and response connector governance are validated.

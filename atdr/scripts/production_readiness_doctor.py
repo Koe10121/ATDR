@@ -188,6 +188,14 @@ def run_production_readiness_doctor(settings: Settings | None = None) -> dict[st
             "Remove sensitive/generated files from Git tracking and keep them ignored.",
         ),
         _check(
+            "performance_smoke_reviewed",
+            not is_production,
+            "warning",
+            "Performance smoke must be reviewed separately before production-like claims.",
+            "Run atdr.scripts.performance_smoke on the target dataset; for large shared labs, validate PostgreSQL "
+            "instead of relying only on local SQLite cache behavior.",
+        ),
+        _check(
             "runtime_settings_validation",
             not has_runtime_blockers,
             "blocker",
@@ -228,6 +236,7 @@ def run_production_readiness_doctor(settings: Settings | None = None) -> dict[st
         "recommended_next_steps": [
             "Complete controlled real-device syslog pilot.",
             "Validate PostgreSQL lab deployment on a Docker/PostgreSQL-capable host.",
+            "Run performance_smoke after large imports and compare cold/uncached and cached Overview timings.",
             "Replace demo secrets before shared lab use.",
             "Add TLS/reverse proxy, backup/restore, retention, and monitoring validation before production-like exposure.",
         ],

@@ -80,6 +80,7 @@ def run_v30_real_source_pilot_validation(
     window_minutes: int = 60,
     dry_run: bool = False,
     use_temp_db: bool = False,
+    session_factory=None,
 ) -> dict[str, Any]:
     started = time.perf_counter()
     settings = Settings()
@@ -104,8 +105,8 @@ def run_v30_real_source_pilot_validation(
         }
 
     engine = None
-    SessionFactory = SessionLocal
-    if use_temp_db:
+    SessionFactory = session_factory or SessionLocal
+    if use_temp_db and session_factory is None:
         engine, SessionFactory = _temp_session_factory()
 
     try:

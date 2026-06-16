@@ -411,6 +411,18 @@ export function MLGovernance() {
                 <span className="font-bold text-text">{v30Readiness?.real_source_pilot_validated ? "validated" : "pending"}</span>
               </div>
               <div>
+                Simulated source:{" "}
+                <span className="font-bold text-text">
+                  {v30Readiness?.simulated_source_validated ? "validated" : v30Readiness?.simulated_source_pilot_status ?? "not run"}
+                </span>
+              </div>
+              <div>
+                Real device forwarding:{" "}
+                <span className="font-bold text-text">
+                  {v30Readiness?.real_device_forwarding_validated ? "validated" : "pending"}
+                </span>
+              </div>
+              <div>
                 PostgreSQL lab:{" "}
                 <span className="font-bold text-text">{v30Readiness?.postgres_lab_validated ? "validated" : "pending"}</span>
               </div>

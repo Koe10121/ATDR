@@ -768,6 +768,22 @@ export interface DashboardV30ProductionReadinessSummary {
   response_automation_allowed?: boolean;
   real_firewall_blocking_enabled?: boolean;
   real_source_pilot_validated?: boolean;
+  real_device_forwarding_validated?: boolean;
+  simulated_source_pilot_status?: string;
+  simulated_source_validated?: boolean;
+  simulated_source?: {
+    status?: string;
+    simulated_source_validated?: boolean;
+    real_device_forwarding_validated?: boolean;
+    source_name?: string;
+    source_health?: string;
+    raw_logs?: number;
+    normalized_logs?: number;
+    parse_success_count?: number;
+    parse_failure_count?: number;
+    detection_runs?: number;
+    message?: string;
+  };
   postgres_lab_validated?: boolean;
   production_doctor_status?: string;
   production_doctor_blockers?: string[];

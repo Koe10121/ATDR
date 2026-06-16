@@ -907,6 +907,21 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
           response_automation_allowed: false,
           real_firewall_blocking_enabled: false,
           real_source_pilot_validated: false,
+          real_device_forwarding_validated: false,
+          simulated_source_pilot_status: "validated",
+          simulated_source_validated: true,
+          simulated_source: {
+            status: "validated",
+            simulated_source_validated: true,
+            real_device_forwarding_validated: false,
+            source_name: "lab-firewall-sim-1",
+            source_health: "warning",
+            raw_logs: 100,
+            normalized_logs: 100,
+            parse_success_count: 97,
+            parse_failure_count: 3,
+            detection_runs: 1
+          },
           postgres_lab_validated: false,
           production_doctor_status: "warnings",
           production_doctor_blockers: [],
@@ -1416,6 +1431,8 @@ test("dashboard dropdowns close and do not block follow-up clicks", async ({ pag
   await expect(page.getByText("Production Readiness Track")).toBeVisible();
   await expect(page.getByText("Not Production Ready")).toBeVisible();
   await expect(page.getByText("real_source_pilot_ready")).toBeVisible();
+  await expect(page.getByText("Simulated source:")).toBeVisible();
+  await expect(page.getByText("Real device forwarding:")).toBeVisible();
   await expect(page.getByText("automation off, real blocking off")).toBeVisible();
   await expect(page.getByRole("button", { name: "General Active Learning Sample" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Malicious-Focused Sample" })).toBeVisible();
