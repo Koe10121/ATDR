@@ -265,6 +265,7 @@ test("dashboard supports the end-to-end validation workflow with safe fixtures",
   await seedSession(page);
 
   await page.goto("/overview");
+  await page.getByText("Validation reports").click();
   await expect(page.getByText("E2E Workflow", { exact: true })).toBeVisible();
   await expect(page.getByText("1/1 passed")).toBeVisible();
   await expect(page.getByText(source.name).first()).toBeVisible();

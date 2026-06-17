@@ -27,7 +27,15 @@ const statusClass: Record<string, string> = {
   "Response Automation Disabled": "border-amber/30 bg-amber/10 text-amber",
   "Not Production Promoted": "border-slate-400/30 bg-slate-400/10 text-slate-600",
   "Simulation Mode": "border-success/30 bg-success/10 text-success",
-  "Manual Approval Required": "border-amber/30 bg-amber/10 text-amber"
+  "Manual Approval Required": "border-amber/30 bg-amber/10 text-amber",
+  "analyst review eligible": "border-success/30 bg-success/10 text-success",
+  "final controlled validation candidate": "border-success/30 bg-success/10 text-success",
+  "Final Controlled Validation Candidate": "border-success/30 bg-success/10 text-success",
+  "Not Production Ready": "border-slate-400/30 bg-slate-400/10 text-slate-600",
+  trained: "border-success/30 bg-success/10 text-success",
+  "needs labels": "border-amber/30 bg-amber/10 text-amber",
+  "active artifact ready": "border-success/30 bg-success/10 text-success",
+  "no active artifact": "border-amber/30 bg-amber/10 text-amber"
 };
 
 export function Badge({ value, kind = "status" }: { value?: string | null; kind?: "severity" | "status" }) {

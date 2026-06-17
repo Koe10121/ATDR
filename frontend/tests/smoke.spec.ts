@@ -1213,6 +1213,8 @@ test("overview system health panel and ML governance wording render", async ({ p
   await page.goto("/overview");
   await expect(page.getByText("System Health")).toBeVisible();
   await expect(page.getByText("Controlled Validation", { exact: true })).toBeVisible();
+  await expect(page.getByText("Validation reports")).toBeVisible();
+  await page.getByText("Validation reports").click();
   await expect(page.getByText("Generalization", { exact: true })).toBeVisible();
   await expect(page.getByText("70/70 variants")).toBeVisible();
   await expect(page.getByText("FP 0 | FN 0")).toHaveCount(3);
@@ -1227,9 +1229,9 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByText("Drift")).toBeVisible();
   await expect(page.getByText("0 warnings")).toBeVisible();
   await expect(page.getByText("Lab-Scale Validation")).toBeVisible();
-  await expect(page.getByText("Manual Approval Required")).toBeVisible();
+  await expect(page.getByText("Manual Approval Required", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Final Controlled Validation Candidate", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Real device validation remains future work.")).toBeVisible();
+  await expect(page.getByText("Real device validation remains future work.")).not.toBeVisible();
   await expect(page.getByText("Operations Health")).toBeVisible();
   await expect(page.getByText("Log Sources")).toBeVisible();
   await expect(page.getByText("local_import")).toBeVisible();
@@ -1251,14 +1253,25 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByText("Config: local lab profile")).toBeVisible();
 
   await page.goto("/ml");
-  await expect(page.getByText("Analyst Review Eligible.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Model status and review operations" })).toBeVisible();
+  await expect(page.getByText("Controlled Validation", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Current AI governance snapshot")).toBeVisible();
+  await expect(page.getByText("Threat F1", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("0.9174", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Benign FPR")).toBeVisible();
+  await expect(page.getByText("0.1303", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Macro F1")).toBeVisible();
+  await expect(page.getByText("0.868", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Weighted F1")).toBeVisible();
+  await expect(page.getByText("0.8753", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Review focus: benign and suspicious separation need more analyst-verified examples.")).not.toBeVisible();
   await page.getByText("Technical validation details").click();
   await expect(page.getByText(/1528 reviewed \| minimum gaps 44/)).toBeVisible();
   await expect(page.getByText("Recommended AI Mode")).toBeVisible();
   await expect(page.getByText("SOC triage decision support")).toBeVisible();
   await expect(page.getByText("SOC Triage Mode")).toBeVisible();
   await expect(page.getByText("Analyst Review", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Manual Approval Required")).toBeVisible();
+  await expect(page.getByText("Manual Approval Required", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Response Automation Disabled", { exact: true }).first()).toBeVisible();
   await expect(
     page.getByText(/Main blocker:\s*No v2.0 metric blocker; real hardware validation remains future work/),
@@ -1284,6 +1297,7 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByText("Decision Support Only", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Response Automation Disabled", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Import Benchmark Review CSV")).toBeVisible();
+  await page.getByText("CSV import rules").click();
   await expect(page.getByText(/Files containing `benchmark_row_id` must use Benchmark Review Import/)).toBeVisible();
   await expect(page.getByText(/Confirmed noisy pattern:\s*normal QUIC\/443/)).toBeVisible();
   await expect(page.getByText(/False positives:\s*improved/)).toBeVisible();
@@ -1291,8 +1305,10 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByText("Actionable review sample excludes protected manual labels", { exact: true })).toBeVisible();
   await expect(page.getByText("Model remains decision support only", { exact: true })).toBeVisible();
   await expect(page.getByText("Response automation disabled", { exact: true })).toBeVisible();
-  await expect(page.getByText("Not Production Promoted", { exact: true })).toBeVisible();
+  await expect(page.getByText("Not Production Promoted", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Final Controlled Validation Candidate", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Technical Review Notes")).not.toBeVisible();
+  await page.getByText("Model validation diagnostics").click();
   await expect(page.getByText("Technical Review Notes")).toBeVisible();
   await page.getByText("Technical Review Notes").click();
   await expect(page.getByText("Malicious reviewed target is met; do not prioritize malicious-heavy review unless evidence is strong.")).toBeVisible();
@@ -1434,18 +1450,18 @@ test("dashboard dropdowns close and do not block follow-up clicks", async ({ pag
   await page.getByPlaceholder("Indicator value").click();
 
   await page.goto("/ml");
-  await expect(page.getByRole("heading", { name: "AI is assistive, explainable, and audited." })).toBeVisible();
-  await expect(page.getByText("AI Model Evaluation")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Model status and review operations" })).toBeVisible();
+  await expect(page.getByText("Current AI governance snapshot")).toBeVisible();
+  await expect(page.getByText("Threat F1", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("0.9174", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Production Readiness Track")).not.toBeVisible();
+  await expect(page.getByText("Review focus: benign and suspicious separation need more analyst-verified examples.")).not.toBeVisible();
+  await page.getByText("Operational readiness details").click();
   await expect(page.getByText("Production Readiness Track")).toBeVisible();
   await expect(page.getByText("Not Production Ready")).toBeVisible();
   await expect(page.getByText("real_source_pilot_ready")).toBeVisible();
-  await expect(page.getByText("Simulated source:")).toBeVisible();
-  await expect(page.getByText("Real device forwarding:")).toBeVisible();
-  await expect(page.getByText("PostgreSQL lab:")).toBeVisible();
-  await expect(page.getByText("blocked_by_environment")).toBeVisible();
-  await expect(page.getByText("SQLite local workflow:")).toBeVisible();
-  await expect(page.getByText("Backup/restore:")).toBeVisible();
-  await expect(page.getByText("automation off, real blocking off")).toBeVisible();
+  await page.getByText("Operational readiness details").click();
+  await page.getByText("Review exports and technical reports").click();
   await expect(page.getByRole("button", { name: "General Active Learning Sample" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Malicious-Focused Sample" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Round 5 Threat Boundary" })).toBeVisible();
@@ -1456,7 +1472,6 @@ test("dashboard dropdowns close and do not block follow-up clicks", async ({ pag
   await expect(page.getByRole("button", { name: "SOC Triage Recommendation" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Suspicious Recall Sample" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Suspicious Recall Report" })).toBeVisible();
-  await expect(page.getByText("Review focus: benign and suspicious separation need more analyst-verified examples.")).toBeVisible();
   await page.getByRole("button", { name: "Human Review Sample" }).click();
   await page.getByRole("button", { name: "General Active Learning Sample" }).click();
   await page.getByRole("button", { name: "Malicious-Focused Sample" }).click();

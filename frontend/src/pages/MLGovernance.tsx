@@ -27,6 +27,14 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+function firstMetric(...values: unknown[]) {
+  return values.find((value) => value !== null && value !== undefined && value !== "");
+}
+
+function metricText(value: unknown) {
+  return value === null || value === undefined || value === "" ? "-" : String(value);
+}
+
 export function MLGovernance() {
   const report = useMlReport();
   const supervised = useSupervisedReport();
@@ -39,6 +47,7 @@ export function MLGovernance() {
   const supervisedData = supervised.data;
   const supervisedMetrics = supervisedData?.latest_run?.metrics ?? {};
   const threatPositive = (supervisedMetrics.threat_positive ?? {}) as Record<string, unknown>;
+  const weightedAverage = (supervisedMetrics.weighted_average ?? {}) as Record<string, unknown>;
   const socTriageMode = supervisedData?.soc_triage_mode;
   const socReviewProfiles = socTriageMode?.review_profiles ?? [];
   const topFeatures = supervisedData?.latest_run?.top_features ?? [];
@@ -64,6 +73,68 @@ export function MLGovernance() {
   const v20Ai = validationSummary.data?.v20_ai;
   const v30Readiness = validationSummary.data?.v30_production_readiness;
   const independentAi = v20Ai?.available ? v20Ai : v19bAi?.available ? v19bAi : v19Ai;
+  const finalThreatPrecision = firstMetric(
+    independentAi?.threat_positive_precision,
+    v18Ai?.threat_positive_precision,
+    v17Ai?.threat_positive_precision,
+    v14Ai?.threat_positive_precision,
+    benchmark?.precision,
+    threatPositive.precision
+  );
+  const finalThreatRecall = firstMetric(
+    independentAi?.threat_positive_recall,
+    v18Ai?.threat_positive_recall,
+    v17Ai?.threat_positive_recall,
+    v16Ai?.threat_positive_recall,
+    v15Ai?.threat_positive_recall,
+    v14Ai?.threat_positive_recall,
+    benchmark?.recall,
+    threatPositive.recall
+  );
+  const finalThreatF1 = firstMetric(
+    independentAi?.threat_positive_f1,
+    v18Ai?.threat_positive_f1,
+    v17Ai?.threat_positive_f1,
+    v16Ai?.threat_positive_f1,
+    v15Ai?.threat_positive_f1,
+    v14Ai?.threat_positive_f1,
+    benchmark?.threat_positive_f1,
+    benchmark?.f1,
+    threatPositive.f1
+  );
+  const finalBenignFpr = firstMetric(
+    independentAi?.benign_like_false_positive_rate,
+    v18Ai?.benign_like_false_positive_rate,
+    v17Ai?.benign_like_false_positive_rate,
+    v16Ai?.benign_like_false_positive_rate,
+    v15Ai?.benign_like_false_positive_rate,
+    v14Ai?.benign_like_false_positive_rate
+  );
+  const finalMacroF1 = firstMetric(independentAi?.macro_f1, v18Ai?.macro_f1, v17Ai?.macro_f1);
+  const finalWeightedF1 = firstMetric(independentAi?.weighted_f1, v18Ai?.weighted_f1, weightedAverage.f1, supervisedMetrics.f1);
+  const finalValidationRows = firstMetric(
+    independentAi?.independent_label_count,
+    v18Ai?.external_label_count,
+    v17Ai?.external_label_count,
+    v16Ai?.external_label_count,
+    v15Ai?.benchmark_label_count,
+    benchmark?.total_rows,
+    supervisedData?.latest_run?.test_rows
+  );
+  const finalValidationDecision = String(
+    firstMetric(independentAi?.readiness_decision, v18Ai?.readiness_decision, v17Ai?.readiness_decision, promotionGate.decision, "analyst_review_eligible")
+  );
+  const finalValidationSource = independentAi?.available
+    ? v20Ai?.available
+      ? "Fresh blind validation"
+      : "Independent validation"
+    : v18Ai?.available
+    ? "External validation"
+    : v17Ai?.available || v16Ai?.available
+    ? "External holdout"
+    : v15Ai?.available || benchmark?.available
+    ? "Benchmark validation"
+    : "Current supervised report";
   const drift = data?.baseline_drift_report;
   const perClass = (supervisedMetrics.per_class ?? {}) as Record<string, Record<string, unknown>>;
   const benignMetrics = perClass.benign ?? {};
@@ -286,13 +357,13 @@ export function MLGovernance() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="text-sm font-extrabold uppercase tracking-wide text-cyan">ML Governance</div>
-            <h1 className="mt-2 text-3xl font-black">AI is assistive, explainable, and audited.</h1>
-            <p className="mt-2 text-muted">
-              IsolationForest highlights unusual traffic. Rule evidence and analyst review remain the authority for response decisions.
-            </p>
-            <p className="mt-2 text-xs text-muted">
-              Summary data is cached briefly for dashboard responsiveness. Use refresh after training, scoring, or label import.
-            </p>
+            <h1 className="mt-2 text-3xl font-black">Model status and review operations</h1>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Badge value="Decision Support Only" />
+              <Badge value="Response Automation Disabled" />
+              <Badge value="Not Production Promoted" />
+              <Badge value="Manual Approval Required" />
+            </div>
           </div>
           <button className="btn-secondary" type="button" onClick={refreshGovernance}>
             Refresh ML Summary
@@ -310,17 +381,26 @@ export function MLGovernance() {
       <section className="panel">
         <div className="mb-4 flex items-center justify-between gap-2">
           <div>
-            <div className="text-sm font-extrabold uppercase tracking-wide text-cyan">AI Model Evaluation</div>
-            <h2 className="mt-1 text-xl font-black">Supervised label model</h2>
-            <p className="mt-1 text-sm text-muted">Analyst-reviewed labels train a supervised classifier. Output remains decision support only.</p>
+            <div className="text-sm font-extrabold uppercase tracking-wide text-cyan">Controlled Validation</div>
+            <h2 className="mt-1 text-xl font-black">Current AI governance snapshot</h2>
           </div>
-          <Badge value={supervisedData?.artifact_exists ? "trained" : "needs labels"} />
+          <div className="flex flex-wrap gap-2">
+            <Badge value={supervisedData?.artifact_exists ? "trained" : "needs labels"} />
+            <Badge value={finalValidationDecision.replaceAll("_", " ")} />
+          </div>
         </div>
-        <div className="grid gap-4 md:grid-cols-4">
-          <MetricCard label="Label Rows" value={supervisedData?.label_count ?? "-"} detail="Reviewed ML labels" tone="teal" />
-          <MetricCard label="Training Rows" value={supervisedData?.latest_run?.training_rows ?? "-"} detail="Latest supervised run" tone="cyan" />
-          <MetricCard label="Test Rows" value={supervisedData?.latest_run?.test_rows ?? "-"} detail="Holdout evaluation" tone="amber" />
-          <MetricCard label="F1 Score" value={String(supervisedMetrics.f1 ?? "-")} detail="Weighted test metric" tone="cyan" />
+        <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-6">
+          <MetricCard label="Threat Precision" value={metricText(finalThreatPrecision)} detail={finalValidationSource} tone="teal" />
+          <MetricCard label="Threat Recall" value={metricText(finalThreatRecall)} detail="Threat-positive triage" tone="cyan" />
+          <MetricCard label="Threat F1" value={metricText(finalThreatF1)} detail="Controlled validation" tone="cyan" />
+          <MetricCard label="Benign FPR" value={metricText(finalBenignFpr)} detail="Noise control" tone="amber" />
+          <MetricCard label="Macro F1" value={metricText(finalMacroF1)} detail="Class balance signal" tone="teal" />
+          <MetricCard label="Weighted F1" value={metricText(finalWeightedF1)} detail={`${metricText(finalValidationRows)} validation rows`} tone="cyan" />
+        </div>
+        <div className="mt-4 grid gap-4 md:grid-cols-3">
+          <MetricCard label="Reviewed Labels" value={supervisedData?.reviewed_label_count ?? 0} detail="Analyst-reviewed rows" tone="teal" />
+          <MetricCard label="Assisted Pending" value={supervisedData?.unreviewed_assisted_label_count ?? 0} detail="Awaiting review" tone="amber" />
+          <MetricCard label="Review Coverage" value={`${reviewedCoverage}%`} detail={`Target ${reviewedTarget}`} tone="cyan" />
         </div>
         <div className="mt-4 rounded-lg border border-line bg-panel2 p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -338,7 +418,7 @@ export function MLGovernance() {
             <MetricCard label="Registry Entries" value={registry?.models.length ?? 0} detail="Recent train/activate/rollback runs" tone="amber" />
             <MetricCard label="Auto Response" value={String(registry?.response_automation_allowed ?? false)} detail="Must remain disabled" tone="danger" />
           </div>
-          <details className="presentation-technical mt-3">
+          <details className="mt-3">
             <summary className="cursor-pointer text-sm font-bold text-text">View candidate model registry</summary>
             <div className="mt-3 overflow-auto">
               <table className="soc-table soc-table-compact">
@@ -371,13 +451,12 @@ export function MLGovernance() {
             </div>
           </details>
         </div>
-        <div className="mt-4 rounded-lg border border-amber/30 bg-amber/10 p-3 text-sm text-amber">
-          <div className="font-bold">Analyst Review</div>
-          <div className="mt-1">
-            Supervised output is decision support. Automation is disabled.
-            {activeArtifactMetadataUnknown ? " Active artifact metadata should be refreshed with a registered training run." : ""}
-          </div>
-        </div>
+        {activeArtifactMetadataUnknown ? (
+          <details className="mt-4 rounded-lg border border-amber/30 bg-amber/10 p-3 text-sm text-amber">
+            <summary className="cursor-pointer font-bold">Artifact Metadata</summary>
+            <div className="mt-2">Active artifact metadata should be refreshed with a registered training run.</div>
+          </details>
+        ) : null}
         <div className="mt-4 rounded-lg border border-cyan/30 bg-cyan/10 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
@@ -395,17 +474,21 @@ export function MLGovernance() {
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">Manual Approval Required</div>
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">Response Automation Disabled</div>
           </div>
-          <div className="mt-3 rounded border border-line bg-panel px-3 py-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <div className="text-xs font-extrabold uppercase tracking-wide text-muted">Production Readiness Track</div>
-                <div className="mt-1 text-sm font-bold text-text">
-                  {v30Readiness?.status ?? "final_controlled_validation_candidate"}
+          <details className="mt-3">
+            <summary className="cursor-pointer rounded border border-line bg-panel px-3 py-2 text-sm font-bold text-text">
+              Operational readiness details
+            </summary>
+            <div className="mt-3 rounded border border-line bg-panel px-3 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="text-xs font-extrabold uppercase tracking-wide text-muted">Production Readiness Track</div>
+                  <div className="mt-1 text-sm font-bold text-text">
+                    {v30Readiness?.status ?? "final_controlled_validation_candidate"}
+                  </div>
                 </div>
+                <Badge value="Not Production Ready" />
               </div>
-              <Badge value="Not Production Ready" />
-            </div>
-            <div className="mt-3 grid gap-2 text-sm text-muted md:grid-cols-2">
+              <div className="mt-3 grid gap-2 text-sm text-muted md:grid-cols-2">
               <div>
                 Real-source pilot:{" "}
                 <span className="font-bold text-text">{v30Readiness?.real_source_pilot_validated ? "validated" : "pending"}</span>
@@ -455,8 +538,9 @@ export function MLGovernance() {
                 </ul>
               </details>
             ) : null}
-          </div>
-          <details className="presentation-technical mt-3">
+            </div>
+          </details>
+          <details className="mt-3">
             <summary className="cursor-pointer rounded border border-line bg-panel px-3 py-2 text-sm font-bold text-text">
               Technical validation details
             </summary>
@@ -699,17 +783,19 @@ export function MLGovernance() {
             </div>
           </details>
         </div>
-        <div className="mt-4 grid gap-4 md:grid-cols-3">
-          <MetricCard label="Reviewed Labels" value={supervisedData?.reviewed_label_count ?? 0} detail="Human-reviewed/manual rows" tone="teal" />
-          <MetricCard label="Assisted Pending Review" value={supervisedData?.unreviewed_assisted_label_count ?? 0} detail="Weak labels needing validation" tone="amber" />
-          <MetricCard label="Review Coverage" value={`${reviewedCoverage}%`} detail={`Target ${reviewedTarget} reviewed labels`} tone="cyan" />
-        </div>
-        <div className="mt-4 grid gap-4 md:grid-cols-3">
-          <MetricCard label="Threat-Positive Precision" value={String(threatPositive.precision ?? "-")} detail="Suspicious + malicious triage grouping" tone="amber" />
-          <MetricCard label="Threat-Positive Recall" value={String(threatPositive.recall ?? "-")} detail="Combined SOC catch rate" tone="danger" />
-          <MetricCard label="Threat-Positive F1" value={String(threatPositive.f1 ?? "-")} detail="SOC triage signal" tone="cyan" />
-        </div>
-        <div className="mt-4 grid gap-4 md:grid-cols-4">
+        <details className="mt-4 rounded-lg border border-line bg-panel2 p-4">
+          <summary className="cursor-pointer text-sm font-bold text-text">Model validation diagnostics</summary>
+          <div className="mt-4 grid gap-4 md:grid-cols-3">
+            <MetricCard label="Candidate Precision" value={String(supervisedMetrics.precision ?? "-")} detail="Latest training run" tone="amber" />
+            <MetricCard label="Candidate Recall" value={String(supervisedMetrics.recall ?? "-")} detail="Latest training run" tone="danger" />
+            <MetricCard label="Candidate F1" value={String(supervisedMetrics.f1 ?? "-")} detail="Latest training run" tone="cyan" />
+          </div>
+          <div className="mt-4 grid gap-4 md:grid-cols-3">
+            <MetricCard label="Threat-Positive Precision" value={String(threatPositive.precision ?? "-")} detail="Training report grouping" tone="amber" />
+            <MetricCard label="Threat-Positive Recall" value={String(threatPositive.recall ?? "-")} detail="Training report grouping" tone="danger" />
+            <MetricCard label="Threat-Positive F1" value={String(threatPositive.f1 ?? "-")} detail="Training report grouping" tone="cyan" />
+          </div>
+          <div className="mt-4 grid gap-4 md:grid-cols-4">
           <MetricCard
             label="Benign Recall"
             value={String(benignMetrics.recall ?? "-")}
@@ -734,7 +820,7 @@ export function MLGovernance() {
             detail="Decision support"
             tone="cyan"
           />
-        </div>
+          </div>
         {benignRecall <= 0 || suspiciousRecall < 0.8 ? (
           <div className="mt-4 rounded-lg border border-amber/30 bg-amber/10 p-3 text-sm text-amber">
             Review focus: benign and suspicious separation need more analyst-verified examples.
@@ -909,14 +995,14 @@ export function MLGovernance() {
             </div>
           </div>
         </div>
+        </details>
       </section>
 
       <section className="panel">
         <div className="mb-4 flex items-center justify-between gap-2">
           <div>
             <div className="text-sm font-extrabold uppercase tracking-wide text-cyan">Data Quality</div>
-            <h2 className="mt-1 text-xl font-black">Can the AI learn from this dataset?</h2>
-            <p className="mt-1 text-sm text-muted">Parsing completeness, missing fields, and unknown apps help explain model reliability.</p>
+            <h2 className="mt-1 text-xl font-black">Dataset readiness</h2>
           </div>
           <Badge value={`${dataQuality?.parse_success_rate ?? 0}% parsed`} />
         </div>
@@ -960,7 +1046,7 @@ export function MLGovernance() {
 
       <section className="panel">
         <div className="mb-3 text-sm font-extrabold uppercase tracking-wide text-muted">Feature Importance</div>
-        <div className="mb-4 rounded-lg border border-line bg-panel2 p-3 text-sm text-muted">
+        <div className="presentation-technical mb-4 rounded-lg border border-line bg-panel2 p-3 text-sm text-muted">
           Feature generation processed <span className="font-bold text-text">{String(featureGeneration.rows_processed ?? "-")}</span> rows in{" "}
           <span className="font-bold text-text">{String(featureGeneration.duration_seconds ?? "-")}</span> seconds.
           {featureGeneration.warning ? <div className="mt-1 text-amber">{String(featureGeneration.warning)}</div> : null}
@@ -983,30 +1069,11 @@ export function MLGovernance() {
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="text-sm font-extrabold uppercase tracking-wide text-cyan">Label Review Queue</div>
-            <h2 className="mt-1 text-xl font-black">Prioritized analyst review worklist</h2>
-            <p className="mt-1 text-sm text-muted">
-              Prioritizes anomaly flags, high rule evidence, high hybrid risk, suspicious recent logs, and rule/ML disagreement.
-            </p>
+            <h2 className="mt-1 text-xl font-black">Analyst review worklist</h2>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button className="btn-secondary" type="button" onClick={() => void downloadExport("queue")}>Export Queue CSV</button>
-            <button className="btn-secondary" type="button" onClick={() => void downloadExport("labels")}>Export Labels CSV</button>
-            <button className="btn-secondary" type="button" onClick={() => void downloadExport("template")}>CSV Template</button>
-            <button className="btn-secondary" type="button" onClick={() => void downloadExport("review_sample")}>Human Review Sample</button>
-            <button className="btn-secondary" type="button" onClick={() => void downloadExport("active_learning")}>General Active Learning Sample</button>
-            <button className="btn-secondary" type="button" onClick={() => void downloadExport("active_learning_malicious")}>Malicious-Focused Sample</button>
-            <button className="btn-secondary" type="button" onClick={() => void downloadExport("active_learning_boundary")}>Round 4 Boundary Cases</button>
-            <button className="btn-secondary" type="button" onClick={() => void downloadExport("active_learning_threat_boundary")}>Round 5 Threat Boundary</button>
-            <button className="btn-secondary" type="button" onClick={() => void downloadExport("training_window_threat")}>Training-Window Threat Sample</button>
-            <button className="btn-secondary" type="button" onClick={() => void downloadExport("boundary_report")}>Boundary Report</button>
-            <button className="btn-secondary" type="button" onClick={() => void downloadExport("stage1_threat_recall_sample")}>Stage 1 Recall Sample</button>
-            <button className="btn-secondary" type="button" onClick={() => void downloadExport("benign_final_gap_sample")}>Benign Gap Sample</button>
-            <button className="btn-secondary" type="button" onClick={() => void downloadExport("final_small_gap_sample")}>Final Small Gap Sample</button>
-            <button className="btn-secondary" type="button" onClick={() => void downloadExport("soc_triage_final_report")}>SOC Triage Recommendation</button>
-            <button className="btn-secondary" type="button" onClick={() => void downloadExport("suspicious_recall_sample")}>Suspicious Recall Sample</button>
-            <button className="btn-secondary" type="button" onClick={() => void downloadExport("suspicious_recall_report")}>Suspicious Recall Report</button>
-            <button className="btn-secondary" type="button" onClick={() => void downloadExport("label_quality")}>Label Quality Issues</button>
-            <button className="btn-secondary" type="button" onClick={() => void downloadExport("temporal_coverage")}>Temporal Coverage Report</button>
+            <button className="btn-secondary" type="button" onClick={() => void downloadExport("queue")}>Export Queue</button>
+            <button className="btn-secondary" type="button" onClick={() => void downloadExport("labels")}>Export Labels</button>
           </div>
         </div>
         <div className="mb-4 rounded-lg border border-line bg-panel2 p-3">
@@ -1024,20 +1091,41 @@ export function MLGovernance() {
               <input className="hidden" type="file" accept=".csv,text/csv" onChange={(event) => importBenchmarkReview(event.target.files?.[0])} />
             </label>
             <button className="btn-secondary" type="button" onClick={() => void downloadExport("report")}>Download Model Report</button>
-            <span className="text-xs text-muted">
-              Reviewed CSV import marks completed rows as reviewed, skips empty review rows, preserves assisted provenance, and protects manual labels.
-            </span>
           </div>
+          <details className="mt-3 rounded border border-line bg-panel px-3 py-2">
+            <summary className="cursor-pointer text-sm font-bold text-text">Review exports and technical reports</summary>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button className="btn-secondary" type="button" onClick={() => void downloadExport("template")}>CSV Template</button>
+              <button className="btn-secondary" type="button" onClick={() => void downloadExport("review_sample")}>Human Review Sample</button>
+              <button className="btn-secondary" type="button" onClick={() => void downloadExport("active_learning")}>General Active Learning Sample</button>
+              <button className="btn-secondary" type="button" onClick={() => void downloadExport("active_learning_malicious")}>Malicious-Focused Sample</button>
+              <button className="btn-secondary" type="button" onClick={() => void downloadExport("active_learning_boundary")}>Round 4 Boundary Cases</button>
+              <button className="btn-secondary" type="button" onClick={() => void downloadExport("active_learning_threat_boundary")}>Round 5 Threat Boundary</button>
+              <button className="btn-secondary" type="button" onClick={() => void downloadExport("training_window_threat")}>Training-Window Threat Sample</button>
+              <button className="btn-secondary" type="button" onClick={() => void downloadExport("boundary_report")}>Boundary Report</button>
+              <button className="btn-secondary" type="button" onClick={() => void downloadExport("stage1_threat_recall_sample")}>Stage 1 Recall Sample</button>
+              <button className="btn-secondary" type="button" onClick={() => void downloadExport("benign_final_gap_sample")}>Benign Gap Sample</button>
+              <button className="btn-secondary" type="button" onClick={() => void downloadExport("final_small_gap_sample")}>Final Small Gap Sample</button>
+              <button className="btn-secondary" type="button" onClick={() => void downloadExport("soc_triage_final_report")}>SOC Triage Recommendation</button>
+              <button className="btn-secondary" type="button" onClick={() => void downloadExport("suspicious_recall_sample")}>Suspicious Recall Sample</button>
+              <button className="btn-secondary" type="button" onClick={() => void downloadExport("suspicious_recall_report")}>Suspicious Recall Report</button>
+              <button className="btn-secondary" type="button" onClick={() => void downloadExport("label_quality")}>Label Quality Issues</button>
+              <button className="btn-secondary" type="button" onClick={() => void downloadExport("temporal_coverage")}>Temporal Coverage Report</button>
+            </div>
+          </details>
           {importResult ? <div className="mt-3 rounded border border-success/30 bg-success/10 p-2 text-sm text-success">{importResult}</div> : null}
           {benchmarkImportResult ? <div className="mt-3 rounded border border-cyan/30 bg-cyan/10 p-2 text-sm text-cyan">{benchmarkImportResult}</div> : null}
           {downloadError ? <div className="mt-3 text-sm text-danger">{downloadError}</div> : null}
           {labelMutations.importCsv.isError ? <div className="mt-3"><ErrorBanner error={labelMutations.importCsv.error} /></div> : null}
           {labelMutations.importBenchmarkCsv.isError ? <div className="mt-3"><ErrorBanner error={labelMutations.importBenchmarkCsv.error} /></div> : null}
           {quickReviewMessage ? <div className="mt-3 rounded border border-cyan/30 bg-cyan/10 p-2 text-sm text-cyan">{quickReviewMessage}</div> : null}
-          <div className="mt-3 rounded border border-line bg-panel px-3 py-2 text-xs text-muted">
-            For active-learning CSVs, fill at least `human_review_decision` with one of benign, benign_unusual, suspicious, malicious, or needs_context.
-            Blank review rows are skipped safely. Files containing `benchmark_row_id` must use Benchmark Review Import and remain separate from database-backed labels.
-          </div>
+          <details className="mt-3 rounded border border-line bg-panel px-3 py-2 text-xs text-muted">
+            <summary className="cursor-pointer font-bold text-text">CSV import rules</summary>
+            <div className="mt-2">
+              Fill `human_review_decision` with benign, benign_unusual, suspicious, malicious, or needs_context. Blank rows are skipped safely and the import preserves assisted provenance.
+              Files containing `benchmark_row_id` must use Benchmark Review Import and remain separate from database-backed labels.
+            </div>
+          </details>
         </div>
         {reviewQueue.isLoading ? (
           <div className="text-sm text-muted">Loading review queue...</div>
@@ -1142,8 +1230,7 @@ export function MLGovernance() {
         <div className="mb-4 flex items-center justify-between gap-2">
           <div>
             <div className="text-sm font-extrabold uppercase tracking-wide text-cyan">Baseline And Drift Snapshot</div>
-            <h2 className="mt-1 text-xl font-black">Is current traffic changing?</h2>
-            <p className="mt-1 text-sm text-muted">Distribution snapshot for apps, actions, source IPs, ports, unknown apps, denials, and anomaly rate.</p>
+            <h2 className="mt-1 text-xl font-black">Traffic distribution</h2>
           </div>
           <Badge value={`${drift?.anomaly_rate ?? data?.anomaly_rate ?? 0}% anomaly`} />
         </div>

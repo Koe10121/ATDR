@@ -77,9 +77,6 @@ export function ExecutiveOverview() {
       <section className="hero-panel">
         <div className="text-sm font-extrabold uppercase tracking-wide text-danger">Overview</div>
         <h1 className="mt-2 text-3xl font-black">ATDR lab SOC status.</h1>
-        <p className="mt-2 max-w-4xl text-muted">
-          Ingest, detect, investigate, review AI signals, and record simulated analyst-approved response.
-        </p>
       </section>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -93,7 +90,6 @@ export function ExecutiveOverview() {
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="text-sm font-extrabold uppercase tracking-wide text-muted">System Health</div>
-            <p className="mt-1 text-sm text-muted">Live local health for the presentation run.</p>
           </div>
           <Badge value={health.data?.status === "ok" ? "ready" : "review"} />
         </div>
@@ -143,9 +139,6 @@ export function ExecutiveOverview() {
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="text-sm font-extrabold uppercase tracking-wide text-muted">Controlled Validation</div>
-            <p className="mt-1 text-sm text-muted">
-              Small-subnet scenario validation with replayed logs. Real device validation remains future work.
-            </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Badge value="Lab-Scale Validation" />
@@ -153,7 +146,9 @@ export function ExecutiveOverview() {
             <Badge value="Manual Approval Required" />
           </div>
         </div>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <details className="mt-3">
+          <summary className="cursor-pointer text-sm font-extrabold uppercase tracking-wide text-muted">Validation reports</summary>
+        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <div className="rounded-lg border border-line bg-panel2 p-3">
             <div className="text-xs font-bold uppercase tracking-wide text-muted">Validation Suite</div>
             <div className="mt-1 font-bold text-text">
@@ -303,6 +298,7 @@ export function ExecutiveOverview() {
             </div>
           </div>
         </div>
+        </details>
         <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-lg border border-cyan/30 bg-cyan/10 p-3 text-sm text-cyan">Decision Support Only</div>
           <div className="rounded-lg border border-amber/30 bg-amber/10 p-3 text-sm text-amber">Response Automation Disabled</div>
