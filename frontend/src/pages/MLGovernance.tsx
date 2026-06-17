@@ -424,7 +424,19 @@ export function MLGovernance() {
               </div>
               <div>
                 PostgreSQL lab:{" "}
-                <span className="font-bold text-text">{v30Readiness?.postgres_lab_validated ? "validated" : "pending"}</span>
+                <span className="font-bold text-text">
+                  {v30Readiness?.postgres_lab_validated ? "validated" : v30Readiness?.postgres_lab_status ?? "pending"}
+                </span>
+              </div>
+              <div>
+                SQLite local workflow:{" "}
+                <span className="font-bold text-text">{v30Readiness?.sqlite_local_workflow_valid ? "valid" : "not active"}</span>
+              </div>
+              <div>
+                Backup/restore:{" "}
+                <span className="font-bold text-text">
+                  {v30Readiness?.backup_restore_validated ? "validated" : v30Readiness?.backup_restore_status ?? "planned"}
+                </span>
               </div>
               <div>
                 Doctor: <span className="font-bold text-text">{v30Readiness?.production_doctor_status ?? "not run"}</span>

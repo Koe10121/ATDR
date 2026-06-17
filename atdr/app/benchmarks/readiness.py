@@ -1390,6 +1390,9 @@ def readiness_gate_v9_production_readiness_track(
     final_controlled_validation_passed: bool,
     real_source_pilot_validated: bool,
     postgres_lab_validated: bool,
+    no_hardware_source_pilot_validated: bool = False,
+    real_device_forwarding_validated: bool = False,
+    backup_restore_validated: bool = False,
     production_doctor_blockers: list[str] | None = None,
     production_doctor_warnings: list[str] | None = None,
     observability_plan_exists: bool = False,
@@ -1420,12 +1423,22 @@ def readiness_gate_v9_production_readiness_track(
             "target": "passed",
         },
         {
-            "name": "real_source_pilot_validation",
-            "passed": real_source_pilot_validated,
+            "name": "no_hardware_source_pilot_validation",
+            "passed": no_hardware_source_pilot_validated,
             "detail": (
-                "A controlled real-device/source pilot has been validated."
-                if real_source_pilot_validated
-                else "Real-device/source pilot validation is pending."
+                "No-hardware simulated source pilot has been validated."
+                if no_hardware_source_pilot_validated
+                else "No-hardware simulated source pilot is pending."
+            ),
+            "target": "validated as a bridge before real-device testing",
+        },
+        {
+            "name": "real_device_forwarding_validation",
+            "passed": real_device_forwarding_validated,
+            "detail": (
+                "A controlled real device has forwarded logs successfully."
+                if real_device_forwarding_validated
+                else "Real-device forwarding validation is pending."
             ),
             "target": "validated before deployment claims",
         },
@@ -1448,6 +1461,16 @@ def readiness_gate_v9_production_readiness_track(
                 else "; ".join(blockers[:5])
             ),
             "target": "zero blockers",
+        },
+        {
+            "name": "backup_restore_validation",
+            "passed": backup_restore_validated,
+            "detail": (
+                "Backup and restore drill has been validated."
+                if backup_restore_validated
+                else "Backup and restore drill is planned or pending."
+            ),
+            "target": "validated before shared lab handoff",
         },
         {
             "name": "observability_plan",
@@ -1493,14 +1516,23 @@ def readiness_gate_v9_production_readiness_track(
         },
     ]
     passed = sum(1 for item in checks if item["passed"])
-    safety_clear = all(item["passed"] for item in checks[7:])
-    planning_clear = all(item["passed"] for item in checks[4:7])
+    safety_clear = all(item["passed"] for item in checks[-4:])
+    planning_clear = all(item["passed"] for item in checks[6:9])
     if not safety_clear or blockers:
         decision = "not_production_ready"
-    elif final_controlled_validation_passed and real_source_pilot_validated and postgres_lab_validated and planning_clear:
-        decision = "production_readiness_candidate"
-    elif final_controlled_validation_passed and real_source_pilot_validated:
-        decision = "real_source_pilot_validated"
+    elif (
+        final_controlled_validation_passed
+        and no_hardware_source_pilot_validated
+        and real_device_forwarding_validated
+        and postgres_lab_validated
+        and backup_restore_validated
+        and planning_clear
+    ):
+        decision = "shared_lab_readiness_candidate"
+    elif final_controlled_validation_passed and no_hardware_source_pilot_validated and not real_device_forwarding_validated:
+        decision = "postgres_lab_blocked_by_environment"
+    elif final_controlled_validation_passed and no_hardware_source_pilot_validated:
+        decision = "no_hardware_source_pilot_validated"
     elif final_controlled_validation_passed and postgres_lab_validated:
         decision = "postgres_lab_validated"
     elif final_controlled_validation_passed:
@@ -1519,7 +1551,10 @@ def readiness_gate_v9_production_readiness_track(
         "real_firewall_blocking_enabled": False,
         "final_controlled_validation_passed": final_controlled_validation_passed,
         "real_source_pilot_validated": real_source_pilot_validated,
+        "no_hardware_source_pilot_validated": no_hardware_source_pilot_validated,
+        "real_device_forwarding_validated": real_device_forwarding_validated,
         "postgres_lab_validated": postgres_lab_validated,
+        "backup_restore_validated": backup_restore_validated,
         "passed": passed,
         "total": len(checks),
         "checks": checks,
@@ -1527,7 +1562,7 @@ def readiness_gate_v9_production_readiness_track(
         "warnings": warnings,
         "message": (
             "v3.0 is a production-readiness track gate. It can document pilot "
-            "readiness, real-source pilot validation, or PostgreSQL lab "
-            "validation, but it does not certify production deployment."
+            "readiness, no-hardware source validation, real-device validation, "
+            "or PostgreSQL lab validation, but it does not certify production deployment."
         ),
     }

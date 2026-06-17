@@ -100,6 +100,34 @@ This validates the source pipeline with safe synthetic logs only. It reports `re
 
 See `docs/V3_2_NO_HARDWARE_SOURCE_PILOT.md`.
 
+## v3.3 PostgreSQL and Shared Lab Readiness
+
+v3.3 prepares the optional PostgreSQL/shared-lab path while keeping SQLite as the normal local workflow.
+
+Run the read-only portability audit:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.database_portability_audit --pretty
+```
+
+Run the PostgreSQL validator:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_postgres_lab_validation --pretty
+```
+
+On SQLite, the validator should report `postgres_lab_validation_blocked_by_environment`. That is expected and non-destructive. On a Docker/PostgreSQL-capable host, use:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_postgres_lab_validation --include-smoke --include-sample-ingest --pretty
+```
+
+See:
+
+- `docs/V3_3_POSTGRESQL_SHARED_LAB_READINESS.md`
+- `docs/V3_3_BACKUP_RESTORE_AND_RETENTION_PLAN.md`
+- `docs/V3_3_DOCKER_POSTGRES_LAB_RUNBOOK.md`
+
 ## Production Claim Policy
 
 Do not claim production readiness until real-device forwarding, PostgreSQL/shared deployment, external IAM, TLS/secrets, backup/retention, monitoring, security review, and response connector governance are validated.

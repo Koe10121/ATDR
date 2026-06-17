@@ -923,6 +923,11 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
             detection_runs: 1
           },
           postgres_lab_validated: false,
+          postgres_lab_status: "blocked_by_environment",
+          database_kind: "sqlite",
+          sqlite_local_workflow_valid: true,
+          backup_restore_validated: false,
+          backup_restore_status: "planned",
           production_doctor_status: "warnings",
           production_doctor_blockers: [],
           production_doctor_warnings: ["Real-device pilot pending."],
@@ -930,6 +935,8 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
             gap_assessment: true,
             real_device_pilot: true,
             postgres_lab: true,
+            postgres_shared_lab_readiness: true,
+            backup_restore_retention: true,
             observability: true,
             ml_monitoring: true,
             track: true
@@ -1433,6 +1440,10 @@ test("dashboard dropdowns close and do not block follow-up clicks", async ({ pag
   await expect(page.getByText("real_source_pilot_ready")).toBeVisible();
   await expect(page.getByText("Simulated source:")).toBeVisible();
   await expect(page.getByText("Real device forwarding:")).toBeVisible();
+  await expect(page.getByText("PostgreSQL lab:")).toBeVisible();
+  await expect(page.getByText("blocked_by_environment")).toBeVisible();
+  await expect(page.getByText("SQLite local workflow:")).toBeVisible();
+  await expect(page.getByText("Backup/restore:")).toBeVisible();
   await expect(page.getByText("automation off, real blocking off")).toBeVisible();
   await expect(page.getByRole("button", { name: "General Active Learning Sample" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Malicious-Focused Sample" })).toBeVisible();

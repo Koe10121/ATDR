@@ -188,6 +188,18 @@ Validate optional PostgreSQL lab deployment on a PostgreSQL/Docker-capable host:
 .\.venv\Scripts\python.exe -m atdr.scripts.run_postgres_lab_validation --pretty
 ```
 
+Audit database portability from any host:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.database_portability_audit --pretty
+```
+
+On a configured PostgreSQL host, include optional safe sample and smoke validation:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_postgres_lab_validation --include-smoke --include-sample-ingest --pretty
+```
+
 Run read-only real-source ML monitoring:
 
 ```powershell
@@ -210,6 +222,9 @@ Use these docs:
 - `docs/V3_1_PERFORMANCE_STABILIZATION_PLAN.md`
 - `docs/V3_1_POSTGRESQL_PERFORMANCE_VALIDATION_PLAN.md`
 - `docs/V3_2_NO_HARDWARE_SOURCE_PILOT.md`
+- `docs/V3_3_POSTGRESQL_SHARED_LAB_READINESS.md`
+- `docs/V3_3_BACKUP_RESTORE_AND_RETENTION_PLAN.md`
+- `docs/V3_3_DOCKER_POSTGRES_LAB_RUNBOOK.md`
 
 Response automation, real firewall blocking, production promotion, and model activation remain disabled.
 

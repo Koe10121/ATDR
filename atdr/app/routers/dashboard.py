@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from atdr.app.benchmarks.readiness import readiness_gate_v9_production_readiness_track
-from atdr.app.core.config import PROJECT_ROOT
+from atdr.app.core.config import PROJECT_ROOT, get_settings
 from atdr.app.core.security import require_analyst_or_admin
 from atdr.app.db.database import get_db
 from atdr.app.db.models import DetectionRun, LogSource, NormalizedLog, RawLog, User
@@ -991,11 +991,16 @@ def _v30_production_readiness_summary(db: Session) -> dict[str, Any]:
         "gap_assessment": PROJECT_ROOT / "docs" / "V3_0_PRODUCTION_READINESS_GAP_ASSESSMENT.md",
         "real_device_pilot": PROJECT_ROOT / "docs" / "V3_0_REAL_DEVICE_SYSLOG_PILOT_PLAN.md",
         "postgres_lab": PROJECT_ROOT / "docs" / "V3_0_POSTGRESQL_LAB_DEPLOYMENT_VALIDATION.md",
+        "postgres_shared_lab_readiness": PROJECT_ROOT / "docs" / "V3_3_POSTGRESQL_SHARED_LAB_READINESS.md",
+        "backup_restore_retention": PROJECT_ROOT / "docs" / "V3_3_BACKUP_RESTORE_AND_RETENTION_PLAN.md",
         "observability": PROJECT_ROOT / "docs" / "V3_0_OBSERVABILITY_AND_OPERATIONS_PLAN.md",
         "ml_monitoring": PROJECT_ROOT / "docs" / "V3_0_REAL_SOURCE_ML_MONITORING_PLAN.md",
         "track": PROJECT_ROOT / "docs" / "V3_0_PRODUCTION_READINESS_TRACK.md",
         "v32_no_hardware": PROJECT_ROOT / "docs" / "V3_2_NO_HARDWARE_SOURCE_PILOT.md",
     }
+    settings = get_settings()
+    database_kind = "postgresql" if settings.database_url.startswith("postgresql") else "sqlite" if settings.database_url.startswith("sqlite") else "other"
+    postgres_lab_status = "pending" if database_kind == "postgresql" else "blocked_by_environment"
     doctor = run_production_readiness_doctor()
     v32_status = _v32_simulated_source_status(db)
     v20 = _latest_v20_ai_summary(BENCHMARK_REPORT_DIR)
@@ -1003,6 +1008,9 @@ def _v30_production_readiness_summary(db: Session) -> dict[str, Any]:
         final_controlled_validation_passed=bool(v20.get("final_controlled_validation_passed")),
         real_source_pilot_validated=False,
         postgres_lab_validated=False,
+        no_hardware_source_pilot_validated=bool(v32_status["simulated_source_validated"]),
+        real_device_forwarding_validated=False,
+        backup_restore_validated=False,
         production_doctor_blockers=list(doctor.get("blockers") or []),
         production_doctor_warnings=list(doctor.get("warnings") or []),
         observability_plan_exists=docs["observability"].exists(),
@@ -1028,6 +1036,11 @@ def _v30_production_readiness_summary(db: Session) -> dict[str, Any]:
         "simulated_source_validated": v32_status["simulated_source_validated"],
         "simulated_source": v32_status,
         "postgres_lab_validated": False,
+        "postgres_lab_status": postgres_lab_status,
+        "database_kind": database_kind,
+        "sqlite_local_workflow_valid": database_kind == "sqlite",
+        "backup_restore_validated": False,
+        "backup_restore_status": "planned",
         "production_doctor_status": doctor["status"],
         "production_doctor_blockers": doctor["blockers"],
         "production_doctor_warnings": doctor["warnings"],

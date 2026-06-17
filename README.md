@@ -42,6 +42,9 @@ Key docs:
 - `docs/V3_1_PERFORMANCE_STABILIZATION_PLAN.md`
 - `docs/V3_1_POSTGRESQL_PERFORMANCE_VALIDATION_PLAN.md`
 - `docs/V3_2_NO_HARDWARE_SOURCE_PILOT.md`
+- `docs/V3_3_POSTGRESQL_SHARED_LAB_READINESS.md`
+- `docs/V3_3_BACKUP_RESTORE_AND_RETENTION_PLAN.md`
+- `docs/V3_3_DOCKER_POSTGRES_LAB_RUNBOOK.md`
 
 Useful commands:
 
@@ -49,6 +52,7 @@ Useful commands:
 .\.venv\Scripts\python.exe -m atdr.scripts.production_readiness_doctor --pretty
 .\.venv\Scripts\python.exe -m atdr.scripts.run_v30_real_source_pilot_validation --pretty
 .\.venv\Scripts\python.exe -m atdr.scripts.run_postgres_lab_validation --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.database_portability_audit --pretty
 .\.venv\Scripts\python.exe -m atdr.scripts.run_real_source_ml_monitoring --pretty
 .\.venv\Scripts\python.exe -m atdr.scripts.performance_smoke --pretty
 .\.venv\Scripts\python.exe -m atdr.scripts.run_v32_no_hardware_source_pilot --pretty

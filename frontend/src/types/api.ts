@@ -785,6 +785,11 @@ export interface DashboardV30ProductionReadinessSummary {
     message?: string;
   };
   postgres_lab_validated?: boolean;
+  postgres_lab_status?: string;
+  database_kind?: string;
+  sqlite_local_workflow_valid?: boolean;
+  backup_restore_validated?: boolean;
+  backup_restore_status?: string;
   production_doctor_status?: string;
   production_doctor_blockers?: string[];
   production_doctor_warnings?: string[];

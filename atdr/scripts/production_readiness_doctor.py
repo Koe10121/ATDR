@@ -120,7 +120,14 @@ def run_production_readiness_doctor(settings: Settings | None = None) -> dict[st
             not is_production or settings.database_url.startswith("postgresql"),
             "blocker",
             "Production profile uses PostgreSQL." if settings.database_url.startswith("postgresql") else "SQLite is configured.",
-            "Use PostgreSQL for production-like lab validation; keep SQLite for local development.",
+            "SQLite is fine for local development. Validate PostgreSQL before shared-lab or production-like claims.",
+        ),
+        _check(
+            "postgres_lab_validation_required",
+            not is_production,
+            "warning",
+            "PostgreSQL shared-lab validation is tracked separately.",
+            "Run atdr.scripts.run_postgres_lab_validation on a Docker/PostgreSQL-capable host before shared-lab claims.",
         ),
         _check(
             "alembic_required_for_production",
@@ -173,10 +180,10 @@ def run_production_readiness_doctor(settings: Settings | None = None) -> dict[st
         ),
         _check(
             "backup_retention_documented",
-            not is_production,
+            (PROJECT_ROOT / "docs" / "V3_3_BACKUP_RESTORE_AND_RETENTION_PLAN.md").exists() and not is_production,
             "warning",
-            "Backup/retention automation is not verified by this doctor.",
-            "Validate database backup, retention, restore, and audit retention before production-like deployment.",
+            "Backup/retention plan is documented, but restore is not validated by this doctor.",
+            "Validate database backup, restore, retention, and audit retention before production-like deployment.",
         ),
         _check(
             "repo_hygiene",
@@ -236,8 +243,10 @@ def run_production_readiness_doctor(settings: Settings | None = None) -> dict[st
         "recommended_next_steps": [
             "Complete controlled real-device syslog pilot.",
             "Validate PostgreSQL lab deployment on a Docker/PostgreSQL-capable host.",
+            "Run database_portability_audit before changing database backends.",
             "Run performance_smoke after large imports and compare cold/uncached and cached Overview timings.",
             "Replace demo secrets before shared lab use.",
+            "Validate backup/restore and retention using dry-run-first helpers before shared lab handoff.",
             "Add TLS/reverse proxy, backup/restore, retention, and monitoring validation before production-like exposure.",
         ],
     }
