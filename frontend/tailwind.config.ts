@@ -5,23 +5,23 @@ export default {
   theme: {
     extend: {
       colors: {
-        shell: "#f4f7fb",
+        shell: "#eef3f8",
         panel: "#ffffff",
         panel2: "#f8fafc",
-        line: "#d6dee8",
+        line: "#d8e0ea",
         muted: "#64748b",
         text: "#172033",
-        cyan: "#0ea5b7",
+        cyan: "#2563eb",
         teal: "#0f766e",
         amber: "#d97706",
-        danger: "#dc2626",
+        danger: "#8c1515",
         success: "#16a34a"
       },
       fontFamily: {
         sans: ["Inter", "Segoe UI", "Arial", "sans-serif"]
       },
       boxShadow: {
-        panel: "0 14px 36px rgba(15, 23, 42, 0.08)"
+        panel: "0 10px 28px rgba(15, 23, 42, 0.07)"
       }
     }
   },

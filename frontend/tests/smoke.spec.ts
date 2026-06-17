@@ -1252,6 +1252,7 @@ test("overview system health panel and ML governance wording render", async ({ p
 
   await page.goto("/ml");
   await expect(page.getByText("Analyst Review Eligible.")).toBeVisible();
+  await page.getByText("Technical validation details").click();
   await expect(page.getByText(/1528 reviewed \| minimum gaps 44/)).toBeVisible();
   await expect(page.getByText("Recommended AI Mode")).toBeVisible();
   await expect(page.getByText("SOC triage decision support")).toBeVisible();

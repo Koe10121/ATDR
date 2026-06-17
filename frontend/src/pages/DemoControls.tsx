@@ -71,9 +71,9 @@ export function DemoControls() {
   return (
     <div className="space-y-5">
       <section className="hero-panel">
-            <div className="text-sm font-extrabold uppercase tracking-wide text-cyan">Demo Controls</div>
-            <h1 className="mt-2 text-3xl font-black">Prepare safe demo data and evidence.</h1>
-            <p className="mt-2 text-muted">Admin-only controls. Response remains simulated and all detailed outputs are folded away by default.</p>
+        <div className="text-sm font-extrabold uppercase tracking-wide text-danger">Demo Controls</div>
+        <h1 className="mt-2 text-3xl font-black">Prepare safe demo data and evidence.</h1>
+        <p className="mt-2 text-muted">Admin-only workflow with technical outputs collapsed.</p>
       </section>
 
       <div className="grid gap-4 md:grid-cols-4">

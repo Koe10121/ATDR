@@ -338,7 +338,7 @@ export function MLGovernance() {
             <MetricCard label="Registry Entries" value={registry?.models.length ?? 0} detail="Recent train/activate/rollback runs" tone="amber" />
             <MetricCard label="Auto Response" value={String(registry?.response_automation_allowed ?? false)} detail="Must remain disabled" tone="danger" />
           </div>
-          <details className="mt-3">
+          <details className="presentation-technical mt-3">
             <summary className="cursor-pointer text-sm font-bold text-text">View candidate model registry</summary>
             <div className="mt-3 overflow-auto">
               <table className="soc-table soc-table-compact">
@@ -456,7 +456,12 @@ export function MLGovernance() {
               </details>
             ) : null}
           </div>
-          <div className="mt-3 rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
+          <details className="presentation-technical mt-3">
+            <summary className="cursor-pointer rounded border border-line bg-panel px-3 py-2 text-sm font-bold text-text">
+              Technical validation details
+            </summary>
+            <div className="mt-3 space-y-2">
+          <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
             Benchmark:{" "}
             <span className="font-bold text-text">
               {independentAi?.available
@@ -486,7 +491,7 @@ export function MLGovernance() {
                 : "not generated"}
             </span>
           </div>
-          <div className="mt-2 rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
+          <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
             Training data:{" "}
             <span className="font-bold text-text">
               {v13Ai?.available
@@ -496,7 +501,7 @@ export function MLGovernance() {
                 : "v1.3 audit not generated"}
             </span>
           </div>
-          <div className="mt-2 grid gap-2 md:grid-cols-2">
+          <div className="grid gap-2 md:grid-cols-2">
             <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
               <span className="font-bold text-text">Main blocker:</span>{" "}
               {v20Ai?.available
@@ -691,6 +696,8 @@ export function MLGovernance() {
               </div>
             </details>
           ) : null}
+            </div>
+          </details>
         </div>
         <div className="mt-4 grid gap-4 md:grid-cols-3">
           <MetricCard label="Reviewed Labels" value={supervisedData?.reviewed_label_count ?? 0} detail="Human-reviewed/manual rows" tone="teal" />

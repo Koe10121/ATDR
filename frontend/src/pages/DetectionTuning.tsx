@@ -12,9 +12,9 @@ export function DetectionTuning() {
   return (
     <div className="space-y-5">
       <section className="hero-panel">
-        <div className="text-sm font-extrabold uppercase tracking-wide text-cyan">Detection Tuning</div>
+        <div className="text-sm font-extrabold uppercase tracking-wide text-danger">Detection Tuning</div>
         <h1 className="mt-2 text-3xl font-black">Convert SOC feedback into lower-noise detections.</h1>
-        <p className="mt-2 text-muted">Alert pressure, false-positive learning, suppression candidates, ML baseline health, and ownership gaps.</p>
+        <p className="mt-2 text-muted">Operational tuning signals for alert quality.</p>
       </section>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -66,7 +66,7 @@ export function DetectionTuning() {
             {data.false_positive_learning.suppression_recommendations.slice(0, 3).map((item, index) => (
               <div key={index} className="rounded-lg border border-amber/30 bg-amber/10 p-4">
                 <div className="text-sm font-bold text-amber">Candidate suppression</div>
-                <pre className="mt-2 whitespace-pre-wrap text-xs text-muted">{JSON.stringify(item, null, 2)}</pre>
+                <pre className="presentation-technical mt-2 whitespace-pre-wrap text-xs text-muted">{JSON.stringify(item, null, 2)}</pre>
               </div>
             ))}
           </div>

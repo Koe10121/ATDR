@@ -62,6 +62,10 @@ These commands are non-destructive. They do not enable automatic response, real 
 
 Final presentation material:
 
+- `docs/PROGRESS_PRESENTATION_STATUS.md`
+- `docs/PROGRESS_PRESENTATION_SCRIPT.md`
+- `docs/PROGRESS_PRESENTATION_DEMO_FLOW.md`
+- `docs/PROGRESS_PRESENTATION_REPO_TALKING_POINTS.md`
 - `docs/FINAL_REPORT_OUTLINE.md`
 - `docs/FINAL_REPORT_DRAFT.md`
 - `docs/FINAL_PRESENTATION_SLIDE_CONTENT.md`
@@ -166,6 +170,13 @@ Open:
 
 ```text
 http://127.0.0.1:5173
+```
+
+Optional projector cleanup mode:
+
+```powershell
+$env:VITE_ATDR_PRESENTATION_MODE="true"
+npm.cmd run dev
 ```
 
 FastAPI must be running at:

@@ -11,7 +11,7 @@
     margin: 0;
     min-width: 320px;
     min-height: 100vh;
-    background: #f4f7fb;
+    background: #eef3f8;
     font-family: Inter, "Segoe UI", Arial, sans-serif;
     overflow-x: hidden;
   }
@@ -28,15 +28,12 @@
 
   .hero-panel {
     @apply relative min-w-0 overflow-hidden rounded-lg border border-line bg-panel p-6 shadow-panel;
-    background:
-      linear-gradient(135deg, rgba(14, 165, 183, 0.12), rgba(217, 119, 6, 0.08) 52%, rgba(255, 255, 255, 0.96)),
-      #ffffff;
   }
 
   .hero-panel::before {
     content: "";
-    @apply absolute left-0 right-0 top-0 h-0.5;
-    background: linear-gradient(90deg, #22d3ee, #f59e0b, #ef4444);
+    @apply absolute left-0 right-0 top-0 h-1;
+    background: linear-gradient(90deg, #8c1515, #0f766e, #2563eb);
   }
 
   .input {
@@ -44,7 +41,7 @@
   }
 
   .btn-primary {
-    @apply rounded-lg border border-cyan/40 bg-cyan px-4 py-2 text-sm font-extrabold text-slate-950 transition hover:bg-cyan/90 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply rounded-lg border border-danger/30 bg-danger px-4 py-2 text-sm font-extrabold text-white transition hover:bg-danger/90 disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .btn-secondary {
@@ -72,7 +69,7 @@
   }
 
   .soc-table tr:hover td {
-    @apply bg-cyan/5 text-text;
+    @apply bg-danger/5 text-text;
   }
 
   .action-result-card {
@@ -100,5 +97,9 @@
     overflow-wrap: anywhere;
     white-space: pre-wrap;
     word-break: break-word;
+  }
+
+  .presentation-mode .presentation-technical {
+    display: none;
   }
 }

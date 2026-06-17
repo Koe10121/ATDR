@@ -177,7 +177,7 @@ export function LogExplorer() {
   return (
     <div className="space-y-5">
       <section className="hero-panel">
-        <div className="text-sm font-extrabold uppercase tracking-wide text-cyan">Log Explorer</div>
+        <div className="text-sm font-extrabold uppercase tracking-wide text-danger">Investigation</div>
         <h1 className="mt-2 text-3xl font-black">Search raw evidence and normalized firewall events.</h1>
         <p className="mt-2 text-muted">Every row remains tied to its original Palo Alto syslog line for investigation evidence.</p>
       </section>
@@ -384,7 +384,7 @@ export function LogExplorer() {
               <div className="mb-2 text-sm font-extrabold uppercase tracking-wide text-muted">Raw Evidence</div>
               <pre className="max-h-56 overflow-auto rounded-lg border border-line bg-shell p-3 text-xs text-muted">{selected.raw_line ?? "Raw line unavailable."}</pre>
             </div>
-            <details className="rounded-lg border border-line bg-panel2 p-3">
+            <details className="presentation-technical rounded-lg border border-line bg-panel2 p-3">
               <summary className="cursor-pointer text-sm font-bold">Parsed Payload</summary>
               <pre className="mt-3 max-h-72 overflow-auto text-xs text-muted">{JSON.stringify(selected.parsed_json, null, 2)}</pre>
             </details>

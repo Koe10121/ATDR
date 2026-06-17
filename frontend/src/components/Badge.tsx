@@ -22,7 +22,12 @@ const statusClass: Record<string, string> = {
   local: "border-slate-400/30 bg-slate-400/10 text-slate-600",
   external: "border-cyan/30 bg-cyan/10 text-cyan",
   "Local login only": "border-slate-400/30 bg-slate-400/10 text-slate-600",
-  "OIDC Ready": "border-cyan/30 bg-cyan/10 text-cyan"
+  "OIDC Ready": "border-cyan/30 bg-cyan/10 text-cyan",
+  "Decision Support Only": "border-cyan/30 bg-cyan/10 text-cyan",
+  "Response Automation Disabled": "border-amber/30 bg-amber/10 text-amber",
+  "Not Production Promoted": "border-slate-400/30 bg-slate-400/10 text-slate-600",
+  "Simulation Mode": "border-success/30 bg-success/10 text-success",
+  "Manual Approval Required": "border-amber/30 bg-amber/10 text-amber"
 };
 
 export function Badge({ value, kind = "status" }: { value?: string | null; kind?: "severity" | "status" }) {

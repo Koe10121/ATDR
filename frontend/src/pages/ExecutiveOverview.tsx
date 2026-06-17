@@ -75,10 +75,10 @@ export function ExecutiveOverview() {
   return (
     <div className="space-y-5">
       <section className="hero-panel">
-        <div className="text-sm font-extrabold uppercase tracking-wide text-cyan">Executive Overview</div>
-        <h1 className="mt-2 text-3xl font-black">Operational posture for MFU firewall monitoring.</h1>
+        <div className="text-sm font-extrabold uppercase tracking-wide text-danger">Overview</div>
+        <h1 className="mt-2 text-3xl font-black">ATDR lab SOC status.</h1>
         <p className="mt-2 max-w-4xl text-muted">
-          Rule-first detection, ML-assisted scoring, evidence retention, simulated response, and audit trails in one SOC triage console.
+          Ingest, detect, investigate, review AI signals, and record simulated analyst-approved response.
         </p>
       </section>
 
@@ -93,7 +93,7 @@ export function ExecutiveOverview() {
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="text-sm font-extrabold uppercase tracking-wide text-muted">System Health</div>
-            <p className="mt-1 text-sm text-muted">Compact readiness view for local lab acceptance checks.</p>
+            <p className="mt-1 text-sm text-muted">Live local health for the presentation run.</p>
           </div>
           <Badge value={health.data?.status === "ok" ? "ready" : "review"} />
         </div>
@@ -118,7 +118,7 @@ export function ExecutiveOverview() {
           Config: local lab profile. Replace demo secrets before shared lab use.
         </div>
         <details className="mt-3">
-          <summary className="cursor-pointer text-sm font-extrabold uppercase tracking-wide text-muted">Ingestion Quality Snapshot</summary>
+          <summary className="cursor-pointer text-sm font-extrabold uppercase tracking-wide text-muted">Ingestion Quality Details</summary>
           <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             {[
               ["Raw Imports", ingestion?.import_count ?? data?.total_raw_logs ?? "-"],

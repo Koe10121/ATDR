@@ -188,7 +188,7 @@ export function AlertsTriage() {
   return (
     <div className="space-y-5">
       <section className="hero-panel">
-        <div className="text-sm font-extrabold uppercase tracking-wide text-cyan">Alert Workbench</div>
+        <div className="text-sm font-extrabold uppercase tracking-wide text-danger">Alerts</div>
         <h1 className="mt-2 text-3xl font-black">Prioritize, investigate, contain, and document alerts.</h1>
         <p className="mt-2 text-muted">Rule evidence stays primary. ML signals are assistive and response actions remain simulated.</p>
       </section>

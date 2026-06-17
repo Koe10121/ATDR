@@ -31,9 +31,9 @@ export function ResponseCenter() {
   return (
     <div className="space-y-5">
       <section className="hero-panel">
-        <div className="text-sm font-extrabold uppercase tracking-wide text-cyan">Response Center</div>
+        <div className="text-sm font-extrabold uppercase tracking-wide text-danger">Response & Audit</div>
         <h1 className="mt-2 text-3xl font-black">Containment actions stay simulated by default.</h1>
-        <p className="mt-2 text-muted">This console records simulated response actions after analyst approval, blocked IP state, and audit evidence without changing a real firewall.</p>
+        <p className="mt-2 text-muted">Record analyst-approved simulated actions and audit evidence.</p>
       </section>
 
       <div className="grid gap-4 md:grid-cols-3">

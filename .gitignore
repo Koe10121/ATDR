@@ -3,11 +3,16 @@ __pycache__/
 .pytest_cache/
 .pytest_tmp/
 .ruff_cache/
+.idea/
+.DS_Store
 .venv/
 venv/
 .uv-cache/
 .uv-python/
 .env
+**/.env.local
+**/.env.preprod
+**/.env.prod
 .tools/
 .tmp/
 *.log
@@ -26,6 +31,7 @@ atdr/data/processed/*
 !**/.gitkeep
 .streamlit/
 frontend/node_modules/
+**/node_modules/
 frontend/dist/
 frontend/playwright-report/
 frontend/test-results/

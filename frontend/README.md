@@ -6,7 +6,7 @@ Streamlit remains in the repository only as legacy/demo continuity while React i
 
 ## Status
 
-The React dashboard is verified for the v0.3 lab-ready release candidate. It includes role-aware navigation, admin route protection, source-aware investigation, AI Governance, simulated response controls, audit visibility, and Playwright smoke/regression coverage.
+The React dashboard is the presentation-ready SOC console for ATDR. It includes role-aware navigation, admin route protection, source-aware investigation, AI Governance, simulated response controls, audit visibility, and Playwright smoke/regression coverage.
 
 ATDR remains a lab prototype, not certified production software. Response actions are simulated and analyst-approved only.
 
@@ -42,6 +42,15 @@ FastAPI must be running at `http://127.0.0.1:8000`. The backend CORS demo settin
 http://127.0.0.1:5173
 http://localhost:5173
 ```
+
+Optional projector cleanup mode:
+
+```powershell
+$env:VITE_ATDR_PRESENTATION_MODE="true"
+npm.cmd run dev
+```
+
+Presentation mode keeps key metrics and safety badges visible while hiding selected technical/debug-heavy details.
 
 ## Verification
 

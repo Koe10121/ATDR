@@ -270,16 +270,16 @@ test("dashboard supports the end-to-end validation workflow with safe fixtures",
   await expect(page.getByText(source.name).first()).toBeVisible();
 
   await page.goto("/alerts?alert=1");
-  await expect(page.getByText("Alert Workbench")).toBeVisible();
+  await expect(page.getByText("Prioritize, investigate, contain, and document alerts.")).toBeVisible();
   await expect(page.getByText("Why flagged?")).toBeVisible();
   await expect(page.getByText(/Possible port scanning behavior/i).first()).toBeVisible();
 
   await page.goto("/logs");
-  await expect(page.getByText("Log Explorer")).toBeVisible();
+  await expect(page.getByText("Search raw evidence and normalized firewall events.")).toBeVisible();
   await expect(page.getByText("Advanced filters and sorting")).toBeVisible();
 
   await page.goto("/response");
-  await expect(page.getByText("Response Center").first()).toBeVisible();
+  await expect(page.getByText("Containment actions stay simulated by default.")).toBeVisible();
   await expect(page.getByText("Simulated Response Approval")).toBeVisible();
   await expect(page.getByText(/justification note is required/i)).toBeVisible();
 
