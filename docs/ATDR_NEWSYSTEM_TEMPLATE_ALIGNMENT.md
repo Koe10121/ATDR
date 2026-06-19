@@ -10,6 +10,7 @@ This document explains how ATDR follows the useful parts of the university `NewS
 | --- | --- |
 | NewSystem template setup and required permission paths | `NewSystem/TEMPLATE.md` |
 | NewSystem manifest and environment/permission standards | `NewSystem/template.manifest.json` |
+| NewSystem tasklist/progress-board standard | `NewSystem/docs/tasks/README.md`, `NewSystem/docs/tasks/tasklist-progress.md`, `NewSystem/scripts/render-tasklist-progress-html.js`, `NewSystem/scripts/check-tasklist-progress-standard.js` |
 | NewSystem IAM PRD concepts | `NewSystem/backend-node/docs/IAM_PRD.md` |
 | NewSystem IAM architecture concepts | `NewSystem/backend-node/docs/IAM_SYSTEM_OVERVIEW.md` |
 | NewSystem security review pattern | `NewSystem/backend-node/docs/OWASP_TOP10_REPORT.md` |
@@ -32,6 +33,8 @@ This document explains how ATDR follows the useful parts of the university `NewS
 | Environment discipline | `.env.example`, `.env.lab.example`, `.env.production.example` | Implemented. |
 | PRD update gate | `docs/prd/PRD-ATDR.md` and `docs/ATDR_AI_WORKFLOW.md` | Implemented. |
 | T1-T20 change handoff | `docs/templates/ATDR_T1_T20_CHANGE_DOCUMENT.md` | Implemented. |
+| Tasklist/progress board | `docs/tasks/tasklist-progress.md`, `docs/tasks/tasklist-progress.html`, and progress scripts under `scripts/` | Implemented as ATDR process evidence. |
+| Docs index | `docs/AI-DOCS-INDEX.md` | Implemented to separate active ATDR docs from reference-only NewSystem docs. |
 | Release checks | `atdr/scripts/verify_release.py` plus backend/frontend/smoke checks | Implemented. |
 | Security review discipline | `docs/security/ATDR_OWASP_LAB_SECURITY_REVIEW.md` | Added as lab security review baseline. |
 
@@ -68,6 +71,7 @@ ATDR should follow the university template at the process and control level:
 
 - source evidence before changes
 - PRD and traceability updates
+- tasklist/progress-board updates
 - permission matrix
 - auditability
 - testing gate
@@ -76,4 +80,3 @@ ATDR should follow the university template at the process and control level:
 - clear limitations
 
 ATDR should not be converted into NewSystem's Node/Vue/Mongo/external-IAM architecture unless a future approved requirement explicitly asks for that migration.
-

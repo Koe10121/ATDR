@@ -19,6 +19,7 @@ ATDR is a defensive FastAPI + React AI-assisted log-based threat detection and r
 | IAM/RBAC adaptation and permission matrix | `docs/security/ATDR_IAM_RBAC_MATRIX.md` |
 | External school-email IAM groundwork | `docs/security/ATDR_EXTERNAL_IAM_PLAN.md` |
 | NewSystem template alignment, ATDR manifest, and permission path registry | `docs/ATDR_NEWSYSTEM_TEMPLATE_ALIGNMENT.md`, `docs/ATDR_TEMPLATE_MANIFEST.json`, `docs/security/ATDR_PERMISSION_PATHS.md` |
+| ATDR docs index and tasklist/progress-board workflow | `docs/AI-DOCS-INDEX.md`, `docs/tasks/README.md`, `docs/tasks/tasklist-progress.md`, `docs/tasks/tasklist-progress.html` |
 | Requirement traceability | `docs/ATDR_REQUIREMENT_TRACEABILITY.md` |
 | Test inventory | `atdr/tests/*`, `frontend/tests` where present |
 | Migration truth | `migrations/versions/*`, `alembic.ini` |
@@ -36,6 +37,7 @@ ATDR is a defensive FastAPI + React AI-assisted log-based threat detection and r
 6. Do not enable real firewall blocking or automatic response.
 7. Do not claim production readiness. Use "lab-ready prototype" or "controlled lab-ready release candidate" where accurate.
 8. Do not commit real logs, databases, model artifacts, private env files, review exports, demo exports, or generated reports.
+9. For non-trivial work, update `docs/tasks/tasklist-progress.md`, regenerate `docs/tasks/tasklist-progress.html`, and create or update a T1-T20 change record when appropriate.
 
 ## ATDR Source Truth Order
 
@@ -71,7 +73,11 @@ Use this order when a request, prompt, or older document conflicts:
    - Run full release verification for code changes or risky workflow changes.
 6. Documentation:
    - Update PRD/docs when behavior, API, data model, UI, safety constraints, tests, or release workflow changes.
-7. Handoff:
+7. Tasklist/progress board:
+   - Update `docs/tasks/tasklist-progress.md` when progress, status, verification, blockers, or readiness changes.
+   - Regenerate `docs/tasks/tasklist-progress.html` with `node scripts/render-tasklist-progress-html.js .`.
+   - Validate with `node scripts/check-tasklist-progress-standard.js .`.
+8. Handoff:
    - Complete T15-T20 with files changed, tests run, risks, rollback, and exact next command.
 
 ## Testing Gate
@@ -95,8 +101,15 @@ cd ..
 If only documentation changes are made, at minimum:
 
 ```powershell
+node -c scripts/render-tasklist-progress-html.js
+node -c scripts/check-tasklist-progress-standard.js
+node scripts/render-tasklist-progress-html.js .
+node scripts/check-tasklist-progress-standard.js .
 Test-Path docs\ATDR_AI_WORKFLOW.md
+Test-Path docs\AI-DOCS-INDEX.md
 Test-Path docs\prd\PRD-ATDR.md
+Test-Path docs\tasks\tasklist-progress.md
+Test-Path docs\tasks\tasklist-progress.html
 Test-Path docs\agents\ATDR_AGENT_OPERATING_MODEL.md
 Test-Path docs\templates\ATDR_T1_T20_CHANGE_DOCUMENT.md
 Test-Path docs\ATDR_UNIVERSITY_COMPLIANCE_CHECKLIST.md
@@ -163,6 +176,7 @@ The change document can live under `docs/changes/` or be included in the final h
 - T8 acceptance criteria.
 - T13 security/response/AI safety decision.
 - T14 test plan.
+- T15 tasklist progress status when applicable.
 - T16 tests run and evidence.
 - T17 PRD/docs update decision.
 - T18 risks, blockers, assumptions, and decisions.
@@ -188,6 +202,7 @@ A change is done only when:
 - Implementation is scoped and preserves existing workflows.
 - Tests or checks were run, or the reason they were not run is stated.
 - PRD/docs update decision is recorded.
+- `docs/tasks/tasklist-progress.md` and `docs/tasks/tasklist-progress.html` are updated when the work changes progress, readiness, blockers, or release status.
 - Safety constraints are unchanged unless explicitly approved.
 - Repo hygiene is preserved.
 - Final handoff names files changed, verification results, remaining risks, and exact next command.

@@ -9,6 +9,8 @@
 | Main workflow doc | `docs/ATDR_AI_WORKFLOW.md` |
 | Agent model | `docs/agents/ATDR_AGENT_OPERATING_MODEL.md` |
 | Change template | `docs/templates/ATDR_T1_T20_CHANGE_DOCUMENT.md` |
+| Docs index | `docs/AI-DOCS-INDEX.md` |
+| Progress board | `docs/tasks/tasklist-progress.md`, `docs/tasks/tasklist-progress.html` |
 | Current runbook | `docs/LAB_RUNBOOK.md` |
 
 ## Source Evidence
@@ -30,6 +32,7 @@
 | IAM/RBAC permission matrix | `docs/security/ATDR_IAM_RBAC_MATRIX.md` |
 | External IAM groundwork | `docs/security/ATDR_EXTERNAL_IAM_PLAN.md` |
 | NewSystem template alignment and permission path registry | `docs/ATDR_NEWSYSTEM_TEMPLATE_ALIGNMENT.md`, `docs/ATDR_TEMPLATE_MANIFEST.json`, `docs/security/ATDR_PERMISSION_PATHS.md` |
+| Tasklist/progress-board process | `docs/tasks/README.md`, `docs/tasks/tasklist-progress.md`, `docs/tasks/tasklist-progress.html`, `scripts/render-tasklist-progress-html.js`, `scripts/check-tasklist-progress-standard.js` |
 | Requirement traceability | `docs/ATDR_REQUIREMENT_TRACEABILITY.md` |
 
 ## Product Overview
@@ -198,6 +201,7 @@ Template ideas adopted by ATDR:
 - route-level authorization evidence
 - audit logging expectation
 - PRD and T1-T20 change gates
+- tasklist/progress-board tracking and generated HTML progress evidence
 - release/verification gate
 - OWASP-style security review discipline
 
@@ -270,5 +274,6 @@ Update this PRD when a change affects:
 - ML labels, feature generation, model training, evaluation, promotion gate, or governance wording.
 - Response safety, simulation mode, protected-IP handling, or audit behavior.
 - Test/release gates, runbooks, status docs, or known limitations.
+- Tasklist/progress-board requirements, evidence gates, or handoff workflow.
 
 If no PRD update is needed, record the reason in T17 of the ATDR T1-T20 change document.

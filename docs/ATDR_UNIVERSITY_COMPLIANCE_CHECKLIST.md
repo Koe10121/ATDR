@@ -10,6 +10,9 @@ This checklist maps the university AI/project workflow rules to ATDR-specific ev
 | ATDR PRD | `docs/prd/PRD-ATDR.md` |
 | Agent operating model | `docs/agents/ATDR_AGENT_OPERATING_MODEL.md` |
 | Change template | `docs/templates/ATDR_T1_T20_CHANGE_DOCUMENT.md` |
+| AI docs index | `docs/AI-DOCS-INDEX.md` |
+| Tasklist/progress board | `docs/tasks/README.md`, `docs/tasks/tasklist-progress.md`, `docs/tasks/tasklist-progress.html` |
+| Tasklist renderer/checker | `scripts/render-tasklist-progress-html.js`, `scripts/check-tasklist-progress-standard.js` |
 | IAM/RBAC permission matrix | `docs/security/ATDR_IAM_RBAC_MATRIX.md` |
 | External IAM groundwork plan | `docs/security/ATDR_EXTERNAL_IAM_PLAN.md` |
 | NewSystem template alignment | `docs/ATDR_NEWSYSTEM_TEMPLATE_ALIGNMENT.md` |
@@ -30,6 +33,8 @@ This checklist maps the university AI/project workflow rules to ATDR-specific ev
 | Source evidence required | Satisfied by ATDR workflow and T1-T20 T3 section | `docs/ATDR_AI_WORKFLOW.md`, `docs/templates/ATDR_T1_T20_CHANGE_DOCUMENT.md` | Future change docs must cite paths and findings | All agents |
 | Source truth order defined | Satisfied with ATDR-specific truth order | `docs/ATDR_AI_WORKFLOW.md` | Keep updated if architecture changes | Orchestrator |
 | T1-T20 change document required | Satisfied by ATDR template | `docs/templates/ATDR_T1_T20_CHANGE_DOCUMENT.md` | Store completed change docs under `docs/changes/` for major work | Orchestrator |
+| Tasklist/progress-board workflow | Satisfied by canonical ATDR tasklist Markdown, generated HTML, and validation scripts | `docs/tasks/README.md`, `docs/tasks/tasklist-progress.md`, `docs/tasks/tasklist-progress.html`, `scripts/render-tasklist-progress-html.js`, `scripts/check-tasklist-progress-standard.js` | Future non-trivial work must update progress Markdown and regenerate/check HTML | Orchestrator / Release-Ops |
+| Docs index | Satisfied by ATDR-specific docs index | `docs/AI-DOCS-INDEX.md` | Keep active docs and reference-only docs separated | Orchestrator |
 | PRD update gate | Satisfied by ATDR PRD and workflow update rule | `docs/prd/PRD-ATDR.md`, `docs/ATDR_AI_WORKFLOW.md` | PRD must be updated when behavior/API/UI/data/ML/safety changes | Product Owner |
 | Testing gate | Satisfied by release gate and documented test commands | `atdr/scripts/verify_release.py`, `frontend/package.json`, `atdr/tests/*` | Full verification remains required for code-risk changes | QA/UAT |
 | Backend route truth | Satisfied by FastAPI route source order | `atdr/app/main.py`, `atdr/app/routers/*.py` | Keep README API highlights aligned with mounted routes | Backend/API |
@@ -58,6 +63,9 @@ ATDR now has ATDR-specific workflow governance, PRD, agent operating model, chan
 | ATDR PRD exists | Satisfied | `docs/prd/PRD-ATDR.md` |
 | Agent operating model exists | Satisfied | `docs/agents/ATDR_AGENT_OPERATING_MODEL.md` |
 | T1-T20 template exists | Satisfied | `docs/templates/ATDR_T1_T20_CHANGE_DOCUMENT.md` |
+| Tasklist/progress board exists | Satisfied | `docs/tasks/tasklist-progress.md`, `docs/tasks/tasklist-progress.html` |
+| Tasklist renderer/checker exists | Satisfied | `scripts/render-tasklist-progress-html.js`, `scripts/check-tasklist-progress-standard.js` |
+| ATDR docs index exists | Satisfied | `docs/AI-DOCS-INDEX.md` |
 | Completed T1-T20 example exists | Satisfied | `docs/changes/T1_T20_IAM_RBAC_COMPLIANCE.md` |
 | IAM/RBAC matrix exists | Satisfied | `docs/security/ATDR_IAM_RBAC_MATRIX.md` |
 | NewSystem template alignment exists | Satisfied | `docs/ATDR_NEWSYSTEM_TEMPLATE_ALIGNMENT.md` |
@@ -75,12 +83,12 @@ ATDR now has ATDR-specific workflow governance, PRD, agent operating model, chan
 
 ## Large SQLite Performance Monitoring Note
 
-During compliance closure, one large local SQLite performance smoke run showed budget warnings, but the final rerun completed within budget. Keep this note as a monitoring item because local SQLite timing can vary with concurrent backend/dashboard activity and DB lock contention.
+During compliance closure, large local SQLite performance smoke runs showed that cached dashboard summaries remain fast, but a cold Overview/ingestion summary can still exceed the local budget on the current large database. Keep this note as a monitoring item because local SQLite timing can vary with concurrent backend/dashboard activity and DB lock contention.
 
-| Metric | Previous Warning Run | Final Rerun | Local Budget |
-| --- | ---: | ---: |
-| Overview / ingestion summary | 10.7997s | 0.415s | 1.0s for Overview, 2.0s for ingestion summary |
-| ML Governance lightweight summary | 2.8009s | 1.3791s | 2.0s |
+| Metric | Recent Warning Run | Latest Tasklist Pass | Local Budget |
+| --- | ---: | ---: | --- |
+| Overview / ingestion summary | 10.7997s | 9.9635s cold, 0.0066s cached | 1.0s for Overview, 2.0s for ingestion summary |
+| ML Governance lightweight summary | 2.8009s | 1.9886s | 2.0s |
 
 Do not reset or delete data to hide performance issues. If warnings recur, recommended next action is to profile the Overview/ingestion summary query path on the current large SQLite DB and consider a targeted cache/query/index improvement or PostgreSQL lab validation later.
 
@@ -95,7 +103,7 @@ Do not reset or delete data to hide performance issues. If warnings recur, recom
 - Docker/PostgreSQL lab deployment validation is still optional/future on a Docker-capable host.
 - Production security hardening is pending.
 - Final report/slides are not finalized.
-- Future non-trivial changes should create completed T1-T20 change records like `docs/changes/T1_T20_IAM_RBAC_COMPLIANCE.md`.
+- Future non-trivial changes should update `docs/tasks/tasklist-progress.md`, regenerate `docs/tasks/tasklist-progress.html`, and create completed T1-T20 change records like `docs/changes/T1_T20_IAM_RBAC_COMPLIANCE.md`.
 - More human-reviewed suspicious/malicious labels are needed before stronger ML claims.
 - Large local SQLite DB performance should be monitored; investigate if the Overview/ML Governance warnings recur.
 

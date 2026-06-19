@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tasklist: ATDR System Progress And Readiness</title>
+  <style>
+    :root { --bg:#f4f7fb; --surface:#fff; --text:#172033; --muted:#667085; --line:#d7dfec; --nav:#10233f; --accent:#1f66d1; --done:#087443; --blocked:#b42318; --warn:#b54708; --pending:#667085; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font-family:Inter,Segoe UI,Arial,sans-serif; line-height:1.5; }
+    main { max-width:1440px; margin:0 auto; padding:28px; }
+    .hero { background:linear-gradient(120deg,var(--nav),#17497f); color:white; border-radius:14px; padding:24px; margin-bottom:18px; }
+    .eyebrow { color:#b9d5ff; font-size:12px; font-weight:800; text-transform:uppercase; }
+    h1 { margin:4px 0 0; font-size:30px; letter-spacing:0; }
+    h2 { margin:0 0 14px; font-size:20px; }
+    h3 { margin:18px 0 8px; font-size:16px; }
+    .metrics { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:12px; margin-bottom:18px; }
+    .metric, .panel, .summary { background:var(--surface); border:1px solid var(--line); border-radius:12px; box-shadow:0 10px 28px rgba(16,35,63,.08); }
+    .metric { padding:16px; }
+    .metric b { display:block; font-size:30px; margin-top:4px; }
+    .metric span { color:var(--muted); font-size:12px; font-weight:800; text-transform:uppercase; }
+    .summary, .panel { padding:18px; margin-bottom:18px; }
+    .tabs { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
+    button { border:1px solid var(--line); background:white; color:var(--nav); border-radius:999px; padding:8px 12px; font-weight:800; cursor:pointer; }
+    button.active { background:var(--nav); color:white; }
+    .tab-panel { display:none; }
+    .tab-panel.active { display:block; }
+    .table-wrap { overflow:auto; border:1px solid var(--line); border-radius:10px; background:white; }
+    table { width:100%; min-width:900px; border-collapse:collapse; }
+    th, td { padding:10px 12px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:14px; }
+    th { background:#eef3fb; color:var(--nav); font-size:12px; text-transform:uppercase; }
+    code { background:#eef3fb; border:1px solid var(--line); border-radius:4px; padding:1px 4px; }
+    .badge { display:inline-flex; align-items:center; border-radius:999px; padding:3px 8px; font-weight:800; font-size:12px; }
+    .badge.done { background:#ecfdf3; color:var(--done); }
+    .badge.blocked { background:#fef3f2; color:var(--blocked); }
+    .badge.verifying, .badge.progress, .badge.ready { background:#fff7ed; color:var(--warn); }
+    .badge.pending { background:#f2f4f7; color:var(--pending); }
+    .progress { position:relative; min-width:90px; height:22px; background:#eef3fb; border-radius:999px; overflow:hidden; }
+    .progress b { position:absolute; inset:0 auto 0 0; background:#9cc3ff; }
+    .progress span { position:relative; z-index:1; display:block; padding-left:8px; font-size:12px; font-weight:800; line-height:22px; }
+    @media (max-width:900px) { main { padding:16px; } .metrics { grid-template-columns:1fr 1fr; } }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <div class="eyebrow">ATDR Progress Board</div>
+      <h1>Tasklist: ATDR System Progress And Readiness</h1>
+    </section>
+    <section class="metrics">
+      <div class="metric"><span>Done</span><b>0</b></div>
+      <div class="metric"><span>Blocked</span><b>0</b></div>
+      <div class="metric"><span>Verifying</span><b>0</b></div>
+      <div class="metric"><span>In Progress</span><b>0</b></div>
+      <div class="metric"><span>Pending</span><b>0</b></div>
+    </section>
+    <section class="summary"><div class="table-wrap">
+<table>
+<thead><tr>
+<th>Field</th><th>Value</th>
+</tr></thead>
+<tbody>
+<tr><td>Date</td><td>2026-06-19</td></tr>
+<tr><td>Project</td><td>MFU AI-Driven Log-Based Threat Detection and Response System</td></tr>
+<tr><td>Module / Feature</td><td>system progress and university-template process compliance</td></tr>
+<tr><td>Requirement</td><td>Track ATDR progress using the university tasklist/progress-board standard, adapted to FastAPI + React + SQLAlchemy/Alembic</td></tr>
+<tr><td>Active Change Record</td><td><code>docs/changes/T1_T20_TASKLIST_PROGRESS_COMPLIANCE.md</code></td></tr>
+<tr><td>Overall Status</td><td><span class="badge done">done</span></td></tr>
+<tr><td>Overall Progress</td><td><div class="progress"><span>100%</span><b style="width:100%"></b></div></td></tr>
+<tr><td>Progress Type</td><td>Evidence-backed process compliance progress, not production readiness</td></tr>
+</tbody>
+</table>
+</div></section>
+    <section class="panel" aria-label="Task Board">
+      <h2>Task Board</h2>
+      <div class="tabs">
+        <button type="button" class="" data-tab="t1">T1</button>
+        <button type="button" class="" data-tab="t2">T2</button>
+        <button type="button" class="active" data-tab="t3">T3</button>
+        <button type="button" class="" data-tab="t4">T4</button>
+        <button type="button" class="" data-tab="t5">T5</button>
+      </div>
+      <div class="tab-panel " data-panel="t1"><h2 id="t1-source-evidence">T1. Source Evidence</h2></div>
+      <div class="tab-panel " data-panel="t2"><h2 id="t2-progress-calculation">T2. Progress Calculation</h2></div>
+      <div class="tab-panel active" data-panel="t3"><h2 id="t3-active-tasklist">T3. Active Tasklist</h2></div>
+      <div class="tab-panel " data-panel="t4"><h2 id="t4-verification-log">T4. Verification Log</h2></div>
+      <div class="tab-panel " data-panel="t5"><h2 id="t5-blockers-and-risks">T5. Blockers And Risks</h2></div>
+    </section>
+    <section class="panel"><h2 id="t6-decision">T6. Decision</h2>
+<p>ATDR adopts the university tasklist/progress-board workflow as a process control, not as a runtime architecture migration. ATDR remains FastAPI + React + SQLAlchemy/Alembic, with local JWT/RBAC, simulated response, and ML decision support only. This compliance task is complete.</p></section>
+  </main>
+  <script>
+    const buttons = Array.from(document.querySelectorAll('[data-tab]'));
+    const panels = Array.from(document.querySelectorAll('[data-panel]'));
+    buttons.forEach((button) => {
+      button.addEventListener('click', () => {
+        buttons.forEach((item) => item.classList.toggle('active', item === button));
+        panels.forEach((panel) => panel.classList.toggle('active', panel.dataset.panel === button.dataset.tab));
+      });
+    });
+  </script>
+</body>
+</html>

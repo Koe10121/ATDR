@@ -485,10 +485,14 @@ Start here:
 
 Governance and university workflow:
 
+- `docs/AI-DOCS-INDEX.md` - active ATDR documentation index and reference-only NewSystem boundary.
 - `docs/ATDR_AI_WORKFLOW.md` - no-guessing, source-evidence, testing, PRD-update, safety, and handoff workflow.
 - `docs/ATDR_NEWSYSTEM_TEMPLATE_ALIGNMENT.md` - how ATDR adapts the university NewSystem template without copying Node/Vue/Mongo implementation.
 - `docs/ATDR_TEMPLATE_MANIFEST.json` - ATDR-specific template manifest with env keys, permission paths, validation commands, and safety constraints.
 - `docs/prd/PRD-ATDR.md` - real ATDR PRD.
+- `docs/tasks/README.md` - ATDR tasklist/progress-board rules.
+- `docs/tasks/tasklist-progress.md` - canonical editable system progress board.
+- `docs/tasks/tasklist-progress.html` - generated progress board view.
 - `docs/security/ATDR_IAM_RBAC_MATRIX.md` - admin/analyst permission matrix and IAM limitations.
 - `docs/security/ATDR_EXTERNAL_IAM_PLAN.md` - disabled-by-default OIDC groundwork for future school-email login.
 - `docs/security/ATDR_PERMISSION_PATHS.md` - NewSystem-style ATDR permission path registry.
