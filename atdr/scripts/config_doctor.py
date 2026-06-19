@@ -7,6 +7,7 @@ from atdr.app.core.config import PROJECT_ROOT, Settings, validate_runtime_settin
 
 
 DEFAULT_SECRETS = {"change-this-dev-secret", "change-this-secret-before-production"}
+DEMO_PASSWORDS = {"admin123", "analyst123", "password", "changeme"}
 
 
 def _resolve_project_path(path_value: str | Path) -> Path:
@@ -41,6 +42,15 @@ def run_config_doctor(settings: Settings | None = None) -> dict[str, Any]:
         )
     elif len(settings.jwt_secret_key) < 32:
         issues.append(_issue("warning", "short-jwt-secret", "JWT_SECRET_KEY should be at least 32 characters."))
+
+    if settings.demo_admin_password in DEMO_PASSWORDS or settings.demo_analyst_password in DEMO_PASSWORDS:
+        issues.append(
+            _issue(
+                "critical" if is_production else "warning",
+                "default-demo-password",
+                "One or more demo user passwords use classroom defaults.",
+            )
+        )
 
     if is_production and settings.database_url.startswith("sqlite"):
         issues.append(_issue("critical", "production-sqlite", "Production environment must use PostgreSQL, not SQLite."))
@@ -77,6 +87,31 @@ def run_config_doctor(settings: Settings | None = None) -> dict[str, Any]:
                 "warning",
                 "response-provider-ignored",
                 "RESPONSE_PROVIDER is set but RESPONSE_SIMULATION=true, so enforcement remains simulated.",
+            )
+        )
+
+    oidc_fields = [
+        settings.oidc_provider_name,
+        settings.oidc_client_id,
+        settings.oidc_client_secret,
+        settings.oidc_issuer_url,
+        settings.oidc_allowed_domains,
+    ]
+    if not settings.oidc_enabled and any(value.strip() for value in oidc_fields):
+        issues.append(
+            _issue(
+                "warning",
+                "oidc-partial-disabled",
+                "OIDC fields are present while OIDC_ENABLED=false. Local login remains active; verify this is intentional.",
+            )
+        )
+
+    if is_production and settings.api_base_url.startswith("http://"):
+        issues.append(
+            _issue(
+                "critical",
+                "missing-tls-api-url",
+                "API_BASE_URL uses http:// in production. Validate TLS/reverse proxy before production-like exposure.",
             )
         )
 

@@ -4,7 +4,7 @@
 | --- | --- |
 | Product | MFU AI-Driven Log-Based Threat Detection and Response System |
 | Short name | ATDR |
-| Current stage | v2.1b final controlled validation candidate |
+| Current stage | v3.5 controlled real-source/syslog pilot readiness |
 | Production claim | None. ATDR is not certified production software. |
 | Main workflow doc | `docs/ATDR_AI_WORKFLOW.md` |
 | Agent model | `docs/agents/ATDR_AGENT_OPERATING_MODEL.md` |
@@ -34,6 +34,8 @@
 | NewSystem template alignment and permission path registry | `docs/ATDR_NEWSYSTEM_TEMPLATE_ALIGNMENT.md`, `docs/ATDR_TEMPLATE_MANIFEST.json`, `docs/security/ATDR_PERMISSION_PATHS.md` |
 | Tasklist/progress-board process | `docs/tasks/README.md`, `docs/tasks/tasklist-progress.md`, `docs/tasks/tasklist-progress.html`, `scripts/render-tasklist-progress-html.js`, `scripts/check-tasklist-progress-standard.js` |
 | Requirement traceability | `docs/ATDR_REQUIREMENT_TRACEABILITY.md` |
+| v3.4 shared-lab readiness foundation | `docs/V3_4_SHARED_LAB_READINESS.md`, `atdr/scripts/run_v34_shared_lab_readiness.py`, `atdr/scripts/run_backup_restore_drill.py`, `atdr/scripts/profile_dashboard_summary.py` |
+| v3.5 source/syslog pilot readiness | `docs/V3_5_REAL_SOURCE_SYSLOG_PILOT.md`, `atdr/scripts/run_v35_real_source_pilot_check.py`, `atdr/scripts/export_real_source_pilot_evidence.py` |
 
 ## Product Overview
 
@@ -151,6 +153,8 @@ Evidence: `atdr/app/db/models.py`, `atdr/scripts/performance_smoke.py`, `atdr/sc
 | FR-ATDR-016 | Provide release verification and performance smoke checks | Implemented |
 | FR-ATDR-017 | Enforce JWT authentication and admin/analyst RBAC on protected workflows | Implemented for lab roles |
 | FR-ATDR-018 | Support local school-email account metadata while preserving username/password login | Implemented for local lab accounts |
+| FR-ATDR-019 | Provide non-destructive shared-lab readiness checks for PostgreSQL status, backup/restore readiness, operations health, and performance profiling | Implemented as v3.4 foundation; not a production claim |
+| FR-ATDR-020 | Provide read-only controlled source/syslog pilot evidence without exporting private raw logs by default | Implemented as v3.5 source-pilot checker/exporter; not a production claim |
 
 ## Non-Functional Requirements
 
@@ -163,6 +167,7 @@ Evidence: `atdr/app/db/models.py`, `atdr/scripts/performance_smoke.py`, `atdr/sc
 | Reliability | Release gate and tests must pass before declaring a checkpoint. |
 | Security | JWT auth and role checks are required for protected endpoints. Demo secrets must be replaced before shared lab use. |
 | Data privacy | Real logs, databases, model artifacts, generated exports, and `.env` files must stay out of Git. |
+| Shared-lab readiness | Backup/restore drills, PostgreSQL validation, performance profiling, and real-source pilot checks must be non-destructive and must not imply production readiness. |
 
 ## IAM / RBAC Constraints
 

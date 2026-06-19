@@ -62,12 +62,12 @@
 <tbody>
 <tr><td>Date</td><td>2026-06-19</td></tr>
 <tr><td>Project</td><td>MFU AI-Driven Log-Based Threat Detection and Response System</td></tr>
-<tr><td>Module / Feature</td><td>system progress and university-template process compliance</td></tr>
-<tr><td>Requirement</td><td>Track ATDR progress using the university tasklist/progress-board standard, adapted to FastAPI + React + SQLAlchemy/Alembic</td></tr>
-<tr><td>Active Change Record</td><td><code>docs/changes/T1_T20_TASKLIST_PROGRESS_COMPLIANCE.md</code></td></tr>
+<tr><td>Module / Feature</td><td>v3.5 controlled real-source/syslog pilot</td></tr>
+<tr><td>Requirement</td><td>Add read-only source/syslog pilot checking, safe evidence export, dashboard validation checklist, and source-pipeline-vs-real-device wording</td></tr>
+<tr><td>Active Change Record</td><td><code>docs/changes/T1_T20_V3_5_REAL_SOURCE_SYSLOG_PILOT.md</code></td></tr>
 <tr><td>Overall Status</td><td><span class="badge done">done</span></td></tr>
 <tr><td>Overall Progress</td><td><div class="progress"><span>100%</span><b style="width:100%"></b></div></td></tr>
-<tr><td>Progress Type</td><td>Evidence-backed process compliance progress, not production readiness</td></tr>
+<tr><td>Progress Type</td><td>Evidence-backed real-source pilot readiness progress, not production readiness</td></tr>
 </tbody>
 </table>
 </div></section>
@@ -87,7 +87,7 @@
       <div class="tab-panel " data-panel="t5"><h2 id="t5-blockers-and-risks">T5. Blockers And Risks</h2></div>
     </section>
     <section class="panel"><h2 id="t6-decision">T6. Decision</h2>
-<p>ATDR adopts the university tasklist/progress-board workflow as a process control, not as a runtime architecture migration. ATDR remains FastAPI + React + SQLAlchemy/Alembic, with local JWT/RBAC, simulated response, and ML decision support only. This compliance task is complete.</p></section>
+<p>ATDR v3.5 adds a controlled real-source/syslog pilot checker and safe evidence export. ATDR remains FastAPI + React + SQLAlchemy/Alembic, with SQLite for local development, optional PostgreSQL validation later, local JWT/RBAC, simulated response, and ML decision support only. The v3.5 pilot-readiness task is complete; production readiness is still not claimed.</p></section>
   </main>
   <script>
     const buttons = Array.from(document.querySelectorAll('[data-tab]'));

@@ -78,6 +78,7 @@ def run_postgres_lab_validation(
             "ok": True,
             "status": "postgres_lab_validation_blocked_by_environment",
             "postgres_lab_validated": False,
+            "local_sqlite_mode": database_kind == "sqlite",
             "database_kind": database_kind,
             "database_url": _safe_database_url(settings.database_url),
             "current_database_modified": False,
@@ -91,6 +92,34 @@ def run_postgres_lab_validation(
                     "passed": False,
                     "detail": "DATABASE_URL is not PostgreSQL.",
                     "target": "postgresql+psycopg2://...",
+                },
+                {
+                    "name": "local_sqlite_workflow_preserved",
+                    "passed": database_kind == "sqlite",
+                    "detail": f"database_kind={database_kind}; normal local workflow remains valid.",
+                },
+                {
+                    "name": "alembic_migration_status",
+                    "passed": True,
+                    "skipped": True,
+                    "detail": "Not run here because PostgreSQL is not configured. Use alembic check separately for local SQLite.",
+                },
+                {
+                    "name": "seed_user_readiness",
+                    "passed": True,
+                    "skipped": True,
+                    "detail": "seed_users is idempotent; run on PostgreSQL lab host after configuring DATABASE_URL.",
+                },
+                {
+                    "name": "backup_restore_readiness",
+                    "passed": True,
+                    "skipped": True,
+                    "detail": "Run atdr.scripts.run_backup_restore_drill for SQLite or PostgreSQL lab backup readiness.",
+                },
+                {
+                    "name": "response_remains_simulated",
+                    "passed": settings.response_simulation,
+                    "detail": f"RESPONSE_SIMULATION={settings.response_simulation}.",
                 }
             ],
             "recommended_commands": [
@@ -110,6 +139,9 @@ def run_postgres_lab_validation(
             "production_readiness_claim": False,
             "response_automation_allowed": False,
             "real_firewall_blocking_enabled": False,
+            "backup_restore_validated": False,
+            "seed_user_readiness": "pending_postgresql_host",
+            "alembic_migration_status": "pending_postgresql_host",
         }
 
     checks: list[dict[str, Any]] = []
@@ -149,6 +181,12 @@ def run_postgres_lab_validation(
                 "name": "response_remains_simulated",
                 "passed": settings.response_simulation,
                 "detail": f"RESPONSE_SIMULATION={settings.response_simulation}.",
+            },
+            {
+                "name": "backup_restore_readiness",
+                "passed": True,
+                "skipped": True,
+                "detail": "Use atdr.scripts.run_backup_restore_drill --run-postgres-dump on the PostgreSQL lab host, then restore into a separate database.",
             },
         ]
     )
@@ -238,6 +276,9 @@ def run_postgres_lab_validation(
         "production_readiness_claim": False,
         "response_automation_allowed": False,
         "real_firewall_blocking_enabled": False,
+        "backup_restore_validated": False,
+        "seed_user_readiness": "validated" if include_sample_ingest and passed else "not_run",
+        "alembic_migration_status": "checked" if run_alembic_check else "skipped",
     }
 
 

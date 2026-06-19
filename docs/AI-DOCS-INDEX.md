@@ -37,6 +37,8 @@ This index defines the active ATDR documentation set for AI/Codex-assisted work.
 | `docs/ACCEPTANCE_TEST_CHECKLIST.md` | Manual acceptance workflow. |
 | `docs/FINAL_SYSTEM_STATUS.md` | Current final controlled academic status. |
 | `docs/V3_0_PRODUCTION_READINESS_TRACK.md` and related v3 docs | Future production-readiness planning without production claim. |
+| `docs/V3_4_SHARED_LAB_READINESS.md` | Current shared-lab foundation checks for PostgreSQL status, backup/restore drill, performance profiling, source pilot checklist, operations health, and config hardening. |
+| `docs/V3_5_REAL_SOURCE_SYSLOG_PILOT.md` | Controlled real-source/syslog pilot checklist, source-pipeline-vs-real-device wording, and safe evidence-export workflow. |
 
 ## Reference-Only Documents
 
@@ -57,4 +59,3 @@ The repository may include NewSystem template documents for traceability. They a
 - Use a T1-T20 change record for non-trivial work.
 - Update `docs/prd/PRD-ATDR.md` and `docs/ATDR_REQUIREMENT_TRACEABILITY.md` when behavior, API, UI, data model, permission, safety, ML, or release expectations change.
 - Do not claim production readiness, automatic response, real firewall blocking, or full external IAM unless future source evidence proves it.
-

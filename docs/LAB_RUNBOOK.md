@@ -33,6 +33,43 @@ Invoke-RestMethod http://127.0.0.1:8000/health
 
 Expected result: status `ok`, database `ok`, and response mode `simulation`.
 
+## v3.4 Shared-Lab Readiness Checks
+
+These checks prepare ATDR for shared-lab validation without changing the normal local workflow or claiming production readiness.
+
+Run the combined v3.4 readiness report:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v34_shared_lab_readiness --pretty
+```
+
+The report combines config and secret safety checks, PostgreSQL configured/not-configured status, backup/restore readiness, dashboard summary performance profiling, real-source pilot status, source health, ingestion/detection run health, response safety, and audit counts.
+
+Run the safe backup/restore drill:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_backup_restore_drill --dry-run --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_backup_restore_drill --pretty
+```
+
+For SQLite, the non-dry-run command creates an ignored backup copy under `.tmp/atdr-backups` and verifies that row counts can be read from the copy. It never restores over or overwrites the live database.
+
+Profile cold Overview/ingestion performance:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.profile_dashboard_summary --pretty
+```
+
+If the cold Overview summary is slow but cached hits are fast, treat it as a large-SQLite/shared-lab performance item. Do not reset or delete data to hide performance warnings.
+
+For PostgreSQL shared-lab validation:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_postgres_lab_validation --pretty
+```
+
+If the current `DATABASE_URL` is SQLite, the expected status is `postgres_lab_validation_blocked_by_environment`. That is non-destructive and confirms the normal local workflow remains unchanged.
+
 ## Safe Lab Scenario Runner
 
 Dry run first:
@@ -182,6 +219,26 @@ Validate a real/lab source after logs have arrived:
 .\.venv\Scripts\python.exe -m atdr.scripts.run_v30_real_source_pilot_validation --source-name lab-firewall-real-1 --expected-min-logs 100 --window-minutes 60 --pretty
 ```
 
+Run the stricter v3.5 read-only source/syslog pilot check:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v35_real_source_pilot_check --source-name lab-firewall-real-1 --expected-min-logs 100 --window-minutes 60 --pretty
+```
+
+Export safe pilot evidence as JSON. By default this prints to the terminal and does not write a file:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.export_real_source_pilot_evidence --source-name lab-firewall-real-1 --expected-min-logs 100 --pretty
+```
+
+Only when you intentionally need an ignored evidence artifact, add `--write`; output goes under ignored `demo_exports/real_source_pilot/` and includes IDs/counts rather than full private raw log contents:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.export_real_source_pilot_evidence --source-name lab-firewall-real-1 --expected-min-logs 100 --write --pretty
+```
+
+The v3.5 report distinguishes `source_pipeline_validated` from `real_device_forwarding_validated`. Replay, sample, scenario, demo, or test sources can validate the ATDR source pipeline but must not be presented as real hardware forwarding validation.
+
 Validate optional PostgreSQL lab deployment on a PostgreSQL/Docker-capable host:
 
 ```powershell
@@ -216,6 +273,7 @@ Use these docs:
 
 - `docs/V3_0_PRODUCTION_READINESS_TRACK.md`
 - `docs/V3_0_REAL_DEVICE_SYSLOG_PILOT_PLAN.md`
+- `docs/V3_5_REAL_SOURCE_SYSLOG_PILOT.md`
 - `docs/V3_0_POSTGRESQL_LAB_DEPLOYMENT_VALIDATION.md`
 - `docs/V3_0_OBSERVABILITY_AND_OPERATIONS_PLAN.md`
 - `docs/V3_0_REAL_SOURCE_ML_MONITORING_PLAN.md`

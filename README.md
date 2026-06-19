@@ -30,6 +30,7 @@ The next track is real-source and lab-deployment hardening, not production appro
 - observability and operations plan
 - real-source ML monitoring plan
 - conservative readiness gate v9
+- v3.5 read-only real-source/syslog pilot checker and safe evidence export
 
 Key docs:
 
@@ -45,6 +46,8 @@ Key docs:
 - `docs/V3_3_POSTGRESQL_SHARED_LAB_READINESS.md`
 - `docs/V3_3_BACKUP_RESTORE_AND_RETENTION_PLAN.md`
 - `docs/V3_3_DOCKER_POSTGRES_LAB_RUNBOOK.md`
+- `docs/V3_4_SHARED_LAB_READINESS.md`
+- `docs/V3_5_REAL_SOURCE_SYSLOG_PILOT.md`
 
 Useful commands:
 
@@ -56,6 +59,11 @@ Useful commands:
 .\.venv\Scripts\python.exe -m atdr.scripts.run_real_source_ml_monitoring --pretty
 .\.venv\Scripts\python.exe -m atdr.scripts.performance_smoke --pretty
 .\.venv\Scripts\python.exe -m atdr.scripts.run_v32_no_hardware_source_pilot --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v34_shared_lab_readiness --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_backup_restore_drill --dry-run --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.profile_dashboard_summary --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v35_real_source_pilot_check --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.export_real_source_pilot_evidence --pretty
 ```
 
 These commands are non-destructive. They do not enable automatic response, real firewall blocking, model activation, or production promotion.

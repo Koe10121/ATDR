@@ -14,6 +14,7 @@ ATDR is a controlled academic SOC prototype. It has strong lab validation, but i
 | Response safety | `atdr/app/routers/response.py`, `atdr/app/services/response_service.py` |
 | Final controlled validation | `atdr/scripts/run_final_controlled_source_acceptance.py`, `atdr/app/benchmarks/readiness.py` |
 | v3.0 readiness scripts | `atdr/scripts/production_readiness_doctor.py`, `atdr/scripts/run_v30_real_source_pilot_validation.py`, `atdr/scripts/run_postgres_lab_validation.py` |
+| v3.4 readiness foundation | `atdr/scripts/run_v34_shared_lab_readiness.py`, `atdr/scripts/run_backup_restore_drill.py`, `atdr/scripts/profile_dashboard_summary.py`, `docs/V3_4_SHARED_LAB_READINESS.md` |
 
 ## Current Strengths
 
@@ -60,3 +61,11 @@ Disallowed for this phase:
 ## Recommended Next Step
 
 Run a controlled real-device syslog pilot using `docs/V3_0_REAL_DEVICE_SYSLOG_PILOT_PLAN.md`. Keep response simulation enabled and treat ML output as analyst decision support only.
+
+For the shared-lab foundation step before real-device validation, run:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v34_shared_lab_readiness --pretty
+```
+
+This command is conservative. It reports PostgreSQL status, backup/restore readiness, dashboard profiling, real-source pilot status, operations health, and config warnings, but it never marks ATDR production ready.
