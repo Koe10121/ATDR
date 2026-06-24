@@ -7,6 +7,7 @@ from atdr.app.db.database import get_db
 from atdr.app.db.models import Alert, NormalizedLog, User
 from atdr.app.schemas.operations import DetectionRunRead
 from atdr.app.services.detection_service import run_detection
+from atdr.app.services.job_service import build_result_summary, complete_job, fail_job, start_job
 from atdr.app.services.operation_run_service import detection_run_to_dict, get_detection_run, list_detection_runs
 from atdr.app.services.tuning_service import build_detection_tuning_report
 
@@ -21,7 +22,25 @@ def api_run_detection(
     use_ml: bool = True,
     source_id: int | None = Query(default=None, ge=1),
 ) -> dict:
-    return run_detection(db, limit=limit, use_ml=use_ml, actor=current_user.username, source_id=source_id)
+    job = start_job(
+        db,
+        job_type="run_detection",
+        requested_by=current_user.username,
+        details={"limit": limit, "use_ml": use_ml, "source_id": source_id},
+    )
+    try:
+        result = run_detection(db, limit=limit, use_ml=use_ml, actor=current_user.username, source_id=source_id)
+        complete_job(
+            db,
+            job,
+            result_summary=build_result_summary("run_detection", result),
+            related_detection_run_id=result.get("detection_run_id"),
+        )
+        result["job_id"] = job.id
+        return result
+    except Exception as exc:
+        fail_job(db, job, exc)
+        raise
 
 
 @router.get("/runs", response_model=list[DetectionRunRead])

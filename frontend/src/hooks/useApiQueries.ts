@@ -2,16 +2,24 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import type { Params } from "../lib/api";
-import type { AlertStatus, MLLabelPayload } from "../types/api";
+import type { AlertStatus, AssistantChatRequest, AssistantFeedbackRequest, MLLabelPayload } from "../types/api";
 
 export const queryKeys = {
   health: ["health"],
   me: ["me"],
   oidcStatus: ["oidc-status"],
+  emailStatus: ["email-status"],
+  devEmailOutbox: ["dev-email-outbox"],
+  assistantStatus: ["assistant-status"],
+  assistantHistory: ["assistant-history"],
+  assistantFeedbackSummary: (params?: Record<string, unknown>) => ["assistant-feedback-summary", params ?? {}],
+  assistantFeedbackRecent: (params?: Record<string, unknown>) => ["assistant-feedback-recent", params ?? {}],
   summary: ["dashboard-summary"],
   validationSummary: ["dashboard-validation-summary"],
   ingestionRuns: (params?: Record<string, unknown>) => ["ingestion-runs", params ?? {}],
   detectionRuns: (params?: Record<string, unknown>) => ["detection-runs", params ?? {}],
+  jobs: (params?: Record<string, unknown>) => ["jobs", params ?? {}],
+  jobsSummary: ["jobs-summary"],
   sources: (params?: Record<string, unknown>) => ["sources", params ?? {}],
   source: (id?: number | null) => ["source", id],
   alerts: (params?: Record<string, unknown>) => ["alerts", params ?? {}],
@@ -55,6 +63,13 @@ function invalidateAudit(queryClient: QueryClient) {
   void queryClient.invalidateQueries({ queryKey: ["audit-page"] });
 }
 
+function invalidateEmailAdmin(queryClient: QueryClient) {
+  void queryClient.invalidateQueries({ queryKey: queryKeys.users });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.emailStatus });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.devEmailOutbox });
+  invalidateAudit(queryClient);
+}
+
 function invalidateThreatControls(queryClient: QueryClient) {
   void queryClient.invalidateQueries({ queryKey: queryKeys.suppressions });
   void queryClient.invalidateQueries({ queryKey: queryKeys.watchlists });
@@ -81,6 +96,68 @@ export function useOidcStatus() {
   return useQuery({ queryKey: queryKeys.oidcStatus, queryFn: api.oidcStatus, retry: false });
 }
 
+export function useEmailStatus() {
+  return useQuery({ queryKey: queryKeys.emailStatus, queryFn: api.emailStatus, retry: false, staleTime: 60_000 });
+}
+
+export function useDevEmailOutbox(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.devEmailOutbox,
+    queryFn: () => api.devEmailOutbox({ limit: 10 }),
+    enabled,
+    retry: false,
+    staleTime: 30_000
+  });
+}
+
+export function useAssistantStatus() {
+  return useQuery({ queryKey: queryKeys.assistantStatus, queryFn: api.assistantStatus, retry: false, staleTime: 60_000 });
+}
+
+export function useAssistantHistory() {
+  return useQuery({ queryKey: queryKeys.assistantHistory, queryFn: () => api.assistantHistory({ limit: 8 }), retry: false, refetchInterval: 30_000 });
+}
+
+export function useAssistantFeedbackSummary(params: Params = {}) {
+  return useQuery({
+    queryKey: queryKeys.assistantFeedbackSummary(params),
+    queryFn: () => api.assistantFeedbackSummary(params),
+    retry: false,
+    refetchInterval: 60_000
+  });
+}
+
+export function useAssistantFeedbackRecent(params: Params = { limit: 8 }) {
+  return useQuery({
+    queryKey: queryKeys.assistantFeedbackRecent(params),
+    queryFn: () => api.assistantFeedbackRecent(params),
+    retry: false,
+    refetchInterval: 60_000
+  });
+}
+
+export function useAssistantMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: AssistantChatRequest) => api.assistantChat(payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.assistantHistory });
+    }
+  });
+}
+
+export function useAssistantFeedbackMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: AssistantFeedbackRequest) => api.assistantFeedback(payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["assistant-feedback-summary"] });
+      void queryClient.invalidateQueries({ queryKey: ["assistant-feedback-recent"] });
+      invalidateAudit(queryClient);
+    }
+  });
+}
+
 export function useDashboardSummary() {
   return useQuery({ queryKey: queryKeys.summary, queryFn: api.dashboardSummary, refetchInterval: 30_000 });
 }
@@ -100,6 +177,14 @@ export function useIngestionRuns(params: Params = {}) {
 
 export function useDetectionRuns(params: Params = {}) {
   return useQuery({ queryKey: queryKeys.detectionRuns(params), queryFn: () => api.detectionRuns(params), refetchInterval: 30_000 });
+}
+
+export function useJobs(params: Params = {}) {
+  return useQuery({ queryKey: queryKeys.jobs(params), queryFn: () => api.jobs(params), refetchInterval: 30_000 });
+}
+
+export function useJobsSummary() {
+  return useQuery({ queryKey: queryKeys.jobsSummary, queryFn: api.jobsSummary, refetchInterval: 30_000 });
 }
 
 export function useSources(params: Params = {}) {
@@ -264,8 +349,7 @@ export function useThreatControlMutations() {
 export function useUserMutations() {
   const queryClient = useQueryClient();
   const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: queryKeys.users });
-    invalidateAudit(queryClient);
+    invalidateEmailAdmin(queryClient);
   };
   return {
     createUser: useMutation({ mutationFn: api.createUser, onSuccess: invalidate }),
@@ -280,6 +364,10 @@ export function useUserMutations() {
     }),
     changeRole: useMutation({
       mutationFn: ({ id, role }: { id: number; role: string }) => api.changeUserRole(id, role),
+      onSuccess: invalidate
+    }),
+    sendVerification: useMutation({
+      mutationFn: (id: number) => api.sendUserVerification(id),
       onSuccess: invalidate
     })
   };

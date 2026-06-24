@@ -10,9 +10,12 @@ from atdr.app.core.config import PROJECT_ROOT, get_settings
 from atdr.app.core.security import require_admin, require_analyst_or_admin
 from atdr.app.db.database import get_db
 from atdr.app.db.models import User
+from atdr.app.detection.explanations import explain_log_triage
 from atdr.app.parsers.paloalto_parser import parse_datetime
 from atdr.app.schemas.logs import ImportResult, LogDetail, NormalizedLogRead
+from atdr.app.services.job_service import build_result_summary, complete_job, fail_job, start_job
 from atdr.app.services.log_service import build_log_query, get_log, import_log_file, import_log_stream
+from atdr.app.services.operation_run_service import safe_source_label
 from atdr.app.services.source_service import source_ids_for_filters
 
 router = APIRouter(prefix="/api/logs", tags=["logs"])
@@ -100,16 +103,34 @@ def import_logs(
         import_limit = None
 
     if upload is not None:
-        text_stream = TextIOWrapper(upload.file, encoding="utf-8", errors="replace", newline="")
-        return import_log_stream(
+        job = start_job(
             db,
-            text_stream,
-            source_name=upload.filename or "uploaded-log",
-            limit=import_limit,
-            actor=current_user.username,
-            source_id=source_id,
-            parser_profile=parser_profile,
+            job_type="import_logs",
+            requested_by=current_user.username,
+            details={"input": upload.filename or "uploaded-log", "limit": import_limit, "source_id": source_id},
         )
+        text_stream = TextIOWrapper(upload.file, encoding="utf-8", errors="replace", newline="")
+        try:
+            result = import_log_stream(
+                db,
+                text_stream,
+                source_name=upload.filename or "uploaded-log",
+                limit=import_limit,
+                actor=current_user.username,
+                source_id=source_id,
+                parser_profile=parser_profile,
+            )
+            complete_job(
+                db,
+                job,
+                result_summary=build_result_summary("import_logs", result),
+                related_ingestion_run_id=result.get("run_id"),
+            )
+            result["job_id"] = job.id
+            return result
+        except Exception as exc:
+            fail_job(db, job, exc)
+            raise
 
     if not file_path:
         raise HTTPException(status_code=400, detail="Provide either multipart file field 'upload' or form field 'file_path'.")
@@ -119,7 +140,32 @@ def import_logs(
         path = PROJECT_ROOT / path
     if not path.exists():
         raise HTTPException(status_code=404, detail=f"Log file not found: {path}")
-    return import_log_file(db, path, limit=import_limit, actor=current_user.username, source_id=source_id, parser_profile=parser_profile)
+    job = start_job(
+        db,
+        job_type="import_logs",
+        requested_by=current_user.username,
+        details={"input": safe_source_label(str(path)) or path.name, "limit": import_limit, "source_id": source_id},
+    )
+    try:
+        result = import_log_file(
+            db,
+            path,
+            limit=import_limit,
+            actor=current_user.username,
+            source_id=source_id,
+            parser_profile=parser_profile,
+        )
+        complete_job(
+            db,
+            job,
+            result_summary=build_result_summary("import_logs", result),
+            related_ingestion_run_id=result.get("run_id"),
+        )
+        result["job_id"] = job.id
+        return result
+    except Exception as exc:
+        fail_job(db, job, exc)
+        raise
 
 
 @router.get("", response_model=list[NormalizedLogRead])
@@ -198,4 +244,6 @@ def get_normalized_log(
     log = get_log(db, log_id)
     if log is None:
         raise HTTPException(status_code=404, detail="Log not found.")
-    return _log_to_dict(log)
+    payload = _log_to_dict(log)
+    payload["triage_explanation"] = explain_log_triage(log)
+    return payload

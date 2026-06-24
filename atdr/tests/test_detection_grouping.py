@@ -125,5 +125,5 @@ def test_low_severity_singletons_are_suppressed():
 
     assert result["candidate_logs"] == 3
     assert result["created_alerts"] == 0
-    assert result["suppressed_low_groups"] == 3
+    assert result["suppressed_low_groups"] == 1
     assert alerts == []

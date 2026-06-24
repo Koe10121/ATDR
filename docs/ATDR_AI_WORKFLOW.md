@@ -18,6 +18,8 @@ ATDR is a defensive FastAPI + React AI-assisted log-based threat detection and r
 | Current lab status and limitations | `docs/V0_3_STATUS.md`, `docs/LAB_RUNBOOK.md` |
 | IAM/RBAC adaptation and permission matrix | `docs/security/ATDR_IAM_RBAC_MATRIX.md` |
 | External school-email IAM groundwork | `docs/security/ATDR_EXTERNAL_IAM_PLAN.md` |
+| MFU IAM adapter planning | `docs/security/ATDR_MFU_IAM_ADAPTER_PLAN.md`, `docs/security/MFU_IAM_PROVIDER_DETAILS_CHECKLIST.md` |
+| Email verification and account notification foundation | `docs/V3_14_EMAIL_VERIFICATION_AND_ACCOUNT_NOTIFICATIONS.md` |
 | NewSystem template alignment, ATDR manifest, and permission path registry | `docs/ATDR_NEWSYSTEM_TEMPLATE_ALIGNMENT.md`, `docs/ATDR_TEMPLATE_MANIFEST.json`, `docs/security/ATDR_PERMISSION_PATHS.md` |
 | ATDR docs index and tasklist/progress-board workflow | `docs/AI-DOCS-INDEX.md`, `docs/tasks/README.md`, `docs/tasks/tasklist-progress.md`, `docs/tasks/tasklist-progress.html` |
 | Requirement traceability | `docs/ATDR_REQUIREMENT_TRACEABILITY.md` |
@@ -94,6 +96,7 @@ npm.cmd run build
 npm.cmd run test:e2e
 cd ..
 .\.venv\Scripts\python.exe -m atdr.scripts.replay_logs --dry-run --limit 20 --rate 5 --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.validate_detection_pipeline --pretty
 .\.venv\Scripts\python.exe -m atdr.scripts.performance_smoke --pretty
 .\.venv\Scripts\python.exe -m atdr.scripts.verify_release
 ```
@@ -147,6 +150,9 @@ Current IAM limitations must remain explicit:
 
 - No external SSO/OAuth/SAML/LDAP.
 - No enterprise identity provider.
+- No real MFU IAM SDK, Google SSO callback, or B2B token introspection.
+- Email verification is disabled by default and is local-account groundwork only.
+- Real SMTP delivery, password reset email, and school OIDC login are future work.
 - Demo JWT secrets must be replaced before shared lab or real deployment.
 - Current role model is suitable for lab prototype validation, not production IAM.
 - Role permissions must be reviewed before any real deployment or response connector work.
@@ -164,7 +170,19 @@ ATDR follows these NewSystem-style ideas:
 - T1-T20 change handoff: `docs/templates/ATDR_T1_T20_CHANGE_DOCUMENT.md`
 - security review discipline: `docs/security/ATDR_OWASP_LAB_SECURITY_REVIEW.md`
 
-Do not copy NewSystem-specific Node.js, Vue, MongoDB, Google SSO, B2B IAM SDK, or Docker requirements into ATDR unless a future approved requirement explicitly asks for that migration. v0.4 uses generic OIDC groundwork only, disabled by default, so a future school-email provider can be added without changing the ATDR stack. The active adaptation guide is `docs/ATDR_NEWSYSTEM_TEMPLATE_ALIGNMENT.md`.
+Do not copy NewSystem-specific Node.js, Vue, MongoDB, Google SSO, B2B IAM SDK, or Docker requirements into ATDR unless a future approved requirement explicitly asks for that migration. v0.4 uses generic OIDC groundwork only, disabled by default, so a future school-email provider can be added without changing the ATDR stack. The MFU IAM adapter mapping is documented in `docs/security/ATDR_MFU_IAM_ADAPTER_PLAN.md`; provider questions must be answered in `docs/security/MFU_IAM_PROVIDER_DETAILS_CHECKLIST.md` before real implementation. The active adaptation guide is `docs/ATDR_NEWSYSTEM_TEMPLATE_ALIGNMENT.md`.
+
+## Analyst Assistant Safety Rule
+
+ATDR v3.8 includes a read-only analyst assistant MVP. Future assistant work must preserve these constraints unless a new approved T1-T20 change record explicitly changes them after privacy/security review:
+
+- Assistant answers are decision support only.
+- Assistant must not execute response actions, run detection, change labels, delete data, activate models, or promote ML models.
+- External LLM support is disabled by default and may only be configured through `.env`; no keys may be committed.
+- Raw log context is disabled by default.
+- IP redaction is enabled by default.
+- Assistant questions must be audited without API secrets.
+- `docs/V3_8_ANALYST_ASSISTANT_MVP.md`, `docs/V3_27_ASSISTANT_FEEDBACK_AND_ANSWER_QUALITY.md`, `docs/V3_28_ASSISTANT_FEEDBACK_REVIEW.md`, `docs/V3_29_SOC_ASSISTANT_REASONING_AND_TRIAGE_QUALITY.md`, and `docs/ATDR_REQUIREMENT_TRACEABILITY.md` are active source docs for assistant scope, feedback safety, feedback review, and triage reasoning.
 
 ## T1-T20 Change Document Requirement
 

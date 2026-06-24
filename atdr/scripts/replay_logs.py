@@ -13,6 +13,7 @@ from atdr.app.db.database import SessionLocal, init_db
 from atdr.app.parsers.paloalto_parser import parse_log_line_for_profile
 from atdr.app.services.detection_service import run_detection
 from atdr.app.services.demo_service import resolve_demo_sample_path
+from atdr.app.services.job_service import build_result_summary, complete_job, fail_job, start_job
 from atdr.app.services.log_service import import_raw_log_line
 from atdr.app.services.operation_run_service import complete_ingestion_run, fail_ingestion_run, start_ingestion_run
 from atdr.app.services.source_service import get_or_create_source
@@ -130,6 +131,7 @@ def replay_logs(
         init_db()
         db = SessionLocal()
     run = None
+    job = None
     if db is not None and mode == "direct" and not dry_run:
         source = get_or_create_source(
             db,
@@ -138,6 +140,21 @@ def replay_logs(
             parser_profile=parser_profile,
             host=source_host,
             port=source_port,
+        )
+        job = start_job(
+            db,
+            job_type="replay_logs",
+            requested_by=actor,
+            details={
+                "rate": rate,
+                "limit": limit,
+                "loop": loop,
+                "send_to": send_to,
+                "source_id": source.id,
+                "source_name": source.name,
+                "source_type": source.source_type,
+                "parser_profile": source.parser_profile,
+            },
         )
         run = start_ingestion_run(
             db,
@@ -239,10 +256,23 @@ def replay_logs(
             )
             db.commit()
             result["run_id"] = run.id
+        if job is not None and db is not None:
+            complete_job(
+                db,
+                job,
+                result_summary=build_result_summary("replay_logs", result),
+                related_ingestion_run_id=run.id if run is not None else None,
+                related_detection_run_id=(result.get("detection") or {}).get("detection_run_id")
+                if isinstance(result.get("detection"), dict)
+                else None,
+            )
+            result["job_id"] = job.id
     except Exception as exc:
         if run is not None and db is not None:
             fail_ingestion_run(db, run, error=f"{exc.__class__.__name__}: {exc}", details={"read_before_failure": result["read"]})
             db.commit()
+        if job is not None and db is not None:
+            fail_job(db, job, exc)
         raise
     finally:
         if owns_session and db is not None:

@@ -1,4 +1,4 @@
-import { Activity, BarChart3, Brain, ClipboardList, Database, Gauge, LogOut, RadioTower, Settings2, ShieldAlert, SlidersHorizontal, Users } from "lucide-react";
+import { Activity, BarChart3, Bot, Brain, ClipboardList, Database, Gauge, LogOut, RadioTower, Settings2, ShieldAlert, SlidersHorizontal, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
 import clsx from "clsx";
@@ -20,7 +20,8 @@ const fullNavGroups: Array<{ label: string; items: NavItem[] }> = [
     items: [
       { to: "/overview", label: "Overview", icon: Gauge },
       { to: "/alerts", label: "Alerts", icon: ShieldAlert },
-      { to: "/logs", label: "Investigation", icon: Database }
+      { to: "/logs", label: "Investigation", icon: Database },
+      { to: "/assistant", label: "SOC Assistant", icon: Bot }
     ]
   },
   {
@@ -54,6 +55,7 @@ const presentationNavGroups: Array<{ label: string; items: NavItem[] }> = [
       { to: "/overview", label: "Overview", icon: Gauge },
       { to: "/alerts", label: "Alerts", icon: ShieldAlert },
       { to: "/logs", label: "Investigation", icon: Database },
+      { to: "/assistant", label: "SOC Assistant", icon: Bot },
       { to: "/ml", label: "AI Governance", icon: Brain },
       { to: "/response", label: "Response & Audit", icon: RadioTower }
     ]
@@ -75,6 +77,12 @@ export function AppShell() {
   const health = useHealth();
   const me = useMe(Boolean(session));
   const responseMode = health.data?.checks.response_mode?.status ?? "unknown";
+  const accountLabel = me.data?.email ?? me.data?.username ?? session?.username ?? "signed in";
+  const emailBadge = me.data?.email
+    ? me.data.email_verified
+      ? "Email Verified"
+      : "Email Unverified"
+    : "No Email";
 
   return (
     <div className={clsx("min-h-screen bg-shell text-text", presentationMode && "presentation-mode")}>
@@ -129,9 +137,10 @@ export function AppShell() {
               <Badge value={responseMode === "simulation" ? "Simulation Mode" : "blocked"} />
               <Badge value="Decision Support Only" />
               <Badge value="Response Automation Disabled" />
-              <span className="rounded-full border border-line px-3 py-1 text-sm font-bold text-muted">
+              <span className="max-w-xs truncate rounded-full border border-line px-3 py-1 text-sm font-bold text-muted" title={accountLabel}>
                 {me.data?.username ?? session?.username} ({me.data?.role ?? session?.role})
               </span>
+              <Badge value={emailBadge} />
               <button className="btn-secondary flex items-center gap-2" onClick={logout}>
                 <LogOut size={16} />
                 Logout

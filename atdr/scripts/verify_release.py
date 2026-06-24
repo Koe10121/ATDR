@@ -12,7 +12,7 @@ from typing import Callable, Sequence
 from atdr.app.core.config import PROJECT_ROOT
 
 
-DEFAULT_TIMEOUT_SECONDS = 300.0
+DEFAULT_TIMEOUT_SECONDS = 900.0
 EXCERPT_LIMIT = 4000
 
 

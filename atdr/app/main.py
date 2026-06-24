@@ -6,6 +6,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from atdr.app.core.config import get_settings, validate_runtime_settings
@@ -15,12 +16,14 @@ from atdr.app.core.request_context import get_request_id
 from atdr.app.db.database import check_database_connection, get_db, init_db
 from atdr.app.routers import (
     alerts,
+    assistant,
     audit,
     auth,
     dashboard,
     demo,
     detection,
     ingestion,
+    jobs,
     logs,
     ml,
     response,
@@ -42,6 +45,16 @@ async def lifespan(app: FastAPI):
         raise RuntimeError("Unsafe ATDR runtime configuration: " + " ".join(config_issues))
     if settings.auto_create_tables:
         init_db()
+    database_check = check_database_connection()
+    if database_check["status"] != "ok":
+        logger.error(
+            "database connection check failed",
+            extra={
+                "event": "startup_database_check_failed",
+                "detail": database_check.get("detail"),
+                "environment": settings.environment,
+            },
+        )
     logger.info(
         "application startup complete",
         extra={"event": "startup", "service_version": settings.service_version, "environment": settings.environment},
@@ -106,6 +119,25 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     )
 
 
+@app.exception_handler(OperationalError)
+async def database_operational_exception_handler(request: Request, exc: OperationalError) -> JSONResponse:
+    logger.error(
+        "database unavailable",
+        extra={
+            "event": "database_unavailable",
+            "error_type": exc.__class__.__name__,
+            "path": request.url.path,
+        },
+    )
+    return JSONResponse(
+        status_code=503,
+        content={
+            "detail": "Database unavailable. Check DATABASE_URL and make sure the configured database service is running.",
+            "request_id": get_request_id(),
+        },
+    )
+
+
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     logger.exception(
@@ -126,9 +158,11 @@ app.include_router(suppressions.router)
 app.include_router(watchlists.router)
 app.include_router(sources.router)
 app.include_router(ingestion.router)
+app.include_router(jobs.router)
 app.include_router(detection.router)
 app.include_router(ml.router)
 app.include_router(response.router)
+app.include_router(assistant.router)
 app.include_router(audit.router)
 app.include_router(dashboard.router)
 app.include_router(demo.router)

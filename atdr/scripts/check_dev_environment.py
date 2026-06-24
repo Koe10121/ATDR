@@ -1,6 +1,7 @@
 import argparse
 import importlib.util
 import json
+import os
 import shutil
 import sqlite3
 import subprocess
@@ -80,14 +81,26 @@ def _sqlite_path(database_url: str, *, root: Path = PROJECT_ROOT) -> Path | None
     return path
 
 
+def _safe_database_url_label(database_url: str) -> str:
+    try:
+        return make_url(database_url).render_as_string(hide_password=True)
+    except Exception:
+        return "unparseable-database-url"
+
+
+def _running_inside_container() -> bool:
+    return Path("/.dockerenv").exists() or os.environ.get("ATDR_RUNNING_IN_CONTAINER", "").lower() in {"1", "true", "yes"}
+
+
 def check_database_url(database_url: str, *, root: Path = PROJECT_ROOT) -> CheckResult:
+    safe_url = _safe_database_url_label(database_url)
     sqlite_path = _sqlite_path(database_url, root=root)
     if sqlite_path is not None:
         if not sqlite_path.exists():
             return _warning(
                 "database",
                 "SQLite database file is missing. Run Alembic migrations before starting the backend.",
-                database_url=database_url,
+                database_url=safe_url,
                 path=str(sqlite_path),
             )
         try:
@@ -96,15 +109,28 @@ def check_database_url(database_url: str, *, root: Path = PROJECT_ROOT) -> Check
             connection.close()
         except sqlite3.Error as exc:
             return _error("database", "SQLite database connection failed.", error=exc.__class__.__name__)
-        return _ok("database", "SQLite database connection works.", database_url=database_url, path=str(sqlite_path))
+        return _ok("database", "SQLite database connection works.", database_url=safe_url, path=str(sqlite_path))
+
+    try:
+        url = make_url(database_url)
+    except Exception:
+        return _error("database", "DATABASE_URL could not be parsed.", database_url=safe_url)
+
+    if url.drivername.startswith("postgresql") and (url.host or "").lower() == "postgres" and not _running_inside_container():
+        return _error(
+            "database",
+            "PostgreSQL host 'postgres' is a Docker Compose service name. For normal local Windows workflow use sqlite:///./atdr.db, or start the PostgreSQL/Docker lab service first.",
+            database_url=safe_url,
+            recommendation='DATABASE_URL="sqlite:///./atdr.db"',
+        )
 
     try:
         engine = create_engine(database_url, future=True)
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))
     except Exception as exc:
-        return _error("database", "Database connection failed.", database_url=database_url, error=exc.__class__.__name__)
-    return _ok("database", "Database connection works.", database_url=database_url)
+        return _error("database", "Database connection failed.", database_url=safe_url, error=exc.__class__.__name__)
+    return _ok("database", "Database connection works.", database_url=safe_url)
 
 
 def _check_python() -> CheckResult:
@@ -213,7 +239,7 @@ def build_report(*, check_api: bool = True, check_alembic: bool = True, api_url:
         "critical_count": critical_count,
         "warning_count": warning_count,
         "project_root": str(PROJECT_ROOT),
-        "database_url": settings.database_url,
+        "database_url": _safe_database_url_label(settings.database_url),
         "api_url": api_url,
         "checks": payload_checks,
     }

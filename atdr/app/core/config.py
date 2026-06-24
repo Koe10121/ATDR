@@ -59,6 +59,15 @@ class Settings(BaseSettings):
     oidc_issuer_url: str = Field(default="", alias="OIDC_ISSUER_URL")
     oidc_allowed_domains: str = Field(default="", alias="OIDC_ALLOWED_DOMAINS")
     oidc_default_role: str = Field(default="analyst", alias="OIDC_DEFAULT_ROLE")
+    mfu_iam_enabled: bool = Field(default=False, alias="MFU_IAM_ENABLED")
+    mfu_iam_base_url: str = Field(default="", alias="MFU_IAM_BASE_URL")
+    mfu_iam_client_id: str = Field(default="", alias="MFU_IAM_CLIENT_ID")
+    mfu_iam_client_secret: str = Field(default="", alias="MFU_IAM_CLIENT_SECRET")
+    mfu_iam_audience: str = Field(default="", alias="MFU_IAM_AUDIENCE")
+    mfu_iam_allowed_domains: str = Field(default="", alias="MFU_IAM_ALLOWED_DOMAINS")
+    mfu_iam_default_role: str = Field(default="analyst", alias="MFU_IAM_DEFAULT_ROLE")
+    google_sso_enabled: bool = Field(default=False, alias="GOOGLE_SSO_ENABLED")
+    google_client_id: str = Field(default="", alias="GOOGLE_CLIENT_ID")
     school_email_domains: str = Field(default="", alias="SCHOOL_EMAIL_DOMAINS")
     require_school_email: bool = Field(default=False, alias="REQUIRE_SCHOOL_EMAIL")
     local_email_login_enabled: bool = Field(default=True, alias="LOCAL_EMAIL_LOGIN_ENABLED")
@@ -68,7 +77,28 @@ class Settings(BaseSettings):
     smtp_username: str = Field(default="", alias="SMTP_USERNAME")
     smtp_password: str = Field(default="", alias="SMTP_PASSWORD")
     smtp_from_email: str = Field(default="", alias="SMTP_FROM_EMAIL")
+    smtp_use_tls: bool = Field(default=True, alias="SMTP_USE_TLS")
+    email_notifications_enabled: bool = Field(default=False, alias="EMAIL_NOTIFICATIONS_ENABLED")
+    email_verification_enabled: bool = Field(default=False, alias="EMAIL_VERIFICATION_ENABLED")
+    email_delivery_mode: str = Field(default="disabled", alias="EMAIL_DELIVERY_MODE")
+    email_verification_code_ttl_minutes: int = Field(default=15, alias="EMAIL_VERIFICATION_CODE_TTL_MINUTES")
+    email_verification_code_length: int = Field(default=6, alias="EMAIL_VERIFICATION_CODE_LENGTH")
+    email_verification_required_for_login: bool = Field(default=False, alias="EMAIL_VERIFICATION_REQUIRED_FOR_LOGIN")
+    email_verification_required_for_admin_actions: bool = Field(
+        default=False,
+        alias="EMAIL_VERIFICATION_REQUIRED_FOR_ADMIN_ACTIONS",
+    )
     dashboard_summary_cache_seconds: int = Field(default=30, alias="DASHBOARD_SUMMARY_CACHE_SECONDS")
+    job_stale_after_minutes: int = Field(default=60, alias="JOB_STALE_AFTER_MINUTES")
+    job_retention_days: int = Field(default=30, alias="JOB_RETENTION_DAYS")
+    run_history_retention_days: int = Field(default=90, alias="RUN_HISTORY_RETENTION_DAYS")
+    assistant_enabled: bool = Field(default=False, alias="ASSISTANT_ENABLED")
+    assistant_provider: str = Field(default="disabled", alias="ASSISTANT_PROVIDER")
+    assistant_model: str = Field(default="", alias="ASSISTANT_MODEL")
+    assistant_api_key: str = Field(default="", alias="ASSISTANT_API_KEY")
+    assistant_max_context_rows: int = Field(default=20, alias="ASSISTANT_MAX_CONTEXT_ROWS")
+    assistant_redact_ips: bool = Field(default=True, alias="ASSISTANT_REDACT_IPS")
+    assistant_allow_raw_log_context: bool = Field(default=False, alias="ASSISTANT_ALLOW_RAW_LOG_CONTEXT")
 
     @property
     def resolved_model_path(self) -> Path:
@@ -93,6 +123,10 @@ class Settings(BaseSettings):
     def school_email_domain_list(self) -> list[str]:
         domains = self.school_email_domains or self.oidc_allowed_domains
         return [domain.strip().lower() for domain in domains.split(",") if domain.strip()]
+
+    @property
+    def mfu_iam_allowed_domain_list(self) -> list[str]:
+        return [domain.strip().lower() for domain in self.mfu_iam_allowed_domains.split(",") if domain.strip()]
 
 
 def validate_runtime_settings(settings: Settings) -> list[str]:
@@ -123,6 +157,21 @@ def validate_runtime_settings(settings: Settings) -> list[str]:
             issues.append("OIDC_ISSUER_URL is required when OIDC_ENABLED=true.")
         if not settings.oidc_allowed_domains.strip():
             issues.append("OIDC_ALLOWED_DOMAINS is required when OIDC_ENABLED=true.")
+    if settings.mfu_iam_default_role not in {"admin", "analyst"}:
+        issues.append("MFU_IAM_DEFAULT_ROLE must be 'admin' or 'analyst'.")
+    if settings.mfu_iam_enabled:
+        if not settings.mfu_iam_base_url.strip():
+            issues.append("MFU_IAM_BASE_URL is required when MFU_IAM_ENABLED=true.")
+        if not settings.mfu_iam_client_id.strip():
+            issues.append("MFU_IAM_CLIENT_ID is required when MFU_IAM_ENABLED=true.")
+        if not settings.mfu_iam_client_secret.strip():
+            issues.append("MFU_IAM_CLIENT_SECRET is required when MFU_IAM_ENABLED=true.")
+        if not settings.mfu_iam_audience.strip():
+            issues.append("MFU_IAM_AUDIENCE is required when MFU_IAM_ENABLED=true.")
+        if not settings.mfu_iam_allowed_domains.strip():
+            issues.append("MFU_IAM_ALLOWED_DOMAINS is required when MFU_IAM_ENABLED=true.")
+    if settings.google_sso_enabled and not settings.google_client_id.strip():
+        issues.append("GOOGLE_CLIENT_ID is required when GOOGLE_SSO_ENABLED=true.")
     if settings.require_school_email and not settings.school_email_domain_list:
         issues.append("SCHOOL_EMAIL_DOMAINS or OIDC_ALLOWED_DOMAINS is required when REQUIRE_SCHOOL_EMAIL=true.")
     if settings.smtp_enabled:
@@ -130,8 +179,40 @@ def validate_runtime_settings(settings: Settings) -> list[str]:
             issues.append("SMTP_HOST is required when SMTP_ENABLED=true.")
         if not settings.smtp_from_email.strip():
             issues.append("SMTP_FROM_EMAIL is required when SMTP_ENABLED=true.")
+    delivery_mode = settings.email_delivery_mode.strip().lower()
+    if delivery_mode not in {"disabled", "log_only", "dev_outbox", "smtp"}:
+        issues.append("EMAIL_DELIVERY_MODE must be disabled, log_only, dev_outbox, or smtp.")
+    if settings.email_verification_code_ttl_minutes <= 0:
+        issues.append("EMAIL_VERIFICATION_CODE_TTL_MINUTES must be greater than zero.")
+    if not 4 <= settings.email_verification_code_length <= 12:
+        issues.append("EMAIL_VERIFICATION_CODE_LENGTH must be between 4 and 12.")
+    if delivery_mode == "smtp" and (settings.email_notifications_enabled or settings.email_verification_enabled):
+        if not settings.smtp_host.strip():
+            issues.append("SMTP_HOST is required when EMAIL_DELIVERY_MODE=smtp.")
+        if not settings.smtp_from_email.strip():
+            issues.append("SMTP_FROM_EMAIL is required when EMAIL_DELIVERY_MODE=smtp.")
+    if settings.email_verification_required_for_login and not settings.email_verification_enabled:
+        issues.append("EMAIL_VERIFICATION_ENABLED must be true before EMAIL_VERIFICATION_REQUIRED_FOR_LOGIN can be true.")
+    if settings.email_verification_required_for_admin_actions and not settings.email_verification_enabled:
+        issues.append(
+            "EMAIL_VERIFICATION_ENABLED must be true before EMAIL_VERIFICATION_REQUIRED_FOR_ADMIN_ACTIONS can be true."
+        )
     if settings.dashboard_summary_cache_seconds < 0:
         issues.append("DASHBOARD_SUMMARY_CACHE_SECONDS must be zero or greater.")
+    if settings.job_stale_after_minutes <= 0:
+        issues.append("JOB_STALE_AFTER_MINUTES must be greater than zero.")
+    if settings.job_retention_days <= 0:
+        issues.append("JOB_RETENTION_DAYS must be greater than zero.")
+    if settings.run_history_retention_days <= 0:
+        issues.append("RUN_HISTORY_RETENTION_DAYS must be greater than zero.")
+    if settings.assistant_max_context_rows <= 0:
+        issues.append("ASSISTANT_MAX_CONTEXT_ROWS must be greater than zero.")
+    if settings.assistant_enabled and settings.assistant_provider.lower() in {"", "disabled", "none"}:
+        issues.append("ASSISTANT_PROVIDER must name an approved provider when ASSISTANT_ENABLED=true.")
+    if settings.assistant_enabled and not settings.assistant_api_key.strip():
+        issues.append("ASSISTANT_API_KEY is required when ASSISTANT_ENABLED=true.")
+    if settings.assistant_enabled and settings.assistant_allow_raw_log_context:
+        issues.append("ASSISTANT_ALLOW_RAW_LOG_CONTEXT must remain false until a privacy review approves raw-log sharing.")
     return issues
 
 

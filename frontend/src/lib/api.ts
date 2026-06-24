@@ -5,6 +5,13 @@ import type {
   AlertReport,
   AlertStatus,
   AlertTimelineEvent,
+  AssistantChatRequest,
+  AssistantChatResponse,
+  AssistantFeedbackItem,
+  AssistantFeedbackRequest,
+  AssistantFeedbackSummary,
+  AssistantHistoryItem,
+  AssistantStatusResponse,
   AuditLog,
   BlockedIP,
   BenchmarkReviewImportResult,
@@ -12,7 +19,10 @@ import type {
   DashboardSummary,
   DashboardValidationSummary,
   DemoActionResult,
+  DevEmailOutboxItem,
   DetectionTuningReport,
+  EmailVerificationRequestResult,
+  EmailVerificationStatus,
   HealthResponse,
   DetectionRun,
   IngestionRun,
@@ -23,6 +33,8 @@ import type {
   MLLabelPayload,
   MLReviewQueueItem,
   NormalizedLog,
+  OperationJob,
+  OperationJobSummary,
   OidcStatus,
   ResponseAction,
   SupervisedModelReport,
@@ -148,12 +160,32 @@ export const api = {
     }),
   me: () => apiRequest<User>("/api/auth/me"),
   oidcStatus: () => apiRequest<OidcStatus>("/api/auth/oidc/status"),
+  emailStatus: () => apiRequest<EmailVerificationStatus>("/api/auth/email/status"),
+  requestOwnEmailVerification: () =>
+    apiRequest<EmailVerificationRequestResult>("/api/auth/email/request-verification", { method: "POST" }),
+  verifyOwnEmail: (code: string) =>
+    apiRequest<{ verified: boolean; status: string; message: string }>("/api/auth/email/verify", {
+      method: "POST",
+      body: JSON.stringify({ code })
+    }),
+  assistantStatus: () => apiRequest<AssistantStatusResponse>("/api/assistant/status"),
+  assistantHistory: (params: Params = {}) => apiRequest<AssistantHistoryItem[]>("/api/assistant/history", { params }),
+  assistantChat: (payload: AssistantChatRequest) =>
+    apiRequest<AssistantChatResponse>("/api/assistant/chat", { method: "POST", body: JSON.stringify(payload) }),
+  assistantFeedback: (payload: AssistantFeedbackRequest) =>
+    apiRequest<AssistantFeedbackItem>("/api/assistant/feedback", { method: "POST", body: JSON.stringify(payload) }),
+  assistantFeedbackSummary: (params: Params = {}) => apiRequest<AssistantFeedbackSummary>("/api/assistant/feedback/summary", { params }),
+  assistantFeedbackRecent: (params: Params = {}) => apiRequest<AssistantFeedbackItem[]>("/api/assistant/feedback/recent", { params }),
   dashboardSummary: () => apiRequest<DashboardSummary>("/api/dashboard/summary"),
   dashboardValidationSummary: () => apiRequest<DashboardValidationSummary>("/api/dashboard/validation-summary"),
   ingestionRuns: (params: Params = {}) => apiRequest<IngestionRun[]>("/api/ingestion/runs", { params }),
   ingestionRun: (id: number) => apiRequest<IngestionRun>(`/api/ingestion/runs/${id}`),
   detectionRuns: (params: Params = {}) => apiRequest<DetectionRun[]>("/api/detection/runs", { params }),
   detectionRun: (id: number) => apiRequest<DetectionRun>(`/api/detection/runs/${id}`),
+  jobs: (params: Params = {}) => apiRequest<OperationJob[]>("/api/jobs", { params }),
+  jobsSummary: () => apiRequest<OperationJobSummary>("/api/jobs/summary"),
+  job: (id: number) => apiRequest<OperationJob>(`/api/jobs/${id}`),
+  cancelJob: (id: number) => apiRequest<OperationJob>(`/api/jobs/${id}/cancel`, { method: "POST" }),
   sources: (params: Params = {}) => apiRequest<LogSource[]>("/api/sources", { params }),
   source: (id: number) => apiRequest<LogSource>(`/api/sources/${id}`),
   sourceHealth: (id: number) => apiRequest<LogSource["health"]>(`/api/sources/${id}/health`),
@@ -244,8 +276,11 @@ export const api = {
       body: JSON.stringify({ target_ip: targetIp, reason })
     }),
   users: () => apiRequest<User[]>("/api/users"),
+  devEmailOutbox: (params: Params = {}) => apiRequest<DevEmailOutboxItem[]>("/api/users/dev-email-outbox", { params }),
   createUser: (payload: { username: string; password?: string; role: string; full_name?: string; email?: string; email_verified?: boolean; auth_provider?: string; is_active?: boolean }) =>
     apiRequest<User>("/api/users", { method: "POST", body: JSON.stringify(payload) }),
+  sendUserVerification: (id: number) =>
+    apiRequest<EmailVerificationRequestResult>(`/api/users/${id}/send-verification`, { method: "POST" }),
   updateUser: (id: number, payload: Partial<{ username: string; role: string; full_name: string | null; email: string | null; email_verified: boolean; auth_provider: string; is_active: boolean }>) =>
     apiRequest<User>(`/api/users/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
   disableUser: (id: number) => apiRequest<User>(`/api/users/${id}/disable`, { method: "POST" }),

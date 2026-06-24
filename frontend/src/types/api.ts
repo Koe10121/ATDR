@@ -40,6 +40,156 @@ export interface OidcStatus {
   smtp_enabled: boolean;
 }
 
+export interface EmailVerificationStatus {
+  notifications_enabled: boolean;
+  verification_enabled: boolean;
+  delivery_mode: "disabled" | "log_only" | "dev_outbox" | "smtp" | string;
+  smtp_configured: boolean;
+  smtp_enabled_legacy: boolean;
+  from_email_configured: boolean;
+  dev_outbox_available: boolean;
+  code_ttl_minutes: number;
+  code_length: number;
+  verification_required_for_login: boolean;
+  verification_required_for_admin_actions: boolean;
+  school_email_domains: string[];
+  require_school_email: boolean;
+  local_email_login_enabled: boolean;
+  secrets_exposed: boolean;
+}
+
+export interface EmailVerificationRequestResult {
+  created: boolean;
+  status: string;
+  message: string;
+  user_id?: number | null;
+  email?: string | null;
+  expires_at?: string | null;
+  delivery_mode: string;
+  delivery_status: string;
+  outbox_id?: number | null;
+}
+
+export interface DevEmailOutboxItem {
+  id: number;
+  user_id?: number | null;
+  recipient_email: string;
+  subject: string;
+  body_preview: string;
+  purpose: string;
+  delivery_mode: string;
+  delivery_status: string;
+  created_by?: string | null;
+  created_at: string;
+  sent_at?: string | null;
+  error_summary?: string | null;
+}
+
+export interface AssistantChatRequest {
+  question: string;
+  alert_id?: number | null;
+  log_id?: number | null;
+  source_id?: number | null;
+  case_id?: string | null;
+  include_recent_context?: boolean;
+}
+
+export interface AssistantCitation {
+  label: string;
+  source: string;
+  reference_id?: string | null;
+}
+
+export interface AssistantChatResponse {
+  answer: string;
+  mode: string;
+  external_provider_used: boolean;
+  safety: string[];
+  context_used: string[];
+  citations: AssistantCitation[];
+  redaction_applied: boolean;
+  raw_log_context_included: boolean;
+  suggested_followups: string[];
+  details: Record<string, unknown>;
+}
+
+export type AssistantFeedbackRating = "helpful" | "not_helpful" | "unsafe" | "incorrect" | "unclear";
+
+export interface AssistantFeedbackRequest {
+  question: string;
+  rating: AssistantFeedbackRating;
+  answer?: string | null;
+  feedback_note?: string | null;
+  context_type?: string | null;
+  context_reference?: string | null;
+  external_provider_used?: boolean;
+  raw_log_context_included?: boolean;
+  action_requested?: boolean | null;
+  assistant_audit_id?: number | null;
+}
+
+export interface AssistantFeedbackItem {
+  feedback_id: number;
+  created_at: string;
+  actor_user_id?: number | null;
+  actor_username: string;
+  question: string;
+  answer_summary?: string | null;
+  answer_hash: string;
+  context_type?: string | null;
+  context_reference?: string | null;
+  rating: string;
+  feedback_note?: string | null;
+  external_provider_used: boolean;
+  raw_log_context_included: boolean;
+  action_requested: boolean;
+  action_executed: boolean;
+  assistant_audit_id?: number | null;
+  review_recommended?: boolean;
+  review_reason?: string | null;
+}
+
+export interface AssistantFeedbackSummary {
+  total_count: number;
+  rating_counts: Record<string, number>;
+  unsafe_or_incorrect_count: number;
+  needs_review_count: number;
+  external_provider_used_count: number;
+  raw_log_context_included_count: number;
+  action_requested_count: number;
+  action_executed_count: number;
+  latest_unsafe_or_incorrect: AssistantFeedbackItem[];
+  recent: AssistantFeedbackItem[];
+  scope: string;
+  filtered_rating?: string | null;
+  filtered_context_type?: string | null;
+  filtered_since_days?: number | null;
+  review_warning: boolean;
+  secrets_exposed: boolean;
+}
+
+export interface AssistantHistoryItem {
+  id: number;
+  actor: string;
+  question: string;
+  created_at: string;
+  context_used: string[];
+  external_provider_used: boolean;
+}
+
+export interface AssistantStatusResponse {
+  available: boolean;
+  mode: string;
+  external_provider_configured: boolean;
+  external_provider_used_by_default: boolean;
+  provider: string;
+  model_configured: boolean;
+  redaction_enabled: boolean;
+  raw_log_context_allowed: boolean;
+  max_context_rows: number;
+  safety: string[];
+}
+
 export interface HealthResponse {
   status: string;
   service: string;
@@ -120,9 +270,14 @@ export interface AttackMapping {
 }
 
 export interface DetectionSummary {
+  what_happened?: string;
   detection_source: string[];
   attack_type: string;
   attack_mapping: AttackMapping;
+  normalized_fields_used?: Record<string, unknown>;
+  rule_evidence?: string[];
+  anomaly_evidence?: Record<string, unknown>;
+  ml_evidence?: Record<string, unknown>;
   matched_rule_names: string[];
   anomaly: Record<string, unknown>;
   supervised: Record<string, unknown>;
@@ -130,6 +285,11 @@ export interface DetectionSummary {
   behavior_window: Record<string, unknown>;
   top_evidence_points: string[];
   why_flagged: string;
+  why_suspicious?: string;
+  analyst_next_steps?: string[];
+  decision_support_only?: boolean;
+  response_automation_allowed?: boolean;
+  safety_note?: string;
 }
 
 export interface NormalizedLog {
@@ -163,6 +323,27 @@ export interface NormalizedLog {
   parsed_json: Record<string, unknown>;
   raw_line?: string | null;
   alert_ids?: number[];
+  triage_explanation?: {
+    status: "flagged" | "not_flagged" | string;
+    summary: string;
+    reasons: string[];
+    why_flagged?: string | null;
+    why_not_flagged?: string | null;
+    normalized_fields_used?: Record<string, unknown>;
+    normalized_signals: string[];
+    rule_evidence?: string[];
+    anomaly_evidence?: Record<string, unknown>;
+    ml_evidence?: Record<string, unknown>;
+    risk_score?: number | null;
+    severity?: string | null;
+    attack_mapping?: AttackMapping | null;
+    parser_warnings: string[];
+    alert_ids: number[];
+    decision_support_only: boolean;
+    response_automation_allowed: boolean;
+    safety_note?: string;
+    analyst_next_steps: string[];
+  };
 }
 
 export interface SourceHealth {
@@ -451,6 +632,9 @@ export interface DashboardValidationSummary {
   v19_ai?: DashboardV19AiSummary;
   v19b_ai?: DashboardV19BAiSummary;
   v20_ai?: DashboardV20AiSummary;
+  v330_detection_ml_quality?: DashboardV330DetectionMlQualitySummary;
+  v355_soc_queue?: DashboardV355SocQueueSummary;
+  v357_queue_evidence_agreement?: DashboardV357QueueEvidenceAgreementSummary;
   v30_production_readiness?: DashboardV30ProductionReadinessSummary;
 }
 
@@ -755,6 +939,134 @@ export interface DashboardV20AiSummary extends DashboardV19BAiSummary {
   threshold_tuning_performed?: boolean;
 }
 
+export interface DashboardV330DetectionMlQualitySummary {
+  available: boolean;
+  ok?: boolean;
+  generated_at?: string | null;
+  split?: string | null;
+  model_type?: string | null;
+  class_weight?: string | null;
+  training_rows?: number | null;
+  test_rows?: number | null;
+  baseline_profile?: string | null;
+  baseline_threat_positive_precision?: number | null;
+  baseline_threat_positive_recall?: number | null;
+  baseline_threat_positive_f1?: number | null;
+  baseline_benign_like_false_positive_rate?: number | null;
+  baseline_suspicious_recall?: number | null;
+  baseline_malicious_recall?: number | null;
+  baseline_macro_f1?: number | null;
+  baseline_weighted_f1?: number | null;
+  best_profile?: string | null;
+  best_threat_positive_precision?: number | null;
+  best_threat_positive_recall?: number | null;
+  best_threat_positive_f1?: number | null;
+  best_benign_like_false_positive_rate?: number | null;
+  best_suspicious_recall?: number | null;
+  best_malicious_recall?: number | null;
+  best_review_queue_size_estimate?: number | null;
+  calibration_status?: string | null;
+  calibration_ece?: number | null;
+  calibration_brier?: number | null;
+  calibration_max_gap?: number | null;
+  error_buckets?: Record<string, number>;
+  top_patterns?: Array<[string, number]>;
+  signal_counts?: Record<string, number>;
+  review_sample?: {
+    generated?: boolean;
+    rows?: number;
+    path?: string;
+  };
+  readiness_decision?: string | null;
+  checks_passed?: number;
+  checks_total?: number;
+  blockers?: string[];
+  production_promoted?: boolean;
+  model_activated?: boolean;
+  response_automation_allowed?: boolean;
+  real_firewall_blocking_enabled?: boolean;
+  diagnostic_only?: boolean;
+  latest_report_name?: string | null;
+  message?: string;
+}
+
+export interface DashboardV355SocQueueSummary {
+  available: boolean;
+  ok?: boolean;
+  generated_at?: string | null;
+  phase?: string | null;
+  best_strategy?: string | null;
+  policy_name?: string | null;
+  policy_description?: string | null;
+  recommended_use?: string | null;
+  exact_severity_status?: string | null;
+  evaluated_splits?: number;
+  passing_splits?: number;
+  split_stability_passed?: boolean;
+  queue_f1_min?: number | null;
+  queue_f1_max?: number | null;
+  queue_recall_min?: number | null;
+  queue_precision_min?: number | null;
+  benign_like_false_positive_rate_max?: number | null;
+  critical_recall_min?: number | null;
+  macro_f1_min?: number | null;
+  weighted_f1_min?: number | null;
+  calibration_status?: string | null;
+  calibration_ece?: number | null;
+  calibration_brier?: number | null;
+  calibration_max_gap?: number | null;
+  threshold_selected_on?: string[];
+  readiness_decision?: string | null;
+  checks_passed?: number;
+  checks_total?: number;
+  blockers?: string[];
+  production_promoted?: boolean;
+  model_activated?: boolean;
+  model_artifact_written?: boolean;
+  labels_written?: boolean;
+  response_automation_allowed?: boolean;
+  diagnostic_only?: boolean;
+  latest_report_name?: string | null;
+  latest_markdown_name?: string | null;
+  message?: string;
+}
+
+export interface DashboardV357QueueEvidenceAgreementSummary {
+  available: boolean;
+  ok?: boolean;
+  generated_at?: string | null;
+  phase?: string | null;
+  policy_name?: string | null;
+  recommended_use?: string | null;
+  evaluated_splits?: number;
+  passing_splits?: number;
+  queue_f1_min?: number | null;
+  queue_recall_min?: number | null;
+  queue_precision_min?: number | null;
+  queue_false_positive_rate_max?: number | null;
+  agreement_rate_min?: number | null;
+  agreement_rate_max?: number | null;
+  calibration_ece_max?: number | null;
+  category_counts?: Record<string, number>;
+  top_queue_only_patterns?: Array<[string, number]>;
+  top_evidence_only_patterns?: Array<[string, number]>;
+  aggregate_blockers?: string[];
+  readiness_decision?: string | null;
+  checks_passed?: number;
+  checks_total?: number;
+  blockers?: string[];
+  production_promoted?: boolean;
+  model_activated?: boolean;
+  model_artifact_written?: boolean;
+  labels_written?: boolean;
+  raw_logs_included?: boolean;
+  response_automation_allowed?: boolean;
+  diagnostic_only?: boolean;
+  latest_report_name?: string | null;
+  latest_markdown_name?: string | null;
+  message?: string;
+}
+
 export interface DashboardV30ProductionReadinessSummary {
   available: boolean;
   status?: string;
@@ -1003,6 +1315,10 @@ export interface SupervisedModelRegistryItem {
   artifact_sha256?: string | null;
   artifact_exists: boolean;
   is_active_path: boolean;
+  active_artifact_metadata_status?: string | null;
+  active_artifact_metadata_unknown?: boolean;
+  display_model_type?: string | null;
+  display_feature_set?: string | null;
   feature_set_version?: string | null;
   dataset_snapshot_id?: string | null;
   split_strategy?: string | null;
@@ -1020,6 +1336,8 @@ export interface SupervisedModelRegistry {
   active_model_path: string;
   active_artifact_exists: boolean;
   active_artifact_sha256?: string | null;
+  active_artifact_metadata_status?: string | null;
+  active_artifact_metadata_unknown?: boolean;
   models: SupervisedModelRegistryItem[];
   production_promoted: boolean;
   response_automation_allowed: boolean;
@@ -1129,4 +1447,34 @@ export interface DetectionRun {
   runtime_seconds?: number | null;
   error_summary?: string | null;
   details: Record<string, unknown>;
+}
+
+export interface OperationJob {
+  job_id: number;
+  job_type: string;
+  status: string;
+  requested_by: string;
+  started_at?: string | null;
+  finished_at?: string | null;
+  progress_current: number;
+  progress_total: number;
+  result_summary: Record<string, unknown>;
+  error_summary?: string | null;
+  related_ingestion_run_id?: number | null;
+  related_detection_run_id?: number | null;
+  related_ml_model_run_id?: number | null;
+  details: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OperationJobSummary {
+  counts: Record<string, number>;
+  active_count: number;
+  failed_count: number;
+  stale_count: number;
+  stale_job_ids: number[];
+  latest_failed_job?: OperationJob | null;
+  latest_successful_job?: OperationJob | null;
+  retention_policy: Record<string, unknown>;
 }

@@ -71,6 +71,9 @@ export function MLGovernance() {
   const v19Ai = validationSummary.data?.v19_ai;
   const v19bAi = validationSummary.data?.v19b_ai;
   const v20Ai = validationSummary.data?.v20_ai;
+  const v330Quality = validationSummary.data?.v330_detection_ml_quality;
+  const v355Queue = validationSummary.data?.v355_soc_queue;
+  const v357Agreement = validationSummary.data?.v357_queue_evidence_agreement;
   const v30Readiness = validationSummary.data?.v30_production_readiness;
   const independentAi = v20Ai?.available ? v20Ai : v19bAi?.available ? v19bAi : v19Ai;
   const finalThreatPrecision = firstMetric(
@@ -135,6 +138,46 @@ export function MLGovernance() {
     : v15Ai?.available || benchmark?.available
     ? "Benchmark validation"
     : "Current supervised report";
+  const v330BaselineFpr = Number(v330Quality?.baseline_benign_like_false_positive_rate ?? NaN);
+  const v330SuspiciousRecall = Number(v330Quality?.baseline_suspicious_recall ?? NaN);
+  const v330CalibrationStatus = String(v330Quality?.calibration_status ?? "not generated");
+  const v330MainBlocker = !v330Quality?.available
+    ? "Run v3.30 revalidation"
+    : Number.isFinite(v330BaselineFpr) && v330BaselineFpr > 0.15
+    ? "False-positive noise"
+    : Number.isFinite(v330SuspiciousRecall) && v330SuspiciousRecall < 0.8
+    ? "Suspicious recall"
+    : v330CalibrationStatus !== "passed"
+    ? "Confidence calibration"
+    : "Monitor drift";
+  const v330BestProfile = String(v330Quality?.best_profile ?? "not generated").replaceAll("_", " ");
+  const v330SafetyLabel =
+    v330Quality?.production_promoted || v330Quality?.model_activated || v330Quality?.response_automation_allowed
+      ? "review safety"
+      : "diagnostic only";
+  const v355QueueLabel = v355Queue?.available
+    ? `${v355Queue.passing_splits ?? 0}/${v355Queue.evaluated_splits ?? 0} splits`
+    : "not generated";
+  const v355QueueReadiness = String(v355Queue?.readiness_decision ?? "candidate_only").replaceAll("_", " ");
+  const v355QueueSafetyLabel =
+    v355Queue?.production_promoted || v355Queue?.model_activated || v355Queue?.response_automation_allowed || v355Queue?.labels_written
+      ? "review safety"
+      : "diagnostic only";
+  const v357AgreementLabel = v357Agreement?.available
+    ? `${v357Agreement.passing_splits ?? 0}/${v357Agreement.evaluated_splits ?? 0} splits`
+    : "not generated";
+  const v357Readiness = String(v357Agreement?.readiness_decision ?? "diagnostic_only").replaceAll("_", " ");
+  const v357SafetyLabel =
+    v357Agreement?.production_promoted ||
+    v357Agreement?.model_activated ||
+    v357Agreement?.response_automation_allowed ||
+    v357Agreement?.labels_written ||
+    v357Agreement?.raw_logs_included
+      ? "review safety"
+      : "diagnostic only";
+  const v357CategoryCounts = v357Agreement?.category_counts ?? {};
+  const v357EvidenceOnly = Number(v357CategoryCounts.evidence_only_review ?? 0);
+  const v357QueueOnly = Number(v357CategoryCounts.queue_only_review ?? 0);
   const drift = data?.baseline_drift_report;
   const perClass = (supervisedMetrics.per_class ?? {}) as Record<string, Record<string, unknown>>;
   const benignMetrics = perClass.benign ?? {};
@@ -158,7 +201,21 @@ export function MLGovernance() {
   const registry = supervisedModels.data;
   const activeRegistryModel = registry?.models.find((model) => model.is_active_path) ?? registry?.models[0];
   const activeArtifactMetadataUnknown =
-    activeRegistryModel?.model_version === "active-unregistered" || activeRegistryModel?.model_type === "unknown";
+    Boolean(registry?.active_artifact_metadata_unknown) ||
+    Boolean(activeRegistryModel?.active_artifact_metadata_unknown) ||
+    activeRegistryModel?.model_version === "active-unregistered" ||
+    activeRegistryModel?.model_type === "unknown";
+  const activeModelTypeDisplay = activeArtifactMetadataUnknown
+    ? "Metadata unknown"
+    : activeRegistryModel?.display_model_type ?? activeRegistryModel?.model_type ?? supervisedData?.latest_run?.model_type ?? "-";
+  const activeFeatureSetDisplay = activeArtifactMetadataUnknown
+    ? "Metadata unavailable"
+    : activeRegistryModel?.display_feature_set ?? activeRegistryModel?.feature_set_version ?? "-";
+  const registryBadge = activeArtifactMetadataUnknown
+    ? "artifact metadata unknown"
+    : registry?.active_artifact_exists
+      ? "active artifact ready"
+      : "no active artifact";
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<string | null>(null);
   const [benchmarkImportResult, setBenchmarkImportResult] = useState<string | null>(null);
@@ -365,9 +422,14 @@ export function MLGovernance() {
               <Badge value="Manual Approval Required" />
             </div>
           </div>
-          <button className="btn-secondary" type="button" onClick={refreshGovernance}>
-            Refresh ML Summary
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <Link className="btn-secondary" to={`/assistant?prompt=${encodeURIComponent("Explain current ML model status and why it is not production promoted.")}`}>
+              Ask Assistant
+            </Link>
+            <button className="btn-secondary" type="button" onClick={refreshGovernance}>
+              Refresh ML Summary
+            </button>
+          </div>
         </div>
       </section>
 
@@ -405,16 +467,242 @@ export function MLGovernance() {
         <div className="mt-4 rounded-lg border border-line bg-panel2 p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div>
+              <div className="text-xs font-extrabold uppercase tracking-wide text-muted">Detection Quality Revalidation</div>
+              <div className="mt-1 text-sm text-muted">Current labeled-data diagnostic. No model is activated from this panel.</div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge value={v330Quality?.available ? "v3.30 generated" : "not generated"} />
+              <Badge value={v330SafetyLabel} />
+            </div>
+          </div>
+          <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+            <MetricCard label="Main Blocker" value={v330MainBlocker} detail={v330Quality?.split ? `${v330Quality.split} split` : "Run diagnostic script"} tone="amber" />
+            <MetricCard label="Baseline FPR" value={metricText(v330Quality?.baseline_benign_like_false_positive_rate)} detail="Benign-like predicted threat" tone="amber" />
+            <MetricCard label="Best Profile" value={v330BestProfile} detail={`FPR ${metricText(v330Quality?.best_benign_like_false_positive_rate)}`} tone="teal" />
+            <MetricCard label="Threat F1" value={metricText(v330Quality?.best_threat_positive_f1)} detail="Best diagnostic profile" tone="cyan" />
+            <MetricCard label="Calibration" value={v330CalibrationStatus} detail={`ECE ${metricText(v330Quality?.calibration_ece)}`} tone="amber" />
+            <MetricCard label="Review Sample" value={v330Quality?.review_sample?.rows ?? "-"} detail="Rows for analyst review" tone="cyan" />
+          </div>
+          {v330Quality?.available ? (
+            <details className="mt-3">
+              <summary className="cursor-pointer rounded border border-line bg-panel px-3 py-2 text-sm font-bold text-text">
+                View v3.30 diagnostic notes
+              </summary>
+              <div className="mt-3 grid gap-3 text-sm text-muted md:grid-cols-2">
+                <div className="rounded border border-line bg-panel px-3 py-2">
+                  Baseline: Threat F1 <span className="font-bold text-text">{metricText(v330Quality.baseline_threat_positive_f1)}</span>, suspicious recall{" "}
+                  <span className="font-bold text-text">{metricText(v330Quality.baseline_suspicious_recall)}</span>, malicious recall{" "}
+                  <span className="font-bold text-text">{metricText(v330Quality.baseline_malicious_recall)}</span>.
+                </div>
+                <div className="rounded border border-line bg-panel px-3 py-2">
+                  Best profile: <span className="font-bold text-text">{v330BestProfile}</span>, estimated queue{" "}
+                  <span className="font-bold text-text">{metricText(v330Quality.best_review_queue_size_estimate)}</span>, readiness{" "}
+                  <span className="font-bold text-text">{String(v330Quality.readiness_decision ?? "candidate_only").replaceAll("_", " ")}</span>.
+                </div>
+                <div className="rounded border border-line bg-panel px-3 py-2">
+                  Safety: production promoted <span className="font-bold text-text">{String(v330Quality.production_promoted ?? false)}</span>, model activated{" "}
+                  <span className="font-bold text-text">{String(v330Quality.model_activated ?? false)}</span>, response automation{" "}
+                  <span className="font-bold text-text">{String(v330Quality.response_automation_allowed ?? false)}</span>.
+                </div>
+                <div className="rounded border border-line bg-panel px-3 py-2">
+                  Latest report: <span className="font-bold text-text">{v330Quality.latest_report_name ?? "generated local summary"}</span>.
+                </div>
+              </div>
+              {v330Quality.top_patterns?.length ? (
+                <div className="mt-3 overflow-auto rounded border border-line bg-panel px-3 py-2 text-sm">
+                  <div className="mb-2 font-bold text-text">Top error patterns</div>
+                  <table className="soc-table soc-table-compact">
+                    <thead>
+                      <tr>
+                        <th>Pattern</th>
+                        <th>Count</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {v330Quality.top_patterns.slice(0, 5).map((item) => (
+                        <tr key={String(item[0])}>
+                          <td>{String(item[0])}</td>
+                          <td>{String(item[1])}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+            </details>
+          ) : (
+            <div className="mt-3 rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
+              Run <code>python -m atdr.scripts.run_v330_detection_ml_quality_revalidation --split time --test-size 0.3 --min-samples 6 --review-limit 200</code> to refresh this diagnostic.
+            </div>
+          )}
+        </div>
+        <div className="mt-4 rounded-lg border border-line bg-panel2 p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div className="text-xs font-extrabold uppercase tracking-wide text-muted">SOC Review Queue Diagnostic</div>
+              <div className="mt-1 text-sm text-muted">Stable queue candidate for decision support. Exact severity remains explanation/ranking only.</div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge value={v355QueueLabel} />
+              <Badge value={v355QueueSafetyLabel} />
+            </div>
+          </div>
+          {v355Queue?.available ? (
+            <>
+              <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+                <MetricCard label="Queue F1 Min" value={metricText(v355Queue.queue_f1_min)} detail="Across validation splits" tone="teal" />
+                <MetricCard label="Queue Recall Min" value={metricText(v355Queue.queue_recall_min)} detail="Needs-review capture" tone="cyan" />
+                <MetricCard label="Queue Precision Min" value={metricText(v355Queue.queue_precision_min)} detail="Low-noise queue" tone="cyan" />
+                <MetricCard label="FPR Max" value={metricText(v355Queue.benign_like_false_positive_rate_max)} detail="Benign-like queued" tone="amber" />
+                <MetricCard label="Calibration" value={v355Queue.calibration_status ?? "missing"} detail={`ECE ${metricText(v355Queue.calibration_ece)}`} tone="teal" />
+                <MetricCard label="Readiness" value={v355QueueReadiness} detail={`${v355Queue.checks_passed ?? 0}/${v355Queue.checks_total ?? 0} checks`} tone="amber" />
+              </div>
+              <details className="mt-3">
+                <summary className="cursor-pointer rounded border border-line bg-panel px-3 py-2 text-sm font-bold text-text">
+                  View v3.55 queue diagnostic notes
+                </summary>
+                <div className="mt-3 grid gap-3 text-sm text-muted md:grid-cols-2">
+                  <div className="rounded border border-line bg-panel px-3 py-2">
+                    Best strategy: <span className="font-bold text-text">{v355Queue.best_strategy ?? "not available"}</span>.
+                    Recommended use: <span className="font-bold text-text">{String(v355Queue.recommended_use ?? "diagnostic").replaceAll("_", " ")}</span>.
+                  </div>
+                  <div className="rounded border border-line bg-panel px-3 py-2">
+                    Exact severity status:{" "}
+                    <span className="font-bold text-text">{String(v355Queue.exact_severity_status ?? "not activated").replaceAll("_", " ")}</span>.
+                  </div>
+                  <div className="rounded border border-line bg-panel px-3 py-2">
+                    Threshold selection:{" "}
+                    <span className="font-bold text-text">{(v355Queue.threshold_selected_on ?? ["train_internal_calibration"]).join(", ")}</span>.
+                  </div>
+                  <div className="rounded border border-line bg-panel px-3 py-2">
+                    Safety: production promoted <span className="font-bold text-text">{String(v355Queue.production_promoted ?? false)}</span>, model activated{" "}
+                    <span className="font-bold text-text">{String(v355Queue.model_activated ?? false)}</span>, labels written{" "}
+                    <span className="font-bold text-text">{String(v355Queue.labels_written ?? false)}</span>, response automation{" "}
+                    <span className="font-bold text-text">{String(v355Queue.response_automation_allowed ?? false)}</span>.
+                  </div>
+                </div>
+                {v355Queue.blockers?.length ? (
+                  <div className="mt-3 rounded border border-amber/30 bg-amber/10 px-3 py-2 text-sm text-amber">
+                    Blockers: {v355Queue.blockers.join("; ")}
+                  </div>
+                ) : null}
+              </details>
+            </>
+          ) : (
+            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
+              Run <code>python -m atdr.scripts.run_v355_severity_target_policy_reframing --test-size 0.3 --min-samples 6 --pretty</code> to refresh this diagnostic.
+            </div>
+          )}
+        </div>
+        <div className="mt-4 rounded-lg border border-line bg-panel2 p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div className="text-xs font-extrabold uppercase tracking-wide text-muted">Queue / Evidence Agreement</div>
+              <div className="mt-1 text-sm text-muted">Compares the SOC queue candidate with rule, anomaly, and hybrid evidence.</div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge value={v357AgreementLabel} />
+              <Badge value={v357SafetyLabel} />
+            </div>
+          </div>
+          {v357Agreement?.available ? (
+            <>
+              <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+                <MetricCard label="Agreement Min" value={metricText(v357Agreement.agreement_rate_min)} detail="Queue and evidence" tone="teal" />
+                <MetricCard label="Queue F1 Min" value={metricText(v357Agreement.queue_f1_min)} detail="SOC queue target" tone="cyan" />
+                <MetricCard label="Queue FPR Max" value={metricText(v357Agreement.queue_false_positive_rate_max)} detail="Benign-like queued" tone="amber" />
+                <MetricCard label="Evidence-Only" value={v357EvidenceOnly} detail="Rule/evidence flags only" tone="amber" />
+                <MetricCard label="Queue-Only" value={v357QueueOnly} detail="ML queue flags only" tone="cyan" />
+                <MetricCard label="Readiness" value={v357Readiness} detail={`${v357Agreement.checks_passed ?? 0}/${v357Agreement.checks_total ?? 0} checks`} tone="amber" />
+              </div>
+              <details className="mt-3">
+                <summary className="cursor-pointer rounded border border-line bg-panel px-3 py-2 text-sm font-bold text-text">
+                  View queue/evidence disagreement notes
+                </summary>
+                <div className="mt-3 grid gap-3 text-sm text-muted lg:grid-cols-2">
+                  <div className="rounded border border-line bg-panel p-3">
+                    <div className="mb-2 font-bold text-text">Top evidence-only review patterns</div>
+                    {v357Agreement.top_evidence_only_patterns?.length ? (
+                      <table className="soc-table soc-table-compact">
+                        <thead>
+                          <tr>
+                            <th>Pattern</th>
+                            <th>Count</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {v357Agreement.top_evidence_only_patterns.slice(0, 6).map((item) => (
+                            <tr key={String(item[0])}>
+                              <td>{String(item[0])}</td>
+                              <td>{String(item[1])}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <div>No evidence-only disagreement patterns reported.</div>
+                    )}
+                  </div>
+                  <div className="rounded border border-line bg-panel p-3">
+                    <div className="mb-2 font-bold text-text">Top queue-only review patterns</div>
+                    {v357Agreement.top_queue_only_patterns?.length ? (
+                      <table className="soc-table soc-table-compact">
+                        <thead>
+                          <tr>
+                            <th>Pattern</th>
+                            <th>Count</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {v357Agreement.top_queue_only_patterns.slice(0, 6).map((item) => (
+                            <tr key={String(item[0])}>
+                              <td>{String(item[0])}</td>
+                              <td>{String(item[1])}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <div>No queue-only disagreement patterns reported.</div>
+                    )}
+                  </div>
+                  <div className="rounded border border-line bg-panel px-3 py-2">
+                    Recommended use: <span className="font-bold text-text">{String(v357Agreement.recommended_use ?? "diagnostic").replaceAll("_", " ")}</span>.
+                    Calibration ECE max: <span className="font-bold text-text">{metricText(v357Agreement.calibration_ece_max)}</span>.
+                  </div>
+                  <div className="rounded border border-line bg-panel px-3 py-2">
+                    Safety: production promoted <span className="font-bold text-text">{String(v357Agreement.production_promoted ?? false)}</span>, model activated{" "}
+                    <span className="font-bold text-text">{String(v357Agreement.model_activated ?? false)}</span>, labels written{" "}
+                    <span className="font-bold text-text">{String(v357Agreement.labels_written ?? false)}</span>, raw logs included{" "}
+                    <span className="font-bold text-text">{String(v357Agreement.raw_logs_included ?? false)}</span>.
+                  </div>
+                </div>
+                {v357Agreement.blockers?.length || v357Agreement.aggregate_blockers?.length ? (
+                  <div className="mt-3 rounded border border-amber/30 bg-amber/10 px-3 py-2 text-sm text-amber">
+                    Blockers: {[...(v357Agreement.blockers ?? []), ...(v357Agreement.aggregate_blockers ?? [])].join("; ")}
+                  </div>
+                ) : null}
+              </details>
+            </>
+          ) : (
+            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
+              Run <code>python -m atdr.scripts.run_v357_queue_rule_hybrid_agreement --test-size 0.3 --min-samples 6 --pretty</code> to refresh this diagnostic.
+            </div>
+          )}
+        </div>
+        <div className="mt-4 rounded-lg border border-line bg-panel2 p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
               <div className="text-xs font-extrabold uppercase tracking-wide text-muted">Supervised Model Registry</div>
               <div className="mt-1 text-sm text-muted">
                 Active and candidate artifacts are tracked for decision support. Automation stays disabled.
               </div>
             </div>
-            <Badge value={registry?.active_artifact_exists ? "active artifact ready" : "no active artifact"} />
+            <Badge value={registryBadge} />
           </div>
           <div className="grid gap-3 md:grid-cols-4">
-            <MetricCard label="Active Model Type" value={activeRegistryModel?.model_type ?? supervisedData?.latest_run?.model_type ?? "-"} detail="Current classifier family" tone="cyan" />
-            <MetricCard label="Feature Set" value={activeRegistryModel?.feature_set_version ?? "-"} detail="Versioned feature pipeline" tone="teal" />
+            <MetricCard label="Active Artifact" value={activeModelTypeDisplay} detail={activeArtifactMetadataUnknown ? "Legacy or unregistered artifact" : "Current classifier family"} tone="cyan" />
+            <MetricCard label="Feature Set" value={activeFeatureSetDisplay} detail="Versioned feature pipeline" tone="teal" />
             <MetricCard label="Registry Entries" value={registry?.models.length ?? 0} detail="Recent train/activate/rollback runs" tone="amber" />
             <MetricCard label="Auto Response" value={String(registry?.response_automation_allowed ?? false)} detail="Must remain disabled" tone="danger" />
           </div>
@@ -438,9 +726,13 @@ export function MLGovernance() {
                     return (
                       <tr key={model.model_id}>
                         <td>{model.model_id}</td>
-                        <td>{model.model_type ?? "-"}</td>
+                        <td>{model.active_artifact_metadata_unknown ? "metadata unknown" : model.display_model_type ?? model.model_type ?? "-"}</td>
                         <td>{model.operation}</td>
-                        <td>{model.readiness_decision ?? "candidate_only"}</td>
+                        <td>
+                          {model.active_artifact_metadata_unknown
+                            ? "unregistered active artifact"
+                            : model.readiness_decision ?? "candidate_only"}
+                        </td>
                         <td>{String(metrics.f1 ?? "-")}</td>
                         <td>{model.created_at}</td>
                       </tr>
@@ -454,7 +746,10 @@ export function MLGovernance() {
         {activeArtifactMetadataUnknown ? (
           <details className="mt-4 rounded-lg border border-amber/30 bg-amber/10 p-3 text-sm text-amber">
             <summary className="cursor-pointer font-bold">Artifact Metadata</summary>
-            <div className="mt-2">Active artifact metadata should be refreshed with a registered training run.</div>
+            <div className="mt-2">
+              An active supervised artifact exists, but it is not linked to a registered training run. Treat it as a legacy
+              decision-support artifact. Recent v3.31-v3.33 candidates remain diagnostic-only and are not activated.
+            </div>
           </details>
         ) : null}
         <div className="mt-4 rounded-lg border border-cyan/30 bg-cyan/10 p-4">

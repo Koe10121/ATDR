@@ -194,6 +194,9 @@ def update_managed_user(
         if clean_email != user.email:
             changes["email"] = {"old": user.email, "new": clean_email}
             user.email = clean_email
+            if user.email_verified:
+                changes["email_verified"] = {"old": True, "new": False, "reason": "email_changed"}
+                user.email_verified = False
     if full_name is not None and full_name != user.full_name:
         changes["full_name"] = {"old": user.full_name, "new": full_name}
         user.full_name = full_name

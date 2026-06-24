@@ -564,6 +564,10 @@ def _model_run_to_registry_item(run: MLModelRun, *, active_path: Path) -> dict[s
         "artifact_sha256": run.artifact_sha256,
         "artifact_exists": model_path.exists(),
         "is_active_path": model_path.resolve() == active_path.resolve() if model_path.exists() and active_path.exists() else False,
+        "active_artifact_metadata_status": "registered",
+        "active_artifact_metadata_unknown": False,
+        "display_model_type": metrics.get("model_type", "random_forest"),
+        "display_feature_set": (metrics.get("feature_set_metadata") or {}).get("feature_set_version"),
         "feature_set_version": (metrics.get("feature_set_metadata") or {}).get("feature_set_version"),
         "dataset_snapshot_id": metrics.get("dataset_snapshot_id"),
         "split_strategy": metrics.get("split_strategy"),
@@ -604,6 +608,10 @@ def list_supervised_models(db: Session, *, limit: int = 25) -> dict[str, Any]:
                 "artifact_sha256": _artifact_hash(active_path),
                 "artifact_exists": True,
                 "is_active_path": True,
+                "active_artifact_metadata_status": "metadata_unknown",
+                "active_artifact_metadata_unknown": True,
+                "display_model_type": "Active artifact metadata unknown",
+                "display_feature_set": "Metadata unavailable",
                 "feature_set_version": None,
                 "dataset_snapshot_id": None,
                 "split_strategy": None,
@@ -613,14 +621,21 @@ def list_supervised_models(db: Session, *, limit: int = 25) -> dict[str, Any]:
                 "production_promoted": False,
                 "response_automation_allowed": False,
                 "report_path": None,
-                "message": "Active artifact exists but no matching MLModelRun registry row was found.",
+                "message": (
+                    "Active artifact exists but no matching MLModelRun registry row was found. "
+                    "Treat this as a legacy/unregistered artifact; candidate diagnostics are not active."
+                ),
             },
         )
+    active_unknown = next((item for item in items if item.get("is_active_path")), None)
+    active_metadata_unknown = bool(active_unknown and active_unknown.get("active_artifact_metadata_unknown"))
     return {
         "ok": True,
         "active_model_path": str(active_path),
         "active_artifact_exists": active_path.exists(),
         "active_artifact_sha256": _artifact_hash(active_path),
+        "active_artifact_metadata_status": "metadata_unknown" if active_metadata_unknown else "registered" if active_path.exists() else "missing",
+        "active_artifact_metadata_unknown": active_metadata_unknown,
         "models": items,
         "production_promoted": False,
         "response_automation_allowed": False,

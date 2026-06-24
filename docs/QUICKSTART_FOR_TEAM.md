@@ -220,6 +220,31 @@ SQLite is good for:
 
 PostgreSQL is the recommended future/shared lab database because it handles larger data and concurrent access better than SQLite. Use `.env.lab.example` as the starting point only when a PostgreSQL or Docker-capable lab host is available.
 
+If `.env` contains a PostgreSQL URL with host `postgres`, that host is a Docker Compose service name. It will not resolve on a normal Windows terminal unless the Docker/PostgreSQL lab stack is running.
+
+For normal local dashboard testing, `.env` should use:
+
+```env
+DATABASE_URL="sqlite:///./atdr.db"
+AUTO_CREATE_TABLES=true
+ENVIRONMENT="development"
+RESPONSE_SIMULATION=true
+```
+
+Preview a safe switch back to the local SQLite profile:
+
+```powershell
+python -m atdr.scripts.use_local_sqlite_config --dry-run --pretty
+```
+
+Write the local SQLite profile only when you intentionally want to update `.env`:
+
+```powershell
+python -m atdr.scripts.use_local_sqlite_config --write --pretty
+```
+
+The write mode preserves a backup under ignored `.tmp/env-backups/`.
+
 ### MongoDB Is Not Used Currently
 
 Do not migrate ATDR to MongoDB for v0.3.
@@ -305,6 +330,35 @@ python -m atdr.scripts.seed_users
 ```
 
 Then log in with `admin / admin123`.
+
+If login returns `Database unavailable` or logs show `could not translate host name "postgres"`, your `.env` is probably using the optional PostgreSQL lab profile while Docker/PostgreSQL is not running. Run:
+
+```powershell
+python -m atdr.scripts.config_doctor --pretty
+python -m atdr.scripts.use_local_sqlite_config --dry-run --pretty
+```
+
+For normal local testing, switch `.env` back to SQLite as shown in the Database Choice section.
+
+### Email Verification / Dev Outbox
+
+Email verification is disabled by default. The normal local dashboard does not send real email:
+
+```env
+EMAIL_NOTIFICATIONS_ENABLED=false
+EMAIL_VERIFICATION_ENABLED=false
+EMAIL_DELIVERY_MODE="disabled"
+```
+
+For local testing only, admins can use the dev outbox:
+
+```env
+EMAIL_NOTIFICATIONS_ENABLED=true
+EMAIL_VERIFICATION_ENABLED=true
+EMAIL_DELIVERY_MODE="dev_outbox"
+```
+
+Restart the backend after changing `.env`, then open Admin / User Admin. Verification codes appear only in the admin-only dev outbox. Do not commit `.env`, SMTP passwords, or real email-provider secrets.
 
 ### Safe Sample Only Has A Few Logs
 

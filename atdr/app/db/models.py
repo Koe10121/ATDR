@@ -247,6 +247,60 @@ class AuditLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
+class AccountEmailVerificationToken(Base):
+    __tablename__ = "account_email_verification_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    token_hash: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    purpose: Mapped[str] = mapped_column(String(64), default="email_verification", nullable=False, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    created_by: Mapped[str | None] = mapped_column(String(128), index=True)
+    delivery_mode: Mapped[str] = mapped_column(String(32), default="disabled", nullable=False, index=True)
+    delivery_status: Mapped[str] = mapped_column(String(32), default="pending", nullable=False, index=True)
+
+
+class EmailNotificationEvent(Base):
+    __tablename__ = "email_notification_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)
+    recipient_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    body_preview: Mapped[str] = mapped_column(Text, nullable=False)
+    purpose: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    delivery_mode: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    delivery_status: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    created_by: Mapped[str | None] = mapped_column(String(128), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    error_summary: Mapped[str | None] = mapped_column(Text)
+
+
+class AssistantFeedback(Base):
+    __tablename__ = "assistant_feedback"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    actor_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)
+    actor_username: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    question: Mapped[str] = mapped_column(Text, nullable=False)
+    answer_summary: Mapped[str | None] = mapped_column(Text)
+    answer_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    context_type: Mapped[str | None] = mapped_column(String(64), index=True)
+    context_reference: Mapped[str | None] = mapped_column(String(255), index=True)
+    rating: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    feedback_note: Mapped[str | None] = mapped_column(Text)
+    external_provider_used: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    raw_log_context_included: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    action_requested: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    action_executed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    assistant_audit_id: Mapped[int | None] = mapped_column(ForeignKey("audit_logs.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+
+
 class SuppressionRule(Base):
     __tablename__ = "suppression_rules"
 
@@ -347,6 +401,33 @@ class DetectionRun(Base):
     runtime_seconds: Mapped[float | None] = mapped_column(Float)
     error_summary: Mapped[str | None] = mapped_column(Text)
     details_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class OperationJob(Base):
+    __tablename__ = "operation_jobs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    job_type: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), index=True, default="queued", nullable=False)
+    requested_by: Mapped[str] = mapped_column(String(128), index=True, nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    progress_current: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    progress_total: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    result_summary_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    error_summary: Mapped[str | None] = mapped_column(Text)
+    related_ingestion_run_id: Mapped[int | None] = mapped_column(ForeignKey("ingestion_runs.id"), index=True)
+    related_detection_run_id: Mapped[int | None] = mapped_column(ForeignKey("detection_runs.id"), index=True)
+    related_ml_model_run_id: Mapped[int | None] = mapped_column(ForeignKey("ml_model_runs.id"), index=True)
+    details_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+        index=True,
+    )
 
 
 class MLLabel(Base):

@@ -87,6 +87,9 @@ export function LogExplorer() {
   const logRows = logs.data?.items ?? [];
   const selectedDetail = useLog(selectedId);
   const selected = selectedDetail.data ?? logRows.find((item) => item.id === selectedId) ?? null;
+  const assistantHref = selected
+    ? `/assistant?log=${selected.id}&prompt=${encodeURIComponent(`Why was log ${selected.id} flagged or not flagged?`)}`
+    : "/assistant";
   const selectedLabels = useMlLabels({ log_id: selectedId ?? undefined, limit: 1 }, Boolean(selectedId));
   const currentLabel = selectedLabels.data?.[0] ?? null;
   const labelMutations = useMlLabelMutations();
@@ -306,10 +309,54 @@ export function LogExplorer() {
                 { label: "Countries", value: `${selected.src_country ?? "-"} -> ${selected.dst_country ?? "-"}` }
               ]}
             />
+            <div className="flex flex-wrap gap-2">
+              <Link className="btn-secondary" to={assistantHref}>Ask Assistant about this log</Link>
+            </div>
             {selected.alert_ids?.length ? (
               <div className="rounded-lg border border-amber/30 bg-amber/10 p-3 text-sm text-amber">
                 Related alerts: {selected.alert_ids.map((id) => <Link key={id} className="ml-2 underline" to={`/alerts?alert=${id}`}>{id}</Link>)}
               </div>
+            ) : null}
+            {selected.triage_explanation ? (
+              <section className="rounded-lg border border-cyan/25 bg-cyan/5 p-4">
+                <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <div className="text-sm font-extrabold uppercase tracking-wide text-cyan">
+                      {selected.triage_explanation.status === "flagged" ? "Why flagged?" : "Why not flagged?"}
+                    </div>
+                    <p className="mt-1 text-sm text-muted">{selected.triage_explanation.summary}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge value="Decision Support" />
+                    <Badge value="Automation Disabled" />
+                    <Link className="btn-secondary text-xs" to={assistantHref}>Ask Assistant</Link>
+                  </div>
+                </div>
+                {selected.triage_explanation.normalized_signals.length ? (
+                  <div className="mb-3 flex flex-wrap gap-2">
+                    {selected.triage_explanation.normalized_signals.slice(0, 6).map((signal) => (
+                      <span key={signal} className="rounded border border-line bg-panel2 px-2 py-1 text-xs font-bold text-muted">
+                        {signal}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+                <div className="grid gap-2 md:grid-cols-2">
+                  {selected.triage_explanation.reasons.slice(0, 4).map((reason) => (
+                    <div key={reason} className="rounded border border-line bg-shell p-3 text-sm text-muted">{reason}</div>
+                  ))}
+                </div>
+                {selected.triage_explanation.parser_warnings.length ? (
+                  <details className="mt-3">
+                    <summary className="cursor-pointer text-sm font-bold text-text">Parser notes</summary>
+                    <div className="mt-2 space-y-2">
+                      {selected.triage_explanation.parser_warnings.map((warning) => (
+                        <div key={warning} className="rounded border border-amber/30 bg-amber/10 p-2 text-sm text-amber">{warning}</div>
+                      ))}
+                    </div>
+                  </details>
+                ) : null}
+              </section>
             ) : null}
             <section className="rounded-lg border border-cyan/25 bg-cyan/5 p-4">
               <div className="mb-3 flex items-center justify-between gap-2">

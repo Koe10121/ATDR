@@ -986,6 +986,165 @@ def _v32_simulated_source_status(db: Session) -> dict[str, Any]:
     }
 
 
+def _latest_v330_detection_ml_quality_summary(report_dir: Path = V13_REPORT_DIR) -> dict[str, Any]:
+    summary, payload = _latest_reliability_file_summary(
+        report_dir,
+        "v3_30_detection_ml_quality_*.json",
+        missing_message="No v3.30 detection/ML quality revalidation summary has been generated yet.",
+    )
+    if payload is None:
+        return summary
+    baseline = payload.get("baseline") or {}
+    best = payload.get("best_profile") or {}
+    best_summary = best.get("summary") or best
+    calibration = payload.get("calibration") or {}
+    readiness = payload.get("readiness") or {}
+    safety = payload.get("safety") or {}
+    return {
+        **summary,
+        "generated_at": payload.get("generated_at") or summary.get("generated_at"),
+        "split": payload.get("split"),
+        "model_type": payload.get("model_type"),
+        "class_weight": payload.get("class_weight"),
+        "training_rows": baseline.get("training_rows"),
+        "test_rows": baseline.get("test_rows"),
+        "baseline_profile": baseline.get("profile"),
+        "baseline_threat_positive_precision": (baseline.get("threat_positive") or {}).get("precision"),
+        "baseline_threat_positive_recall": (baseline.get("threat_positive") or {}).get("recall"),
+        "baseline_threat_positive_f1": (baseline.get("threat_positive") or {}).get("f1"),
+        "baseline_benign_like_false_positive_rate": baseline.get("benign_like_false_positive_rate"),
+        "baseline_suspicious_recall": (baseline.get("suspicious") or {}).get("recall"),
+        "baseline_malicious_recall": (baseline.get("malicious") or {}).get("recall"),
+        "baseline_macro_f1": baseline.get("macro_f1"),
+        "baseline_weighted_f1": baseline.get("weighted_f1"),
+        "best_profile": best.get("profile"),
+        "best_threat_positive_precision": best_summary.get("threat_positive_precision"),
+        "best_threat_positive_recall": best_summary.get("threat_positive_recall"),
+        "best_threat_positive_f1": best_summary.get("threat_positive_f1"),
+        "best_benign_like_false_positive_rate": best_summary.get("benign_like_false_positive_rate"),
+        "best_suspicious_recall": best_summary.get("suspicious_recall"),
+        "best_malicious_recall": best_summary.get("malicious_recall"),
+        "best_review_queue_size_estimate": best_summary.get("review_queue_size_estimate"),
+        "calibration_status": calibration.get("status") or "missing",
+        "calibration_ece": calibration.get("expected_calibration_error"),
+        "calibration_brier": calibration.get("brier_score_threat_positive"),
+        "calibration_max_gap": calibration.get("max_confidence_accuracy_gap"),
+        "error_buckets": (payload.get("error_analysis") or {}).get("bucket_counts") or {},
+        "top_patterns": (payload.get("error_analysis") or {}).get("top_patterns") or [],
+        "signal_counts": (payload.get("detection_signal_comparison") or {}).get("counts") or {},
+        "review_sample": payload.get("review_sample") or {},
+        "readiness_decision": readiness.get("decision") or "candidate_only",
+        "checks_passed": int(readiness.get("passed") or 0),
+        "checks_total": int(readiness.get("total") or 0),
+        "blockers": readiness.get("blockers") or [],
+        "production_promoted": False,
+        "model_activated": False,
+        "response_automation_allowed": bool(safety.get("response_automation_allowed", False)),
+        "real_firewall_blocking_enabled": bool(safety.get("real_firewall_blocking_enabled", False)),
+        "diagnostic_only": True,
+    }
+
+
+def _latest_v355_soc_queue_summary(report_dir: Path = V13_REPORT_DIR) -> dict[str, Any]:
+    summary, payload = _latest_reliability_file_summary(
+        report_dir,
+        "v3_55_severity_target_policy_reframing_latest.json",
+        missing_message="No v3.55 SOC review-queue policy diagnostic has been generated yet.",
+    )
+    if payload is None:
+        return summary
+    best_strategy = payload.get("best_strategy")
+    comparison = payload.get("strategy_comparison") or {}
+    best = comparison.get(best_strategy) or {}
+    stability = best.get("stability") or {}
+    ranges = stability.get("metric_ranges") or {}
+    calibration = best.get("best_calibration") or {}
+    threshold_selection = best.get("threshold_selection") or {}
+    readiness = payload.get("readiness") or {}
+    safety = payload.get("safety") or {}
+    policy = best.get("policy") or {}
+    return {
+        **summary,
+        "phase": payload.get("phase") or "v3.55",
+        "best_strategy": best_strategy,
+        "policy_name": best.get("policy_name") or "binary_review_queue",
+        "policy_description": policy.get("description"),
+        "recommended_use": "diagnostic_soc_review_queue_score",
+        "exact_severity_status": "explanation_or_ranking_only",
+        "evaluated_splits": int(stability.get("evaluated_splits") or 0),
+        "passing_splits": int(stability.get("passing_splits") or 0),
+        "split_stability_passed": bool(stability.get("passed")),
+        "queue_f1_min": (ranges.get("queue_f1") or {}).get("min"),
+        "queue_f1_max": (ranges.get("queue_f1") or {}).get("max"),
+        "queue_recall_min": (ranges.get("queue_recall") or {}).get("min"),
+        "queue_precision_min": (ranges.get("queue_precision") or {}).get("min"),
+        "benign_like_false_positive_rate_max": (ranges.get("benign_like_false_positive_rate") or {}).get("max"),
+        "critical_recall_min": (ranges.get("critical_recall_min") or {}).get("min"),
+        "macro_f1_min": (ranges.get("macro_f1") or {}).get("min"),
+        "weighted_f1_min": (ranges.get("weighted_f1") or {}).get("min"),
+        "calibration_status": calibration.get("status") or "missing",
+        "calibration_ece": calibration.get("expected_calibration_error"),
+        "calibration_brier": calibration.get("brier_score_threat_positive"),
+        "calibration_max_gap": calibration.get("max_confidence_accuracy_gap"),
+        "threshold_selected_on": threshold_selection.get("selected_on") or [],
+        "readiness_decision": readiness.get("decision") or "candidate_only",
+        "checks_passed": int(readiness.get("passed") or 0),
+        "checks_total": int(readiness.get("total") or 0),
+        "blockers": readiness.get("blockers") or [],
+        "production_promoted": False,
+        "model_activated": False,
+        "model_artifact_written": bool(safety.get("model_artifact_written", False)),
+        "labels_written": bool(safety.get("labels_written", False)),
+        "response_automation_allowed": bool(safety.get("response_automation_allowed", False)),
+        "diagnostic_only": True,
+        "message": "Stable SOC review-queue diagnostic only; exact severity is not activated as a hard model decision.",
+    }
+
+
+def _latest_v357_queue_evidence_agreement_summary(report_dir: Path = V13_REPORT_DIR) -> dict[str, Any]:
+    summary, payload = _latest_reliability_file_summary(
+        report_dir,
+        "v3_57_queue_rule_hybrid_agreement_latest.json",
+        missing_message="No v3.57 queue-vs-rule/hybrid agreement diagnostic has been generated yet.",
+    )
+    if payload is None:
+        return summary
+    aggregate = payload.get("aggregate") or {}
+    readiness = payload.get("readiness") or {}
+    safety = payload.get("safety") or {}
+    return {
+        **summary,
+        "phase": payload.get("phase") or "v3.57",
+        "policy_name": payload.get("policy_name") or "binary_review_queue",
+        "recommended_use": "diagnostic_queue_rule_hybrid_agreement_review",
+        "evaluated_splits": int(aggregate.get("evaluated_splits") or 0),
+        "passing_splits": int(aggregate.get("passing_splits") or 0),
+        "queue_f1_min": aggregate.get("queue_f1_min"),
+        "queue_recall_min": aggregate.get("queue_recall_min"),
+        "queue_precision_min": aggregate.get("queue_precision_min"),
+        "queue_false_positive_rate_max": aggregate.get("queue_false_positive_rate_max"),
+        "agreement_rate_min": aggregate.get("agreement_rate_min"),
+        "agreement_rate_max": aggregate.get("agreement_rate_max"),
+        "calibration_ece_max": aggregate.get("calibration_ece_max"),
+        "category_counts": aggregate.get("category_counts") or {},
+        "top_queue_only_patterns": aggregate.get("top_queue_only_patterns") or [],
+        "top_evidence_only_patterns": aggregate.get("top_evidence_only_patterns") or [],
+        "aggregate_blockers": aggregate.get("blockers") or [],
+        "readiness_decision": readiness.get("decision") or "diagnostic_only",
+        "checks_passed": int(readiness.get("passed") or 0),
+        "checks_total": int(readiness.get("total") or 0),
+        "blockers": readiness.get("blockers") or [],
+        "production_promoted": False,
+        "model_activated": False,
+        "model_artifact_written": bool(safety.get("model_artifact_written", False)),
+        "labels_written": bool(safety.get("labels_written", False)),
+        "raw_logs_included": bool(safety.get("raw_logs_included", False)),
+        "response_automation_allowed": bool(safety.get("response_automation_allowed", False)),
+        "diagnostic_only": True,
+        "message": "Queue-vs-evidence agreement is diagnostic only; disagreements need analyst review and do not activate response.",
+    }
+
+
 def _v30_production_readiness_summary(db: Session) -> dict[str, Any]:
     docs = {
         "gap_assessment": PROJECT_ROOT / "docs" / "V3_0_PRODUCTION_READINESS_GAP_ASSESSMENT.md",
@@ -1078,5 +1237,8 @@ def dashboard_validation_summary(
     summary["v19_ai"] = _latest_v19_ai_summary(BENCHMARK_REPORT_DIR)
     summary["v19b_ai"] = _latest_v19b_ai_summary(BENCHMARK_REPORT_DIR)
     summary["v20_ai"] = _latest_v20_ai_summary(BENCHMARK_REPORT_DIR)
+    summary["v330_detection_ml_quality"] = _latest_v330_detection_ml_quality_summary(V13_REPORT_DIR)
+    summary["v355_soc_queue"] = _latest_v355_soc_queue_summary(V13_REPORT_DIR)
+    summary["v357_queue_evidence_agreement"] = _latest_v357_queue_evidence_agreement_summary(V13_REPORT_DIR)
     summary["v30_production_readiness"] = _v30_production_readiness_summary(db)
     return summary

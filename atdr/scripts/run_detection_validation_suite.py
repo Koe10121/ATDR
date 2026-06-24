@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from atdr.app.core.config import PROJECT_ROOT
 from atdr.app.db.database import SessionLocal, init_db
 from atdr.app.db.models import Alert, LogSource, RawLog, ResponseAction
-from atdr.app.detection.explanations import build_alert_detection_summary
+from atdr.app.detection.explanations import alert_explanation_completeness, build_alert_detection_summary
 from atdr.app.services.alert_service import list_alerts
 from atdr.app.services.detection_service import run_detection
 from atdr.app.services.log_service import count_nonblank_log_lines, import_log_file
@@ -40,6 +40,16 @@ EVIDENCE_QUALITY_TERMS = {
     "source",
     "transfer",
 }
+
+
+def _allowed_attack_types(expectation: dict[str, Any]) -> set[str]:
+    values = {str(item) for item in expectation.get("expected_attack_types", []) if item}
+    if expectation.get("expected_attack_type"):
+        values.add(str(expectation["expected_attack_type"]))
+    if expectation.get("expected_primary_attack_type"):
+        values.add(str(expectation["expected_primary_attack_type"]))
+    values.update(str(item) for item in expectation.get("allowed_secondary_attack_types", []) if item)
+    return values
 
 
 def _json_default(value: Any) -> str:
@@ -145,8 +155,16 @@ def _check_expectations(
     )
     if expected_alert_present:
         add("alert_present", alert_present, f"Alert count: {len(alerts)}.")
+        expected_min_count = expectation.get("expected_alert_count_min")
+        if expected_min_count is not None:
+            add(
+                "alert_count_min",
+                len(alerts) >= int(expected_min_count),
+                f"Alert count: {len(alerts)}; expected at least {expected_min_count}.",
+            )
         expected_attack_types = [str(item) for item in expectation.get("expected_attack_types", [])]
         expected_attack_type = str(expectation.get("expected_attack_type") or "")
+        expected_primary_attack_type = str(expectation.get("expected_primary_attack_type") or expected_attack_type)
         if expected_attack_types:
             missing_attack_types = [attack_type for attack_type in expected_attack_types if attack_type not in attack_types]
             add(
@@ -159,6 +177,20 @@ def _check_expectations(
                 "expected_attack_type",
                 expected_attack_type in attack_types,
                 f"Expected {expected_attack_type}; actual {sorted(attack_types)}.",
+            )
+        if expected_primary_attack_type:
+            add(
+                "expected_primary_attack_type",
+                expected_primary_attack_type in attack_types,
+                f"Expected primary {expected_primary_attack_type}; actual {sorted(attack_types)}.",
+            )
+        allowed_attack_types = _allowed_attack_types(expectation)
+        if allowed_attack_types:
+            unexpected_attack_types = sorted(attack_types - allowed_attack_types)
+            add(
+                "allowed_attack_types",
+                not unexpected_attack_types,
+                f"Allowed {sorted(allowed_attack_types)}; actual {sorted(attack_types)}; unexpected {unexpected_attack_types or 'none'}.",
             )
         add(
             "min_severity",
@@ -366,11 +398,24 @@ def run_detection_validation_scenario(
                         "severity": alert.severity,
                         "risk_score": alert.threat_score,
                         "title": alert.title,
+                        "src_ip": alert.src_ip,
+                        "dst_ip": alert.dst_ip,
                         "evidence_count": len(alert.evidence),
                         "attack_type": summary.get("attack_type"),
                         "why_flagged": summary.get("why_flagged"),
+                        "what_happened": summary.get("what_happened"),
+                        "why_suspicious": summary.get("why_suspicious"),
                         "detection_source": summary.get("detection_source"),
+                        "normalized_fields_used": summary.get("normalized_fields_used"),
+                        "rule_evidence": summary.get("rule_evidence"),
+                        "anomaly_evidence": summary.get("anomaly_evidence"),
+                        "ml_evidence": summary.get("ml_evidence"),
+                        "matched_rule_names": summary.get("matched_rule_names", []),
+                        "recommended_analyst_action": alert.recommended_response,
+                        "analyst_next_steps": summary.get("analyst_next_steps", []),
+                        "safety_note": summary.get("safety_note"),
                         "top_evidence_points": summary.get("top_evidence_points", []),
+                        "explanation_completeness": alert_explanation_completeness(alert, summary),
                     }
                     for alert, summary in zip(alerts, summaries, strict=False)
                 ],

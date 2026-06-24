@@ -4,11 +4,13 @@ import { EmptyState } from "../components/EmptyState";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { MetricCard } from "../components/MetricCard";
 import { SafeSelect } from "../components/SafeSelect";
-import { useOidcStatus, useUserMutations, useUsers } from "../hooks/useApiQueries";
+import { useDevEmailOutbox, useEmailStatus, useOidcStatus, useUserMutations, useUsers } from "../hooks/useApiQueries";
 
 export function UserAdmin() {
   const users = useUsers();
   const oidcStatus = useOidcStatus();
+  const emailStatus = useEmailStatus();
+  const devOutbox = useDevEmailOutbox(Boolean(emailStatus.data?.dev_outbox_available));
   const mutations = useUserMutations();
   const [form, setForm] = useState({
     username: "",
@@ -37,6 +39,18 @@ export function UserAdmin() {
 
   const activeUsers = (users.data ?? []).filter((user) => user.is_active).length;
   const admins = (users.data ?? []).filter((user) => user.role === "admin").length;
+  const verifiedEmails = (users.data ?? []).filter((user) => user.email_verified).length;
+  const schoolDomains = emailStatus.data?.school_email_domains.length
+    ? emailStatus.data.school_email_domains
+    : oidcStatus.data?.school_email_domains ?? [];
+  const canSendVerification = Boolean(emailStatus.data?.verification_enabled);
+  const emailDeliveryLabel = emailStatus.data?.delivery_mode === "dev_outbox"
+    ? "Dev outbox"
+    : emailStatus.data?.delivery_mode === "log_only"
+      ? "Log only"
+      : emailStatus.data?.delivery_mode === "smtp"
+        ? "SMTP configured"
+        : "Disabled";
 
   return (
     <div className="space-y-5">
@@ -46,10 +60,11 @@ export function UserAdmin() {
         <p className="mt-2 text-muted">Password hashes and tokens are never exposed in this console.</p>
       </section>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <MetricCard label="Users" value={users.data?.length ?? "-"} detail="Managed accounts" tone="teal" />
         <MetricCard label="Active Users" value={activeUsers} detail="Enabled accounts" tone="success" />
         <MetricCard label="Admins" value={admins} detail="Privileged operators" tone="amber" />
+        <MetricCard label="Verified Emails" value={verifiedEmails} detail="Local account verification" tone="cyan" />
       </div>
 
       <section className="panel">
@@ -88,7 +103,7 @@ export function UserAdmin() {
           <div className="rounded-lg border border-line bg-panel2 p-3">
             <div className="text-xs uppercase tracking-wide text-muted">School Domains</div>
             <div className="mt-1 break-words font-bold">
-              {oidcStatus.data?.school_email_domains.length ? oidcStatus.data.school_email_domains.join(", ") : "Not configured"}
+              {schoolDomains.length ? schoolDomains.join(", ") : "Not configured"}
             </div>
           </div>
           <div className="rounded-lg border border-line bg-panel2 p-3">
@@ -96,9 +111,90 @@ export function UserAdmin() {
             <div className="mt-1 font-bold">{oidcStatus.data?.local_email_login_enabled ? "Enabled" : "Disabled"}</div>
           </div>
         </div>
-        <p className="mt-3 text-sm text-muted">
-          External school-email login can be enabled later through OIDC. Local username/password login remains active.
-        </p>
+        <div className="mt-3 rounded-lg border border-line bg-panel2 p-3 text-sm text-muted">
+          Local username/password login remains active. OIDC login is configuration groundwork only until school provider details are approved.
+        </div>
+      </section>
+
+      <section className="panel">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-sm font-extrabold uppercase tracking-wide text-muted">Account Notifications</div>
+            <h2 className="mt-1 text-xl font-black">Email verification foundation</h2>
+          </div>
+          <Badge value={emailStatus.data?.verification_enabled ? "Verification enabled" : "Verification disabled"} />
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <div className="rounded-lg border border-line bg-panel2 p-3">
+            <div className="text-xs uppercase tracking-wide text-muted">Notifications</div>
+            <div className="mt-1 font-bold">{emailStatus.data?.notifications_enabled ? "Enabled" : "Disabled"}</div>
+          </div>
+          <div className="rounded-lg border border-line bg-panel2 p-3">
+            <div className="text-xs uppercase tracking-wide text-muted">Delivery Mode</div>
+            <div className="mt-1 font-bold">{emailDeliveryLabel}</div>
+          </div>
+          <div className="rounded-lg border border-line bg-panel2 p-3">
+            <div className="text-xs uppercase tracking-wide text-muted">Code TTL</div>
+            <div className="mt-1 font-bold">{emailStatus.data?.code_ttl_minutes ?? 15} minutes</div>
+          </div>
+          <div className="rounded-lg border border-line bg-panel2 p-3">
+            <div className="text-xs uppercase tracking-wide text-muted">SMTP</div>
+            <div className="mt-1 font-bold">{emailStatus.data?.smtp_configured ? "Configured" : "Not configured"}</div>
+          </div>
+        </div>
+        <div className="mt-3 grid gap-3 md:grid-cols-4">
+          <div className="rounded-lg border border-line bg-panel2 p-3">
+            <div className="text-xs uppercase tracking-wide text-muted">Login Requirement</div>
+            <div className="mt-1 font-bold">{emailStatus.data?.verification_required_for_login ? "Required" : "Not required"}</div>
+          </div>
+          <div className="rounded-lg border border-line bg-panel2 p-3">
+            <div className="text-xs uppercase tracking-wide text-muted">Admin Action Requirement</div>
+            <div className="mt-1 font-bold">{emailStatus.data?.verification_required_for_admin_actions ? "Required" : "Not required"}</div>
+          </div>
+          <div className="rounded-lg border border-line bg-panel2 p-3">
+            <div className="text-xs uppercase tracking-wide text-muted">Allowed Domains</div>
+            <div className="mt-1 break-words font-bold">{schoolDomains.length ? schoolDomains.join(", ") : "Not configured"}</div>
+          </div>
+          <div className="rounded-lg border border-line bg-panel2 p-3">
+            <div className="text-xs uppercase tracking-wide text-muted">Local Email Login</div>
+            <div className="mt-1 font-bold">{emailStatus.data?.local_email_login_enabled === false ? "Disabled" : "Enabled"}</div>
+          </div>
+        </div>
+        <div className="mt-3 rounded-lg border border-line bg-panel2 p-3 text-sm text-muted">
+          Verification is optional by default. Real SMTP and school OIDC login stay disabled until provider details and secrets are approved.
+        </div>
+        {emailStatus.data?.dev_outbox_available ? (
+          <details className="mt-4 rounded-lg border border-line bg-panel2 p-3">
+            <summary className="cursor-pointer text-sm font-extrabold uppercase tracking-wide text-muted">Dev email outbox</summary>
+            <div className="mt-3 overflow-auto">
+              <table className="soc-table">
+                <thead>
+                  <tr>
+                    <th>Created</th>
+                    <th>Recipient</th>
+                    <th>Purpose</th>
+                    <th>Status</th>
+                    <th>Preview</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(devOutbox.data ?? []).map((item) => (
+                    <tr key={item.id}>
+                      <td>{item.created_at}</td>
+                      <td className="break-all">{item.recipient_email}</td>
+                      <td>{item.purpose}</td>
+                      <td><Badge value={item.delivery_status} /></td>
+                      <td className="max-w-xl whitespace-pre-wrap break-words">{item.body_preview}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {!devOutbox.isLoading && !(devOutbox.data ?? []).length ? (
+                <EmptyState title="No local email events" body="Verification codes appear here only when dev outbox mode is enabled." />
+              ) : null}
+            </div>
+          </details>
+        ) : null}
       </section>
 
       {users.isError ? <ErrorBanner error={users.error} fallback="User management backend endpoint is not available yet." /> : null}
@@ -139,6 +235,12 @@ export function UserAdmin() {
           <button className="btn-primary w-full" disabled={mutations.createUser.isPending}>Create account</button>
           {mutations.createUser.isError ? <ErrorBanner error={mutations.createUser.error} /> : null}
           {mutations.createUser.data ? <div className="rounded-lg border border-success/30 bg-success/10 p-3 text-sm text-success">Created {mutations.createUser.data.username}</div> : null}
+          {mutations.sendVerification.isError ? <ErrorBanner error={mutations.sendVerification.error} /> : null}
+          {mutations.sendVerification.data ? (
+            <div className="rounded-lg border border-cyan/30 bg-cyan/10 p-3 text-sm text-cyan">
+              Verification: {mutations.sendVerification.data.status}. {mutations.sendVerification.data.message}
+            </div>
+          ) : null}
         </form>
 
         <section className="panel overflow-hidden">
@@ -186,6 +288,14 @@ export function UserAdmin() {
                           onClick={() => mutations.updateUser.mutate({ id: user.id, payload: { email_verified: !user.email_verified } })}
                         >
                           {user.email_verified ? "Mark unverified" : "Verify email"}
+                        </button>
+                        <button
+                          className="btn-secondary"
+                          disabled={!user.email || !canSendVerification || mutations.sendVerification.isPending}
+                          title={!canSendVerification ? "Email verification is disabled in the current configuration." : undefined}
+                          onClick={() => mutations.sendVerification.mutate(user.id)}
+                        >
+                          Send verification
                         </button>
                         <button className="btn-secondary" onClick={() => mutations.changeRole.mutate({ id: user.id, role: user.role === "admin" ? "analyst" : "admin" })}>
                           Make {user.role === "admin" ? "analyst" : "admin"}

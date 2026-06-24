@@ -11,6 +11,7 @@ class ImportResult(BaseModel):
     failed: int
     duplicate_raw_logs: int = 0
     run_id: int | None = None
+    job_id: int | None = None
     source_id: int | None = None
 
 
@@ -50,3 +51,4 @@ class NormalizedLogRead(BaseModel):
 class LogDetail(NormalizedLogRead):
     raw_line: str | None = None
     alert_ids: list[int] = Field(default_factory=list)
+    triage_explanation: dict[str, Any] = Field(default_factory=dict)

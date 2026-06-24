@@ -44,3 +44,16 @@ class OidcStatusRead(BaseModel):
     require_school_email: bool
     local_email_login_enabled: bool
     smtp_enabled: bool
+
+
+class MfuIamStatusRead(BaseModel):
+    enabled: bool
+    base_url_configured: bool
+    client_id_configured: bool
+    audience_configured: bool
+    allowed_domains: list[str]
+    default_role: str
+    google_sso_enabled: bool
+    google_client_id_configured: bool
+    mode: str
+    secrets_exposed: bool = False

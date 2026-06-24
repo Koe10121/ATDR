@@ -180,9 +180,20 @@ function extractTitle(markdown) {
 }
 
 function extractSection(markdown, number) {
-  const pattern = new RegExp(`(^##\\s+T${number}\\.\\s+[^\\n]+\\n[\\s\\S]*?)(?=^##\\s+T\\d+\\.|\\n?$)`, 'm');
-  const match = String(markdown || '').match(pattern);
-  return match ? match[1].trim() : `## T${number}. Missing\n\nNo data recorded.`;
+  const lines = String(markdown || '').split(/\r?\n/);
+  const startPattern = new RegExp(`^##\\s+T${number}\\.\\s+`);
+  const nextPattern = /^##\s+T\d+\.\s+/;
+  const start = lines.findIndex((line) => startPattern.test(line));
+  if (start === -1) return `## T${number}. Missing\n\nNo data recorded.`;
+
+  let end = lines.length;
+  for (let index = start + 1; index < lines.length; index += 1) {
+    if (nextPattern.test(lines[index])) {
+      end = index;
+      break;
+    }
+  }
+  return lines.slice(start, end).join('\n').trim();
 }
 
 function extractSummary(markdown) {
@@ -345,4 +356,3 @@ if (require.main === module) {
 }
 
 module.exports = { renderMarkdown, renderPage };
-

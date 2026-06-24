@@ -15,6 +15,7 @@ from atdr.app.db.models import Alert, AlertEvidence, MLLabel, NormalizedLog, Raw
 from atdr.app.detection.attack_mapping import attack_mapping_for_type
 from atdr.app.detection.explanations import build_alert_detection_summary
 from atdr.app.detection import supervised_detector
+from atdr.app.detection import supervised_workflow
 from atdr.app.detection.boundary_analysis import build_boundary_analysis, write_boundary_report
 from atdr.app.detection.hybrid_scoring import hybrid_risk_score
 from atdr.app.detection.model_comparison import compare_supervised_models
@@ -1490,6 +1491,25 @@ def test_supervised_model_registry_activation_and_rollback(tmp_path, monkeypatch
     assert activated["status"] == "activated"
     assert activated["production_promoted"] is False
     assert rolled_back["status"] == "rolled_back"
+
+
+def test_supervised_model_registry_marks_unregistered_active_artifact(tmp_path, monkeypatch):
+    active_path = tmp_path / "active-supervised.joblib"
+    active_path.write_bytes(b"legacy active artifact")
+    monkeypatch.setattr(supervised_workflow, "supervised_model_path", lambda: active_path)
+    Session = _test_session()
+    with Session() as db:
+        registry = list_supervised_models(db)
+
+    assert registry["active_artifact_exists"] is True
+    assert registry["active_artifact_metadata_unknown"] is True
+    assert registry["active_artifact_metadata_status"] == "metadata_unknown"
+    active = registry["models"][0]
+    assert active["model_version"] == "active-unregistered"
+    assert active["active_artifact_metadata_unknown"] is True
+    assert active["display_model_type"] == "Active artifact metadata unknown"
+    assert active["production_promoted"] is False
+    assert active["response_automation_allowed"] is False
 
 
 def test_supervised_training_prediction_and_hybrid_score(tmp_path, monkeypatch):

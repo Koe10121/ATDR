@@ -104,7 +104,7 @@ Final presentation material:
 - Rule-based detection, alert deduplication, lightweight case grouping, ATT&CK-style mapping, and "Why flagged?" explanations.
 - IsolationForest anomaly scoring and supervised ML decision support with AI Governance, labeling workflow, active learning, and model validation gates.
 - Simulated response actions with confirmation, protected-IP safeguards, justification notes, and audit logs.
-- External school-email IAM groundwork via disabled-by-default generic OIDC configuration/status. Local login remains the default, and SMTP/email invites are disabled future work.
+- External school-email IAM groundwork via disabled-by-default generic OIDC and MFU IAM/Google SSO adapter status. Local login remains the default; v3.14 adds disabled-by-default email verification/dev-outbox groundwork, and v3.15 improves account lifecycle/verification status UX. Real SMTP delivery, MFU IAM SDK login, Google callback login, and full school OIDC login remain future work.
 - Safe synthetic scenario validation under `data/samples/scenarios/`.
 - Release gate, performance smoke, onboarding docs, IAM/RBAC docs, PRD, traceability, and university workflow documentation.
 
@@ -150,6 +150,13 @@ Environment templates:
 - `.env.example` - normal local SQLite/demo setup.
 - `.env.lab.example` - optional PostgreSQL/shared lab starting point.
 - `.env.production.example` - future hardened deployment template, not a production guarantee.
+
+If login fails with `Database unavailable` and logs mention host `postgres`, `.env` is using the optional Docker/PostgreSQL lab profile outside Docker. For normal local testing, switch back to SQLite:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.config_doctor --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.use_local_sqlite_config --dry-run --pretty
+```
 
 ## Start The Backend
 
@@ -490,6 +497,16 @@ Start here:
 - `docs/V0_4_STATUS.md` - current dashboard/IAM/performance checkpoint.
 - `docs/V0_3_STATUS.md` - detailed current v0.3 status.
 - `docs/V0_3_PLAN.md` - v0.3 source-management and scenario-validation plan.
+- `docs/V3_6_BACKGROUND_JOB_HARDENING.md` - operation job tracking and long-running operation visibility.
+- `docs/V3_7_OPERATION_RETENTION_AND_JOB_RECOVERY.md` - stale job recovery and retention maintenance.
+- `docs/V3_8_ANALYST_ASSISTANT_MVP.md` - read-only SOC Assistant MVP with external LLM disabled by default.
+- `docs/V3_9_ASSISTANT_HARDENING.md` - assistant presets, audit-backed history, citations, and safe deterministic intents.
+- `docs/V3_10_CONFIG_SAFETY_HARDENING.md` - local/shared-lab configuration safety and database diagnostics.
+- `docs/V3_11_DETECTION_EXPLAINABILITY_HARDENING.md` - log-level triage explanations and validation checks.
+- `docs/V3_12_DETECTION_RULE_QUALITY.md` - detection rule quality and alert-noise reduction.
+- `docs/V3_13_SOC_ASSISTANT_ALERT_EXPLAINER.md` - alert explainer handoff for the read-only SOC Assistant.
+- `docs/V3_14_EMAIL_VERIFICATION_AND_ACCOUNT_NOTIFICATIONS.md` - disabled-by-default local email verification and admin dev-outbox foundation.
+- `docs/V3_15_ACCOUNT_LIFECYCLE_AND_EMAIL_VERIFICATION_UX.md` - account lifecycle and email verification status UX hardening.
 
 Governance and university workflow:
 
@@ -503,6 +520,8 @@ Governance and university workflow:
 - `docs/tasks/tasklist-progress.html` - generated progress board view.
 - `docs/security/ATDR_IAM_RBAC_MATRIX.md` - admin/analyst permission matrix and IAM limitations.
 - `docs/security/ATDR_EXTERNAL_IAM_PLAN.md` - disabled-by-default OIDC groundwork for future school-email login.
+- `docs/security/ATDR_MFU_IAM_ADAPTER_PLAN.md` - safe MFU IAM / Google SSO adapter plan based on supervisor template guidance.
+- `docs/security/MFU_IAM_PROVIDER_DETAILS_CHECKLIST.md` - provider questions needed before real external IAM work.
 - `docs/security/ATDR_PERMISSION_PATHS.md` - NewSystem-style ATDR permission path registry.
 - `docs/security/ATDR_OWASP_LAB_SECURITY_REVIEW.md` - lab security review baseline and remaining hardening gaps.
 - `docs/ATDR_REQUIREMENT_TRACEABILITY.md` - source-backed mapping from requirements to code, tests, docs, and gaps.

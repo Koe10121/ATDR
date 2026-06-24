@@ -8,6 +8,7 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import { LoginPage } from "./pages/LoginPage";
 
 const AlertsTriage = lazy(() => import("./pages/AlertsTriage").then((module) => ({ default: module.AlertsTriage })));
+const AssistantPage = lazy(() => import("./pages/AssistantPage").then((module) => ({ default: module.AssistantPage })));
 const AuditLogPage = lazy(() => import("./pages/AuditLogPage").then((module) => ({ default: module.AuditLogPage })));
 const DemoControls = lazy(() => import("./pages/DemoControls").then((module) => ({ default: module.DemoControls })));
 const DetectionTuning = lazy(() => import("./pages/DetectionTuning").then((module) => ({ default: module.DetectionTuning })));
@@ -32,6 +33,7 @@ export function App() {
           <Route path="/overview" element={<PageSuspense><ExecutiveOverview /></PageSuspense>} />
           <Route path="/alerts" element={<PageSuspense><AlertsTriage /></PageSuspense>} />
           <Route path="/logs" element={<PageSuspense><LogExplorer /></PageSuspense>} />
+          <Route path="/assistant" element={<PageSuspense><AssistantPage /></PageSuspense>} />
           <Route path="/response" element={<PageSuspense><ResponseCenter /></PageSuspense>} />
           <Route path="/controls" element={<PageSuspense><ThreatControls /></PageSuspense>} />
           <Route path="/audit" element={<PageSuspense><AuditLogPage /></PageSuspense>} />

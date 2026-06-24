@@ -66,6 +66,50 @@ def test_config_doctor_accepts_local_demo_settings():
     assert result["ok"] is True
     assert result["critical_count"] == 0
     assert any(issue["code"] == "default-jwt-secret" for issue in result["issues"])
+    assert any(issue["code"] == "local-sqlite-profile" for issue in result["issues"])
+
+
+def test_config_doctor_warns_for_docker_postgres_host_in_local_mode():
+    result = run_config_doctor(
+        Settings(
+            ENVIRONMENT="development",
+            DATABASE_URL="postgresql+psycopg2://atdr:secret@postgres:5432/atdr",
+            RESPONSE_SIMULATION=True,
+            ASSISTANT_ENABLED=False,
+            ASSISTANT_PROVIDER="disabled",
+            ASSISTANT_API_KEY="",
+            ASSISTANT_ALLOW_RAW_LOG_CONTEXT=False,
+        )
+    )
+    rendered = str(result)
+    codes = {issue["code"] for issue in result["issues"]}
+
+    assert result["ok"] is True
+    assert result["database"] == "postgresql"
+    assert result["database_host"] == "postgres"
+    assert "postgres-docker-host-local" in codes
+    assert "postgres-local-optional" in codes
+    assert "secret" not in rendered
+    assert 'sqlite:///./atdr.db' in result["local_workflow_recommendation"]
+
+
+def test_config_doctor_flags_assistant_unsafe_context_and_provider():
+    result = run_config_doctor(
+        Settings(
+            ENVIRONMENT="development",
+            ASSISTANT_ENABLED=True,
+            ASSISTANT_PROVIDER="external-test",
+            ASSISTANT_API_KEY="assistant-secret",
+            ASSISTANT_ALLOW_RAW_LOG_CONTEXT=True,
+        )
+    )
+    codes = {issue["code"] for issue in result["issues"]}
+    rendered = str(result)
+
+    assert "assistant-external-enabled" in codes
+    assert "assistant-provider-configured" in codes
+    assert "assistant-raw-log-context" in codes
+    assert "assistant-secret" not in rendered
 
 
 def test_config_doctor_flags_unsafe_production_defaults():

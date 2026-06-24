@@ -13,6 +13,7 @@ from atdr.app.services.demo_service import (
     run_demo_detection,
     train_demo_ml_model,
 )
+from atdr.app.services.job_service import build_result_summary, complete_job, fail_job, start_job
 
 router = APIRouter(prefix="/api/demo", tags=["demo"])
 
@@ -41,10 +42,28 @@ def import_sample(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ) -> dict:
+    job = start_job(
+        db,
+        job_type="import_logs",
+        requested_by=current_user.username,
+        details={"limit": request.limit, "sample_path_configured": bool(request.sample_path)},
+    )
     try:
-        return import_demo_sample_logs(db, sample_path=request.sample_path, limit=request.limit, actor=current_user.username)
+        result = import_demo_sample_logs(db, sample_path=request.sample_path, limit=request.limit, actor=current_user.username)
+        complete_job(
+            db,
+            job,
+            result_summary=build_result_summary("import_logs", result),
+            related_ingestion_run_id=result.get("run_id"),
+        )
+        result["job_id"] = job.id
+        return result
     except FileNotFoundError as exc:
+        fail_job(db, job, exc)
         raise HTTPException(status_code=404, detail=f"Sample log file not found: {exc.filename or request.sample_path}") from exc
+    except Exception as exc:
+        fail_job(db, job, exc)
+        raise
 
 
 @router.post("/run-detection")
@@ -53,7 +72,25 @@ def run_demo_detection_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ) -> dict:
-    return run_demo_detection(db, limit=request.limit, use_ml=request.use_ml, actor=current_user.username)
+    job = start_job(
+        db,
+        job_type="run_detection",
+        requested_by=current_user.username,
+        details={"limit": request.limit, "use_ml": request.use_ml, "demo": True},
+    )
+    try:
+        result = run_demo_detection(db, limit=request.limit, use_ml=request.use_ml, actor=current_user.username)
+        complete_job(
+            db,
+            job,
+            result_summary=build_result_summary("run_detection", result),
+            related_detection_run_id=result.get("detection_run_id"),
+        )
+        result["job_id"] = job.id
+        return result
+    except Exception as exc:
+        fail_job(db, job, exc)
+        raise
 
 
 @router.post("/train-ml")
@@ -62,7 +99,25 @@ def train_ml(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ) -> dict:
-    return train_demo_ml_model(db, limit=request.limit, actor=current_user.username)
+    job = start_job(
+        db,
+        job_type="train_ml",
+        requested_by=current_user.username,
+        details={"limit": request.limit, "demo": True},
+    )
+    try:
+        result = train_demo_ml_model(db, limit=request.limit, actor=current_user.username)
+        complete_job(
+            db,
+            job,
+            result_summary=build_result_summary("train_ml", result),
+            related_ml_model_run_id=result.get("run_id"),
+        )
+        result["job_id"] = job.id
+        return result
+    except Exception as exc:
+        fail_job(db, job, exc)
+        raise
 
 
 @router.post("/apply-ml")
@@ -71,7 +126,25 @@ def apply_ml(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ) -> dict:
-    return apply_demo_ml_scoring(db, limit=request.limit, actor=current_user.username)
+    job = start_job(
+        db,
+        job_type="apply_ml_scoring",
+        requested_by=current_user.username,
+        details={"limit": request.limit, "demo": True},
+    )
+    try:
+        result = apply_demo_ml_scoring(db, limit=request.limit, actor=current_user.username)
+        complete_job(
+            db,
+            job,
+            result_summary=build_result_summary("apply_ml_scoring", result),
+            related_ml_model_run_id=result.get("run_id"),
+        )
+        result["job_id"] = job.id
+        return result
+    except Exception as exc:
+        fail_job(db, job, exc)
+        raise
 
 
 @router.post("/export-bundle")
@@ -80,11 +153,28 @@ def export_bundle(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ) -> dict:
-    return export_demo_bundle(
+    job = start_job(
         db,
-        actor=current_user.username,
-        alert_id=request.alert_id,
-        output_dir=request.output_dir,
-        top_alert_limit=request.top_alert_limit,
-        audit_limit=request.audit_limit,
+        job_type="export_report",
+        requested_by=current_user.username,
+        details={
+            "alert_id": request.alert_id,
+            "top_alert_limit": request.top_alert_limit,
+            "audit_limit": request.audit_limit,
+        },
     )
+    try:
+        result = export_demo_bundle(
+            db,
+            actor=current_user.username,
+            alert_id=request.alert_id,
+            output_dir=request.output_dir,
+            top_alert_limit=request.top_alert_limit,
+            audit_limit=request.audit_limit,
+        )
+        complete_job(db, job, result_summary=build_result_summary("export_report", result))
+        result["job_id"] = job.id
+        return result
+    except Exception as exc:
+        fail_job(db, job, exc)
+        raise

@@ -7,7 +7,15 @@ from atdr.app.core.config import get_settings
 from atdr.app.core.security import create_access_token, get_current_user, require_analyst_or_admin
 from atdr.app.db.database import get_db
 from atdr.app.db.models import AuditLog, User
-from atdr.app.schemas.auth import ChangePasswordRequest, LoginRequest, OidcStatusRead, TokenResponse, UserRead
+from atdr.app.schemas.account_email import (
+    EmailVerificationRequestRead,
+    EmailVerificationStatusRead,
+    EmailVerificationVerifyRequest,
+    EmailVerificationVerifyResponse,
+)
+from atdr.app.schemas.auth import ChangePasswordRequest, LoginRequest, MfuIamStatusRead, OidcStatusRead, TokenResponse, UserRead
+from atdr.app.services.account_verification_service import request_email_verification, verify_email_code
+from atdr.app.services.email_service import get_email_delivery_status
 from atdr.app.services.user_service import authenticate_user, change_own_password, record_successful_login
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -117,3 +125,46 @@ def oidc_status(current_user: User = Depends(require_analyst_or_admin)) -> dict:
         "local_email_login_enabled": settings.local_email_login_enabled,
         "smtp_enabled": settings.smtp_enabled,
     }
+
+
+@router.get("/mfu-iam/status", response_model=MfuIamStatusRead)
+def mfu_iam_status(current_user: User = Depends(require_analyst_or_admin)) -> dict:
+    del current_user
+    settings = get_settings()
+    return {
+        "enabled": settings.mfu_iam_enabled,
+        "base_url_configured": bool(settings.mfu_iam_base_url.strip()),
+        "client_id_configured": bool(settings.mfu_iam_client_id.strip()),
+        "audience_configured": bool(settings.mfu_iam_audience.strip()),
+        "allowed_domains": settings.mfu_iam_allowed_domain_list,
+        "default_role": settings.mfu_iam_default_role,
+        "google_sso_enabled": settings.google_sso_enabled,
+        "google_client_id_configured": bool(settings.google_client_id.strip()),
+        "mode": "mfu_iam_configured" if settings.mfu_iam_enabled else "local_login_only",
+        "secrets_exposed": False,
+    }
+
+
+@router.get("/email/status", response_model=EmailVerificationStatusRead)
+def email_status(current_user: User = Depends(require_analyst_or_admin)) -> dict:
+    del current_user
+    return get_email_delivery_status()
+
+
+@router.post("/email/request-verification", response_model=EmailVerificationRequestRead)
+def request_own_email_verification(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> EmailVerificationRequestRead:
+    result = request_email_verification(db, user=current_user, actor=current_user.username)
+    return EmailVerificationRequestRead(**result.__dict__)
+
+
+@router.post("/email/verify", response_model=EmailVerificationVerifyResponse)
+def verify_own_email(
+    request: EmailVerificationVerifyRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> EmailVerificationVerifyResponse:
+    result = verify_email_code(db, user=current_user, code=request.code, actor=current_user.username)
+    return EmailVerificationVerifyResponse(**result.__dict__)

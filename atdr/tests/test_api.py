@@ -1,17 +1,20 @@
 from collections.abc import Generator
+import asyncio
 import json
 import shutil
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
+from starlette.requests import Request
 
 from atdr.app.core.config import get_settings
 from atdr.app.db.database import Base, get_db
 from atdr.app.db.models import Alert
-from atdr.app.main import app
+from atdr.app.main import app, database_operational_exception_handler
 from atdr.app.routers import dashboard as dashboard_router
 from atdr.app.services.user_service import create_user
 from atdr.tests.test_parser import TRAFFIC_LINE
@@ -83,6 +86,33 @@ def test_login_and_me_api():
         app.dependency_overrides.clear()
 
 
+def test_database_operational_error_returns_clear_503():
+    request = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/api/auth/login",
+            "headers": [],
+            "query_string": b"",
+            "scheme": "http",
+            "server": ("testserver", 80),
+            "client": ("testclient", 50000),
+        }
+    )
+    response = asyncio.run(
+        database_operational_exception_handler(
+            request,
+            OperationalError("SELECT 1", {}, Exception("database unavailable")),
+        )
+    )
+    payload = json.loads(response.body)
+
+    assert response.status_code == 503
+    assert "Database unavailable" in payload["detail"]
+    assert "DATABASE_URL" in payload["detail"]
+    assert "postgres" not in payload["detail"].lower()
+
+
 def test_oidc_status_is_authenticated_and_does_not_expose_secret(monkeypatch):
     monkeypatch.setenv("OIDC_ENABLED", "false")
     monkeypatch.setenv("OIDC_PROVIDER_NAME", "")
@@ -115,6 +145,59 @@ def test_oidc_status_is_authenticated_and_does_not_expose_secret(monkeypatch):
         app.dependency_overrides.clear()
 
 
+def test_mfu_iam_status_is_authenticated_disabled_by_default_and_hides_secrets(monkeypatch):
+    monkeypatch.setenv("MFU_IAM_ENABLED", "false")
+    monkeypatch.setenv("MFU_IAM_BASE_URL", "")
+    monkeypatch.setenv("MFU_IAM_CLIENT_ID", "")
+    monkeypatch.setenv("MFU_IAM_CLIENT_SECRET", "mfu-secret-that-must-not-leak")
+    monkeypatch.setenv("MFU_IAM_AUDIENCE", "")
+    monkeypatch.setenv("MFU_IAM_ALLOWED_DOMAINS", "")
+    monkeypatch.setenv("MFU_IAM_DEFAULT_ROLE", "analyst")
+    monkeypatch.setenv("GOOGLE_SSO_ENABLED", "false")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "google-client-id-that-must-not-leak")
+    get_settings.cache_clear()
+    client = _client()
+    try:
+        unauthorized = client.get("/api/auth/mfu-iam/status")
+        assert unauthorized.status_code == 401
+
+        headers = _login(client, "analyst", "analyst123")
+        response = client.get("/api/auth/mfu-iam/status", headers=headers)
+        assert response.status_code == 200
+        payload = response.json()
+
+        assert payload["enabled"] is False
+        assert payload["mode"] == "local_login_only"
+        assert payload["base_url_configured"] is False
+        assert payload["client_id_configured"] is False
+        assert payload["audience_configured"] is False
+        assert payload["allowed_domains"] == []
+        assert payload["default_role"] == "analyst"
+        assert payload["google_sso_enabled"] is False
+        assert payload["google_client_id_configured"] is True
+        assert payload["secrets_exposed"] is False
+        assert "mfu-secret-that-must-not-leak" not in str(payload)
+        assert "google-client-id-that-must-not-leak" not in str(payload)
+        assert "MFU_IAM_CLIENT_SECRET" not in str(payload)
+    finally:
+        app.dependency_overrides.clear()
+        get_settings.cache_clear()
+
+
+def test_mfu_iam_disabled_does_not_change_local_login(monkeypatch):
+    monkeypatch.setenv("MFU_IAM_ENABLED", "false")
+    monkeypatch.setenv("GOOGLE_SSO_ENABLED", "false")
+    get_settings.cache_clear()
+    client = _client()
+    try:
+        response = client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+        assert response.status_code == 200
+        assert response.json()["role"] == "admin"
+    finally:
+        app.dependency_overrides.clear()
+        get_settings.cache_clear()
+
+
 def test_dashboard_validation_summary_reports_latest_file_without_private_paths(monkeypatch):
     report_dir = Path(".pytest_tmp") / "dashboard_validation_summary" / "detection_validation"
     generalization_dir = Path(".pytest_tmp") / "dashboard_validation_summary" / "detection_generalization"
@@ -142,6 +225,8 @@ def test_dashboard_validation_summary_reports_latest_file_without_private_paths(
     v14c_candidate_path = reliability_dir / "v1_4c_malicious_recall_recovery.json"
     v15_candidate_path = reliability_dir / "final_ai_readiness_report_20260605T041000Z.json"
     v16_candidate_path = reliability_dir / "external_benchmark_validation_20260605T042000Z.json"
+    v355_queue_path = reliability_dir / "v3_55_severity_target_policy_reframing_latest.json"
+    v357_agreement_path = reliability_dir / "v3_57_queue_rule_hybrid_agreement_latest.json"
     report_path.write_text(
         json.dumps(
             {
@@ -509,6 +594,107 @@ def test_dashboard_validation_summary_reports_latest_file_without_private_paths(
         ),
         encoding="utf-8",
     )
+    v355_queue_path.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "phase": "v3.55",
+                "generated_at": "2026-06-23T17:00:00+00:00",
+                "best_strategy": "binary_review_queue_queue_only",
+                "strategy_comparison": {
+                    "binary_review_queue_queue_only": {
+                        "policy_name": "binary_review_queue",
+                        "policy": {
+                            "description": "Only model whether a row enters the SOC review queue.",
+                        },
+                        "stability": {
+                            "evaluated_splits": 5,
+                            "passing_splits": 5,
+                            "passed": True,
+                            "metric_ranges": {
+                                "queue_f1": {"min": 0.9725, "max": 0.9962},
+                                "queue_recall": {"min": 0.948, "max": 0.9925},
+                                "queue_precision": {"min": 0.9907, "max": 1.0},
+                                "benign_like_false_positive_rate": {"max": 0.04},
+                                "critical_recall_min": {"min": 0.948},
+                                "macro_f1": {"min": 0.7481},
+                                "weighted_f1": {"min": 0.9589},
+                            },
+                        },
+                        "best_calibration": {
+                            "status": "passed",
+                            "expected_calibration_error": 0.007,
+                            "brier_score_threat_positive": 0.0224,
+                            "max_confidence_accuracy_gap": 0.0224,
+                        },
+                        "threshold_selection": {
+                            "selected_on": ["train_internal_calibration"],
+                        },
+                    }
+                },
+                "readiness": {
+                    "decision": "candidate_only",
+                    "passed": 10,
+                    "total": 10,
+                    "blockers": [],
+                },
+                "safety": {
+                    "production_promoted": False,
+                    "model_activated": False,
+                    "model_artifact_written": False,
+                    "labels_written": False,
+                    "response_automation_allowed": False,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    v357_agreement_path.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "phase": "v3.57",
+                "generated_at": "2026-06-24T10:20:00+00:00",
+                "policy_name": "binary_review_queue",
+                "aggregate": {
+                    "evaluated_splits": 5,
+                    "passing_splits": 4,
+                    "queue_f1_min": 0.9725,
+                    "queue_recall_min": 0.948,
+                    "queue_precision_min": 0.9907,
+                    "queue_false_positive_rate_max": 0.04,
+                    "agreement_rate_min": 0.884,
+                    "agreement_rate_max": 0.9888,
+                    "calibration_ece_max": 0.0137,
+                    "category_counts": {
+                        "queue_and_evidence_agree_review": 3376,
+                        "evidence_only_review": 310,
+                        "queue_and_evidence_agree_non_review": 324,
+                    },
+                    "top_evidence_only_patterns": [
+                        ["app=quic-base|action=allow|port=443", 71],
+                    ],
+                    "top_queue_only_patterns": [],
+                    "blockers": ["grouped_stratified: evidence-only review rate above 0.10"],
+                },
+                "readiness": {
+                    "decision": "diagnostic_only",
+                    "passed": 7,
+                    "total": 8,
+                    "blockers": ["evidence-only misses remain reviewable"],
+                },
+                "safety": {
+                    "production_promoted": False,
+                    "model_activated": False,
+                    "model_artifact_written": False,
+                    "labels_written": False,
+                    "raw_logs_included": False,
+                    "response_automation_allowed": False,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
     monkeypatch.setattr(dashboard_router, "VALIDATION_REPORT_DIR", report_dir)
     monkeypatch.setattr(dashboard_router, "GENERALIZATION_REPORT_DIR", generalization_dir)
     monkeypatch.setattr(dashboard_router, "LAYERED_REPORT_DIR", layered_dir)
@@ -619,6 +805,43 @@ def test_dashboard_validation_summary_reports_latest_file_without_private_paths(
         assert payload["v16_ai"]["production_promoted"] is False
         assert payload["v16_ai"]["model_activated"] is False
         assert payload["v16_ai"]["response_automation_allowed"] is False
+        assert payload["v355_soc_queue"]["available"] is True
+        assert payload["v355_soc_queue"]["best_strategy"] == "binary_review_queue_queue_only"
+        assert payload["v355_soc_queue"]["policy_name"] == "binary_review_queue"
+        assert payload["v355_soc_queue"]["passing_splits"] == 5
+        assert payload["v355_soc_queue"]["evaluated_splits"] == 5
+        assert payload["v355_soc_queue"]["queue_f1_min"] == 0.9725
+        assert payload["v355_soc_queue"]["benign_like_false_positive_rate_max"] == 0.04
+        assert payload["v355_soc_queue"]["calibration_status"] == "passed"
+        assert payload["v355_soc_queue"]["readiness_decision"] == "candidate_only"
+        assert payload["v355_soc_queue"]["production_promoted"] is False
+        assert payload["v355_soc_queue"]["model_activated"] is False
+        assert payload["v355_soc_queue"]["labels_written"] is False
+        assert payload["v355_soc_queue"]["response_automation_allowed"] is False
+        assert payload["v355_soc_queue"]["diagnostic_only"] is True
+        assert payload["v357_queue_evidence_agreement"]["available"] is True
+        assert payload["v357_queue_evidence_agreement"]["phase"] == "v3.57"
+        assert payload["v357_queue_evidence_agreement"]["policy_name"] == "binary_review_queue"
+        assert payload["v357_queue_evidence_agreement"]["passing_splits"] == 4
+        assert payload["v357_queue_evidence_agreement"]["evaluated_splits"] == 5
+        assert payload["v357_queue_evidence_agreement"]["queue_f1_min"] == 0.9725
+        assert payload["v357_queue_evidence_agreement"]["queue_false_positive_rate_max"] == 0.04
+        assert payload["v357_queue_evidence_agreement"]["agreement_rate_min"] == 0.884
+        assert payload["v357_queue_evidence_agreement"]["calibration_ece_max"] == 0.0137
+        assert payload["v357_queue_evidence_agreement"]["category_counts"]["evidence_only_review"] == 310
+        assert (
+            payload["v357_queue_evidence_agreement"]["top_evidence_only_patterns"][0][0]
+            == "app=quic-base|action=allow|port=443"
+        )
+        assert payload["v357_queue_evidence_agreement"]["readiness_decision"] == "diagnostic_only"
+        assert payload["v357_queue_evidence_agreement"]["checks_passed"] == 7
+        assert payload["v357_queue_evidence_agreement"]["checks_total"] == 8
+        assert payload["v357_queue_evidence_agreement"]["production_promoted"] is False
+        assert payload["v357_queue_evidence_agreement"]["model_activated"] is False
+        assert payload["v357_queue_evidence_agreement"]["labels_written"] is False
+        assert payload["v357_queue_evidence_agreement"]["raw_logs_included"] is False
+        assert payload["v357_queue_evidence_agreement"]["response_automation_allowed"] is False
+        assert payload["v357_queue_evidence_agreement"]["diagnostic_only"] is True
         assert str(report_dir) not in json.dumps(payload)
         assert str(generalization_dir) not in json.dumps(payload)
         assert str(layered_dir) not in json.dumps(payload)
@@ -857,6 +1080,13 @@ def test_list_filters_support_react_dashboard_tables(tmp_path):
         assert int(logs.headers["X-Total-Count"]) >= 1
         assert logs.json()[0]["src_ip"] == "43.210.171.152"
         assert logs.json()[0]["protocol"] == "icmp"
+        log_id = logs.json()[0]["id"]
+        log_detail = client.get(f"/api/logs/{log_id}", headers=analyst_headers)
+        assert log_detail.status_code == 200
+        triage = log_detail.json()["triage_explanation"]
+        assert triage["status"] == "not_flagged"
+        assert triage["decision_support_only"] is True
+        assert triage["response_automation_allowed"] is False
 
         alerts = client.get(
             "/api/alerts",

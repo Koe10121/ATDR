@@ -15,6 +15,7 @@ venv/
 **/.env.prod
 .tools/
 .tmp/
+tmp/
 *.log
 !atdr/data/samples/*.log
 data/private/

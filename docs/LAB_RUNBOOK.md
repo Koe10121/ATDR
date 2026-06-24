@@ -33,6 +33,55 @@ Invoke-RestMethod http://127.0.0.1:8000/health
 
 Expected result: status `ok`, database `ok`, and response mode `simulation`.
 
+## SOC Assistant
+
+v3.9 keeps the assistant read-only and adds broader analyst question coverage, prompt presets, source references, and safe audit-backed recent-question history.
+
+Open the React dashboard and use:
+
+```text
+SOC Assistant
+```
+
+Safe example questions:
+
+- What is the latest critical alert?
+- Why was alert 1 flagged?
+- Show latest critical alerts.
+- Which sources have warnings?
+- What changed recently?
+- Summarize failed jobs.
+- Why is the model not production promoted?
+- How do I import reviewed labels?
+- How do I run a safe scenario?
+- Summarize source health.
+- Summarize recent operation jobs.
+- Explain current ML model status.
+- How do I run replay or detection?
+
+Assistant safety defaults:
+
+- External LLM provider is disabled by default.
+- Raw log context is disabled by default.
+- IP redaction is enabled by default.
+- Questions are audited.
+- Recent assistant questions are shown from safe audit summaries.
+- The assistant cannot run response actions, detection, model activation, label changes, or data deletion.
+
+Assistant configuration placeholders are in `.env.example` and `.env.lab.example`:
+
+```text
+ASSISTANT_ENABLED=false
+ASSISTANT_PROVIDER=disabled
+ASSISTANT_MODEL=
+ASSISTANT_API_KEY=
+ASSISTANT_MAX_CONTEXT_ROWS=20
+ASSISTANT_REDACT_IPS=true
+ASSISTANT_ALLOW_RAW_LOG_CONTEXT=false
+```
+
+Do not commit `.env` files or API keys. Any future external LLM provider must go through privacy/security review first.
+
 ## v3.4 Shared-Lab Readiness Checks
 
 These checks prepare ATDR for shared-lab validation without changing the normal local workflow or claiming production readiness.
@@ -69,6 +118,50 @@ For PostgreSQL shared-lab validation:
 ```
 
 If the current `DATABASE_URL` is SQLite, the expected status is `postgres_lab_validation_blocked_by_environment`. That is non-destructive and confirms the normal local workflow remains unchanged.
+
+## Operation Job Maintenance
+
+ATDR records synchronous operation jobs for imports, replay, detection, ML actions, and exports. v3.7 adds safe maintenance tooling for stale jobs and old terminal job history. This does not delete raw logs, normalized logs, alerts, labels, audit records, response actions, ingestion runs, or detection runs.
+
+Preview current job health and maintenance candidates:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.maintenance_jobs --dry-run --pretty
+```
+
+Preview stale jobs using a custom threshold:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.maintenance_jobs --dry-run --mark-stale-jobs --stale-after-minutes 60 --pretty
+```
+
+Explicitly mark stale active jobs as failed:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.maintenance_jobs --execute --mark-stale-jobs --stale-after-minutes 60 --pretty
+```
+
+Preview old terminal operation-job cleanup:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.maintenance_jobs --dry-run --cleanup-completed-jobs --older-than-days 30 --limit 100 --pretty
+```
+
+Explicitly delete old terminal operation-job rows only:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.maintenance_jobs --execute --cleanup-completed-jobs --older-than-days 30 --limit 100 --pretty
+```
+
+Retention-related settings in `.env.example` and `.env.lab.example`:
+
+```text
+JOB_STALE_AFTER_MINUTES=60
+JOB_RETENTION_DAYS=30
+RUN_HISTORY_RETENTION_DAYS=90
+```
+
+These settings are advisory by default. Normal backend startup does not perform cleanup.
 
 ## Safe Lab Scenario Runner
 
@@ -725,14 +818,30 @@ List latest detection runs:
 Invoke-RestMethod http://127.0.0.1:8000/api/detection/runs -Headers @{ Authorization = "Bearer <token>" }
 ```
 
+List latest long-running operation jobs:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/api/jobs -Headers @{ Authorization = "Bearer <token>" }
+```
+
+List the compact job health summary:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/api/jobs/summary -Headers @{ Authorization = "Bearer <token>" }
+```
+
 The React Overview page shows a compact **Operations Health** panel with:
 
 - latest ingestion run status
 - latest detection run status
+- latest operation job status
+- active and stale job counts
 - parser failures
 - deduplicated alert count
 - alert creation count
 - runtime duration
+
+ATDR v3.6 tracks long-running dashboard and CLI operations in `operation_jobs`. v3.7 adds explicit stale-job and old terminal job maintenance. This is a synchronous lab-safe status trail, not a Celery/Redis worker queue. Direct replay writes a job record when it imports logs; replay dry-run remains read-only and does not write job history.
 
 Run history source names use safe labels such as filenames or `udp:host:port`; private full paths are not exposed in API output.
 
@@ -832,6 +941,21 @@ docker compose --profile postgres up --build api dashboard
 
 Docker/PostgreSQL is not required for normal local testing.
 
+If the backend starts but login fails with `Database unavailable` or the log says `could not translate host name "postgres"`, `.env` is probably using the optional PostgreSQL lab profile outside Docker. For the normal local workflow, switch back to SQLite:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.config_doctor --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.use_local_sqlite_config --dry-run --pretty
+```
+
+If the dry-run output looks correct, write the local profile:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.use_local_sqlite_config --write --pretty
+```
+
+The helper preserves a backup under ignored `.tmp/env-backups/` and does not reset or delete the database.
+
 ## Optional Reset And Seed
 
 Do not reset the current local database unless you intend to clear demo data.
@@ -846,7 +970,7 @@ Use `--yes` only when you understand it clears local demo data.
 
 - API health check failed: confirm uvicorn is running on port `8000`.
 - React shows failed fetch: confirm `VITE_API_BASE_URL` points to `http://127.0.0.1:8000`.
-- Login fails: run `python -m atdr.scripts.seed_users`.
+- Login fails: run `python -m atdr.scripts.seed_users`. If the error is `Database unavailable`, check `DATABASE_URL` with `python -m atdr.scripts.config_doctor --pretty`.
 - Config Doctor warns about demo JWT secret: expected in local demo, unsafe for lab/prod.
 - Config Doctor warns about missing sample path: set `DEMO_SAMPLE_LOG_PATH` in private `.env` or use `data/samples/paloalto-demo.txt`.
 - Syslog test receives nothing: confirm receiver is running before sender and that both use the same host/port.

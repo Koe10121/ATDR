@@ -6,12 +6,14 @@ from typing import Any, Callable
 
 from sqlalchemy import func, select
 
+from atdr.app.core.config import get_settings
 from atdr.app.db.database import SessionLocal
 from atdr.app.db.models import Alert, NormalizedLog, RawLog
 from atdr.app.ml.features import build_log_features
 from atdr.app.services.alert_service import list_alerts
 from atdr.app.services.case_service import list_alert_cases
 from atdr.app.services.dashboard_service import build_dashboard_summary, build_dashboard_summary_cached, clear_dashboard_summary_cache
+from atdr.app.services.job_service import build_job_summary
 from atdr.app.services.operation_run_service import list_detection_runs, list_ingestion_runs
 from atdr.app.services.ml_service import evaluation_report
 from atdr.app.detection.supervised_detector import supervised_model_report
@@ -30,6 +32,7 @@ def _timed(label: str, fn: Callable[[], Any]) -> tuple[str, Any, float]:
 
 
 def run_performance_smoke(*, feature_limit: int = 20) -> dict[str, Any]:
+    settings = get_settings()
     with SessionLocal() as db:
         total_raw = int(db.scalar(select(func.count(RawLog.id))) or 0)
         total_normalized = int(db.scalar(select(func.count(NormalizedLog.id))) or 0)
@@ -48,6 +51,16 @@ def run_performance_smoke(*, feature_limit: int = 20) -> dict[str, Any]:
         timings["ingestion_run_history_query_seconds"] = seconds
         _, detection_runs, seconds = _timed("detection_run_history", lambda: list_detection_runs(db, limit=20))
         timings["detection_run_history_query_seconds"] = seconds
+        _, job_summary, seconds = _timed(
+            "operation_job_summary",
+            lambda: build_job_summary(
+                db,
+                stale_after_minutes=settings.job_stale_after_minutes,
+                job_retention_days=settings.job_retention_days,
+                run_history_retention_days=settings.run_history_retention_days,
+            ),
+        )
+        timings["operation_job_summary_query_seconds"] = seconds
         _, alerts, seconds = _timed("alert_list", lambda: list_alerts(db, limit=50))
         timings["alert_list_query_seconds"] = seconds
         _, cases, seconds = _timed("case_summary", lambda: list_alert_cases(db, limit=20))
@@ -79,6 +92,7 @@ def run_performance_smoke(*, feature_limit: int = 20) -> dict[str, Any]:
             "ml_heavy_supervised_report_seconds": 5.0,
             "ingestion_run_history_query_seconds": 1.0,
             "detection_run_history_query_seconds": 1.0,
+            "operation_job_summary_query_seconds": 1.0,
             "alert_list_query_seconds": 1.0,
             "case_summary_query_seconds": 1.0,
         }
@@ -101,6 +115,11 @@ def run_performance_smoke(*, feature_limit: int = 20) -> dict[str, Any]:
             "case_rows_sampled": len(cases),
             "ingestion_runs_sampled": len(ingestion_runs),
             "detection_runs_sampled": len(detection_runs),
+            "operation_job_summary": {
+                "active_count": job_summary.get("active_count"),
+                "stale_count": job_summary.get("stale_count"),
+                "failed_count": job_summary.get("failed_count"),
+            },
             "ml_anomaly_rate": ml_report.get("anomaly_rate"),
             "supervised_label_count": supervised_report.get("label_count"),
             "feature_rows_sampled": len(logs),

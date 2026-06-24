@@ -1,4 +1,4 @@
-from atdr.app.parsers.paloalto_parser import parse_log_line
+from atdr.app.parsers.paloalto_parser import parse_log_line, parse_log_line_for_profile
 
 
 TRAFFIC_LINE = (
@@ -75,3 +75,25 @@ def test_blank_line_and_missing_fields_are_recorded_safely():
     assert "missing source IP" in partial.parsed_json["parser_warnings"]
     assert "missing destination IP" in partial.parsed_json["parser_warnings"]
     assert "missing action" in partial.parsed_json["parser_warnings"]
+
+
+def test_generic_syslog_profile_preserves_raw_message_without_crashing():
+    parsed = parse_log_line_for_profile(
+        "2026-05-20T13:36:16+07:00 lab-router interface ge-0/0/1 link changed",
+        "generic_syslog",
+    )
+
+    assert parsed.error is None
+    assert parsed.device_hostname == "lab-router"
+    assert parsed.normalized == {}
+    assert parsed.parsed_json["parser_profile"] == "generic_syslog"
+    assert "limited normalized fields" in parsed.parsed_json["parser_warnings"][0]
+
+
+def test_raw_fallback_profile_preserves_evidence_and_counts_failure():
+    parsed = parse_log_line_for_profile("not a firewall log", "raw_fallback")
+
+    assert parsed.error == "raw fallback parser profile"
+    assert parsed.raw_line == "not a firewall log"
+    assert parsed.normalized == {}
+    assert parsed.parsed_json["raw_fallback"] is True

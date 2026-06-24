@@ -105,6 +105,14 @@ export function AlertsTriage() {
   const groupMetadata = selected?.matched_rules_json?.find((rule) => rule.code === "group_metadata") ?? null;
   const occurrenceCount = Number(groupMetadata?.occurrence_count ?? groupMetadata?.evidence_count ?? selected?.evidence_count ?? 0);
   const relatedLogCount = Number(groupMetadata?.related_log_count ?? groupMetadata?.evidence_count ?? selected?.evidence_count ?? 0);
+  const assistantPrompt = selected ? `Explain alert ${selected.id} and what an analyst should check next.` : "";
+  const assistantHref = selected ? `/assistant?alert=${selected.id}&prompt=${encodeURIComponent(assistantPrompt)}` : "/assistant";
+  const assistantLogHref = (logId: number) =>
+    selected
+      ? `/assistant?alert=${selected.id}&log=${logId}&prompt=${encodeURIComponent(`Summarize related log ${logId} for alert ${selected.id}.`)}`
+      : `/assistant?log=${logId}&prompt=${encodeURIComponent(`Why was log ${logId} flagged or not flagged?`)}`;
+  const assistantCaseHref = (caseId: string) =>
+    `/assistant?case=${encodeURIComponent(caseId)}&prompt=${encodeURIComponent(`Summarize case ${caseId} and related alert group.`)}`;
 
   const columns = useMemo<ColumnDef<Alert>[]>(
     () => [
@@ -299,6 +307,9 @@ export function AlertsTriage() {
                     {(item.top_actions ?? []).map((action) => `${action.name} (${action.count})`).join(", ") || "-"}
                   </div>
                   {item.recommended_analyst_focus ? <div className="mt-2 text-xs text-cyan">{item.recommended_analyst_focus}</div> : null}
+                  <div className="mt-3">
+                    <Link className="btn-secondary text-xs" to={assistantCaseHref(item.case_id)}>Ask Assistant about case</Link>
+                  </div>
                 </div>
               ))}
             </div>
@@ -410,6 +421,7 @@ export function AlertsTriage() {
             <section className="rounded-lg border border-line bg-panel2 p-4">
               <div className="mb-3 text-sm font-extrabold uppercase tracking-wide text-muted">Analyst Actions</div>
               <div className="flex flex-wrap gap-2">
+                <Link className="btn-primary" to={assistantHref}>Ask Assistant</Link>
                 <button className="btn-secondary" onClick={() => workflow.assignToMe.mutate(selected.id)}>Assign to me</button>
                 <button className="btn-secondary" onClick={() => setAlertStatus("investigating")}>Investigating</button>
                 <button className="btn-secondary" onClick={() => setAlertStatus("needs_more_context")}>Needs context</button>
@@ -468,9 +480,14 @@ export function AlertsTriage() {
                 Evidence logs:
                 {selected.evidence_log_ids.length
                   ? selected.evidence_log_ids.map((id) => (
-                      <Link key={id} className="rounded border border-cyan/30 bg-cyan/10 px-2 py-1 text-cyan underline" to={`/logs?log=${id}`}>
-                        Log {id}
-                      </Link>
+                      <span key={id} className="inline-flex flex-wrap items-center gap-2 rounded border border-cyan/30 bg-cyan/10 px-2 py-1">
+                        <Link className="text-cyan underline" to={`/logs?log=${id}`}>
+                          Log {id}
+                        </Link>
+                        <Link className="text-xs font-bold text-cyan underline" to={assistantLogHref(id)}>
+                          Ask Assistant
+                        </Link>
+                      </span>
                     ))
                   : "-"}
               </div>

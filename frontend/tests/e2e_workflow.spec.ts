@@ -4,13 +4,7 @@ import type { Page, Route } from "@playwright/test";
 async function seedSession(page: Page) {
   await page.goto("/login");
   await page.getByRole("button", { name: /sign in/i }).click();
-  await expect(page.getByText("SOC Command Center")).toBeVisible();
-  await page.evaluate(() => {
-    window.localStorage.setItem(
-      "atdr.session.v1",
-      JSON.stringify({ token: "e2e-workflow-token", username: "admin", role: "admin", expiresAt: Date.now() + 3600000 })
-    );
-  });
+  await expect(page).toHaveURL(/\/overview/);
 }
 
 const source = {
@@ -151,6 +145,22 @@ async function mockWorkflowApi(page: Page) {
       smtp_enabled: false
     })
   );
+  await page.route("**/api/auth/email/status", (route) =>
+    fulfill(route, {
+      notifications_enabled: false,
+      verification_enabled: false,
+      delivery_mode: "disabled",
+      smtp_enabled_legacy: false,
+      smtp_configured: false,
+      dev_outbox_available: false,
+      code_ttl_minutes: 15,
+      school_email_domains: [],
+      require_school_email: false,
+      local_email_login_enabled: true,
+      verification_required_for_login: false,
+      verification_required_for_admin_actions: false
+    })
+  );
   await page.route("**/api/auth/login", (route) =>
     fulfill(route, {
       access_token: "e2e-workflow-token",
@@ -161,6 +171,9 @@ async function mockWorkflowApi(page: Page) {
     })
   );
   await page.route("**/api/auth/me", (route) =>
+    fulfill(route, { id: 1, username: "admin", full_name: "E2E Admin", role: "admin", is_active: true, created_at: "2026-06-05T02:00:00Z" })
+  );
+  await page.route("**/api/users/me", (route) =>
     fulfill(route, { id: 1, username: "admin", full_name: "E2E Admin", role: "admin", is_active: true, created_at: "2026-06-05T02:00:00Z" })
   );
   await page.route("**/api/dashboard/summary", (route) =>
@@ -205,6 +218,13 @@ async function mockWorkflowApi(page: Page) {
   await page.route("**/api/sources**", (route) => fulfill(route, [source]));
   await page.route("**/api/ingestion/runs**", (route) => fulfill(route, []));
   await page.route("**/api/detection/runs**", (route) => fulfill(route, []));
+  await page.route("**/api/jobs**", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/summary")) {
+      return fulfill(route, { stale_count: 0, running_count: 0, failed_count: 0, latest_failed_job: null });
+    }
+    return fulfill(route, []);
+  });
   await page.route("**/api/alerts**", (route) => fulfill(route, [alert], { "X-Total-Count": "1" }));
   await page.route("**/api/alerts/cases**", (route) =>
     fulfill(route, [
@@ -257,7 +277,13 @@ async function mockWorkflowApi(page: Page) {
       }
     ], { "X-Total-Count": "1" })
   );
-  await page.route("**/api/users**", (route) => fulfill(route, []));
+  await page.route("**/api/users**", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/me")) {
+      return fulfill(route, { id: 1, username: "admin", full_name: "E2E Admin", role: "admin", is_active: true, created_at: "2026-06-05T02:00:00Z" });
+    }
+    return fulfill(route, []);
+  });
 }
 
 test("dashboard supports the end-to-end validation workflow with safe fixtures", async ({ page }) => {
@@ -265,7 +291,7 @@ test("dashboard supports the end-to-end validation workflow with safe fixtures",
   await seedSession(page);
 
   await page.goto("/overview");
-  await page.getByText("Validation reports").click();
+  await page.getByRole("button", { name: /validation reports/i }).click();
   await expect(page.getByText("E2E Workflow", { exact: true })).toBeVisible();
   await expect(page.getByText("1/1 passed")).toBeVisible();
   await expect(page.getByText(source.name).first()).toBeVisible();

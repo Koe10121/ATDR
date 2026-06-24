@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from typing import Sequence
 
-from atdr.scripts.verify_release import CommandExecution, run_verify_release
+from atdr.scripts.verify_release import DEFAULT_TIMEOUT_SECONDS, CommandExecution, run_verify_release
 
 
 def _passing_runner(command: Sequence[str], timeout: float) -> CommandExecution:
@@ -30,6 +30,10 @@ def test_verify_release_json_shape_and_skipped_smoke():
     assert pytest_basetemp.startswith("--basetemp=.tmp/pytest-release-tmp-")
     assert "duration_seconds" in checks["compileall"]
     json.dumps(result)
+
+
+def test_verify_release_default_timeout_allows_full_backend_suite_runtime():
+    assert DEFAULT_TIMEOUT_SECONDS >= 900.0
 
 
 def test_verify_release_required_command_failure_is_reported():

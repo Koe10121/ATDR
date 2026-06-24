@@ -1,10 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from atdr.app.core.config import get_settings
 from atdr.app.core.security import require_admin
 from atdr.app.db.database import get_db
 from atdr.app.db.models import User
+from atdr.app.schemas.account_email import DevEmailOutboxItemRead, EmailVerificationRequestRead
 from atdr.app.schemas.users import UserCreateRequest, UserRead, UserResetPasswordRequest, UserRoleRequest, UserUpdateRequest
+from atdr.app.services.account_verification_service import request_email_verification
+from atdr.app.services.email_service import list_dev_email_outbox
 from atdr.app.services.user_service import (
     change_user_role,
     create_managed_user,
@@ -32,7 +36,7 @@ def api_create_user(
     current_user: User = Depends(require_admin),
 ):
     try:
-        return create_managed_user(
+        user = create_managed_user(
             db,
             username=request.username,
             password=request.password,
@@ -46,6 +50,32 @@ def api_create_user(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if get_settings().email_verification_enabled and user.email and not user.email_verified:
+        request_email_verification(db, user=user, actor=current_user.username)
+    return user
+
+
+@router.get("/dev-email-outbox", response_model=list[DevEmailOutboxItemRead])
+def api_dev_email_outbox(
+    limit: int = 25,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    del current_user
+    return list_dev_email_outbox(db, limit=limit)
+
+
+@router.post("/{user_id}/send-verification", response_model=EmailVerificationRequestRead)
+def api_send_user_email_verification(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found.")
+    result = request_email_verification(db, user=user, actor=current_user.username)
+    return EmailVerificationRequestRead(**result.__dict__)
 
 
 @router.post("/{user_id}/disable", response_model=UserRead)

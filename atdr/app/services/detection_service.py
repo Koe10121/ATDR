@@ -23,6 +23,9 @@ from atdr.app.services.watchlist_service import list_watchlist_items, matching_w
 GROUP_BUCKET_MINUTES = 5
 LOW_SEVERITY_GROUP_MIN_EVIDENCE = 5
 INTERNET_SWEEP_RULES = {"unusual_destination_port", "unknown_or_incomplete_app", "outside_to_inside"}
+APP_RISK_POLICY_RULES = {"app_risk_4", "app_risk_5", "suspicious_app_characteristic"}
+REPEATED_DESTINATION_RULES = {"beaconing_like_outbound", "connection_flood_suspicion"}
+MULTI_EVENT_PATTERN_RULES = {"beaconing_like_outbound", "connection_flood_suspicion", "possible_port_scan"}
 PRIMARY_RULE_PRIORITY = {
     "possible_port_scan": 100,
     "connection_flood_suspicion": 98,
@@ -90,13 +93,22 @@ def _group_key(candidate: DetectionCandidate) -> tuple:
     source_group = log.src_ip or "unknown-source"
     if primary_code in INTERNET_SWEEP_RULES and _outside_to_inside(log):
         source_group = "multiple-internet-sources"
-    dst_port = log.dst_port if primary_code in {"deny_drop_action", "unusual_destination_port", "brute_force_like_attempts"} else None
-    app = log.app if primary_code in {"paloalto_threat_log", "app_risk_4", "app_risk_5", "suspicious_app_characteristic", "beaconing_like_outbound"} else None
+    if primary_code in APP_RISK_POLICY_RULES and not _outside_to_inside(log):
+        source_group = "multiple-app-risk-sources"
+    destination_group = log.dst_ip if primary_code in REPEATED_DESTINATION_RULES else None
+    dst_port = (
+        log.dst_port
+        if primary_code in {"deny_drop_action", "unusual_destination_port", "brute_force_like_attempts", *REPEATED_DESTINATION_RULES}
+        else None
+    )
+    app = log.app if primary_code in {"paloalto_threat_log", *APP_RISK_POLICY_RULES, "beaconing_like_outbound"} else None
+    time_bucket = "repeated-pattern-window" if primary_code in MULTI_EVENT_PATTERN_RULES else _time_bucket(log)
     zone_path = f"{log.src_zone or 'unknown'}->{log.dst_zone or 'unknown'}"
     return (
         primary_code,
         source_group,
-        _time_bucket(log),
+        destination_group,
+        time_bucket,
         dst_port,
         app,
         zone_path,

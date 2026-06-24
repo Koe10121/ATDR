@@ -1,5 +1,6 @@
 import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { ChartCard } from "../components/ChartCard";
 import { DetailDrawer } from "../components/DetailDrawer";
 import { EmptyState } from "../components/EmptyState";
@@ -14,6 +15,8 @@ import {
   useDetectionRuns,
   useHealth,
   useIngestionRuns,
+  useJobs,
+  useJobsSummary,
   useMlReport,
   useSource,
   useSources,
@@ -24,6 +27,7 @@ import { inferAttackTypeFromAlertType } from "../lib/attackMapping";
 const chartColors = ["#ef4444", "#f97316", "#f59e0b", "#22c55e", "#22d3ee", "#94a3b8"];
 
 export function ExecutiveOverview() {
+  const [searchParams] = useSearchParams();
   const summary = useDashboardSummary();
   const validationSummary = useDashboardValidationSummary();
   const health = useHealth();
@@ -33,8 +37,13 @@ export function ExecutiveOverview() {
   const latestAudit = useAuditPage({ limit: 1 });
   const ingestionRuns = useIngestionRuns({ limit: 5 });
   const detectionRuns = useDetectionRuns({ limit: 5 });
+  const jobs = useJobs({ limit: 5 });
+  const jobsSummary = useJobsSummary();
   const sources = useSources({ limit: 5 });
   const [selectedSourceId, setSelectedSourceId] = useState<number | null>(null);
+  const [validationReportsOpen, setValidationReportsOpen] = useState(false);
+  const sourceParam = Number(searchParams.get("source"));
+  const sourceParamId = Number.isFinite(sourceParam) && sourceParam > 0 ? sourceParam : null;
   const sourceDetail = useSource(selectedSourceId);
   const critical = useAlerts({ severity: "Critical", status: "open", limit: 5 });
   const data = summary.data;
@@ -57,6 +66,9 @@ export function ExecutiveOverview() {
   const quality = data?.data_quality;
   const latestIngestionRun = data?.latest_ingestion_run ?? ingestionRuns.data?.[0] ?? null;
   const latestDetectionRun = data?.latest_detection_run ?? detectionRuns.data?.[0] ?? null;
+  const latestJob = jobs.data?.[0] ?? null;
+  const staleJobCount = jobsSummary.data?.stale_count ?? 0;
+  const latestFailedJob = jobsSummary.data?.latest_failed_job ?? null;
   const latestScenarioRun =
     (ingestionRuns.data ?? []).find(
       (run) =>
@@ -71,6 +83,12 @@ export function ExecutiveOverview() {
     : validation?.v19b_ai?.available
       ? validation.v19b_ai
       : validation?.v19_ai;
+
+  useEffect(() => {
+    if (sourceParamId) {
+      setSelectedSourceId(sourceParamId);
+    }
+  }, [sourceParamId]);
 
   return (
     <div className="space-y-5">
@@ -146,9 +164,17 @@ export function ExecutiveOverview() {
             <Badge value="Manual Approval Required" />
           </div>
         </div>
-        <details className="mt-3">
-          <summary className="cursor-pointer text-sm font-extrabold uppercase tracking-wide text-muted">Validation reports</summary>
-        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <div className="mt-3">
+          <button
+            type="button"
+            className="inline-flex w-full items-center justify-between rounded-lg border border-line bg-panel2 px-3 py-2 text-left text-sm font-extrabold uppercase tracking-wide text-muted transition hover:border-cyan/50 hover:text-text"
+            aria-expanded={validationReportsOpen}
+            onClick={() => setValidationReportsOpen((open) => !open)}
+          >
+            <span>Validation reports</span>
+            <span aria-hidden="true">{validationReportsOpen ? "Hide" : "Show"}</span>
+          </button>
+        {validationReportsOpen ? <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <div className="rounded-lg border border-line bg-panel2 p-3">
             <div className="text-xs font-bold uppercase tracking-wide text-muted">Validation Suite</div>
             <div className="mt-1 font-bold text-text">
@@ -297,8 +323,8 @@ export function ExecutiveOverview() {
               Latest report {validation?.latest_report_name ?? "-"}
             </div>
           </div>
+        </div> : null}
         </div>
-        </details>
         <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-lg border border-cyan/30 bg-cyan/10 p-3 text-sm text-cyan">Decision Support Only</div>
           <div className="rounded-lg border border-amber/30 bg-amber/10 p-3 text-sm text-amber">Response Automation Disabled</div>
@@ -411,7 +437,12 @@ export function ExecutiveOverview() {
             <div className="text-sm font-extrabold uppercase tracking-wide text-muted">Operations Health</div>
             <p className="mt-1 text-sm text-muted">Latest ingestion and detection runs for lab SOC visibility.</p>
           </div>
-          <Badge value={latestDetectionRun?.status ?? latestIngestionRun?.status ?? "no runs"} />
+          <div className="flex flex-wrap gap-2">
+            <Badge value={latestDetectionRun?.status ?? latestIngestionRun?.status ?? "no runs"} />
+            <Link className="btn-secondary text-xs" to={`/assistant?prompt=${encodeURIComponent("Summarize recent detection runs and failed jobs.")}`}>
+              Ask Assistant
+            </Link>
+          </div>
         </div>
         <div className="grid gap-3 lg:grid-cols-2">
           <div className="rounded-lg border border-line bg-panel2 p-4">
@@ -447,6 +478,37 @@ export function ExecutiveOverview() {
             </div>
           </div>
         </div>
+        <div className="mt-3 rounded-lg border border-line bg-panel2 p-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="font-bold text-text">Latest Operation Job</div>
+            <Badge value={latestJob?.status ?? "none"} />
+          </div>
+          <div className="mt-3 grid gap-2 text-sm text-muted md:grid-cols-4">
+            <div>Job: {latestJob?.job_id ?? "-"}</div>
+            <div>Type: {latestJob?.job_type?.replaceAll("_", " ") ?? "-"}</div>
+            <div>Actor: {latestJob?.requested_by ?? "-"}</div>
+            <div>
+              Progress: {latestJob ? `${latestJob.progress_current}/${latestJob.progress_total || latestJob.progress_current}` : "-"}
+            </div>
+          </div>
+          {latestJob?.error_summary ? <div className="mt-2 text-sm text-amber">{latestJob.error_summary}</div> : null}
+        </div>
+        <div className="mt-3 grid gap-3 md:grid-cols-3">
+          <div className="rounded-lg border border-line bg-panel2 p-3 text-sm">
+            <div className="text-xs font-bold uppercase tracking-wide text-muted">Active Jobs</div>
+            <div className="mt-1 font-black text-text">{jobsSummary.data?.active_count ?? "-"}</div>
+          </div>
+          <div className="rounded-lg border border-line bg-panel2 p-3 text-sm">
+            <div className="text-xs font-bold uppercase tracking-wide text-muted">Stale Jobs</div>
+            <div className={staleJobCount ? "mt-1 font-black text-amber" : "mt-1 font-black text-text"}>{staleJobCount}</div>
+          </div>
+          <div className="rounded-lg border border-line bg-panel2 p-3 text-sm">
+            <div className="text-xs font-bold uppercase tracking-wide text-muted">Latest Failed Job</div>
+            <div className="mt-1 break-words font-bold text-text">
+              {latestFailedJob ? `#${latestFailedJob.job_id} ${latestFailedJob.job_type.replaceAll("_", " ")}` : "-"}
+            </div>
+          </div>
+        </div>
         <details className="mt-4">
           <summary className="cursor-pointer text-sm font-extrabold uppercase tracking-wide text-muted">Recent Run History</summary>
           <div className="mt-3 grid gap-3 lg:grid-cols-2">
@@ -466,6 +528,18 @@ export function ExecutiveOverview() {
                 </div>
               ))}
             </div>
+          </div>
+          <div className="mt-3 space-y-2">
+            {(jobs.data ?? []).slice(0, 5).map((job) => (
+              <div key={job.job_id} className="rounded border border-line bg-shell p-3 text-sm text-muted">
+                <div className="font-bold text-text">
+                  Job #{job.job_id} | {job.job_type.replaceAll("_", " ")} | {job.status}
+                </div>
+                <div>
+                  Requested by {job.requested_by} | progress {job.progress_current}/{job.progress_total || job.progress_current}
+                </div>
+              </div>
+            ))}
           </div>
         </details>
       </section>
@@ -500,6 +574,12 @@ export function ExecutiveOverview() {
               <Badge value={sourceDetail.data.health.status} />
               <Badge value={sourceDetail.data.source_type} />
               <Badge value={sourceDetail.data.parser_profile} />
+              <Link
+                className="btn-secondary text-xs"
+                to={`/assistant?source=${sourceDetail.data.source_id}&prompt=${encodeURIComponent(`Summarize source ${sourceDetail.data.source_id} health and what an analyst should check next.`)}`}
+              >
+                Ask Assistant
+              </Link>
             </div>
             <MetaGrid
               rows={[

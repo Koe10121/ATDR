@@ -49,6 +49,7 @@ from atdr.app.services.active_learning_service import (
 from atdr.app.services.assisted_label_service import export_label_review_sample
 from atdr.app.services.class_temporal_coverage_service import build_class_temporal_coverage, render_class_temporal_coverage_markdown
 from atdr.app.services.label_quality_service import export_label_quality_issues_csv
+from atdr.app.services.job_service import build_result_summary, complete_job, fail_job, start_job
 from atdr.app.services.ml_label_service import (
     build_label_review_queue,
     create_ml_label,
@@ -471,15 +472,37 @@ def train_ml_model(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ) -> dict:
-    return train_anomaly_model(
+    job = start_job(
         db,
-        limit=request.limit,
-        actor=current_user.username,
-        baseline_only=request.baseline_only,
-        max_app_risk=request.max_app_risk,
-        exclude_unknown_apps=request.exclude_unknown_apps,
-        exclude_existing_anomalies=request.exclude_existing_anomalies,
+        job_type="train_ml",
+        requested_by=current_user.username,
+        details={
+            "limit": request.limit,
+            "baseline_only": request.baseline_only,
+            "max_app_risk": request.max_app_risk,
+        },
     )
+    try:
+        result = train_anomaly_model(
+            db,
+            limit=request.limit,
+            actor=current_user.username,
+            baseline_only=request.baseline_only,
+            max_app_risk=request.max_app_risk,
+            exclude_unknown_apps=request.exclude_unknown_apps,
+            exclude_existing_anomalies=request.exclude_existing_anomalies,
+        )
+        complete_job(
+            db,
+            job,
+            result_summary=build_result_summary("train_ml", result),
+            related_ml_model_run_id=result.get("run_id"),
+        )
+        result["job_id"] = job.id
+        return result
+    except Exception as exc:
+        fail_job(db, job, exc)
+        raise
 
 
 @router.post("/score")
@@ -488,7 +511,25 @@ def score_logs_with_ml(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ) -> dict:
-    return apply_anomaly_scoring(db, limit=request.limit, actor=current_user.username)
+    job = start_job(
+        db,
+        job_type="apply_ml_scoring",
+        requested_by=current_user.username,
+        details={"limit": request.limit},
+    )
+    try:
+        result = apply_anomaly_scoring(db, limit=request.limit, actor=current_user.username)
+        complete_job(
+            db,
+            job,
+            result_summary=build_result_summary("apply_ml_scoring", result),
+            related_ml_model_run_id=result.get("run_id"),
+        )
+        result["job_id"] = job.id
+        return result
+    except Exception as exc:
+        fail_job(db, job, exc)
+        raise
 
 
 @router.get("/supervised/report")
@@ -533,15 +574,35 @@ def train_supervised_model(
         pattern="^(conservative|balanced|aggressive|suspicious_recall|malicious_recall|threat_positive)$",
     ),
 ) -> dict:
-    return train_supervised_classifier(
+    job = start_job(
         db,
-        actor=current_user.username,
-        test_size=test_size,
-        min_samples=min_samples,
-        split=split,
-        model_type=model,
-        threshold_profile=threshold_profile,
+        job_type="train_ml",
+        requested_by=current_user.username,
+        details={
+            "operation": "train_supervised",
+            "test_size": test_size,
+            "min_samples": min_samples,
+            "split": split,
+            "model_type": model,
+            "threshold_profile": threshold_profile,
+        },
     )
+    try:
+        result = train_supervised_classifier(
+            db,
+            actor=current_user.username,
+            test_size=test_size,
+            min_samples=min_samples,
+            split=split,
+            model_type=model,
+            threshold_profile=threshold_profile,
+        )
+        complete_job(db, job, result_summary=build_result_summary("train_ml", result))
+        result["job_id"] = job.id
+        return result
+    except Exception as exc:
+        fail_job(db, job, exc)
+        raise
 
 
 @router.post("/supervised/models/{model_id}/activate")

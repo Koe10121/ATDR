@@ -1,7 +1,10 @@
 import argparse
 import json
+import os
 from pathlib import Path
 from typing import Any
+
+from sqlalchemy.engine import make_url
 
 from atdr.app.core.config import PROJECT_ROOT, Settings, validate_runtime_settings
 
@@ -21,11 +24,26 @@ def _issue(severity: str, code: str, message: str) -> dict[str, str]:
     return {"severity": severity, "code": code, "message": message}
 
 
+def _database_url_info(database_url: str) -> dict[str, str | None]:
+    try:
+        url = make_url(database_url)
+    except Exception:
+        return {"kind": "other", "driver": None, "host": None}
+    driver = url.drivername
+    kind = "postgresql" if driver.startswith("postgresql") else "sqlite" if driver.startswith("sqlite") else "other"
+    return {"kind": kind, "driver": driver, "host": url.host}
+
+
+def _running_inside_container() -> bool:
+    return Path("/.dockerenv").exists() or os.environ.get("ATDR_RUNNING_IN_CONTAINER", "").lower() in {"1", "true", "yes"}
+
+
 def run_config_doctor(settings: Settings | None = None) -> dict[str, Any]:
     settings = settings or Settings()
     environment = settings.environment.lower()
     is_production = environment == "production"
     issues: list[dict[str, str]] = []
+    database_info = _database_url_info(settings.database_url)
 
     for message in validate_runtime_settings(settings):
         severity = "critical" if is_production else "warning"
@@ -54,6 +72,34 @@ def run_config_doctor(settings: Settings | None = None) -> dict[str, Any]:
 
     if is_production and settings.database_url.startswith("sqlite"):
         issues.append(_issue("critical", "production-sqlite", "Production environment must use PostgreSQL, not SQLite."))
+
+    if database_info["kind"] == "sqlite" and not is_production:
+        issues.append(
+            _issue(
+                "info",
+                "local-sqlite-profile",
+                "Normal local workflow is using SQLite. This is the recommended teammate/laptop profile.",
+            )
+        )
+
+    if database_info["kind"] == "postgresql":
+        host = (database_info["host"] or "").lower()
+        if host == "postgres" and not _running_inside_container():
+            issues.append(
+                _issue(
+                    "warning",
+                    "postgres-docker-host-local",
+                    "DATABASE_URL uses PostgreSQL host 'postgres'. That hostname normally only works inside Docker Compose; normal local Windows workflow should use sqlite:///./atdr.db unless the PostgreSQL/Docker lab service is running.",
+                )
+            )
+        if not is_production:
+            issues.append(
+                _issue(
+                    "warning",
+                    "postgres-local-optional",
+                    "PostgreSQL is optional for shared-lab validation. Local teammate workflow does not require Docker/PostgreSQL.",
+                )
+            )
 
     if "*" in settings.cors_origins:
         issues.append(
@@ -87,6 +133,31 @@ def run_config_doctor(settings: Settings | None = None) -> dict[str, Any]:
                 "warning",
                 "response-provider-ignored",
                 "RESPONSE_PROVIDER is set but RESPONSE_SIMULATION=true, so enforcement remains simulated.",
+            )
+        )
+
+    if settings.assistant_enabled:
+        issues.append(
+            _issue(
+                "critical" if is_production else "warning",
+                "assistant-external-enabled",
+                "ASSISTANT_ENABLED=true. External assistant provider use must stay disabled until privacy/security review approves it.",
+            )
+        )
+    if settings.assistant_provider.strip().lower() not in {"", "disabled", "none"} or settings.assistant_api_key.strip():
+        issues.append(
+            _issue(
+                "warning",
+                "assistant-provider-configured",
+                "Assistant provider/key fields are configured. Do not enable external LLM calls by default or commit secrets.",
+            )
+        )
+    if settings.assistant_allow_raw_log_context:
+        issues.append(
+            _issue(
+                "critical" if is_production else "warning",
+                "assistant-raw-log-context",
+                "ASSISTANT_ALLOW_RAW_LOG_CONTEXT=true. Raw log context must remain disabled until privacy review approves it.",
             )
         )
 
@@ -127,10 +198,13 @@ def run_config_doctor(settings: Settings | None = None) -> dict[str, Any]:
 
     critical_count = sum(1 for item in issues if item["severity"] == "critical")
     warning_count = sum(1 for item in issues if item["severity"] == "warning")
+    info_count = sum(1 for item in issues if item["severity"] == "info")
     return {
         "ok": critical_count == 0,
         "environment": settings.environment,
-        "database": "postgresql" if settings.database_url.startswith("postgresql") else "sqlite" if settings.database_url.startswith("sqlite") else "other",
+        "database": database_info["kind"],
+        "database_host": database_info["host"],
+        "local_workflow_recommendation": "Use DATABASE_URL=\"sqlite:///./atdr.db\" for normal local dashboard testing.",
         "response_simulation": settings.response_simulation,
         "response_provider": settings.response_provider,
         "syslog": {
@@ -147,6 +221,7 @@ def run_config_doctor(settings: Settings | None = None) -> dict[str, Any]:
         },
         "critical_count": critical_count,
         "warning_count": warning_count,
+        "info_count": info_count,
         "issues": issues,
     }
 
