@@ -145,6 +145,50 @@ async function mockWorkflowApi(page: Page) {
       smtp_enabled: false
     })
   );
+  await page.route("**/api/auth/mfu-iam/status", (route) =>
+    fulfill(route, {
+      enabled: false,
+      base_url_configured: false,
+      client_id_configured: false,
+      client_secret_configured: false,
+      audience_configured: false,
+      scope_configured: false,
+      timeout_ms: 5000,
+      token_path_configured: true,
+      introspect_path_configured: true,
+      profile_path_configured: true,
+      admin_base_path_configured: true,
+      admin_client_configured: false,
+      admin_secret_configured: false,
+      admin_audience_configured: false,
+      admin_scope_configured: false,
+      compat_profile_configured: false,
+      allowed_domains: [],
+      domain_hints: [],
+      default_role: "analyst",
+      google_sso_enabled: false,
+      google_client_id_configured: false,
+      permission_source: null,
+      permission_bootstrap_mode: null,
+      permission_root_configured: false,
+      permission_paths_count: 0,
+      project_account_email_configured: false,
+      auth_require_2fa: false,
+      audit_retention_days: 90,
+      managed_client_configured: false,
+      managed_client_endpoint_configured: false,
+      managed_client_owner_configured: false,
+      managed_client_scopes_configured: false,
+      managed_client_audiences_configured: false,
+      init_admin_emails_configured: false,
+      seed_admin_email_configured: false,
+      b2b_ready: false,
+      admin_api_ready: false,
+      permission_bootstrap_ready: false,
+      mode: "local_login_only",
+      secrets_exposed: false
+    })
+  );
   await page.route("**/api/auth/email/status", (route) =>
     fulfill(route, {
       notifications_enabled: false,

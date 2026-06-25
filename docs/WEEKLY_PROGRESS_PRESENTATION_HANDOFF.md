@@ -263,7 +263,7 @@ It can answer questions like:
 
 It includes:
 
-- prompt presets
+- prompt presets, including a **SOC Playbook** group
 - alert/log/source/case context links
 - citations back to dashboard records or docs
 - feedback controls
@@ -288,14 +288,19 @@ Safety boundaries:
 
 ## 8. Chatbot Future Plan
 
-Short-term improvements:
+Current presentation hardening:
 
-- align assistant wording with the v3.59 supervised output policy contract
-- explain clearly that the SOC review queue is safe for decision support, while exact severity labels are explanation/ranking only
-- compare assistant advice against rule/hybrid evidence more clearly
-- improve answer quality for alert investigation
-- improve evidence ranking and missing-evidence notes
-- make "what should I check next?" guidance more specific
+- use the **SOC Playbook** preset group first
+- demonstrate Latest Critical Alert, Explain Alert, Investigation Brief, Source Health, AI Governance Summary, Controlled Validation Scenario, and Response Safety
+- show that missing alerts/sources get clean fallback guidance instead of invented answers
+- show unsafe requests are refused
+- use feedback for manual QA, not automatic tuning
+
+Short-term improvements after the presentation:
+
+- keep improving answer quality for alert investigation
+- improve evidence ranking and missing-evidence notes with more real lab examples
+- make "what should I check next?" guidance more source-aware
 - keep improving links from assistant answers to dashboard records
 - expand the assistant evaluation question set
 - use feedback for manual QA, not automatic tuning
@@ -406,9 +411,9 @@ Not complete / future work:
 
 Immediate next technical phase:
 
-- v3.60 Dashboard/Assistant Alignment With Supervised Output Contract
-- Goal: show the v3.59 supervised-output policy clearly in AI Governance and teach the SOC Assistant to answer questions about safe ML usage.
-- Why: this prevents advisor/team confusion about what ML is allowed to do. The system should say that queue scoring is decision support, exact severity labels are support/ranking only, and response automation remains blocked.
+- v3.61 SOC Assistant Presentation Hardening
+- Goal: make the SOC Assistant reliable for analyst walkthrough questions with SOC playbook presets, clean missing-context fallbacks, and direct response-safety answers.
+- Why: this lets the team show the chatbot confidently without fake data, unsafe actions, or confusing ML claims.
 - Keep diagnostic-only.
 - No model activation.
 - No automatic response.
@@ -424,7 +429,7 @@ Advisor-facing next phase:
 Use these in the dashboard:
 
 ```text
-Show latest critical alerts.
+Explain the latest critical alert.
 ```
 
 ```text
@@ -432,7 +437,7 @@ Why was alert 1 flagged?
 ```
 
 ```text
-What should I safely do next for this alert?
+Create investigation brief for alert 1.
 ```
 
 ```text
@@ -440,15 +445,15 @@ Summarize source health.
 ```
 
 ```text
-Explain why the model is not production promoted.
+What supervised ML output is safe?
 ```
 
 ```text
-How do I run a safe scenario?
+How do I run a controlled validation scenario?
 ```
 
 ```text
-Build an investigation brief for this alert.
+What are response safety rules?
 ```
 
 ## 14. One-Minute Presentation Script
@@ -457,4 +462,4 @@ Build an investigation brief for this alert.
 
 The system now has source health, run history, alert deduplication, case grouping, AI Governance, simulated response controls, audit logging, and a read-only SOC Assistant chatbot. The chatbot can explain alerts, summarize sources and jobs, help with ML governance questions, and give safe next steps, but it cannot run actions or change data.
 
-For safety, response automation and real firewall blocking are disabled. ML is decision support only. Our current ML work shows that a binary SOC review-queue signal is stable for analyst prioritization, while exact severity classification is still explanation-only. The next step is to make the dashboard and assistant show that policy clearly so the system stays useful, professional, and honest about production readiness."
+For safety, response automation and real firewall blocking are disabled. ML is decision support only. Our current ML work shows that a binary SOC review-queue signal is stable for analyst prioritization, while exact severity classification is still explanation-only. For this walkthrough, the SOC Assistant has a SOC Playbook preset group so we can show alert explanation, investigation brief generation, source health, AI governance, controlled validation guidance, and response safety clearly."

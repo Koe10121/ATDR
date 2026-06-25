@@ -46,6 +46,8 @@
 | v3.14 email verification foundation | `docs/V3_14_EMAIL_VERIFICATION_AND_ACCOUNT_NOTIFICATIONS.md`, `atdr/app/services/account_verification_service.py`, `atdr/app/services/email_service.py`, `frontend/src/pages/UserAdmin.tsx` |
 | v3.15 account lifecycle UX | `docs/V3_15_ACCOUNT_LIFECYCLE_AND_EMAIL_VERIFICATION_UX.md`, `docs/changes/T1_T20_V3_15_ACCOUNT_LIFECYCLE_AND_EMAIL_VERIFICATION_UX.md`, `frontend/src/components/AppShell.tsx`, `frontend/src/pages/UserAdmin.tsx` |
 | MFU IAM adapter planning | `docs/security/ATDR_MFU_IAM_ADAPTER_PLAN.md`, `docs/security/MFU_IAM_PROVIDER_DETAILS_CHECKLIST.md`, `atdr/app/routers/auth.py` |
+| MFU IAM implementation planning and template adapter | `docs/security/ATDR_MFU_IAM_IMPLEMENTATION_PLAN.md`, `docs/ATDR_TEMPLATE_MERGE_ANALYSIS.md`, `docs/V3_64_MFU_IAM_TEMPLATE_ADAPTER.md` |
+| Real LLM assistant adapter | `docs/V3_63_REAL_LLM_ASSISTANT_ADAPTER.md`, `docs/security/ATDR_REAL_LLM_ASSISTANT_PLAN.md`, `atdr/app/routers/assistant.py`, `atdr/app/services/assistant_service.py`, `atdr/app/services/assistant_llm.py` |
 | v3.17 parser/detection explainability | `docs/V3_17_PARSER_DETECTION_EXPLAINABILITY_HARDENING.md`, `atdr/scripts/validate_parser_normalization.py`, `atdr/scripts/validate_detection_quality.py`, `atdr/app/detection/explanations.py` |
 | v3.18 detection corpus and FP/FN QA | `docs/V3_18_DETECTION_CORPUS_AND_FP_FN_QA.md`, `data/samples/scenarios/scenario_expectations.json`, `atdr/tests/test_v318_detection_corpus.py` |
 | v3.19 no-hardware soak and parser drift | `docs/V3_19_NO_HARDWARE_SOAK_AND_PARSER_DRIFT.md`, `atdr/scripts/run_no_hardware_soak.py`, `atdr/tests/test_v319_no_hardware_soak.py` |
@@ -151,7 +153,9 @@ Evidence: `frontend/src/App.tsx`, `frontend/src/pages/*`, `frontend/src/lib/api.
 - v3.27 adds answer-quality feedback so analysts can rate assistant answers as helpful, not helpful, incorrect, unsafe, or unclear. Feedback is audited, scoped by role, and cannot execute response, detection, label, data, email, or model actions.
 - v3.28 adds filtered feedback review and quality triage for assistant answers. Admin users can review all feedback, analysts see their own feedback, and unsafe/incorrect feedback is highlighted for manual review only.
 - v3.29 improves assistant reasoning quality with evidence strength, false-positive/noise caveats, missing-evidence notes, source/case risk summaries, and concrete analyst checklists.
-- External LLM support is disabled by default and must be configured through `.env` only in future reviewed work.
+- External LLM support is disabled by default and must be configured through `.env` only after review.
+- v3.63 adds a real provider adapter for Gemini, OpenAI-compatible APIs, Claude/Anthropic, and a mock test provider. The deterministic local answer is still produced first and remains the fallback if the provider is disabled or unavailable.
+- Real LLM provider configuration uses explicit disabled-by-default `ASSISTANT_LLM_*` settings. Gemini is preferred if MFU/Google access is approved; OpenAI-compatible or Claude providers remain alternatives.
 - Raw log context is disabled by default, IP redaction is enabled by default, and assistant questions are audited.
 - Assistant cannot execute response actions, run detection, change labels, activate models, or promote ML models.
 
@@ -236,6 +240,8 @@ Evidence: `atdr/app/db/models.py`, `atdr/app/routers/jobs.py`, `atdr/app/service
 | FR-ATDR-028 | Provide disabled-by-default local email verification and notification groundwork for school-email workflows | Implemented as v3.14 with hashed tokens, admin-only dev outbox, non-secret status API, and no real SMTP/OIDC by default |
 | FR-ATDR-029 | Present account lifecycle, school-email policy, and verification status clearly in the dashboard without surprise enforcement | Implemented as v3.15 status/UX hardening; enforcement remains disabled by default |
 | FR-ATDR-030 | Map supervisor-template MFU IAM/Google SSO/OTP/B2B requirements to ATDR without enabling external IAM | Implemented as safe adapter plan, provider checklist, disabled-by-default config placeholders, and non-secret status API |
+| FR-ATDR-030A | Prepare MFU IAM SDK/token-introspection implementation path without copying secrets or enabling external login | Implemented as source-backed implementation plan and expanded non-secret status/config readiness |
+| FR-ATDR-030B | Prepare real LLM assistant provider integration without enabling external LLM calls by default | Implemented as disabled-by-default `ASSISTANT_LLM_*` config/status groundwork and provider plan |
 | FR-ATDR-031 | Validate parser normalization and controlled detection quality with source-backed, read-only reports | Implemented as v3.17 parser/detection validation and enriched explanation payloads; production accuracy is not claimed |
 | FR-ATDR-032 | Maintain a safe controlled detection corpus with false-positive / false-negative scenario QA | Implemented as v3.18 expanded synthetic scenarios, explicit FP/FN reporting, rule-level QA summaries, and explanation completeness checks; scenario results are lab QA, not production accuracy |
 | FR-ATDR-033 | Run no-hardware multi-source soak validation for parser drift, source health, deduplication, alert-noise stability, and explanation completeness | Implemented as v3.19 temp-DB/dry-run validation; real router/firewall forwarding and production accuracy remain future work |

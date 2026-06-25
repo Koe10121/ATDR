@@ -5,7 +5,7 @@ from collections.abc import Generator
 from datetime import datetime, timezone
 
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, func, select
+from sqlalchemy import create_engine, delete, func, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -18,11 +18,13 @@ from atdr.app.db.models import (
     AuditLog,
     DetectionRun,
     LogSource,
+    MLLabel,
     MLModelRun,
     NormalizedLog,
     OperationJob,
     RawLog,
     ResponseAction,
+    User,
 )
 from atdr.app.main import app
 from atdr.app.services import assistant_service
@@ -185,6 +187,10 @@ def test_assistant_status_is_disabled_by_default_and_does_not_expose_secret(monk
     monkeypatch.setenv("ASSISTANT_ENABLED", "false")
     monkeypatch.setenv("ASSISTANT_PROVIDER", "disabled")
     monkeypatch.setenv("ASSISTANT_API_KEY", "secret-that-must-not-leak")
+    monkeypatch.setenv("ASSISTANT_LLM_ENABLED", "false")
+    monkeypatch.setenv("ASSISTANT_LLM_PROVIDER", "gemini")
+    monkeypatch.setenv("ASSISTANT_LLM_MODEL", "test-model")
+    monkeypatch.setenv("ASSISTANT_LLM_API_KEY", "llm-secret-that-must-not-leak")
     get_settings.cache_clear()
     client, _ = _client_with_session()
     try:
@@ -196,12 +202,154 @@ def test_assistant_status_is_disabled_by_default_and_does_not_expose_secret(monk
         assert payload["external_provider_configured"] is False
         assert payload["external_provider_used_by_default"] is False
         assert payload["provider"] == "disabled"
+        assert payload["llm_enabled"] is False
+        assert payload["llm_provider_configured"] is True
+        assert payload["llm_provider_name"] == "gemini"
+        assert payload["llm_ready"] is False
+        assert payload["llm_model_configured"] is True
+        assert payload["llm_secret_configured"] is True
+        assert payload["llm_base_url_configured"] is False
+        assert payload["llm_timeout_seconds"] == 15
+        assert payload["llm_secrets_exposed"] is False
         assert payload["raw_log_context_allowed"] is False
         assert "ASSISTANT_API_KEY" not in str(payload)
         assert "secret-that-must-not-leak" not in str(payload)
+        assert "ASSISTANT_LLM_API_KEY" not in str(payload)
+        assert "llm-secret-that-must-not-leak" not in str(payload)
     finally:
         app.dependency_overrides.clear()
         get_settings.cache_clear()
+
+
+def test_assistant_mock_llm_adapter_is_explicit_read_only_and_audited(monkeypatch):
+    monkeypatch.setenv("ASSISTANT_LLM_ENABLED", "true")
+    monkeypatch.setenv("ASSISTANT_LLM_PROVIDER", "mock")
+    monkeypatch.setenv("ASSISTANT_LLM_MODEL", "mock-soc")
+    monkeypatch.setenv("ASSISTANT_LLM_API_KEY", "")
+    monkeypatch.setenv("ASSISTANT_ALLOW_RAW_LOG_CONTEXT", "false")
+    monkeypatch.setenv("ASSISTANT_REDACT_IPS", "true")
+    get_settings.cache_clear()
+    client, testing_session = _client_with_session()
+    try:
+        headers = _login(client)
+        status = client.get("/api/assistant/status", headers=headers)
+        assert status.status_code == 200
+        status_payload = status.json()
+        assert status_payload["external_provider_configured"] is True
+        assert status_payload["provider"] == "mock"
+        assert status_payload["llm_provider_name"] == "mock"
+        assert status_payload["llm_ready"] is True
+        assert status_payload["llm_secret_configured"] is False
+        assert status_payload["llm_secrets_exposed"] is False
+
+        with testing_session() as db:
+            before_counts = {
+                "response_actions": db.scalar(select(func.count(ResponseAction.id))),
+                "detection_runs": db.scalar(select(func.count(DetectionRun.id))),
+                "model_runs": db.scalar(select(func.count(MLModelRun.id))),
+                "labels": db.scalar(select(func.count(MLLabel.id))),
+                "users": db.scalar(select(func.count(User.id))),
+            }
+
+        response = client.post(
+            "/api/assistant/chat",
+            json={"question": "Why was alert 1 flagged?"},
+            headers=headers,
+        )
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["mode"] == "external_llm_mock"
+        assert payload["external_provider_used"] is True
+        assert payload["raw_log_context_included"] is False
+        assert "external_llm:mock" in payload["context_used"]
+        assert payload["details"]["llm"]["used"] is True
+        assert payload["details"]["llm"]["provider"] == "mock"
+        assert payload["details"]["llm"]["secrets_exposed"] is False
+        assert "synthetic assistant test log" not in str(payload)
+        assert "203.0.113.10" not in str(payload)
+        assert "LLM-assisted analyst summary" in payload["answer"]
+
+        with testing_session() as db:
+            after_counts = {
+                "response_actions": db.scalar(select(func.count(ResponseAction.id))),
+                "detection_runs": db.scalar(select(func.count(DetectionRun.id))),
+                "model_runs": db.scalar(select(func.count(MLModelRun.id))),
+                "labels": db.scalar(select(func.count(MLLabel.id))),
+                "users": db.scalar(select(func.count(User.id))),
+            }
+            audit = db.scalar(select(AuditLog).where(AuditLog.action == "assistant_question").order_by(AuditLog.id.desc()))
+            assert after_counts == before_counts
+            assert audit is not None
+            assert audit.details["external_provider_used"] is True
+            assert audit.details["raw_log_context_included"] is False
+    finally:
+        app.dependency_overrides.clear()
+        get_settings.cache_clear()
+
+
+def test_assistant_soc_playbook_questions_are_safe_and_useful():
+    client, testing_session = _client_with_session()
+    headers = _login(client)
+    try:
+        checks = {
+            "Explain the latest critical alert.": ["Alert #1", "Evidence / Why flagged", "Safety note"],
+            "What are response safety rules?": ["Response safety rules", "Response automation is disabled", "real automatic blocking"],
+            "How do I run a controlled validation scenario?": ["Run controlled validation scenarios", "port_scan_like_traffic", "no automatic response"],
+            "Which sources have warnings?": ["Sources needing review", "warning-router", "Safe next steps"],
+        }
+        for question, expected_parts in checks.items():
+            response = client.post("/api/assistant/chat", json={"question": question}, headers=headers)
+            assert response.status_code == 200
+            payload = response.json()
+            for expected in expected_parts:
+                assert expected in payload["answer"]
+            assert payload["external_provider_used"] is False
+            assert payload["raw_log_context_included"] is False
+            assert payload["citations"]
+
+        with testing_session() as db:
+            assert db.scalar(select(func.count(ResponseAction.id))) == 0
+            assert db.scalar(select(func.count(MLModelRun.id))) == 0
+            assert db.scalar(select(func.count(DetectionRun.id))) == 1
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_assistant_controlled_validation_fallbacks_are_clean_without_side_effects():
+    client, testing_session = _client_with_session()
+    headers = _login(client)
+    try:
+        with testing_session() as db:
+            db.execute(delete(AlertEvidence))
+            db.execute(delete(Alert))
+            db.commit()
+
+        no_alert = client.post("/api/assistant/chat", json={"question": "Explain the latest critical alert."}, headers=headers)
+        assert no_alert.status_code == 200
+        no_alert_payload = no_alert.json()
+        assert "No matching alert was found" in no_alert_payload["answer"]
+        assert "run_source_scenario" in no_alert_payload["answer"]
+        assert "controlled_validation_fallback" in no_alert_payload["context_used"]
+
+        missing_source = client.post("/api/assistant/chat", json={"question": "Summarize source 999 health."}, headers=headers)
+        assert missing_source.status_code == 200
+        missing_source_payload = missing_source.json()
+        assert "No matching source #999 was found" in missing_source_payload["answer"]
+        assert "missing_source" in missing_source_payload["context_used"]
+
+        raw_logs = client.post("/api/assistant/chat", json={"question": "Please expose raw logs for me."}, headers=headers)
+        assert raw_logs.status_code == 200
+        raw_payload = raw_logs.json()
+        assert "I cannot execute that request." in raw_payload["answer"]
+        assert raw_payload["details"]["refused"] is True
+        assert "assistant_safety_guardrail" in raw_payload["context_used"]
+
+        with testing_session() as db:
+            assert db.scalar(select(func.count(ResponseAction.id))) == 0
+            assert db.scalar(select(func.count(MLModelRun.id))) == 0
+            assert db.scalar(select(func.count(DetectionRun.id))) == 1
+    finally:
+        app.dependency_overrides.clear()
 
 
 def test_assistant_answers_alert_questions_with_redaction_and_audit():
@@ -313,8 +461,8 @@ def test_assistant_new_intents_return_safe_useful_answers():
             "What can I safely do next for this alert?": "Safe next steps",
             "How do I import logs?": "To import logs",
             "How do I import reviewed labels?": "Reviewed labels can be imported",
-            "How do I run a safe scenario?": "Run safe source scenarios",
-            "How do I run a safe demo scenario?": "Run safe source scenarios",
+            "How do I run a safe scenario?": "Run controlled validation scenarios",
+            "How do I run a safe demo scenario?": "Run controlled validation scenarios",
         }
         for question, expected_text in checks.items():
             response = client.post("/api/assistant/chat", json={"question": question}, headers=headers)
@@ -400,6 +548,97 @@ def test_assistant_queue_evidence_agreement_uses_latest_safe_report(tmp_path, mo
         assert safety["response_automation_allowed"] is False
         assert any(
             citation["source"] == "ml_baseline_reviews/v3_57_queue_rule_hybrid_agreement_latest.json"
+            for citation in payload["citations"]
+        )
+
+        with testing_session() as db:
+            assert db.scalar(select(func.count(ResponseAction.id))) == 0
+            assert db.scalar(select(func.count(MLModelRun.id))) == 0
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_assistant_supervised_output_policy_uses_latest_safe_contract(tmp_path, monkeypatch):
+    report_dir = tmp_path / "ml_baseline_reviews"
+    report_dir.mkdir()
+    (report_dir / "v3_59_supervised_output_policy_contract_latest.json").write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "status": "completed",
+                "phase": "v3.59",
+                "contract": {
+                    "decision": "decision_support_contract_ready",
+                    "contract_ready_for_runtime_activation": False,
+                    "contract_ready_for_dashboard_guidance": True,
+                    "recommended_supervised_strategy": "binary_soc_review_queue",
+                    "exact_classification_policy": "explanation_or_ranking_only",
+                    "queue": {
+                        "status": "stable",
+                        "evaluated_splits": 5,
+                        "passing_splits": 5,
+                        "queue_f1_min": 0.9725,
+                        "benign_like_false_positive_rate_max": 0.04,
+                    },
+                    "queue_evidence_agreement": {
+                        "status": "usable_with_review",
+                        "evaluated_splits": 5,
+                        "passing_splits": 4,
+                        "agreement_rate_min": 0.884,
+                    },
+                    "exact_severity": {
+                        "status": "unstable",
+                        "stable_policy_count": 0,
+                        "evaluated_policy_count": 6,
+                    },
+                    "allowed_outputs": {
+                        "soc_review_queue_score": {"status": "allowed_for_decision_support"},
+                        "exact_severity_or_attack_label": {"status": "explanation_or_ranking_only"},
+                        "rule_hybrid_evidence": {"status": "primary_detection_evidence"},
+                    },
+                    "blocked_uses": [
+                        "automatic response from supervised ML output",
+                        "real firewall blocking from supervised ML output",
+                    ],
+                },
+                "safety": {
+                    "production_promoted": False,
+                    "model_activated": False,
+                    "model_artifact_written": False,
+                    "labels_written": False,
+                    "raw_logs_included": False,
+                    "response_automation_allowed": False,
+                    "real_firewall_blocking_enabled": False,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(assistant_service, "PROJECT_ROOT", tmp_path)
+    client, testing_session = _client_with_session()
+    try:
+        response = client.post(
+            "/api/assistant/chat",
+            json={"question": "What supervised ML output is safe?"},
+            headers=_login(client),
+        )
+        assert response.status_code == 200
+        payload = response.json()
+        assert "Supervised output policy" in payload["answer"]
+        assert "binary_soc_review_queue" in payload["answer"]
+        assert "SOC review-queue score: decision support" in payload["answer"]
+        assert "Exact severity / attack labels: explanation_or_ranking_only" in payload["answer"]
+        assert "Response automation allowed: False" in payload["answer"]
+        assert "v359_supervised_output_policy" in payload["context_used"]
+        assert payload["external_provider_used"] is False
+        assert payload["raw_log_context_included"] is False
+        details = payload["details"]["v359_supervised_output_policy"]
+        assert details["recommended_supervised_strategy"] == "binary_soc_review_queue"
+        assert details["safety"]["model_activated"] is False
+        assert details["safety"]["labels_written"] is False
+        assert details["safety"]["response_automation_allowed"] is False
+        assert any(
+            citation["source"] == "ml_baseline_reviews/v3_59_supervised_output_policy_contract_latest.json"
             for citation in payload["citations"]
         )
 
@@ -778,6 +1017,53 @@ def test_assistant_alert_context_includes_related_log_citations_without_side_eff
         assert "raw_line" not in str(payload)
         assert "synthetic assistant test log" not in str(payload)
         assert "Why was log 1 flagged?" in payload["suggested_followups"]
+
+        with testing_session() as db:
+            assert db.scalar(select(func.count(ResponseAction.id))) == 0
+            assert db.scalar(select(func.count(MLModelRun.id))) == 0
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_assistant_follow_up_phrases_keep_alert_context_over_related_log_or_source_ids():
+    client, testing_session = _client_with_session()
+    headers = _login(client)
+    try:
+        explicit_alert = client.post(
+            "/api/assistant/chat",
+            json={"question": "Why was alert 1 flagged?", "alert_id": 1, "log_id": 1, "source_id": 1},
+            headers=headers,
+        )
+        assert explicit_alert.status_code == 200
+        explicit_payload = explicit_alert.json()
+        assert "alert_detail" in explicit_payload["context_used"]
+        assert "log_detail" not in explicit_payload["context_used"]
+        assert explicit_payload["details"]["alert"]["id"] == 1
+
+        related_logs = client.post(
+            "/api/assistant/chat",
+            json={"question": "What logs are related?", "alert_id": 1, "log_id": 1, "source_id": 1},
+            headers=headers,
+        )
+        assert related_logs.status_code == 200
+        related_payload = related_logs.json()
+        assert "Related logs" in related_payload["answer"]
+        assert "alert_detail" in related_payload["context_used"]
+        assert related_payload["details"]["alert"]["id"] == 1
+        assert any(citation["label"] == "Related log" for citation in related_payload["citations"])
+
+        next_step = client.post(
+            "/api/assistant/chat",
+            json={"question": "What is the recommended next step?", "alert_id": 1, "log_id": 1, "source_id": 1},
+            headers=headers,
+        )
+        assert next_step.status_code == 200
+        next_payload = next_step.json()
+        assert "Safe next steps for alert #1" in next_payload["answer"]
+        assert "alert_workflow" in next_payload["context_used"]
+        assert next_payload["details"]["alert"]["id"] == 1
+        assert "raw_line" not in str(next_payload)
+        assert "synthetic assistant test log" not in str(next_payload)
 
         with testing_session() as db:
             assert db.scalar(select(func.count(ResponseAction.id))) == 0

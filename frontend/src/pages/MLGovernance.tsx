@@ -74,6 +74,7 @@ export function MLGovernance() {
   const v330Quality = validationSummary.data?.v330_detection_ml_quality;
   const v355Queue = validationSummary.data?.v355_soc_queue;
   const v357Agreement = validationSummary.data?.v357_queue_evidence_agreement;
+  const v359Policy = validationSummary.data?.v359_supervised_output_policy;
   const v30Readiness = validationSummary.data?.v30_production_readiness;
   const independentAi = v20Ai?.available ? v20Ai : v19bAi?.available ? v19bAi : v19Ai;
   const finalThreatPrecision = firstMetric(
@@ -178,6 +179,18 @@ export function MLGovernance() {
   const v357CategoryCounts = v357Agreement?.category_counts ?? {};
   const v357EvidenceOnly = Number(v357CategoryCounts.evidence_only_review ?? 0);
   const v357QueueOnly = Number(v357CategoryCounts.queue_only_review ?? 0);
+  const v359PolicyLabel = v359Policy?.available ? `${v359Policy.checks_passed ?? 0}/${v359Policy.checks_total ?? 0} checks` : "not generated";
+  const v359Strategy = String(v359Policy?.recommended_supervised_strategy ?? "binary_soc_review_queue").replaceAll("_", " ");
+  const v359ExactPolicy = String(v359Policy?.exact_classification_policy ?? "explanation_or_ranking_only").replaceAll("_", " ");
+  const v359SafetyLabel =
+    v359Policy?.production_promoted ||
+    v359Policy?.model_activated ||
+    v359Policy?.response_automation_allowed ||
+    v359Policy?.real_firewall_blocking_enabled ||
+    v359Policy?.labels_written
+      ? "review safety"
+      : "activation disabled";
+  const v359AllowedStatuses = v359Policy?.allowed_output_statuses ?? {};
   const drift = data?.baseline_drift_report;
   const perClass = (supervisedMetrics.per_class ?? {}) as Record<string, Record<string, unknown>>;
   const benignMetrics = perClass.benign ?? {};
@@ -533,6 +546,83 @@ export function MLGovernance() {
           ) : (
             <div className="mt-3 rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
               Run <code>python -m atdr.scripts.run_v330_detection_ml_quality_revalidation --split time --test-size 0.3 --min-samples 6 --review-limit 200</code> to refresh this diagnostic.
+            </div>
+          )}
+        </div>
+        <div className="mt-4 rounded-lg border border-line bg-panel2 p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div className="text-xs font-extrabold uppercase tracking-wide text-muted">Supervised Output Policy</div>
+              <div className="mt-1 text-sm text-muted">Queue scoring is decision support. Exact labels stay explanation/ranking only.</div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge value={v359PolicyLabel} />
+              <Badge value={v359SafetyLabel} />
+            </div>
+          </div>
+          {v359Policy?.available ? (
+            <>
+              <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+                <MetricCard label="Queue Output" value="Decision Support" detail={v359Strategy} tone="teal" />
+                <MetricCard label="Exact Labels" value="Explanation Only" detail={v359ExactPolicy} tone="amber" />
+                <MetricCard
+                  label="Rule / Hybrid"
+                  value={String(v359AllowedStatuses.rule_hybrid_evidence ?? "primary_detection_evidence").replaceAll("_", " ")}
+                  detail="Primary detection evidence"
+                  tone="cyan"
+                />
+                <MetricCard label="Runtime Activation" value={String(v359Policy.contract_ready_for_runtime_activation ?? false)} detail="Must remain false" tone="danger" />
+                <MetricCard label="Automation" value={String(v359Policy.response_automation_allowed ?? false)} detail="Response disabled" tone="danger" />
+                <MetricCard label="Guidance" value={String(v359Policy.contract_ready_for_dashboard_guidance ?? false)} detail={String(v359Policy.decision ?? "decision support")} tone="teal" />
+              </div>
+              <details className="mt-3">
+                <summary className="cursor-pointer rounded border border-line bg-panel px-3 py-2 text-sm font-bold text-text">
+                  View supervised output contract
+                </summary>
+                <div className="mt-3 grid gap-3 text-sm text-muted lg:grid-cols-2">
+                  <div className="rounded border border-line bg-panel px-3 py-2">
+                    Queue status: <span className="font-bold text-text">{String(v359Policy.queue_status ?? "unknown").replaceAll("_", " ")}</span>. Splits{" "}
+                    <span className="font-bold text-text">
+                      {v359Policy.queue_passing_splits ?? 0}/{v359Policy.queue_evaluated_splits ?? 0}
+                    </span>
+                    , F1 min <span className="font-bold text-text">{metricText(v359Policy.queue_f1_min)}</span>, FPR max{" "}
+                    <span className="font-bold text-text">{metricText(v359Policy.queue_benign_like_false_positive_rate_max)}</span>.
+                  </div>
+                  <div className="rounded border border-line bg-panel px-3 py-2">
+                    Queue/evidence agreement: <span className="font-bold text-text">{String(v359Policy.agreement_status ?? "unknown").replaceAll("_", " ")}</span>. Splits{" "}
+                    <span className="font-bold text-text">
+                      {v359Policy.agreement_passing_splits ?? 0}/{v359Policy.agreement_evaluated_splits ?? 0}
+                    </span>
+                    , agreement min <span className="font-bold text-text">{metricText(v359Policy.agreement_rate_min)}</span>.
+                  </div>
+                  <div className="rounded border border-line bg-panel px-3 py-2">
+                    Exact severity: <span className="font-bold text-text">{String(v359Policy.exact_severity_status ?? "unstable").replaceAll("_", " ")}</span>. Stable policies{" "}
+                    <span className="font-bold text-text">
+                      {v359Policy.exact_stable_policy_count ?? 0}/{v359Policy.exact_evaluated_policy_count ?? 0}
+                    </span>
+                    .
+                  </div>
+                  <div className="rounded border border-line bg-panel px-3 py-2">
+                    Safety: model activated <span className="font-bold text-text">{String(v359Policy.model_activated ?? false)}</span>, labels written{" "}
+                    <span className="font-bold text-text">{String(v359Policy.labels_written ?? false)}</span>, raw logs included{" "}
+                    <span className="font-bold text-text">{String(v359Policy.raw_logs_included ?? false)}</span>.
+                  </div>
+                </div>
+                {v359Policy.blocked_uses?.length ? (
+                  <div className="mt-3 rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
+                    <div className="mb-2 font-bold text-text">Blocked uses</div>
+                    <ul className="list-disc space-y-1 pl-5">
+                      {v359Policy.blocked_uses.slice(0, 6).map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </details>
+            </>
+          ) : (
+            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
+              Run <code>python -m atdr.scripts.run_v359_supervised_output_policy_contract --pretty</code> to refresh this policy contract.
             </div>
           )}
         </div>

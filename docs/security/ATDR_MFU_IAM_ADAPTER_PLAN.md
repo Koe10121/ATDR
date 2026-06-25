@@ -153,13 +153,18 @@ MFU_IAM_BASE_URL=""
 MFU_IAM_CLIENT_ID=""
 MFU_IAM_CLIENT_SECRET=""
 MFU_IAM_AUDIENCE=""
+MFU_IAM_SCOPE=""
+MFU_IAM_TOKEN_PATH="/api/v1/b2b/token"
+MFU_IAM_INTROSPECT_PATH="/api/v1/b2b/introspect"
+MFU_IAM_PROFILE_PATH="/api/v1/b2b/me"
+MFU_IAM_ADMIN_BASE_PATH="/api/v1"
 MFU_IAM_ALLOWED_DOMAINS=""
 MFU_IAM_DEFAULT_ROLE="analyst"
 GOOGLE_SSO_ENABLED=false
 GOOGLE_CLIENT_ID=""
 ```
 
-These fields are planning/configuration placeholders only. They do not enable real external login.
+These fields are planning/configuration placeholders only. They do not enable real external login. The implementation sequence and current evidence are tracked in `docs/security/ATDR_MFU_IAM_IMPLEMENTATION_PLAN.md`.
 
 ## Safe Status Surface
 
@@ -223,4 +228,3 @@ Real implementation must wait until the advisor/university confirms:
 7. Add audit events for external login attempts.
 8. Add frontend login button only when the provider is configured.
 9. Run security review before shared lab use.
-

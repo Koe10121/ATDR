@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -60,12 +60,127 @@ class Settings(BaseSettings):
     oidc_allowed_domains: str = Field(default="", alias="OIDC_ALLOWED_DOMAINS")
     oidc_default_role: str = Field(default="analyst", alias="OIDC_DEFAULT_ROLE")
     mfu_iam_enabled: bool = Field(default=False, alias="MFU_IAM_ENABLED")
-    mfu_iam_base_url: str = Field(default="", alias="MFU_IAM_BASE_URL")
-    mfu_iam_client_id: str = Field(default="", alias="MFU_IAM_CLIENT_ID")
-    mfu_iam_client_secret: str = Field(default="", alias="MFU_IAM_CLIENT_SECRET")
-    mfu_iam_audience: str = Field(default="", alias="MFU_IAM_AUDIENCE")
-    mfu_iam_allowed_domains: str = Field(default="", alias="MFU_IAM_ALLOWED_DOMAINS")
+    mfu_iam_base_url: str = Field(
+        default="",
+        validation_alias=AliasChoices("MFU_IAM_BASE_URL", "IAM_SDK_BASE_URL"),
+    )
+    mfu_iam_client_id: str = Field(
+        default="",
+        validation_alias=AliasChoices("MFU_IAM_CLIENT_ID", "IAM_SDK_CLIENT_ID"),
+    )
+    mfu_iam_client_secret: str = Field(
+        default="",
+        validation_alias=AliasChoices("MFU_IAM_CLIENT_SECRET", "IAM_SDK_CLIENT_SECRET"),
+    )
+    mfu_iam_audience: str = Field(
+        default="",
+        validation_alias=AliasChoices("MFU_IAM_AUDIENCE", "IAM_SDK_AUDIENCE"),
+    )
+    mfu_iam_scope: str = Field(default="", validation_alias=AliasChoices("MFU_IAM_SCOPE", "IAM_SDK_SCOPE"))
+    mfu_iam_timeout_ms: int = Field(
+        default=5000,
+        validation_alias=AliasChoices("MFU_IAM_TIMEOUT_MS", "IAM_SDK_TIMEOUT_MS"),
+    )
+    mfu_iam_token_path: str = Field(
+        default="/api/v1/b2b/token",
+        validation_alias=AliasChoices("MFU_IAM_TOKEN_PATH", "IAM_SDK_TOKEN_PATH"),
+    )
+    mfu_iam_introspect_path: str = Field(
+        default="/api/v1/b2b/introspect",
+        validation_alias=AliasChoices("MFU_IAM_INTROSPECT_PATH", "IAM_SDK_INTROSPECT_PATH"),
+    )
+    mfu_iam_profile_path: str = Field(
+        default="/api/v1/b2b/clients/me",
+        validation_alias=AliasChoices("MFU_IAM_PROFILE_PATH", "IAM_SDK_PROFILE_PATH"),
+    )
+    mfu_iam_admin_base_path: str = Field(
+        default="/api/v1/b2b/admin",
+        validation_alias=AliasChoices("MFU_IAM_ADMIN_BASE_PATH", "IAM_SDK_ADMIN_BASE_PATH"),
+    )
+    mfu_iam_admin_client_id: str = Field(
+        default="",
+        validation_alias=AliasChoices("MFU_IAM_ADMIN_CLIENT_ID", "IAM_ADMIN_CLIENT_ID"),
+    )
+    mfu_iam_admin_client_secret: str = Field(
+        default="",
+        validation_alias=AliasChoices("MFU_IAM_ADMIN_CLIENT_SECRET", "IAM_ADMIN_CLIENT_SECRET"),
+    )
+    mfu_iam_admin_audience: str = Field(
+        default="",
+        validation_alias=AliasChoices("MFU_IAM_ADMIN_AUDIENCE", "IAM_ADMIN_AUDIENCE"),
+    )
+    mfu_iam_admin_scope: str = Field(
+        default="",
+        validation_alias=AliasChoices("MFU_IAM_ADMIN_SCOPE", "IAM_ADMIN_SCOPE"),
+    )
+    mfu_iam_compat_profile: str = Field(
+        default="",
+        validation_alias=AliasChoices("MFU_IAM_COMPAT_PROFILE", "IAM_COMPAT_PROFILE"),
+    )
+    mfu_iam_allowed_domains: str = Field(
+        default="",
+        validation_alias=AliasChoices("MFU_IAM_ALLOWED_DOMAINS", "IAM_SDK_ALLOWED_DOMAINS"),
+    )
     mfu_iam_default_role: str = Field(default="analyst", alias="MFU_IAM_DEFAULT_ROLE")
+    mfu_iam_permission_source: str = Field(
+        default="",
+        validation_alias=AliasChoices("MFU_IAM_PERMISSION_SOURCE", "PROJECT_PERMISSION_SOURCE"),
+    )
+    mfu_iam_permission_bootstrap_mode: str = Field(
+        default="",
+        validation_alias=AliasChoices("MFU_IAM_PERMISSION_BOOTSTRAP_MODE", "PROJECT_PERMISSION_BOOTSTRAP_MODE"),
+    )
+    mfu_iam_permission_root_path: str = Field(
+        default="",
+        validation_alias=AliasChoices("MFU_IAM_PERMISSION_ROOT_PATH", "PROJECT_PERMISSION_ROOT_PATH"),
+    )
+    mfu_iam_permission_paths: str = Field(
+        default="",
+        validation_alias=AliasChoices("MFU_IAM_PERMISSION_PATHS", "PROJECT_PERMISSION_PATHS"),
+    )
+    mfu_iam_project_account_email: str = Field(
+        default="",
+        validation_alias=AliasChoices("MFU_IAM_PROJECT_ACCOUNT_EMAIL", "PROJECT_PERMISSION_ACCOUNT_EMAIL"),
+    )
+    mfu_iam_auth_require_2fa: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("MFU_IAM_AUTH_REQUIRE_2FA", "PROJECT_AUTH_REQUIRE_2FA"),
+    )
+    mfu_iam_audit_retention_days: int = Field(
+        default=90,
+        validation_alias=AliasChoices("MFU_IAM_AUDIT_RETENTION_DAYS", "PROJECT_AUDIT_RETENTION_DAYS"),
+    )
+    mfu_iam_managed_client_id: str = Field(
+        default="",
+        validation_alias=AliasChoices("MFU_IAM_MANAGED_CLIENT_ID", "PROJECT_IAM_MANAGED_CLIENT_ID"),
+    )
+    mfu_iam_managed_client_endpoint: str = Field(
+        default="",
+        validation_alias=AliasChoices("MFU_IAM_MANAGED_CLIENT_ENDPOINT", "PROJECT_IAM_MANAGED_CLIENT_ENDPOINT"),
+    )
+    mfu_iam_managed_client_owner_email: str = Field(
+        default="",
+        validation_alias=AliasChoices("MFU_IAM_MANAGED_CLIENT_OWNER_EMAIL", "PROJECT_IAM_MANAGED_CLIENT_OWNER_EMAIL"),
+    )
+    mfu_iam_managed_client_allowed_scopes: str = Field(
+        default="",
+        validation_alias=AliasChoices("MFU_IAM_MANAGED_CLIENT_ALLOWED_SCOPES", "PROJECT_IAM_MANAGED_CLIENT_ALLOWED_SCOPES"),
+    )
+    mfu_iam_managed_client_allowed_audiences: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "MFU_IAM_MANAGED_CLIENT_ALLOWED_AUDIENCES",
+            "PROJECT_IAM_MANAGED_CLIENT_ALLOWED_AUDIENCES",
+        ),
+    )
+    mfu_iam_init_admin_emails: str = Field(
+        default="",
+        validation_alias=AliasChoices("MFU_IAM_INIT_ADMIN_EMAILS", "PROJECT_INIT_ADMIN_EMAILS"),
+    )
+    mfu_iam_init_seed_admin_email: str = Field(
+        default="",
+        validation_alias=AliasChoices("MFU_IAM_INIT_SEED_ADMIN_EMAIL", "PROJECT_INIT_SEED_ADMIN_EMAIL"),
+    )
     google_sso_enabled: bool = Field(default=False, alias="GOOGLE_SSO_ENABLED")
     google_client_id: str = Field(default="", alias="GOOGLE_CLIENT_ID")
     school_email_domains: str = Field(default="", alias="SCHOOL_EMAIL_DOMAINS")
@@ -96,6 +211,12 @@ class Settings(BaseSettings):
     assistant_provider: str = Field(default="disabled", alias="ASSISTANT_PROVIDER")
     assistant_model: str = Field(default="", alias="ASSISTANT_MODEL")
     assistant_api_key: str = Field(default="", alias="ASSISTANT_API_KEY")
+    assistant_llm_enabled: bool = Field(default=False, alias="ASSISTANT_LLM_ENABLED")
+    assistant_llm_provider: str = Field(default="", alias="ASSISTANT_LLM_PROVIDER")
+    assistant_llm_model: str = Field(default="", alias="ASSISTANT_LLM_MODEL")
+    assistant_llm_api_key: str = Field(default="", alias="ASSISTANT_LLM_API_KEY")
+    assistant_llm_base_url: str = Field(default="", alias="ASSISTANT_LLM_BASE_URL")
+    assistant_llm_timeout_seconds: float = Field(default=15.0, alias="ASSISTANT_LLM_TIMEOUT_SECONDS")
     assistant_max_context_rows: int = Field(default=20, alias="ASSISTANT_MAX_CONTEXT_ROWS")
     assistant_redact_ips: bool = Field(default=True, alias="ASSISTANT_REDACT_IPS")
     assistant_allow_raw_log_context: bool = Field(default=False, alias="ASSISTANT_ALLOW_RAW_LOG_CONTEXT")
@@ -127,6 +248,32 @@ class Settings(BaseSettings):
     @property
     def mfu_iam_allowed_domain_list(self) -> list[str]:
         return [domain.strip().lower() for domain in self.mfu_iam_allowed_domains.split(",") if domain.strip()]
+
+    @property
+    def mfu_iam_permission_path_list(self) -> list[str]:
+        return [path.strip() for path in self.mfu_iam_permission_paths.split(",") if path.strip()]
+
+    @property
+    def mfu_iam_init_admin_email_list(self) -> list[str]:
+        return [email.strip().lower() for email in self.mfu_iam_init_admin_emails.split(",") if email.strip()]
+
+    @property
+    def mfu_iam_domain_hints(self) -> list[str]:
+        emails = [
+            self.mfu_iam_project_account_email,
+            self.mfu_iam_managed_client_owner_email,
+            self.mfu_iam_init_seed_admin_email,
+            *self.mfu_iam_init_admin_email_list,
+        ]
+        domains: list[str] = []
+        for email in emails:
+            clean = email.strip().lower()
+            if "@" not in clean:
+                continue
+            domain = clean.rsplit("@", 1)[-1]
+            if domain and domain not in domains:
+                domains.append(domain)
+        return domains
 
 
 def validate_runtime_settings(settings: Settings) -> list[str]:
@@ -168,8 +315,20 @@ def validate_runtime_settings(settings: Settings) -> list[str]:
             issues.append("MFU_IAM_CLIENT_SECRET is required when MFU_IAM_ENABLED=true.")
         if not settings.mfu_iam_audience.strip():
             issues.append("MFU_IAM_AUDIENCE is required when MFU_IAM_ENABLED=true.")
+        if not settings.mfu_iam_token_path.strip():
+            issues.append("MFU_IAM_TOKEN_PATH is required when MFU_IAM_ENABLED=true.")
+        if not settings.mfu_iam_introspect_path.strip():
+            issues.append("MFU_IAM_INTROSPECT_PATH is required when MFU_IAM_ENABLED=true.")
+        if not settings.mfu_iam_profile_path.strip():
+            issues.append("MFU_IAM_PROFILE_PATH is required when MFU_IAM_ENABLED=true.")
         if not settings.mfu_iam_allowed_domains.strip():
             issues.append("MFU_IAM_ALLOWED_DOMAINS is required when MFU_IAM_ENABLED=true.")
+        if settings.mfu_iam_timeout_ms <= 0:
+            issues.append("MFU_IAM_TIMEOUT_MS must be greater than zero when MFU_IAM_ENABLED=true.")
+        if settings.mfu_iam_admin_client_id.strip() and not settings.mfu_iam_admin_client_secret.strip():
+            issues.append("MFU_IAM_ADMIN_CLIENT_SECRET is required when MFU_IAM_ADMIN_CLIENT_ID is configured.")
+        if settings.mfu_iam_admin_client_secret.strip() and not settings.mfu_iam_admin_client_id.strip():
+            issues.append("MFU_IAM_ADMIN_CLIENT_ID is required when MFU_IAM_ADMIN_CLIENT_SECRET is configured.")
     if settings.google_sso_enabled and not settings.google_client_id.strip():
         issues.append("GOOGLE_CLIENT_ID is required when GOOGLE_SSO_ENABLED=true.")
     if settings.require_school_email and not settings.school_email_domain_list:
@@ -213,6 +372,25 @@ def validate_runtime_settings(settings: Settings) -> list[str]:
         issues.append("ASSISTANT_API_KEY is required when ASSISTANT_ENABLED=true.")
     if settings.assistant_enabled and settings.assistant_allow_raw_log_context:
         issues.append("ASSISTANT_ALLOW_RAW_LOG_CONTEXT must remain false until a privacy review approves raw-log sharing.")
+    if settings.assistant_llm_enabled:
+        if settings.assistant_llm_provider.strip().lower() not in {
+            "gemini",
+            "google",
+            "google_gemini",
+            "openai",
+            "openai_compatible",
+            "openai-compatible",
+            "claude",
+            "anthropic",
+            "mock",
+        }:
+            issues.append("ASSISTANT_LLM_PROVIDER must be gemini, openai_compatible, claude, anthropic, or mock when enabled.")
+        if not settings.assistant_llm_api_key.strip() and settings.assistant_llm_provider.strip().lower() != "mock":
+            issues.append("ASSISTANT_LLM_API_KEY is required when ASSISTANT_LLM_ENABLED=true.")
+        if settings.assistant_llm_timeout_seconds <= 0:
+            issues.append("ASSISTANT_LLM_TIMEOUT_SECONDS must be greater than zero.")
+        if settings.assistant_allow_raw_log_context:
+            issues.append("ASSISTANT_ALLOW_RAW_LOG_CONTEXT must remain false for external LLM use by default.")
     return issues
 
 

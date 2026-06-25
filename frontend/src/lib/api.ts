@@ -28,6 +28,7 @@ import type {
   IngestionRun,
   LogSource,
   MLEvaluationReport,
+  MfuIamStatus,
   MLLabel,
   MLLabelImportResult,
   MLLabelPayload,
@@ -160,6 +161,7 @@ export const api = {
     }),
   me: () => apiRequest<User>("/api/auth/me"),
   oidcStatus: () => apiRequest<OidcStatus>("/api/auth/oidc/status"),
+  mfuIamStatus: () => apiRequest<MfuIamStatus>("/api/auth/mfu-iam/status"),
   emailStatus: () => apiRequest<EmailVerificationStatus>("/api/auth/email/status"),
   requestOwnEmailVerification: () =>
     apiRequest<EmailVerificationRequestResult>("/api/auth/email/request-verification", { method: "POST" }),

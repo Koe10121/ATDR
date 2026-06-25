@@ -61,7 +61,7 @@ export function DemoControls() {
       actions: [
         {
           label: "Export evidence bundle",
-          description: "Create supervisor-ready JSON/CSV/HTML/PDF evidence files.",
+          description: "Create case-ready JSON/CSV/HTML/PDF evidence files.",
           run: () => demo.exportBundle.mutate({ top_alert_limit: 10, audit_limit: 50 })
         }
       ]

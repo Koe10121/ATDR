@@ -1145,6 +1145,69 @@ def _latest_v357_queue_evidence_agreement_summary(report_dir: Path = V13_REPORT_
     }
 
 
+def _latest_v359_supervised_output_policy_summary(report_dir: Path = V13_REPORT_DIR) -> dict[str, Any]:
+    summary, payload = _latest_reliability_file_summary(
+        report_dir,
+        "v3_59_supervised_output_policy_contract_latest.json",
+        missing_message="No v3.59 supervised output policy contract has been generated yet.",
+    )
+    if payload is None:
+        return summary
+    contract = payload.get("contract") or {}
+    queue = contract.get("queue") or {}
+    agreement = contract.get("queue_evidence_agreement") or {}
+    exact = contract.get("exact_severity") or {}
+    safety = payload.get("safety") or {}
+    allowed_outputs = contract.get("allowed_outputs") or {}
+    return {
+        **summary,
+        "phase": payload.get("phase") or "v3.59",
+        "decision": contract.get("decision") or "candidate_only",
+        "contract_ready_for_runtime_activation": bool(contract.get("contract_ready_for_runtime_activation", False)),
+        "contract_ready_for_dashboard_guidance": bool(contract.get("contract_ready_for_dashboard_guidance", False)),
+        "recommended_supervised_strategy": contract.get("recommended_supervised_strategy") or "binary_soc_review_queue",
+        "exact_classification_policy": contract.get("exact_classification_policy") or "explanation_or_ranking_only",
+        "checks_passed": int(contract.get("checks_passed") or 0),
+        "checks_total": int(contract.get("checks_total") or 0),
+        "blockers": contract.get("blockers") or [],
+        "queue_status": queue.get("status"),
+        "queue_readiness_decision": queue.get("readiness_decision"),
+        "queue_evaluated_splits": int(queue.get("evaluated_splits") or 0),
+        "queue_passing_splits": int(queue.get("passing_splits") or 0),
+        "queue_f1_min": queue.get("queue_f1_min"),
+        "queue_recall_min": queue.get("queue_recall_min"),
+        "queue_precision_min": queue.get("queue_precision_min"),
+        "queue_benign_like_false_positive_rate_max": queue.get("benign_like_false_positive_rate_max"),
+        "queue_calibration_status": queue.get("calibration_status"),
+        "queue_calibration_ece": queue.get("calibration_ece"),
+        "agreement_status": agreement.get("status"),
+        "agreement_readiness_decision": agreement.get("readiness_decision"),
+        "agreement_evaluated_splits": int(agreement.get("evaluated_splits") or 0),
+        "agreement_passing_splits": int(agreement.get("passing_splits") or 0),
+        "agreement_rate_min": agreement.get("agreement_rate_min"),
+        "agreement_fpr_max": agreement.get("queue_false_positive_rate_max"),
+        "exact_severity_status": exact.get("status") or "unstable",
+        "exact_stable_policy_count": int(exact.get("stable_policy_count") or 0),
+        "exact_evaluated_policy_count": int(exact.get("evaluated_policy_count") or 0),
+        "allowed_output_statuses": {
+            str(key): (value or {}).get("status")
+            for key, value in allowed_outputs.items()
+            if isinstance(value, dict)
+        },
+        "blocked_uses": contract.get("blocked_uses") or [],
+        "safety_statement": contract.get("safety_statement"),
+        "production_promoted": bool(safety.get("production_promoted", False)),
+        "model_activated": bool(safety.get("model_activated", False)),
+        "model_artifact_written": bool(safety.get("model_artifact_written", False)),
+        "labels_written": bool(safety.get("labels_written", False)),
+        "raw_logs_included": bool(safety.get("raw_logs_included", False)),
+        "response_automation_allowed": bool(safety.get("response_automation_allowed", False)),
+        "real_firewall_blocking_enabled": bool(safety.get("real_firewall_blocking_enabled", False)),
+        "diagnostic_only": True,
+        "message": "SOC review queue output is allowed for decision support; exact labels are explanation/ranking only.",
+    }
+
+
 def _v30_production_readiness_summary(db: Session) -> dict[str, Any]:
     docs = {
         "gap_assessment": PROJECT_ROOT / "docs" / "V3_0_PRODUCTION_READINESS_GAP_ASSESSMENT.md",
@@ -1240,5 +1303,6 @@ def dashboard_validation_summary(
     summary["v330_detection_ml_quality"] = _latest_v330_detection_ml_quality_summary(V13_REPORT_DIR)
     summary["v355_soc_queue"] = _latest_v355_soc_queue_summary(V13_REPORT_DIR)
     summary["v357_queue_evidence_agreement"] = _latest_v357_queue_evidence_agreement_summary(V13_REPORT_DIR)
+    summary["v359_supervised_output_policy"] = _latest_v359_supervised_output_policy_summary(V13_REPORT_DIR)
     summary["v30_production_readiness"] = _v30_production_readiness_summary(db)
     return summary

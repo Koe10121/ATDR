@@ -92,13 +92,18 @@ MFU_IAM_BASE_URL=""
 MFU_IAM_CLIENT_ID=""
 MFU_IAM_CLIENT_SECRET=""
 MFU_IAM_AUDIENCE=""
+MFU_IAM_SCOPE=""
+MFU_IAM_TOKEN_PATH="/api/v1/b2b/token"
+MFU_IAM_INTROSPECT_PATH="/api/v1/b2b/introspect"
+MFU_IAM_PROFILE_PATH="/api/v1/b2b/me"
+MFU_IAM_ADMIN_BASE_PATH="/api/v1"
 MFU_IAM_ALLOWED_DOMAINS=""
 MFU_IAM_DEFAULT_ROLE="analyst"
 GOOGLE_SSO_ENABLED=false
 GOOGLE_CLIENT_ID=""
 ```
 
-Real MFU IAM, Google SSO, OAuth/OIDC callback login, token introspection, or OTP/2FA enforcement must wait until the provider details checklist is answered and an approved T1-T20 change record exists.
+Real MFU IAM, Google SSO, OAuth/OIDC callback login, token introspection, or OTP/2FA enforcement must wait until the provider details checklist is answered and an approved T1-T20 change record exists. The current implementation plan is `docs/security/ATDR_MFU_IAM_IMPLEMENTATION_PLAN.md`.
 
 ## Local School-Email Accounts
 

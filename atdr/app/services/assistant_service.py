@@ -16,6 +16,7 @@ from atdr.app.detection.supervised_detector import supervised_model_report
 from atdr.app.detection.explanations import build_alert_detection_summary, explain_log_triage
 from atdr.app.services.case_service import list_alert_cases
 from atdr.app.services.alert_service import get_alert, list_alerts
+from atdr.app.services.assistant_llm import AssistantLLMRequest, maybe_generate_external_answer
 from atdr.app.services.job_service import build_job_summary, job_to_dict
 from atdr.app.services.log_service import get_log
 from atdr.app.services.ml_service import evaluation_report
@@ -148,18 +149,39 @@ def _record_assistant_audit(
 
 
 def assistant_status(settings: Settings) -> dict[str, Any]:
-    external_configured = bool(
+    llm_provider_name = settings.assistant_llm_provider.strip().lower()
+    legacy_external_configured = bool(
         settings.assistant_enabled
         and settings.assistant_provider.strip().lower() not in {"", "disabled", "none"}
         and settings.assistant_api_key.strip()
     )
+    llm_configured = bool(
+        settings.assistant_llm_enabled
+        and settings.assistant_llm_provider.strip()
+        and (settings.assistant_llm_api_key.strip() or llm_provider_name == "mock")
+    )
+    external_configured = legacy_external_configured or llm_configured
+    provider = "disabled"
+    if llm_configured:
+        provider = settings.assistant_llm_provider.strip()
+    elif legacy_external_configured:
+        provider = settings.assistant_provider.strip()
     return {
         "available": True,
         "mode": "deterministic_local" if not external_configured else "external_llm_configured",
         "external_provider_configured": external_configured,
         "external_provider_used_by_default": False,
-        "provider": settings.assistant_provider if external_configured else "disabled",
-        "model_configured": bool(settings.assistant_model.strip()),
+        "provider": provider,
+        "model_configured": bool(settings.assistant_model.strip() or settings.assistant_llm_model.strip()),
+        "llm_enabled": settings.assistant_llm_enabled,
+        "llm_provider_configured": bool(settings.assistant_llm_provider.strip()),
+        "llm_provider_name": settings.assistant_llm_provider.strip(),
+        "llm_ready": llm_configured,
+        "llm_model_configured": bool(settings.assistant_llm_model.strip()),
+        "llm_secret_configured": bool(settings.assistant_llm_api_key.strip()),
+        "llm_base_url_configured": bool(settings.assistant_llm_base_url.strip()),
+        "llm_timeout_seconds": settings.assistant_llm_timeout_seconds,
+        "llm_secrets_exposed": False,
         "redaction_enabled": settings.assistant_redact_ips,
         "raw_log_context_allowed": settings.assistant_allow_raw_log_context,
         "max_context_rows": settings.assistant_max_context_rows,
@@ -243,6 +265,17 @@ def _unsafe_action_requested(lowered: str) -> bool:
         "update labels",
         "send email",
         "send verification",
+        "expose raw log",
+        "expose raw logs",
+        "show raw log",
+        "show raw logs",
+        "send raw log",
+        "send raw logs",
+        "create user",
+        "delete user",
+        "disable user",
+        "change user",
+        "change account",
         "enable automation",
         "turn on automation",
         "enable response",
@@ -271,7 +304,8 @@ def _brief_requested(lowered: str) -> bool:
             "advisor summary",
             "mention to my advisor",
             "evidence should i mention",
-            "verify before response",
+            "executive evidence summary",
+            "leadership brief",
         ]
     )
 
@@ -292,6 +326,7 @@ def answer_assistant_question(
     lowered = clean_question.lower()
     context_limit = min(max(1, settings.assistant_max_context_rows), 50)
     redacted = settings.assistant_redact_ips
+    requested_alert_id = _question_alert_id(clean_question, alert_id)
     requested_log_id = _question_log_id(clean_question, log_id)
     requested_source_id = _question_source_id(clean_question, source_id)
 
@@ -313,16 +348,49 @@ def answer_assistant_question(
             limit=context_limit,
             redacted=redacted,
         )
-    elif any(term in lowered for term in ["safe scenario", "demo scenario", "run scenario", "source scenario"]):
+    elif any(
+        term in lowered
+        for term in [
+            "safe scenario",
+            "demo scenario",
+            "controlled validation scenario",
+            "controlled scenario",
+            "run scenario",
+            "source scenario",
+        ]
+    ):
         result = _answer_scenario_help(redacted=redacted)
     elif any(term in lowered for term in ["import reviewed", "reviewed labels", "label import", "import labels"]):
         result = _answer_reviewed_label_import_help(redacted=redacted)
     elif _unsafe_action_requested(lowered):
         result = _answer_unsafe_action_refusal(clean_question, redacted=redacted)
+    elif any(term in lowered for term in ["response safety", "safety rules", "can assistant block", "can the assistant block", "can chatbot block"]):
+        result = _answer_response_safety(redacted=redacted)
     elif any(term in lowered for term in ["changed recently", "what changed", "recent changes"]):
         result = _answer_recent_changes(db, limit=context_limit, redacted=redacted)
     elif any(term in lowered for term in ["failed job", "failed jobs", "job failure"]):
         result = _answer_failed_jobs(db, settings=settings, redacted=redacted)
+    elif any(
+        term in lowered
+        for term in [
+            "supervised output contract",
+            "safe supervised",
+            "supervised ml output",
+            "ml output safe",
+            "model output safe",
+            "queue score",
+            "soc review queue",
+            "exact severity",
+            "exact label",
+            "exact labels",
+            "ml trigger response",
+            "model trigger response",
+            "ml trigger automatic response",
+            "can ml classify severity",
+            "can the model classify exact severity",
+        ]
+    ):
+        result = _answer_supervised_output_policy(redacted=redacted)
     elif any(
         term in lowered
         for term in [
@@ -351,6 +419,54 @@ def answer_assistant_question(
             limit=context_limit,
             redacted=redacted,
         )
+    elif requested_log_id and "log" in lowered and not any(
+        term in lowered
+        for term in ["related log", "logs are related", "what logs", "show logs", "linked logs", "evidence logs"]
+    ):
+        result = _answer_log_triage_question(db, clean_question, log_id=requested_log_id, redacted=redacted)
+    elif requested_alert_id and any(
+        term in lowered
+        for term in [
+            "why",
+            "flagged",
+            "alert",
+            "evidence supports",
+            "rule contributed",
+            "model contributed",
+            "false positive",
+            "noise",
+            "evidence is missing",
+            "missing evidence",
+            "compare this alert",
+            "attack mapping",
+            "att&ck",
+            "not automatically blocked",
+            "automatic block",
+        ]
+    ):
+        result = _answer_alert_question(db, clean_question, alert_id=requested_alert_id, redacted=redacted)
+    elif requested_alert_id and any(
+        term in lowered
+        for term in ["related log", "logs are related", "what logs", "show logs", "linked logs", "evidence logs"]
+    ):
+        result = _answer_alert_question(db, clean_question, alert_id=requested_alert_id, redacted=redacted)
+    elif requested_alert_id and any(
+        term in lowered
+        for term in [
+            "recommended next step",
+            "recommend next step",
+            "next step",
+            "next steps",
+            "what should",
+            "verify before response",
+            "verify before",
+            "analyst verify",
+            "check next",
+            "check first",
+            "do next",
+        ]
+    ):
+        result = _answer_safe_next_steps(db, clean_question, alert_id=requested_alert_id, redacted=redacted)
     elif requested_source_id and any(term in lowered for term in ["source", "sensor", "syslog", "parser", "health", "check next", "safe next"]):
         result = _answer_source_question(db, source_id=requested_source_id, limit=context_limit, redacted=redacted, warnings_only="warning" in lowered or "error" in lowered)
     elif any(
@@ -361,6 +477,13 @@ def answer_assistant_question(
             "check first",
             "do next",
             "next for this alert",
+            "recommended next step",
+            "recommend next step",
+            "next step",
+            "next steps",
+            "verify before response",
+            "verify before",
+            "analyst verify",
             "safe to approve",
             "safe to respond",
             "safely respond",
@@ -368,8 +491,8 @@ def answer_assistant_question(
             "response safe",
         ]
     ):
-        result = _answer_safe_next_steps(db, clean_question, alert_id=_question_alert_id(clean_question, alert_id), redacted=redacted)
-    elif requested_log_id and ("log" in lowered or log_id):
+        result = _answer_safe_next_steps(db, clean_question, alert_id=requested_alert_id, redacted=redacted)
+    elif requested_log_id and ("log" in lowered or ("flagged" in lowered and requested_alert_id is None)):
         result = _answer_log_triage_question(db, clean_question, log_id=requested_log_id, redacted=redacted)
     elif any(
         term in lowered
@@ -391,7 +514,7 @@ def answer_assistant_question(
             "automatic block",
         ]
     ) or alert_id:
-        result = _answer_alert_question(db, clean_question, alert_id=_question_alert_id(clean_question, alert_id), redacted=redacted)
+        result = _answer_alert_question(db, clean_question, alert_id=requested_alert_id, redacted=redacted)
     elif any(term in lowered for term in ["source", "sensor", "syslog", "parser", "health"]) or requested_source_id:
         result = _answer_source_question(db, source_id=requested_source_id, limit=context_limit, redacted=redacted, warnings_only="warning" in lowered or "error" in lowered)
     elif any(term in lowered for term in ["job", "operation", "detection run", "ingestion run", "stale"]):
@@ -421,12 +544,31 @@ def answer_assistant_question(
         "suggested_followups": result.suggested_followups,
         "details": result.details,
     }
+    llm_result = maybe_generate_external_answer(
+        AssistantLLMRequest(
+            question=clean_question,
+            deterministic_answer=response["answer"],
+            context_used=response["context_used"],
+            citations=response["citations"],
+            suggested_followups=response["suggested_followups"],
+            safety=response["safety"],
+        ),
+        settings,
+    )
+    if settings.assistant_llm_enabled or settings.assistant_llm_provider.strip():
+        response["details"]["llm"] = llm_result.safe_details()
+    if llm_result.used and llm_result.answer:
+        response["answer"] = llm_result.answer
+        response["mode"] = f"external_llm_{llm_result.provider}"
+        response["external_provider_used"] = True
+        response["raw_log_context_included"] = llm_result.raw_log_context_included
+        response["context_used"] = [*response["context_used"], f"external_llm:{llm_result.provider}"]
     audit_id = _record_assistant_audit(
         db,
         actor=actor,
         question=clean_question,
-        context_used=result.context_used,
-        external_provider_used=False,
+        context_used=response["context_used"],
+        external_provider_used=bool(response["external_provider_used"]),
         redaction_applied=redacted,
     )
     response["details"]["assistant_audit_id"] = audit_id
@@ -640,11 +782,32 @@ def _answer_alert_list_question(db: Session, *, question: str, redacted: bool) -
     alerts = list_alerts(db, severity=severity, status="open", sort_by="updated", limit=5)
     if not alerts:
         label = "critical " if severity else ""
+        answer = (
+            f"No open {label}alerts were found in the current context.\n\n"
+            "What to do next\n"
+            "- Open Alerts to confirm current filters.\n"
+            "- Run a controlled validation scenario if you need representative local evidence.\n"
+            "- Ask about source health or recent operations to verify ingestion and detection status.\n\n"
+            "Controlled validation command\n"
+            "`.\\.venv\\Scripts\\python.exe -m atdr.scripts.run_source_scenario --scenario port_scan_like_traffic --source-name controlled-validation-firewall --source-type firewall --parser-profile palo_alto --run-detection --pretty`"
+        )
         return AssistantResult(
-            answer=f"No open {label}alerts were found in the current context.",
-            context_used=["alerts"],
-            citations=[Citation("Alerts API", "/api/alerts")],
-            suggested_followups=["Summarize source health.", "What changed recently?"],
+            answer=_text(answer, redacted=redacted),
+            context_used=["alerts", "controlled_validation_fallback"],
+            citations=[
+                Citation("Alerts API", "/api/alerts"),
+                Citation("Controlled validation runner", "atdr/scripts/run_source_scenario.py"),
+                Citation("Lab runbook", "docs/LAB_RUNBOOK.md"),
+            ],
+            details={
+                "answer_sections": {
+                    "summary": [f"No open {label}alerts were found."],
+                    "what_to_check_next": ["Open Alerts.", "Run a controlled validation scenario if local evidence is needed.", "Summarize source health."],
+                    "safe_next_steps": ["Use the controlled validation runner; it does not enable response automation."],
+                    "safety_note": ["No response action was executed.", "Real firewall blocking remains disabled."],
+                }
+            },
+            suggested_followups=["How do I run a controlled validation scenario?", "Summarize source health.", "What changed recently?"],
         )
     singular_latest = (
         ("latest critical alert" in lowered and "latest critical alerts" not in lowered)
@@ -959,11 +1122,32 @@ def _answer_alert_question(db: Session, question: str, *, alert_id: int | None, 
         alerts = list_alerts(db, severity="Critical", status="open", sort_by="score", limit=1)
         alert = alerts[0] if alerts else None
     if alert is None:
+        answer = (
+            "No matching alert was found for that request. Provide an alert ID or run the controlled port-scan validation scenario first.\n\n"
+            "What to do next\n"
+            "- Open Alerts and choose an alert ID.\n"
+            "- Ask `Explain alert <id>`.\n"
+            "- Or run a controlled validation scenario to create representative local evidence.\n\n"
+            "Controlled validation command\n"
+            "`.\\.venv\\Scripts\\python.exe -m atdr.scripts.run_source_scenario --scenario port_scan_like_traffic --source-name controlled-validation-firewall --source-type firewall --parser-profile palo_alto --run-detection --pretty`"
+        )
         return AssistantResult(
-            answer="No matching open critical alert was found. Check the Alerts page or ask about source health or recent operations.",
-            context_used=["alerts"],
-            citations=[Citation("Alerts API", "atdr/app/routers/alerts.py")],
-            suggested_followups=["Summarize recent operations.", "Summarize source health."],
+            answer=_text(answer, redacted=redacted),
+            context_used=["alerts", "controlled_validation_fallback"],
+            citations=[
+                Citation("Alerts API", "atdr/app/routers/alerts.py"),
+                Citation("Controlled validation runner", "atdr/scripts/run_source_scenario.py"),
+                Citation("Lab runbook", "docs/LAB_RUNBOOK.md"),
+            ],
+            details={
+                "answer_sections": {
+                    "summary": ["No matching alert was found."],
+                    "what_to_check_next": ["Open Alerts and choose an alert ID.", "Ask about source health.", "Run a controlled validation scenario if local evidence is needed."],
+                    "safe_next_steps": ["Use safe synthetic validation scenarios only; no automatic response is triggered."],
+                    "safety_note": ["No response action was executed.", "No detection or model run was triggered by the assistant."],
+                }
+            },
+            suggested_followups=["How do I run a controlled validation scenario?", "Summarize source health.", "Summarize recent operations."],
         )
     detection_summary = build_alert_detection_summary(db, alert)
     attack_mapping = detection_summary.get("attack_mapping") or {}
@@ -1219,6 +1403,49 @@ Safe alternative
     )
 
 
+def _answer_response_safety(*, redacted: bool) -> AssistantResult:
+    answer = """Response safety rules
+- The SOC Assistant is read-only and cannot block, unblock, delete, run detection, change labels, activate models, create users, send email, or expose raw logs.
+- Response automation is disabled.
+- Real firewall blocking is disabled and not implemented.
+- Simulated block/unblock actions must be done from Response & Audit by an authorized analyst/admin.
+- High-impact response requires confirmation and a justification note.
+- Protected/internal/management IP ranges are denied by safety controls.
+- Denied and simulated attempts are audited.
+
+Presentation wording
+- Say: response is simulated and analyst-approved.
+- Do not say: ATDR performs real automatic blocking.
+"""
+    citations = [
+        Citation("Response safety service", "atdr/app/services/response_service.py"),
+        Citation("Response & Audit page", "frontend/src/pages/ResponseCenter.tsx"),
+        Citation("SOC Assistant safety docs", "docs/V3_21_SOC_ASSISTANT_DEMO_QUALITY.md"),
+    ]
+    return AssistantResult(
+        answer=_text(answer, redacted=redacted),
+        context_used=["response_safety", "assistant_safety_guardrail"],
+        citations=citations,
+        details={
+            "answer_sections": {
+                "summary": ["Response is simulated, analyst-approved, and audited."],
+                "safe_next_steps": [
+                    "Use Response & Audit for simulated response actions.",
+                    "Require confirmation and justification.",
+                    "Verify protected-IP checks before approval.",
+                ],
+                "safety_note": [
+                    "The assistant cannot execute actions.",
+                    "Response automation and real firewall blocking remain disabled.",
+                ],
+                "citations": [_citation_reference(citation) for citation in citations],
+            },
+            "action_executed": False,
+        },
+        suggested_followups=["What should I safely check next for this alert?", "Explain the latest critical alert."],
+    )
+
+
 def _answer_log_triage_question(db: Session, question: str, *, log_id: int | None, redacted: bool) -> AssistantResult:
     if log_id is None:
         return AssistantResult(
@@ -1353,6 +1580,27 @@ def _answer_source_question(db: Session, *, source_id: int | None, limit: int, r
         source = get_source(db, source_id)
         if source is not None:
             sources = [source]
+        else:
+            answer = (
+                f"No matching source #{source_id} was found. Check the Log Sources panel or ask for a general source-health summary.\n\n"
+                "What to do next\n"
+                "- Open Overview and inspect Log Sources.\n"
+                "- Register or replay a named source if you need representative local evidence.\n"
+                "- Ask `Summarize source health` for all known sources."
+            )
+            return AssistantResult(
+                answer=_text(answer, redacted=redacted),
+                context_used=["source_health", "missing_source"],
+                citations=[Citation("Source API", "/api/sources"), Citation("Log Sources panel", "frontend/src/pages/ExecutiveOverview.tsx")],
+                details={
+                    "answer_sections": {
+                        "summary": [f"No matching source #{source_id} was found."],
+                        "what_to_check_next": ["Open Overview Log Sources.", "Ask for general source health.", "Replay a named safe source if needed."],
+                        "safe_next_steps": ["Use safe replay/scenario flows only; no automatic response is triggered."],
+                    }
+                },
+                suggested_followups=["Summarize source health.", "How do I run a controlled validation scenario?"],
+            )
     if not sources:
         sources = list_sources(db, limit=limit)
     if not sources:
@@ -1743,7 +1991,7 @@ Citations
         },
         suggested_followups=[
             "What should an analyst verify before response?",
-            "What evidence should I mention to my advisor?",
+            "Generate executive evidence summary.",
             "Explain the strongest evidence in this brief.",
             "Summarize source health.",
         ],
@@ -1808,7 +2056,7 @@ def _answer_detection_runs_question(db: Session, *, redacted: bool) -> Assistant
             answer="No detection runs are recorded yet. Use the dashboard detection action or the lab runbook when you are ready to run detection manually.",
             context_used=["detection_runs"],
             citations=[Citation("Detection runs API", "/api/detection/runs")],
-            suggested_followups=["How do I run detection safely?", "How do I run a safe scenario?"],
+            suggested_followups=["How do I run detection safely?", "How do I run a controlled validation scenario?"],
         )
     latest = runs[0]
     rows = [
@@ -1919,6 +2167,105 @@ def _latest_v357_queue_evidence_payload() -> dict[str, Any] | None:
     except (OSError, json.JSONDecodeError):
         return None
     return payload if isinstance(payload, dict) else None
+
+
+def _latest_v359_supervised_output_policy_payload() -> dict[str, Any] | None:
+    path = PROJECT_ROOT / "ml_baseline_reviews" / "v3_59_supervised_output_policy_contract_latest.json"
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _answer_supervised_output_policy(*, redacted: bool) -> AssistantResult:
+    payload = _latest_v359_supervised_output_policy_payload()
+    if payload is None:
+        answer = (
+            "The supervised output policy contract has not been generated yet. "
+            "Run `.\\.venv\\Scripts\\python.exe -m atdr.scripts.run_v359_supervised_output_policy_contract --pretty` "
+            "to create the local ignored report. This does not activate a model, write labels, or enable response automation."
+        )
+        return AssistantResult(
+            answer=_text(answer, redacted=redacted),
+            context_used=["v359_supervised_output_policy_missing"],
+            citations=[
+                Citation("v3.59 policy runner", "atdr/scripts/run_v359_supervised_output_policy_contract.py"),
+                Citation("v3.59 status doc", "docs/V3_59_SUPERVISED_OUTPUT_POLICY_CONTRACT.md"),
+            ],
+            suggested_followups=["Explain current ML model status.", "Does ML agree with rule/hybrid evidence?"],
+        )
+
+    contract = payload.get("contract") or {}
+    queue = contract.get("queue") or {}
+    agreement = contract.get("queue_evidence_agreement") or {}
+    exact = contract.get("exact_severity") or {}
+    safety = payload.get("safety") or {}
+    allowed = contract.get("allowed_outputs") or {}
+    blocked = contract.get("blocked_uses") or []
+    blocked_text = "; ".join(str(item) for item in blocked[:5]) or "automatic response and production promotion remain blocked"
+    answer = (
+        "Supervised output policy\n"
+        f"- Decision: {contract.get('decision', 'decision_support_contract_ready')}.\n"
+        f"- Safe supervised strategy: {contract.get('recommended_supervised_strategy', 'binary_soc_review_queue')}.\n"
+        "- SOC review-queue score: decision support for analyst prioritization.\n"
+        f"- Exact severity / attack labels: {contract.get('exact_classification_policy', 'explanation_or_ranking_only')}.\n"
+        "- Rule, anomaly, and hybrid evidence remain the primary detection evidence.\n\n"
+        "Validation snapshot\n"
+        f"- Queue status: {queue.get('status', 'unknown')}; splits {queue.get('passing_splits', 0)}/{queue.get('evaluated_splits', 0)}; "
+        f"F1 min {queue.get('queue_f1_min')}; FPR max {queue.get('benign_like_false_positive_rate_max')}.\n"
+        f"- Queue/evidence agreement: {agreement.get('status', 'unknown')}; splits {agreement.get('passing_splits', 0)}/{agreement.get('evaluated_splits', 0)}; "
+        f"agreement min {agreement.get('agreement_rate_min')}.\n"
+        f"- Exact severity policy status: {exact.get('status', 'unstable')}; stable policies {exact.get('stable_policy_count', 0)}/{exact.get('evaluated_policy_count', 0)}.\n\n"
+        "Safety boundary\n"
+        f"- Runtime activation ready: {bool(contract.get('contract_ready_for_runtime_activation', False))}.\n"
+        f"- Model activated: {bool(safety.get('model_activated', False))}.\n"
+        f"- Labels written: {bool(safety.get('labels_written', False))}.\n"
+        f"- Response automation allowed: {bool(safety.get('response_automation_allowed', False))}.\n"
+        f"- Real firewall blocking enabled: {bool(safety.get('real_firewall_blocking_enabled', False))}.\n"
+        f"- Blocked uses: {blocked_text}."
+    )
+    return AssistantResult(
+        answer=_text(answer, redacted=redacted),
+        context_used=["v359_supervised_output_policy", "ml_governance"],
+        citations=[
+            Citation("v3.59 latest policy contract", "ml_baseline_reviews/v3_59_supervised_output_policy_contract_latest.json"),
+            Citation("v3.59 status doc", "docs/V3_59_SUPERVISED_OUTPUT_POLICY_CONTRACT.md"),
+            Citation("ML Governance page", "frontend/src/pages/MLGovernance.tsx"),
+        ],
+        details={
+            "v359_supervised_output_policy": _redact(
+                {
+                    "phase": payload.get("phase"),
+                    "decision": contract.get("decision"),
+                    "recommended_supervised_strategy": contract.get("recommended_supervised_strategy"),
+                    "exact_classification_policy": contract.get("exact_classification_policy"),
+                    "allowed_output_statuses": {
+                        str(key): value.get("status")
+                        for key, value in allowed.items()
+                        if isinstance(value, dict)
+                    },
+                    "queue": queue,
+                    "queue_evidence_agreement": agreement,
+                    "exact_severity": exact,
+                    "blocked_uses": blocked,
+                    "safety": {
+                        "production_promoted": bool(safety.get("production_promoted", False)),
+                        "model_activated": bool(safety.get("model_activated", False)),
+                        "model_artifact_written": bool(safety.get("model_artifact_written", False)),
+                        "labels_written": bool(safety.get("labels_written", False)),
+                        "raw_logs_included": bool(safety.get("raw_logs_included", False)),
+                        "response_automation_allowed": bool(safety.get("response_automation_allowed", False)),
+                        "real_firewall_blocking_enabled": bool(safety.get("real_firewall_blocking_enabled", False)),
+                    },
+                },
+                enabled=redacted,
+            )
+        },
+        suggested_followups=["Does ML agree with rule/hybrid evidence?", "Why is the model not production promoted?"],
+    )
 
 
 def _answer_queue_evidence_agreement(*, redacted: bool) -> AssistantResult:
@@ -2048,7 +2395,7 @@ def _answer_workflow_question(*, redacted: bool) -> AssistantResult:
             Citation("Lab runbook", "docs/LAB_RUNBOOK.md"),
             Citation("README startup commands", "README.md"),
         ],
-        suggested_followups=["How do I run a safe scenario?", "Summarize recent operations."],
+        suggested_followups=["How do I run a controlled validation scenario?", "Summarize recent operations."],
     )
 
 
@@ -2067,7 +2414,7 @@ def _answer_import_logs_help(*, redacted: bool) -> AssistantResult:
             Citation("Replay script", "atdr/scripts/replay_logs.py"),
             Citation("Demo controls", "frontend/src/pages/DemoControls.tsx"),
         ],
-        suggested_followups=["How do I run a safe demo scenario?", "Summarize source health."],
+        suggested_followups=["How do I run a controlled validation scenario?", "Summarize source health."],
     )
 
 
@@ -2091,7 +2438,7 @@ def _answer_reviewed_label_import_help(*, redacted: bool) -> AssistantResult:
 
 def _answer_scenario_help(*, redacted: bool) -> AssistantResult:
     answer = (
-        "Run safe source scenarios with `.\\.venv\\Scripts\\python.exe -m atdr.scripts.run_source_scenario --scenario port_scan_like_traffic --source-name lab-scenario --source-type firewall --parser-profile palo_alto --run-detection --pretty`. "
+        "Run controlled validation scenarios with `.\\.venv\\Scripts\\python.exe -m atdr.scripts.run_source_scenario --scenario port_scan_like_traffic --source-name lab-scenario --source-type firewall --parser-profile palo_alto --run-detection --pretty`. "
         "Use `--use-temp-db` for isolated validation when you do not want to write to the current DB. "
         "Expected scenario output includes logs parsed, alerts created/deduplicated, cases affected, source health, and confirmation that no automatic response was triggered."
     )

@@ -40,6 +40,49 @@ export interface OidcStatus {
   smtp_enabled: boolean;
 }
 
+export interface MfuIamStatus {
+  enabled: boolean;
+  base_url_configured: boolean;
+  client_id_configured: boolean;
+  client_secret_configured: boolean;
+  audience_configured: boolean;
+  scope_configured: boolean;
+  timeout_ms: number;
+  token_path_configured: boolean;
+  introspect_path_configured: boolean;
+  profile_path_configured: boolean;
+  admin_base_path_configured: boolean;
+  admin_client_configured: boolean;
+  admin_secret_configured: boolean;
+  admin_audience_configured: boolean;
+  admin_scope_configured: boolean;
+  compat_profile_configured: boolean;
+  allowed_domains: string[];
+  domain_hints: string[];
+  default_role: Role | string;
+  google_sso_enabled: boolean;
+  google_client_id_configured: boolean;
+  permission_source?: string | null;
+  permission_bootstrap_mode?: string | null;
+  permission_root_configured: boolean;
+  permission_paths_count: number;
+  project_account_email_configured: boolean;
+  auth_require_2fa: boolean;
+  audit_retention_days: number;
+  managed_client_configured: boolean;
+  managed_client_endpoint_configured: boolean;
+  managed_client_owner_configured: boolean;
+  managed_client_scopes_configured: boolean;
+  managed_client_audiences_configured: boolean;
+  init_admin_emails_configured: boolean;
+  seed_admin_email_configured: boolean;
+  b2b_ready: boolean;
+  admin_api_ready: boolean;
+  permission_bootstrap_ready: boolean;
+  mode: "local_login_only" | "mfu_iam_configured" | string;
+  secrets_exposed: boolean;
+}
+
 export interface EmailVerificationStatus {
   notifications_enabled: boolean;
   verification_enabled: boolean;
@@ -184,6 +227,15 @@ export interface AssistantStatusResponse {
   external_provider_used_by_default: boolean;
   provider: string;
   model_configured: boolean;
+  llm_enabled: boolean;
+  llm_provider_configured: boolean;
+  llm_provider_name: string;
+  llm_ready: boolean;
+  llm_model_configured: boolean;
+  llm_secret_configured: boolean;
+  llm_base_url_configured: boolean;
+  llm_timeout_seconds: number;
+  llm_secrets_exposed: boolean;
   redaction_enabled: boolean;
   raw_log_context_allowed: boolean;
   max_context_rows: number;
@@ -635,6 +687,7 @@ export interface DashboardValidationSummary {
   v330_detection_ml_quality?: DashboardV330DetectionMlQualitySummary;
   v355_soc_queue?: DashboardV355SocQueueSummary;
   v357_queue_evidence_agreement?: DashboardV357QueueEvidenceAgreementSummary;
+  v359_supervised_output_policy?: DashboardV359SupervisedOutputPolicySummary;
   v30_production_readiness?: DashboardV30ProductionReadinessSummary;
 }
 
@@ -1061,6 +1114,54 @@ export interface DashboardV357QueueEvidenceAgreementSummary {
   labels_written?: boolean;
   raw_logs_included?: boolean;
   response_automation_allowed?: boolean;
+  diagnostic_only?: boolean;
+  latest_report_name?: string | null;
+  latest_markdown_name?: string | null;
+  message?: string;
+}
+
+export interface DashboardV359SupervisedOutputPolicySummary {
+  available: boolean;
+  ok?: boolean;
+  generated_at?: string | null;
+  phase?: string | null;
+  decision?: string | null;
+  contract_ready_for_runtime_activation?: boolean;
+  contract_ready_for_dashboard_guidance?: boolean;
+  recommended_supervised_strategy?: string | null;
+  exact_classification_policy?: string | null;
+  checks_passed?: number;
+  checks_total?: number;
+  blockers?: string[];
+  queue_status?: string | null;
+  queue_readiness_decision?: string | null;
+  queue_evaluated_splits?: number;
+  queue_passing_splits?: number;
+  queue_f1_min?: number | null;
+  queue_recall_min?: number | null;
+  queue_precision_min?: number | null;
+  queue_benign_like_false_positive_rate_max?: number | null;
+  queue_calibration_status?: string | null;
+  queue_calibration_ece?: number | null;
+  agreement_status?: string | null;
+  agreement_readiness_decision?: string | null;
+  agreement_evaluated_splits?: number;
+  agreement_passing_splits?: number;
+  agreement_rate_min?: number | null;
+  agreement_fpr_max?: number | null;
+  exact_severity_status?: string | null;
+  exact_stable_policy_count?: number;
+  exact_evaluated_policy_count?: number;
+  allowed_output_statuses?: Record<string, string | null | undefined>;
+  blocked_uses?: string[];
+  safety_statement?: string | null;
+  production_promoted?: boolean;
+  model_activated?: boolean;
+  model_artifact_written?: boolean;
+  labels_written?: boolean;
+  raw_logs_included?: boolean;
+  response_automation_allowed?: boolean;
+  real_firewall_blocking_enabled?: boolean;
   diagnostic_only?: boolean;
   latest_report_name?: string | null;
   latest_markdown_name?: string | null;

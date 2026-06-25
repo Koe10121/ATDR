@@ -8,6 +8,7 @@ export const queryKeys = {
   health: ["health"],
   me: ["me"],
   oidcStatus: ["oidc-status"],
+  mfuIamStatus: ["mfu-iam-status"],
   emailStatus: ["email-status"],
   devEmailOutbox: ["dev-email-outbox"],
   assistantStatus: ["assistant-status"],
@@ -94,6 +95,10 @@ export function useMe(enabled: boolean) {
 
 export function useOidcStatus() {
   return useQuery({ queryKey: queryKeys.oidcStatus, queryFn: api.oidcStatus, retry: false });
+}
+
+export function useMfuIamStatus() {
+  return useQuery({ queryKey: queryKeys.mfuIamStatus, queryFn: api.mfuIamStatus, retry: false });
 }
 
 export function useEmailStatus() {

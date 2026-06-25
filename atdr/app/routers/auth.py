@@ -16,6 +16,7 @@ from atdr.app.schemas.account_email import (
 from atdr.app.schemas.auth import ChangePasswordRequest, LoginRequest, MfuIamStatusRead, OidcStatusRead, TokenResponse, UserRead
 from atdr.app.services.account_verification_service import request_email_verification, verify_email_code
 from atdr.app.services.email_service import get_email_delivery_status
+from atdr.app.services.mfu_iam_service import build_mfu_iam_status
 from atdr.app.services.user_service import authenticate_user, change_own_password, record_successful_login
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -131,18 +132,7 @@ def oidc_status(current_user: User = Depends(require_analyst_or_admin)) -> dict:
 def mfu_iam_status(current_user: User = Depends(require_analyst_or_admin)) -> dict:
     del current_user
     settings = get_settings()
-    return {
-        "enabled": settings.mfu_iam_enabled,
-        "base_url_configured": bool(settings.mfu_iam_base_url.strip()),
-        "client_id_configured": bool(settings.mfu_iam_client_id.strip()),
-        "audience_configured": bool(settings.mfu_iam_audience.strip()),
-        "allowed_domains": settings.mfu_iam_allowed_domain_list,
-        "default_role": settings.mfu_iam_default_role,
-        "google_sso_enabled": settings.google_sso_enabled,
-        "google_client_id_configured": bool(settings.google_client_id.strip()),
-        "mode": "mfu_iam_configured" if settings.mfu_iam_enabled else "local_login_only",
-        "secrets_exposed": False,
-    }
+    return build_mfu_iam_status(settings)
 
 
 @router.get("/email/status", response_model=EmailVerificationStatusRead)

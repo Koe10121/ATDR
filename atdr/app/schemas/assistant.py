@@ -94,6 +94,15 @@ class AssistantStatusResponse(BaseModel):
     external_provider_used_by_default: bool
     provider: str
     model_configured: bool
+    llm_enabled: bool = False
+    llm_provider_configured: bool = False
+    llm_provider_name: str = ""
+    llm_ready: bool = False
+    llm_model_configured: bool = False
+    llm_secret_configured: bool = False
+    llm_base_url_configured: bool = False
+    llm_timeout_seconds: float = 15.0
+    llm_secrets_exposed: bool = False
     redaction_enabled: bool
     raw_log_context_allowed: bool
     max_context_rows: int

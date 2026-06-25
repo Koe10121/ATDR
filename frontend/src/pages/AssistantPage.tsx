@@ -31,12 +31,38 @@ interface AssistantAnswerSections {
   citations: string[];
 }
 
+interface AssistantContextState {
+  alertId: number | null;
+  logId: number | null;
+  sourceId: number | null;
+  caseId: string | null;
+}
+
+const emptyAssistantContext: AssistantContextState = {
+  alertId: null,
+  logId: null,
+  sourceId: null,
+  caseId: null
+};
+
 const promptGroups = [
+  {
+    label: "SOC Playbook",
+    prompts: [
+      { label: "Latest Critical Alert", question: "Explain the latest critical alert.", resetContext: true },
+      { label: "Explain Current Alert", question: "Why was this alert flagged?" },
+      { label: "Investigation Brief", question: "Create investigation brief for this alert." },
+      { label: "Source Health", question: "Summarize source health.", resetContext: true },
+      { label: "AI Governance Summary", question: "What supervised ML output is safe?", resetContext: true },
+      { label: "Controlled Validation Scenario", question: "How do I run a controlled validation scenario?", resetContext: true },
+      { label: "Response Safety", question: "What are response safety rules?", resetContext: true }
+    ]
+  },
   {
     label: "Alert Triage",
     prompts: [
-      { label: "Latest Critical", question: "Show latest critical alerts." },
-      { label: "Explain Alert", question: "Why was alert 1 flagged?" },
+      { label: "Latest Critical", question: "Show latest critical alerts.", resetContext: true },
+      { label: "Explain Current Alert", question: "Why was this alert flagged?" },
       { label: "Check First", question: "What should I check first for this alert?" },
       { label: "Evidence Missing", question: "What evidence is missing for this alert?" }
     ]
@@ -52,8 +78,8 @@ const promptGroups = [
   {
     label: "Source Health",
     prompts: [
-      { label: "Source Health", question: "Summarize source health." },
-      { label: "Source Warnings", question: "Which sources have warnings?" },
+      { label: "Source Health", question: "Summarize source health.", resetContext: true },
+      { label: "Source Warnings", question: "Which sources have warnings?", resetContext: true },
       { label: "Source Risk", question: "Is this source risky?" },
       { label: "Source Noise", question: "Why is this source noisy?" }
     ]
@@ -61,25 +87,25 @@ const promptGroups = [
   {
     label: "Case Handoff",
     prompts: [
-      { label: "Alert Brief", question: "Create investigation brief for alert 1." },
+      { label: "Alert Brief", question: "Create investigation brief for this alert." },
       { label: "Case Handoff", question: "Summarize this case for handoff." },
-      { label: "Supervisor Summary", question: "What should I tell my supervisor about this alert?" }
+      { label: "Leadership Brief", question: "Generate executive evidence summary for this alert." }
     ]
   },
   {
     label: "AI Governance",
     prompts: [
-      { label: "ML Status", question: "Explain current ML model status." },
-      { label: "Promotion Gate", question: "Why is the model not production promoted?" }
+      { label: "ML Status", question: "Explain current ML model status.", resetContext: true },
+      { label: "Promotion Gate", question: "Why is the model not production promoted?", resetContext: true }
     ]
   },
   {
     label: "How-To",
     prompts: [
-      { label: "Detection Runs", question: "Summarize recent detection runs." },
-      { label: "Failed Jobs", question: "Summarize failed jobs." },
-      { label: "Import Labels", question: "How do I import reviewed labels?" },
-      { label: "Safe Scenario", question: "How do I run a safe demo scenario?" }
+      { label: "Detection Runs", question: "Summarize recent detection runs.", resetContext: true },
+      { label: "Failed Jobs", question: "Summarize failed jobs.", resetContext: true },
+      { label: "Import Labels", question: "How do I import reviewed labels?", resetContext: true },
+      { label: "Controlled Scenario", question: "How do I run a controlled validation scenario?", resetContext: true }
     ]
   }
 ];
@@ -211,6 +237,61 @@ function normalizeFeedbackContext(context?: string | null): string | null {
   if (value.includes("ml") || value.includes("model") || value.includes("governance")) return "ml";
   if (value.includes("workflow") || value.includes("runbook") || value.includes("import")) return "workflow";
   return "general";
+}
+
+function parseQuestionId(question: string, kind: "alert" | "log" | "source"): number | null {
+  const aliases = {
+    alert: "(?:alert|id|#)",
+    log: "(?:log|row|event)",
+    source: "(?:source|sensor)"
+  }[kind];
+  const match = question.match(new RegExp(`\\b${aliases}\\s*#?\\s*(\\d{1,10})\\b`, "i"));
+  if (!match) return null;
+  const value = Number(match[1]);
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function parseQuestionCaseId(question: string): string | null {
+  const match = question.match(/\bcase\s*#?\s*([a-zA-Z0-9_-]{4,120})\b/i);
+  return match?.[1] ?? null;
+}
+
+function citationNumber(response: AssistantChatResponse | undefined, source: string, labels: string[] = []): number | null {
+  const citation = response?.citations.find((item) => {
+    const label = item.label.toLowerCase();
+    return item.source === source && (!labels.length || labels.some((needle) => label.includes(needle)));
+  });
+  if (!citation?.reference_id) return null;
+  const value = Number(citation.reference_id);
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function citationString(response: AssistantChatResponse | undefined, source: string, labels: string[] = []): string | null {
+  const citation = response?.citations.find((item) => {
+    const label = item.label.toLowerCase();
+    return item.source === source && (!labels.length || labels.some((needle) => label.includes(needle)));
+  });
+  return citation?.reference_id ?? null;
+}
+
+function shouldResetContextForQuestion(lowered: string): boolean {
+  return [
+    "latest critical alert",
+    "latest critical alerts",
+    "show latest critical",
+    "show open alerts",
+    "summarize open alerts",
+    "summarize source health",
+    "which sources have warnings",
+    "current ml model",
+    "supervised ml output",
+    "model not production promoted",
+    "recent detection runs",
+    "failed jobs",
+    "import reviewed labels",
+    "controlled validation scenario",
+    "response safety rules"
+  ].some((term) => lowered.includes(term));
 }
 
 function CitationList({ citations }: { citations: AssistantCitation[] }) {
@@ -349,6 +430,13 @@ export function AssistantPage() {
   const [feedbackContextFilter, setFeedbackContextFilter] = useState("all");
   const [feedbackSinceFilter, setFeedbackSinceFilter] = useState("30");
   const [feedbackLimit, setFeedbackLimit] = useState("20");
+  const [lastContext, setLastContext] = useState<AssistantContextState>({
+    ...emptyAssistantContext,
+    alertId,
+    logId,
+    sourceId,
+    caseId
+  });
   const response = assistant.data;
   const feedbackParams = useMemo(
     () => ({
@@ -373,20 +461,115 @@ export function AssistantPage() {
 
   const providerLabel = useMemo(() => {
     if (!status.data) return "Checking";
-    return status.data.external_provider_configured ? status.data.provider : "Deterministic local help";
+    if (status.data.external_provider_configured) return status.data.provider;
+    if (status.data.llm_enabled && status.data.llm_provider_configured) {
+      return `${status.data.llm_provider_name || "LLM"} configured, not ready`;
+    }
+    return "Deterministic local help";
   }, [status.data]);
+  const activeContextLabel = useMemo(() => {
+    if (lastContext.alertId) return `Using alert #${lastContext.alertId}`;
+    if (lastContext.logId) return `Using log #${lastContext.logId}`;
+    if (lastContext.sourceId) return `Using source #${lastContext.sourceId}`;
+    if (lastContext.caseId) return `Using case ${lastContext.caseId}`;
+    return null;
+  }, [lastContext]);
 
   useEffect(() => {
     setQuestion(initialQuestion);
   }, [initialQuestion]);
 
-  function askQuestion(value: string) {
+  useEffect(() => {
+    if (alertId || logId || sourceId || caseId) {
+      setLastContext({ alertId, logId, sourceId, caseId });
+    }
+  }, [alertId, logId, sourceId, caseId]);
+
+  useEffect(() => {
+    if (!response) return;
+    const responseAlertId = citationNumber(response, "/api/alerts/{alert_id}", ["alert"]);
+    const responseLogId = citationNumber(response, "/api/logs/{log_id}", ["log", "related"]);
+    const responseSourceId = citationNumber(response, "/api/sources/{source_id}", ["source"]);
+    const responseCaseId = citationString(response, "/api/alerts/cases", ["case"]);
+    setLastContext((current) => ({
+      alertId: responseAlertId ?? current.alertId,
+      logId: responseLogId ?? current.logId,
+      sourceId: responseSourceId ?? current.sourceId,
+      caseId: responseCaseId ?? current.caseId
+    }));
+  }, [response]);
+
+  function askQuestion(value: string, options: { resetContext?: boolean } = {}) {
     const trimmed = value.trim();
     if (!trimmed) return;
     setQuestion(trimmed);
     setCopyStatus("");
     setFeedbackStatus("");
-    assistant.mutate({ question: trimmed, alert_id: alertId, log_id: logId, source_id: sourceId, case_id: caseId, include_recent_context: true });
+    const lowered = trimmed.toLowerCase();
+    const resetContext = Boolean(options.resetContext || shouldResetContextForQuestion(lowered));
+    const explicitAlertId = parseQuestionId(trimmed, "alert");
+    const explicitLogId = parseQuestionId(trimmed, "log");
+    const explicitSourceId = parseQuestionId(trimmed, "source");
+    const explicitCaseId = parseQuestionCaseId(trimmed);
+    const rememberedAlertId = resetContext ? null : alertId ?? lastContext.alertId ?? citationNumber(response, "/api/alerts/{alert_id}", ["alert"]);
+    const rememberedLogId = resetContext ? null : logId ?? lastContext.logId ?? citationNumber(response, "/api/logs/{log_id}", ["log", "related"]);
+    const rememberedSourceId = resetContext ? null : sourceId ?? lastContext.sourceId ?? citationNumber(response, "/api/sources/{source_id}", ["source"]);
+    const rememberedCaseId = resetContext ? null : caseId ?? lastContext.caseId ?? citationString(response, "/api/alerts/cases", ["case"]);
+    const carriedAlertId = explicitAlertId ?? rememberedAlertId;
+    const explicitAlertQuestion = explicitAlertId !== null;
+    const asksRelatedLogs = ["related log", "logs are related", "what logs", "show logs", "linked logs", "evidence logs"].some((term) => lowered.includes(term));
+    const asksSpecificLog = /\blog\b/.test(lowered) && !asksRelatedLogs;
+    const isAlertFollowUp =
+      Boolean(carriedAlertId) &&
+      !asksSpecificLog &&
+      [
+        "why",
+        "flagged",
+        "alert",
+        "related log",
+        "logs are related",
+        "what logs",
+        "recommended next",
+        "next step",
+        "next steps",
+        "what should",
+        "verify before",
+        "analyst verify",
+        "check next",
+        "check first",
+        "safe to approve",
+        "response safe",
+        "attack mapping",
+        "att&ck",
+        "missing evidence",
+        "evidence missing"
+      ].some((term) => lowered.includes(term));
+    const carriedLogId = explicitLogId ?? (explicitAlertQuestion || isAlertFollowUp ? null : rememberedLogId);
+    const carriedSourceId = explicitSourceId ?? (explicitAlertQuestion || isAlertFollowUp ? null : rememberedSourceId);
+    const carriedCaseId = explicitCaseId ?? (explicitAlertQuestion || isAlertFollowUp ? null : rememberedCaseId);
+    setLastContext((current) =>
+      resetContext
+        ? {
+            alertId: carriedAlertId,
+            logId: carriedLogId,
+            sourceId: carriedSourceId,
+            caseId: carriedCaseId
+          }
+        : {
+            alertId: carriedAlertId ?? current.alertId,
+            logId: carriedLogId ?? current.logId,
+            sourceId: carriedSourceId ?? current.sourceId,
+            caseId: carriedCaseId ?? current.caseId
+          }
+    );
+    assistant.mutate({
+      question: trimmed,
+      alert_id: carriedAlertId,
+      log_id: carriedLogId,
+      source_id: carriedSourceId,
+      case_id: carriedCaseId,
+      include_recent_context: true
+    });
   }
 
   function ask(event: FormEvent<HTMLFormElement>) {
@@ -504,7 +687,11 @@ export function AssistantPage() {
         <div className="metric-card">
           <div className="metric-label">Provider</div>
           <div className="metric-value text-lg">{providerLabel}</div>
-          <div className="metric-help">No API key is exposed by the status endpoint.</div>
+          <div className="metric-help">
+            {status.data?.external_provider_configured
+              ? "External provider can be used when enabled."
+              : "No API key or endpoint value is exposed."}
+          </div>
         </div>
         <div className="metric-card">
           <div className="metric-label">Raw Log Context</div>
@@ -544,6 +731,14 @@ export function AssistantPage() {
               </button>
             ) : null}
             <span className="text-xs font-semibold text-muted">Read-only answers with source references when available.</span>
+            {activeContextLabel ? (
+              <>
+                <Badge value={activeContextLabel} />
+                <button className="btn-secondary text-xs" type="button" onClick={() => setLastContext(emptyAssistantContext)}>
+                  Clear context
+                </button>
+              </>
+            ) : null}
           </div>
           <div className="mt-5 space-y-4" data-testid="assistant-presets">
             {promptGroups.map((group) => (
@@ -557,7 +752,7 @@ export function AssistantPage() {
                       type="button"
                       title={starter.question}
                       disabled={assistant.isPending}
-                      onClick={() => askQuestion(starter.question)}
+                      onClick={() => askQuestion(starter.question, { resetContext: Boolean(starter.resetContext) })}
                     >
                       {starter.label}
                     </button>

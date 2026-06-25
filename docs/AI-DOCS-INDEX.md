@@ -27,6 +27,9 @@ This index defines the active ATDR documentation set for AI/Codex-assisted work.
 | `docs/security/ATDR_PERMISSION_PATHS.md` | NewSystem-style ATDR permission path registry for future IAM mapping. |
 | `docs/security/ATDR_EXTERNAL_IAM_PLAN.md` | Disabled-by-default generic OIDC/school-email IAM plan. |
 | `docs/security/ATDR_MFU_IAM_ADAPTER_PLAN.md` | Safe mapping from supervisor MFU IAM/Google SSO/OTP/B2B guidance to ATDR without enabling external IAM. |
+| `docs/security/ATDR_MFU_IAM_IMPLEMENTATION_PLAN.md` | Source-backed implementation path for MFU IAM SDK/token introspection and school-email role mapping, still disabled by default. |
+| `docs/V3_64_MFU_IAM_TEMPLATE_ADAPTER.md` | Supervisor-template IAM env compatibility and non-secret readiness status for ATDR. |
+| `docs/security/ATDR_REAL_LLM_ASSISTANT_PLAN.md` | Real LLM assistant provider plan with Gemini/OpenAI/Claude options, disabled by default and read-only. |
 | `docs/security/ATDR_SCHOOL_EMAIL_IAM_READINESS_AUDIT.md` | School-email IAM readiness audit explaining why real MFU/Google/OIDC login remains disabled until provider details are approved. |
 | `docs/security/MFU_IAM_PROVIDER_DETAILS_CHECKLIST.md` | Advisor/provider questions required before real MFU IAM or Google SSO implementation. |
 | `docs/security/ATDR_OWASP_LAB_SECURITY_REVIEW.md` | Lab security review baseline and production-hardening gaps. |
@@ -72,7 +75,12 @@ This index defines the active ATDR documentation set for AI/Codex-assisted work.
 | `docs/V3_57_QUEUE_RULE_HYBRID_AGREEMENT.md` | Diagnostic-only queue-vs-rule/hybrid evidence agreement analysis for the stable SOC review-queue candidate. |
 | `docs/V3_58_QUEUE_EVIDENCE_VISIBILITY.md` | Read-only ML Governance and SOC Assistant visibility for the latest v3.57 queue-vs-rule/hybrid agreement diagnostic. |
 | `docs/V3_59_SUPERVISED_OUTPUT_POLICY_CONTRACT.md` | Diagnostic-only supervised output policy contract: queue score is decision support, exact severity labels remain explanation/ranking only. |
+| `docs/V3_60_SUPERVISED_POLICY_DASHBOARD_ASSISTANT_ALIGNMENT.md` | Dashboard and SOC Assistant alignment with the v3.59 supervised output policy contract. |
+| `docs/V3_61_SOC_ASSISTANT_PRESENTATION_HARDENING.md` | Presentation-ready SOC Assistant preset and fallback hardening while preserving read-only, no-action behavior. |
+| `docs/V3_63_REAL_LLM_ASSISTANT_ADAPTER.md` | Disabled-by-default real LLM provider adapter for Gemini, OpenAI-compatible APIs, Claude, and mock testing while preserving deterministic fallback and read-only safety. |
+| `docs/V3_62_SUPERVISED_TRAINING_TARGET_CONTRACT.md` | Diagnostic-only safe training target adapter: exact labels are mapped to a binary SOC review-queue target while exact severity remains explanation/ranking only. |
 | `docs/DETECTION_RULE_CATALOG.md` | Source-backed catalog of deterministic detection rules, false positives, mappings, and analyst next steps. |
+| `docs/ATDR_TEMPLATE_MERGE_ANALYSIS.md` | Current controlled template-merge analysis: adopt IAM/process concepts without migrating ATDR to Node/Vue/MongoDB. |
 
 ## Reference-Only Documents
 

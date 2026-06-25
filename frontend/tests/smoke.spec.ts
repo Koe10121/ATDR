@@ -119,6 +119,52 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
       }
     })
   );
+  await page.route("**/api/auth/mfu-iam/status", async (route) =>
+    route.fulfill({
+      json: {
+        enabled: false,
+        base_url_configured: false,
+        client_id_configured: false,
+        client_secret_configured: false,
+        audience_configured: false,
+        scope_configured: false,
+        timeout_ms: 5000,
+        token_path_configured: true,
+        introspect_path_configured: true,
+        profile_path_configured: true,
+        admin_base_path_configured: true,
+        admin_client_configured: false,
+        admin_secret_configured: false,
+        admin_audience_configured: false,
+        admin_scope_configured: false,
+        compat_profile_configured: false,
+        allowed_domains: [],
+        domain_hints: [],
+        default_role: "analyst",
+        google_sso_enabled: false,
+        google_client_id_configured: false,
+        permission_source: null,
+        permission_bootstrap_mode: null,
+        permission_root_configured: false,
+        permission_paths_count: 0,
+        project_account_email_configured: false,
+        auth_require_2fa: false,
+        audit_retention_days: 90,
+        managed_client_configured: false,
+        managed_client_endpoint_configured: false,
+        managed_client_owner_configured: false,
+        managed_client_scopes_configured: false,
+        managed_client_audiences_configured: false,
+        init_admin_emails_configured: false,
+        seed_admin_email_configured: false,
+        b2b_ready: false,
+        admin_api_ready: false,
+        permission_bootstrap_ready: false,
+        mode: "local_login_only",
+        secrets_exposed: false
+      }
+    })
+  );
   await page.route("**/api/auth/email/status", async (route) =>
     route.fulfill({
       json: {
@@ -1250,6 +1296,57 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
           response_automation_allowed: false,
           diagnostic_only: true
         },
+        v359_supervised_output_policy: {
+          available: true,
+          ok: true,
+          generated_at: "2026-06-24T11:20:00Z",
+          phase: "v3.59",
+          decision: "decision_support_contract_ready",
+          contract_ready_for_runtime_activation: false,
+          contract_ready_for_dashboard_guidance: true,
+          recommended_supervised_strategy: "binary_soc_review_queue",
+          exact_classification_policy: "explanation_or_ranking_only",
+          checks_passed: 7,
+          checks_total: 7,
+          blockers: [],
+          queue_status: "stable",
+          queue_readiness_decision: "candidate_only",
+          queue_evaluated_splits: 5,
+          queue_passing_splits: 5,
+          queue_f1_min: 0.9725,
+          queue_recall_min: 0.948,
+          queue_precision_min: 0.9907,
+          queue_benign_like_false_positive_rate_max: 0.04,
+          queue_calibration_status: "passed",
+          queue_calibration_ece: 0.007,
+          agreement_status: "usable_with_review",
+          agreement_readiness_decision: "diagnostic_only",
+          agreement_evaluated_splits: 5,
+          agreement_passing_splits: 4,
+          agreement_rate_min: 0.884,
+          agreement_fpr_max: 0.04,
+          exact_severity_status: "unstable",
+          exact_stable_policy_count: 0,
+          exact_evaluated_policy_count: 6,
+          allowed_output_statuses: {
+            soc_review_queue_score: "allowed_for_decision_support",
+            exact_severity_or_attack_label: "explanation_or_ranking_only",
+            rule_hybrid_evidence: "primary_detection_evidence"
+          },
+          blocked_uses: [
+            "automatic response from supervised ML output",
+            "real firewall blocking from supervised ML output",
+            "marking AI-generated labels as human-reviewed"
+          ],
+          production_promoted: false,
+          model_activated: false,
+          model_artifact_written: false,
+          labels_written: false,
+          raw_logs_included: false,
+          response_automation_allowed: false,
+          real_firewall_blocking_enabled: false,
+          diagnostic_only: true
+        },
         v30_production_readiness: {
           available: true,
           status: "real_source_pilot_ready",
@@ -1651,22 +1748,30 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByText("SOC Review Queue Diagnostic")).toBeVisible();
   await expect(page.getByText("5/5 splits")).toBeVisible();
   await expect(page.getByText("Queue F1 Min").first()).toBeVisible();
-  await expect(page.getByText("0.9725", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("FPR Max").first()).toBeVisible();
-  await expect(page.getByText("0.04", { exact: true }).first()).toBeVisible();
+  await expect(page.locator(".panel").filter({ hasText: "Queue F1 Min" }).filter({ hasText: "0.9725" }).first()).toBeVisible();
+  await expect(page.locator(".panel").filter({ hasText: "FPR Max" }).first()).toBeVisible();
+  await expect(page.locator(".panel").filter({ hasText: "FPR Max" }).filter({ hasText: "0.04" }).first()).toBeVisible();
   await page.getByText("View v3.55 queue diagnostic notes").click();
   await expect(page.getByText("binary_review_queue_queue_only")).toBeVisible();
-  await expect(page.getByText("explanation or ranking only")).toBeVisible();
+  await expect(page.getByText("explanation or ranking only").first()).toBeVisible();
   await expect(page.getByText("train_internal_calibration")).toBeVisible();
   await expect(page.getByText("Queue / Evidence Agreement")).toBeVisible();
   await expect(page.getByText("4/5 splits")).toBeVisible();
-  await expect(page.getByText("Agreement Min")).toBeVisible();
-  await expect(page.getByText("0.884", { exact: true })).toBeVisible();
+  await expect(page.getByText("Agreement Min", { exact: true })).toBeVisible();
+  await expect(page.locator(".panel").filter({ hasText: "Agreement Min" }).filter({ hasText: "0.884" }).first()).toBeVisible();
   await expect(page.getByText("Evidence-Only", { exact: true })).toBeVisible();
   await expect(page.getByText("310", { exact: true })).toBeVisible();
   await page.getByText("View queue/evidence disagreement notes").click();
   await expect(page.getByText("app=quic-base|action=allow|port=443").nth(1)).toBeVisible();
   await expect(page.getByText("evidence-only misses remain reviewable")).toBeVisible();
+  await expect(page.getByText("Supervised Output Policy")).toBeVisible();
+  await expect(page.getByText("Queue scoring is decision support. Exact labels stay explanation/ranking only.")).toBeVisible();
+  await expect(page.getByText("binary soc review queue")).toBeVisible();
+  await expect(page.getByText("Explanation Only")).toBeVisible();
+  await expect(page.getByText("activation disabled")).toBeVisible();
+  await page.getByText("View supervised output contract").click();
+  await expect(page.getByText("automatic response from supervised ML output")).toBeVisible();
+  await expect(page.getByText(/Stable policies\s*0\/6/)).toBeVisible();
   await page.getByText("Technical validation details").click();
   await expect(page.getByText(/1528 reviewed \| minimum gaps 44/)).toBeVisible();
   await expect(page.getByText("Recommended AI Mode")).toBeVisible();
@@ -1787,6 +1892,12 @@ test("admin settings shows external IAM groundwork", async ({ page }) => {
   expect(await page.getByText("Enabled", { exact: true }).count()).toBeGreaterThanOrEqual(1);
   expect(await page.getByText("Not configured").count()).toBeGreaterThanOrEqual(2);
   await expect(page.getByText("Local username/password login remains active.")).toBeVisible();
+  await expect(page.getByText("MFU IAM Adapter")).toBeVisible();
+  await expect(page.getByText("School-email integration readiness")).toBeVisible();
+  await expect(page.getByText("B2B Client")).toBeVisible();
+  await expect(page.getByText("Admin API")).toBeVisible();
+  await expect(page.getByText("Permission Bootstrap")).toBeVisible();
+  await expect(page.getByText("Secrets", { exact: true })).toBeVisible();
   await expect(page.getByText("Account Notifications")).toBeVisible();
   await expect(page.getByText("Email verification foundation")).toBeVisible();
   await expect(page.getByText("Verification disabled")).toBeVisible();
@@ -1826,18 +1937,29 @@ test("SOC assistant page is read-only and contains long responses safely", async
   await expect(page.getByTestId("assistant-presets")).toContainText("Case Handoff");
   await expect(page.getByTestId("assistant-presets")).toContainText("AI Governance");
   await expect(page.getByTestId("assistant-presets")).toContainText("How-To");
-  await expect(page.getByRole("button", { name: "Latest Critical" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Explain Alert" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Likely False Positive?" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Detection Runs" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "ML Status" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Safe Scenario" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Alert Brief" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Supervisor Summary" })).toBeVisible();
+  await expect(page.getByTestId("assistant-presets")).toContainText("SOC Playbook");
+  await expect(page.getByRole("button", { name: "Latest Critical Alert", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "AI Governance Summary", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Controlled Validation Scenario", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Response Safety", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Latest Critical", exact: true })).toBeVisible();
+  await expect(page.getByTestId("assistant-presets").getByRole("button", { name: "Explain Current Alert", exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Likely False Positive?", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Detection Runs", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "ML Status", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Controlled Scenario", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Alert Brief", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Leadership Brief", exact: true })).toBeVisible();
   await expect(page.getByTestId("assistant-history")).toContainText("Summarize failed jobs.");
   await expect(page.getByTestId("assistant-history")).toContainText("Local");
 
-  await page.getByRole("button", { name: "Source Warnings" }).click();
+  await page.getByRole("button", { name: "AI Governance Summary", exact: true }).click();
+  await expect(page.getByLabel("Analyst question")).toHaveValue("What supervised ML output is safe?");
+  await page.getByRole("button", { name: "Controlled Validation Scenario", exact: true }).click();
+  await expect(page.getByLabel("Analyst question")).toHaveValue("How do I run a controlled validation scenario?");
+  await page.getByRole("button", { name: "Response Safety", exact: true }).click();
+  await expect(page.getByLabel("Analyst question")).toHaveValue("What are response safety rules?");
+  await page.getByRole("button", { name: "Source Warnings", exact: true }).click();
   await expect(page.getByLabel("Analyst question")).toHaveValue("Which sources have warnings?");
   await expect(page.getByTestId("assistant-response-panel")).toContainText("The assistant is read-only");
 
@@ -1893,7 +2015,7 @@ test("SOC assistant page is read-only and contains long responses safely", async
   await expect(page.getByLabel("Analyst question")).toHaveValue("Summarize source 1 health and what an analyst should check next.");
   await page.getByRole("button", { name: "Generate Brief" }).click();
   await expect(page.getByLabel("Analyst question")).toHaveValue("Create investigation brief for source 1.");
-  await page.getByTestId("assistant-presets").getByRole("button", { name: "Source Health" }).click();
+  await page.getByTestId("assistant-presets").getByRole("button", { name: "Source Health" }).first().click();
   await expect(page.getByTestId("assistant-response-panel")).toContainText("The assistant is read-only");
 
   await page.goto("/assistant?log=1");
@@ -1905,9 +2027,87 @@ test("SOC assistant page is read-only and contains long responses safely", async
   await expect(page.getByLabel("Analyst question")).toHaveValue("Summarize case smoke-case and related alert group.");
 
   await page.goto("/assistant");
-  await page.getByRole("button", { name: "Latest Critical" }).click();
+  await page.getByRole("button", { name: "Latest Critical", exact: true }).click();
   await page.getByTestId("assistant-citation-open-alert-detail-1").click();
   await expect(page).toHaveURL(/\/alerts\?alert=1/);
+});
+
+test("SOC assistant follow-up questions keep the previous alert context", async ({ page }) => {
+  const assistantRequests: Array<Record<string, unknown>> = [];
+  await mockApi(page);
+  await page.route("**/api/assistant/chat", async (route) => {
+    const payload = route.request().postDataJSON() as Record<string, unknown>;
+    assistantRequests.push(payload);
+    const alertId = Number(payload.alert_id ?? 1717);
+    await route.fulfill({
+      json: {
+        answer:
+          "Summary\n- Alert context was retained.\n\nEvidence\n- Related logs are available from the alert evidence list.\n\nWhat to check next\n- Review related logs before containment.",
+        mode: "deterministic_local",
+        external_provider_used: false,
+        safety: ["Read Only", "Decision Support Only", "Response Automation Disabled", "Simulation Mode"],
+        context_used: ["alert_detail", "alert_evidence"],
+        citations: [
+          { label: "Alert detail", source: "/api/alerts/{alert_id}", reference_id: String(alertId) },
+          { label: "Related log", source: "/api/logs/{log_id}", reference_id: "9001" },
+          { label: "Source", source: "/api/sources/{source_id}", reference_id: "44" }
+        ],
+        redaction_applied: true,
+        raw_log_context_included: false,
+        suggested_followups: ["What logs are related?", "What is the recommended next step?"],
+        details: {
+          assistant_audit_id: 1717,
+          answer_sections: {
+            summary: [`Alert #${alertId} context was retained.`],
+            evidence: ["Related log #9001 is linked as alert evidence."],
+            what_to_check_next: ["Review related logs before containment."],
+            safety_note: ["The assistant is read-only."]
+          }
+        }
+      }
+    });
+  });
+  await seedSession(page);
+  await page.goto("/assistant");
+
+  await page.getByLabel("Analyst question").fill("Why was alert 1717 flagged?");
+  await page.getByRole("button", { name: "Ask assistant" }).click();
+  await expect(page.getByTestId("assistant-response-panel")).toContainText("Alert #1717 context was retained.");
+  await page.getByRole("button", { name: "What logs are related?" }).click();
+  await expect(page.getByLabel("Analyst question")).toHaveValue("What logs are related?");
+  await expect(page.getByText("Using alert #1717")).toBeVisible();
+
+  expect(assistantRequests.length).toBeGreaterThanOrEqual(2);
+  expect(assistantRequests[0].alert_id).toBe(1717);
+  expect(assistantRequests[1].alert_id).toBe(1717);
+  expect(assistantRequests[1].log_id).toBeNull();
+  expect(assistantRequests[1].source_id).toBeNull();
+  await page.getByRole("button", { name: "What is the recommended next step?" }).click();
+  await expect(page.getByLabel("Analyst question")).toHaveValue("What is the recommended next step?");
+  expect(assistantRequests.length).toBeGreaterThanOrEqual(3);
+  expect(assistantRequests[2].alert_id).toBe(1717);
+  expect(assistantRequests[2].log_id).toBeNull();
+  expect(assistantRequests[2].source_id).toBeNull();
+  await page.getByLabel("Analyst question").fill("Why was that log flagged?");
+  await page.getByRole("button", { name: "Ask assistant" }).click();
+  await expect(page.getByLabel("Analyst question")).toHaveValue("Why was that log flagged?");
+  expect(assistantRequests.length).toBeGreaterThanOrEqual(4);
+  expect(assistantRequests[3].alert_id).toBe(1717);
+  expect(assistantRequests[3].log_id).toBe(9001);
+  await page.getByLabel("Analyst question").fill("Why was alert 35 flagged?");
+  await page.getByRole("button", { name: "Ask assistant" }).click();
+  await expect(page.getByLabel("Analyst question")).toHaveValue("Why was alert 35 flagged?");
+  await expect(page.getByText("Using alert #35")).toBeVisible();
+  expect(assistantRequests.length).toBeGreaterThanOrEqual(5);
+  expect(assistantRequests[4].alert_id).toBe(35);
+  expect(assistantRequests[4].log_id).toBeNull();
+  expect(assistantRequests[4].source_id).toBeNull();
+  await page.getByRole("button", { name: "Latest Critical Alert", exact: true }).click();
+  await expect(page.getByLabel("Analyst question")).toHaveValue("Explain the latest critical alert.");
+  expect(assistantRequests.length).toBeGreaterThanOrEqual(6);
+  expect(assistantRequests[5].alert_id).toBeNull();
+  expect(assistantRequests[5].log_id).toBeNull();
+  expect(assistantRequests[5].source_id).toBeNull();
 });
 
 test("simulated response confirmation and denied audit are visible", async ({ page }) => {

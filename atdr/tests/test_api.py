@@ -151,6 +151,11 @@ def test_mfu_iam_status_is_authenticated_disabled_by_default_and_hides_secrets(m
     monkeypatch.setenv("MFU_IAM_CLIENT_ID", "")
     monkeypatch.setenv("MFU_IAM_CLIENT_SECRET", "mfu-secret-that-must-not-leak")
     monkeypatch.setenv("MFU_IAM_AUDIENCE", "")
+    monkeypatch.setenv("MFU_IAM_SCOPE", "")
+    monkeypatch.setenv("MFU_IAM_TOKEN_PATH", "/api/v1/b2b/token")
+    monkeypatch.setenv("MFU_IAM_INTROSPECT_PATH", "/api/v1/b2b/introspect")
+    monkeypatch.setenv("MFU_IAM_PROFILE_PATH", "/api/v1/b2b/me")
+    monkeypatch.setenv("MFU_IAM_ADMIN_BASE_PATH", "/api/v1")
     monkeypatch.setenv("MFU_IAM_ALLOWED_DOMAINS", "")
     monkeypatch.setenv("MFU_IAM_DEFAULT_ROLE", "analyst")
     monkeypatch.setenv("GOOGLE_SSO_ENABLED", "false")
@@ -170,7 +175,15 @@ def test_mfu_iam_status_is_authenticated_disabled_by_default_and_hides_secrets(m
         assert payload["mode"] == "local_login_only"
         assert payload["base_url_configured"] is False
         assert payload["client_id_configured"] is False
+        assert payload["client_secret_configured"] is True
         assert payload["audience_configured"] is False
+        assert payload["scope_configured"] is False
+        assert payload["token_path_configured"] is True
+        assert payload["introspect_path_configured"] is True
+        assert payload["profile_path_configured"] is True
+        assert payload["admin_base_path_configured"] is True
+        assert payload["admin_secret_configured"] is False
+        assert payload["b2b_ready"] is False
         assert payload["allowed_domains"] == []
         assert payload["default_role"] == "analyst"
         assert payload["google_sso_enabled"] is False
@@ -179,6 +192,76 @@ def test_mfu_iam_status_is_authenticated_disabled_by_default_and_hides_secrets(m
         assert "mfu-secret-that-must-not-leak" not in str(payload)
         assert "google-client-id-that-must-not-leak" not in str(payload)
         assert "MFU_IAM_CLIENT_SECRET" not in str(payload)
+    finally:
+        app.dependency_overrides.clear()
+        get_settings.cache_clear()
+
+
+def test_mfu_iam_status_accepts_supervisor_template_env_names_and_hides_secrets(monkeypatch):
+    monkeypatch.setenv("MFU_IAM_ENABLED", "true")
+    monkeypatch.setenv("IAM_SDK_BASE_URL", "https://iam.mfu.ac.th")
+    monkeypatch.setenv("IAM_SDK_CLIENT_ID", "template-local-client")
+    monkeypatch.setenv("IAM_SDK_CLIENT_SECRET", "template-client-secret-that-must-not-leak")
+    monkeypatch.setenv("IAM_SDK_AUDIENCE", "mfu-ai-driven-log-based-threat-detection-and-response-api")
+    monkeypatch.setenv("IAM_SDK_SCOPE", "read write")
+    monkeypatch.setenv("IAM_SDK_TIMEOUT_MS", "5000")
+    monkeypatch.setenv("IAM_SDK_TOKEN_PATH", "/api/v1/b2b/token")
+    monkeypatch.setenv("IAM_SDK_INTROSPECT_PATH", "/api/v1/b2b/introspect")
+    monkeypatch.setenv("IAM_SDK_PROFILE_PATH", "/api/v1/b2b/clients/me")
+    monkeypatch.setenv("IAM_SDK_ADMIN_BASE_PATH", "/api/v1/b2b/admin")
+    monkeypatch.setenv("IAM_ADMIN_CLIENT_ID", "admin-client")
+    monkeypatch.setenv("IAM_ADMIN_CLIENT_SECRET", "admin-secret-that-must-not-leak")
+    monkeypatch.setenv("IAM_ADMIN_AUDIENCE", "iam-admin-api")
+    monkeypatch.setenv("IAM_ADMIN_SCOPE", "iam.security.read")
+    monkeypatch.setenv("IAM_COMPAT_PROFILE", "b2b-admin-v1")
+    monkeypatch.setenv("MFU_IAM_ALLOWED_DOMAINS", "lamduan.mfu.ac.th")
+    monkeypatch.setenv("PROJECT_PERMISSION_SOURCE", "iam")
+    monkeypatch.setenv("PROJECT_PERMISSION_BOOTSTRAP_MODE", "iam")
+    monkeypatch.setenv("PROJECT_PERMISSION_ROOT_PATH", "/mfu-ai-driven-log-based-threat-detection-and-response/security/permission")
+    monkeypatch.setenv("PROJECT_PERMISSION_PATHS", "/dashboard,/security/audit")
+    monkeypatch.setenv("PROJECT_PERMISSION_ACCOUNT_EMAIL", "6631501139@lamduan.mfu.ac.th")
+    monkeypatch.setenv("PROJECT_AUTH_REQUIRE_2FA", "true")
+    monkeypatch.setenv("PROJECT_AUDIT_RETENTION_DAYS", "90")
+    monkeypatch.setenv("PROJECT_IAM_MANAGED_CLIENT_ID", "managed-client")
+    monkeypatch.setenv("PROJECT_IAM_MANAGED_CLIENT_ENDPOINT", "http://127.0.0.1:8214")
+    monkeypatch.setenv("PROJECT_IAM_MANAGED_CLIENT_OWNER_EMAIL", "6631501139@lamduan.mfu.ac.th")
+    monkeypatch.setenv("PROJECT_IAM_MANAGED_CLIENT_ALLOWED_SCOPES", "read write")
+    monkeypatch.setenv("PROJECT_IAM_MANAGED_CLIENT_ALLOWED_AUDIENCES", "mfu-api")
+    monkeypatch.setenv("PROJECT_INIT_ADMIN_EMAILS", "6631501139@lamduan.mfu.ac.th")
+    monkeypatch.setenv("PROJECT_INIT_SEED_ADMIN_EMAIL", "6631501139@lamduan.mfu.ac.th")
+    get_settings.cache_clear()
+    client = _client()
+    try:
+        headers = _login(client, "admin", "admin123")
+        response = client.get("/api/auth/mfu-iam/status", headers=headers)
+        assert response.status_code == 200
+        payload = response.json()
+
+        assert payload["enabled"] is True
+        assert payload["base_url_configured"] is True
+        assert payload["client_id_configured"] is True
+        assert payload["client_secret_configured"] is True
+        assert payload["audience_configured"] is True
+        assert payload["scope_configured"] is True
+        assert payload["timeout_ms"] == 5000
+        assert payload["profile_path_configured"] is True
+        assert payload["admin_client_configured"] is True
+        assert payload["admin_secret_configured"] is True
+        assert payload["admin_api_ready"] is True
+        assert payload["b2b_ready"] is True
+        assert payload["permission_source"] == "iam"
+        assert payload["permission_bootstrap_ready"] is True
+        assert payload["permission_paths_count"] == 2
+        assert payload["auth_require_2fa"] is True
+        assert payload["allowed_domains"] == ["lamduan.mfu.ac.th"]
+        assert payload["domain_hints"] == ["lamduan.mfu.ac.th"]
+        assert payload["managed_client_configured"] is True
+        assert payload["init_admin_emails_configured"] is True
+        assert payload["secrets_exposed"] is False
+        assert "template-client-secret-that-must-not-leak" not in str(payload)
+        assert "admin-secret-that-must-not-leak" not in str(payload)
+        assert "IAM_ADMIN_CLIENT_SECRET" not in str(payload)
+        assert "IAM_SDK_CLIENT_SECRET" not in str(payload)
     finally:
         app.dependency_overrides.clear()
         get_settings.cache_clear()
@@ -227,6 +310,7 @@ def test_dashboard_validation_summary_reports_latest_file_without_private_paths(
     v16_candidate_path = reliability_dir / "external_benchmark_validation_20260605T042000Z.json"
     v355_queue_path = reliability_dir / "v3_55_severity_target_policy_reframing_latest.json"
     v357_agreement_path = reliability_dir / "v3_57_queue_rule_hybrid_agreement_latest.json"
+    v359_policy_path = reliability_dir / "v3_59_supervised_output_policy_contract_latest.json"
     report_path.write_text(
         json.dumps(
             {
@@ -695,6 +779,72 @@ def test_dashboard_validation_summary_reports_latest_file_without_private_paths(
         ),
         encoding="utf-8",
     )
+    v359_policy_path.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "status": "completed",
+                "phase": "v3.59",
+                "generated_at": "2026-06-24T11:20:00+00:00",
+                "contract": {
+                    "decision": "decision_support_contract_ready",
+                    "contract_ready_for_runtime_activation": False,
+                    "contract_ready_for_dashboard_guidance": True,
+                    "recommended_supervised_strategy": "binary_soc_review_queue",
+                    "exact_classification_policy": "explanation_or_ranking_only",
+                    "queue": {
+                        "status": "stable",
+                        "readiness_decision": "candidate_only",
+                        "evaluated_splits": 5,
+                        "passing_splits": 5,
+                        "queue_f1_min": 0.9725,
+                        "queue_recall_min": 0.948,
+                        "queue_precision_min": 0.9907,
+                        "benign_like_false_positive_rate_max": 0.04,
+                        "calibration_status": "passed",
+                        "calibration_ece": 0.007,
+                    },
+                    "queue_evidence_agreement": {
+                        "status": "usable_with_review",
+                        "readiness_decision": "diagnostic_only",
+                        "evaluated_splits": 5,
+                        "passing_splits": 4,
+                        "agreement_rate_min": 0.884,
+                        "queue_false_positive_rate_max": 0.04,
+                    },
+                    "exact_severity": {
+                        "status": "unstable",
+                        "stable_policy_count": 0,
+                        "evaluated_policy_count": 6,
+                    },
+                    "allowed_outputs": {
+                        "soc_review_queue_score": {"status": "allowed_for_decision_support"},
+                        "exact_severity_or_attack_label": {"status": "explanation_or_ranking_only"},
+                        "rule_hybrid_evidence": {"status": "primary_detection_evidence"},
+                    },
+                    "blocked_uses": [
+                        "automatic response from supervised ML output",
+                        "real firewall blocking from supervised ML output",
+                        "marking AI-generated labels as human-reviewed",
+                    ],
+                    "checks_passed": 7,
+                    "checks_total": 7,
+                    "blockers": [],
+                    "safety_statement": "Supervised ML may guide SOC review prioritization only.",
+                },
+                "safety": {
+                    "production_promoted": False,
+                    "model_activated": False,
+                    "model_artifact_written": False,
+                    "labels_written": False,
+                    "raw_logs_included": False,
+                    "response_automation_allowed": False,
+                    "real_firewall_blocking_enabled": False,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
     monkeypatch.setattr(dashboard_router, "VALIDATION_REPORT_DIR", report_dir)
     monkeypatch.setattr(dashboard_router, "GENERALIZATION_REPORT_DIR", generalization_dir)
     monkeypatch.setattr(dashboard_router, "LAYERED_REPORT_DIR", layered_dir)
@@ -842,6 +992,31 @@ def test_dashboard_validation_summary_reports_latest_file_without_private_paths(
         assert payload["v357_queue_evidence_agreement"]["raw_logs_included"] is False
         assert payload["v357_queue_evidence_agreement"]["response_automation_allowed"] is False
         assert payload["v357_queue_evidence_agreement"]["diagnostic_only"] is True
+        assert payload["v359_supervised_output_policy"]["available"] is True
+        assert payload["v359_supervised_output_policy"]["phase"] == "v3.59"
+        assert payload["v359_supervised_output_policy"]["decision"] == "decision_support_contract_ready"
+        assert payload["v359_supervised_output_policy"]["recommended_supervised_strategy"] == "binary_soc_review_queue"
+        assert payload["v359_supervised_output_policy"]["exact_classification_policy"] == "explanation_or_ranking_only"
+        assert payload["v359_supervised_output_policy"]["contract_ready_for_runtime_activation"] is False
+        assert payload["v359_supervised_output_policy"]["contract_ready_for_dashboard_guidance"] is True
+        assert payload["v359_supervised_output_policy"]["queue_status"] == "stable"
+        assert payload["v359_supervised_output_policy"]["queue_passing_splits"] == 5
+        assert payload["v359_supervised_output_policy"]["queue_evaluated_splits"] == 5
+        assert payload["v359_supervised_output_policy"]["queue_f1_min"] == 0.9725
+        assert payload["v359_supervised_output_policy"]["queue_benign_like_false_positive_rate_max"] == 0.04
+        assert payload["v359_supervised_output_policy"]["agreement_status"] == "usable_with_review"
+        assert payload["v359_supervised_output_policy"]["agreement_passing_splits"] == 4
+        assert payload["v359_supervised_output_policy"]["exact_severity_status"] == "unstable"
+        assert payload["v359_supervised_output_policy"]["exact_stable_policy_count"] == 0
+        assert payload["v359_supervised_output_policy"]["allowed_output_statuses"]["soc_review_queue_score"] == "allowed_for_decision_support"
+        assert "automatic response from supervised ML output" in payload["v359_supervised_output_policy"]["blocked_uses"]
+        assert payload["v359_supervised_output_policy"]["production_promoted"] is False
+        assert payload["v359_supervised_output_policy"]["model_activated"] is False
+        assert payload["v359_supervised_output_policy"]["labels_written"] is False
+        assert payload["v359_supervised_output_policy"]["raw_logs_included"] is False
+        assert payload["v359_supervised_output_policy"]["response_automation_allowed"] is False
+        assert payload["v359_supervised_output_policy"]["real_firewall_blocking_enabled"] is False
+        assert payload["v359_supervised_output_policy"]["diagnostic_only"] is True
         assert str(report_dir) not in json.dumps(payload)
         assert str(generalization_dir) not in json.dumps(payload)
         assert str(layered_dir) not in json.dumps(payload)

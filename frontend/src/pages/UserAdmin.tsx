@@ -4,11 +4,12 @@ import { EmptyState } from "../components/EmptyState";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { MetricCard } from "../components/MetricCard";
 import { SafeSelect } from "../components/SafeSelect";
-import { useDevEmailOutbox, useEmailStatus, useOidcStatus, useUserMutations, useUsers } from "../hooks/useApiQueries";
+import { useDevEmailOutbox, useEmailStatus, useMfuIamStatus, useOidcStatus, useUserMutations, useUsers } from "../hooks/useApiQueries";
 
 export function UserAdmin() {
   const users = useUsers();
   const oidcStatus = useOidcStatus();
+  const mfuIamStatus = useMfuIamStatus();
   const emailStatus = useEmailStatus();
   const devOutbox = useDevEmailOutbox(Boolean(emailStatus.data?.dev_outbox_available));
   const mutations = useUserMutations();
@@ -43,6 +44,9 @@ export function UserAdmin() {
   const schoolDomains = emailStatus.data?.school_email_domains.length
     ? emailStatus.data.school_email_domains
     : oidcStatus.data?.school_email_domains ?? [];
+  const mfuDomains = mfuIamStatus.data?.allowed_domains.length
+    ? mfuIamStatus.data.allowed_domains
+    : mfuIamStatus.data?.domain_hints ?? [];
   const canSendVerification = Boolean(emailStatus.data?.verification_enabled);
   const emailDeliveryLabel = emailStatus.data?.delivery_mode === "dev_outbox"
     ? "Dev outbox"
@@ -114,6 +118,56 @@ export function UserAdmin() {
         <div className="mt-3 rounded-lg border border-line bg-panel2 p-3 text-sm text-muted">
           Local username/password login remains active. OIDC login is configuration groundwork only until school provider details are approved.
         </div>
+      </section>
+
+      <section className="panel">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-sm font-extrabold uppercase tracking-wide text-muted">MFU IAM Adapter</div>
+            <h2 className="mt-1 text-xl font-black">School-email integration readiness</h2>
+          </div>
+          <Badge value={mfuIamStatus.data?.enabled ? "Configured" : "Disabled"} />
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <div className="rounded-lg border border-line bg-panel2 p-3">
+            <div className="text-xs uppercase tracking-wide text-muted">B2B Client</div>
+            <div className="mt-1 font-bold">{mfuIamStatus.data?.b2b_ready ? "Ready" : "Not ready"}</div>
+          </div>
+          <div className="rounded-lg border border-line bg-panel2 p-3">
+            <div className="text-xs uppercase tracking-wide text-muted">Admin API</div>
+            <div className="mt-1 font-bold">{mfuIamStatus.data?.admin_api_ready ? "Ready" : "Not ready"}</div>
+          </div>
+          <div className="rounded-lg border border-line bg-panel2 p-3">
+            <div className="text-xs uppercase tracking-wide text-muted">Permission Bootstrap</div>
+            <div className="mt-1 font-bold">{mfuIamStatus.data?.permission_bootstrap_ready ? "Ready" : "Not ready"}</div>
+          </div>
+          <div className="rounded-lg border border-line bg-panel2 p-3">
+            <div className="text-xs uppercase tracking-wide text-muted">2FA Policy</div>
+            <div className="mt-1 font-bold">{mfuIamStatus.data?.auth_require_2fa ? "Required by template" : "Not required"}</div>
+          </div>
+        </div>
+        <div className="mt-3 grid gap-3 md:grid-cols-4">
+          <div className="rounded-lg border border-line bg-panel2 p-3">
+            <div className="text-xs uppercase tracking-wide text-muted">School Domains</div>
+            <div className="mt-1 break-words font-bold">{mfuDomains.length ? mfuDomains.join(", ") : "Not configured"}</div>
+          </div>
+          <div className="rounded-lg border border-line bg-panel2 p-3">
+            <div className="text-xs uppercase tracking-wide text-muted">Default Role</div>
+            <div className="mt-1 font-bold">{mfuIamStatus.data?.default_role ?? "analyst"}</div>
+          </div>
+          <div className="rounded-lg border border-line bg-panel2 p-3">
+            <div className="text-xs uppercase tracking-wide text-muted">Permission Paths</div>
+            <div className="mt-1 font-bold">{mfuIamStatus.data?.permission_paths_count ?? 0}</div>
+          </div>
+          <div className="rounded-lg border border-line bg-panel2 p-3">
+            <div className="text-xs uppercase tracking-wide text-muted">Secrets</div>
+            <div className="mt-1 font-bold">{mfuIamStatus.data?.secrets_exposed ? "Exposure detected" : "Hidden"}</div>
+          </div>
+        </div>
+        <div className="mt-3 rounded-lg border border-line bg-panel2 p-3 text-sm text-muted">
+          ATDR can read the supervisor template IAM variables from local `.env`, but local login stays active and no real external login is used unless MFU IAM is explicitly enabled and tested.
+        </div>
+        {mfuIamStatus.isError ? <ErrorBanner error={mfuIamStatus.error} fallback="MFU IAM status is unavailable." /> : null}
       </section>
 
       <section className="panel">
