@@ -28,7 +28,9 @@ import type {
   IngestionRun,
   LogSource,
   MLEvaluationReport,
+  MfuIamPublicStatus,
   MfuIamStatus,
+  MfuIamTokenResponse,
   MLLabel,
   MLLabelImportResult,
   MLLabelPayload,
@@ -158,6 +160,12 @@ export const api = {
     apiRequest<TokenResponse>("/api/auth/login", {
       method: "POST",
       body: JSON.stringify({ username, password })
+    }),
+  mfuIamPublicStatus: () => apiRequest<MfuIamPublicStatus>("/api/auth/mfu-iam/public-status"),
+  mfuIamTokenLogin: (token: string) =>
+    apiRequest<MfuIamTokenResponse>("/api/auth/mfu-iam/token-login", {
+      method: "POST",
+      body: JSON.stringify({ token })
     }),
   me: () => apiRequest<User>("/api/auth/me"),
   oidcStatus: () => apiRequest<OidcStatus>("/api/auth/oidc/status"),

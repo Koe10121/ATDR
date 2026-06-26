@@ -4,7 +4,7 @@
 
 The SOC Assistant normally runs in deterministic local mode. It is read-only, audited, and cannot execute response actions, run detection, mutate labels, activate models, change accounts, or expose raw logs by default.
 
-v3.63 adds a real provider adapter for Gemini, OpenAI-compatible APIs, Claude/Anthropic, and a mock test provider. External LLM calls are still disabled by default and require explicit `.env` configuration.
+v3.63 adds a real provider adapter for Gemini, OpenAI-compatible APIs, Claude/Anthropic, and a mock test provider. v3.65 adds a command-line provider probe. External LLM calls are still disabled by default and require explicit `.env` configuration.
 
 ## Recommended Provider Strategy
 
@@ -88,3 +88,19 @@ The external LLM adapter must:
 ## Current Decision
 
 The best real-AI candidate remains Gemini if MFU/Google access is approved. Until provider details, key handling, and data-sharing policy are confirmed, ATDR should keep deterministic local assistant behavior as the default.
+
+## Safe Provider Probe
+
+Run status-only provider readiness:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.test_assistant_llm_provider --pretty
+```
+
+Run one minimal provider call only after configuring a private `.env` and setting `ASSISTANT_LLM_ENABLED=true`:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.test_assistant_llm_provider --execute --pretty
+```
+
+The probe reports whether a provider/model/key are configured, but never prints API keys. It sends only bounded safety-policy context and does not include raw logs.

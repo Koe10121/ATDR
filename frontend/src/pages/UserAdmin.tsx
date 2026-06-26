@@ -134,6 +134,10 @@ export function UserAdmin() {
             <div className="mt-1 font-bold">{mfuIamStatus.data?.b2b_ready ? "Ready" : "Not ready"}</div>
           </div>
           <div className="rounded-lg border border-line bg-panel2 p-3">
+            <div className="text-xs uppercase tracking-wide text-muted">Token Login</div>
+            <div className="mt-1 font-bold">{mfuIamStatus.data?.token_login_ready ? "Ready" : "Not ready"}</div>
+          </div>
+          <div className="rounded-lg border border-line bg-panel2 p-3">
             <div className="text-xs uppercase tracking-wide text-muted">Admin API</div>
             <div className="mt-1 font-bold">{mfuIamStatus.data?.admin_api_ready ? "Ready" : "Not ready"}</div>
           </div>
@@ -156,6 +160,14 @@ export function UserAdmin() {
             <div className="mt-1 font-bold">{mfuIamStatus.data?.default_role ?? "analyst"}</div>
           </div>
           <div className="rounded-lg border border-line bg-panel2 p-3">
+            <div className="text-xs uppercase tracking-wide text-muted">Admin Mapping</div>
+            <div className="mt-1 font-bold">{mfuIamStatus.data?.admin_email_mapping_configured ? "Explicit" : "Not configured"}</div>
+          </div>
+          <div className="rounded-lg border border-line bg-panel2 p-3">
+            <div className="text-xs uppercase tracking-wide text-muted">Test Harness</div>
+            <div className="mt-1 font-bold">{mfuIamStatus.data?.mock_enabled ? "Enabled" : "Disabled"}</div>
+          </div>
+          <div className="rounded-lg border border-line bg-panel2 p-3">
             <div className="text-xs uppercase tracking-wide text-muted">Permission Paths</div>
             <div className="mt-1 font-bold">{mfuIamStatus.data?.permission_paths_count ?? 0}</div>
           </div>
@@ -165,7 +177,7 @@ export function UserAdmin() {
           </div>
         </div>
         <div className="mt-3 rounded-lg border border-line bg-panel2 p-3 text-sm text-muted">
-          ATDR can read the supervisor template IAM variables from local `.env`, but local login stays active and no real external login is used unless MFU IAM is explicitly enabled and tested.
+          ATDR can read the supervisor template IAM variables from local `.env`. Local login stays active. School-email token login is available only when MFU IAM is explicitly enabled and validated; admin role mapping requires an explicit allowlist.
         </div>
         {mfuIamStatus.isError ? <ErrorBanner error={mfuIamStatus.error} fallback="MFU IAM status is unavailable." /> : null}
       </section>

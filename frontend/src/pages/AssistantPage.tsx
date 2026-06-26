@@ -673,6 +673,7 @@ export function AssistantPage() {
             <Badge value="Decision Support Only" />
             <Badge value="Response Automation Disabled" />
             <Badge value="Simulation Mode" />
+            <Badge value={status.data?.raw_log_context_allowed ? "Raw Log Context Restricted" : "Raw Logs Disabled"} />
             <Badge value="No Auto Tuning" />
           </div>
         </div>
@@ -682,7 +683,11 @@ export function AssistantPage() {
         <div className="metric-card">
           <div className="metric-label">Assistant Mode</div>
           <div className="metric-value text-lg">{status.data?.mode?.replaceAll("_", " ") ?? "Loading"}</div>
-          <div className="metric-help">External LLM is disabled unless configured.</div>
+          <div className="metric-help">
+            {status.data?.external_provider_configured
+              ? "External LLM is enabled for wording support only."
+              : "External LLM is disabled unless configured."}
+          </div>
         </div>
         <div className="metric-card">
           <div className="metric-label">Provider</div>

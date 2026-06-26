@@ -13,10 +13,27 @@ from atdr.app.schemas.account_email import (
     EmailVerificationVerifyRequest,
     EmailVerificationVerifyResponse,
 )
-from atdr.app.schemas.auth import ChangePasswordRequest, LoginRequest, MfuIamStatusRead, OidcStatusRead, TokenResponse, UserRead
+from atdr.app.schemas.auth import (
+    ChangePasswordRequest,
+    LoginRequest,
+    MfuIamPublicStatusRead,
+    MfuIamStatusRead,
+    MfuIamTokenLoginRequest,
+    MfuIamTokenLoginResponse,
+    OidcStatusRead,
+    TokenResponse,
+    UserRead,
+)
 from atdr.app.services.account_verification_service import request_email_verification, verify_email_code
 from atdr.app.services.email_service import get_email_delivery_status
-from atdr.app.services.mfu_iam_service import build_mfu_iam_status
+from atdr.app.services.mfu_iam_service import (
+    MfuIamAuthenticationError,
+    audit_mfu_iam_login,
+    authenticate_mfu_iam_token,
+    build_mfu_iam_public_status,
+    build_mfu_iam_status,
+    upsert_mfu_iam_user,
+)
 from atdr.app.services.user_service import authenticate_user, change_own_password, record_successful_login
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -83,6 +100,57 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
         "expires_in_minutes": settings.access_token_expire_minutes,
         "username": user.username,
         "role": user.role,
+    }
+
+
+@router.get("/mfu-iam/public-status", response_model=MfuIamPublicStatusRead)
+def mfu_iam_public_status() -> dict:
+    settings = get_settings()
+    return build_mfu_iam_public_status(settings)
+
+
+@router.post("/mfu-iam/token-login", response_model=MfuIamTokenLoginResponse)
+def mfu_iam_token_login(
+    payload: MfuIamTokenLoginRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> dict:
+    _check_rate_limit(request, "mfu-iam-token-login")
+    settings = get_settings()
+    client_ip = request.client.host if request.client else None
+    try:
+        identity = authenticate_mfu_iam_token(payload.token, settings)
+        user = upsert_mfu_iam_user(db, identity)
+    except MfuIamAuthenticationError as exc:
+        audit_mfu_iam_login(
+            db,
+            actor="anonymous",
+            success=False,
+            reason=str(exc),
+            client_ip=client_ip,
+        )
+        _login_failures.setdefault(_rate_key(request, "mfu-iam-token-login"), []).append(time.monotonic())
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="MFU IAM login failed.") from exc
+
+    _clear_failed_logins(request, "mfu-iam-token-login")
+    audit_mfu_iam_login(
+        db,
+        actor=user.username,
+        success=True,
+        reason="validated_external_token",
+        client_ip=client_ip,
+        email_domain=(user.email or "").rsplit("@", 1)[-1].lower() if user.email and "@" in user.email else None,
+    )
+    token = create_access_token(subject=user.username, role=user.role)
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "expires_in_minutes": settings.access_token_expire_minutes,
+        "username": user.username,
+        "role": user.role,
+        "email": user.email,
+        "auth_provider": user.auth_provider,
+        "external_login": True,
     }
 
 

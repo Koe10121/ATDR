@@ -29,6 +29,7 @@ This index defines the active ATDR documentation set for AI/Codex-assisted work.
 | `docs/security/ATDR_MFU_IAM_ADAPTER_PLAN.md` | Safe mapping from supervisor MFU IAM/Google SSO/OTP/B2B guidance to ATDR without enabling external IAM. |
 | `docs/security/ATDR_MFU_IAM_IMPLEMENTATION_PLAN.md` | Source-backed implementation path for MFU IAM SDK/token introspection and school-email role mapping, still disabled by default. |
 | `docs/V3_64_MFU_IAM_TEMPLATE_ADAPTER.md` | Supervisor-template IAM env compatibility and non-secret readiness status for ATDR. |
+| `docs/V3_65_MFU_IAM_AND_REAL_ASSISTANT_HARNESS.md` | Disabled-by-default MFU school-email token-login harness and safe real LLM provider probe. |
 | `docs/security/ATDR_REAL_LLM_ASSISTANT_PLAN.md` | Real LLM assistant provider plan with Gemini/OpenAI/Claude options, disabled by default and read-only. |
 | `docs/security/ATDR_SCHOOL_EMAIL_IAM_READINESS_AUDIT.md` | School-email IAM readiness audit explaining why real MFU/Google/OIDC login remains disabled until provider details are approved. |
 | `docs/security/MFU_IAM_PROVIDER_DETAILS_CHECKLIST.md` | Advisor/provider questions required before real MFU IAM or Google SSO implementation. |

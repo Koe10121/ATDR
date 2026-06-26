@@ -281,6 +281,101 @@ def test_mfu_iam_disabled_does_not_change_local_login(monkeypatch):
         get_settings.cache_clear()
 
 
+def test_mfu_iam_public_status_is_safe_without_auth(monkeypatch):
+    monkeypatch.setenv("MFU_IAM_ENABLED", "true")
+    monkeypatch.setenv("MFU_IAM_MOCK_ENABLED", "true")
+    monkeypatch.setenv("MFU_IAM_ALLOWED_DOMAINS", "lamduan.mfu.ac.th")
+    monkeypatch.setenv("MFU_IAM_CLIENT_SECRET", "mfu-secret-that-must-not-leak")
+    monkeypatch.setenv("MFU_IAM_DEFAULT_ROLE", "analyst")
+    get_settings.cache_clear()
+    client = _client()
+    try:
+        response = client.get("/api/auth/mfu-iam/public-status")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["enabled"] is True
+        assert payload["token_login_ready"] is True
+        assert payload["mock_enabled"] is True
+        assert payload["allowed_domains"] == ["lamduan.mfu.ac.th"]
+        assert payload["secrets_exposed"] is False
+        assert "mfu-secret-that-must-not-leak" not in str(payload)
+        assert "MFU_IAM_CLIENT_SECRET" not in str(payload)
+    finally:
+        app.dependency_overrides.clear()
+        get_settings.cache_clear()
+
+
+def test_mfu_iam_mock_token_login_creates_external_analyst_and_audits(monkeypatch):
+    monkeypatch.setenv("MFU_IAM_ENABLED", "true")
+    monkeypatch.setenv("MFU_IAM_MOCK_ENABLED", "true")
+    monkeypatch.setenv("MFU_IAM_ALLOWED_DOMAINS", "lamduan.mfu.ac.th")
+    monkeypatch.setenv("MFU_IAM_DEFAULT_ROLE", "admin")
+    monkeypatch.setenv("MFU_IAM_ADMIN_EMAILS", "")
+    get_settings.cache_clear()
+    client = _client()
+    try:
+        response = client.post("/api/auth/mfu-iam/token-login", json={"token": "mock:6631501139@lamduan.mfu.ac.th"})
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["username"] == "6631501139@lamduan.mfu.ac.th"
+        assert payload["email"] == "6631501139@lamduan.mfu.ac.th"
+        assert payload["role"] == "analyst"
+        assert payload["auth_provider"] == "external"
+        assert payload["external_login"] is True
+
+        me = client.get("/api/auth/me", headers={"Authorization": f"Bearer {payload['access_token']}"})
+        assert me.status_code == 200
+        assert me.json()["email_verified"] is True
+        assert me.json()["auth_provider"] == "external"
+
+        admin_headers = _login(client, "admin", "admin123")
+        audit = client.get("/api/audit", headers=admin_headers)
+        assert audit.status_code == 200
+        assert "mfu_iam_login_success" in str(audit.json())
+    finally:
+        app.dependency_overrides.clear()
+        get_settings.cache_clear()
+
+
+def test_mfu_iam_mock_token_login_requires_allowed_domain_and_hides_reason_details(monkeypatch):
+    monkeypatch.setenv("MFU_IAM_ENABLED", "true")
+    monkeypatch.setenv("MFU_IAM_MOCK_ENABLED", "true")
+    monkeypatch.setenv("MFU_IAM_ALLOWED_DOMAINS", "lamduan.mfu.ac.th")
+    get_settings.cache_clear()
+    client = _client()
+    try:
+        response = client.post("/api/auth/mfu-iam/token-login", json={"token": "mock:person@example.com"})
+        assert response.status_code == 401
+        payload = response.json()
+        assert payload["detail"] == "MFU IAM login failed."
+        assert "person@example.com" not in str(payload)
+
+        admin_headers = _login(client, "admin", "admin123")
+        audit = client.get("/api/audit", headers=admin_headers)
+        assert audit.status_code == 200
+        assert "mfu_iam_login_failed" in str(audit.json())
+    finally:
+        app.dependency_overrides.clear()
+        get_settings.cache_clear()
+
+
+def test_mfu_iam_explicit_admin_email_mapping_is_required(monkeypatch):
+    monkeypatch.setenv("MFU_IAM_ENABLED", "true")
+    monkeypatch.setenv("MFU_IAM_MOCK_ENABLED", "true")
+    monkeypatch.setenv("MFU_IAM_ALLOWED_DOMAINS", "lamduan.mfu.ac.th")
+    monkeypatch.setenv("MFU_IAM_DEFAULT_ROLE", "analyst")
+    monkeypatch.setenv("MFU_IAM_ADMIN_EMAILS", "6631501139@lamduan.mfu.ac.th")
+    get_settings.cache_clear()
+    client = _client()
+    try:
+        response = client.post("/api/auth/mfu-iam/token-login", json={"token": "mock:6631501139@lamduan.mfu.ac.th"})
+        assert response.status_code == 200
+        assert response.json()["role"] == "admin"
+    finally:
+        app.dependency_overrides.clear()
+        get_settings.cache_clear()
+
+
 def test_dashboard_validation_summary_reports_latest_file_without_private_paths(monkeypatch):
     report_dir = Path(".pytest_tmp") / "dashboard_validation_summary" / "detection_validation"
     generalization_dir = Path(".pytest_tmp") / "dashboard_validation_summary" / "detection_generalization"

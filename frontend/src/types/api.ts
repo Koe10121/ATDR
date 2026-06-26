@@ -26,6 +26,12 @@ export interface TokenResponse {
   role: Role;
 }
 
+export interface MfuIamTokenResponse extends TokenResponse {
+  email?: string | null;
+  auth_provider: "external" | string;
+  external_login: boolean;
+}
+
 export interface OidcStatus {
   enabled: boolean;
   provider_name?: string | null;
@@ -60,6 +66,8 @@ export interface MfuIamStatus {
   allowed_domains: string[];
   domain_hints: string[];
   default_role: Role | string;
+  mock_enabled: boolean;
+  admin_email_mapping_configured: boolean;
   google_sso_enabled: boolean;
   google_client_id_configured: boolean;
   permission_source?: string | null;
@@ -77,8 +85,24 @@ export interface MfuIamStatus {
   init_admin_emails_configured: boolean;
   seed_admin_email_configured: boolean;
   b2b_ready: boolean;
+  token_login_ready: boolean;
   admin_api_ready: boolean;
   permission_bootstrap_ready: boolean;
+  mode: "local_login_only" | "mfu_iam_configured" | string;
+  secrets_exposed: boolean;
+}
+
+export interface MfuIamPublicStatus {
+  enabled: boolean;
+  token_login_ready: boolean;
+  b2b_ready: boolean;
+  mock_enabled: boolean;
+  google_sso_enabled: boolean;
+  google_client_id_configured: boolean;
+  allowed_domains: string[];
+  domain_hints: string[];
+  default_role: Role | string;
+  auth_require_2fa: boolean;
   mode: "local_login_only" | "mfu_iam_configured" | string;
   secrets_exposed: boolean;
 }

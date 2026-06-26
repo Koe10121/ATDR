@@ -4,6 +4,7 @@ import json
 from collections.abc import Generator
 from datetime import datetime, timezone
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, delete, func, select
 from sqlalchemy.orm import Session, sessionmaker
@@ -27,8 +28,24 @@ from atdr.app.db.models import (
     User,
 )
 from atdr.app.main import app
+from atdr.app.services import assistant_llm
 from atdr.app.services import assistant_service
 from atdr.app.services.user_service import create_user
+from atdr.scripts.test_assistant_llm_provider import build_report as build_llm_provider_probe_report
+
+
+@pytest.fixture(autouse=True)
+def _disable_external_llm_by_default(monkeypatch):
+    """Keep assistant tests deterministic even when local .env enables a real provider."""
+
+    monkeypatch.setenv("ASSISTANT_LLM_ENABLED", "false")
+    monkeypatch.setenv("ASSISTANT_LLM_PROVIDER", "")
+    monkeypatch.setenv("ASSISTANT_LLM_MODEL", "")
+    monkeypatch.setenv("ASSISTANT_LLM_API_KEY", "")
+    monkeypatch.setenv("ASSISTANT_ALLOW_RAW_LOG_CONTEXT", "false")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 def _client_with_session() -> tuple[TestClient, sessionmaker[Session]]:
@@ -281,6 +298,101 @@ def test_assistant_mock_llm_adapter_is_explicit_read_only_and_audited(monkeypatc
             assert after_counts == before_counts
             assert audit is not None
             assert audit.details["external_provider_used"] is True
+            assert audit.details["raw_log_context_included"] is False
+    finally:
+        app.dependency_overrides.clear()
+        get_settings.cache_clear()
+
+
+def test_assistant_llm_provider_probe_is_status_only_by_default_and_hides_secret(monkeypatch):
+    monkeypatch.setenv("ASSISTANT_LLM_ENABLED", "false")
+    monkeypatch.setenv("ASSISTANT_LLM_PROVIDER", "gemini")
+    monkeypatch.setenv("ASSISTANT_LLM_MODEL", "gemini-test")
+    monkeypatch.setenv("ASSISTANT_LLM_API_KEY", "llm-secret-that-must-not-leak")
+    monkeypatch.setenv("ASSISTANT_ALLOW_RAW_LOG_CONTEXT", "false")
+    get_settings.cache_clear()
+    try:
+        report = build_llm_provider_probe_report(execute=False)
+        assert report["ok"] is True
+        assert report["executed_provider_call"] is False
+        assert report["provider"] == "gemini"
+        assert report["api_key_configured"] is True
+        assert report["secrets_exposed"] is False
+        assert "llm-secret-that-must-not-leak" not in str(report)
+    finally:
+        get_settings.cache_clear()
+
+
+def test_assistant_llm_provider_probe_mock_executes_without_raw_logs(monkeypatch):
+    monkeypatch.setenv("ASSISTANT_LLM_ENABLED", "true")
+    monkeypatch.setenv("ASSISTANT_LLM_PROVIDER", "mock")
+    monkeypatch.setenv("ASSISTANT_LLM_MODEL", "mock-soc")
+    monkeypatch.setenv("ASSISTANT_LLM_API_KEY", "")
+    monkeypatch.setenv("ASSISTANT_ALLOW_RAW_LOG_CONTEXT", "false")
+    get_settings.cache_clear()
+    try:
+        report = build_llm_provider_probe_report(execute=True)
+        assert report["ok"] is True
+        assert report["executed_provider_call"] is True
+        assert report["provider"] == "mock"
+        assert report["raw_log_context_included"] is False
+        assert report["secrets_exposed"] is False
+    finally:
+        get_settings.cache_clear()
+
+
+def test_assistant_external_llm_failure_falls_back_without_side_effects(monkeypatch):
+    monkeypatch.setenv("ASSISTANT_LLM_ENABLED", "true")
+    monkeypatch.setenv("ASSISTANT_LLM_PROVIDER", "gemini")
+    monkeypatch.setenv("ASSISTANT_LLM_MODEL", "gemini-test")
+    monkeypatch.setenv("ASSISTANT_LLM_API_KEY", "llm-secret-that-must-not-leak")
+    monkeypatch.setenv("ASSISTANT_ALLOW_RAW_LOG_CONTEXT", "false")
+    monkeypatch.setenv("ASSISTANT_REDACT_IPS", "true")
+
+    def fail_provider_request(*args, **kwargs):
+        raise RuntimeError("simulated provider outage")
+
+    monkeypatch.setattr(assistant_llm, "_post_json", fail_provider_request)
+    get_settings.cache_clear()
+    client, testing_session = _client_with_session()
+    try:
+        headers = _login(client)
+        with testing_session() as db:
+            before_counts = {
+                "response_actions": db.scalar(select(func.count(ResponseAction.id))),
+                "detection_runs": db.scalar(select(func.count(DetectionRun.id))),
+                "model_runs": db.scalar(select(func.count(MLModelRun.id))),
+                "labels": db.scalar(select(func.count(MLLabel.id))),
+                "users": db.scalar(select(func.count(User.id))),
+            }
+
+        response = client.post(
+            "/api/assistant/chat",
+            json={"question": "What should I check before responding to alert with source 203.0.113.10?"},
+            headers=headers,
+        )
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["external_provider_used"] is False
+        assert payload["raw_log_context_included"] is False
+        assert payload["details"]["llm"]["used"] is False
+        assert payload["details"]["llm"]["fallback_reason"] == "provider_request_failed"
+        assert payload["details"]["llm"]["secrets_exposed"] is False
+        assert "203.0.113.10" not in payload["answer"]
+        assert "llm-secret-that-must-not-leak" not in str(payload)
+
+        with testing_session() as db:
+            after_counts = {
+                "response_actions": db.scalar(select(func.count(ResponseAction.id))),
+                "detection_runs": db.scalar(select(func.count(DetectionRun.id))),
+                "model_runs": db.scalar(select(func.count(MLModelRun.id))),
+                "labels": db.scalar(select(func.count(MLLabel.id))),
+                "users": db.scalar(select(func.count(User.id))),
+            }
+            audit = db.scalar(select(AuditLog).where(AuditLog.action == "assistant_question").order_by(AuditLog.id.desc()))
+            assert after_counts == before_counts
+            assert audit is not None
+            assert audit.details["external_provider_used"] is False
             assert audit.details["raw_log_context_included"] is False
     finally:
         app.dependency_overrides.clear()

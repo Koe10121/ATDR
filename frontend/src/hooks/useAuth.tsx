@@ -9,6 +9,7 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   isAdmin: boolean;
   login: (username: string, password: string) => Promise<void>;
+  loginWithMfuIamToken: (token: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -31,6 +32,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login: async (username: string, password: string) => {
         const token = await api.login(username, password);
         const nextSession = tokenToSession(token);
+        saveSession(nextSession);
+        setSession(nextSession);
+      },
+      loginWithMfuIamToken: async (token: string) => {
+        const response = await api.mfuIamTokenLogin(token);
+        const nextSession = tokenToSession(response);
         saveSession(nextSession);
         setSession(nextSession);
       },

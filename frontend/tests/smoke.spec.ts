@@ -119,6 +119,24 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
       }
     })
   );
+  await page.route("**/api/auth/mfu-iam/public-status", async (route) =>
+    route.fulfill({
+      json: {
+        enabled: false,
+        token_login_ready: false,
+        b2b_ready: false,
+        mock_enabled: false,
+        google_sso_enabled: false,
+        google_client_id_configured: false,
+        allowed_domains: [],
+        domain_hints: [],
+        default_role: "analyst",
+        auth_require_2fa: false,
+        mode: "local_login_only",
+        secrets_exposed: false
+      }
+    })
+  );
   await page.route("**/api/auth/mfu-iam/status", async (route) =>
     route.fulfill({
       json: {
@@ -141,6 +159,8 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
         allowed_domains: [],
         domain_hints: [],
         default_role: "analyst",
+        mock_enabled: false,
+        admin_email_mapping_configured: false,
         google_sso_enabled: false,
         google_client_id_configured: false,
         permission_source: null,
@@ -158,6 +178,7 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
         init_admin_emails_configured: false,
         seed_admin_email_configured: false,
         b2b_ready: false,
+        token_login_ready: false,
         admin_api_ready: false,
         permission_bootstrap_ready: false,
         mode: "local_login_only",

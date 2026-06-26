@@ -1,20 +1,42 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { ShieldCheck } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
+import { api } from "../lib/api";
+import type { MfuIamPublicStatus } from "../types/api";
 
 export function LoginPage() {
-  const { isAuthenticated, login } = useAuth();
+  const { isAuthenticated, login, loginWithMfuIamToken } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("admin123");
+  const [schoolToken, setSchoolToken] = useState("");
+  const [mfuStatus, setMfuStatus] = useState<MfuIamPublicStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [schoolLoading, setSchoolLoading] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    api
+      .mfuIamPublicStatus()
+      .then((status) => {
+        if (active) setMfuStatus(status);
+      })
+      .catch(() => {
+        if (active) setMfuStatus(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   if (isAuthenticated) {
     return <Navigate to="/overview" replace />;
   }
+
+  const from = (location.state as { from?: string } | null)?.from ?? "/overview";
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -22,7 +44,6 @@ export function LoginPage() {
     setLoading(true);
     try {
       await login(username, password);
-      const from = (location.state as { from?: string } | null)?.from ?? "/overview";
       navigate(from, { replace: true });
     } catch (exc) {
       setError(exc instanceof Error ? exc.message : "Login failed.");
@@ -30,6 +51,25 @@ export function LoginPage() {
       setLoading(false);
     }
   }
+
+  async function onSchoolSubmit(event: FormEvent) {
+    event.preventDefault();
+    setError(null);
+    setSchoolLoading(true);
+    try {
+      await loginWithMfuIamToken(schoolToken);
+      navigate(from, { replace: true });
+    } catch (exc) {
+      setError(exc instanceof Error ? exc.message : "School email login failed.");
+    } finally {
+      setSchoolLoading(false);
+    }
+  }
+
+  const schoolLoginReady = Boolean(mfuStatus?.enabled && mfuStatus.token_login_ready);
+  const schoolDomains = mfuStatus?.allowed_domains.length
+    ? mfuStatus.allowed_domains
+    : mfuStatus?.domain_hints ?? [];
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-shell p-6 text-text">
@@ -67,6 +107,41 @@ export function LoginPage() {
           <button className="btn-primary mt-6 w-full" disabled={loading}>
             {loading ? "Signing in..." : "Sign in"}
           </button>
+          <div className="mt-6 rounded-lg border border-line bg-panel2 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-black uppercase tracking-wide text-muted">School email login</div>
+                <div className="mt-1 text-sm text-muted">
+                  {schoolLoginReady
+                    ? "MFU IAM token handoff is configured."
+                    : "Not configured. Local login remains available."}
+                </div>
+              </div>
+              <span className={`badge ${schoolLoginReady ? "badge-ok" : ""}`}>
+                {schoolLoginReady ? "Ready" : "Disabled"}
+              </span>
+            </div>
+            {schoolDomains.length ? (
+              <div className="mt-3 text-xs font-bold text-muted">Allowed domain: {schoolDomains.join(", ")}</div>
+            ) : null}
+            {schoolLoginReady ? (
+              <form onSubmit={onSchoolSubmit} className="mt-4">
+                <label className="block text-sm font-bold text-muted">
+                  External IAM token
+                  <input
+                    className="input mt-2"
+                    value={schoolToken}
+                    onChange={(event) => setSchoolToken(event.target.value)}
+                    placeholder={mfuStatus?.mock_enabled ? "mock:user@lamduan.mfu.ac.th" : "Paste provider token"}
+                    autoComplete="off"
+                  />
+                </label>
+                <button className="btn-secondary mt-3 w-full" disabled={schoolLoading || !schoolToken.trim()}>
+                  {schoolLoading ? "Validating..." : "Sign in with school IAM"}
+                </button>
+              </form>
+            ) : null}
+          </div>
           <p className="mt-4 text-xs text-muted">
             Demo credentials are for local presentation only. Replace secrets and passwords before lab-pilot deployment.
           </p>

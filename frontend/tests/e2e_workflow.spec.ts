@@ -145,6 +145,22 @@ async function mockWorkflowApi(page: Page) {
       smtp_enabled: false
     })
   );
+  await page.route("**/api/auth/mfu-iam/public-status", (route) =>
+    fulfill(route, {
+      enabled: false,
+      token_login_ready: false,
+      b2b_ready: false,
+      mock_enabled: false,
+      google_sso_enabled: false,
+      google_client_id_configured: false,
+      allowed_domains: [],
+      domain_hints: [],
+      default_role: "analyst",
+      auth_require_2fa: false,
+      mode: "local_login_only",
+      secrets_exposed: false
+    })
+  );
   await page.route("**/api/auth/mfu-iam/status", (route) =>
     fulfill(route, {
       enabled: false,
@@ -166,6 +182,8 @@ async function mockWorkflowApi(page: Page) {
       allowed_domains: [],
       domain_hints: [],
       default_role: "analyst",
+      mock_enabled: false,
+      admin_email_mapping_configured: false,
       google_sso_enabled: false,
       google_client_id_configured: false,
       permission_source: null,
@@ -183,6 +201,7 @@ async function mockWorkflowApi(page: Page) {
       init_admin_emails_configured: false,
       seed_admin_email_configured: false,
       b2b_ready: false,
+      token_login_ready: false,
       admin_api_ready: false,
       permission_bootstrap_ready: false,
       mode: "local_login_only",

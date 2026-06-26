@@ -14,6 +14,31 @@ class TokenResponse(BaseModel):
     role: str
 
 
+class MfuIamTokenLoginRequest(BaseModel):
+    token: str = Field(min_length=1, max_length=4096)
+
+
+class MfuIamTokenLoginResponse(TokenResponse):
+    email: str | None = None
+    auth_provider: str = "external"
+    external_login: bool = True
+
+
+class MfuIamPublicStatusRead(BaseModel):
+    enabled: bool
+    token_login_ready: bool
+    b2b_ready: bool
+    mock_enabled: bool = False
+    google_sso_enabled: bool
+    google_client_id_configured: bool
+    allowed_domains: list[str]
+    domain_hints: list[str] = Field(default_factory=list)
+    default_role: str
+    auth_require_2fa: bool = False
+    mode: str
+    secrets_exposed: bool = False
+
+
 class UserRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -66,6 +91,8 @@ class MfuIamStatusRead(BaseModel):
     allowed_domains: list[str]
     domain_hints: list[str] = Field(default_factory=list)
     default_role: str
+    mock_enabled: bool = False
+    admin_email_mapping_configured: bool = False
     google_sso_enabled: bool
     google_client_id_configured: bool
     permission_source: str | None = None
@@ -83,6 +110,7 @@ class MfuIamStatusRead(BaseModel):
     init_admin_emails_configured: bool = False
     seed_admin_email_configured: bool = False
     b2b_ready: bool = False
+    token_login_ready: bool = False
     admin_api_ready: bool = False
     permission_bootstrap_ready: bool = False
     mode: str

@@ -70,10 +70,11 @@ def test_config_doctor_accepts_local_demo_settings():
 
 
 def test_config_doctor_warns_for_docker_postgres_host_in_local_mode():
+    db_password = "db-password-that-must-not-leak"
     result = run_config_doctor(
         Settings(
             ENVIRONMENT="development",
-            DATABASE_URL="postgresql+psycopg2://atdr:secret@postgres:5432/atdr",
+            DATABASE_URL=f"postgresql+psycopg2://atdr:{db_password}@postgres:5432/atdr",
             RESPONSE_SIMULATION=True,
             ASSISTANT_ENABLED=False,
             ASSISTANT_PROVIDER="disabled",
@@ -89,7 +90,7 @@ def test_config_doctor_warns_for_docker_postgres_host_in_local_mode():
     assert result["database_host"] == "postgres"
     assert "postgres-docker-host-local" in codes
     assert "postgres-local-optional" in codes
-    assert "secret" not in rendered
+    assert db_password not in rendered
     assert 'sqlite:///./atdr.db' in result["local_workflow_recommendation"]
 
 

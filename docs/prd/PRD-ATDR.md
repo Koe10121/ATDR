@@ -4,7 +4,7 @@
 | --- | --- |
 | Product | MFU AI-Driven Log-Based Threat Detection and Response System |
 | Short name | ATDR |
-| Current stage | v3.30 Detection and ML quality revalidation |
+| Current stage | v3.65 MFU IAM and real assistant harness |
 | Production claim | None. ATDR is not certified production software. |
 | Main workflow doc | `docs/ATDR_AI_WORKFLOW.md` |
 | Agent model | `docs/agents/ATDR_AGENT_OPERATING_MODEL.md` |
@@ -46,8 +46,8 @@
 | v3.14 email verification foundation | `docs/V3_14_EMAIL_VERIFICATION_AND_ACCOUNT_NOTIFICATIONS.md`, `atdr/app/services/account_verification_service.py`, `atdr/app/services/email_service.py`, `frontend/src/pages/UserAdmin.tsx` |
 | v3.15 account lifecycle UX | `docs/V3_15_ACCOUNT_LIFECYCLE_AND_EMAIL_VERIFICATION_UX.md`, `docs/changes/T1_T20_V3_15_ACCOUNT_LIFECYCLE_AND_EMAIL_VERIFICATION_UX.md`, `frontend/src/components/AppShell.tsx`, `frontend/src/pages/UserAdmin.tsx` |
 | MFU IAM adapter planning | `docs/security/ATDR_MFU_IAM_ADAPTER_PLAN.md`, `docs/security/MFU_IAM_PROVIDER_DETAILS_CHECKLIST.md`, `atdr/app/routers/auth.py` |
-| MFU IAM implementation planning and template adapter | `docs/security/ATDR_MFU_IAM_IMPLEMENTATION_PLAN.md`, `docs/ATDR_TEMPLATE_MERGE_ANALYSIS.md`, `docs/V3_64_MFU_IAM_TEMPLATE_ADAPTER.md` |
-| Real LLM assistant adapter | `docs/V3_63_REAL_LLM_ASSISTANT_ADAPTER.md`, `docs/security/ATDR_REAL_LLM_ASSISTANT_PLAN.md`, `atdr/app/routers/assistant.py`, `atdr/app/services/assistant_service.py`, `atdr/app/services/assistant_llm.py` |
+| MFU IAM implementation planning and token harness | `docs/security/ATDR_MFU_IAM_IMPLEMENTATION_PLAN.md`, `docs/ATDR_TEMPLATE_MERGE_ANALYSIS.md`, `docs/V3_64_MFU_IAM_TEMPLATE_ADAPTER.md`, `docs/V3_65_MFU_IAM_AND_REAL_ASSISTANT_HARNESS.md` |
+| Real LLM assistant adapter and probe | `docs/V3_63_REAL_LLM_ASSISTANT_ADAPTER.md`, `docs/security/ATDR_REAL_LLM_ASSISTANT_PLAN.md`, `docs/V3_65_MFU_IAM_AND_REAL_ASSISTANT_HARNESS.md`, `atdr/app/routers/assistant.py`, `atdr/app/services/assistant_service.py`, `atdr/app/services/assistant_llm.py`, `atdr/scripts/test_assistant_llm_provider.py` |
 | v3.17 parser/detection explainability | `docs/V3_17_PARSER_DETECTION_EXPLAINABILITY_HARDENING.md`, `atdr/scripts/validate_parser_normalization.py`, `atdr/scripts/validate_detection_quality.py`, `atdr/app/detection/explanations.py` |
 | v3.18 detection corpus and FP/FN QA | `docs/V3_18_DETECTION_CORPUS_AND_FP_FN_QA.md`, `data/samples/scenarios/scenario_expectations.json`, `atdr/tests/test_v318_detection_corpus.py` |
 | v3.19 no-hardware soak and parser drift | `docs/V3_19_NO_HARDWARE_SOAK_AND_PARSER_DRIFT.md`, `atdr/scripts/run_no_hardware_soak.py`, `atdr/tests/test_v319_no_hardware_soak.py` |
@@ -88,7 +88,7 @@ ATDR exists to demonstrate and validate:
 | Analyst | Investigate alerts/logs, update alert status, review evidence, label logs, view audit and ML governance | `atdr/app/routers/alerts.py`, `atdr/app/routers/logs.py`, `atdr/app/routers/ml.py` |
 | Supervisor/advisor | Review dashboard, evidence, runbooks, acceptance status, and lab-readiness claims | `docs/V0_3_STATUS.md`, `docs/ACCEPTANCE_TEST_CHECKLIST.md` |
 
-The current role and permission matrix is documented in `docs/security/ATDR_IAM_RBAC_MATRIX.md`. Local accounts now support optional school-email fields, email login for local users, and v3.14 disabled-by-default email verification/dev-outbox groundwork. ATDR does not currently include a viewer/read-only role, real SMTP delivery, password reset email, or full external SSO/OAuth/SAML/LDAP login. v0.4 includes disabled-by-default OIDC configuration/status groundwork only. The MFU IAM adapter plan documents how supervisor-template MFU IAM, Google/MFU Mail, OTP/2FA, permission matrix, and B2B token concepts could map to ATDR later, but no real external IAM flow is enabled.
+The current role and permission matrix is documented in `docs/security/ATDR_IAM_RBAC_MATRIX.md`. Local accounts now support optional school-email fields, email login for local users, and v3.14 disabled-by-default email verification/dev-outbox groundwork. v3.65 adds a disabled-by-default MFU IAM token-login harness that can map verified school-email identities to local ATDR users when explicitly configured. ATDR does not currently include a viewer/read-only role, real SMTP delivery, password reset email, full Google/MFU OAuth callback flow, or external IAM group synchronization.
 
 ## Current Capabilities
 
@@ -155,7 +155,7 @@ Evidence: `frontend/src/App.tsx`, `frontend/src/pages/*`, `frontend/src/lib/api.
 - v3.29 improves assistant reasoning quality with evidence strength, false-positive/noise caveats, missing-evidence notes, source/case risk summaries, and concrete analyst checklists.
 - External LLM support is disabled by default and must be configured through `.env` only after review.
 - v3.63 adds a real provider adapter for Gemini, OpenAI-compatible APIs, Claude/Anthropic, and a mock test provider. The deterministic local answer is still produced first and remains the fallback if the provider is disabled or unavailable.
-- Real LLM provider configuration uses explicit disabled-by-default `ASSISTANT_LLM_*` settings. Gemini is preferred if MFU/Google access is approved; OpenAI-compatible or Claude providers remain alternatives.
+- Real LLM provider configuration uses explicit disabled-by-default `ASSISTANT_LLM_*` settings. Gemini is preferred if MFU/Google access is approved; OpenAI-compatible or Claude providers remain alternatives. v3.65 adds `python -m atdr.scripts.test_assistant_llm_provider` for safe status/probe testing without exposing keys.
 - Raw log context is disabled by default, IP redaction is enabled by default, and assistant questions are audited.
 - Assistant cannot execute response actions, run detection, change labels, activate models, or promote ML models.
 
@@ -242,6 +242,8 @@ Evidence: `atdr/app/db/models.py`, `atdr/app/routers/jobs.py`, `atdr/app/service
 | FR-ATDR-030 | Map supervisor-template MFU IAM/Google SSO/OTP/B2B requirements to ATDR without enabling external IAM | Implemented as safe adapter plan, provider checklist, disabled-by-default config placeholders, and non-secret status API |
 | FR-ATDR-030A | Prepare MFU IAM SDK/token-introspection implementation path without copying secrets or enabling external login | Implemented as source-backed implementation plan and expanded non-secret status/config readiness |
 | FR-ATDR-030B | Prepare real LLM assistant provider integration without enabling external LLM calls by default | Implemented as disabled-by-default `ASSISTANT_LLM_*` config/status groundwork and provider plan |
+| FR-ATDR-030C | Provide a disabled-by-default MFU school-email token-login harness while preserving local login | Implemented in v3.65 with public readiness status, token-login route, allowed-domain enforcement, explicit admin email mapping, audit, and login/Admin UI readiness |
+| FR-ATDR-030D | Provide a safe real LLM provider probe without exposing API keys or raw logs | Implemented in v3.65 as `atdr/scripts/test_assistant_llm_provider.py` |
 | FR-ATDR-031 | Validate parser normalization and controlled detection quality with source-backed, read-only reports | Implemented as v3.17 parser/detection validation and enriched explanation payloads; production accuracy is not claimed |
 | FR-ATDR-032 | Maintain a safe controlled detection corpus with false-positive / false-negative scenario QA | Implemented as v3.18 expanded synthetic scenarios, explicit FP/FN reporting, rule-level QA summaries, and explanation completeness checks; scenario results are lab QA, not production accuracy |
 | FR-ATDR-033 | Run no-hardware multi-source soak validation for parser drift, source health, deduplication, alert-noise stability, and explanation completeness | Implemented as v3.19 temp-DB/dry-run validation; real router/firewall forwarding and production accuracy remain future work |
@@ -283,15 +285,15 @@ ATDR adapts the university IAM requirement as local authentication, authorizatio
 
 Current limitations:
 
-- No external SSO/OAuth/SAML/LDAP.
+- No full external SSO/OAuth/SAML/LDAP browser flow.
 - No enterprise identity provider.
-- No real MFU IAM SDK, Google SSO callback, token introspection, or B2B IAM flow yet.
+- MFU token-login harness exists but real provider token introspection still requires private `.env` configuration and live provider validation.
 - No viewer/read-only role.
 - Demo JWT secret must be replaced before shared lab or real deployment.
 - Current role model is suitable for lab prototype validation, not production IAM.
 - Role permissions must be fully reviewed before real deployment or response connector implementation.
 - v3.14 email verification does not block login by default and does not implement real SMTP or external school SSO.
-- MFU IAM placeholders and `/api/auth/mfu-iam/status` are visibility only; they do not make external network calls or change local login.
+- MFU IAM status and token-login harness are disabled by default. They do not make external network calls during normal startup or change local login.
 
 ## University Template Alignment
 

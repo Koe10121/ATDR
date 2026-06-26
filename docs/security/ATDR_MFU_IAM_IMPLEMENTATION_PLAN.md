@@ -2,7 +2,7 @@
 
 ## Status
 
-ATDR has disabled-by-default MFU IAM and Google SSO configuration/status groundwork. Real external login is not enabled yet. Local username/password login and local email login remain the active authentication paths.
+ATDR has disabled-by-default MFU IAM and Google SSO configuration/status groundwork. v3.65 adds a safe token-login harness behind `MFU_IAM_ENABLED=true`; local username/password login and local email login remain active.
 
 This plan converts the supervisor template IAM evidence into an ATDR-specific implementation path.
 
@@ -17,6 +17,8 @@ This plan converts the supervisor template IAM evidence into an ATDR-specific im
 | School-email metadata | Implemented | `atdr/app/db/models.py`, `frontend/src/pages/UserAdmin.tsx` |
 | Email verification foundation | Disabled by default | `atdr/app/services/account_verification_service.py` |
 | MFU IAM status endpoint | Implemented, non-secret | `GET /api/auth/mfu-iam/status` |
+| MFU IAM public login status | Implemented, non-secret | `GET /api/auth/mfu-iam/public-status` |
+| MFU IAM token-login harness | Implemented, disabled by default | `POST /api/auth/mfu-iam/token-login`, `atdr/app/services/mfu_iam_service.py` |
 | Supervisor env alias support | Implemented for status/readiness | `atdr/app/core/config.py` |
 | MFU IAM readiness service | Implemented, no startup network call | `atdr/app/services/mfu_iam_service.py` |
 | Admin dashboard readiness panel | Implemented | `frontend/src/pages/UserAdmin.tsx` |
@@ -69,6 +71,8 @@ MFU_IAM_ADMIN_SCOPE=""
 MFU_IAM_COMPAT_PROFILE=""
 MFU_IAM_ALLOWED_DOMAINS=""
 MFU_IAM_DEFAULT_ROLE="analyst"
+MFU_IAM_MOCK_ENABLED=false
+MFU_IAM_ADMIN_EMAILS=""
 MFU_IAM_PERMISSION_SOURCE=""
 MFU_IAM_PERMISSION_BOOTSTRAP_MODE=""
 MFU_IAM_PERMISSION_ROOT_PATH=""
@@ -87,27 +91,27 @@ GOOGLE_SSO_ENABLED=false
 GOOGLE_CLIENT_ID=""
 ```
 
-`GET /api/auth/mfu-iam/status` returns only booleans and non-secret policy fields. It must never expose `MFU_IAM_CLIENT_SECRET`, `GOOGLE_CLIENT_ID`, or any `.env` value.
+`GET /api/auth/mfu-iam/status` and `GET /api/auth/mfu-iam/public-status` return only booleans and non-secret policy fields. They must never expose `MFU_IAM_CLIENT_SECRET`, `GOOGLE_CLIENT_ID`, or any `.env` value.
 
 ATDR also accepts the supervisor template names `IAM_SDK_*`, `IAM_ADMIN_*`, and `PROJECT_PERMISSION_*` in a private local `.env`. These aliases are used for status/readiness and do not require migrating to the template's Node/Vue/MongoDB stack.
 
 ## Recommended Implementation Order
 
 1. Keep local login as fallback.
-2. Add a mock MFU IAM provider test harness.
-3. Implement token validation against configured MFU IAM endpoints behind `MFU_IAM_ENABLED=true`.
-4. Map verified school email and external subject to a local `users` row.
-5. Default newly provisioned external users to `analyst`.
-6. Add explicit admin group mapping only after advisor approval.
-7. Add frontend `School Email Login` button only when status reports enough configuration.
-8. Add audit events for external login success/failure, role mapping, and denied domain.
+2. Add a mock MFU IAM provider test harness. Done in v3.65 as `MFU_IAM_MOCK_ENABLED`.
+3. Implement token validation against configured MFU IAM endpoints behind `MFU_IAM_ENABLED=true`. Harness implemented in v3.65; real provider validation still needs live provider testing.
+4. Map verified school email and external subject to a local `users` row. Done in v3.65.
+5. Default newly provisioned external users to `analyst`. Done in v3.65.
+6. Add explicit admin mapping only after advisor approval. Done in v3.65 through `MFU_IAM_ADMIN_EMAILS`; IAM group mapping remains future work.
+7. Add frontend `School Email Login` button only when status reports enough configuration. Done in v3.65.
+8. Add audit events for external login success/failure, role mapping, and denied domain. Done in v3.65.
 9. Add email OTP/2FA enforcement only after SMTP/provider policy and lockout/recovery rules are approved.
 
 ## Current Recommendation
 
 Use MFU IAM SDK/token introspection as the first real IAM path because the supervisor template contains IAM SDK/admin configuration and token/introspection/profile paths. Treat Google/MFU Mail as a second path because the checked Google client ID env fields are present but not configured.
 
-v3.64 improves readiness for that path by making ATDR understand the supervisor env names directly and exposing readiness in Admin. It still does not perform real login or external token validation during normal startup.
+v3.64 improved readiness by making ATDR understand the supervisor env names directly and exposing readiness in Admin. v3.65 adds the disabled-by-default token-login harness and public login readiness endpoint. It still does not perform external network calls during normal startup.
 
 ## Still Required From Advisor / Provider
 
@@ -124,7 +128,7 @@ v3.64 improves readiness for that path by making ATDR understand the supervisor 
 
 ## Explicit Non-Goals For This Phase
 
-- No real external login is enabled.
+- No real external login is enabled by default.
 - No Google/MFU Mail OAuth callback is enabled.
 - No secrets are copied from the supervisor template.
 - No external network call is made by default.

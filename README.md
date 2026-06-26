@@ -104,7 +104,7 @@ Final presentation material:
 - Rule-based detection, alert deduplication, lightweight case grouping, ATT&CK-style mapping, and "Why flagged?" explanations.
 - IsolationForest anomaly scoring and supervised ML decision support with AI Governance, labeling workflow, active learning, and model validation gates.
 - Simulated response actions with confirmation, protected-IP safeguards, justification notes, and audit logs.
-- External school-email IAM groundwork via disabled-by-default generic OIDC and MFU IAM/Google SSO adapter status. Local login remains the default; v3.14 adds disabled-by-default email verification/dev-outbox groundwork, and v3.15 improves account lifecycle/verification status UX. Real SMTP delivery, MFU IAM SDK login, Google callback login, and full school OIDC login remain future work.
+- External school-email IAM groundwork via disabled-by-default generic OIDC and MFU IAM/Google SSO adapter status. Local login remains the default; v3.65 adds a disabled-by-default MFU token-login harness for configured school-email identities. Real SMTP delivery, Google/MFU OAuth callback login, provider-managed 2FA, IAM group sync, and full school OIDC login remain future work.
 - Supervisor-template IAM integration is tracked as controlled ATDR integration, not stack migration. See `docs/ATDR_TEMPLATE_MERGE_ANALYSIS.md` and `docs/security/ATDR_MFU_IAM_IMPLEMENTATION_PLAN.md`.
 - SOC Assistant real-LLM provider adapters are documented in `docs/V3_63_REAL_LLM_ASSISTANT_ADAPTER.md` and `docs/security/ATDR_REAL_LLM_ASSISTANT_PLAN.md`; external LLM calls remain disabled by default.
 - Safe synthetic scenario validation under `data/samples/scenarios/`.
@@ -524,6 +524,7 @@ Governance and university workflow:
 - `docs/security/ATDR_IAM_RBAC_MATRIX.md` - admin/analyst permission matrix and IAM limitations.
 - `docs/security/ATDR_EXTERNAL_IAM_PLAN.md` - disabled-by-default OIDC groundwork for future school-email login.
 - `docs/security/ATDR_MFU_IAM_ADAPTER_PLAN.md` - safe MFU IAM / Google SSO adapter plan based on supervisor template guidance.
+- `docs/V3_65_MFU_IAM_AND_REAL_ASSISTANT_HARNESS.md` - current disabled-by-default MFU token-login and real assistant provider probe harness.
 - `docs/security/MFU_IAM_PROVIDER_DETAILS_CHECKLIST.md` - provider questions needed before real external IAM work.
 - `docs/security/ATDR_PERMISSION_PATHS.md` - NewSystem-style ATDR permission path registry.
 - `docs/security/ATDR_OWASP_LAB_SECURITY_REVIEW.md` - lab security review baseline and remaining hardening gaps.

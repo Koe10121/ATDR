@@ -122,6 +122,11 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("MFU_IAM_ALLOWED_DOMAINS", "IAM_SDK_ALLOWED_DOMAINS"),
     )
     mfu_iam_default_role: str = Field(default="analyst", alias="MFU_IAM_DEFAULT_ROLE")
+    mfu_iam_mock_enabled: bool = Field(default=False, alias="MFU_IAM_MOCK_ENABLED")
+    mfu_iam_admin_emails: str = Field(
+        default="",
+        validation_alias=AliasChoices("MFU_IAM_ADMIN_EMAILS", "MFU_IAM_ADMIN_EMAIL_ALLOWLIST"),
+    )
     mfu_iam_permission_source: str = Field(
         default="",
         validation_alias=AliasChoices("MFU_IAM_PERMISSION_SOURCE", "PROJECT_PERMISSION_SOURCE"),
@@ -258,6 +263,10 @@ class Settings(BaseSettings):
         return [email.strip().lower() for email in self.mfu_iam_init_admin_emails.split(",") if email.strip()]
 
     @property
+    def mfu_iam_admin_email_list(self) -> list[str]:
+        return [email.strip().lower() for email in self.mfu_iam_admin_emails.split(",") if email.strip()]
+
+    @property
     def mfu_iam_domain_hints(self) -> list[str]:
         emails = [
             self.mfu_iam_project_account_email,
@@ -307,19 +316,19 @@ def validate_runtime_settings(settings: Settings) -> list[str]:
     if settings.mfu_iam_default_role not in {"admin", "analyst"}:
         issues.append("MFU_IAM_DEFAULT_ROLE must be 'admin' or 'analyst'.")
     if settings.mfu_iam_enabled:
-        if not settings.mfu_iam_base_url.strip():
+        if not settings.mfu_iam_base_url.strip() and not settings.mfu_iam_mock_enabled:
             issues.append("MFU_IAM_BASE_URL is required when MFU_IAM_ENABLED=true.")
-        if not settings.mfu_iam_client_id.strip():
+        if not settings.mfu_iam_client_id.strip() and not settings.mfu_iam_mock_enabled:
             issues.append("MFU_IAM_CLIENT_ID is required when MFU_IAM_ENABLED=true.")
-        if not settings.mfu_iam_client_secret.strip():
+        if not settings.mfu_iam_client_secret.strip() and not settings.mfu_iam_mock_enabled:
             issues.append("MFU_IAM_CLIENT_SECRET is required when MFU_IAM_ENABLED=true.")
-        if not settings.mfu_iam_audience.strip():
+        if not settings.mfu_iam_audience.strip() and not settings.mfu_iam_mock_enabled:
             issues.append("MFU_IAM_AUDIENCE is required when MFU_IAM_ENABLED=true.")
-        if not settings.mfu_iam_token_path.strip():
+        if not settings.mfu_iam_token_path.strip() and not settings.mfu_iam_mock_enabled:
             issues.append("MFU_IAM_TOKEN_PATH is required when MFU_IAM_ENABLED=true.")
-        if not settings.mfu_iam_introspect_path.strip():
+        if not settings.mfu_iam_introspect_path.strip() and not settings.mfu_iam_mock_enabled:
             issues.append("MFU_IAM_INTROSPECT_PATH is required when MFU_IAM_ENABLED=true.")
-        if not settings.mfu_iam_profile_path.strip():
+        if not settings.mfu_iam_profile_path.strip() and not settings.mfu_iam_mock_enabled:
             issues.append("MFU_IAM_PROFILE_PATH is required when MFU_IAM_ENABLED=true.")
         if not settings.mfu_iam_allowed_domains.strip():
             issues.append("MFU_IAM_ALLOWED_DOMAINS is required when MFU_IAM_ENABLED=true.")
