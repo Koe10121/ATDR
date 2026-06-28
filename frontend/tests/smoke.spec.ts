@@ -353,6 +353,18 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
         suggested_followups: ["Summarize source health.", "Explain current ML model status."],
         details: {
           assistant_audit_id: 12,
+          llm: {
+            used: false,
+            provider: "disabled",
+            model_configured: false,
+            fallback_reason: null,
+            raw_log_context_included: false,
+            secrets_exposed: false,
+            prompt_contract: "soc_evidence_preserving_v1",
+            provider_called: false,
+            answer_used: false,
+            answer_guard_reason: null
+          },
           alert: { id: 1, severity: "Critical" },
           answer_sections: {
             summary: ["Alert #1: Critical policy_deny with risk score 88.", "Detection source: rule, anomaly, hybrid."],
@@ -811,6 +823,92 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
           ]
         },
         decision_support_only: true
+      }
+    })
+  );
+  await page.route("**/api/dashboard/detection-ml-productization**", async (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        phase: "v3.72",
+        status: "completed",
+        generated_at: "2026-06-27T08:00:00Z",
+        read_only: true,
+        readiness: {
+          decision: "diagnostic_evaluation_passed",
+          required_checks_passed: 5,
+          required_checks_total: 5,
+          advisory_checks_passed: 2,
+          advisory_checks_total: 3,
+          blockers: [],
+          advisories: ["controlled scenario quality included"],
+          production_ready: false,
+          model_activation_allowed: false,
+          response_automation_allowed: false
+        },
+        checks: [
+          { name: "rule pack and scenario corpus contract passes", required: true, passed: true },
+          { name: "current database unchanged by unified evaluation", required: true, passed: true },
+          { name: "response automation remains disabled", required: true, passed: true }
+        ],
+        rule_contract: {
+          ok: true,
+          implemented_rule_count: 18,
+          documented_rule_count: 18,
+          registered_scenario_count: 24,
+          issues: []
+        },
+        scenario_quality: {
+          included: false,
+          status: "skipped",
+          recommendation: "Use --include-scenarios for temporary-DB controlled detection quality validation."
+        },
+        supervised_output_policy: {
+          available: true,
+          status: "decision_support_contract_ready",
+          checks_passed: 7,
+          checks_total: 7,
+          recommended_supervised_strategy: "binary_soc_review_queue",
+          exact_classification_policy: "explanation_or_ranking_only",
+          dashboard_guidance_ready: true,
+          runtime_activation_allowed: false,
+          response_automation_allowed: false,
+          blocked_uses: ["automatic response from supervised ML output"]
+        },
+        training_target_contract: {
+          available: true,
+          status: "safe_queue_target_adapter_ready",
+          checks_passed: 5,
+          checks_total: 5,
+          recommended_training_target: "binary_soc_review_queue",
+          exact_label_policy: "explanation_or_ranking_only",
+          runtime_activation_allowed: false,
+          production_promotion_allowed: false,
+          response_automation_allowed: false
+        },
+        training_data: {
+          available: true,
+          mode: "lightweight_no_feature_generation",
+          total_label_rows: 2672,
+          trainable_label_rows: 2672,
+          trainable_log_count_estimate: 2672,
+          reviewed_label_rows: 1965,
+          weak_or_unreviewed_label_rows: 707,
+          feature_generation_ran: false
+        },
+        safety: {
+          current_database_mutated: false,
+          counts_before: { ml_labels: 2672, ml_model_runs: 41, response_actions: 0 },
+          counts_after: { ml_labels: 2672, ml_model_runs: 41, response_actions: 0 },
+          production_promoted: false,
+          model_activated: false,
+          model_artifact_written: false,
+          labels_written: false,
+          response_actions_created: 0,
+          response_automation_allowed: false,
+          real_firewall_blocking_enabled: false,
+          raw_logs_included: false
+        }
       }
     })
   );
@@ -1757,6 +1855,9 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByText("Weighted F1")).toBeVisible();
   await expect(page.getByText("0.8753", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Review focus: benign and suspicious separation need more analyst-verified examples.")).not.toBeVisible();
+  await expect(page.getByTestId("detection-ml-productization-panel")).toContainText("Detection / ML Productization");
+  await expect(page.getByTestId("detection-ml-productization-panel")).toContainText("diagnostic evaluation passed");
+  await expect(page.getByTestId("detection-ml-productization-panel")).toContainText("18 implemented rules");
   await expect(page.getByText("Detection Quality Revalidation")).toBeVisible();
   await expect(page.getByText("False-positive noise")).toBeVisible();
   await expect(page.getByText("Baseline FPR")).toBeVisible();
@@ -1995,6 +2096,12 @@ test("SOC assistant page is read-only and contains long responses safely", async
   await expect(panel).toContainText("Related context");
   await expect(panel).toContainText("What to check next");
   await expect(panel.getByTestId("assistant-answer-sections")).toBeVisible();
+  await expect(panel.getByTestId("assistant-provider-telemetry")).toContainText("Local Deterministic Answer");
+  await expect(panel.getByTestId("assistant-provider-telemetry")).toContainText("Raw logs");
+  await expect(panel.getByTestId("assistant-provider-telemetry")).toContainText("Not included");
+  await expect(panel.getByTestId("assistant-provider-telemetry")).toContainText("Secrets");
+  await expect(panel.getByTestId("assistant-provider-telemetry")).toContainText("Not exposed");
+  await expect(panel.getByTestId("assistant-provider-telemetry")).toContainText("soc_evidence_preserving_v1");
   await expect(panel).toContainText("Safety note");
   await expect(panel).toContainText("Alert detail");
   await expect(panel.getByTestId("assistant-citations")).toContainText("/api/alerts/{alert_id}");
@@ -2053,6 +2160,65 @@ test("SOC assistant page is read-only and contains long responses safely", async
   await expect(page).toHaveURL(/\/alerts\?alert=1/);
 });
 
+test("SOC assistant provider telemetry shows guarded external LLM state", async ({ page }) => {
+  await mockApi(page);
+  await page.route("**/api/assistant/chat", async (route) =>
+    route.fulfill({
+      json: {
+        answer:
+          "Summary\n- Alert #3225 remains evidence-grounded by ATDR local context.\n\nEvidence\n- Provider answer was guarded because it did not contain enough evidence detail.\n\nWhat to check next\n- Review linked logs and source health before response.",
+        mode: "deterministic_local_llm_guarded_gemini",
+        external_provider_used: true,
+        safety: ["Read Only", "Decision Support Only", "Response Automation Disabled", "Simulation Mode"],
+        context_used: ["alert_detail", "alert_evidence"],
+        citations: [{ label: "Alert detail", source: "/api/alerts/{alert_id}", reference_id: "3225" }],
+        redaction_applied: true,
+        raw_log_context_included: false,
+        suggested_followups: ["What logs are related?", "What should an analyst verify before response?"],
+        details: {
+          assistant_audit_id: 3225,
+          llm: {
+            used: true,
+            provider: "gemini",
+            model_configured: true,
+            fallback_reason: null,
+            raw_log_context_included: false,
+            secrets_exposed: false,
+            context_characters: 1400,
+            prompt_contract: "soc_evidence_preserving_v1",
+            provider_called: true,
+            answer_used: false,
+            answer_guard_reason: "provider_answer_too_short_for_evidence_context"
+          },
+          answer_sections: {
+            summary: ["Alert #3225 remains evidence-grounded by ATDR local context."],
+            evidence: ["Provider answer was guarded because it did not contain enough evidence detail."],
+            what_to_check_next: ["Review linked logs and source health before response."],
+            safety_note: ["The assistant is read-only."]
+          }
+        }
+      }
+    })
+  );
+  await seedSession(page);
+  await page.goto("/assistant");
+  await page.getByLabel("Analyst question").fill("Why was alert 3225 flagged?");
+  await page.getByRole("button", { name: "Ask assistant" }).click();
+
+  const telemetry = page.getByTestId("assistant-provider-telemetry");
+  await expect(telemetry).toContainText("External LLM Guarded");
+  await expect(telemetry).toContainText("Gemini");
+  await expect(telemetry).toContainText("too short");
+  await expect(telemetry).toContainText("Raw logs");
+  await expect(telemetry).toContainText("Not included");
+  await expect(telemetry).toContainText("Secrets");
+  await expect(telemetry).toContainText("Not exposed");
+  await expect(telemetry).toContainText("soc_evidence_preserving_v1");
+  await expect(page.getByTestId("assistant-response-panel")).toContainText("Alert #3225");
+  await expect(page.getByText("ASSISTANT_LLM_API_KEY")).not.toBeVisible();
+  await expect(page.getByRole("button", { name: "Record simulated block" })).not.toBeVisible();
+});
+
 test("SOC assistant follow-up questions keep the previous alert context", async ({ page }) => {
   const assistantRequests: Array<Record<string, unknown>> = [];
   await mockApi(page);
@@ -2060,17 +2226,29 @@ test("SOC assistant follow-up questions keep the previous alert context", async 
     const payload = route.request().postDataJSON() as Record<string, unknown>;
     assistantRequests.push(payload);
     const alertId = Number(payload.alert_id ?? 1717);
+    const logId = Number(payload.log_id ?? 9001);
+    const question = String(payload.question ?? "").toLowerCase();
+    const isLogFollowUp = question.includes("that log") || (question.includes("log") && !question.includes("related"));
     await route.fulfill({
       json: {
         answer:
-          "Summary\n- Alert context was retained.\n\nEvidence\n- Related logs are available from the alert evidence list.\n\nWhat to check next\n- Review related logs before containment.",
+          isLogFollowUp
+            ? "Summary\n- Log context was retained.\n\nEvidence\n- The log is linked to the previous alert.\n\nWhat to check next\n- Review nearby logs before containment."
+            : "Summary\n- Alert context was retained.\n\nEvidence\n- Related logs are available from the alert evidence list.\n\nWhat to check next\n- Review related logs before containment.",
         mode: "deterministic_local",
         external_provider_used: false,
         safety: ["Read Only", "Decision Support Only", "Response Automation Disabled", "Simulation Mode"],
-        context_used: ["alert_detail", "alert_evidence"],
+        context_used: isLogFollowUp ? ["log_detail", "why_flagged"] : ["alert_detail", "alert_evidence"],
         citations: [
-          { label: "Alert detail", source: "/api/alerts/{alert_id}", reference_id: String(alertId) },
-          { label: "Related log", source: "/api/logs/{log_id}", reference_id: "9001" },
+          ...(isLogFollowUp
+            ? [
+                { label: "Log detail", source: "/api/logs/{log_id}", reference_id: String(logId) },
+                { label: "Linked alert", source: "/api/alerts/{alert_id}", reference_id: String(alertId) }
+              ]
+            : [
+                { label: "Alert detail", source: "/api/alerts/{alert_id}", reference_id: String(alertId) },
+                { label: "Related log", source: "/api/logs/{log_id}", reference_id: "9001" }
+              ]),
           { label: "Source", source: "/api/sources/{source_id}", reference_id: "44" }
         ],
         redaction_applied: true,
@@ -2079,9 +2257,9 @@ test("SOC assistant follow-up questions keep the previous alert context", async 
         details: {
           assistant_audit_id: 1717,
           answer_sections: {
-            summary: [`Alert #${alertId} context was retained.`],
-            evidence: ["Related log #9001 is linked as alert evidence."],
-            what_to_check_next: ["Review related logs before containment."],
+            summary: [isLogFollowUp ? `Log #${logId} context was retained.` : `Alert #${alertId} context was retained.`],
+            evidence: [isLogFollowUp ? `Linked alert #${alertId} is available.` : "Related log #9001 is linked as alert evidence."],
+            what_to_check_next: [isLogFollowUp ? "Review nearby logs before containment." : "Review related logs before containment."],
             safety_note: ["The assistant is read-only."]
           }
         }
@@ -2112,6 +2290,7 @@ test("SOC assistant follow-up questions keep the previous alert context", async 
   await page.getByLabel("Analyst question").fill("Why was that log flagged?");
   await page.getByRole("button", { name: "Ask assistant" }).click();
   await expect(page.getByLabel("Analyst question")).toHaveValue("Why was that log flagged?");
+  await expect(page.getByText("Using log #9001")).toBeVisible();
   expect(assistantRequests.length).toBeGreaterThanOrEqual(4);
   expect(assistantRequests[3].alert_id).toBe(1717);
   expect(assistantRequests[3].log_id).toBe(9001);
@@ -2129,6 +2308,50 @@ test("SOC assistant follow-up questions keep the previous alert context", async 
   expect(assistantRequests[5].alert_id).toBeNull();
   expect(assistantRequests[5].log_id).toBeNull();
   expect(assistantRequests[5].source_id).toBeNull();
+});
+
+test("SOC assistant clear context removes URL-scoped alert before the next question", async ({ page }) => {
+  const assistantRequests: Array<Record<string, unknown>> = [];
+  await mockApi(page);
+  await page.route("**/api/assistant/chat", async (route) => {
+    const payload = route.request().postDataJSON() as Record<string, unknown>;
+    assistantRequests.push(payload);
+    await route.fulfill({
+      json: {
+        answer: "Summary\n- Context cleared request answered.\n\nEvidence\n- No stale alert context was sent.\n\nWhat to check next\n- Continue with the selected workflow.",
+        mode: "deterministic_local",
+        external_provider_used: false,
+        safety: ["Read Only", "Decision Support Only", "Response Automation Disabled", "Simulation Mode"],
+        context_used: ["source_health"],
+        citations: [{ label: "Source API", source: "/api/sources", reference_id: null }],
+        redaction_applied: true,
+        raw_log_context_included: false,
+        suggested_followups: ["Show latest critical alerts."],
+        details: {
+          answer_sections: {
+            summary: ["Context cleared request answered."],
+            evidence: ["No stale alert context was sent."],
+            what_to_check_next: ["Continue with the selected workflow."],
+            safety_note: ["The assistant is read-only."]
+          }
+        }
+      }
+    });
+  });
+  await seedSession(page);
+  await page.goto("/assistant?alert=1&prompt=Why%20was%20alert%201%20flagged%3F");
+  await expect(page.getByText("Using alert #1")).toBeVisible();
+
+  await page.getByRole("button", { name: "Clear context" }).click();
+  await expect(page.getByText("Using alert #1")).not.toBeVisible();
+  await expect(page).toHaveURL(/\/assistant$/);
+
+  await page.getByLabel("Analyst question").fill("Summarize source health.");
+  await page.getByRole("button", { name: "Ask assistant" }).click();
+  await expect(page.getByTestId("assistant-response-panel")).toContainText("Context cleared request answered.");
+  expect(assistantRequests.at(-1)?.alert_id).toBeNull();
+  expect(assistantRequests.at(-1)?.log_id).toBeNull();
+  expect(assistantRequests.at(-1)?.source_id).toBeNull();
 });
 
 test("simulated response confirmation and denied audit are visible", async ({ page }) => {

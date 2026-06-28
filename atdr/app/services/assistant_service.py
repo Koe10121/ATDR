@@ -30,6 +30,53 @@ LOG_ID_PATTERN = re.compile(r"\b(?:log|row|event)\s*#?\s*(\d{1,10})\b", re.IGNOR
 SOURCE_ID_PATTERN = re.compile(r"\b(?:source|sensor)\s*#?\s*(\d{1,10})\b", re.IGNORECASE)
 CASE_ID_PATTERN = re.compile(r"\bcase\s*#?\s*([a-zA-Z0-9_-]{4,120})\b", re.IGNORECASE)
 
+ALERT_EXPLANATION_TERMS = [
+    "why",
+    "flagged",
+    "alert",
+    "evidence supports",
+    "rule contributed",
+    "model contributed",
+    "false positive",
+    "noise",
+    "evidence is missing",
+    "missing evidence",
+    "compare this alert",
+    "attack mapping",
+    "att&ck",
+    "not automatically blocked",
+    "automatic block",
+]
+
+ALERT_RELATED_LOG_TERMS = [
+    "related log",
+    "related logs",
+    "logs are related",
+    "what logs",
+    "show logs",
+    "linked logs",
+    "evidence logs",
+]
+
+ALERT_NEXT_STEP_TERMS = [
+    "recommended next step",
+    "recommend next step",
+    "next step",
+    "next steps",
+    "what should",
+    "verify before response",
+    "verify before",
+    "analyst verify",
+    "check next",
+    "check first",
+    "do next",
+    "safe to approve",
+    "safe to respond",
+    "safely respond",
+    "approve response",
+    "response safe",
+]
+
 
 @dataclass
 class Citation:
@@ -77,49 +124,59 @@ def _without_raw_context(value: Any) -> Any:
 
 
 def _question_alert_id(question: str, explicit_alert_id: int | None) -> int | None:
-    if explicit_alert_id:
-        return explicit_alert_id
     match = ALERT_ID_PATTERN.search(question)
-    if not match:
-        return None
-    try:
-        return int(match.group(1))
-    except ValueError:
-        return None
+    if match:
+        try:
+            return int(match.group(1))
+        except ValueError:
+            return explicit_alert_id
+    return explicit_alert_id
 
 
 def _question_log_id(question: str, explicit_log_id: int | None = None) -> int | None:
-    if explicit_log_id:
-        return explicit_log_id
     match = LOG_ID_PATTERN.search(question)
-    if not match:
-        return None
-    try:
-        return int(match.group(1))
-    except ValueError:
-        return None
+    if match:
+        try:
+            return int(match.group(1))
+        except ValueError:
+            return explicit_log_id
+    return explicit_log_id
 
 
 def _question_source_id(question: str, explicit_source_id: int | None = None) -> int | None:
-    if explicit_source_id:
-        return explicit_source_id
     match = SOURCE_ID_PATTERN.search(question)
-    if not match:
-        return None
-    try:
-        return int(match.group(1))
-    except ValueError:
-        return None
+    if match:
+        try:
+            return int(match.group(1))
+        except ValueError:
+            return explicit_source_id
+    return explicit_source_id
 
 
 def _question_case_id(question: str, explicit_case_id: str | None = None) -> str | None:
+    match = CASE_ID_PATTERN.search(question)
+    if match:
+        return match.group(1).strip()[:120] or None
     if explicit_case_id:
         value = explicit_case_id.strip()
         return value[:120] if value else None
-    match = CASE_ID_PATTERN.search(question)
-    if not match:
-        return None
-    return match.group(1).strip()[:120] or None
+    return None
+
+
+def _has_any_term(value: str, terms: list[str]) -> bool:
+    return any(term in value for term in terms)
+
+
+def _is_alert_related_log_followup(value: str) -> bool:
+    return _has_any_term(value, ALERT_RELATED_LOG_TERMS)
+
+
+def _is_alert_next_step_followup(value: str) -> bool:
+    return _has_any_term(value, ALERT_NEXT_STEP_TERMS)
+
+
+def _is_alert_explanation_followup(value: str) -> bool:
+    return _has_any_term(value, ALERT_EXPLANATION_TERMS)
 
 
 def _record_assistant_audit(
@@ -146,6 +203,43 @@ def _record_assistant_audit(
     db.add(audit)
     db.commit()
     return int(audit.id)
+
+
+def _llm_answer_guard_reason(
+    *,
+    deterministic_answer: str,
+    provider_answer: str | None,
+    context_used: list[str],
+) -> str | None:
+    """Reject external wording that drops too much ATDR evidence or implies action."""
+    answer = (provider_answer or "").strip()
+    if not answer:
+        return "empty_provider_answer"
+
+    lowered = answer.lower()
+    unsafe_action_phrases = [
+        "i blocked",
+        "i have blocked",
+        "i ran detection",
+        "i have run detection",
+        "i deleted",
+        "i changed the label",
+        "i activated the model",
+        "i promoted the model",
+        "firewall rule has been",
+        "containment has been applied",
+    ]
+    if any(phrase in lowered for phrase in unsafe_action_phrases):
+        return "provider_answer_implies_action_execution"
+
+    deterministic_length = len(deterministic_answer.strip())
+    if deterministic_length >= 400 and len(answer) < 180:
+        return "provider_answer_too_short_for_evidence_context"
+
+    if "alert_detail" in context_used and not any(token in lowered for token in ["alert", "flagged", "evidence"]):
+        return "provider_answer_lost_alert_context"
+
+    return None
 
 
 def assistant_status(settings: Settings) -> dict[str, Any]:
@@ -419,101 +513,21 @@ def answer_assistant_question(
             limit=context_limit,
             redacted=redacted,
         )
-    elif requested_log_id and "log" in lowered and not any(
-        term in lowered
-        for term in ["related log", "logs are related", "what logs", "show logs", "linked logs", "evidence logs"]
-    ):
-        result = _answer_log_triage_question(db, clean_question, log_id=requested_log_id, redacted=redacted)
-    elif requested_alert_id and any(
-        term in lowered
-        for term in [
-            "why",
-            "flagged",
-            "alert",
-            "evidence supports",
-            "rule contributed",
-            "model contributed",
-            "false positive",
-            "noise",
-            "evidence is missing",
-            "missing evidence",
-            "compare this alert",
-            "attack mapping",
-            "att&ck",
-            "not automatically blocked",
-            "automatic block",
-        ]
-    ):
+    elif requested_alert_id and _is_alert_related_log_followup(lowered):
         result = _answer_alert_question(db, clean_question, alert_id=requested_alert_id, redacted=redacted)
-    elif requested_alert_id and any(
-        term in lowered
-        for term in ["related log", "logs are related", "what logs", "show logs", "linked logs", "evidence logs"]
-    ):
-        result = _answer_alert_question(db, clean_question, alert_id=requested_alert_id, redacted=redacted)
-    elif requested_alert_id and any(
-        term in lowered
-        for term in [
-            "recommended next step",
-            "recommend next step",
-            "next step",
-            "next steps",
-            "what should",
-            "verify before response",
-            "verify before",
-            "analyst verify",
-            "check next",
-            "check first",
-            "do next",
-        ]
-    ):
+    elif requested_alert_id and _is_alert_next_step_followup(lowered):
         result = _answer_safe_next_steps(db, clean_question, alert_id=requested_alert_id, redacted=redacted)
+    elif requested_alert_id and _is_alert_explanation_followup(lowered):
+        result = _answer_alert_question(db, clean_question, alert_id=requested_alert_id, redacted=redacted)
+    elif requested_log_id and "log" in lowered and not _is_alert_related_log_followup(lowered):
+        result = _answer_log_triage_question(db, clean_question, log_id=requested_log_id, redacted=redacted)
     elif requested_source_id and any(term in lowered for term in ["source", "sensor", "syslog", "parser", "health", "check next", "safe next"]):
         result = _answer_source_question(db, source_id=requested_source_id, limit=context_limit, redacted=redacted, warnings_only="warning" in lowered or "error" in lowered)
-    elif any(
-        term in lowered
-        for term in [
-            "safe next",
-            "check next",
-            "check first",
-            "do next",
-            "next for this alert",
-            "recommended next step",
-            "recommend next step",
-            "next step",
-            "next steps",
-            "verify before response",
-            "verify before",
-            "analyst verify",
-            "safe to approve",
-            "safe to respond",
-            "safely respond",
-            "approve response",
-            "response safe",
-        ]
-    ):
+    elif _is_alert_next_step_followup(lowered):
         result = _answer_safe_next_steps(db, clean_question, alert_id=requested_alert_id, redacted=redacted)
     elif requested_log_id and ("log" in lowered or ("flagged" in lowered and requested_alert_id is None)):
         result = _answer_log_triage_question(db, clean_question, log_id=requested_log_id, redacted=redacted)
-    elif any(
-        term in lowered
-        for term in [
-            "why",
-            "flagged",
-            "alert",
-            "evidence supports",
-            "rule contributed",
-            "model contributed",
-            "false positive",
-            "noise",
-            "evidence is missing",
-            "missing evidence",
-            "compare this alert",
-            "attack mapping",
-            "att&ck",
-            "not automatically blocked",
-            "automatic block",
-        ]
-    ) or alert_id:
+    elif _is_alert_explanation_followup(lowered) or alert_id:
         result = _answer_alert_question(db, clean_question, alert_id=requested_alert_id, redacted=redacted)
     elif any(term in lowered for term in ["source", "sensor", "syslog", "parser", "health"]) or requested_source_id:
         result = _answer_source_question(db, source_id=requested_source_id, limit=context_limit, redacted=redacted, warnings_only="warning" in lowered or "error" in lowered)
@@ -555,14 +569,29 @@ def answer_assistant_question(
         ),
         settings,
     )
+    llm_guard_reason = _llm_answer_guard_reason(
+        deterministic_answer=response["answer"],
+        provider_answer=llm_result.answer,
+        context_used=response["context_used"],
+    ) if llm_result.used else None
     if settings.assistant_llm_enabled or settings.assistant_llm_provider.strip():
-        response["details"]["llm"] = llm_result.safe_details()
-    if llm_result.used and llm_result.answer:
+        response["details"]["llm"] = {
+            **llm_result.safe_details(),
+            "provider_called": bool(llm_result.used),
+            "answer_used": bool(llm_result.used and llm_result.answer and not llm_guard_reason),
+            "answer_guard_reason": llm_guard_reason,
+        }
+    if llm_result.used and llm_result.answer and not llm_guard_reason:
         response["answer"] = llm_result.answer
         response["mode"] = f"external_llm_{llm_result.provider}"
         response["external_provider_used"] = True
         response["raw_log_context_included"] = llm_result.raw_log_context_included
         response["context_used"] = [*response["context_used"], f"external_llm:{llm_result.provider}"]
+    elif llm_result.used:
+        response["mode"] = f"deterministic_local_llm_guarded_{llm_result.provider}"
+        response["external_provider_used"] = True
+        response["raw_log_context_included"] = llm_result.raw_log_context_included
+        response["context_used"] = [*response["context_used"], f"external_llm_guarded:{llm_result.provider}"]
     audit_id = _record_assistant_audit(
         db,
         actor=actor,
@@ -829,7 +858,11 @@ def _answer_alert_list_question(db: Session, *, question: str, redacted: bool) -
         context_used=["alerts", "alert_summary"],
         citations=[Citation("Alerts API", "/api/alerts"), *[Citation("Alert", "/api/alerts/{alert_id}", str(alert.id)) for alert in alerts]],
         details={"alerts": _redact([{"id": a.id, "severity": a.severity, "alert_type": a.alert_type, "status": a.status, "src_ip": a.src_ip, "dst_ip": a.dst_ip} for a in alerts], enabled=redacted)},
-        suggested_followups=["Why was alert 1 flagged?", "What can I safely do next for this alert?"],
+        suggested_followups=[
+            f"Why was alert {alerts[0].id} flagged?",
+            f"What logs are related to alert {alerts[0].id}?",
+            f"What should an analyst verify before response for alert {alerts[0].id}?",
+        ],
     )
 
 
@@ -1452,7 +1485,7 @@ def _answer_log_triage_question(db: Session, question: str, *, log_id: int | Non
             answer="Tell me the log ID, for example: why was log 123 not flagged?",
             context_used=["log_triage_help"],
             citations=[Citation("Log detail API", "/api/logs/{log_id}")],
-            suggested_followups=["Why was log 1 not flagged?", "Why was alert 1 flagged?"],
+            suggested_followups=["Open a log from Investigation and ask why it was flagged.", "Explain the latest critical alert."],
         )
     log = get_log(db, log_id)
     if log is None:
@@ -2514,7 +2547,11 @@ def _answer_safe_next_steps(db: Session, question: str, *, alert_id: int | None,
         context_used=["alert_workflow", "response_safety"],
         citations=citations,
         details=_redact(details, enabled=redacted),
-        suggested_followups=["Why was this alert flagged?", "Summarize source health."],
+        suggested_followups=[
+            f"Why was alert {alert.id} flagged?" if alert is not None else "Explain the latest critical alert.",
+            f"What logs are related to alert {alert.id}?" if alert is not None else "Summarize open alerts.",
+            "Summarize source health.",
+        ],
     )
 
 

@@ -17,6 +17,7 @@ export const queryKeys = {
   assistantFeedbackRecent: (params?: Record<string, unknown>) => ["assistant-feedback-recent", params ?? {}],
   summary: ["dashboard-summary"],
   validationSummary: ["dashboard-validation-summary"],
+  detectionMlProductization: ["dashboard-detection-ml-productization"],
   ingestionRuns: (params?: Record<string, unknown>) => ["ingestion-runs", params ?? {}],
   detectionRuns: (params?: Record<string, unknown>) => ["detection-runs", params ?? {}],
   jobs: (params?: Record<string, unknown>) => ["jobs", params ?? {}],
@@ -172,6 +173,15 @@ export function useDashboardValidationSummary() {
     queryKey: queryKeys.validationSummary,
     queryFn: api.dashboardValidationSummary,
     refetchInterval: 60_000,
+    retry: 1
+  });
+}
+
+export function useDetectionMlProductization() {
+  return useQuery({
+    queryKey: queryKeys.detectionMlProductization,
+    queryFn: () => api.dashboardDetectionMlProductization(),
+    ...mlGovernanceQueryOptions,
     retry: 1
   });
 }

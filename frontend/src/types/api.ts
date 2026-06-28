@@ -715,6 +715,107 @@ export interface DashboardValidationSummary {
   v30_production_readiness?: DashboardV30ProductionReadinessSummary;
 }
 
+export interface DetectionMlProductizationCheck {
+  name: string;
+  required: boolean;
+  passed: boolean;
+  value?: unknown;
+}
+
+export interface DetectionMlProductizationEvaluation {
+  ok: boolean;
+  phase: string;
+  status: string;
+  generated_at: string;
+  read_only: boolean;
+  readiness: {
+    decision: string;
+    required_checks_passed: number;
+    required_checks_total: number;
+    advisory_checks_passed: number;
+    advisory_checks_total: number;
+    blockers: string[];
+    advisories: string[];
+    production_ready: boolean;
+    model_activation_allowed: boolean;
+    response_automation_allowed: boolean;
+  };
+  checks: DetectionMlProductizationCheck[];
+  rule_contract: {
+    ok?: boolean;
+    implemented_rule_count?: number;
+    documented_rule_count?: number;
+    scenario_count?: number;
+    registered_scenario_count?: number;
+    issues?: string[];
+    [key: string]: unknown;
+  };
+  scenario_quality: {
+    included?: boolean;
+    status?: string;
+    ok?: boolean;
+    scenario_count?: number;
+    passed_count?: number;
+    false_positive_scenario_count?: number;
+    false_negative_scenario_count?: number;
+    response_actions_created?: number;
+    recommendation?: string;
+    [key: string]: unknown;
+  };
+  supervised_output_policy: {
+    available?: boolean;
+    status?: string;
+    checks_passed?: number;
+    checks_total?: number;
+    recommended_supervised_strategy?: string | null;
+    exact_classification_policy?: string | null;
+    dashboard_guidance_ready?: boolean;
+    runtime_activation_allowed?: boolean;
+    response_automation_allowed?: boolean;
+    blocked_uses?: string[];
+    safety?: Record<string, unknown>;
+    [key: string]: unknown;
+  };
+  training_target_contract: {
+    available?: boolean;
+    status?: string;
+    checks_passed?: number;
+    checks_total?: number;
+    recommended_training_target?: string | null;
+    exact_label_policy?: string | null;
+    runtime_activation_allowed?: boolean;
+    production_promotion_allowed?: boolean;
+    response_automation_allowed?: boolean;
+    quality_warnings?: string[];
+    safety?: Record<string, unknown>;
+    [key: string]: unknown;
+  };
+  training_data: {
+    available?: boolean;
+    mode?: string;
+    total_label_rows?: number;
+    trainable_label_rows?: number;
+    trainable_log_count_estimate?: number;
+    reviewed_label_rows?: number;
+    weak_or_unreviewed_label_rows?: number;
+    feature_generation_ran?: boolean;
+    note?: string;
+  };
+  safety: {
+    current_database_mutated: boolean;
+    counts_before: Record<string, number>;
+    counts_after: Record<string, number>;
+    production_promoted: boolean;
+    model_activated: boolean;
+    model_artifact_written: boolean;
+    labels_written: boolean;
+    response_actions_created: number;
+    response_automation_allowed: boolean;
+    real_firewall_blocking_enabled: boolean;
+    raw_logs_included: boolean;
+  };
+}
+
 export interface DashboardGeneralizationSummary {
   available: boolean;
   ok?: boolean;

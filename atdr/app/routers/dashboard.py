@@ -11,6 +11,7 @@ from atdr.app.core.config import PROJECT_ROOT, get_settings
 from atdr.app.core.security import require_analyst_or_admin
 from atdr.app.db.database import get_db
 from atdr.app.db.models import DetectionRun, LogSource, NormalizedLog, RawLog, User
+from atdr.app.detection.v372_unified_detection_ml_evaluation import run_v372_unified_detection_ml_evaluation
 from atdr.app.services.dashboard_service import build_dashboard_summary_cached
 from atdr.app.services.source_service import source_health
 from atdr.scripts.production_readiness_doctor import run_production_readiness_doctor
@@ -1306,3 +1307,23 @@ def dashboard_validation_summary(
     summary["v359_supervised_output_policy"] = _latest_v359_supervised_output_policy_summary(V13_REPORT_DIR)
     summary["v30_production_readiness"] = _v30_production_readiness_summary(db)
     return summary
+
+
+@router.get("/detection-ml-productization")
+def dashboard_detection_ml_productization(
+    include_scenarios: bool = False,
+    use_ml: bool = False,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    """Read-only Detection/ML productization status for AI Governance.
+
+    The default path intentionally avoids temporary-DB scenario execution so
+    normal dashboard loads stay lightweight. It never writes labels, activates
+    models, creates response actions, or includes raw logs.
+    """
+    return run_v372_unified_detection_ml_evaluation(
+        db,
+        include_scenarios=include_scenarios,
+        use_ml=use_ml,
+    )

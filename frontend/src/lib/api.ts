@@ -19,6 +19,7 @@ import type {
   DashboardSummary,
   DashboardValidationSummary,
   DemoActionResult,
+  DetectionMlProductizationEvaluation,
   DevEmailOutboxItem,
   DetectionTuningReport,
   EmailVerificationRequestResult,
@@ -188,6 +189,8 @@ export const api = {
   assistantFeedbackRecent: (params: Params = {}) => apiRequest<AssistantFeedbackItem[]>("/api/assistant/feedback/recent", { params }),
   dashboardSummary: () => apiRequest<DashboardSummary>("/api/dashboard/summary"),
   dashboardValidationSummary: () => apiRequest<DashboardValidationSummary>("/api/dashboard/validation-summary"),
+  dashboardDetectionMlProductization: (params: Params = {}) =>
+    apiRequest<DetectionMlProductizationEvaluation>("/api/dashboard/detection-ml-productization", { params }),
   ingestionRuns: (params: Params = {}) => apiRequest<IngestionRun[]>("/api/ingestion/runs", { params }),
   ingestionRun: (id: number) => apiRequest<IngestionRun>(`/api/ingestion/runs/${id}`),
   detectionRuns: (params: Params = {}) => apiRequest<DetectionRun[]>("/api/detection/runs", { params }),

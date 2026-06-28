@@ -18,6 +18,14 @@ This index defines the active ATDR documentation set for AI/Codex-assisted work.
 | `docs/ATDR_REQUIREMENT_TRACEABILITY.md` | Requirement-to-source/test/docs/gap traceability. |
 | `docs/ATDR_UNIVERSITY_COMPLIANCE_CHECKLIST.md` | University process compliance status and remaining gaps. |
 | `docs/ATDR_TEMPLATE_COMPARISON_AND_GAP_AUDIT.md` | Supervisor-template comparison showing what ATDR has completed, what is partial, and what remains future work. |
+| `docs/CURRENT_SYSTEM_STATE_LOCK.md` | Current-state anchor before major productization work, including architecture, safety boundaries, limitations, verification commands, and protected local artifacts. |
+| `docs/PRODUCTIZATION_TEMPLATE_GAP_ANALYSIS.md` | Phase 1 comparison between ATDR and the official supervisor template with keep/adapt/do-not-copy guidance and safe cleanup plan. |
+| `docs/ATDR_PRODUCTIZATION_ROADMAP.md` | Phase 2 SaaS-like productization roadmap covering target backend/frontend/database/IAM/assistant/detection/deployment/testing/security direction. |
+| `docs/ATDR_REPO_CLEANUP_PLAN.md` | Phase 3 repository cleanup classification covering keep/update/move/delete/ignore decisions without deleting files. |
+| `docs/DETECTION_ML_PRODUCTIZATION_PLAN.md` | Source-backed plan for productizing rule detection, anomaly scoring, supervised SOC queue output, model registry, drift monitoring, and promotion gates without activating models or response automation. |
+| `docs/detection/ATDR_RULE_PACK_CONTRACT.md` | Versioned deterministic detection rule-pack contract aligned to implemented rule IDs and SOC analyst checks. |
+| `docs/detection/ATDR_SCENARIO_CORPUS_CONTRACT.md` | Controlled scenario-corpus contract for parser, detection, deduplication, explanation, and response-safety validation. |
+| `docs/V3_72_UNIFIED_DETECTION_ML_EVALUATION.md` | Read-only unified detection/ML productization evaluator covering rule/scenario contracts, optional temp-DB scenario quality, latest supervised policy artifacts, and safety invariants. |
 
 ## Security And IAM Documents
 
@@ -30,6 +38,8 @@ This index defines the active ATDR documentation set for AI/Codex-assisted work.
 | `docs/security/ATDR_MFU_IAM_IMPLEMENTATION_PLAN.md` | Source-backed implementation path for MFU IAM SDK/token introspection and school-email role mapping, still disabled by default. |
 | `docs/V3_64_MFU_IAM_TEMPLATE_ADAPTER.md` | Supervisor-template IAM env compatibility and non-secret readiness status for ATDR. |
 | `docs/V3_65_MFU_IAM_AND_REAL_ASSISTANT_HARNESS.md` | Disabled-by-default MFU school-email token-login harness and safe real LLM provider probe. |
+| `docs/V3_74_MFU_IAM_VALIDATION_HARNESS.md` | Safe MFU IAM configuration/probe harness for private `.env` validation without exposing secrets or enabling external login by default. |
+| `docs/V3_77_MFU_IAM_CONFIG_DOCTOR_VISIBILITY.md` | MFU IAM readiness visibility in config doctor so operators can see local-login, token-login, B2B, admin API, and permission-bootstrap readiness without exposing secrets. |
 | `docs/security/ATDR_REAL_LLM_ASSISTANT_PLAN.md` | Real LLM assistant provider plan with Gemini/OpenAI/Claude options, disabled by default and read-only. |
 | `docs/security/ATDR_SCHOOL_EMAIL_IAM_READINESS_AUDIT.md` | School-email IAM readiness audit explaining why real MFU/Google/OIDC login remains disabled until provider details are approved. |
 | `docs/security/MFU_IAM_PROVIDER_DETAILS_CHECKLIST.md` | Advisor/provider questions required before real MFU IAM or Google SSO implementation. |
@@ -80,6 +90,14 @@ This index defines the active ATDR documentation set for AI/Codex-assisted work.
 | `docs/V3_61_SOC_ASSISTANT_PRESENTATION_HARDENING.md` | Presentation-ready SOC Assistant preset and fallback hardening while preserving read-only, no-action behavior. |
 | `docs/V3_63_REAL_LLM_ASSISTANT_ADAPTER.md` | Disabled-by-default real LLM provider adapter for Gemini, OpenAI-compatible APIs, Claude, and mock testing while preserving deterministic fallback and read-only safety. |
 | `docs/V3_62_SUPERVISED_TRAINING_TARGET_CONTRACT.md` | Diagnostic-only safe training target adapter: exact labels are mapped to a binary SOC review-queue target while exact severity remains explanation/ranking only. |
+| `docs/V3_66_SOC_ASSISTANT_CONTEXT_HARDENING.md` | SOC Assistant follow-up context hardening so typed IDs override stale context and active alert/log/source/case context is clearer. |
+| `docs/V3_67_CI_AND_ASSISTANT_STABILITY.md` | CI hardening for backend no-`.env` checks and React dashboard lint/build/e2e coverage after assistant context stabilization. |
+| `docs/V3_68_REAL_LLM_ASSISTANT_QUALITY_GUARD.md` | Real LLM assistant quality guard so weak or unsafe provider wording cannot replace ATDR's deterministic evidence-grounded answer. |
+| `docs/V3_69_REAL_LLM_PROMPT_QUALITY_CONTRACT.md` | Real LLM prompt-quality contract that asks providers for professional, evidence-preserving SOC answer sections while keeping v3.68 guardrails active. |
+| `docs/V3_70_ASSISTANT_PROVIDER_TELEMETRY.md` | SOC Assistant dashboard telemetry that clearly shows local, external-used, guarded, or fallback provider behavior without exposing secrets or raw logs. |
+| `docs/V3_75_ASSISTANT_FOLLOWUP_CONTEXT_REPAIR.md` | SOC Assistant follow-up context repair so alert-scoped follow-ups keep the correct alert/log/source/case context and do not revive stale URL context. |
+| `docs/V3_76_REAL_LLM_ASSISTANT_FULL_CHAT_PROBE.md` | Safe full assistant chat provider probe using a synthetic temporary database to validate configured real LLM behavior without exposing secrets or mutating ATDR data. |
+| `docs/V3_73_DETECTION_ML_GOVERNANCE_DASHBOARD.md` | AI Governance dashboard integration for the read-only v3.72 Detection/ML productization evaluator. |
 | `docs/DETECTION_RULE_CATALOG.md` | Source-backed catalog of deterministic detection rules, false positives, mappings, and analyst next steps. |
 | `docs/ATDR_TEMPLATE_MERGE_ANALYSIS.md` | Current controlled template-merge analysis: adopt IAM/process concepts without migrating ATDR to Node/Vue/MongoDB. |
 

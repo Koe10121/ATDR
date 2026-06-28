@@ -1130,6 +1130,83 @@ def test_dashboard_validation_summary_reports_latest_file_without_private_paths(
         get_settings.cache_clear()
 
 
+def test_dashboard_detection_ml_productization_requires_auth_and_is_safe(monkeypatch):
+    def fake_evaluation(db, include_scenarios=False, use_ml=False):
+        return {
+            "ok": True,
+            "phase": "v3.72",
+            "status": "completed",
+            "generated_at": "2026-06-27T08:00:00+00:00",
+            "read_only": True,
+            "readiness": {
+                "decision": "diagnostic_evaluation_passed",
+                "required_checks_passed": 5,
+                "required_checks_total": 5,
+                "advisory_checks_passed": 2,
+                "advisory_checks_total": 3,
+                "blockers": [],
+                "advisories": ["controlled scenario quality included"],
+                "production_ready": False,
+                "model_activation_allowed": False,
+                "response_automation_allowed": False,
+            },
+            "checks": [{"name": "response automation remains disabled", "required": True, "passed": True}],
+            "rule_contract": {"ok": True, "implemented_rule_count": 18, "issues": []},
+            "scenario_quality": {"included": include_scenarios, "status": "skipped"},
+            "supervised_output_policy": {
+                "available": True,
+                "status": "decision_support_contract_ready",
+                "runtime_activation_allowed": False,
+                "response_automation_allowed": False,
+            },
+            "training_target_contract": {
+                "available": True,
+                "status": "safe_queue_target_adapter_ready",
+                "production_promotion_allowed": False,
+                "response_automation_allowed": False,
+            },
+            "training_data": {"feature_generation_ran": False, "trainable_log_count_estimate": 2672},
+            "safety": {
+                "current_database_mutated": False,
+                "counts_before": {"ml_labels": 2672, "ml_model_runs": 41, "response_actions": 0},
+                "counts_after": {"ml_labels": 2672, "ml_model_runs": 41, "response_actions": 0},
+                "production_promoted": False,
+                "model_activated": False,
+                "model_artifact_written": False,
+                "labels_written": False,
+                "response_actions_created": 0,
+                "response_automation_allowed": False,
+                "real_firewall_blocking_enabled": False,
+                "raw_logs_included": False,
+            },
+        }
+
+    monkeypatch.setattr(dashboard_router, "run_v372_unified_detection_ml_evaluation", fake_evaluation)
+    client = _client()
+    try:
+        unauthorized = client.get("/api/dashboard/detection-ml-productization")
+        assert unauthorized.status_code == 401
+
+        headers = _login(client, "analyst", "analyst123")
+        response = client.get("/api/dashboard/detection-ml-productization", headers=headers)
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["read_only"] is True
+        assert payload["readiness"]["decision"] == "diagnostic_evaluation_passed"
+        assert payload["readiness"]["model_activation_allowed"] is False
+        assert payload["readiness"]["response_automation_allowed"] is False
+        assert payload["rule_contract"]["implemented_rule_count"] == 18
+        assert payload["training_data"]["feature_generation_ran"] is False
+        assert payload["safety"]["current_database_mutated"] is False
+        assert payload["safety"]["labels_written"] is False
+        assert payload["safety"]["response_actions_created"] == 0
+        assert "client_secret" not in json.dumps(payload).lower()
+        assert "api_key" not in json.dumps(payload).lower()
+    finally:
+        app.dependency_overrides.clear()
+        get_settings.cache_clear()
+
+
 def test_detection_tuning_report_requires_auth_and_returns_shape():
     client = _client()
     try:

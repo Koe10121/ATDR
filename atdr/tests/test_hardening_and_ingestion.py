@@ -113,6 +113,72 @@ def test_config_doctor_flags_assistant_unsafe_context_and_provider():
     assert "assistant-secret" not in rendered
 
 
+def test_config_doctor_reports_mfu_iam_readiness_without_secret_leakage():
+    secret = "mfu-client-secret-that-must-not-leak"
+    admin_secret = "mfu-admin-secret-that-must-not-leak"
+    result = run_config_doctor(
+        Settings(
+            ENVIRONMENT="development",
+            MFU_IAM_ENABLED=True,
+            IAM_SDK_BASE_URL="https://iam.mfu.ac.th",
+            IAM_SDK_CLIENT_ID="template-local-client",
+            IAM_SDK_CLIENT_SECRET=secret,
+            IAM_SDK_AUDIENCE="mfu-ai-driven-log-based-threat-detection-and-response-api",
+            IAM_SDK_SCOPE="read write",
+            IAM_SDK_TOKEN_PATH="/api/v1/b2b/token",
+            IAM_SDK_INTROSPECT_PATH="/api/v1/b2b/introspect",
+            IAM_SDK_PROFILE_PATH="/api/v1/b2b/clients/me",
+            IAM_SDK_ADMIN_BASE_PATH="/api/v1/b2b/admin",
+            IAM_ADMIN_CLIENT_ID="super-app-admin-client",
+            IAM_ADMIN_CLIENT_SECRET=admin_secret,
+            IAM_ADMIN_AUDIENCE="iam-admin-api",
+            IAM_ADMIN_SCOPE="iam.security.read iam.security.write",
+            MFU_IAM_ALLOWED_DOMAINS="lamduan.mfu.ac.th",
+            MFU_IAM_DEFAULT_ROLE="analyst",
+            PROJECT_PERMISSION_SOURCE="iam",
+            PROJECT_PERMISSION_ROOT_PATH="/mfu-ai-driven-log-based-threat-detection-and-response/security/permission",
+            PROJECT_PERMISSION_PATHS="/dashboard,/security/audit",
+            PROJECT_AUTH_REQUIRE_2FA=True,
+        )
+    )
+    rendered = str(result)
+
+    assert result["ok"] is True
+    assert result["mfu_iam"]["enabled"] is True
+    assert result["mfu_iam"]["token_login_ready"] is True
+    assert result["mfu_iam"]["b2b_ready"] is True
+    assert result["mfu_iam"]["admin_api_ready"] is True
+    assert result["mfu_iam"]["permission_bootstrap_ready"] is True
+    assert result["mfu_iam"]["allowed_domains"] == ["lamduan.mfu.ac.th"]
+    assert result["mfu_iam"]["auth_require_2fa"] is True
+    assert result["mfu_iam"]["secrets_exposed"] is False
+    assert secret not in rendered
+    assert admin_secret not in rendered
+
+
+def test_config_doctor_warns_when_mfu_iam_values_are_present_but_disabled():
+    secret = "disabled-mfu-secret-that-must-not-leak"
+    result = run_config_doctor(
+        Settings(
+            ENVIRONMENT="development",
+            MFU_IAM_ENABLED=False,
+            IAM_SDK_BASE_URL="https://iam.mfu.ac.th",
+            IAM_SDK_CLIENT_ID="template-local-client",
+            IAM_SDK_CLIENT_SECRET=secret,
+            IAM_SDK_AUDIENCE="mfu-ai-driven-log-based-threat-detection-and-response-api",
+            MFU_IAM_ALLOWED_DOMAINS="lamduan.mfu.ac.th",
+        )
+    )
+    rendered = str(result)
+    codes = {issue["code"] for issue in result["issues"]}
+
+    assert result["ok"] is True
+    assert result["mfu_iam"]["enabled"] is False
+    assert result["mfu_iam"]["token_login_ready"] is False
+    assert "mfu-iam-config-present-disabled" in codes
+    assert secret not in rendered
+
+
 def test_config_doctor_flags_unsafe_production_defaults():
     result = run_config_doctor(
         Settings(

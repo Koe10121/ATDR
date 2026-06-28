@@ -7,6 +7,7 @@ from typing import Any
 from sqlalchemy.engine import make_url
 
 from atdr.app.core.config import PROJECT_ROOT, Settings, validate_runtime_settings
+from atdr.app.services.mfu_iam_service import build_mfu_iam_status
 
 
 DEFAULT_SECRETS = {"change-this-dev-secret", "change-this-secret-before-production"}
@@ -44,6 +45,7 @@ def run_config_doctor(settings: Settings | None = None) -> dict[str, Any]:
     is_production = environment == "production"
     issues: list[dict[str, str]] = []
     database_info = _database_url_info(settings.database_url)
+    mfu_iam_status = build_mfu_iam_status(settings)
 
     for message in validate_runtime_settings(settings):
         severity = "critical" if is_production else "warning"
@@ -177,6 +179,55 @@ def run_config_doctor(settings: Settings | None = None) -> dict[str, Any]:
             )
         )
 
+    mfu_config_present = any(
+        [
+            settings.mfu_iam_base_url.strip(),
+            settings.mfu_iam_client_id.strip(),
+            settings.mfu_iam_client_secret.strip(),
+            settings.mfu_iam_audience.strip(),
+            settings.mfu_iam_scope.strip(),
+            settings.mfu_iam_allowed_domains.strip(),
+            settings.mfu_iam_admin_client_id.strip(),
+            settings.mfu_iam_admin_client_secret.strip(),
+            settings.mfu_iam_permission_source.strip(),
+            settings.mfu_iam_managed_client_id.strip(),
+            settings.google_sso_enabled,
+            settings.google_client_id.strip(),
+        ]
+    )
+    if not settings.mfu_iam_enabled and mfu_config_present:
+        issues.append(
+            _issue(
+                "warning",
+                "mfu-iam-config-present-disabled",
+                "MFU IAM fields are configured while MFU_IAM_ENABLED=false. Local login remains active; set MFU_IAM_ENABLED=true only after validating private credentials and allowed domains.",
+            )
+        )
+    if settings.mfu_iam_enabled and not mfu_iam_status["token_login_ready"]:
+        issues.append(
+            _issue(
+                "warning",
+                "mfu-iam-token-login-not-ready",
+                "MFU IAM is enabled but token login is not ready. Check base URL, client ID, client secret, audience, token/introspection/profile paths, and allowed domains.",
+            )
+        )
+    if settings.mfu_iam_enabled and not mfu_iam_status["allowed_domains"]:
+        issues.append(
+            _issue(
+                "warning",
+                "mfu-iam-missing-allowed-domains",
+                "MFU IAM is enabled but no allowed school-email domains are configured. Add MFU_IAM_ALLOWED_DOMAINS such as lamduan.mfu.ac.th after advisor approval.",
+            )
+        )
+    if settings.mfu_iam_enabled and settings.mfu_iam_mock_enabled and is_production:
+        issues.append(
+            _issue(
+                "critical",
+                "mfu-iam-mock-production",
+                "MFU_IAM_MOCK_ENABLED=true is not allowed in production-like environments.",
+            )
+        )
+
     if is_production and settings.api_base_url.startswith("http://"):
         issues.append(
             _issue(
@@ -207,6 +258,21 @@ def run_config_doctor(settings: Settings | None = None) -> dict[str, Any]:
         "local_workflow_recommendation": "Use DATABASE_URL=\"sqlite:///./atdr.db\" for normal local dashboard testing.",
         "response_simulation": settings.response_simulation,
         "response_provider": settings.response_provider,
+        "mfu_iam": {
+            "enabled": mfu_iam_status["enabled"],
+            "mode": mfu_iam_status["mode"],
+            "token_login_ready": mfu_iam_status["token_login_ready"],
+            "b2b_ready": mfu_iam_status["b2b_ready"],
+            "admin_api_ready": mfu_iam_status["admin_api_ready"],
+            "permission_bootstrap_ready": mfu_iam_status["permission_bootstrap_ready"],
+            "mock_enabled": mfu_iam_status["mock_enabled"],
+            "google_sso_enabled": mfu_iam_status["google_sso_enabled"],
+            "allowed_domains": mfu_iam_status["allowed_domains"],
+            "domain_hints": mfu_iam_status["domain_hints"],
+            "default_role": mfu_iam_status["default_role"],
+            "auth_require_2fa": mfu_iam_status["auth_require_2fa"],
+            "secrets_exposed": False,
+        },
         "syslog": {
             "enabled": settings.syslog_enabled,
             "host": settings.syslog_host,

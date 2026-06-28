@@ -31,6 +31,7 @@ from atdr.app.main import app
 from atdr.app.services import assistant_llm
 from atdr.app.services import assistant_service
 from atdr.app.services.user_service import create_user
+from atdr.scripts.test_assistant_chat_provider import build_report as build_chat_provider_probe_report
 from atdr.scripts.test_assistant_llm_provider import build_report as build_llm_provider_probe_report
 
 
@@ -188,6 +189,16 @@ def _login(client: TestClient, username: str = "analyst", password: str = "analy
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
 
 
+def _side_effect_counts(db: Session) -> dict[str, int]:
+    return {
+        "response_actions": db.scalar(select(func.count(ResponseAction.id))) or 0,
+        "detection_runs": db.scalar(select(func.count(DetectionRun.id))) or 0,
+        "model_runs": db.scalar(select(func.count(MLModelRun.id))) or 0,
+        "labels": db.scalar(select(func.count(MLLabel.id))) or 0,
+        "users": db.scalar(select(func.count(User.id))) or 0,
+    }
+
+
 def test_assistant_requires_authentication():
     client, _ = _client_with_session()
     try:
@@ -282,6 +293,10 @@ def test_assistant_mock_llm_adapter_is_explicit_read_only_and_audited(monkeypatc
         assert payload["details"]["llm"]["used"] is True
         assert payload["details"]["llm"]["provider"] == "mock"
         assert payload["details"]["llm"]["secrets_exposed"] is False
+        assert payload["details"]["llm"]["provider_called"] is True
+        assert payload["details"]["llm"]["answer_used"] is True
+        assert payload["details"]["llm"]["answer_guard_reason"] is None
+        assert payload["details"]["llm"]["prompt_contract"] == "soc_evidence_preserving_v1"
         assert "synthetic assistant test log" not in str(payload)
         assert "203.0.113.10" not in str(payload)
         assert "LLM-assisted analyst summary" in payload["answer"]
@@ -299,6 +314,124 @@ def test_assistant_mock_llm_adapter_is_explicit_read_only_and_audited(monkeypatc
             assert audit is not None
             assert audit.details["external_provider_used"] is True
             assert audit.details["raw_log_context_included"] is False
+    finally:
+        app.dependency_overrides.clear()
+        get_settings.cache_clear()
+
+
+def test_assistant_llm_prompt_contract_preserves_evidence_and_redacts_ips(monkeypatch):
+    monkeypatch.setenv("ASSISTANT_REDACT_IPS", "true")
+    get_settings.cache_clear()
+    settings = get_settings()
+    request = assistant_llm.AssistantLLMRequest(
+        question="Why was alert 42 flagged for 203.0.113.10?",
+        deterministic_answer=(
+            "Alert #42: Critical possible_port_scan. Evidence logs: 10; occurrences: 10. "
+            "Signals: repeated denied traffic from 203.0.113.10 to destination port 22. "
+            "Response automation is disabled."
+        ),
+        context_used=["alert_detail", "why_flagged", "response_safety"],
+        citations=[{"label": "Alert detail", "source": "/api/alerts/{alert_id}", "reference_id": "42"}],
+        suggested_followups=["What logs are related?", "What should an analyst verify before response?"],
+        safety=["Read Only", "Decision Support Only", "Response Automation Disabled"],
+    )
+    prompt = assistant_llm.build_safe_context_prompt(request, settings)
+    assert "Prompt contract: soc_evidence_preserving_v1" in prompt
+    assert "Required response format:" in prompt
+    for section in ["Summary", "Evidence", "Risk interpretation", "Analyst checks", "Safety", "Sources"]:
+        assert section in prompt
+    assert "Do not add unprovided indicators" in prompt
+    assert "do not be so terse" in prompt
+    assert "Alert #42" in prompt
+    assert "/api/alerts/{alert_id}" in prompt
+    assert "203.0.113.10" not in prompt
+    assert "[redacted-ip]" in prompt
+
+
+def test_assistant_guards_too_short_provider_answer_without_side_effects(monkeypatch):
+    monkeypatch.setenv("ASSISTANT_LLM_ENABLED", "true")
+    monkeypatch.setenv("ASSISTANT_LLM_PROVIDER", "gemini")
+    monkeypatch.setenv("ASSISTANT_LLM_MODEL", "gemini-test")
+    monkeypatch.setenv("ASSISTANT_LLM_API_KEY", "llm-secret-that-must-not-leak")
+    monkeypatch.setenv("ASSISTANT_ALLOW_RAW_LOG_CONTEXT", "false")
+    monkeypatch.setenv("ASSISTANT_REDACT_IPS", "true")
+
+    def short_provider_answer(*args, **kwargs):
+        return {"candidates": [{"content": {"parts": [{"text": "Looks suspicious."}]}}]}
+
+    monkeypatch.setattr(assistant_llm, "_post_json", short_provider_answer)
+    get_settings.cache_clear()
+    client, testing_session = _client_with_session()
+    try:
+        headers = _login(client)
+        with testing_session() as db:
+            before_counts = _side_effect_counts(db)
+
+        response = client.post("/api/assistant/chat", json={"question": "Why was alert 1 flagged?"}, headers=headers)
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["mode"] == "deterministic_local_llm_guarded_gemini"
+        assert payload["external_provider_used"] is True
+        assert payload["raw_log_context_included"] is False
+        assert "external_llm_guarded:gemini" in payload["context_used"]
+        assert payload["details"]["llm"]["used"] is True
+        assert payload["details"]["llm"]["provider_called"] is True
+        assert payload["details"]["llm"]["answer_used"] is False
+        assert payload["details"]["llm"]["answer_guard_reason"] == "provider_answer_too_short_for_evidence_context"
+        assert "Alert #1" in payload["answer"]
+        assert "Why flagged" in payload["answer"]
+        assert "Looks suspicious." not in payload["answer"]
+        assert "203.0.113.10" not in str(payload)
+        assert "llm-secret-that-must-not-leak" not in str(payload)
+
+        with testing_session() as db:
+            after_counts = _side_effect_counts(db)
+            audit = db.scalar(select(AuditLog).where(AuditLog.action == "assistant_question").order_by(AuditLog.id.desc()))
+            assert after_counts == before_counts
+            assert audit is not None
+            assert audit.details["external_provider_used"] is True
+            assert audit.details["raw_log_context_included"] is False
+    finally:
+        app.dependency_overrides.clear()
+        get_settings.cache_clear()
+
+
+def test_assistant_guards_provider_answer_that_implies_action(monkeypatch):
+    monkeypatch.setenv("ASSISTANT_LLM_ENABLED", "true")
+    monkeypatch.setenv("ASSISTANT_LLM_PROVIDER", "gemini")
+    monkeypatch.setenv("ASSISTANT_LLM_MODEL", "gemini-test")
+    monkeypatch.setenv("ASSISTANT_LLM_API_KEY", "llm-secret-that-must-not-leak")
+    monkeypatch.setenv("ASSISTANT_ALLOW_RAW_LOG_CONTEXT", "false")
+    monkeypatch.setenv("ASSISTANT_REDACT_IPS", "true")
+
+    def unsafe_provider_answer(*args, **kwargs):
+        return {"candidates": [{"content": {"parts": [{"text": "I blocked the source IP and containment has been applied."}]}}]}
+
+    monkeypatch.setattr(assistant_llm, "_post_json", unsafe_provider_answer)
+    get_settings.cache_clear()
+    client, testing_session = _client_with_session()
+    try:
+        headers = _login(client)
+        with testing_session() as db:
+            before_counts = _side_effect_counts(db)
+
+        response = client.post("/api/assistant/chat", json={"question": "Create investigation brief for alert 1."}, headers=headers)
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["mode"] == "deterministic_local_llm_guarded_gemini"
+        assert payload["external_provider_used"] is True
+        assert payload["raw_log_context_included"] is False
+        assert payload["details"]["llm"]["used"] is True
+        assert payload["details"]["llm"]["answer_used"] is False
+        assert payload["details"]["llm"]["answer_guard_reason"] == "provider_answer_implies_action_execution"
+        assert "I blocked" not in payload["answer"]
+        assert "containment has been applied" not in payload["answer"]
+        assert "Response automation is disabled" in payload["answer"]
+        assert "llm-secret-that-must-not-leak" not in str(payload)
+
+        with testing_session() as db:
+            after_counts = _side_effect_counts(db)
+            assert after_counts == before_counts
     finally:
         app.dependency_overrides.clear()
         get_settings.cache_clear()
@@ -337,6 +470,55 @@ def test_assistant_llm_provider_probe_mock_executes_without_raw_logs(monkeypatch
         assert report["provider"] == "mock"
         assert report["raw_log_context_included"] is False
         assert report["secrets_exposed"] is False
+    finally:
+        get_settings.cache_clear()
+
+
+def test_assistant_chat_provider_probe_is_status_only_by_default_and_hides_secret(monkeypatch):
+    monkeypatch.setenv("ASSISTANT_LLM_ENABLED", "true")
+    monkeypatch.setenv("ASSISTANT_LLM_PROVIDER", "gemini")
+    monkeypatch.setenv("ASSISTANT_LLM_MODEL", "gemini-test")
+    monkeypatch.setenv("ASSISTANT_LLM_API_KEY", "llm-secret-that-must-not-leak")
+    monkeypatch.setenv("ASSISTANT_ALLOW_RAW_LOG_CONTEXT", "false")
+    get_settings.cache_clear()
+    try:
+        report = build_chat_provider_probe_report(execute=False)
+        assert report["ok"] is True
+        assert report["executed_chat_call"] is False
+        assert report["api_key_configured"] is True
+        assert report["secrets_exposed"] is False
+        assert "llm-secret-that-must-not-leak" not in str(report)
+    finally:
+        get_settings.cache_clear()
+
+
+def test_assistant_chat_provider_probe_mock_executes_without_mutating_side_effects(monkeypatch):
+    monkeypatch.setenv("ASSISTANT_LLM_ENABLED", "true")
+    monkeypatch.setenv("ASSISTANT_LLM_PROVIDER", "mock")
+    monkeypatch.setenv("ASSISTANT_LLM_MODEL", "mock-soc")
+    monkeypatch.setenv("ASSISTANT_LLM_API_KEY", "")
+    monkeypatch.setenv("ASSISTANT_ALLOW_RAW_LOG_CONTEXT", "false")
+    monkeypatch.setenv("ASSISTANT_REDACT_IPS", "true")
+    get_settings.cache_clear()
+    try:
+        report = build_chat_provider_probe_report(execute=True)
+        assert report["ok"] is True
+        assert report["executed_chat_call"] is True
+        assert report["external_provider_used"] is True
+        assert report["provider"] == "mock"
+        assert report["provider_called"] is True
+        assert report["provider_answer_used"] is True
+        assert report["raw_log_context_included"] is False
+        assert report["raw_line_exposed"] is False
+        assert report["secrets_exposed"] is False
+        assert report["assistant_audit_created"] is True
+        assert report["mutating_side_effects"] == {
+            "response_actions": 0,
+            "detection_runs": 0,
+            "model_runs": 0,
+            "labels": 0,
+        }
+        assert "synthetic provider probe raw line" not in str(report)
     finally:
         get_settings.cache_clear()
 
@@ -1176,6 +1358,153 @@ def test_assistant_follow_up_phrases_keep_alert_context_over_related_log_or_sour
         assert next_payload["details"]["alert"]["id"] == 1
         assert "raw_line" not in str(next_payload)
         assert "synthetic assistant test log" not in str(next_payload)
+
+        with testing_session() as db:
+            assert db.scalar(select(func.count(ResponseAction.id))) == 0
+            assert db.scalar(select(func.count(MLModelRun.id))) == 0
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_assistant_follow_up_uses_explicit_non_default_alert_context():
+    client, testing_session = _client_with_session()
+    headers = _login(client)
+    try:
+        with testing_session() as db:
+            log = db.get(NormalizedLog, 1)
+            assert log is not None
+            alert = Alert(
+                id=35,
+                title="Critical: Non-default assistant alert",
+                alert_type="possible_port_scan",
+                src_ip="203.0.113.35",
+                dst_ip="198.51.100.35",
+                threat_score=88,
+                severity="Critical",
+                status="open",
+                explanation="Synthetic non-default alert for follow-up context.",
+                matched_rules_json=[
+                    {
+                        "code": "possible_port_scan",
+                        "title": "Possible port scan",
+                        "score": 80,
+                        "explanation": "Scanning-like denied traffic.",
+                    }
+                ],
+                recommended_response="Review related logs before simulated containment.",
+                created_at=datetime(2026, 1, 1, 12, 1, tzinfo=timezone.utc),
+                updated_at=datetime(2026, 1, 1, 12, 1, tzinfo=timezone.utc),
+            )
+            db.add(alert)
+            db.flush()
+            db.add(AlertEvidence(alert_id=alert.id, normalized_log_id=log.id))
+            db.commit()
+
+        explain = client.post(
+            "/api/assistant/chat",
+            json={"question": "Why was alert 35 flagged?"},
+            headers=headers,
+        )
+        assert explain.status_code == 200
+        explain_payload = explain.json()
+        assert "Alert #35" in explain_payload["answer"]
+        assert any(citation["source"] == "/api/alerts/{alert_id}" and citation["reference_id"] == "35" for citation in explain_payload["citations"])
+        assert "Why was alert 35 flagged?" not in explain_payload["suggested_followups"]
+        assert "Why was alert 1 flagged?" not in explain_payload["suggested_followups"]
+
+        next_step = client.post(
+            "/api/assistant/chat",
+            json={
+                "question": "What should an analyst verify before response?",
+                "alert_id": 35,
+                "log_id": 1,
+                "source_id": 1,
+            },
+            headers=headers,
+        )
+        assert next_step.status_code == 200
+        next_payload = next_step.json()
+        assert "Safe next steps for alert #35" in next_payload["answer"]
+        assert "alert_workflow" in next_payload["context_used"]
+        assert next_payload["details"]["alert"]["id"] == 35
+        assert any(citation["source"] == "/api/alerts/{alert_id}" and citation["reference_id"] == "35" for citation in next_payload["citations"])
+        assert "log_detail" not in next_payload["context_used"]
+
+        related_logs = client.post(
+            "/api/assistant/chat",
+            json={
+                "question": "What logs are related?",
+                "alert_id": 35,
+                "log_id": 1,
+                "source_id": 1,
+            },
+            headers=headers,
+        )
+        assert related_logs.status_code == 200
+        related_payload = related_logs.json()
+        assert "Alert #35" in related_payload["answer"]
+        assert "alert_detail" in related_payload["context_used"]
+        assert related_payload["details"]["alert"]["id"] == 35
+        assert "log_detail" not in related_payload["context_used"]
+
+        with testing_session() as db:
+            assert db.scalar(select(func.count(ResponseAction.id))) == 0
+            assert db.scalar(select(func.count(MLModelRun.id))) == 0
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_assistant_typed_alert_id_overrides_stale_payload_context():
+    client, testing_session = _client_with_session()
+    headers = _login(client)
+    try:
+        now = datetime(2026, 1, 1, 12, 5, tzinfo=timezone.utc)
+        with testing_session() as db:
+            stale_alert = db.scalar(select(Alert).where(Alert.id == 1))
+            assert stale_alert is not None
+            second_alert = Alert(
+                title="Critical: Second assistant alert",
+                alert_type="policy_deny",
+                src_ip="203.0.113.55",
+                dst_ip="198.51.100.88",
+                threat_score=82,
+                severity="Critical",
+                status="open",
+                explanation="Second synthetic alert for stale-context regression.",
+                matched_rules_json=[
+                    {
+                        "code": "policy_deny",
+                        "title": "Policy deny",
+                        "score": 70,
+                        "explanation": "Denied high-risk traffic.",
+                    }
+                ],
+                recommended_response="Review the second alert context before simulated response.",
+                created_at=now,
+                updated_at=now,
+            )
+            db.add(second_alert)
+            db.commit()
+            second_alert_id = second_alert.id
+
+        response = client.post(
+            "/api/assistant/chat",
+            json={
+                "question": f"Why was alert {second_alert_id} flagged?",
+                "alert_id": 1,
+                "log_id": 1,
+                "source_id": 1,
+            },
+            headers=headers,
+        )
+        assert response.status_code == 200
+        payload = response.json()
+        assert "alert_detail" in payload["context_used"]
+        assert "log_detail" not in payload["context_used"]
+        assert payload["details"]["alert"]["id"] == second_alert_id
+        assert f"Alert #{second_alert_id}" in payload["answer"]
+        assert "raw_line" not in str(payload)
+        assert "synthetic assistant test log" not in str(payload)
 
         with testing_session() as db:
             assert db.scalar(select(func.count(ResponseAction.id))) == 0

@@ -5,8 +5,14 @@ on:
   pull_request:
 
 jobs:
-  release-gate:
+  backend-release-gate:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: sqlite:///./atdr_ci.db
+      AUTO_CREATE_TABLES: "true"
+      RESPONSE_SIMULATION: "true"
+      ASSISTANT_LLM_ENABLED: "false"
+      ASSISTANT_ALLOW_RAW_LOG_CONTEXT: "false"
 
     steps:
       - name: Check out repository
@@ -29,7 +35,7 @@ jobs:
         run: python -m compileall -q atdr migrations
 
       - name: Run tests
-        run: python -m pytest atdr/tests -q
+        run: python -m pytest atdr/tests -q -o cache_dir=.tmp/pytest-cache --basetemp=.tmp/pytest-ci
 
       - name: Apply migrations to CI SQLite database
         run: python -m alembic upgrade head
@@ -39,3 +45,37 @@ jobs:
 
       - name: Ruff safety lint
         run: ruff check atdr migrations
+
+  frontend-dashboard:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Lint React dashboard
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Build React dashboard
+        working-directory: frontend
+        run: npm run build
+
+      - name: Run Playwright dashboard tests
+        working-directory: frontend
+        run: npm run test:e2e

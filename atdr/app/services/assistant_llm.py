@@ -10,15 +10,22 @@ from atdr.app.core.config import Settings
 
 
 IP_PATTERN = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+PROMPT_CONTRACT_VERSION = "soc_evidence_preserving_v1"
 
 SAFE_SYSTEM_PROMPT = """You are the ATDR SOC Assistant.
 
-You may improve wording and structure for an analyst, but you must stay within
-the supplied ATDR evidence. Do not invent facts. Do not request or expose raw
-logs. Do not execute, recommend executing, or imply you executed response
-actions, detection runs, label changes, model activation, account changes,
-data deletion, or firewall changes. ATDR response remains simulated and
-analyst-approved only.
+You are writing for a professional security analyst using a read-only SOC
+triage system. Improve wording and structure, but stay inside the supplied
+ATDR evidence. Preserve IDs, uncertainty, counts, citations, and safety
+limits. Do not invent facts. Do not request or expose raw logs. Do not execute,
+recommend executing, or imply you executed response actions, detection runs,
+label changes, model activation, account changes, data deletion, or firewall
+changes. ATDR response remains simulated and analyst-approved only.
+
+Return a concise but complete SOC answer. Do not answer with a single sentence
+when alert/log/source evidence is available. Use the requested section labels
+when possible: Summary, Evidence, Risk interpretation, Analyst checks, Safety,
+Sources.
 """
 
 
@@ -52,6 +59,7 @@ class AssistantLLMResult:
             "raw_log_context_included": self.raw_log_context_included,
             "secrets_exposed": self.secrets_exposed,
             "context_characters": self.context_characters,
+            "prompt_contract": PROMPT_CONTRACT_VERSION,
         }
 
 
@@ -90,7 +98,7 @@ class GeminiAssistantLLMProvider(AssistantLLMProvider):
         payload = {
             "systemInstruction": {"parts": [{"text": SAFE_SYSTEM_PROMPT}]},
             "contents": [{"role": "user", "parts": [{"text": build_safe_context_prompt(request, settings)}]}],
-            "generationConfig": {"temperature": 0.2, "maxOutputTokens": 900},
+            "generationConfig": {"temperature": 0.2, "maxOutputTokens": 1200},
         }
         data = _post_json(
             url,
@@ -118,7 +126,7 @@ class OpenAICompatibleAssistantLLMProvider(AssistantLLMProvider):
         payload = {
             "model": model,
             "temperature": 0.2,
-            "max_tokens": 900,
+            "max_tokens": 1200,
             "messages": [
                 {"role": "system", "content": SAFE_SYSTEM_PROMPT},
                 {"role": "user", "content": build_safe_context_prompt(request, settings)},
@@ -149,7 +157,7 @@ class ClaudeAssistantLLMProvider(AssistantLLMProvider):
         base_url = settings.assistant_llm_base_url.strip().rstrip("/") or "https://api.anthropic.com/v1"
         payload = {
             "model": model,
-            "max_tokens": 900,
+            "max_tokens": 1200,
             "temperature": 0.2,
             "system": SAFE_SYSTEM_PROMPT,
             "messages": [{"role": "user", "content": build_safe_context_prompt(request, settings)}],
@@ -210,6 +218,8 @@ def build_safe_context_prompt(request: AssistantLLMRequest, settings: Settings) 
         for item in request.citations[:20]
     ]
     lines = [
+        f"Prompt contract: {PROMPT_CONTRACT_VERSION}",
+        "",
         "Analyst question:",
         _redact_if_needed(request.question, settings=settings)[:2000],
         "",
@@ -228,8 +238,25 @@ def build_safe_context_prompt(request: AssistantLLMRequest, settings: Settings) 
         "Safety rules:",
         "; ".join(request.safety),
         "",
+        "Required response format:",
+        "- Summary: directly answer the analyst's question in 2-4 sentences.",
+        "- Evidence: preserve the important alert/log/source facts, counts, IDs, and why-flagged signals from ATDR.",
+        "- Risk interpretation: explain what the evidence suggests and what is uncertain.",
+        "- Analyst checks: list safe verification steps an analyst should perform next.",
+        "- Safety: state that the assistant is read-only and response automation remains disabled.",
+        "- Sources: mention the provided citation labels and reference IDs when useful.",
+        "",
+        "Quality requirements:",
+        "- Use professional SOC wording.",
+        "- Keep the same facts and uncertainty as the deterministic answer.",
+        "- Do not omit concrete IDs, counts, evidence strength, parser/source warnings, or response-safety limits when they are present.",
+        "- Do not add unprovided indicators, IPs, users, filenames, model claims, device actions, or containment actions.",
+        "- If evidence is weak, say so clearly and recommend analyst verification.",
+        "- If the deterministic answer already says no automatic response occurred, preserve that safety limit.",
+        "- Be concise, but do not be so terse that the evidence trail disappears.",
+        "",
         "Task:",
-        "Improve the wording and structure only. Keep the same facts, IDs, uncertainty, safety limits, and citations.",
+        "Rewrite the deterministic answer into the required SOC format. Keep it evidence-grounded and read-only.",
     ]
     return "\n".join(lines)[:10000]
 

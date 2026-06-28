@@ -10,6 +10,7 @@ import { api } from "../lib/api";
 import {
   useClassTemporalCoverage,
   useDashboardValidationSummary,
+  useDetectionMlProductization,
   useMlLabelMutations,
   useMlReport,
   useMlReviewQueue,
@@ -39,6 +40,7 @@ export function MLGovernance() {
   const report = useMlReport();
   const supervised = useSupervisedReport();
   const validationSummary = useDashboardValidationSummary();
+  const productization = useDetectionMlProductization();
   const supervisedModels = useSupervisedModels();
   const temporalCoverage = useClassTemporalCoverage();
   const reviewQueue = useMlReviewQueue({ limit: 25 });
@@ -191,6 +193,23 @@ export function MLGovernance() {
       ? "review safety"
       : "activation disabled";
   const v359AllowedStatuses = v359Policy?.allowed_output_statuses ?? {};
+  const productizationData = productization.data;
+  const productizationReadiness = String(productizationData?.readiness?.decision ?? "not evaluated").replaceAll("_", " ");
+  const productizationReadinessDisplay = productizationData?.ok ? "Passed" : productizationData ? "Needs Review" : "Not Evaluated";
+  const productizationChecks = productizationData?.readiness
+    ? `${productizationData.readiness.required_checks_passed}/${productizationData.readiness.required_checks_total} required`
+    : "not evaluated";
+  const productizationRuleLabel = productizationData?.rule_contract?.ok ? "passed" : productizationData ? "needs review" : "not evaluated";
+  const productizationScenarioLabel = productizationData?.scenario_quality?.included
+    ? `${productizationData.scenario_quality.passed_count ?? 0}/${productizationData.scenario_quality.scenario_count ?? 0} scenarios`
+    : "quick mode";
+  const productizationSafetyLabel =
+    productizationData?.safety?.current_database_mutated ||
+    productizationData?.safety?.labels_written ||
+    productizationData?.safety?.model_activated ||
+    productizationData?.safety?.response_actions_created
+      ? "review safety"
+      : "read only";
   const drift = data?.baseline_drift_report;
   const perClass = (supervisedMetrics.per_class ?? {}) as Record<string, Record<string, unknown>>;
   const benignMetrics = perClass.benign ?? {};
@@ -416,6 +435,7 @@ export function MLGovernance() {
   function refreshGovernance() {
     void report.refetch();
     void supervised.refetch();
+    void productization.refetch();
     void supervisedModels.refetch();
     void temporalCoverage.refetch();
     void reviewQueue.refetch();
@@ -476,6 +496,105 @@ export function MLGovernance() {
           <MetricCard label="Reviewed Labels" value={supervisedData?.reviewed_label_count ?? 0} detail="Analyst-reviewed rows" tone="teal" />
           <MetricCard label="Assisted Pending" value={supervisedData?.unreviewed_assisted_label_count ?? 0} detail="Awaiting review" tone="amber" />
           <MetricCard label="Review Coverage" value={`${reviewedCoverage}%`} detail={`Target ${reviewedTarget}`} tone="cyan" />
+        </div>
+        <div className="mt-4 rounded-lg border border-line bg-panel2 p-4" data-testid="detection-ml-productization-panel">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div className="text-xs font-extrabold uppercase tracking-wide text-muted">Detection / ML Productization</div>
+              <div className="mt-1 text-sm text-muted">Read-only evaluator for rule coverage, supervised policy, training target, and safety invariants.</div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge value={productizationData?.phase ?? "v3.72"} />
+              <Badge value={productizationSafetyLabel} />
+              <Badge value={productizationReadiness} />
+            </div>
+          </div>
+          {productization.isError ? (
+            <div className="rounded border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+              Detection/ML productization status could not be loaded.
+            </div>
+          ) : (
+            <>
+              <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+                <MetricCard
+                  label="Readiness"
+                  value={productization.isLoading ? "Loading" : productizationReadinessDisplay}
+                  detail={productizationChecks}
+                  tone={productizationData?.ok ? "teal" : "amber"}
+                />
+                <MetricCard
+                  label="Rule Contract"
+                  value={productizationRuleLabel}
+                  detail={`${metricText(productizationData?.rule_contract?.implemented_rule_count)} implemented rules`}
+                  tone={productizationData?.rule_contract?.ok ? "teal" : "amber"}
+                />
+                <MetricCard
+                  label="Scenario Check"
+                  value={productizationScenarioLabel}
+                  detail={productizationData?.scenario_quality?.included ? "Temporary-DB validation" : "Fast dashboard mode"}
+                  tone={productizationData?.scenario_quality?.ok ? "teal" : "cyan"}
+                />
+                <MetricCard
+                  label="Output Policy"
+                  value={String(productizationData?.supervised_output_policy?.status ?? "not loaded").replaceAll("_", " ")}
+                  detail={`${metricText(productizationData?.supervised_output_policy?.checks_passed)}/${metricText(productizationData?.supervised_output_policy?.checks_total)} checks`}
+                  tone={productizationData?.supervised_output_policy?.available ? "teal" : "amber"}
+                />
+                <MetricCard
+                  label="Training Target"
+                  value={String(productizationData?.training_target_contract?.status ?? "not loaded").replaceAll("_", " ")}
+                  detail={`${metricText(productizationData?.training_data?.trainable_log_count_estimate)} trainable logs`}
+                  tone={productizationData?.training_target_contract?.available ? "teal" : "amber"}
+                />
+                <MetricCard
+                  label="Response Actions"
+                  value={productizationData?.safety?.response_actions_created ?? 0}
+                  detail="Evaluator side effects"
+                  tone={productizationData?.safety?.response_actions_created ? "danger" : "teal"}
+                />
+              </div>
+              {productizationData ? (
+                <details className="mt-3">
+                  <summary className="cursor-pointer rounded border border-line bg-panel px-3 py-2 text-sm font-bold text-text">
+                    View productization checks
+                  </summary>
+                  <div className="mt-3 grid gap-3 text-sm text-muted lg:grid-cols-2">
+                    <div className="rounded border border-line bg-panel px-3 py-2">
+                      Safety: database mutated{" "}
+                      <span className="font-bold text-text">{String(productizationData.safety.current_database_mutated)}</span>, labels written{" "}
+                      <span className="font-bold text-text">{String(productizationData.safety.labels_written)}</span>, model activated{" "}
+                      <span className="font-bold text-text">{String(productizationData.safety.model_activated)}</span>, raw logs included{" "}
+                      <span className="font-bold text-text">{String(productizationData.safety.raw_logs_included)}</span>.
+                    </div>
+                    <div className="rounded border border-line bg-panel px-3 py-2">
+                      Training data: <span className="font-bold text-text">{metricText(productizationData.training_data.reviewed_label_rows)}</span> reviewed labels,{" "}
+                      <span className="font-bold text-text">{metricText(productizationData.training_data.weak_or_unreviewed_label_rows)}</span> weak/unreviewed rows.
+                    </div>
+                  </div>
+                  <div className="mt-3 overflow-auto rounded border border-line bg-panel px-3 py-2">
+                    <table className="soc-table soc-table-compact">
+                      <thead>
+                        <tr>
+                          <th>Check</th>
+                          <th>Required</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {productizationData.checks.map((item) => (
+                          <tr key={item.name}>
+                            <td>{item.name}</td>
+                            <td>{item.required ? "yes" : "no"}</td>
+                            <td>{item.passed ? "passed" : "needs review"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
+              ) : null}
+            </>
+          )}
         </div>
         <div className="mt-4 rounded-lg border border-line bg-panel2 p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">

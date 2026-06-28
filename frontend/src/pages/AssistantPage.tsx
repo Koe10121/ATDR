@@ -36,13 +36,29 @@ interface AssistantContextState {
   logId: number | null;
   sourceId: number | null;
   caseId: string | null;
+  primary: "alert" | "log" | "source" | "case" | null;
+}
+
+interface AssistantLlmDetails {
+  used?: boolean;
+  provider?: string;
+  model_configured?: boolean;
+  fallback_reason?: string | null;
+  raw_log_context_included?: boolean;
+  secrets_exposed?: boolean;
+  context_characters?: number;
+  prompt_contract?: string;
+  provider_called?: boolean;
+  answer_used?: boolean;
+  answer_guard_reason?: string | null;
 }
 
 const emptyAssistantContext: AssistantContextState = {
   alertId: null,
   logId: null,
   sourceId: null,
-  caseId: null
+  caseId: null,
+  primary: null
 };
 
 const promptGroups = [
@@ -274,6 +290,43 @@ function citationString(response: AssistantChatResponse | undefined, source: str
   return citation?.reference_id ?? null;
 }
 
+function primaryContextFromValues(context: Omit<AssistantContextState, "primary">): AssistantContextState["primary"] {
+  if (context.alertId) return "alert";
+  if (context.logId) return "log";
+  if (context.sourceId) return "source";
+  if (context.caseId) return "case";
+  return null;
+}
+
+function primaryContextFromResponse(response: AssistantChatResponse): AssistantContextState["primary"] {
+  const context = response.context_used.join(" ").toLowerCase();
+  if (context.includes("log_detail") || context.includes("log_triage")) {
+    return "log";
+  }
+  if (context.includes("alert_workflow") || context.includes("alert_detail") || context.includes("alert_evidence")) {
+    return "alert";
+  }
+  if (context.includes("source_alerts") || context.includes("source_health") || context.includes("sources")) {
+    return "source";
+  }
+  if (context.includes("alert_cases") || context.includes("case")) {
+    return "case";
+  }
+  return null;
+}
+
+function primaryContextFromQuestion(
+  lowered: string,
+  ids: Omit<AssistantContextState, "primary">,
+  fallback: AssistantContextState["primary"]
+): AssistantContextState["primary"] {
+  if (ids.alertId && /\balert\b/.test(lowered)) return "alert";
+  if (ids.logId && /\b(?:log|row|event)\b/.test(lowered)) return "log";
+  if (ids.sourceId && /\b(?:source|sensor)\b/.test(lowered)) return "source";
+  if (ids.caseId && /\bcase\b/.test(lowered)) return "case";
+  return fallback;
+}
+
 function shouldResetContextForQuestion(lowered: string): boolean {
   return [
     "latest critical alert",
@@ -373,6 +426,110 @@ function AnswerSections({ response }: { response: AssistantChatResponse }) {
   );
 }
 
+function llmDetails(response: AssistantChatResponse): AssistantLlmDetails | null {
+  const raw = response.details?.llm;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return null;
+  }
+  return raw as AssistantLlmDetails;
+}
+
+function boolLabel(value: boolean | undefined, truthy: string, falsy: string, unknown = "Unknown") {
+  if (value === true) return truthy;
+  if (value === false) return falsy;
+  return unknown;
+}
+
+function providerDisplayName(provider?: string | null) {
+  const value = (provider ?? "").trim();
+  if (!value) return "Local";
+  const known: Record<string, string> = {
+    gemini: "Gemini",
+    google: "Google",
+    openai: "OpenAI",
+    claude: "Claude",
+    anthropic: "Claude",
+    disabled: "Disabled",
+    mock: "Mock"
+  };
+  return known[value.toLowerCase()] ?? value;
+}
+
+function guardReasonLabel(reason?: string | null) {
+  switch (reason) {
+    case "provider_answer_too_short_for_evidence_context":
+      return "Provider answer was guarded because it was too short for the available evidence.";
+    case "provider_answer_implies_action_execution":
+      return "Provider answer was guarded because it implied action execution.";
+    case "provider_answer_lost_alert_context":
+      return "Provider answer was guarded because it did not preserve the alert context.";
+    case "empty_provider_answer":
+      return "Provider answer was empty, so ATDR used the deterministic fallback.";
+    case "provider_call_failed":
+      return "Provider call failed, so ATDR used the deterministic fallback.";
+    default:
+      return reason ? reason.replaceAll("_", " ") : "ATDR kept the local evidence-grounded answer.";
+  }
+}
+
+function AssistantProviderTelemetry({ response }: { response: AssistantChatResponse }) {
+  const llm = llmDetails(response);
+  const providerCalled = Boolean(llm?.provider_called ?? response.external_provider_used);
+  const answerUsed = Boolean(llm?.answer_used ?? (response.external_provider_used && response.mode.startsWith("external_llm_")));
+  const guarded = providerCalled && !answerUsed && (Boolean(llm?.answer_guard_reason) || response.mode.includes("guarded"));
+  const fallback = Boolean(llm?.fallback_reason) && !answerUsed && !guarded;
+  const provider = providerDisplayName(llm?.provider);
+  const promptContract = llm?.prompt_contract ?? null;
+  const rawLogContextIncluded = Boolean(llm?.raw_log_context_included ?? response.raw_log_context_included);
+  const title = guarded
+    ? "External LLM Guarded"
+    : providerCalled && answerUsed
+      ? "External LLM Answer Used"
+      : fallback
+        ? "External LLM Fallback"
+        : "Local Deterministic Answer";
+  const status = guarded
+    ? "Provider was contacted, but ATDR kept the evidence-grounded local answer."
+    : providerCalled && answerUsed
+      ? "Provider wording passed ATDR safety checks."
+      : fallback
+        ? "Provider was unavailable, so deterministic ATDR context answered."
+        : "Deterministic ATDR context answered this request.";
+  const accent = guarded || fallback ? "border-warning/50 bg-warning/10 text-warning" : providerCalled && answerUsed ? "border-success/40 bg-success/10 text-success" : "border-cyan/30 bg-cyan/10 text-cyan";
+
+  return (
+    <div className="rounded-lg border border-line bg-panel2 p-4" data-testid="assistant-provider-telemetry">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-xs font-black uppercase tracking-wide text-muted">Provider status</div>
+          <div className="mt-2 text-base font-black text-text">{title}</div>
+          <p className="mt-1 text-sm font-semibold text-muted">{status}</p>
+          {guarded || fallback ? <p className="mt-2 text-sm font-bold text-warning">{guardReasonLabel(llm?.answer_guard_reason ?? llm?.fallback_reason)}</p> : null}
+        </div>
+        <span className={`rounded-full border px-3 py-1 text-xs font-black uppercase tracking-wide ${accent}`}>{providerCalled ? provider : "Local"}</span>
+      </div>
+      <div className="mt-4 grid gap-2 text-xs font-bold text-muted sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-lg border border-line bg-white px-3 py-2">
+          <div className="uppercase tracking-wide">Raw logs</div>
+          <div className="mt-1 text-sm text-text">{rawLogContextIncluded ? "Included" : "Not included"}</div>
+        </div>
+        <div className="rounded-lg border border-line bg-white px-3 py-2">
+          <div className="uppercase tracking-wide">Redaction</div>
+          <div className="mt-1 text-sm text-text">{boolLabel(response.redaction_applied, "Applied", "Not applied")}</div>
+        </div>
+        <div className="rounded-lg border border-line bg-white px-3 py-2">
+          <div className="uppercase tracking-wide">Secrets</div>
+          <div className="mt-1 text-sm text-text">{boolLabel(llm?.secrets_exposed, "Check required", "Not exposed", "Not exposed")}</div>
+        </div>
+        <div className="rounded-lg border border-line bg-white px-3 py-2">
+          <div className="uppercase tracking-wide">Prompt contract</div>
+          <div className="mt-1 break-words text-sm text-text">{promptContract ?? "Local deterministic"}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DetailBlock({ response }: { response: AssistantChatResponse }) {
   return (
     <details className="rounded-lg border border-line bg-panel2 p-4">
@@ -397,7 +554,7 @@ function DetailBlock({ response }: { response: AssistantChatResponse }) {
 
 export function AssistantPage() {
   const { isAdmin } = useAuth();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const status = useAssistantStatus();
   const history = useAssistantHistory();
   const assistant = useAssistantMutation();
@@ -431,11 +588,11 @@ export function AssistantPage() {
   const [feedbackSinceFilter, setFeedbackSinceFilter] = useState("30");
   const [feedbackLimit, setFeedbackLimit] = useState("20");
   const [lastContext, setLastContext] = useState<AssistantContextState>({
-    ...emptyAssistantContext,
     alertId,
     logId,
     sourceId,
-    caseId
+    caseId,
+    primary: primaryContextFromValues({ alertId, logId, sourceId, caseId })
   });
   const response = assistant.data;
   const feedbackParams = useMemo(
@@ -468,6 +625,10 @@ export function AssistantPage() {
     return "Deterministic local help";
   }, [status.data]);
   const activeContextLabel = useMemo(() => {
+    if (lastContext.primary === "alert" && lastContext.alertId) return `Using alert #${lastContext.alertId}`;
+    if (lastContext.primary === "log" && lastContext.logId) return `Using log #${lastContext.logId}`;
+    if (lastContext.primary === "source" && lastContext.sourceId) return `Using source #${lastContext.sourceId}`;
+    if (lastContext.primary === "case" && lastContext.caseId) return `Using case ${lastContext.caseId}`;
     if (lastContext.alertId) return `Using alert #${lastContext.alertId}`;
     if (lastContext.logId) return `Using log #${lastContext.logId}`;
     if (lastContext.sourceId) return `Using source #${lastContext.sourceId}`;
@@ -481,12 +642,13 @@ export function AssistantPage() {
 
   useEffect(() => {
     if (alertId || logId || sourceId || caseId) {
-      setLastContext({ alertId, logId, sourceId, caseId });
+      setLastContext({ alertId, logId, sourceId, caseId, primary: primaryContextFromValues({ alertId, logId, sourceId, caseId }) });
     }
   }, [alertId, logId, sourceId, caseId]);
 
   useEffect(() => {
     if (!response) return;
+    const responsePrimary = primaryContextFromResponse(response);
     const responseAlertId = citationNumber(response, "/api/alerts/{alert_id}", ["alert"]);
     const responseLogId = citationNumber(response, "/api/logs/{log_id}", ["log", "related"]);
     const responseSourceId = citationNumber(response, "/api/sources/{source_id}", ["source"]);
@@ -495,7 +657,8 @@ export function AssistantPage() {
       alertId: responseAlertId ?? current.alertId,
       logId: responseLogId ?? current.logId,
       sourceId: responseSourceId ?? current.sourceId,
-      caseId: responseCaseId ?? current.caseId
+      caseId: responseCaseId ?? current.caseId,
+      primary: responsePrimary ?? current.primary
     }));
   }, [response]);
 
@@ -547,19 +710,31 @@ export function AssistantPage() {
     const carriedLogId = explicitLogId ?? (explicitAlertQuestion || isAlertFollowUp ? null : rememberedLogId);
     const carriedSourceId = explicitSourceId ?? (explicitAlertQuestion || isAlertFollowUp ? null : rememberedSourceId);
     const carriedCaseId = explicitCaseId ?? (explicitAlertQuestion || isAlertFollowUp ? null : rememberedCaseId);
+    const nextPrimary = primaryContextFromQuestion(
+      lowered,
+      {
+        alertId: carriedAlertId,
+        logId: carriedLogId,
+        sourceId: carriedSourceId,
+        caseId: carriedCaseId
+      },
+      isAlertFollowUp && carriedAlertId ? "alert" : lastContext.primary
+    );
     setLastContext((current) =>
       resetContext
         ? {
             alertId: carriedAlertId,
             logId: carriedLogId,
             sourceId: carriedSourceId,
-            caseId: carriedCaseId
+            caseId: carriedCaseId,
+            primary: nextPrimary
           }
         : {
             alertId: carriedAlertId ?? current.alertId,
             logId: carriedLogId ?? current.logId,
             sourceId: carriedSourceId ?? current.sourceId,
-            caseId: carriedCaseId ?? current.caseId
+            caseId: carriedCaseId ?? current.caseId,
+            primary: nextPrimary ?? current.primary
           }
     );
     assistant.mutate({
@@ -570,6 +745,13 @@ export function AssistantPage() {
       case_id: carriedCaseId,
       include_recent_context: true
     });
+  }
+
+  function clearContext() {
+    setLastContext(emptyAssistantContext);
+    const next = new URLSearchParams(searchParams);
+    ["alert", "log", "source", "case", "prompt"].forEach((key) => next.delete(key));
+    setSearchParams(next);
   }
 
   function ask(event: FormEvent<HTMLFormElement>) {
@@ -592,14 +774,19 @@ export function AssistantPage() {
   }
 
   function currentContextType(): string | null {
-    if (alertId) return "alert";
-    if (logId) return "log";
-    if (sourceId) return "source";
-    if (caseId) return "case";
+    if (lastContext.primary) return lastContext.primary;
+    if (alertId || lastContext.alertId) return "alert";
+    if (logId || lastContext.logId) return "log";
+    if (sourceId || lastContext.sourceId) return "source";
+    if (caseId || lastContext.caseId) return "case";
     return normalizeFeedbackContext(response?.context_used?.[0]);
   }
 
   function currentContextReference(): string | null {
+    if (lastContext.primary === "alert" && lastContext.alertId) return String(lastContext.alertId);
+    if (lastContext.primary === "log" && lastContext.logId) return String(lastContext.logId);
+    if (lastContext.primary === "source" && lastContext.sourceId) return String(lastContext.sourceId);
+    if (lastContext.primary === "case" && lastContext.caseId) return lastContext.caseId;
     if (alertId) return String(alertId);
     if (logId) return String(logId);
     if (sourceId) return String(sourceId);
@@ -739,7 +926,7 @@ export function AssistantPage() {
             {activeContextLabel ? (
               <>
                 <Badge value={activeContextLabel} />
-                <button className="btn-secondary text-xs" type="button" onClick={() => setLastContext(emptyAssistantContext)}>
+                <button className="btn-secondary text-xs" type="button" onClick={clearContext}>
                   Clear context
                 </button>
               </>
@@ -791,6 +978,7 @@ export function AssistantPage() {
           {response ? (
             <div className="mt-4 space-y-4">
               <AnswerSections response={response} />
+              <AssistantProviderTelemetry response={response} />
               <div className="flex flex-wrap gap-2">
                 {response.safety.map((item) => (
                   <Badge key={item} value={item} />
