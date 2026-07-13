@@ -134,11 +134,13 @@ def validate_postgres_multiworker(
         with factory() as db:
             safety_before = _safety_counts(db)
             first, _ = enqueue_job(db, job_type="validation", requested_by=actor, payload={})
+            first_id = int(first.id)
             second, _ = enqueue_job(db, job_type="validation", requested_by=actor, payload={})
+            second_id = int(second.id)
 
         lock_session = factory()
         try:
-            lock_session.scalar(select(OperationJob).where(OperationJob.id == first.id).with_for_update())
+            lock_session.scalar(select(OperationJob).where(OperationJob.id == first_id).with_for_update())
             with factory() as db:
                 skipped_locked = claim_next_job(db, worker_id="v394-skip-locked", lease_seconds=60)
                 if skipped_locked is None:
@@ -265,8 +267,8 @@ def validate_postgres_multiworker(
         safety_unchanged = safety_before == safety_after
         ok = all(
             [
-                skipped_locked_id == second.id,
-                unlocked_id == first.id,
+                skipped_locked_id == second_id,
+                unlocked_id == first_id,
                 unique_claims,
                 recovery_unique,
                 source_creation_race_safe,
@@ -281,7 +283,7 @@ def validate_postgres_multiworker(
             "ok": ok,
             "status": "postgres_multiworker_validated" if ok else "postgres_multiworker_failed",
             "executed": True,
-            "skip_locked_claim_order_valid": skipped_locked_id == second.id and unlocked_id == first.id,
+            "skip_locked_claim_order_valid": skipped_locked_id == second_id and unlocked_id == first_id,
             "concurrent_claim_count": len(claimed_clean),
             "concurrent_claims_unique": unique_claims,
             "expired_lease_count": len(expired_ids),
