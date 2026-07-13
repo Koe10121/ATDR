@@ -77,8 +77,13 @@ def test_postgres_lab_validation_blocks_cleanly_on_sqlite():
     assert result["optional_flags"]["include_sample_ingest"] is True
 
 
-def test_database_portability_audit_reports_sqlite_without_production_claim():
-    settings = Settings(DATABASE_URL="sqlite:///./atdr.db")
+def test_database_portability_audit_reports_sqlite_without_production_claim(tmp_path):
+    database_path = tmp_path / "portability.sqlite3"
+    database_path.touch()
+    settings = Settings(
+        _env_file=None,
+        DATABASE_URL=f"sqlite:///{database_path.as_posix()}",
+    )
 
     result = run_database_portability_audit(settings=settings)
 

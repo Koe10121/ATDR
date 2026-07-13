@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 from starlette.responses import Response
 
-from atdr.app.core.config import Settings, get_settings, validate_runtime_settings
+from atdr.app.core.config import PROJECT_ROOT, Settings, get_settings, validate_runtime_settings
 from atdr.app.core.middleware import TrustedProxyHeadersMiddleware
 from atdr.app.db.database import Base
 from atdr.app.db.models import LogSource
@@ -92,6 +92,13 @@ def test_log_source_metadata_matches_migrated_unique_constraint_and_index():
 
     assert len(name_constraints) == 1
     assert name_index.unique is True
+
+
+def test_ci_pytest_temp_root_uses_runner_managed_directory():
+    workflow = (PROJECT_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+
+    assert "--basetemp=${{ runner.temp }}/atdr-pytest" in workflow
+    assert "--basetemp=.tmp/pytest-ci" not in workflow
 
 
 def test_metrics_cover_operational_alerts_without_sensitive_dimensions(monkeypatch):

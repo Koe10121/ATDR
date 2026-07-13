@@ -35,7 +35,7 @@ jobs:
         run: python -m compileall -q atdr migrations
 
       - name: Run tests
-        run: python -m pytest atdr/tests -q -o cache_dir=.tmp/pytest-cache --basetemp=.tmp/pytest-ci
+        run: python -m pytest atdr/tests -q -o cache_dir=${{ runner.temp }}/atdr-pytest-cache --basetemp=${{ runner.temp }}/atdr-pytest
 
       - name: Apply migrations to CI SQLite database
         run: python -m alembic upgrade head
