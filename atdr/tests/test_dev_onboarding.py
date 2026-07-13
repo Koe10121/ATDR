@@ -23,7 +23,7 @@ def test_check_dev_environment_flags_docker_postgres_host_for_local_workflow():
     assert result.status == "error"
     assert "sqlite:///./atdr.db" in result.message
     assert result.details is not None
-    assert result.details["database_url"] == "postgresql+psycopg2://atdr:***@postgres:5432/atdr"
+    assert result.details["database_url"] == "postgresql (connection details hidden)"
     assert "secret" not in str(result.to_dict())
 
 

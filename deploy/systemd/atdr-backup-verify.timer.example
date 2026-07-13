@@ -1,0 +1,11 @@
+[Unit]
+Description=Schedule ATDR backup verification
+
+[Timer]
+OnCalendar=*-*-* 04:00:00
+RandomizedDelaySec=15m
+Persistent=true
+Unit=atdr-backup-verify.service
+
+[Install]
+WantedBy=timers.target

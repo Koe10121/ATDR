@@ -14,6 +14,7 @@ venv/
 **/.env.preprod
 **/.env.prod
 .tools/
+.atdr_runtime/
 .tmp/
 tmp/
 *.log
@@ -38,4 +39,5 @@ frontend/playwright-report/
 frontend/test-results/
 demo_exports/
 ml_baseline_reviews/
+backups/
 paloalto-firewall(1).log

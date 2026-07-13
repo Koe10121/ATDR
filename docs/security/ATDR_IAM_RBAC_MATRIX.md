@@ -1,6 +1,6 @@
 # ATDR IAM / RBAC Matrix
 
-ATDR adapts the university IAM requirement as local authentication, authorization, role-based access control, response-safety permission checks, and auditability. ATDR does not currently implement full external SSO, OAuth callback login, SAML, LDAP, or an enterprise identity provider. v0.4 adds disabled-by-default generic OIDC configuration/status groundwork for future school-email login. v3.14 adds disabled-by-default local email verification and admin-only dev outbox groundwork; v3.15 improves account lifecycle visibility and status-only verification policy reporting. The MFU IAM adapter plan adds disabled-by-default MFU IAM / Google SSO status placeholders and provider-detail checklist only. ATDR does not send real email by default.
+ATDR adapts the university IAM requirement as local authentication, authorization, role-based access control, response-safety permission checks, and auditability. v3.91 adds an optional MFU outer-shell secure handoff: the official template owns school sign-in and 2FA, while ATDR receives a short-lived opaque code, exchanges it server-to-server, creates its own HttpOnly session, and maps users to `analyst` by default. ATDR still does not implement a direct ATDR-owned OAuth callback, SAML, LDAP, or a general enterprise identity provider. Local email verification/dev-outbox groundwork remains disabled by default, and ATDR does not send real email by default.
 
 ATDR is a controlled lab-ready prototype. The current IAM/RBAC model is suitable for local and lab validation, not final production identity governance.
 
@@ -12,6 +12,7 @@ ATDR is a controlled lab-ready prototype. The current IAM/RBAC model is suitable
 | Login, current-user, password-change routes | `atdr/app/routers/auth.py` |
 | External IAM groundwork plan | `docs/security/ATDR_EXTERNAL_IAM_PLAN.md` |
 | MFU IAM adapter plan and provider checklist | `docs/security/ATDR_MFU_IAM_ADAPTER_PLAN.md`, `docs/security/MFU_IAM_PROVIDER_DETAILS_CHECKLIST.md` |
+| Secure MFU outer-shell handoff | `docs/V3_91_MFU_OUTER_SHELL_SECURE_HANDOFF.md`, `docs/security/ATDR_MFU_IAM_PREPROD_VALIDATION.md`, `atdr/app/routers/auth.py`, `atdr/app/services/mfu_iam_service.py` |
 | User model and role field | `atdr/app/db/models.py` |
 | User lifecycle and demo users | `atdr/app/services/user_service.py` |
 | Email verification and dev outbox groundwork | `atdr/app/services/account_verification_service.py`, `atdr/app/services/email_service.py`, `atdr/app/routers/auth.py`, `atdr/app/routers/users.py` |
@@ -42,8 +43,9 @@ ATDR is a controlled lab-ready prototype. The current IAM/RBAC model is suitable
 | --- | --- | --- | --- | --- |
 | Login and view own session | Supported now | Supported now | Future work | `atdr/app/routers/auth.py` |
 | Login by local username or email | Supported now | Supported now | Future work | `atdr/app/routers/auth.py`, `atdr/app/services/user_service.py` |
+| Open ATDR through approved MFU outer shell | Source implementation complete; preproduction validation pending | Source implementation complete; preproduction validation pending | Future work | `atdr/app/routers/auth.py`, `atdr/app/services/mfu_iam_service.py`, `docs/V3_91_MFU_OUTER_SHELL_SECURE_HANDOFF.md` |
 | View OIDC status | Supported now | Supported now | Future work | `atdr/app/routers/auth.py`, `docs/security/ATDR_EXTERNAL_IAM_PLAN.md` |
-| View MFU IAM adapter status | Supported now | Supported now | Future work | `atdr/app/routers/auth.py`, `docs/security/ATDR_MFU_IAM_ADAPTER_PLAN.md` |
+| View detailed MFU IAM adapter status | Supported now | Not allowed | Future work | `atdr/app/routers/auth.py`, `docs/security/ATDR_MFU_IAM_ADAPTER_PLAN.md` |
 | View email verification status | Supported now | Supported now | Future work | `atdr/app/routers/auth.py`, `docs/V3_14_EMAIL_VERIFICATION_AND_ACCOUNT_NOTIFICATIONS.md` |
 | View account lifecycle/email status in dashboard | Supported now | Supported for own header status; full user list is admin-only | Future work | `frontend/src/components/AppShell.tsx`, `frontend/src/pages/UserAdmin.tsx` |
 | Request own email verification | Supported now | Supported now | Future work | `atdr/app/routers/auth.py`, `atdr/app/services/account_verification_service.py` |
@@ -110,9 +112,9 @@ ATDR is a controlled lab-ready prototype. The current IAM/RBAC model is suitable
 
 ## Current IAM Limitations
 
-- No external SSO/OAuth/SAML/LDAP integration.
-- No enterprise identity provider.
-- No real MFU IAM SDK, Google SSO callback, or token introspection flow yet.
+- No direct ATDR-owned SSO/OAuth/SAML/LDAP integration.
+- No provider-backed preproduction proof for the MFU outer-shell handoff yet.
+- No validated external lifecycle/group synchronization, provider logout, recovery, or deprovisioning policy yet.
 - No viewer/read-only role yet.
 - No real SMTP sending in v3.14; dev outbox is local/admin-only testing groundwork.
 - No fine-grained permission table; permissions are role dependencies in FastAPI routes.
@@ -124,7 +126,7 @@ ATDR is a controlled lab-ready prototype. The current IAM/RBAC model is suitable
 
 1. Add a read-only `viewer` role if supervisor/demo read-only access is needed.
 2. Add stronger password policy, token expiry review, and secret rotation guidance.
-3. Add optional external identity integration only after the lab prototype stabilizes.
-4. Use `docs/security/MFU_IAM_PROVIDER_DETAILS_CHECKLIST.md` before starting any MFU IAM or Google SSO implementation.
+3. Run `docs/security/ATDR_MFU_IAM_PREPROD_VALIDATION.md` with approved MFU origins, group identifiers, and secret custody before enabling the handoff outside local testing.
+4. Use `docs/security/MFU_IAM_PROVIDER_DETAILS_CHECKLIST.md` for any future direct MFU IAM or Google SSO implementation.
 5. Add a permission registry if route-level role checks become hard to audit.
 6. Re-run this matrix before any real device deployment or response connector implementation.

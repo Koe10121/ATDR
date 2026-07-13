@@ -1,10 +1,10 @@
 # ATDR Current System State Lock
 
-Date: 2026-07-12
+Date: 2026-07-13
 
 Purpose: this document is the current-state memory anchor before larger ATDR productization work. It captures what exists now, what must stay safe, and what must not be deleted or committed while ATDR moves from controlled academic/lab prototype toward a more serious SOC/SaaS-style product.
 
-Checkpoint: v3.88 consolidates the implemented v3.78-v3.87 supervisor-template handoff and real-LLM assistant work into a release baseline. This document remains a source-backed state lock, not a production-readiness claim.
+Checkpoint: v3.90 adds an opt-in durable operation queue/worker to the v3.88-v3.89 local product baseline. This document remains a source-backed state lock, not a production-readiness claim.
 
 ## Source Evidence
 
@@ -18,6 +18,7 @@ Checkpoint: v3.88 consolidates the implemented v3.78-v3.87 supervisor-template h
 | Detection and explanations | `atdr/app/detection/*`, `atdr/app/services/detection_service.py`, `atdr/app/detection/explanations.py` |
 | ML / AI governance | `atdr/app/routers/ml.py`, `atdr/app/services/ml_service.py`, `atdr/app/detection/supervised_*`, `atdr/app/ml/features.py` |
 | SOC Assistant | `atdr/app/routers/assistant.py`, `atdr/app/services/assistant_service.py`, `atdr/app/services/assistant_llm.py`, `frontend/src/pages/AssistantPage.tsx` |
+| Durable operation reliability | `atdr/app/services/job_service.py`, `atdr/app/services/job_dispatcher.py`, `atdr/app/services/operation_worker.py`, `atdr/app/routers/jobs.py`, `atdr/scripts/run_operation_worker.py` |
 | IAM / school-email groundwork | `atdr/app/routers/auth.py`, `atdr/app/services/mfu_iam_service.py`, `docs/security/ATDR_MFU_IAM_IMPLEMENTATION_PLAN.md` |
 | Response safety | `atdr/app/routers/response.py`, `atdr/app/services/response_service.py`, `atdr/tests/test_response_safety.py` |
 | Detection/ML productization evidence | `atdr/app/detection/v372_unified_detection_ml_evaluation.py`, `atdr/scripts/evaluate_detection_ml_productization.py`, `frontend/src/pages/MLGovernance.tsx` |
@@ -106,6 +107,22 @@ Main SQLAlchemy entities include:
 
 Alembic migrations exist under `migrations/versions/`. Any schema change must use Alembic and must not reset or delete the user's current database.
 
+### v3.89 Persistence Status
+
+- SQLite remains the default local workflow.
+- PostgreSQL uses optional dialect-aware pool, connection, pre-ping, and statement-timeout settings.
+- `backup_database`, `restore_database`, and `validate_persistence_profile` provide dry-run-first backup/restore validation with checksum manifests and active-target refusal.
+- Local v3.89 validation passed using fresh temporary synthetic SQLite databases. It confirmed checksum, integrity, matching table counts/Alembic revision, zero response/model side effects, and an unchanged configured current-database fingerprint.
+- PostgreSQL runtime validation is pending the isolated GitHub Actions job or an approved host because this workstation has no PostgreSQL/Docker tools installed.
+
+### v3.90 Durable Operation Status
+
+- Selected long operations can be explicitly queued with private staged input, idempotency, lease/heartbeat tracking, ownership-scoped APIs, audit lifecycle events, and a separately launched worker.
+- The normal FastAPI command does not start a worker. `OPERATION_WORKER_ENABLED` defaults to `false`; a manual `--once` cycle is safe for controlled use.
+- Running jobs are never force-cancelled. Evidence-mutating lease expiry fails closed; only report exports can automatically retry.
+- Worker dispatch excludes response actions, firewall changes, model activation/promotion, label changes, user changes, external IAM/LLM calls, and deletion.
+- SQLite is validated with one worker. Managed-worker supervision, PostgreSQL/multi-worker behavior, resumable large imports, and automatic retention remain future work.
+
 ## Log Ingestion Status
 
 ATDR can currently:
@@ -188,16 +205,16 @@ Current IAM support includes:
 - School-email metadata on local accounts.
 - Disabled-by-default email verification/dev-outbox foundation.
 - Disabled-by-default generic OIDC groundwork.
-- Optional supervisor-template session handoff and MFU token-login path configured only through private `.env`.
-- Verified school-email mapping into local ATDR users with analyst default and explicit admin allowlist.
-- Local runtime validation, frontend handoff success/fallback tests, and a recorded local external-login audit event.
+- Optional v3.91 supervisor-template opaque-code handoff configured only through private `.env`; browser token-login is retired.
+- Verified school-email mapping into local ATDR users with analyst default and explicit IAM-group-based admin mapping.
+- Source-level handoff/contract validation, frontend form-post coverage, and safe audit/diagnostic behavior are verified locally; provider-backed login evidence is still pending.
 - Config aliases for supervisor template `IAM_SDK_*`, `IAM_ADMIN_*`, and `PROJECT_PERMISSION_*` variable names.
 - Supervisor template wrapper env names and backend env names have been inspected by key name only. The backend template contains `IAM_SDK_*`, `IAM_ADMIN_*`, `PROJECT_PERMISSION_*`, `PROJECT_IAM_*`, `PROJECT_INIT_ADMIN_EMAILS`, `PROJECT_AUTH_REQUIRE_2FA`, and `GOOGLE_CLIENT_ID`. Values are secrets/private deployment settings and must not be printed or committed.
 
 Current gaps:
 
 - No direct ATDR-owned Google/MFU OAuth browser callback flow; the supervisor template remains the intended outer login shell.
-- No external IAM group-to-role sync.
+- No provider-backed preproduction validation of external IAM group-to-role mapping.
 - No independently verified preprod/production template callback, provider-managed 2FA, recovery, or deprovisioning policy.
 - No real SMTP delivery by default.
 - No viewer/read-only role.

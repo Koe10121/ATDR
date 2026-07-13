@@ -1,10 +1,12 @@
 import time
+from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from atdr.app.core.config import get_settings
-from atdr.app.core.security import create_access_token, get_current_user, require_analyst_or_admin
+from atdr.app.core.security import create_access_token, get_current_user, require_admin, require_analyst_or_admin
 from atdr.app.db.database import get_db
 from atdr.app.db.models import AuditLog, User
 from atdr.app.schemas.account_email import (
@@ -18,8 +20,6 @@ from atdr.app.schemas.auth import (
     LoginRequest,
     MfuIamPublicStatusRead,
     MfuIamStatusRead,
-    MfuIamTokenLoginRequest,
-    MfuIamTokenLoginResponse,
     OidcStatusRead,
     TokenResponse,
     UserRead,
@@ -28,10 +28,11 @@ from atdr.app.services.account_verification_service import request_email_verific
 from atdr.app.services.email_service import get_email_delivery_status
 from atdr.app.services.mfu_iam_service import (
     MfuIamAuthenticationError,
+    authenticate_mfu_iam_handoff_code,
     audit_mfu_iam_login,
-    authenticate_mfu_iam_token,
     build_mfu_iam_public_status,
     build_mfu_iam_status,
+    get_mfu_iam_last_safe_validation,
     upsert_mfu_iam_user,
 )
 from atdr.app.services.user_service import authenticate_user, change_own_password, record_successful_login
@@ -79,6 +80,29 @@ def _split_allowed_domains(value: str) -> list[str]:
     return [domain.strip().lower() for domain in value.split(",") if domain.strip()]
 
 
+def _safe_handoff_return_path(value: object, settings) -> str:
+    default_path = "/overview"
+    clean = str(value or "").strip()
+    if not clean or not clean.startswith("/") or clean.startswith("//") or "://" in clean:
+        return default_path
+    path = clean.split("?", 1)[0].split("#", 1)[0]
+    allowed = set(settings.mfu_iam_handoff_allowed_return_path_list)
+    return path if path in allowed else default_path
+
+
+def _handoff_redirect_url(settings, *, return_path: str, error: str | None = None) -> str:
+    base = settings.mfu_iam_handoff_frontend_url.rstrip("/")
+    target = f"{base}{return_path}"
+    if error:
+        target = f"{base}/login?{urlencode({'handoff_error': error})}"
+    return target
+
+
+def _validate_template_handoff_origin(request: Request, settings) -> bool:
+    origin = (request.headers.get("origin") or "").strip().rstrip("/")
+    return bool(origin and origin in set(settings.mfu_iam_handoff_allowed_origin_list))
+
+
 @router.post("/login", response_model=TokenResponse)
 def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)) -> dict:
     _check_rate_limit(request, payload.username)
@@ -109,49 +133,95 @@ def mfu_iam_public_status() -> dict:
     return build_mfu_iam_public_status(settings)
 
 
-@router.post("/mfu-iam/token-login", response_model=MfuIamTokenLoginResponse)
-def mfu_iam_token_login(
-    payload: MfuIamTokenLoginRequest,
-    request: Request,
-    db: Session = Depends(get_db),
-) -> dict:
-    _check_rate_limit(request, "mfu-iam-token-login")
+@router.post("/mfu-iam/handoff/consume", include_in_schema=False)
+async def consume_mfu_iam_template_handoff(request: Request, db: Session = Depends(get_db)) -> Response:
+    """Consume a template-generated one-time code and establish an HttpOnly ATDR session.
+
+    This route intentionally accepts a browser form POST. The code is never
+    included in the redirect URL, and the template bearer token is never
+    submitted to ATDR by the browser.
+    """
+
     settings = get_settings()
+    return_path = _safe_handoff_return_path(request.query_params.get("return_to"), settings)
+    if not settings.mfu_iam_handoff_enabled:
+        return RedirectResponse(
+            _handoff_redirect_url(settings, return_path=return_path, error="handoff_not_configured"),
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+    if not _validate_template_handoff_origin(request, settings):
+        audit_mfu_iam_login(
+            db,
+            actor="anonymous",
+            success=False,
+            reason="handoff_origin_not_allowed",
+            client_ip=request.client.host if request.client else None,
+        )
+        return RedirectResponse(
+            _handoff_redirect_url(settings, return_path=return_path, error="handoff_origin_not_allowed"),
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+    form = await request.form()
+    handoff_code = str(form.get("handoff_code") or "").strip()
+    return_path = _safe_handoff_return_path(form.get("return_to") or return_path, settings)
     client_ip = request.client.host if request.client else None
     try:
-        identity = authenticate_mfu_iam_token(payload.token, settings)
+        identity = authenticate_mfu_iam_handoff_code(handoff_code, settings)
         user = upsert_mfu_iam_user(db, identity)
     except MfuIamAuthenticationError as exc:
         audit_mfu_iam_login(
             db,
             actor="anonymous",
             success=False,
-            reason=str(exc),
+            reason="template_handoff_rejected",
             client_ip=client_ip,
         )
-        _login_failures.setdefault(_rate_key(request, "mfu-iam-token-login"), []).append(time.monotonic())
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="MFU IAM login failed.") from exc
+        return RedirectResponse(
+            _handoff_redirect_url(settings, return_path=return_path, error="handoff_rejected"),
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
 
-    _clear_failed_logins(request, "mfu-iam-token-login")
     audit_mfu_iam_login(
         db,
         actor=user.username,
         success=True,
-        reason="validated_external_token",
+        reason="template_handoff_validated",
         client_ip=client_ip,
         email_domain=(user.email or "").rsplit("@", 1)[-1].lower() if user.email and "@" in user.email else None,
     )
-    token = create_access_token(subject=user.username, role=user.role)
-    return {
-        "access_token": token,
-        "token_type": "bearer",
-        "expires_in_minutes": settings.access_token_expire_minutes,
-        "username": user.username,
-        "role": user.role,
-        "email": user.email,
-        "auth_provider": user.auth_provider,
-        "external_login": True,
-    }
+    response = RedirectResponse(
+        _handoff_redirect_url(settings, return_path=return_path),
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+    response.set_cookie(
+        key=settings.mfu_iam_handoff_cookie_name,
+        value=create_access_token(subject=user.username, role=user.role),
+        max_age=settings.access_token_expire_minutes * 60,
+        httponly=True,
+        secure=settings.mfu_iam_handoff_cookie_secure,
+        samesite="lax",
+        path="/",
+    )
+    return response
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout(response: Response, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> Response:
+    settings = get_settings()
+    db.add(
+        AuditLog(
+            actor=current_user.username,
+            action="logout",
+            target_type="auth",
+            target_value=current_user.username,
+            details={"provider": current_user.auth_provider, "secrets_exposed": False},
+        )
+    )
+    db.commit()
+    response.delete_cookie(key=settings.mfu_iam_handoff_cookie_name, path="/")
+    response.status_code = status.HTTP_204_NO_CONTENT
+    return response
 
 
 @router.get("/me", response_model=UserRead)
@@ -197,10 +267,13 @@ def oidc_status(current_user: User = Depends(require_analyst_or_admin)) -> dict:
 
 
 @router.get("/mfu-iam/status", response_model=MfuIamStatusRead)
-def mfu_iam_status(current_user: User = Depends(require_analyst_or_admin)) -> dict:
+def mfu_iam_status(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+) -> dict:
     del current_user
     settings = get_settings()
-    return build_mfu_iam_status(settings)
+    return build_mfu_iam_status(settings, last_safe_validation=get_mfu_iam_last_safe_validation(db))
 
 
 @router.get("/email/status", response_model=EmailVerificationStatusRead)

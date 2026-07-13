@@ -23,6 +23,11 @@ def _write_complete_template(root: Path) -> None:
     twofaSend
     introspectToken
     getClientProfile
+    /atdr/handoff/start
+    /exchange
+    handoff_code
+    /mfu-ai-driven-log-based-threat-detection-and-response/registry
+    submitAtdrHandoff
     """
     for relative_path in REQUIRED_TEMPLATE_FILES.values():
         _write(root, relative_path, marker_text)
@@ -44,11 +49,11 @@ def _write_complete_template(root: Path) -> None:
 
 def _write_complete_atdr(root: Path) -> None:
     marker_text = """
-    mfu_token
-    x_access_token
-    replaceState
-    /mfu-iam/token-login
-    authenticate_mfu_iam_token
+    /mfu-iam/handoff/consume
+    authenticate_mfu_iam_handoff_code
+    httponly=True
+    userToCookieSession
+    legacy browser-token handoff
     """
     for relative_path in ATDR_HANDOFF_FILES.values():
         _write(root, relative_path, marker_text)
@@ -69,7 +74,10 @@ def test_template_bridge_contract_detects_shell_and_hides_secrets(tmp_path):
     assert report["env_summary"]["values_redacted"] is True
     assert "IAM_SDK_CLIENT_SECRET" in report["env_summary"]["secret_like_env_var_names"]
     assert "IAM_SDK_CLIENT_SECRET=x" not in str(report)
-    assert "mfu_token=<template_x_access_token_or_short_handoff_code>" in report["recommended_local_handoff_url"]
+    assert "handoff_code" in report["recommended_local_handoff"]
+    assert "mfu_token" not in report["recommended_local_handoff"]
+    assert report["template_markers"]["registered_atdr_registry_route"] is True
+    assert report["template_markers"]["secure_registry_launcher"] is True
     assert not report["blockers"]
 
 

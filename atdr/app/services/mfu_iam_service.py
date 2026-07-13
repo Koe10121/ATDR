@@ -6,6 +6,7 @@ from typing import Any
 from urllib.parse import urljoin
 
 import requests
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from atdr.app.core.config import Settings
@@ -40,7 +41,11 @@ def _normalize_domains(domains: list[str]) -> list[str]:
     return normalized
 
 
-def build_mfu_iam_status(settings: Settings) -> dict[str, Any]:
+def build_mfu_iam_status(
+    settings: Settings,
+    *,
+    last_safe_validation: dict[str, str | None] | None = None,
+) -> dict[str, Any]:
     """Build a non-secret MFU IAM status payload.
 
     The supervisor template has two related integration surfaces: a B2B IAM SDK
@@ -74,6 +79,20 @@ def build_mfu_iam_status(settings: Settings) -> dict[str, Any]:
             _configured(settings.mfu_iam_template_shell_header),
         ]
     )
+    handoff_secret_configured = _configured(settings.mfu_iam_handoff_shared_secret)
+    handoff_frontend_url_configured = _configured(settings.mfu_iam_handoff_frontend_url)
+    handoff_exchange_path_configured = _configured(settings.mfu_iam_handoff_exchange_path)
+    handoff_ready = all(
+        [
+            settings.mfu_iam_enabled,
+            template_shell_ready,
+            settings.mfu_iam_handoff_enabled,
+            handoff_secret_configured,
+            handoff_frontend_url_configured,
+            handoff_exchange_path_configured,
+            bool(settings.mfu_iam_handoff_allowed_origin_list),
+        ]
+    )
     admin_ready = all(
         [
             admin_client_configured,
@@ -88,6 +107,12 @@ def build_mfu_iam_status(settings: Settings) -> dict[str, Any]:
         and permission_paths
         and _configured(settings.mfu_iam_permission_root_path)
     )
+
+    validation = last_safe_validation or {
+        "status": "not_run",
+        "checked_at": None,
+        "reason": None,
+    }
 
     return {
         "enabled": settings.mfu_iam_enabled,
@@ -115,6 +140,16 @@ def build_mfu_iam_status(settings: Settings) -> dict[str, Any]:
         "template_shell_me_path": settings.mfu_iam_template_shell_me_path,
         "template_shell_header": settings.mfu_iam_template_shell_header,
         "template_shell_ready": template_shell_ready,
+        "handoff_enabled": settings.mfu_iam_handoff_enabled,
+        "handoff_secret_configured": handoff_secret_configured,
+        "handoff_exchange_path_configured": handoff_exchange_path_configured,
+        "handoff_frontend_url_configured": handoff_frontend_url_configured,
+        "handoff_allowed_origins_configured": bool(settings.mfu_iam_handoff_allowed_origin_list),
+        "handoff_allowed_return_paths": settings.mfu_iam_handoff_allowed_return_path_list,
+        "handoff_cookie_secure": settings.mfu_iam_handoff_cookie_secure,
+        "handoff_ready": handoff_ready,
+        "template_shell_launch_url_configured": _configured(settings.mfu_iam_template_shell_launch_url),
+        "admin_group_mapping_configured": bool(settings.mfu_iam_admin_group_list),
         "admin_email_mapping_configured": bool(settings.mfu_iam_admin_email_list),
         "google_sso_enabled": settings.google_sso_enabled,
         "google_client_id_configured": _configured(settings.google_client_id),
@@ -133,10 +168,12 @@ def build_mfu_iam_status(settings: Settings) -> dict[str, Any]:
         "init_admin_emails_configured": bool(settings.mfu_iam_init_admin_email_list),
         "seed_admin_email_configured": _configured(settings.mfu_iam_init_seed_admin_email),
         "b2b_ready": b2b_ready,
-        "token_login_ready": bool(settings.mfu_iam_enabled and (b2b_ready or settings.mfu_iam_mock_enabled or template_shell_ready)),
         "admin_api_ready": admin_ready,
         "permission_bootstrap_ready": permission_ready,
         "mode": _mfu_iam_mode(settings, b2b_ready=b2b_ready, template_shell_ready=template_shell_ready),
+        "last_safe_validation_status": validation["status"] or "not_run",
+        "last_safe_validation_at": validation["checked_at"],
+        "last_safe_validation_reason": validation["reason"],
         "secrets_exposed": False,
     }
 
@@ -147,11 +184,15 @@ def build_mfu_iam_public_status(settings: Settings) -> dict[str, Any]:
     status = build_mfu_iam_status(settings)
     return {
         "enabled": status["enabled"],
-        "token_login_ready": status["token_login_ready"],
         "b2b_ready": status["b2b_ready"],
         "mock_enabled": status["mock_enabled"],
         "template_shell_enabled": status["template_shell_enabled"],
         "template_shell_ready": status["template_shell_ready"],
+        "handoff_ready": status["handoff_ready"],
+        "handoff_enabled": status["handoff_enabled"],
+        "template_shell_launch_url": (
+            settings.mfu_iam_template_shell_launch_url.strip() or None
+        ),
         "google_sso_enabled": status["google_sso_enabled"],
         "google_client_id_configured": status["google_client_id_configured"],
         "allowed_domains": status["allowed_domains"],
@@ -161,6 +202,33 @@ def build_mfu_iam_public_status(settings: Settings) -> dict[str, Any]:
         "mode": status["mode"],
         "secrets_exposed": False,
     }
+
+
+def get_mfu_iam_last_safe_validation(db: Session) -> dict[str, str | None]:
+    """Return the latest safe handoff outcome without exposing account or provider data."""
+
+    events = db.scalars(
+        select(AuditLog)
+        .where(AuditLog.action.in_(("mfu_iam_login_success", "mfu_iam_login_failed")))
+        .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+        .limit(50)
+    ).all()
+    safe_reasons = {
+        "template_handoff_validated",
+        "template_handoff_rejected",
+        "handoff_origin_not_allowed",
+    }
+    for event in events:
+        details = event.details if isinstance(event.details, dict) else {}
+        reason = str(details.get("reason") or "").strip()
+        if reason not in safe_reasons:
+            continue
+        return {
+            "status": "passed" if event.action == "mfu_iam_login_success" else "failed",
+            "checked_at": event.created_at.isoformat() if event.created_at else None,
+            "reason": reason,
+        }
+    return {"status": "not_run", "checked_at": None, "reason": None}
 
 
 def authenticate_mfu_iam_token(token: str, settings: Settings) -> MfuIamIdentity:
@@ -191,6 +259,45 @@ def authenticate_mfu_iam_token(token: str, settings: Settings) -> MfuIamIdentity
     return _identity_from_payloads(introspection, profile, settings)
 
 
+def authenticate_mfu_iam_handoff_code(code: str, settings: Settings) -> MfuIamIdentity:
+    """Exchange a one-time template handoff code on the server side.
+
+    The browser submits the opaque code in a POST form. ATDR then calls the
+    template backend with its private bridge credential, so the template's
+    login token never crosses an ATDR browser URL or reaches React state.
+    """
+
+    clean_code = code.strip()
+    status = build_mfu_iam_status(settings)
+    if not status["handoff_ready"]:
+        raise MfuIamAuthenticationError("MFU template handoff is not fully configured.")
+    if not clean_code or len(clean_code) > 512:
+        raise MfuIamAuthenticationError("MFU template handoff code is invalid.")
+
+    url = _join_url(settings.mfu_iam_template_shell_base_url, settings.mfu_iam_handoff_exchange_path)
+    header_name = settings.mfu_iam_handoff_secret_header.strip() or "x-atdr-handoff-secret"
+    try:
+        response = requests.post(
+            url,
+            json={"handoff_code": clean_code},
+            headers={header_name: settings.mfu_iam_handoff_shared_secret},
+            timeout=max(1.0, min(settings.mfu_iam_timeout_ms / 1000, 60.0)),
+        )
+    except requests.RequestException as exc:
+        raise MfuIamAuthenticationError("MFU template handoff service is unavailable.") from exc
+
+    if response.status_code >= 400:
+        raise MfuIamAuthenticationError("MFU template handoff code is invalid, expired, or already used.")
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        raise MfuIamAuthenticationError("MFU template handoff returned an invalid response.") from exc
+    if not isinstance(payload, dict):
+        raise MfuIamAuthenticationError("MFU template handoff returned an invalid response.")
+    identity_payload = payload.get("data") if isinstance(payload.get("data"), dict) else payload
+    return _identity_from_template_handoff_payload(identity_payload, settings)
+
+
 def upsert_mfu_iam_user(db: Session, identity: MfuIamIdentity) -> User:
     """Create or update a local ATDR user for a verified MFU IAM identity."""
 
@@ -198,6 +305,16 @@ def upsert_mfu_iam_user(db: Session, identity: MfuIamIdentity) -> User:
     if existing is not None:
         if not existing.is_active:
             raise MfuIamAuthenticationError("Matched ATDR account is disabled.")
+        if identity.provider == "template_shell_handoff":
+            # A school-email handoff must not silently inherit a local account's
+            # role. An admin can pre-provision the external identity, after
+            # which approved template groups control the resulting ATDR role.
+            if existing.auth_provider != "external":
+                raise MfuIamAuthenticationError(
+                    "A local ATDR account already uses this email; provision or link the external identity before handoff."
+                )
+            if existing.external_subject and existing.external_subject != identity.subject:
+                raise MfuIamAuthenticationError("MFU template identity does not match the linked ATDR account.")
         changed = False
         if existing.email is None:
             existing.email = identity.email
@@ -207,6 +324,9 @@ def upsert_mfu_iam_user(db: Session, identity: MfuIamIdentity) -> User:
             changed = True
         if not existing.external_subject:
             existing.external_subject = identity.subject
+            changed = True
+        if identity.provider == "template_shell_handoff" and existing.role != identity.role:
+            existing.role = identity.role
             changed = True
         if changed:
             db.add(existing)
@@ -281,8 +401,15 @@ def _mfu_iam_mode(settings: Settings, *, b2b_ready: bool, template_shell_ready: 
         return "local_login_only"
     if settings.mfu_iam_mock_enabled:
         return "mfu_iam_mock"
+    if (
+        template_shell_ready
+        and settings.mfu_iam_handoff_enabled
+        and _configured(settings.mfu_iam_handoff_shared_secret)
+        and bool(settings.mfu_iam_handoff_allowed_origin_list)
+    ):
+        return "template_shell_secure_handoff"
     if template_shell_ready:
-        return "template_shell_session_handoff"
+        return "template_shell_handoff_incomplete"
     if b2b_ready:
         return "mfu_iam_b2b_token"
     return "mfu_iam_incomplete"
@@ -327,6 +454,52 @@ def _template_shell_identity_from_token(token: str, settings: Settings) -> MfuIa
         provider="template_shell",
         settings=settings,
     )
+
+
+def _identity_from_template_handoff_payload(payload: dict[str, Any], settings: Settings) -> MfuIamIdentity:
+    flattened = _flatten_candidates(payload)
+    email = _first_text(flattened, "email", "account.email", "authen.0.email", "authen.0.username")
+    if not email or "@" not in email:
+        raise MfuIamAuthenticationError("MFU template handoff did not include a verified school email.")
+    subject = _first_text(flattened, "subject", "account_id", "account.id", "_id", "id") or email
+    full_name = _first_text(flattened, "full_name", "name", "display_name")
+    groups = _extract_identity_groups(payload)
+    return _identity_from_email(
+        email.lower(),
+        subject=f"template-shell:{subject}",
+        full_name=full_name,
+        provider="template_shell_handoff",
+        settings=settings,
+        groups=groups,
+        allow_email_admin_mapping=False,
+    )
+
+
+def _extract_identity_groups(payload: dict[str, Any]) -> list[str]:
+    """Normalize small, non-secret group identifiers from a validated handoff."""
+
+    candidates: list[Any] = []
+    for key in ("groups", "group", "roles", "permissions"):
+        candidates.append(payload.get(key))
+    account = payload.get("account")
+    if isinstance(account, dict):
+        for key in ("groups", "group", "roles", "permissions"):
+            candidates.append(account.get(key))
+
+    groups: list[str] = []
+    for candidate in candidates:
+        values = candidate if isinstance(candidate, list) else [candidate]
+        for value in values:
+            if isinstance(value, str) and value.strip():
+                clean = value.strip().lower()
+            elif isinstance(value, dict):
+                raw = value.get("key") or value.get("code") or value.get("name") or value.get("title") or value.get("_id")
+                clean = str(raw).strip().lower() if raw is not None else ""
+            else:
+                clean = ""
+            if clean and clean not in groups:
+                groups.append(clean)
+    return groups
 
 
 def _extract_template_shell_profile(data: dict[str, Any]) -> dict[str, Any]:
@@ -391,6 +564,8 @@ def _identity_from_email(
     full_name: str | None,
     provider: str,
     settings: Settings,
+    groups: list[str] | None = None,
+    allow_email_admin_mapping: bool = True,
 ) -> MfuIamIdentity:
     domain = _domain_of(email)
     allowed = settings.mfu_iam_allowed_domain_list
@@ -398,17 +573,40 @@ def _identity_from_email(
         raise MfuIamAuthenticationError("MFU IAM allowed domains are not configured.")
     if domain not in allowed:
         raise MfuIamAuthenticationError("MFU IAM email domain is not allowed.")
-    role = "admin" if email in settings.mfu_iam_admin_email_list else "analyst"
-    if role != "admin" and settings.mfu_iam_default_role == "analyst":
+    normalized_groups = _normalize_groups(groups or [])
+    approved_admin_groups = set(settings.mfu_iam_admin_group_list)
+    matched_admin_groups = sorted(set(normalized_groups) & approved_admin_groups)
+    if matched_admin_groups:
+        role = "admin"
+        role_source = "explicit_admin_group_mapping"
+    elif allow_email_admin_mapping and email in settings.mfu_iam_admin_email_list:
+        role = "admin"
+        role_source = "explicit_admin_email_mapping"
+    else:
         role = "analyst"
+        role_source = "default_analyst"
     return MfuIamIdentity(
         email=email,
         subject=subject,
         full_name=full_name,
         provider=provider,
         role=role,
-        details={"email_domain": domain, "role_source": "explicit_admin_mapping" if role == "admin" else "default_analyst"},
+        details={
+            "email_domain": domain,
+            "role_source": role_source,
+            "group_count": len(normalized_groups),
+            "matched_admin_groups": matched_admin_groups,
+        },
     )
+
+
+def _normalize_groups(groups: list[str]) -> list[str]:
+    normalized: list[str] = []
+    for group in groups:
+        clean = str(group).strip().lower()
+        if clean and clean not in normalized:
+            normalized.append(clean)
+    return normalized
 
 
 def _introspect_token(token: str, settings: Settings) -> dict[str, Any]:

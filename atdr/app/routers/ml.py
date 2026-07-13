@@ -49,7 +49,7 @@ from atdr.app.services.active_learning_service import (
 from atdr.app.services.assisted_label_service import export_label_review_sample
 from atdr.app.services.class_temporal_coverage_service import build_class_temporal_coverage, render_class_temporal_coverage_markdown
 from atdr.app.services.label_quality_service import export_label_quality_issues_csv
-from atdr.app.services.job_service import build_result_summary, complete_job, fail_job, start_job
+from atdr.app.services.job_service import build_result_summary, complete_job, enqueue_job, fail_job, job_to_dict, start_job
 from atdr.app.services.ml_label_service import (
     build_label_review_queue,
     create_ml_label,
@@ -471,7 +471,35 @@ def train_ml_model(
     request: MLRunRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
+    enqueue: bool = Query(default=False),
+    idempotency_key: str | None = Query(default=None, min_length=8, max_length=128),
 ) -> dict:
+    if enqueue:
+        try:
+            job, reused = enqueue_job(
+                db,
+                job_type="train_ml",
+                requested_by=current_user.username,
+                payload={
+                    "operation": "anomaly_train",
+                    "limit": request.limit,
+                    "baseline_only": request.baseline_only,
+                    "max_app_risk": request.max_app_risk,
+                    "exclude_unknown_apps": request.exclude_unknown_apps,
+                    "exclude_existing_anomalies": request.exclude_existing_anomalies,
+                },
+                details={"operation": "anomaly_train", "limit": request.limit, "baseline_only": request.baseline_only},
+                idempotency_key=idempotency_key,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {
+            "queued": True,
+            "job_id": job.id,
+            "job": job_to_dict(job),
+            "idempotency_reused": reused,
+            "message": "ML training was queued for the opt-in operation worker.",
+        }
     job = start_job(
         db,
         job_type="train_ml",
@@ -510,7 +538,28 @@ def score_logs_with_ml(
     request: MLRunRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
+    enqueue: bool = Query(default=False),
+    idempotency_key: str | None = Query(default=None, min_length=8, max_length=128),
 ) -> dict:
+    if enqueue:
+        try:
+            job, reused = enqueue_job(
+                db,
+                job_type="apply_ml_scoring",
+                requested_by=current_user.username,
+                payload={"limit": request.limit},
+                details={"limit": request.limit},
+                idempotency_key=idempotency_key,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {
+            "queued": True,
+            "job_id": job.id,
+            "job": job_to_dict(job),
+            "idempotency_reused": reused,
+            "message": "ML scoring was queued for the opt-in operation worker.",
+        }
     job = start_job(
         db,
         job_type="apply_ml_scoring",
@@ -573,7 +622,35 @@ def train_supervised_model(
         default="balanced",
         pattern="^(conservative|balanced|aggressive|suspicious_recall|malicious_recall|threat_positive)$",
     ),
+    enqueue: bool = Query(default=False),
+    idempotency_key: str | None = Query(default=None, min_length=8, max_length=128),
 ) -> dict:
+    if enqueue:
+        try:
+            job, reused = enqueue_job(
+                db,
+                job_type="train_ml",
+                requested_by=current_user.username,
+                payload={
+                    "operation": "supervised_train",
+                    "test_size": test_size,
+                    "min_samples": min_samples,
+                    "split": split,
+                    "model_type": model,
+                    "threshold_profile": threshold_profile,
+                },
+                details={"operation": "supervised_train", "model_type": model, "split": split, "threshold_profile": threshold_profile},
+                idempotency_key=idempotency_key,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {
+            "queued": True,
+            "job_id": job.id,
+            "job": job_to_dict(job),
+            "idempotency_reused": reused,
+            "message": "Candidate-only supervised training was queued for the opt-in operation worker.",
+        }
     job = start_job(
         db,
         job_type="train_ml",

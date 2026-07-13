@@ -1,0 +1,17 @@
+[Unit]
+Description=ATDR staged-input cleanup preview only
+After=postgresql.service
+
+[Service]
+Type=oneshot
+User=atdr
+Group=atdr
+WorkingDirectory=/opt/atdr
+EnvironmentFile=/etc/atdr/atdr.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/atdr/.venv/bin/python -m atdr.scripts.cleanup_staged_inputs --pretty
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/srv/atdr/shared

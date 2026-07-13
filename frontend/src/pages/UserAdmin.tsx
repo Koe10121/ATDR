@@ -55,8 +55,10 @@ export function UserAdmin() {
       : emailStatus.data?.delivery_mode === "smtp"
         ? "SMTP configured"
         : "Disabled";
-  const mfuModeLabel = mfuIamStatus.data?.mode === "template_shell_session_handoff"
-    ? "Template shell handoff"
+  const mfuModeLabel = mfuIamStatus.data?.mode === "template_shell_secure_handoff"
+    ? "Secure template handoff"
+    : mfuIamStatus.data?.mode === "template_shell_handoff_incomplete"
+      ? "Handoff setup required"
     : mfuIamStatus.data?.mode === "mfu_iam_b2b_token"
       ? "MFU B2B token"
       : mfuIamStatus.data?.mode === "mfu_iam_mock"
@@ -64,6 +66,11 @@ export function UserAdmin() {
         : mfuIamStatus.data?.enabled
           ? "Incomplete"
           : "Local login only";
+  const lastValidationLabel = mfuIamStatus.data?.last_safe_validation_status === "passed"
+    ? "Passed"
+    : mfuIamStatus.data?.last_safe_validation_status === "failed"
+      ? "Failed"
+      : "Not run";
 
   return (
     <div className="space-y-5">
@@ -153,8 +160,8 @@ export function UserAdmin() {
             <div className="mt-1 font-bold">{mfuIamStatus.data?.b2b_ready ? "Ready" : "Not ready"}</div>
           </div>
           <div className="rounded-lg border border-line bg-panel2 p-3">
-            <div className="text-xs uppercase tracking-wide text-muted">Token Login</div>
-            <div className="mt-1 font-bold">{mfuIamStatus.data?.token_login_ready ? "Ready" : "Not ready"}</div>
+            <div className="text-xs uppercase tracking-wide text-muted">Secure Handoff</div>
+            <div className="mt-1 font-bold">{mfuIamStatus.data?.handoff_ready ? "Ready" : "Not ready"}</div>
           </div>
           <div className="rounded-lg border border-line bg-panel2 p-3">
             <div className="text-xs uppercase tracking-wide text-muted">Admin API</div>
@@ -179,8 +186,8 @@ export function UserAdmin() {
             <div className="mt-1 font-bold">{mfuIamStatus.data?.default_role ?? "analyst"}</div>
           </div>
           <div className="rounded-lg border border-line bg-panel2 p-3">
-            <div className="text-xs uppercase tracking-wide text-muted">Admin Mapping</div>
-            <div className="mt-1 font-bold">{mfuIamStatus.data?.admin_email_mapping_configured ? "Explicit" : "Not configured"}</div>
+            <div className="text-xs uppercase tracking-wide text-muted">Admin Group Mapping</div>
+            <div className="mt-1 font-bold">{mfuIamStatus.data?.admin_group_mapping_configured ? "Configured" : "Not configured"}</div>
           </div>
           <div className="rounded-lg border border-line bg-panel2 p-3">
             <div className="text-xs uppercase tracking-wide text-muted">Test Harness</div>
@@ -194,9 +201,16 @@ export function UserAdmin() {
             <div className="text-xs uppercase tracking-wide text-muted">Secrets</div>
             <div className="mt-1 font-bold">{mfuIamStatus.data?.secrets_exposed ? "Exposure detected" : "Hidden"}</div>
           </div>
+          <div className="rounded-lg border border-line bg-panel2 p-3">
+            <div className="text-xs uppercase tracking-wide text-muted">Last Safe Validation</div>
+            <div className="mt-1 font-bold">{lastValidationLabel}</div>
+            <div className="mt-1 text-xs text-muted">
+              {mfuIamStatus.data?.last_safe_validation_at ?? mfuIamStatus.data?.last_safe_validation_reason ?? "No handoff event recorded"}
+            </div>
+          </div>
         </div>
         <div className="mt-3 rounded-lg border border-line bg-panel2 p-3 text-sm text-muted">
-          The supervisor template can own school login and 2FA, then launch ATDR through a session handoff. ATDR validates the template session, maps the verified school email, keeps local login as a fallback, and grants admin only through an explicit allowlist.
+          The supervisor template owns school login and 2FA, then launches ATDR through a single-use server-side handoff. ATDR keeps local login as a fallback and grants admin only through configured IAM groups.
         </div>
         {mfuIamStatus.isError ? <ErrorBanner error={mfuIamStatus.error} fallback="MFU IAM status is unavailable." /> : null}
       </section>

@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import desc, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from atdr.app.db.models import Alert, AlertEvidence, DetectionRun, IngestionRun, LogSource, NormalizedLog, RawLog
@@ -216,16 +217,43 @@ def get_or_create_source(
     source = db.scalar(select(LogSource).where(LogSource.name == resolved_name).limit(1))
     if source is not None:
         return source
-    source = LogSource(
-        name=resolved_name,
-        source_type=_normalize_source_type(source_type),
-        parser_profile=_normalize_parser_profile(parser_profile),
-        host=host.strip()[:255] if host else None,
-        port=port,
-        enabled=True,
+    try:
+        with db.begin_nested():
+            source = LogSource(
+                name=resolved_name,
+                source_type=_normalize_source_type(source_type),
+                parser_profile=_normalize_parser_profile(parser_profile),
+                host=host.strip()[:255] if host else None,
+                port=port,
+                enabled=True,
+            )
+            db.add(source)
+            db.flush()
+        return source
+    except IntegrityError:
+        source = db.scalar(
+            select(LogSource)
+            .where(LogSource.name == resolved_name)
+            .execution_options(populate_existing=True)
+            .limit(1)
+        )
+        if source is None:
+            raise
+        return source
+
+
+def lock_source_for_ingestion(db: Session, source_id: int) -> LogSource:
+    """Refresh and lock source counters before a concurrent ingestion chunk updates them."""
+
+    statement = (
+        select(LogSource)
+        .where(LogSource.id == source_id)
+        .execution_options(populate_existing=True)
+        .with_for_update()
     )
-    db.add(source)
-    db.flush()
+    source = db.scalar(statement)
+    if source is None:
+        raise ValueError("Log source no longer exists.")
     return source
 
 

@@ -83,9 +83,14 @@ def _sqlite_path(database_url: str, *, root: Path = PROJECT_ROOT) -> Path | None
 
 def _safe_database_url_label(database_url: str) -> str:
     try:
-        return make_url(database_url).render_as_string(hide_password=True)
+        url = make_url(database_url)
     except Exception:
         return "unparseable-database-url"
+    if url.drivername.startswith("postgresql"):
+        return "postgresql (connection details hidden)"
+    if url.drivername.startswith("sqlite"):
+        return "sqlite"
+    return "other (connection details hidden)"
 
 
 def _running_inside_container() -> bool:

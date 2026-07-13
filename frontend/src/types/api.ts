@@ -26,12 +26,6 @@ export interface TokenResponse {
   role: Role;
 }
 
-export interface MfuIamTokenResponse extends TokenResponse {
-  email?: string | null;
-  auth_provider: "external" | string;
-  external_login: boolean;
-}
-
 export interface OidcStatus {
   enabled: boolean;
   provider_name?: string | null;
@@ -72,6 +66,16 @@ export interface MfuIamStatus {
   template_shell_me_path: string;
   template_shell_header: string;
   template_shell_ready: boolean;
+  handoff_enabled: boolean;
+  handoff_secret_configured: boolean;
+  handoff_exchange_path_configured: boolean;
+  handoff_frontend_url_configured: boolean;
+  handoff_allowed_origins_configured: boolean;
+  handoff_allowed_return_paths: string[];
+  handoff_cookie_secure: boolean;
+  handoff_ready: boolean;
+  template_shell_launch_url_configured: boolean;
+  admin_group_mapping_configured: boolean;
   admin_email_mapping_configured: boolean;
   google_sso_enabled: boolean;
   google_client_id_configured: boolean;
@@ -90,20 +94,24 @@ export interface MfuIamStatus {
   init_admin_emails_configured: boolean;
   seed_admin_email_configured: boolean;
   b2b_ready: boolean;
-  token_login_ready: boolean;
   admin_api_ready: boolean;
   permission_bootstrap_ready: boolean;
-  mode: "local_login_only" | "mfu_iam_mock" | "template_shell_session_handoff" | "mfu_iam_b2b_token" | "mfu_iam_incomplete" | string;
+  mode: "local_login_only" | "mfu_iam_mock" | "template_shell_secure_handoff" | "template_shell_handoff_incomplete" | "mfu_iam_b2b_token" | "mfu_iam_incomplete" | string;
+  last_safe_validation_status: "not_run" | "passed" | "failed" | string;
+  last_safe_validation_at: string | null;
+  last_safe_validation_reason: string | null;
   secrets_exposed: boolean;
 }
 
 export interface MfuIamPublicStatus {
   enabled: boolean;
-  token_login_ready: boolean;
   b2b_ready: boolean;
   mock_enabled: boolean;
   template_shell_enabled: boolean;
   template_shell_ready: boolean;
+  handoff_enabled: boolean;
+  handoff_ready: boolean;
+  template_shell_launch_url?: string | null;
   google_sso_enabled: boolean;
   google_client_id_configured: boolean;
   allowed_domains: string[];
@@ -1710,11 +1718,34 @@ export interface OperationJob {
   finished_at?: string | null;
   progress_current: number;
   progress_total: number;
+  progress_percentage?: number;
+  progress_status?: string;
+  checkpoint_line?: number;
+  checkpoint_bytes?: number;
+  checkpoint_at?: string | null;
+  chunk_commits?: number;
+  input_size_bytes?: number | null;
+  cancellation_requested?: boolean;
+  cancellation_requested_at?: string | null;
+  resume_eligible?: boolean;
+  resume_ineligible_reason?: string | null;
+  resume_of_job_id?: number | null;
+  original_job_id?: number | null;
+  resume_expires_at?: string | null;
+  latest_heartbeat_at?: string | null;
   result_summary: Record<string, unknown>;
   error_summary?: string | null;
   related_ingestion_run_id?: number | null;
   related_detection_run_id?: number | null;
   related_ml_model_run_id?: number | null;
+  attempt_count?: number;
+  max_attempts?: number;
+  next_attempt_at?: string | null;
+  lease_expires_at?: string | null;
+  can_cancel?: boolean;
+  can_request_cancel?: boolean;
+  can_retry?: boolean;
+  can_resume?: boolean;
   details: Record<string, unknown>;
   created_at: string;
   updated_at: string;
@@ -1729,4 +1760,51 @@ export interface OperationJobSummary {
   latest_failed_job?: OperationJob | null;
   latest_successful_job?: OperationJob | null;
   retention_policy: Record<string, unknown>;
+  worker?: {
+    enabled?: boolean;
+    status?: string;
+    worker_id?: string | null;
+    last_seen_at?: string | null;
+    current_job_id?: number | null;
+  };
+  staging?: {
+    state?: string;
+    pressure?: boolean;
+    used_bytes?: number;
+    max_total_bytes?: number;
+    free_bytes?: number;
+    min_free_bytes?: number;
+  };
+  queue?: {
+    queued?: number;
+    retry_wait?: number;
+    running?: number;
+    failed?: number;
+    backlog_warning_threshold?: number;
+  };
+  health_status?: "healthy" | "warning" | "critical" | string;
+  warnings?: Array<{
+    code: string;
+    severity: "warning" | "critical" | string;
+    message: string;
+  }>;
+  warning_count?: number;
+  recent_failure_count?: number;
+}
+
+export interface OperationJobSubmit {
+  job_type: string;
+  payload?: Record<string, unknown>;
+  idempotency_key?: string;
+  max_attempts?: number;
+}
+
+export interface OperationImportSubmit {
+  file: File;
+  job_type?: "import_logs" | "replay_logs";
+  source_type?: string;
+  parser_profile?: string;
+  limit?: number | null;
+  source_id?: number | null;
+  idempotency_key?: string | null;
 }

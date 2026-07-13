@@ -14,7 +14,7 @@ TARGET_RELATIVE_PATH = Path(
     "MFUAIDRIVENLOGBASEDTHREATDETECTIONANDRESPONSERegistry.vue"
 )
 
-LAUNCHER_MARKER = "openAtdrSocDashboard"
+SAFE_LAUNCHER_MARKER = "submitAtdrHandoff"
 BUTTON_ANCHOR = """        <CButton color="primary" variant="outline" :disabled="loading" @click="fetchAll">
           <CIcon name="cil-reload" class="mr-2" />
           Refresh
@@ -30,49 +30,33 @@ BUTTON_PATCH = """        <CButton color="primary" :disabled="!canOpenAtdr" @cli
 
 IMPORT_ANCHOR = "import api from '@/service/api'\n"
 IMPORT_PATCH = """import api from '@/service/api'
+import { submitAtdrHandoff } from '@/projects/utils/atdr-handoff'
 
-const ATDR_DASHBOARD_URL = process.env.VUE_APP_ATDR_DASHBOARD_URL || 'http://127.0.0.1:5173'
-const X_ACCESS_TOKEN_STORAGE_KEY = 'x-access-token'
+const ATDR_HANDOFF_CONSUME_URL = process.env.VUE_APP_ATDR_HANDOFF_CONSUME_URL || ''
 """
 
 COMPUTED_ANCHOR = "  computed: {\n"
 COMPUTED_PATCH = """  computed: {
     canOpenAtdr () {
-      return Boolean(this.getTemplateAccessToken())
+      return Boolean(ATDR_HANDOFF_CONSUME_URL)
     },
 """
 
 METHODS_ANCHOR = "  methods: {\n"
 METHODS_PATCH = """  methods: {
-    getTemplateAccessToken () {
+    async openAtdrSocDashboard () {
+      this.errorMessage = ''
       try {
-        const stateToken = this.$store && this.$store.state && this.$store.state.XAccessToken
-        if (stateToken && String(stateToken).trim()) {
-          return String(stateToken).trim()
-        }
+        const response = await api.atdrHandoff('start', { return_to: '/assistant' })
+        const data = response && response.data && response.data.data ? response.data.data : {}
+        submitAtdrHandoff({
+          consumeUrl: ATDR_HANDOFF_CONSUME_URL,
+          handoffCode: data.handoff_code,
+          returnTo: data.return_to || '/assistant'
+        })
       } catch (error) {
-        // Fall back to browser storage below.
+        this.errorMessage = 'ATDR could not be opened. Sign in again or ask an administrator to check the secure handoff configuration.'
       }
-      try {
-        const stored = window && window.localStorage
-          ? window.localStorage.getItem(X_ACCESS_TOKEN_STORAGE_KEY)
-          : ''
-        return stored && String(stored).trim() ? String(stored).trim() : ''
-      } catch (error) {
-        return ''
-      }
-    },
-    openAtdrSocDashboard () {
-      const handoffValue = this.getTemplateAccessToken()
-      if (!handoffValue) {
-        this.errorMessage = 'Sign in again before opening ATDR.'
-        return
-      }
-      const target = new URL('/login', ATDR_DASHBOARD_URL)
-      target.searchParams.set('mfu_token', handoffValue)
-      target.searchParams.set('next', '/assistant')
-      target.searchParams.set('source', 'template-shell')
-      window.location.assign(target.toString())
     },
 """
 
@@ -84,10 +68,12 @@ def _replace_once(text: str, anchor: str, replacement: str, label: str) -> tuple
 
 
 def patch_registry_page(text: str) -> tuple[str, list[str], bool]:
-    """Return patched template page text, warnings, and whether it was already installed."""
+    """Install a one-time form handoff launcher without putting tokens in URLs."""
 
-    if LAUNCHER_MARKER in text:
+    if SAFE_LAUNCHER_MARKER in text:
         return text, [], True
+    if "openAtdrSocDashboard" in text:
+        return text, ["Legacy ATDR launcher detected. Apply the v3.91 template handoff files before retrying."], False
 
     warnings: list[str] = []
     patched = text
@@ -120,7 +106,10 @@ def build_report(template_root: Path, *, write: bool = False, backup: bool = Tru
         "backup_created": None,
         "warnings": [],
         "secrets_exposed": False,
-        "next_template_env_hint": "Set VUE_APP_ATDR_DASHBOARD_URL=http://127.0.0.1:5173 in the template frontend env for local testing.",
+        "next_template_env_hint": (
+            "Set VUE_APP_ATDR_HANDOFF_CONSUME_URL=http://127.0.0.1:8000/api/auth/mfu-iam/handoff/consume "
+            "only after the server-side bridge is configured."
+        ),
     }
     if not target.exists():
         report["warnings"].append("Template registry page was not found.")
@@ -148,7 +137,7 @@ def build_report(template_root: Path, *, write: bool = False, backup: bool = Tru
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Add a safe ATDR launcher button to the official supervisor template registry page."
+        description="Add a secure one-time-code ATDR launcher to the official supervisor template registry page."
     )
     parser.add_argument(
         "--template-root",

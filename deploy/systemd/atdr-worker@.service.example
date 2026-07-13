@@ -1,0 +1,26 @@
+[Unit]
+Description=ATDR operation worker %i
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=atdr
+Group=atdr
+WorkingDirectory=/opt/atdr
+EnvironmentFile=/etc/atdr/atdr.env
+Environment=OPERATION_WORKER_ENABLED=true
+ExecStart=/opt/atdr/.venv/bin/python -m atdr.scripts.run_operation_worker --watch --worker-id=%H-worker-%i --pretty
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=150s
+KillSignal=SIGTERM
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/atdr /srv/atdr/shared
+
+[Install]
+WantedBy=multi-user.target

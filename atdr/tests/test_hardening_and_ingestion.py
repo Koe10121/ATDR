@@ -87,7 +87,9 @@ def test_config_doctor_warns_for_docker_postgres_host_in_local_mode():
 
     assert result["ok"] is True
     assert result["database"] == "postgresql"
-    assert result["database_host"] == "postgres"
+    assert result["database_host_configured"] is True
+    assert result["database_profile"]["connection_status"] == "not_checked"
+    assert result["database_profile"]["secrets_exposed"] is False
     assert "postgres-docker-host-local" in codes
     assert "postgres-local-optional" in codes
     assert db_password not in rendered
@@ -145,7 +147,6 @@ def test_config_doctor_reports_mfu_iam_readiness_without_secret_leakage():
 
     assert result["ok"] is True
     assert result["mfu_iam"]["enabled"] is True
-    assert result["mfu_iam"]["token_login_ready"] is True
     assert result["mfu_iam"]["b2b_ready"] is True
     assert result["mfu_iam"]["admin_api_ready"] is True
     assert result["mfu_iam"]["permission_bootstrap_ready"] is True
@@ -167,13 +168,16 @@ def test_config_doctor_reports_template_shell_readiness_without_secret_leakage()
             MFU_IAM_TEMPLATE_SHELL_HEADER="x-access-token",
             MFU_IAM_ALLOWED_DOMAINS="lamduan.mfu.ac.th",
             MFU_IAM_DEFAULT_ROLE="analyst",
+            MFU_IAM_HANDOFF_ENABLED=True,
+            MFU_IAM_HANDOFF_SHARED_SECRET="bridge-secret-that-must-not-leak",
+            MFU_IAM_HANDOFF_ALLOWED_ORIGINS="http://127.0.0.1:8080",
         )
     )
     rendered = str(result)
 
     assert result["ok"] is True
-    assert result["mfu_iam"]["mode"] == "template_shell_session_handoff"
-    assert result["mfu_iam"]["token_login_ready"] is True
+    assert result["mfu_iam"]["mode"] == "template_shell_secure_handoff"
+    assert result["mfu_iam"]["handoff_ready"] is True
     assert result["mfu_iam"]["template_shell_enabled"] is True
     assert result["mfu_iam"]["template_shell_ready"] is True
     assert result["mfu_iam"]["template_shell_base_url_configured"] is True
@@ -200,7 +204,7 @@ def test_config_doctor_warns_when_mfu_iam_values_are_present_but_disabled():
 
     assert result["ok"] is True
     assert result["mfu_iam"]["enabled"] is False
-    assert result["mfu_iam"]["token_login_ready"] is False
+    assert result["mfu_iam"]["handoff_ready"] is False
     assert "mfu-iam-config-present-disabled" in codes
     assert secret not in rendered
 
@@ -393,18 +397,17 @@ def test_backup_and_cleanup_scripts_are_safe_in_dry_run(tmp_path, monkeypatch):
     assert old_export.exists()
 
 
-def test_postgres_backup_dry_run_reports_command(tmp_path, monkeypatch):
-    monkeypatch.setattr(backup_postgres, "PROJECT_ROOT", tmp_path)
-
+def test_postgres_backup_dry_run_reports_command(tmp_path):
     result = backup_postgres.create_postgres_backup(
-        output_dir="backups",
+        output_dir=tmp_path / "backups",
         database_url="postgresql+psycopg2://atdr:secret@localhost:5432/atdr",
         dry_run=True,
     )
 
     assert result["dry_run"] is True
     assert result["command"][0] in {"pg_dump", None} or str(result["command"][0]).endswith("pg_dump")
-    assert str(tmp_path) in result["output_path"]
+    assert str(tmp_path) in result["planned"]["backup_path"]
+    assert "atdr:secret@" not in str(result)
 
 
 def test_alert_sla_calculation_by_severity_and_owner():

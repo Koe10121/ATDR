@@ -5,7 +5,7 @@ Revises: a1b2c3d4e5f7
 Create Date: 2026-06-20 22:40:00.000000
 """
 
-from alembic import op
+from alembic import context, op
 import sqlalchemy as sa
 from sqlalchemy import inspect
 
@@ -17,8 +17,8 @@ depends_on = None
 
 
 def upgrade() -> None:
-    inspector = inspect(op.get_bind())
-    existing_tables = set(inspector.get_table_names())
+    inspector = None if context.is_offline_mode() else inspect(op.get_bind())
+    existing_tables = set() if inspector is None else set(inspector.get_table_names())
     if "account_email_verification_tokens" not in existing_tables:
         op.create_table(
             "account_email_verification_tokens",
@@ -82,6 +82,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    if context.is_offline_mode():
+        return
     inspector = inspect(op.get_bind())
     existing_tables = set(inspector.get_table_names())
     if "email_notification_events" in existing_tables:
@@ -93,6 +95,8 @@ def downgrade() -> None:
 
 
 def _drop_indexes(table_name: str) -> None:
+    if context.is_offline_mode():
+        return
     inspector = inspect(op.get_bind())
     for index in inspector.get_indexes(table_name):
         op.drop_index(index["name"], table_name=table_name)

@@ -7,7 +7,7 @@ from atdr.app.db.database import get_db
 from atdr.app.db.models import Alert, NormalizedLog, User
 from atdr.app.schemas.operations import DetectionRunRead
 from atdr.app.services.detection_service import run_detection
-from atdr.app.services.job_service import build_result_summary, complete_job, fail_job, start_job
+from atdr.app.services.job_service import build_result_summary, complete_job, enqueue_job, fail_job, job_to_dict, start_job
 from atdr.app.services.operation_run_service import detection_run_to_dict, get_detection_run, list_detection_runs
 from atdr.app.services.tuning_service import build_detection_tuning_report
 
@@ -21,7 +21,28 @@ def api_run_detection(
     limit: int | None = Query(default=5000, ge=1, le=100000),
     use_ml: bool = True,
     source_id: int | None = Query(default=None, ge=1),
+    enqueue: bool = Query(default=False),
+    idempotency_key: str | None = Query(default=None, min_length=8, max_length=128),
 ) -> dict:
+    if enqueue:
+        try:
+            job, reused = enqueue_job(
+                db,
+                job_type="run_detection",
+                requested_by=current_user.username,
+                payload={"limit": limit, "use_ml": use_ml, "source_id": source_id},
+                details={"limit": limit, "use_ml": use_ml, "source_id": source_id},
+                idempotency_key=idempotency_key,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {
+            "queued": True,
+            "job_id": job.id,
+            "job": job_to_dict(job),
+            "idempotency_reused": reused,
+            "message": "Detection was queued for the opt-in operation worker.",
+        }
     job = start_job(
         db,
         job_type="run_detection",

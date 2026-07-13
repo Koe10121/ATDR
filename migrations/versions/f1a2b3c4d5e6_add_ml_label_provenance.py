@@ -17,7 +17,7 @@ depends_on = None
 
 def upgrade() -> None:
     op.add_column("ml_labels", sa.Column("label_source", sa.String(length=32), server_default="manual", nullable=False))
-    op.add_column("ml_labels", sa.Column("reviewed", sa.Boolean(), server_default=sa.text("1"), nullable=False))
+    op.add_column("ml_labels", sa.Column("reviewed", sa.Boolean(), server_default=sa.true(), nullable=False))
     op.create_index(op.f("ix_ml_labels_label_source"), "ml_labels", ["label_source"], unique=False)
     op.create_index(op.f("ix_ml_labels_reviewed"), "ml_labels", ["reviewed"], unique=False)
 

@@ -31,13 +31,14 @@ import type {
   MLEvaluationReport,
   MfuIamPublicStatus,
   MfuIamStatus,
-  MfuIamTokenResponse,
   MLLabel,
   MLLabelImportResult,
   MLLabelPayload,
   MLReviewQueueItem,
   NormalizedLog,
   OperationJob,
+  OperationImportSubmit,
+  OperationJobSubmit,
   OperationJobSummary,
   OidcStatus,
   ResponseAction,
@@ -89,7 +90,11 @@ export async function apiRequest<T>(path: string, options: RequestInit & { param
     headers.set("Authorization", `Bearer ${session.token}`);
   }
 
-  const response = await fetch(buildUrl(path, options.params), { ...options, headers });
+  const response = await fetch(buildUrl(path, options.params), {
+    ...options,
+    credentials: options.credentials ?? "include",
+    headers
+  });
   if (response.status === 401) {
     clearSession();
     window.dispatchEvent(new Event("atdr:session-expired"));
@@ -116,7 +121,11 @@ export async function apiListRequest<T>(path: string, options: RequestInit & { p
   if (session?.token) {
     headers.set("Authorization", `Bearer ${session.token}`);
   }
-  const response = await fetch(buildUrl(path, options.params), { ...options, headers });
+  const response = await fetch(buildUrl(path, options.params), {
+    ...options,
+    credentials: options.credentials ?? "include",
+    headers
+  });
   if (response.status === 401) {
     clearSession();
     window.dispatchEvent(new Event("atdr:session-expired"));
@@ -142,7 +151,7 @@ export async function apiDownload(path: string, params?: Params): Promise<{ blob
   if (session?.token) {
     headers.set("Authorization", `Bearer ${session.token}`);
   }
-  const response = await fetch(buildUrl(path, params), { headers });
+  const response = await fetch(buildUrl(path, params), { credentials: "include", headers });
   if (response.status === 401) {
     clearSession();
     window.dispatchEvent(new Event("atdr:session-expired"));
@@ -163,11 +172,7 @@ export const api = {
       body: JSON.stringify({ username, password })
     }),
   mfuIamPublicStatus: () => apiRequest<MfuIamPublicStatus>("/api/auth/mfu-iam/public-status"),
-  mfuIamTokenLogin: (token: string) =>
-    apiRequest<MfuIamTokenResponse>("/api/auth/mfu-iam/token-login", {
-      method: "POST",
-      body: JSON.stringify({ token })
-    }),
+  logout: () => apiRequest<void>("/api/auth/logout", { method: "POST" }),
   me: () => apiRequest<User>("/api/auth/me"),
   oidcStatus: () => apiRequest<OidcStatus>("/api/auth/oidc/status"),
   mfuIamStatus: () => apiRequest<MfuIamStatus>("/api/auth/mfu-iam/status"),
@@ -198,7 +203,21 @@ export const api = {
   jobs: (params: Params = {}) => apiRequest<OperationJob[]>("/api/jobs", { params }),
   jobsSummary: () => apiRequest<OperationJobSummary>("/api/jobs/summary"),
   job: (id: number) => apiRequest<OperationJob>(`/api/jobs/${id}`),
+  submitJob: (payload: OperationJobSubmit) => apiRequest<OperationJob>("/api/jobs/submit", { method: "POST", body: JSON.stringify(payload) }),
+  enqueueImport: (payload: OperationImportSubmit) => {
+    const form = new FormData();
+    form.set("upload", payload.file);
+    form.set("job_type", payload.job_type ?? "import_logs");
+    form.set("source_type", payload.source_type ?? "file_import");
+    form.set("parser_profile", payload.parser_profile ?? "palo_alto");
+    if (payload.limit) form.set("limit", String(payload.limit));
+    if (payload.source_id) form.set("source_id", String(payload.source_id));
+    if (payload.idempotency_key) form.set("idempotency_key", payload.idempotency_key);
+    return apiRequest<OperationJob>("/api/jobs/import", { method: "POST", body: form });
+  },
   cancelJob: (id: number) => apiRequest<OperationJob>(`/api/jobs/${id}/cancel`, { method: "POST" }),
+  retryJob: (id: number) => apiRequest<OperationJob>(`/api/jobs/${id}/retry`, { method: "POST" }),
+  resumeJob: (id: number) => apiRequest<OperationJob>(`/api/jobs/${id}/resume`, { method: "POST" }),
   sources: (params: Params = {}) => apiRequest<LogSource[]>("/api/sources", { params }),
   source: (id: number) => apiRequest<LogSource>(`/api/sources/${id}`),
   sourceHealth: (id: number) => apiRequest<LogSource["health"]>(`/api/sources/${id}/health`),

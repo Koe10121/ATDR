@@ -1,0 +1,16 @@
+[Unit]
+Description=Verify newest ATDR backup manifest and checksum
+
+[Service]
+Type=oneshot
+User=atdr
+Group=atdr
+WorkingDirectory=/opt/atdr
+EnvironmentFile=/etc/atdr/atdr.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/atdr/.venv/bin/python -m atdr.scripts.verify_latest_backup --backup-dir ${ATDR_BACKUP_DIRECTORY} --max-age-hours ${ATDR_BACKUP_MAX_AGE_HOURS} --pretty
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/var/backups/atdr

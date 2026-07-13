@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import type { Params } from "../lib/api";
-import type { AlertStatus, AssistantChatRequest, AssistantFeedbackRequest, MLLabelPayload } from "../types/api";
+import type { AlertStatus, AssistantChatRequest, AssistantFeedbackRequest, MLLabelPayload, OperationImportSubmit } from "../types/api";
 
 export const queryKeys = {
   health: ["health"],
@@ -195,11 +195,51 @@ export function useDetectionRuns(params: Params = {}) {
 }
 
 export function useJobs(params: Params = {}) {
-  return useQuery({ queryKey: queryKeys.jobs(params), queryFn: () => api.jobs(params), refetchInterval: 30_000 });
+  return useQuery({ queryKey: queryKeys.jobs(params), queryFn: () => api.jobs(params), refetchInterval: 10_000 });
 }
 
 export function useJobsSummary() {
-  return useQuery({ queryKey: queryKeys.jobsSummary, queryFn: api.jobsSummary, refetchInterval: 30_000 });
+  return useQuery({ queryKey: queryKeys.jobsSummary, queryFn: api.jobsSummary, refetchInterval: 10_000 });
+}
+
+function invalidateJobs(queryClient: QueryClient) {
+  void queryClient.invalidateQueries({ queryKey: ["jobs"] });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.jobsSummary });
+  void queryClient.invalidateQueries({ queryKey: ["ingestion-runs"] });
+  void queryClient.invalidateQueries({ queryKey: ["detection-runs"] });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.summary });
+}
+
+export function useCancelJobMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (jobId: number) => api.cancelJob(jobId),
+    onSuccess: () => invalidateJobs(queryClient)
+  });
+}
+
+export function useRetryJobMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (jobId: number) => api.retryJob(jobId),
+    onSuccess: () => invalidateJobs(queryClient)
+  });
+}
+
+export function useResumeJobMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (jobId: number) => api.resumeJob(jobId),
+    onSuccess: () => invalidateJobs(queryClient)
+  });
+}
+
+export function useQueuedImportMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: OperationImportSubmit) => api.enqueueImport(payload),
+    onSuccess: () => invalidateJobs(queryClient)
+  });
 }
 
 export function useSources(params: Params = {}) {

@@ -155,6 +155,12 @@ Login with:
 admin / admin123
 ```
 
+## Optional MFU Outer-Shell Sign-In
+
+Normal teammate setup uses the local ATDR account above. School-email sign-in is an optional two-service configuration: the official MFU template owns school login and 2FA, then hands a short-lived one-time code to ATDR. It is not required to develop or test ATDR locally.
+
+Do not copy a template `.env`, IAM client secret, browser token, or OTP into ATDR. An approved operator must configure both private environments with a fresh shared bridge secret and exact origins. Follow [v3.91 secure handoff](V3_91_MFU_OUTER_SHELL_SECURE_HANDOFF.md) and the [preproduction checklist](security/ATDR_MFU_IAM_PREPROD_VALIDATION.md) before enabling it. Local ATDR login remains available as a recovery path.
+
 ## Run A Safe Scenario Test
 
 From a PowerShell window in the project root with the virtual environment active:
@@ -260,6 +266,24 @@ ATDR has relational workflow data that fits SQLAlchemy/Alembic well:
 - simulated response actions
 
 MongoDB could be future research for a raw log archive or external log lake, but it is not needed for the current ATDR backend.
+
+## Optional Backup And Shared-Lab Validation
+
+Normal local use still requires only SQLite. To validate the current installation without touching `atdr.db`, run:
+
+```powershell
+python -m atdr.scripts.validate_persistence_profile --pretty
+```
+
+This creates temporary synthetic SQLite databases under ignored `.tmp/`, applies migrations, creates a backup and checksum manifest, restores into a separate empty target, and verifies that the current database did not change.
+
+To back up the current local database, choose a directory outside the repository or an ignored directory:
+
+```powershell
+python -m atdr.scripts.backup_database --output-dir C:\ATDR-backups --execute --pretty
+```
+
+PostgreSQL is optional and requires an approved host plus `pg_dump` and `pg_restore`. Follow `docs/V3_89_SHARED_LAB_PERSISTENCE_AND_BACKUP_RESTORE.md`; do not change the normal SQLite `.env` merely to run the dashboard.
 
 ## Common Problems
 
@@ -390,6 +414,16 @@ Optional fuller local check:
 ```powershell
 .\.venv\Scripts\python.exe -m atdr.scripts.verify_release
 ```
+
+### Optional Queued Operation Worker
+
+The normal backend does not start a worker. After an admin has explicitly queued a long import/detection/ML/report operation, process one safe cycle with:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_operation_worker --once --pretty
+```
+
+For normal teammate use, leave `OPERATION_WORKER_ENABLED=false`. Do not start `--watch` unless the team intentionally wants a separate local/shared-lab worker process.
 
 ## What Remains Simulated
 

@@ -71,7 +71,7 @@ The productization target is a modular FastAPI + React SOC product, not a stack 
 | SOC Assistant | Read-only deterministic fallback, external LLM adapter, citations, feedback | Improve follow-up context, real-provider resilience, answer evaluation, citations, and privacy controls. No actions. |
 | Response safety | Simulated response, justification, protected IPs, audit | Keep simulated until a dedicated real-response design is approved. Add stronger preflight checks and rollback plans before any real connector. |
 | Audit and compliance | Audit logs and verification docs | Add audit retention, tamper-evidence plan, search/export controls, and compliance reporting. |
-| Jobs and operations | Operation jobs, run history, performance smoke | Add true background workers for long tasks, retries, cancellation, queue status, and health metrics when shared deployment needs it. |
+| Jobs and operations | Operation jobs, run history, performance smoke, opt-in durable queue/worker, lease/heartbeat, safe retry/cancel controls, v3.92 worker supervision and operational warnings | Validate PostgreSQL multi-worker runtime behavior, add resumable large imports/backpressure, service-manager deployment, and approved archive policy. |
 | Admin/config | Settings/status panels | Add configuration doctor UI, IAM readiness status, assistant provider status, source onboarding, and safe maintenance workflows. |
 
 ## Backend Module Boundaries
@@ -394,7 +394,8 @@ Implementation order note: Phase B is complete for the local checkpoint. Continu
 
 - Validate PostgreSQL in a shared-lab environment.
 - Add backup/restore and migration drills.
-- Add true background job queue when needed.
+- v3.90 adds an opt-in durable queue and separately launched single-worker flow; validate managed-worker supervision and PostgreSQL/multi-worker behavior next.
+- v3.92 adds bounded request correlation, explicit liveness/readiness, dependency-free low-cardinality metrics, warning visibility, SQLite single-worker enforcement, graceful worker shutdown, and dry-run-first audit retention. PostgreSQL multi-worker runtime validation remains open.
 - Harden performance and retention for large datasets.
 
 ### Phase F: Professional Product Dashboard
@@ -447,11 +448,45 @@ Choose one of these as the next code phase:
 | Candidate | Why now | Main risk | Definition of done |
 | --- | --- | --- | --- |
 | PostgreSQL/shared-lab persistence and backup/restore | SQLite is the largest remaining multi-user operational constraint, while portability and drill scripts already exist. | Environment availability and migration/backup correctness. | PostgreSQL validation passes on an approved host; migrations, backup, restore, and rollback are documented and tested without changing normal SQLite startup. |
-| Durable background-job architecture | Import, detection, and ML operations are tracked but still execute synchronously in the API process. | Added operational complexity and duplicate execution risk. | A queue/worker design has idempotency, retries, cancellation, progress, audit, and failure recovery with SQLite local compatibility. |
+| PostgreSQL multi-worker and managed worker validation | Durable queue, local supervision, and resumable imports are implemented; the largest remaining operations gap is shared-lab concurrency and process management. | Environment availability, shared staging semantics, and concurrent lease behavior. | Approved PostgreSQL host validates multiple workers, managed restart behavior, backup/restore during controlled activity, and rollback without changing the SQLite local workflow. |
 | Detection/ML independent quality validation | Detection quality is central and real-source evidence remains limited. | More synthetic tuning can overfit without new independent data. | Frozen candidate evaluated on independent/source-aware data; no activation; evidence-first explanations and conservative gates remain. |
 | Observability/security/audit hardening | Shared operation needs metrics, correlation IDs, health breakdowns, and retention/integrity controls. | Telemetry can leak sensitive evidence if designed poorly. | Secret-safe metrics and request/operation IDs cover ingestion, jobs, IAM, assistant, detection, and failures; audit retention/integrity is tested. |
 
 Recommended next code phase after the v3.88 checkpoint: **PostgreSQL/shared-lab persistence and backup/restore validation**, followed by a durable background-job architecture. The assistant and local template-shell handoff have reached stable local checkpoints; persistence and operation isolation now have the largest product-level risk reduction.
+
+### v3.89 Checkpoint Update
+
+The shared-lab persistence foundation is now implemented. SQLite stays the local default, while the optional PostgreSQL path has dialect-aware pooling, isolated backup/restore validation, a PostgreSQL-safe boolean migration default, and an ephemeral CI validation job. The remaining evidence gap is the remote CI result or an approved PostgreSQL lab host; do not claim PostgreSQL shared-lab runtime validation until one passes.
+
+The recommended v3.90 phase remains durable background-job architecture with idempotency, retries, cancellation, progress, failure recovery, and SQLite-local compatibility.
+
+### v3.90 Checkpoint Update
+
+The durable background-job foundation is now implemented as an opt-in database-backed queue with private staging, idempotency, lease/heartbeat recovery, scoped RBAC, safe retry/cancel behavior, worker audit events, and compact Operations Health visibility. The API does not spawn a worker automatically, and SQLite remains a one-worker local profile. The next operations phase should validate a managed worker and PostgreSQL concurrency on an approved shared-lab host rather than layering more background behavior onto SQLite.
+
+### v3.92 Checkpoint Update
+
+Operational observability and local worker supervision are now implemented without an external monitoring dependency. Readiness fails closed for database, migration, or configuration problems; metrics are low-cardinality and evidence-safe; SQLite rejects a second fresh worker; and audit retention remains explicit, bounded, and raw-evidence preserving. The recommended next phase is resumable large-file ingestion and backpressure, followed by approved PostgreSQL multi-worker runtime validation.
+
+### v3.93 Checkpoint Update
+
+Queued file imports now stream through transactional chunks that atomically advance raw/normalized evidence, source and ingestion-run counters, job progress/checkpoints, lease renewal, and worker heartbeat. Running imports can be cancelled cooperatively at chunk boundaries and resumed only when the local staged input still matches its size and SHA-256 fingerprint. Queue and storage backpressure fail clearly, completed jobs remove staged input, failed/cancelled jobs retain it only through a bounded resume window, and cleanup remains dry-run by default.
+
+This closes the local resumable-ingestion gap but does not establish global exactly-once semantics or distributed processing. Recommended v3.94: PostgreSQL multi-worker runtime validation, managed worker deployment, shared staging design, and backup/restore concurrency drills on an approved host.
+
+### v3.94 Checkpoint Update
+
+The queue now has PostgreSQL skip-locked claim and recovery statements, lease-token fencing, storage-aware file claims, source-row concurrency protection, graceful resumable-import handoff, worker/backup advisory coordination, and unprivileged systemd examples. Disposable PostgreSQL validators and an ephemeral CI job cover concurrent claims, lease recovery, source creation, same-source imports, backup drain refusal, and isolated restore without changing SQLite startup or safety behavior.
+
+Local evidence is limited to SQL compilation, unit tests, migration checks, deployment validation, and dry-run harnesses because this workstation has no PostgreSQL/Docker/client runtime. A successful remote CI or approved-host execution is still required before calling the shared PostgreSQL runtime validated. Global exactly-once, multi-host mount behavior, API-wide maintenance quiescing, external monitoring, TLS, managed secrets, and disaster recovery remain open.
+
+Recommended next phase after remote v3.94 evidence: deployment observability and security hardening, including persistent metrics/alerts, audit-integrity/retention scheduling, reverse-proxy TLS, managed secrets, load testing, and a documented recovery exercise. Independent detection/ML validation remains a parallel evidence track and must not activate a model automatically.
+
+### v3.95 Checkpoint Update
+
+Repository-side deployment security and recovery controls are now implemented. ATDR has an optional HTTPS Nginx reference, explicit trusted-proxy handling, Prometheus scrape/alert references, report-only systemd maintenance timers, managed-secret operations guidance, a bounded GET-only load harness, backup artifact verification, and an isolated separate-target recovery drill. Local validation passed without changing the configured database or normal startup workflow.
+
+This closes the repository-design gap, not the environment evidence gap. Real certificates/DNS, Linux service installation, Prometheus persistence and alert routing, managed-secret integration, measured PostgreSQL RPO/RTO, multi-host shared storage, and remote PostgreSQL CI remain pending. The recommended v3.96 phase is an approved-host deployment rehearsal and evidence closure. If no approved environment is available, prioritize independent detection/ML validation rather than adding more deployment abstractions.
 
 ## Phase 2 Completion Evidence
 

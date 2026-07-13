@@ -26,6 +26,9 @@ This index defines the active ATDR documentation set for AI/Codex-assisted work.
 | `docs/detection/ATDR_RULE_PACK_CONTRACT.md` | Versioned deterministic detection rule-pack contract aligned to implemented rule IDs and SOC analyst checks. |
 | `docs/detection/ATDR_SCENARIO_CORPUS_CONTRACT.md` | Controlled scenario-corpus contract for parser, detection, deduplication, explanation, and response-safety validation. |
 | `docs/V3_72_UNIFIED_DETECTION_ML_EVALUATION.md` | Read-only unified detection/ML productization evaluator covering rule/scenario contracts, optional temp-DB scenario quality, latest supervised policy artifacts, and safety invariants. |
+| `docs/V3_95_DEPLOYMENT_SECURITY_MONITORING_AND_RECOVERY.md` | Optional reverse-proxy, monitoring, scheduled maintenance, secret, read-only load, and isolated recovery operating guide. |
+| `docs/V3_94_RELEASE_COMMIT_ALLOWLIST.md` | Exact v3.89-v3.94 path boundary and safe staging warning for the cumulative worktree. |
+| `docs/V3_95_RELEASE_MANIFEST.md` | Approval-gated cumulative v3.89-v3.95 staging, commit, push, CI, exclusion, and rollback boundary. |
 
 ## Security And IAM Documents
 
@@ -37,12 +40,12 @@ This index defines the active ATDR documentation set for AI/Codex-assisted work.
 | `docs/security/ATDR_MFU_IAM_ADAPTER_PLAN.md` | Safe mapping from supervisor MFU IAM/Google SSO/OTP/B2B guidance to ATDR without enabling external IAM. |
 | `docs/security/ATDR_MFU_IAM_IMPLEMENTATION_PLAN.md` | Source-backed implementation path for MFU IAM SDK/token introspection and school-email role mapping, still disabled by default. |
 | `docs/V3_64_MFU_IAM_TEMPLATE_ADAPTER.md` | Supervisor-template IAM env compatibility and non-secret readiness status for ATDR. |
-| `docs/V3_65_MFU_IAM_AND_REAL_ASSISTANT_HARNESS.md` | Disabled-by-default MFU school-email token-login harness and safe real LLM provider probe. |
+| `docs/V3_65_MFU_IAM_AND_REAL_ASSISTANT_HARNESS.md` | Historical MFU token-login harness (retired by v3.91) and safe real LLM provider probe. |
 | `docs/V3_74_MFU_IAM_VALIDATION_HARNESS.md` | Safe MFU IAM configuration/probe harness for private `.env` validation without exposing secrets or enabling external login by default. |
-| `docs/V3_77_MFU_IAM_CONFIG_DOCTOR_VISIBILITY.md` | MFU IAM readiness visibility in config doctor so operators can see local-login, token-login, B2B, admin API, and permission-bootstrap readiness without exposing secrets. |
-| `docs/ATDR_TEMPLATE_SHELL_INTEGRATION_PLAN.md` | Source-backed plan for using the supervisor template as the outer school-email/IAM shell and launching ATDR through a safe token handoff. |
-| `docs/V3_79_TEMPLATE_TO_ATDR_HANDOFF_RECEIVER.md` | ATDR-side frontend receiver for supervisor-template handoff URLs, with URL cleanup and local-login fallback. |
-| `docs/V3_80_SUPERVISOR_TEMPLATE_RUNTIME_BRIDGE.md` | Source-contract validator for the official supervisor template shell, template `x-access-token` handoff evidence, and ATDR receiver readiness. |
+| `docs/V3_77_MFU_IAM_CONFIG_DOCTOR_VISIBILITY.md` | Historical pre-v3.91 MFU IAM readiness visibility; current handoff readiness is documented by v3.91. |
+| `docs/ATDR_TEMPLATE_SHELL_INTEGRATION_PLAN.md` | Historical source-backed plan for template-shell integration. Its browser-token material is superseded by the v3.91 opaque-code handoff. |
+| `docs/V3_79_TEMPLATE_TO_ATDR_HANDOFF_RECEIVER.md` | Historical frontend receiver/change record; v3.91 now rejects credential-like URLs and consumes only an opaque form-posted code. |
+| `docs/V3_80_SUPERVISOR_TEMPLATE_RUNTIME_BRIDGE.md` | Historical source-contract validator; v3.91 validates the safe handoff-status contract rather than template browser-token evidence. |
 | `docs/V3_81_TEMPLATE_ATDR_LAUNCHER_HELPER.md` | Dry-run-first helper for adding an `Open ATDR SOC Dashboard` launcher to the official supervisor template registry page. |
 | `docs/V3_82_TEMPLATE_LAUNCHER_APPLIED_RUNTIME_PREP.md` | Status after applying the ATDR launcher to the external supervisor template copy, including backup path and runtime test steps. |
 | `docs/V3_83_TEMPLATE_SHELL_SESSION_ADAPTER.md` | ATDR-side adapter that validates the supervisor template session through the template backend profile endpoint and maps the verified school email into an ATDR user. |
@@ -109,11 +112,22 @@ This index defines the active ATDR documentation set for AI/Codex-assisted work.
 | `docs/V3_87_REAL_LLM_SOC_ASSISTANT.md` | Completed optional real-provider SOC Assistant path with structured answers, bounded follow-up context, privacy filtering, reliability controls, deterministic fallback, and zero action capability. |
 | `docs/V3_88_PRODUCT_BASELINE_CHECKPOINT.md` | Consolidated v3.78-v3.87 source/runtime/docs baseline, current safety posture, CI position, remaining risks, and next product phase. |
 | `docs/V3_88_CHANGESET_MANIFEST.md` | Exact intended commit allowlist, ignored/private exclusions, external template change, rollback notes, risks, and staging commands. |
+| `docs/V3_89_SHARED_LAB_PERSISTENCE_AND_BACKUP_RESTORE.md` | SQLite-preserving shared-lab persistence profile, safe backup/restore workflow, PostgreSQL CI validation design, and remaining operational limits. |
+| `docs/V3_89_CHANGESET_MANIFEST.md` | Exact v3.89 source-controlled staging allowlist, private-output exclusions, review commands, and rollback notes. |
+| `docs/changes/T1_T20_V3_89_SHARED_LAB_PERSISTENCE.md` | T1-T20 change record for the v3.89 persistence and backup/restore foundation. |
+| `docs/V3_90_DURABLE_BACKGROUND_JOBS.md` | Opt-in durable operation queue, safe worker lifecycle, heartbeat/lease behavior, RBAC, and local/shared-lab limits. |
+| `docs/changes/T1_T20_V3_90_DURABLE_BACKGROUND_JOBS.md` | T1-T20 change record for v3.90 durable operation reliability. |
+| `docs/V3_91_MFU_OUTER_SHELL_SECURE_HANDOFF.md` | Canonical secure MFU outer-shell sign-in handoff: opaque code, server-side exchange, cookie session, and group-based role mapping. |
+| `docs/V3_91_CHANGESET_MANIFEST.md` | v3.91 change scope, explicit exclusions, source evidence, rollback, and provider-side prerequisites. |
+| `docs/security/ATDR_MFU_IAM_PREPROD_VALIDATION.md` | Preproduction test cases, required evidence, stop conditions, and rollback for the v3.91 handoff. |
+| `docs/changes/T1_T20_V3_91_MFU_OUTER_SHELL_IAM_HANDOFF.md` | T1-T20 change record for the v3.91 secure MFU outer-shell handoff. |
 | `docs/V3_73_DETECTION_ML_GOVERNANCE_DASHBOARD.md` | AI Governance dashboard integration for the read-only v3.72 Detection/ML productization evaluator. |
 | `docs/DETECTION_RULE_CATALOG.md` | Source-backed catalog of deterministic detection rules, false positives, mappings, and analyst next steps. |
 | `docs/ATDR_TEMPLATE_MERGE_ANALYSIS.md` | Current controlled template-merge analysis: adopt IAM/process concepts without migrating ATDR to Node/Vue/MongoDB. |
 
 ## Reference-Only Documents
+
+For IAM history, v3.65-v3.86 token/session-handoff documents remain change evidence only. The current authentication contract is v3.91; do not reintroduce browser-token URLs from historical documents.
 
 The repository may include NewSystem template documents for traceability. They are reference-only unless an ATDR-specific document explicitly adopts a rule.
 

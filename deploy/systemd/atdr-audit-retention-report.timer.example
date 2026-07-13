@@ -1,0 +1,11 @@
+[Unit]
+Description=Schedule ATDR audit-retention report
+
+[Timer]
+OnCalendar=weekly
+RandomizedDelaySec=30m
+Persistent=true
+Unit=atdr-audit-retention-report.service
+
+[Install]
+WantedBy=timers.target

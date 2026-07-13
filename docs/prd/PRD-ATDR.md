@@ -4,7 +4,7 @@
 | --- | --- |
 | Product | MFU AI-Driven Log-Based Threat Detection and Response System |
 | Short name | ATDR |
-| Current stage | v3.88 product baseline consolidation and release checkpoint |
+| Current stage | v3.93 resumable large-file ingestion; PostgreSQL multi-worker and approved preproduction validation pending |
 | Production claim | None. ATDR is not certified production software. |
 | Main workflow doc | `docs/ATDR_AI_WORKFLOW.md` |
 | Agent model | `docs/agents/ATDR_AGENT_OPERATING_MODEL.md` |
@@ -36,6 +36,8 @@
 | Tasklist/progress-board process | `docs/tasks/README.md`, `docs/tasks/tasklist-progress.md`, `docs/tasks/tasklist-progress.html`, `scripts/render-tasklist-progress-html.js`, `scripts/check-tasklist-progress-standard.js` |
 | Requirement traceability | `docs/ATDR_REQUIREMENT_TRACEABILITY.md` |
 | v3.4 shared-lab readiness foundation | `docs/V3_4_SHARED_LAB_READINESS.md`, `atdr/scripts/run_v34_shared_lab_readiness.py`, `atdr/scripts/run_backup_restore_drill.py`, `atdr/scripts/profile_dashboard_summary.py` |
+| v3.89 shared-lab persistence | `docs/V3_89_SHARED_LAB_PERSISTENCE_AND_BACKUP_RESTORE.md`, `atdr/app/services/persistence_service.py`, `atdr/scripts/backup_database.py`, `atdr/scripts/restore_database.py`, `atdr/scripts/validate_persistence_profile.py` |
+| v3.93 resumable large-file ingestion | `docs/V3_93_RESUMABLE_LARGE_FILE_INGESTION.md`, `atdr/app/services/resumable_ingestion_service.py`, `atdr/app/services/staging_service.py`, `atdr/app/services/staged_input_retention_service.py`, `atdr/tests/test_v393_resumable_ingestion.py` |
 | v3.5 source/syslog pilot readiness | `docs/V3_5_REAL_SOURCE_SYSLOG_PILOT.md`, `atdr/scripts/run_v35_real_source_pilot_check.py`, `atdr/scripts/export_real_source_pilot_evidence.py` |
 | v3.6 background job hardening | `docs/V3_6_BACKGROUND_JOB_HARDENING.md`, `atdr/app/routers/jobs.py`, `atdr/app/services/job_service.py`, `atdr/tests/test_operation_jobs.py` |
 | v3.7 operation retention and recovery | `docs/V3_7_OPERATION_RETENTION_AND_JOB_RECOVERY.md`, `atdr/scripts/maintenance_jobs.py`, `atdr/app/routers/jobs.py`, `atdr/app/services/job_service.py` |
@@ -46,7 +48,7 @@
 | v3.14 email verification foundation | `docs/V3_14_EMAIL_VERIFICATION_AND_ACCOUNT_NOTIFICATIONS.md`, `atdr/app/services/account_verification_service.py`, `atdr/app/services/email_service.py`, `frontend/src/pages/UserAdmin.tsx` |
 | v3.15 account lifecycle UX | `docs/V3_15_ACCOUNT_LIFECYCLE_AND_EMAIL_VERIFICATION_UX.md`, `docs/changes/T1_T20_V3_15_ACCOUNT_LIFECYCLE_AND_EMAIL_VERIFICATION_UX.md`, `frontend/src/components/AppShell.tsx`, `frontend/src/pages/UserAdmin.tsx` |
 | MFU IAM adapter planning | `docs/security/ATDR_MFU_IAM_ADAPTER_PLAN.md`, `docs/security/MFU_IAM_PROVIDER_DETAILS_CHECKLIST.md`, `atdr/app/routers/auth.py` |
-| MFU IAM implementation planning and token harness | `docs/security/ATDR_MFU_IAM_IMPLEMENTATION_PLAN.md`, `docs/ATDR_TEMPLATE_MERGE_ANALYSIS.md`, `docs/V3_64_MFU_IAM_TEMPLATE_ADAPTER.md`, `docs/V3_65_MFU_IAM_AND_REAL_ASSISTANT_HARNESS.md` |
+| MFU IAM outer-shell secure handoff | `docs/V3_91_MFU_OUTER_SHELL_SECURE_HANDOFF.md`, `docs/security/ATDR_MFU_IAM_PREPROD_VALIDATION.md`, `atdr/app/routers/auth.py`, `atdr/app/services/mfu_iam_service.py` |
 | Real LLM assistant adapter and probe | `docs/V3_63_REAL_LLM_ASSISTANT_ADAPTER.md`, `docs/security/ATDR_REAL_LLM_ASSISTANT_PLAN.md`, `docs/V3_65_MFU_IAM_AND_REAL_ASSISTANT_HARNESS.md`, `atdr/app/routers/assistant.py`, `atdr/app/services/assistant_service.py`, `atdr/app/services/assistant_llm.py`, `atdr/scripts/test_assistant_llm_provider.py` |
 | v3.17 parser/detection explainability | `docs/V3_17_PARSER_DETECTION_EXPLAINABILITY_HARDENING.md`, `atdr/scripts/validate_parser_normalization.py`, `atdr/scripts/validate_detection_quality.py`, `atdr/app/detection/explanations.py` |
 | v3.18 detection corpus and FP/FN QA | `docs/V3_18_DETECTION_CORPUS_AND_FP_FN_QA.md`, `data/samples/scenarios/scenario_expectations.json`, `atdr/tests/test_v318_detection_corpus.py` |
@@ -88,7 +90,7 @@ ATDR exists to demonstrate and validate:
 | Analyst | Investigate alerts/logs, update alert status, review evidence, label logs, view audit and ML governance | `atdr/app/routers/alerts.py`, `atdr/app/routers/logs.py`, `atdr/app/routers/ml.py` |
 | Supervisor/advisor | Review dashboard, evidence, runbooks, acceptance status, and lab-readiness claims | `docs/V0_3_STATUS.md`, `docs/ACCEPTANCE_TEST_CHECKLIST.md` |
 
-The current role and permission matrix is documented in `docs/security/ATDR_IAM_RBAC_MATRIX.md`. Local accounts now support optional school-email fields, email login for local users, and v3.14 disabled-by-default email verification/dev-outbox groundwork. v3.65 adds a disabled-by-default MFU IAM token-login harness that can map verified school-email identities to local ATDR users when explicitly configured. ATDR does not currently include a viewer/read-only role, real SMTP delivery, password reset email, full Google/MFU OAuth callback flow, or external IAM group synchronization.
+The current role and permission matrix is documented in `docs/security/ATDR_IAM_RBAC_MATRIX.md`. Local accounts support optional school-email fields, email login, and disabled-by-default email verification/dev-outbox groundwork. v3.91 adds an optional MFU outer-shell secure handoff: a single-use code is exchanged server-to-server, external users default to analyst, and admin requires approved IAM group mapping. ATDR does not currently include a viewer/read-only role, real SMTP delivery, password reset email, direct ATDR-owned Google/MFU OAuth callback flow, or validated external IAM lifecycle synchronization.
 
 ## Current Capabilities
 
@@ -196,7 +198,8 @@ Evidence: `atdr/app/routers/response.py`, `atdr/app/services/response_service.py
 ### Lab Operations
 
 - Run history for ingestion and detection.
-- Synchronous operation job history for long-running import, replay, detection, ML, and export tasks.
+- Durable operation queue and separately launched worker for selected import, replay, detection, ML, and export tasks.
+- Transactional chunk checkpoints, safe-boundary cancellation, verified-input resume, queue backpressure, and bounded private staging for queued file imports.
 - Dry-run-first operation job maintenance for stale job recovery and old terminal job cleanup.
 - Performance smoke checks.
 - Release gate.
@@ -204,7 +207,7 @@ Evidence: `atdr/app/routers/response.py`, `atdr/app/services/response_service.py
 - No-hardware soak validation for parser drift, source health, dedup, alert noise, and explanation completeness.
 - Lab runbook and acceptance checklist.
 
-Evidence: `atdr/app/db/models.py`, `atdr/app/routers/jobs.py`, `atdr/app/services/job_service.py`, `atdr/scripts/maintenance_jobs.py`, `atdr/scripts/performance_smoke.py`, `atdr/scripts/verify_release.py`, `docs/LAB_RUNBOOK.md`, `docs/ACCEPTANCE_TEST_CHECKLIST.md`.
+Evidence: `atdr/app/db/models.py`, `atdr/app/routers/jobs.py`, `atdr/app/services/job_service.py`, `atdr/app/services/operation_worker.py`, `atdr/app/services/resumable_ingestion_service.py`, `atdr/app/services/staging_service.py`, `atdr/scripts/maintenance_jobs.py`, `atdr/scripts/performance_smoke.py`, `atdr/scripts/verify_release.py`, `docs/LAB_RUNBOOK.md`, `docs/ACCEPTANCE_TEST_CHECKLIST.md`.
 
 ## Functional Requirements
 
@@ -230,8 +233,8 @@ Evidence: `atdr/app/db/models.py`, `atdr/app/routers/jobs.py`, `atdr/app/service
 | FR-ATDR-018 | Support local school-email account metadata while preserving username/password login | Implemented for local lab accounts |
 | FR-ATDR-019 | Provide non-destructive shared-lab readiness checks for PostgreSQL status, backup/restore readiness, operations health, and performance profiling | Implemented as v3.4 foundation; not a production claim |
 | FR-ATDR-020 | Provide read-only controlled source/syslog pilot evidence without exporting private raw logs by default | Implemented as v3.5 source-pilot checker/exporter; not a production claim |
-| FR-ATDR-021 | Provide job/status visibility for long-running lab operations without changing detection, ML, or response behavior | Implemented as v3.6 synchronous operation job tracking; true async workers remain future work |
-| FR-ATDR-022 | Provide safe stale-job detection and explicit operation-job retention maintenance without deleting raw evidence | Implemented as v3.7 dry-run-first maintenance; true async workers and automatic retention remain future work |
+| FR-ATDR-021 | Provide job/status visibility for long-running lab operations without changing detection, ML, or response behavior | Implemented through v3.90-v3.93 as an opt-in durable queue, separately launched worker, leases, progress, and resumable queued imports; SQLite remains one-worker only |
+| FR-ATDR-022 | Provide safe stale-job detection and explicit operation-job retention maintenance without deleting raw evidence | Implemented as dry-run-first maintenance and lease recovery; scheduled retention remains future deployment work |
 | FR-ATDR-023 | Provide a safe read-only analyst assistant for alert/source/job/ML/workflow questions without response execution or raw-log sharing by default | Implemented as v3.9 hardened assistant with deterministic intents, prompt presets, safe audit-backed history, and citations; external LLM and raw-log context remain disabled by default |
 | FR-ATDR-024 | Provide clear local/shared-lab configuration diagnostics and safe recovery from accidental PostgreSQL lab config on local machines | Implemented as v3.10 config safety hardening; normal local workflow remains SQLite and PostgreSQL remains optional |
 | FR-ATDR-025 | Explain why alerts and selected logs were or were not flagged, and validate parser/detection/explanation completeness through safe scenarios | Implemented as v3.11 detection explainability hardening; no threshold, ML activation, response, or schema behavior changed |
@@ -242,7 +245,8 @@ Evidence: `atdr/app/db/models.py`, `atdr/app/routers/jobs.py`, `atdr/app/service
 | FR-ATDR-030 | Map supervisor-template MFU IAM/Google SSO/OTP/B2B requirements to ATDR without enabling external IAM | Implemented as safe adapter plan, provider checklist, disabled-by-default config placeholders, and non-secret status API |
 | FR-ATDR-030A | Prepare MFU IAM SDK/token-introspection implementation path without copying secrets or enabling external login | Implemented as source-backed implementation plan and expanded non-secret status/config readiness |
 | FR-ATDR-030B | Prepare real LLM assistant provider integration without enabling external LLM calls by default | Implemented as disabled-by-default `ASSISTANT_LLM_*` config/status groundwork and provider plan |
-| FR-ATDR-030C | Provide a disabled-by-default MFU school-email token-login harness while preserving local login | Implemented in v3.65 with public readiness status, token-login route, allowed-domain enforcement, explicit admin email mapping, audit, and login/Admin UI readiness |
+| FR-ATDR-030C | Provide a disabled-by-default MFU school-email secure outer-shell handoff while preserving local login | Implemented in v3.91 with opaque one-time code, exact origin and return-path controls, server-side exchange, group-based role mapping, cookie session, audit, and local-login fallback |
+| FR-ATDR-030E | Validate MFU outer-shell handoff in approved preproduction without exposing credentials or changing SOC controls | Preproduction checklist and rollback are documented; live provider validation remains required |
 | FR-ATDR-030D | Provide a safe real LLM provider probe without exposing API keys or raw logs | Implemented in v3.65 as `atdr/scripts/test_assistant_llm_provider.py` |
 | FR-ATDR-031 | Validate parser normalization and controlled detection quality with source-backed, read-only reports | Implemented as v3.17 parser/detection validation and enriched explanation payloads; production accuracy is not claimed |
 | FR-ATDR-032 | Maintain a safe controlled detection corpus with false-positive / false-negative scenario QA | Implemented as v3.18 expanded synthetic scenarios, explicit FP/FN reporting, rule-level QA summaries, and explanation completeness checks; scenario results are lab QA, not production accuracy |
@@ -256,6 +260,7 @@ Evidence: `atdr/app/db/models.py`, `atdr/app/routers/jobs.py`, `atdr/app/service
 | FR-ATDR-040 | Review assistant answer-quality feedback with filters and manual triage indicators | Implemented as v3.28; filtered feedback endpoints, unsafe/incorrect summary, needs-review counts, priority feedback cards, and dashboard review filters without automatic tuning or actions |
 | FR-ATDR-041 | Improve SOC Assistant reasoning quality for professional triage | Implemented as v3.29; alert/log/source/case answers include evidence strength, false-positive caveats, missing-evidence notes, risk interpretation, concrete next checks, citations, and safety notes without external LLM or action execution |
 | FR-ATDR-042 | Revalidate current supervised ML quality and false-positive noise without activating a model | Implemented as v3.30; diagnostic script, markdown report, compact dashboard summary, threshold profile comparison, calibration check, and targeted review CSV without production promotion or response automation |
+| FR-ATDR-043 | Process queued large-file imports in transactional chunks with persisted progress, cooperative cancellation, verified-input resume, queue backpressure, and safe staged-input retention | Implemented as v3.93 for one verified staged input; separate re-imports are not claimed to be globally exactly-once, SQLite remains one-worker only, and PostgreSQL multi-worker runtime validation is pending |
 
 ## Non-Functional Requirements
 
@@ -287,13 +292,13 @@ Current limitations:
 
 - No full external SSO/OAuth/SAML/LDAP browser flow.
 - No enterprise identity provider.
-- MFU token-login harness exists but real provider token introspection still requires private `.env` configuration and live provider validation.
+- MFU outer-shell secure handoff is implemented in source, but exact preproduction origins, group identifiers, provider lifecycle policy, and live validation still require approved private configuration.
 - No viewer/read-only role.
 - Demo JWT secret must be replaced before shared lab or real deployment.
 - Current role model is suitable for lab prototype validation, not production IAM.
 - Role permissions must be fully reviewed before real deployment or response connector implementation.
 - v3.14 email verification does not block login by default and does not implement real SMTP or external school SSO.
-- MFU IAM status and token-login harness are disabled by default. They do not make external network calls during normal startup or change local login.
+- MFU IAM handoff is disabled by default. It makes no external calls during normal startup and does not change local login.
 
 ## University Template Alignment
 
@@ -411,3 +416,49 @@ If no PRD update is needed, record the reason in T17 of the ATDR T1-T20 change d
 - Generated progress-board HTML may be tracked only because it is an intentional governance artifact generated from canonical Markdown.
 - Checkpoint completion requires clean-config verification, full local release verification, secret/path hygiene evidence, rollback notes, and exact commit commands.
 - No productization checkpoint may imply production certification.
+
+## v3.90 Durable Operation Reliability Addendum
+
+ATDR shall support an opt-in database-backed operation queue for selected long-running imports, replay, detection, ML, and report workflows. The API process shall not start a worker automatically. Queued work shall use role-based access, idempotency, lease/heartbeat visibility, safe cancellation, auditable lifecycle events, and private upload staging. The worker shall not execute response actions, real firewall changes, user/account changes, label changes, data deletion, external IAM/LLM calls, model activation, or model promotion. SQLite remains suitable for a single local worker; PostgreSQL/multi-worker validation remains future shared-lab work.
+
+## v3.92 Operational Observability Addendum
+
+- API requests shall have a bounded correlation ID returned as `X-Request-ID` and included in structured logs.
+- Process liveness shall not depend on the database; readiness shall fail cleanly for unavailable DB, migration drift, or unsafe configuration.
+- Metrics shall use bounded dimensions and shall not expose request/run/job IDs, paths, actors, email addresses, IP addresses, credentials, raw evidence, or secrets.
+- Operations Health shall warn on stale workers/jobs, backlog, repeated failures, database/migration/configuration failures, and unexpected response-mode changes without triggering actions.
+- SQLite shall reject concurrent fresh operation workers. The API shall not auto-start a worker.
+- Audit retention shall default to report-only, require an explicit confirmed apply, honor a minimum, preserve IAM/denied/response security events, and never delete raw log evidence.
+- PostgreSQL multi-worker supervision, an external monitoring stack, scheduled retention, and paging remain future deployment work.
+
+## v3.93 Resumable Ingestion Addendum
+
+- Durable file imports shall stream input and atomically commit raw/normalized evidence, source/run counters, progress/checkpoint state, lease renewal, and worker heartbeat per chunk.
+- Resume shall continue only after the last committed byte/line checkpoint and only when the ignored staged input still matches its recorded size and SHA-256 fingerprint.
+- Running cancellation shall be cooperative and acknowledged only at a safe chunk boundary; committed evidence shall remain available.
+- Queue and staging limits shall fail clearly without exposing paths or credentials. Staged cleanup shall be dry-run by default and shall protect active or still-resumable inputs.
+- The guarantee is transactional chunk replay protection for one verified staged input, not global exactly-once ingestion across separate jobs.
+- PostgreSQL multi-worker operation, shared staged storage, and managed worker deployment remain future environment-backed validation.
+
+## v3.94 PostgreSQL Multi-Worker And Managed Deployment Addendum
+
+- SQLite remains the default local profile and shall run at most one operation worker.
+- PostgreSQL queue claims and expired-lease recovery shall lock rows with skip-locked behavior so concurrent workers do not select the same available job.
+- Ownership-sensitive job updates shall require a private lease token and current worker identity; stale owners shall fail closed.
+- Shared file jobs shall use a relative staged-object key plus a deployment storage identity. A worker shall not claim an import from inaccessible or mismatched storage.
+- Resumable imports shall respond to managed shutdown at a committed chunk boundary, persist their checkpoint, release ownership, and remain available to a replacement worker.
+- PostgreSQL backup shall coordinate with ATDR workers and refuse while mutating operation jobs remain active. Restore validation shall use a separate empty target.
+- Managed service examples shall use an unprivileged account, explicit environment files, failure restart policy, graceful termination, and separately managed API/worker processes.
+- Ephemeral PostgreSQL CI or an approved host must execute the concurrency and backup drills before environment-backed multi-worker validation is claimed.
+- These controls do not establish global exactly-once ingestion, production readiness, automatic response, real firewall blocking, or model promotion.
+
+## v3.95 Deployment Security, Monitoring, And Recovery Addendum
+
+- Normal localhost startup shall remain unchanged; reverse proxy, Prometheus, systemd timers, and managed secret services are optional deployment components.
+- Forwarded client/protocol headers shall be ignored by default and accepted only from explicit trusted direct proxy addresses.
+- Deployment metrics and alerts shall cover service/database readiness, queue/worker health, repeated failures, ingestion/detection failures, staging pressure, and unexpected response-mode changes without sensitive or high-cardinality dimensions.
+- Scheduled audit retention and staged-input cleanup shall remain report-only. Destructive modes require a separate explicit operator command and confirmation; raw evidence shall never be deleted automatically.
+- A load-test utility shall be GET-only by default, bounded, token-safe, and body-free. Any future write-load test requires a disposable isolated database and separate approval.
+- Backup verification shall check manifest, checksum, age, revision, and recorded counts without restoring. Recovery drills shall restore only to a separate target and shall never overwrite the configured database.
+- Planning assumptions are RPO 24 hours and RTO 4 hours until measured deployment drills establish evidence. They are not service guarantees.
+- TLS certificates, external alert routing, secret-manager integration, environment-sized recovery evidence, and remote PostgreSQL CI remain deployment gates. v3.95 does not claim production readiness.

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 from pathlib import Path
 from typing import Any
 
@@ -27,37 +26,28 @@ def _safe_http_error(exc: Exception) -> dict[str, str]:
     }
 
 
-def _template_profile_payload_has_email(payload: Any) -> bool:
-    if isinstance(payload, dict):
-        return any(_template_profile_payload_has_email(value) for value in payload.values())
-    if isinstance(payload, list):
-        return any(_template_profile_payload_has_email(value) for value in payload)
-    return isinstance(payload, str) and "@" in payload
+def _handoff_status_path(settings: Settings) -> str:
+    exchange_path = settings.mfu_iam_handoff_exchange_path.strip() or "/api/v1/atdr/handoff/exchange"
+    return exchange_path.rsplit("/", 1)[0] + "/status"
 
 
-def _check_template_profile_endpoint(settings: Settings, *, token: str | None, timeout: float) -> dict[str, Any]:
+def _check_template_handoff_endpoint(settings: Settings, *, timeout: float) -> dict[str, Any]:
     if not settings.mfu_iam_template_shell_base_url.strip():
         return {
             "checked": False,
             "reachable": False,
-            "protected_endpoint_detected": False,
-            "session_validated": False,
+            "handoff_status_detected": False,
             "message": "MFU_IAM_TEMPLATE_SHELL_BASE_URL is not configured.",
         }
 
-    url = _join_url(settings.mfu_iam_template_shell_base_url, settings.mfu_iam_template_shell_me_path)
-    headers = {}
-    if token:
-        headers[settings.mfu_iam_template_shell_header.strip() or "x-access-token"] = token
-
+    url = _join_url(settings.mfu_iam_template_shell_base_url, _handoff_status_path(settings))
     try:
-        response = requests.get(url, headers=headers, timeout=timeout)
+        response = requests.get(url, timeout=timeout)
     except requests.RequestException as exc:
         return {
             "checked": True,
             "reachable": False,
-            "protected_endpoint_detected": False,
-            "session_validated": False,
+            "handoff_status_detected": False,
             "safe_error": _safe_http_error(exc),
         }
 
@@ -67,16 +57,14 @@ def _check_template_profile_endpoint(settings: Settings, *, token: str | None, t
             payload = response.json()
         except ValueError:
             payload = None
-
-    session_validated = bool(token and response.status_code < 400 and _template_profile_payload_has_email(payload))
+    data = payload.get("data") if isinstance(payload, dict) and isinstance(payload.get("data"), dict) else payload
     return {
         "checked": True,
         "reachable": response.status_code < 500,
         "status_code": response.status_code,
-        "protected_endpoint_detected": response.status_code in {400, 401, 403} and not token,
-        "session_token_provided": bool(token),
-        "session_validated": session_validated,
-        "profile_email_present": bool(session_validated),
+        "handoff_status_detected": bool(isinstance(data, dict) and "enabled" in data),
+        "handoff_enabled": bool(data.get("enabled")) if isinstance(data, dict) else False,
+        "consume_url_configured": bool(data.get("consumeUrlConfigured")) if isinstance(data, dict) else False,
         "secrets_exposed": False,
     }
 
@@ -90,7 +78,7 @@ def _check_atdr_api(settings: Settings, *, timeout: float) -> dict[str, Any]:
         "health_reachable": False,
         "public_status_reachable": False,
         "template_shell_ready": False,
-        "token_login_ready": False,
+        "handoff_ready": False,
         "secrets_exposed": False,
     }
     try:
@@ -108,7 +96,7 @@ def _check_atdr_api(settings: Settings, *, timeout: float) -> dict[str, Any]:
             payload = status_response.json()
             if isinstance(payload, dict):
                 result["template_shell_ready"] = bool(payload.get("template_shell_ready"))
-                result["token_login_ready"] = bool(payload.get("token_login_ready"))
+                result["handoff_ready"] = bool(payload.get("handoff_ready"))
                 result["mode"] = payload.get("mode")
     except (requests.RequestException, ValueError) as exc:
         result["public_status_error"] = _safe_http_error(exc)
@@ -121,33 +109,43 @@ def build_template_shell_runtime_report(
     atdr_root: Path | str | None = None,
     settings: Settings | None = None,
     check_runtime: bool = False,
-    session_token_env: str | None = None,
     timeout: float = 3.0,
 ) -> dict[str, Any]:
     runtime_settings = settings or get_settings()
     mfu_status = build_mfu_iam_status(runtime_settings)
     contract = build_template_bridge_contract_report(template_root=template_root, atdr_root=atdr_root or Path.cwd())
-    token = os.environ.get(session_token_env or "") if session_token_env else None
     template_check: dict[str, Any] = {"checked": False, "message": "Pass --check-runtime to probe running services."}
     atdr_check: dict[str, Any] = {"checked": False, "message": "Pass --check-runtime to probe running services."}
 
     if check_runtime:
-        template_check = _check_template_profile_endpoint(runtime_settings, token=token, timeout=timeout)
+        template_check = _check_template_handoff_endpoint(runtime_settings, timeout=timeout)
         atdr_check = _check_atdr_api(runtime_settings, timeout=timeout)
 
-    blocking_config_issues = []
+    blocking_config_issues: list[str] = []
     if not mfu_status["enabled"]:
         blocking_config_issues.append("MFU_IAM_ENABLED is false; ATDR will stay in local-login mode.")
     if not mfu_status["template_shell_enabled"]:
         blocking_config_issues.append("MFU_IAM_TEMPLATE_SHELL_ENABLED is false.")
     if not mfu_status["template_shell_base_url_configured"]:
         blocking_config_issues.append("MFU_IAM_TEMPLATE_SHELL_BASE_URL is not configured.")
+    if not mfu_status["handoff_enabled"]:
+        blocking_config_issues.append("MFU_IAM_HANDOFF_ENABLED is false.")
+    if not mfu_status["handoff_secret_configured"]:
+        blocking_config_issues.append("MFU_IAM_HANDOFF_SHARED_SECRET is not configured.")
+    if not mfu_status["handoff_allowed_origins_configured"]:
+        blocking_config_issues.append("MFU_IAM_HANDOFF_ALLOWED_ORIGINS is not configured.")
     if not mfu_status["allowed_domains"]:
         blocking_config_issues.append("MFU_IAM_ALLOWED_DOMAINS is not configured.")
 
-    ok = bool(contract["ok"] and mfu_status["template_shell_ready"])
+    ok = bool(contract["ok"] and mfu_status["handoff_ready"])
     if check_runtime:
-        ok = bool(ok and atdr_check.get("public_status_reachable") and template_check.get("reachable"))
+        ok = bool(
+            ok
+            and atdr_check.get("public_status_reachable")
+            and atdr_check.get("handoff_ready")
+            and template_check.get("reachable")
+            and template_check.get("handoff_status_detected")
+        )
 
     return {
         "ok": ok,
@@ -160,41 +158,34 @@ def build_template_shell_runtime_report(
         "mfu_iam": {
             "enabled": mfu_status["enabled"],
             "mode": mfu_status["mode"],
-            "token_login_ready": mfu_status["token_login_ready"],
             "template_shell_enabled": mfu_status["template_shell_enabled"],
             "template_shell_ready": mfu_status["template_shell_ready"],
             "template_shell_base_url_configured": mfu_status["template_shell_base_url_configured"],
-            "template_shell_me_path": mfu_status["template_shell_me_path"],
+            "handoff_enabled": mfu_status["handoff_enabled"],
+            "handoff_ready": mfu_status["handoff_ready"],
             "allowed_domains": mfu_status["allowed_domains"],
             "default_role": mfu_status["default_role"],
-            "admin_email_mapping_configured": mfu_status["admin_email_mapping_configured"],
+            "admin_group_mapping_configured": mfu_status["admin_group_mapping_configured"],
             "secrets_exposed": False,
         },
         "blocking_config_issues": blocking_config_issues,
         "template_runtime": template_check,
         "atdr_runtime": atdr_check,
-        "session_token_env_used": bool(session_token_env),
-        "session_token_present": bool(token),
         "secrets_exposed": False,
         "recommended_next_step": (
-            "Start the template backend/frontend and ATDR backend/frontend, enable the private template-shell IAM settings, "
-            "then run this command with --check-runtime. Use a session token env var only for a manual real-session probe."
+            "Set the private bridge secret in both services, allow the template frontend origin in ATDR, start the template "
+            "backend/frontend and ATDR backend/frontend, then run this command with --check-runtime."
         ),
     }
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Validate ATDR's supervisor-template shell handoff readiness without exposing secrets."
+        description="Validate ATDR's secure supervisor-template shell handoff readiness without exposing secrets."
     )
     parser.add_argument("--template-root", default=str(PROJECT_TEMPLATE_DEFAULT), help="Official supervisor template root.")
     parser.add_argument("--atdr-root", default=".", help="ATDR repo root.")
     parser.add_argument("--check-runtime", action="store_true", help="Probe running ATDR/template services.")
-    parser.add_argument(
-        "--session-token-env",
-        default="",
-        help="Optional environment variable name containing a template session token for a manual profile probe.",
-    )
     parser.add_argument("--timeout", type=float, default=3.0, help="HTTP timeout in seconds.")
     parser.add_argument("--pretty", action="store_true", help="Pretty-print JSON output.")
     args = parser.parse_args()
@@ -203,7 +194,6 @@ def main() -> None:
         template_root=Path(args.template_root),
         atdr_root=Path(args.atdr_root),
         check_runtime=args.check_runtime,
-        session_token_env=args.session_token_env or None,
         timeout=args.timeout,
     )
     print(json.dumps(report, indent=2 if args.pretty else None, sort_keys=True))

@@ -1,5 +1,7 @@
 # ATDR Template Shell Integration Plan
 
+> **Historical plan, superseded for authentication behavior.** v3.91 replaces the earlier browser-token handoff design with a short-lived opaque code, form POST, and server-to-server exchange. Use `docs/V3_91_MFU_OUTER_SHELL_SECURE_HANDOFF.md` and `docs/security/ATDR_MFU_IAM_PREPROD_VALIDATION.md` for the current implementation and operating procedure.
+
 Date: 2026-07-11
 
 ## Purpose
@@ -83,10 +85,10 @@ ATDR already has the safe groundwork needed for a school-email IAM bridge:
 - Local JWT username/password login.
 - Admin and analyst roles.
 - Email fields and local email-login support.
-- MFU IAM status and token-login endpoints:
+- MFU IAM status endpoints:
   - `GET /api/auth/mfu-iam/public-status`
-  - `POST /api/auth/mfu-iam/token-login`
   - `GET /api/auth/mfu-iam/status`
+- The earlier `POST /api/auth/mfu-iam/token-login` browser-token endpoint is retired by v3.91 and is not part of the current API contract.
 - Disabled-by-default MFU IAM settings and supervisor-template env aliases.
 - Token validation service that can call MFU IAM token introspection and profile endpoints when enabled.
 - Safe local user upsert from a verified external identity.
@@ -97,7 +99,7 @@ ATDR already has the safe groundwork needed for a school-email IAM bridge:
 
 ## Recommended Architecture
 
-### Recommended Pattern: Template Shell Plus Redirect/Token Handoff
+### Current Pattern: Template Shell Plus Secure Opaque-Code Handoff
 
 The recommended integration is:
 
@@ -106,11 +108,11 @@ The recommended integration is:
 3. Template verifies 2FA/OTP/trusted-device requirements when configured.
 4. Template checks the user's route/permission access.
 5. Template launches ATDR as a protected module.
-6. Template gives ATDR a short-lived IAM-backed handoff token or an introspectable school IAM token.
-7. ATDR validates the token through `POST /api/auth/mfu-iam/token-login`.
-8. ATDR maps the verified school identity to a local ATDR user.
-9. ATDR issues its own local JWT for SOC routes.
-10. ATDR audits the handoff login.
+6. Template creates a short-lived, single-use opaque handoff code.
+7. The template frontend sends that code only in a form POST to ATDR.
+8. ATDR exchanges the code with the template backend over a private server-to-server bridge.
+9. ATDR maps the verified identity to a local ATDR user and creates its own HttpOnly session cookie.
+10. ATDR audits the handoff login without credentials or tokens.
 
 This avoids duplicating registration and account lifecycle inside ATDR while preserving ATDR's existing SOC pipeline.
 
@@ -152,7 +154,7 @@ For preprod/prod:
 
 | Option | Recommendation | Reason |
 | --- | --- | --- |
-| Redirect plus token handoff | Recommended | Fits current ATDR `mfu-iam/token-login` endpoint, avoids iframe issues, preserves current stack. |
+| Browser token redirect/query handoff | Retired / not allowed | Browser credentials and access tokens must not be handed to ATDR through URLs, fragments, or React state. |
 | Reverse proxy same-origin module | Recommended for preprod/prod | Simplifies CORS/cookies/origin policy and makes ATDR feel like a module inside the supervisor shell. |
 | API bridge from template backend to ATDR backend | Useful when token cannot be exposed to browser | Template can exchange/validate IAM token server-side, then issue a short-lived ATDR handoff token. |
 | iframe embedding | Not recommended | Higher risk for clickjacking, CSP, auth/session confusion, and poor UX. Use only if advisor requires it. |
@@ -161,42 +163,20 @@ For preprod/prod:
 
 ## Recommended Handoff Flow
 
-### Browser Token Handoff Flow
+### Historical Browser-Token Draft (Retired)
 
-Use this if the template can provide an IAM token that ATDR is allowed to introspect:
+Earlier planning considered allowing a template browser token to be forwarded to an ATDR token-login endpoint. That design is retired and must not be implemented. It would make browser credential handling and URL/state leakage too easy to get wrong.
 
-1. Template user clicks an ATDR/SOC module link.
-2. Template frontend obtains the current IAM token or session handoff token.
-3. Template redirects to ATDR:
+### Current Server-Side Bridge Flow
 
-```text
-http://127.0.0.1:5173/login?mode=mfu-handoff
-```
+1. The template backend validates the current template/IAM session.
+2. It creates a random, short-lived, single-use code and stores only its hash.
+3. The template frontend POSTs the opaque code and an allow-listed return path to ATDR.
+4. ATDR validates the exact template origin and exchanges the code server-to-server using a private bridge secret.
+5. ATDR validates the school domain, maps default users to analyst, and maps admin only through configured IAM groups.
+6. ATDR sets its own HttpOnly session cookie, redirects to an allow-listed route, and audits the result.
 
-4. ATDR React handoff receiver calls:
-
-```text
-POST /api/auth/mfu-iam/token-login
-```
-
-5. ATDR backend introspects/validates the token.
-6. ATDR validates allowed domain, audience, and active status.
-7. ATDR creates or updates a local user:
-   - default role: analyst
-   - admin only if explicitly configured in private env
-8. ATDR stores the returned ATDR JWT and opens `/overview`.
-
-### Server-Side Bridge Flow
-
-Use this if the template token must not be passed to ATDR React:
-
-1. Template backend validates current template/IAM session.
-2. Template backend calls ATDR handoff endpoint or creates a signed short-lived handoff token.
-3. Browser redirects to ATDR with a one-time handoff code.
-4. ATDR backend validates the one-time code against the template backend or configured signing key.
-5. ATDR issues its own JWT and audits the login.
-
-This is safer if the supervisor template already owns the browser session and can act as a trusted gateway.
+This is the required approach because the supervisor template owns the browser session and ATDR should never receive the template session token.
 
 ## What To Reuse From The Template
 
@@ -245,9 +225,9 @@ ATDR can read either ATDR-native or supervisor-template env names. These must be
 
 Do not hard-code any individual school email as the only accepted user. A school email may be used as a configured test/admin mapping in private env.
 
-## v3.83 Template Shell Session Adapter
+## Retired v3.83 Template Shell Session Adapter
 
-The supervisor template's frontend stores and sends an `x-access-token` for the template's own protected API. That value should not be blindly treated as a direct MFU B2B token. ATDR now supports a safer adapter mode where it validates that token against the template backend's current-profile endpoint and maps the verified school email into ATDR.
+The supervisor template's frontend stores and sends an `x-access-token` for the template's own protected API. That value must not be treated as a direct MFU B2B token or forwarded to ATDR. The profile-validation adapter described in this historical section was replaced by the v3.91 opaque-code server-side exchange.
 
 Private local configuration for this mode:
 
@@ -261,7 +241,7 @@ MFU_IAM_ALLOWED_DOMAINS=lamduan.mfu.ac.th
 MFU_IAM_DEFAULT_ROLE=analyst
 ```
 
-This mode lets the supervisor template remain responsible for school login, 2FA, and account lifecycle. ATDR validates the template session, creates its own SOC JWT, audits success/failure, and keeps admin role mapping explicit.
+This historical mode is not the current integration. Use `docs/V3_91_MFU_OUTER_SHELL_SECURE_HANDOFF.md` for the active form-POST, one-time-code, server-side exchange, and HttpOnly cookie-session contract.
 
 ## What Still Requires Advisor Or Provider Confirmation
 

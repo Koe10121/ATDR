@@ -1,6 +1,7 @@
 import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { Play, RotateCcw, X } from "lucide-react";
 import { ChartCard } from "../components/ChartCard";
 import { DetailDrawer } from "../components/DetailDrawer";
 import { EmptyState } from "../components/EmptyState";
@@ -10,6 +11,7 @@ import { Badge } from "../components/Badge";
 import {
   useAlerts,
   useAuditPage,
+  useCancelJobMutation,
   useDashboardSummary,
   useDashboardValidationSummary,
   useDetectionRuns,
@@ -18,15 +20,19 @@ import {
   useJobs,
   useJobsSummary,
   useMlReport,
+  useResumeJobMutation,
+  useRetryJobMutation,
   useSource,
   useSources,
   useSupervisedReport
 } from "../hooks/useApiQueries";
 import { inferAttackTypeFromAlertType } from "../lib/attackMapping";
+import { useAuth } from "../hooks/useAuth";
 
 const chartColors = ["#ef4444", "#f97316", "#f59e0b", "#22c55e", "#22d3ee", "#94a3b8"];
 
 export function ExecutiveOverview() {
+  const { isAdmin } = useAuth();
   const [searchParams] = useSearchParams();
   const summary = useDashboardSummary();
   const validationSummary = useDashboardValidationSummary();
@@ -39,6 +45,9 @@ export function ExecutiveOverview() {
   const detectionRuns = useDetectionRuns({ limit: 5 });
   const jobs = useJobs({ limit: 5 });
   const jobsSummary = useJobsSummary();
+  const cancelJob = useCancelJobMutation();
+  const retryJob = useRetryJobMutation();
+  const resumeJob = useResumeJobMutation();
   const sources = useSources({ limit: 5 });
   const [selectedSourceId, setSelectedSourceId] = useState<number | null>(null);
   const [validationReportsOpen, setValidationReportsOpen] = useState(false);
@@ -69,6 +78,10 @@ export function ExecutiveOverview() {
   const latestJob = jobs.data?.[0] ?? null;
   const staleJobCount = jobsSummary.data?.stale_count ?? 0;
   const latestFailedJob = jobsSummary.data?.latest_failed_job ?? null;
+  const queue = jobsSummary.data?.queue;
+  const worker = jobsSummary.data?.worker;
+  const staging = jobsSummary.data?.staging;
+  const operationWarnings = jobsSummary.data?.warnings ?? [];
   const latestScenarioRun =
     (ingestionRuns.data ?? []).find(
       (run) =>
@@ -438,12 +451,29 @@ export function ExecutiveOverview() {
             <p className="mt-1 text-sm text-muted">Latest ingestion and detection runs for lab SOC visibility.</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Badge value={jobsSummary.data?.health_status ?? "healthy"} />
             <Badge value={latestDetectionRun?.status ?? latestIngestionRun?.status ?? "no runs"} />
             <Link className="btn-secondary text-xs" to={`/assistant?prompt=${encodeURIComponent("Summarize recent detection runs and failed jobs.")}`}>
               Ask Assistant
             </Link>
           </div>
         </div>
+        {operationWarnings.length ? (
+          <div
+            data-testid="operational-warnings"
+            className="mb-3 rounded-lg border border-amber/40 bg-amber/10 px-4 py-3"
+            role="status"
+          >
+            <div className="text-xs font-extrabold uppercase tracking-wide text-amber">Operational Warnings</div>
+            <div className="mt-2 grid gap-1 text-sm text-text lg:grid-cols-2">
+              {operationWarnings.slice(0, 4).map((warning) => (
+                <div key={warning.code} className="break-words">
+                  <span className="font-bold capitalize">{warning.code.replaceAll("_", " ")}:</span> {warning.message}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
         <div className="grid gap-3 lg:grid-cols-2">
           <div className="rounded-lg border border-line bg-panel2 p-4">
             <div className="flex items-center justify-between gap-2">
@@ -491,12 +521,44 @@ export function ExecutiveOverview() {
               Progress: {latestJob ? `${latestJob.progress_current}/${latestJob.progress_total || latestJob.progress_current}` : "-"}
             </div>
           </div>
+          {latestJob ? (
+            <div className="mt-3" data-testid="latest-job-progress">
+              <div className="h-2 overflow-hidden rounded-full bg-shell" aria-label={`Operation progress ${latestJob.progress_percentage ?? 0}%`}>
+                <div
+                  className="h-full rounded-full bg-cyan transition-[width] duration-300"
+                  style={{ width: `${Math.max(0, Math.min(100, latestJob.progress_percentage ?? 0))}%` }}
+                />
+              </div>
+              <div className="mt-1 flex flex-wrap justify-between gap-2 text-xs text-muted">
+                <span>{latestJob.progress_current} of {latestJob.progress_total || "unknown"} lines committed</span>
+                <span>{latestJob.chunk_commits ?? 0} chunk commits</span>
+              </div>
+            </div>
+          ) : null}
           {latestJob?.error_summary ? <div className="mt-2 text-sm text-amber">{latestJob.error_summary}</div> : null}
         </div>
-        <div className="mt-3 grid gap-3 md:grid-cols-3">
+        <div data-testid="operation-queue-panel" className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
           <div className="rounded-lg border border-line bg-panel2 p-3 text-sm">
             <div className="text-xs font-bold uppercase tracking-wide text-muted">Active Jobs</div>
             <div className="mt-1 font-black text-text">{jobsSummary.data?.active_count ?? "-"}</div>
+          </div>
+          <div className="rounded-lg border border-line bg-panel2 p-3 text-sm">
+            <div className="text-xs font-bold uppercase tracking-wide text-muted">Import Staging</div>
+            <div className="mt-1 flex items-center gap-2">
+              <Badge value={staging?.state ?? "unknown"} />
+              <span className="text-muted">{staging?.pressure ? "imports paused" : "available"}</span>
+            </div>
+          </div>
+          <div className="rounded-lg border border-line bg-panel2 p-3 text-sm">
+            <div className="text-xs font-bold uppercase tracking-wide text-muted">Queue</div>
+            <div className="mt-1 font-black text-text">{queue?.queued ?? 0} queued / {queue?.running ?? 0} running</div>
+          </div>
+          <div className="rounded-lg border border-line bg-panel2 p-3 text-sm">
+            <div className="text-xs font-bold uppercase tracking-wide text-muted">Worker</div>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <Badge value={worker?.status ?? "not seen"} />
+              <span className="text-muted">{worker?.enabled ? "enabled" : "manual"}</span>
+            </div>
           </div>
           <div className="rounded-lg border border-line bg-panel2 p-3 text-sm">
             <div className="text-xs font-bold uppercase tracking-wide text-muted">Stale Jobs</div>
@@ -532,12 +594,75 @@ export function ExecutiveOverview() {
           <div className="mt-3 space-y-2">
             {(jobs.data ?? []).slice(0, 5).map((job) => (
               <div key={job.job_id} className="rounded border border-line bg-shell p-3 text-sm text-muted">
-                <div className="font-bold text-text">
-                  Job #{job.job_id} | {job.job_type.replaceAll("_", " ")} | {job.status}
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="font-bold text-text">
+                    Job #{job.job_id} | {job.job_type.replaceAll("_", " ")} | {job.status}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {job.can_resume && isAdmin ? (
+                      <button
+                        type="button"
+                        className="grid h-8 w-8 place-items-center rounded-md border border-line bg-panel2 text-muted transition hover:border-cyan/50 hover:text-text disabled:cursor-not-allowed disabled:opacity-50"
+                        title="Resume from the last committed checkpoint"
+                        aria-label={`Resume operation job ${job.job_id}`}
+                        disabled={resumeJob.isPending}
+                        onClick={() => resumeJob.mutate(job.job_id)}
+                      >
+                        <Play size={15} />
+                      </button>
+                    ) : null}
+                    {job.can_retry ? (
+                      <button
+                        type="button"
+                        className="grid h-8 w-8 place-items-center rounded-md border border-line bg-panel2 text-muted transition hover:border-cyan/50 hover:text-text disabled:cursor-not-allowed disabled:opacity-50"
+                        title="Retry failed operation"
+                        aria-label={`Retry operation job ${job.job_id}`}
+                        disabled={retryJob.isPending}
+                        onClick={() => retryJob.mutate(job.job_id)}
+                      >
+                        <RotateCcw size={15} />
+                      </button>
+                    ) : null}
+                    {job.can_cancel ? (
+                      <button
+                        type="button"
+                        className="grid h-8 w-8 place-items-center rounded-md border border-line bg-panel2 text-muted transition hover:border-danger/50 hover:text-danger disabled:cursor-not-allowed disabled:opacity-50"
+                        title={job.status === "running" ? "Request cancellation at the next committed chunk" : "Cancel queued operation"}
+                        aria-label={`Cancel operation job ${job.job_id}`}
+                        disabled={cancelJob.isPending}
+                        onClick={() => {
+                          if (window.confirm("Request safe cancellation for this operation? Committed evidence will be retained.")) {
+                            cancelJob.mutate(job.job_id);
+                          }
+                        }}
+                      >
+                        <X size={16} />
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
                 <div>
-                  Requested by {job.requested_by} | progress {job.progress_current}/{job.progress_total || job.progress_current}
+                  Requested by {job.requested_by} | attempt {job.attempt_count ?? 0}/{job.max_attempts ?? 1} | progress {job.progress_current}/{job.progress_total || job.progress_current}
                 </div>
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-panel2" aria-label={`Job ${job.job_id} progress`}>
+                  <div
+                    className="h-full rounded-full bg-cyan transition-[width] duration-300"
+                    style={{ width: `${Math.max(0, Math.min(100, job.progress_percentage ?? 0))}%` }}
+                  />
+                </div>
+                {job.error_summary ? <div className="mt-1 break-words text-amber">{job.error_summary}</div> : null}
+                {job.resume_ineligible_reason && ["import_logs", "replay_logs"].includes(job.job_type) && ["failed", "cancelled"].includes(job.status) ? (
+                  <div className="mt-1 break-words text-xs text-muted">Resume unavailable: {job.resume_ineligible_reason}</div>
+                ) : null}
+                {(job.checkpoint_line ?? 0) > 0 ? (
+                  <details className="mt-2 text-xs">
+                    <summary className="cursor-pointer font-bold text-muted">Technical details</summary>
+                    <div className="mt-1 break-words text-muted">
+                      Checkpoint line {job.checkpoint_line} | bytes {job.checkpoint_bytes ?? 0} | chunks {job.chunk_commits ?? 0}
+                      {job.resume_of_job_id ? ` | resumed from job #${job.resume_of_job_id}` : ""}
+                    </div>
+                  </details>
+                ) : null}
               </div>
             ))}
           </div>

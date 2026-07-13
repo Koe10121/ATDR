@@ -48,10 +48,11 @@ def test_patch_registry_page_adds_atdr_launcher_once():
     assert not warnings
     assert already_installed is False
     assert "openAtdrSocDashboard" in patched
-    assert "VUE_APP_ATDR_DASHBOARD_URL" in patched
-    assert "x-access-token" in patched
-    assert "mfu_token" in patched
-    assert "source', 'template-shell'" in patched
+    assert "submitAtdrHandoff" in patched
+    assert "VUE_APP_ATDR_HANDOFF_CONSUME_URL" in patched
+    assert "api.atdrHandoff('start'" in patched
+    assert "mfu_token" not in patched
+    assert "x-access-token" not in patched
 
     patched_again, second_warnings, second_already_installed = patch_registry_page(patched)
     assert not second_warnings
@@ -85,4 +86,4 @@ def test_launcher_write_creates_backup_and_patches_template(tmp_path):
     patched = target.read_text(encoding="utf-8")
     assert "Open ATDR SOC Dashboard" in patched
     assert "openAtdrSocDashboard" in patched
-    assert "template_x_access_token" not in str(report)
+    assert "handoff_code" not in str(report)

@@ -1,18 +1,21 @@
 import { useState } from "react";
+import { Upload } from "lucide-react";
 import { ActionResultCard } from "../components/ActionResultCard";
 import { Badge } from "../components/Badge";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { MetricCard } from "../components/MetricCard";
-import { useDashboardSummary, useDemoMutations, useHealth, useMlReport } from "../hooks/useApiQueries";
+import { useDashboardSummary, useDemoMutations, useHealth, useMlReport, useQueuedImportMutation } from "../hooks/useApiQueries";
 
 export function DemoControls() {
   const [limitText, setLimitText] = useState("1000");
   const [samplePath, setSamplePath] = useState("");
   const [useMl, setUseMl] = useState(false);
+  const [queuedFile, setQueuedFile] = useState<File | null>(null);
   const health = useHealth();
   const summary = useDashboardSummary();
   const ml = useMlReport();
   const demo = useDemoMutations();
+  const queuedImport = useQueuedImportMutation();
 
   const parsedLimit = Number.parseInt(limitText.trim(), 10);
   const limit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : null;
@@ -135,6 +138,36 @@ export function DemoControls() {
             Reset demo data
           </button>
         </div>
+        <div className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-line bg-panel2 p-3" data-testid="durable-import-control">
+          <label className="min-w-0 flex-1">
+            <span className="text-xs font-extrabold uppercase tracking-wide text-muted">Durable file import</span>
+            <input
+              className="input mt-1 w-full"
+              type="file"
+              accept=".log,.txt,.csv,text/plain,text/csv"
+              onChange={(event) => setQueuedFile(event.target.files?.[0] ?? null)}
+            />
+          </label>
+          <button
+            className="btn-secondary inline-flex items-center gap-2"
+            type="button"
+            disabled={!queuedFile || queuedImport.isPending}
+            onClick={() => {
+              if (!queuedFile) return;
+              queuedImport.mutate({
+                file: queuedFile,
+                limit,
+                job_type: "import_logs",
+                source_type: "file_import",
+                parser_profile: "palo_alto"
+              });
+            }}
+          >
+            <Upload size={16} />
+            {queuedImport.isPending ? "Staging..." : "Queue import"}
+          </button>
+          <div className="w-full text-xs text-muted">Runs through the manual operation worker with checkpointed progress and safe resume.</div>
+        </div>
         <div className="mt-4 grid gap-4 xl:grid-cols-4">
           {actionGroups.map((group) => (
             <div key={group.title} className="rounded-lg border border-line bg-panel2 p-3">
@@ -157,6 +190,7 @@ export function DemoControls() {
       </section>
 
       <div className="grid gap-3 md:grid-cols-2">
+        <ActionResultCard title="Import queued" kind="generic" result={queuedImport.data as unknown as Record<string, unknown> | undefined} />
         <ActionResultCard title="Reset complete" kind="reset" result={demo.reset.data as Record<string, unknown> | undefined} />
         <ActionResultCard title="Import complete" kind="import" result={demo.importSample.data as Record<string, unknown> | undefined} />
         <ActionResultCard title="Detection complete" kind="detection" result={demo.runDetection.data as Record<string, unknown> | undefined} />
@@ -165,7 +199,7 @@ export function DemoControls() {
         <ActionResultCard title="Evidence bundle exported" kind="export" result={demo.exportBundle.data as Record<string, unknown> | undefined} />
       </div>
 
-      {[demo.reset, demo.importSample, demo.runDetection, demo.trainMl, demo.applyMl, demo.exportBundle].map((mutation, index) =>
+      {[queuedImport, demo.reset, demo.importSample, demo.runDetection, demo.trainMl, demo.applyMl, demo.exportBundle].map((mutation, index) =>
         mutation.isError ? <ErrorBanner key={index} error={mutation.error} /> : null
       )}
     </div>

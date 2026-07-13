@@ -121,6 +121,7 @@ async function fulfill(route: Route, json: unknown, headers: Record<string, stri
 }
 
 async function mockWorkflowApi(page: Page) {
+  let authenticated = false;
   await page.route("**/health", (route) =>
     fulfill(route, {
       status: "ok",
@@ -148,7 +149,6 @@ async function mockWorkflowApi(page: Page) {
   await page.route("**/api/auth/mfu-iam/public-status", (route) =>
     fulfill(route, {
       enabled: false,
-      token_login_ready: false,
       b2b_ready: false,
       mock_enabled: false,
       google_sso_enabled: false,
@@ -201,7 +201,6 @@ async function mockWorkflowApi(page: Page) {
       init_admin_emails_configured: false,
       seed_admin_email_configured: false,
       b2b_ready: false,
-      token_login_ready: false,
       admin_api_ready: false,
       permission_bootstrap_ready: false,
       mode: "local_login_only",
@@ -224,17 +223,20 @@ async function mockWorkflowApi(page: Page) {
       verification_required_for_admin_actions: false
     })
   );
-  await page.route("**/api/auth/login", (route) =>
-    fulfill(route, {
+  await page.route("**/api/auth/login", (route) => {
+    authenticated = true;
+    return fulfill(route, {
       access_token: "e2e-workflow-token",
       token_type: "bearer",
       username: "admin",
       role: "admin",
       expires_in_minutes: 60
-    })
-  );
+    });
+  });
   await page.route("**/api/auth/me", (route) =>
-    fulfill(route, { id: 1, username: "admin", full_name: "E2E Admin", role: "admin", is_active: true, created_at: "2026-06-05T02:00:00Z" })
+    authenticated
+      ? fulfill(route, { id: 1, username: "admin", full_name: "E2E Admin", role: "admin", is_active: true, created_at: "2026-06-05T02:00:00Z" })
+      : route.fulfill({ status: 401, json: { detail: "Not authenticated" } })
   );
   await page.route("**/api/users/me", (route) =>
     fulfill(route, { id: 1, username: "admin", full_name: "E2E Admin", role: "admin", is_active: true, created_at: "2026-06-05T02:00:00Z" })

@@ -1,12 +1,14 @@
 import argparse
 import json
 import os
+import shutil
 from pathlib import Path
 from typing import Any
 
 from sqlalchemy.engine import make_url
 
 from atdr.app.core.config import PROJECT_ROOT, Settings, validate_runtime_settings
+from atdr.app.db.engine import inspect_database_runtime
 from atdr.app.services.mfu_iam_service import build_mfu_iam_status
 
 
@@ -45,6 +47,8 @@ def run_config_doctor(settings: Settings | None = None) -> dict[str, Any]:
     is_production = environment == "production"
     issues: list[dict[str, str]] = []
     database_info = _database_url_info(settings.database_url)
+    known_docker_alias = database_info["kind"] == "postgresql" and (database_info["host"] or "").lower() == "postgres" and not _running_inside_container()
+    database_runtime = inspect_database_runtime(settings, probe_connection=not known_docker_alias)
     mfu_iam_status = build_mfu_iam_status(settings)
 
     for message in validate_runtime_settings(settings):
@@ -163,6 +167,15 @@ def run_config_doctor(settings: Settings | None = None) -> dict[str, Any]:
             )
         )
 
+    if settings.operation_worker_enabled:
+        issues.append(
+            _issue(
+                "info",
+                "operation-worker-enabled",
+                "OPERATION_WORKER_ENABLED=true. Confirm that a separately managed worker is intended; the API does not start one automatically.",
+            )
+        )
+
     oidc_fields = [
         settings.oidc_provider_name,
         settings.oidc_client_id,
@@ -189,6 +202,9 @@ def run_config_doctor(settings: Settings | None = None) -> dict[str, Any]:
             settings.mfu_iam_allowed_domains.strip(),
             settings.mfu_iam_template_shell_enabled,
             settings.mfu_iam_template_shell_base_url.strip(),
+            settings.mfu_iam_handoff_enabled,
+            settings.mfu_iam_handoff_shared_secret.strip(),
+            settings.mfu_iam_handoff_allowed_origins.strip(),
             settings.mfu_iam_admin_client_id.strip(),
             settings.mfu_iam_admin_client_secret.strip(),
             settings.mfu_iam_permission_source.strip(),
@@ -205,12 +221,12 @@ def run_config_doctor(settings: Settings | None = None) -> dict[str, Any]:
                 "MFU IAM fields are configured while MFU_IAM_ENABLED=false. Local login remains active; set MFU_IAM_ENABLED=true only after validating private credentials and allowed domains.",
             )
         )
-    if settings.mfu_iam_enabled and not mfu_iam_status["token_login_ready"]:
+    if settings.mfu_iam_enabled and settings.mfu_iam_template_shell_enabled and not mfu_iam_status["handoff_ready"]:
         issues.append(
             _issue(
                 "warning",
-                "mfu-iam-token-login-not-ready",
-                "MFU IAM is enabled but token login is not ready. Check base URL, client ID, client secret, audience, token/introspection/profile paths, and allowed domains.",
+                "mfu-iam-handoff-not-ready",
+                "MFU template-shell mode is enabled but the secure handoff is not ready. Check the private bridge secret, template backend URL, frontend origin, and allowed domains. Do not use browser token handoff as a fallback.",
             )
         )
     if settings.mfu_iam_enabled and not mfu_iam_status["allowed_domains"]:
@@ -256,21 +272,38 @@ def run_config_doctor(settings: Settings | None = None) -> dict[str, Any]:
         "ok": critical_count == 0,
         "environment": settings.environment,
         "database": database_info["kind"],
-        "database_host": database_info["host"],
+        "database_profile": database_runtime,
+        "database_host_configured": bool(database_info["host"]),
+        "postgres_tools": {
+            "psql": bool(shutil.which("psql")),
+            "pg_dump": bool(shutil.which("pg_dump")),
+            "pg_restore": bool(shutil.which("pg_restore")),
+        },
         "local_workflow_recommendation": "Use DATABASE_URL=\"sqlite:///./atdr.db\" for normal local dashboard testing.",
         "response_simulation": settings.response_simulation,
         "response_provider": settings.response_provider,
+        "operation_worker": {
+            "enabled": settings.operation_worker_enabled,
+            "poll_seconds": settings.operation_worker_poll_seconds,
+            "lease_seconds": settings.operation_worker_lease_seconds,
+            "heartbeat_seconds": settings.operation_worker_heartbeat_seconds,
+            "default_max_attempts": settings.operation_job_default_max_attempts,
+            "secrets_exposed": False,
+        },
         "mfu_iam": {
             "enabled": mfu_iam_status["enabled"],
             "mode": mfu_iam_status["mode"],
-                "token_login_ready": mfu_iam_status["token_login_ready"],
-                "b2b_ready": mfu_iam_status["b2b_ready"],
-                "template_shell_enabled": mfu_iam_status["template_shell_enabled"],
-                "template_shell_ready": mfu_iam_status["template_shell_ready"],
-                "template_shell_base_url_configured": mfu_iam_status["template_shell_base_url_configured"],
-                "template_shell_me_path": mfu_iam_status["template_shell_me_path"],
-                "template_shell_header": mfu_iam_status["template_shell_header"],
-                "admin_api_ready": mfu_iam_status["admin_api_ready"],
+            "b2b_ready": mfu_iam_status["b2b_ready"],
+            "template_shell_enabled": mfu_iam_status["template_shell_enabled"],
+            "template_shell_ready": mfu_iam_status["template_shell_ready"],
+            "template_shell_base_url_configured": mfu_iam_status["template_shell_base_url_configured"],
+            "template_shell_me_path": mfu_iam_status["template_shell_me_path"],
+            "template_shell_header": mfu_iam_status["template_shell_header"],
+            "handoff_enabled": mfu_iam_status["handoff_enabled"],
+            "handoff_ready": mfu_iam_status["handoff_ready"],
+            "handoff_secret_configured": mfu_iam_status["handoff_secret_configured"],
+            "handoff_allowed_origins_configured": mfu_iam_status["handoff_allowed_origins_configured"],
+            "admin_api_ready": mfu_iam_status["admin_api_ready"],
             "permission_bootstrap_ready": mfu_iam_status["permission_bootstrap_ready"],
             "mock_enabled": mfu_iam_status["mock_enabled"],
             "google_sso_enabled": mfu_iam_status["google_sso_enabled"],

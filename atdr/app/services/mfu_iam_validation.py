@@ -45,6 +45,9 @@ def _configured_checks(status: dict[str, Any]) -> dict[str, bool]:
         "profile_path": bool(status["profile_path_configured"]),
         "template_shell": bool(status["template_shell_ready"]),
         "template_shell_base_url": bool(status["template_shell_base_url_configured"]),
+        "handoff": bool(status["handoff_ready"]),
+        "handoff_shared_secret": bool(status["handoff_secret_configured"]),
+        "handoff_origins": bool(status["handoff_allowed_origins_configured"]),
         "allowed_domains": bool(status["allowed_domains"]),
     }
 
@@ -75,8 +78,9 @@ def build_mfu_iam_validation_report(
         "mock_enabled": status["mock_enabled"],
         "template_shell_enabled": status["template_shell_enabled"],
         "template_shell_ready": status["template_shell_ready"],
+        "handoff_enabled": status["handoff_enabled"],
+        "handoff_ready": status["handoff_ready"],
         "b2b_ready": status["b2b_ready"],
-        "token_login_ready": status["token_login_ready"],
         "admin_api_ready": status["admin_api_ready"],
         "permission_bootstrap_ready": status["permission_bootstrap_ready"],
         "configured_checks": _configured_checks(status),
@@ -122,24 +126,14 @@ def build_mfu_iam_validation_report(
             return report
 
         if runtime_settings.mfu_iam_template_shell_enabled:
-            if not token:
-                report["ok"] = False
-                report["message"] = (
-                    "Template-shell session handoff is configured. No session token was provided, so no provider call "
-                    "was made. Run atdr.scripts.validate_template_shell_runtime --check-runtime for service readiness, "
-                    "or provide a token only for a manual session validation."
-                )
-                return report
-            identity = authenticate_mfu_iam_token(token, runtime_settings)
-            report["executed_provider_call"] = True
-            report["provider_result"] = {
-                "mode": "template_shell",
-                "identity_validated": True,
-                "email_domain": identity.details.get("email_domain"),
-                "role": identity.role,
-                "secrets_exposed": False,
-            }
-            report["message"] = "Template-shell session validation completed."
+            report["ok"] = bool(status["handoff_ready"])
+            report["message"] = (
+                "Secure template-shell handoff is configured. No browser session token is accepted by this tool; "
+                "run atdr.scripts.validate_template_shell_runtime --check-runtime to validate the two service endpoints."
+                if report["ok"]
+                else "Template-shell mode is enabled but the secure one-time-code handoff is incomplete. "
+                "Configure the private bridge secret and approved origin in both services before enabling it."
+            )
             return report
 
         probe_token = token or _fetch_client_credentials_token(runtime_settings)

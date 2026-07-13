@@ -35,7 +35,7 @@ Expected result: status `ok`, database `ok`, and response mode `simulation`.
 
 ## Optional Supervisor-Template Login Shell
 
-ATDR can run behind the advisor-provided supervisor template as an optional local school-email login shell. This does not replace FastAPI/React and does not change the normal local startup commands.
+ATDR can run behind the advisor-provided MFU template as an optional school-email identity shell. This does not replace FastAPI/React and does not change the normal local startup commands.
 
 Safe readiness checks:
 
@@ -44,9 +44,9 @@ Safe readiness checks:
 .\.venv\Scripts\python.exe -m atdr.scripts.validate_template_shell_runtime --check-runtime --pretty
 ```
 
-The private local profile uses the template backend profile endpoint to validate a template session, maps an approved school-email domain to a local ATDR user, defaults new users to analyst, and grants admin only through an explicit allowlist. Local username/password login remains available if template handoff is disabled or fails.
+The v3.91 flow is deliberately server-mediated: the template verifies its own school session, creates a short-lived single-use code, and submits it to ATDR by form POST. ATDR exchanges that code with the template backend, maps a minimal identity to a local user, defaults new external users to analyst, and grants admin only through approved IAM groups. No school token, OTP, or bridge secret may be placed in a URL, browser storage, or Git.
 
-Current local evidence includes a successful external-login audit and one mapped external user. This does not prove preprod/production callback routing, IAM group synchronization, provider-managed 2FA, recovery, or deprovisioning.
+Use `docs/V3_91_MFU_OUTER_SHELL_SECURE_HANDOFF.md` for private configuration and `docs/security/ATDR_MFU_IAM_PREPROD_VALIDATION.md` for live validation. Local username/password remains available when handoff is disabled or fails. Source-level implementation does not prove preproduction routing, IAM group values, provider-managed 2FA, recovery, or deprovisioning.
 
 The template launcher source lives outside this repository at:
 
@@ -155,6 +155,131 @@ For PostgreSQL shared-lab validation:
 ```
 
 If the current `DATABASE_URL` is SQLite, the expected status is `postgres_lab_validation_blocked_by_environment`. That is non-destructive and confirms the normal local workflow remains unchanged.
+
+## v3.89 Persistence And Restore Drill
+
+Run an isolated local persistence validation without touching the configured database:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.validate_persistence_profile --pretty
+```
+
+Use the new explicit backup command for an operator backup. It is dry-run unless `--execute` is present:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.backup_database --output-dir C:\ATDR-backups --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.backup_database --output-dir C:\ATDR-backups --execute --pretty
+```
+
+The command writes a checksum manifest next to the backup. Restore validation requires a new empty target and refuses the active configured database. See `docs/V3_89_SHARED_LAB_PERSISTENCE_AND_BACKUP_RESTORE.md` for the confirmation command and optional isolated PostgreSQL procedure.
+
+## v3.90 Durable Operation Worker
+
+ATDR now supports an opt-in database-backed worker for selected long-running imports, detection runs, ML scoring/training, and report exports. The FastAPI API process does **not** start a worker automatically, so the normal local workflow is unchanged.
+
+Run one deliberate worker cycle after a queued operation is submitted:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_operation_worker --once --pretty
+```
+
+For a shared-lab watcher, set `OPERATION_WORKER_ENABLED=true` only in the private `.env`, then run:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_operation_worker --watch --pretty
+```
+
+Use one worker with SQLite. Operations Health shows queue state and the latest worker heartbeat. Queue payloads and staged upload paths are not exposed through the UI or API. Imports stage files under ignored `.atdr_runtime/` storage. Completed jobs remove the staged copy; failed or cooperatively cancelled imports retain it only while the bounded resume window remains open.
+
+Safety rules:
+
+- Queued or retry-waiting jobs cancel immediately. Running resumable imports accept a cancellation request and stop only after the current chunk commits or rolls back safely.
+- Evidence-mutating jobs fail closed after a worker lease expires; only report exports can auto-retry.
+- The worker cannot execute response actions, firewall changes, model activation/promotion, label changes, user changes, external IAM/LLM calls, or data deletion.
+- Existing direct import/detection/ML endpoints remain synchronous unless explicitly queued.
+
+See `docs/V3_90_DURABLE_BACKGROUND_JOBS.md` for API details and retry policy.
+
+## v3.93 Resumable Large-File Imports
+
+Queue an admin file import from **Admin > Demo Controls > Durable file import**. This keeps the existing synchronous sample import unchanged. Start exactly one SQLite worker separately:
+
+```powershell
+$env:OPERATION_WORKER_ENABLED="true"
+.\.venv\Scripts\python.exe -m atdr.scripts.run_operation_worker --watch --pretty
+```
+
+Operations Health reports committed records, percentage, chunk count, heartbeat, cancellation state, and resume eligibility. It deliberately does not show a guessed ETA, private path, or checksum.
+
+Default local controls are documented in `.env.example`:
+
+```text
+INGESTION_CHUNK_SIZE=500
+INGESTION_PROGRESS_UPDATE_INTERVAL=500
+OPERATION_MAX_QUEUED_IMPORTS=10
+OPERATION_MAX_QUEUED_JOBS_PER_ACTOR=5
+OPERATION_STAGING_MAX_TOTAL_BYTES=1073741824
+OPERATION_STAGING_MIN_FREE_BYTES=268435456
+OPERATION_STAGING_RETENTION_HOURS=24
+```
+
+Cancellation is cooperative. Request it from Operations Health and wait for the worker to acknowledge it at the next transaction boundary. Already committed raw and normalized evidence remains in the database.
+
+Resume is admin-only and available only for eligible failed or cancelled file jobs. ATDR verifies the staged input's size and SHA-256 fingerprint, continues the same ingestion run after the last committed byte/line checkpoint, and refuses missing, changed, expired, or concurrently resumed input. This is a transactional chunk guarantee for one verified staged file, not global exactly-once ingestion across separate jobs.
+
+Preview staged-input retention cleanup:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.cleanup_staged_inputs --pretty
+```
+
+Applying cleanup requires `--apply --confirm APPLY-STAGED-CLEANUP`. Review the preview first. Cleanup protects active and still-resumable inputs and never deletes raw or normalized log evidence.
+
+Failure recovery:
+
+1. Stop or replace the failed worker.
+2. Wait for lease recovery or confirm the job is `failed` or `cancelled`.
+3. Check committed progress and resume eligibility in Operations Health.
+4. Resume as an admin only if the staged input is still valid.
+5. Restart exactly one SQLite worker and confirm the child job completes.
+
+If resume is ineligible, upload the file as a new job. Do not copy an unverified file over the staged input and do not delete raw evidence to restart.
+
+## v3.94 PostgreSQL Multi-Worker And Managed Deployment
+
+The local SQLite workflow remains one worker. Do not set `OPERATION_WORKER_CONCURRENCY` above `1` for SQLite.
+
+On an approved PostgreSQL host, copy the relevant values from `.env.lab.example` into a private environment file. All worker hosts must mount the same absolute staging root and use the same storage ID. Validate configuration before starting services:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.validate_worker_deployment --require-shared --pretty
+```
+
+Reference Linux service units and installation guidance are under `deploy/systemd/`. The API and workers are separate processes; the API never starts a worker. A managed `SIGTERM` lets a resumable import commit its current chunk, release its fenced lease, and return to the queue for a replacement worker.
+
+Use the PostgreSQL validators only with disposable databases whose names contain `v394`, `test`, or `ci`. Execute mode requires the exact confirmation phrases:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.validate_postgres_multiworker --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.validate_postgres_multiworker --execute --confirm ISOLATED_V394_POSTGRES --pretty
+
+.\.venv\Scripts\python.exe -m atdr.scripts.validate_backup_worker_concurrency --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.validate_backup_worker_concurrency --execute --confirm ISOLATED_V394_BACKUP_DATABASES --pretty
+```
+
+The execute commands read isolated database URLs from `ATDR_V394_POSTGRES_DATABASE_URL`, `ATDR_V394_BACKUP_SOURCE_DATABASE_URL`, and `ATDR_V394_BACKUP_RESTORE_DATABASE_URL`. Do not post these values or commit them.
+
+PostgreSQL backup pauses cooperative worker cycles with an advisory lock and refuses to run while a mutating operation is active. A full deployment backup also requires an approved API maintenance/read-only window because unrelated API clients are outside the worker lock.
+
+Troubleshooting:
+
+- `staging storage mismatch`: confirm every worker has the same shared mount and `OPERATION_STAGING_STORAGE_ID`.
+- `legacy local staged input`: finish it with the originating local profile or submit it again through shared staging; do not copy an unverified file into place.
+- `lease ownership lost`: another worker recovered the expired lease; the stale worker must stop writing.
+- `operation_workers_active` or `active_mutating_jobs`: drain workers/jobs before backup; never delete evidence to force the backup.
+- graceful stop exceeds the service timeout: inspect the current chunk size and database health before increasing the timeout.
+
+See `docs/V3_94_POSTGRESQL_MULTIWORKER_AND_MANAGED_DEPLOYMENT.md` for guarantees, limitations, rollback, and CI status.
 
 ## Operation Job Maintenance
 
@@ -1223,3 +1348,100 @@ current dashboard database. Real router/firewall forwarding remains future
 hardware validation.
 
 See `docs/FINAL_ENGINEERING_VALIDATION_SUMMARY.md`.
+
+## v3.92 Operations Observability
+
+### Health checks
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/health/live
+Invoke-RestMethod http://127.0.0.1:8000/health/ready
+```
+
+`/health/live` proves only that the API process responds. `/health/ready` also checks the database, Alembic revision, and runtime safety configuration; it returns `503` when any required dependency is not ready. It never returns credentials or connection strings.
+
+To inspect low-cardinality local metrics:
+
+```powershell
+Invoke-WebRequest http://127.0.0.1:8000/metrics | Select-Object -ExpandProperty Content
+```
+
+Metrics intentionally omit request IDs, paths, users, email addresses, IP addresses, file names, raw logs, and secrets. Admin users can inspect the safe detailed status at `GET /api/operations/health`.
+
+### Operation worker
+
+The API does not start a worker. Process at most one queued job:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_operation_worker --once --pretty
+```
+
+Persistent watch mode must be explicitly enabled in the private environment:
+
+```powershell
+$env:OPERATION_WORKER_ENABLED="true"
+.\.venv\Scripts\python.exe -m atdr.scripts.run_operation_worker --watch --pretty
+```
+
+Use only one worker with SQLite. A second fresh worker is rejected. v3.94 adds the PostgreSQL concurrency contract and isolated CI drills; environment-backed validation still requires a successful remote CI or approved-host run.
+
+### Audit retention report
+
+Review only; this is the normal command:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.audit_retention --pretty
+```
+
+Do not apply retention casually. Applying one bounded batch requires `--apply --confirm APPLY-AUDIT-RETENTION`. IAM, authentication, account, verification, denied, response, and block/unblock events are protected, and raw log evidence is never considered by this tool.
+
+### Troubleshooting readiness
+
+- `database status=error`: inspect `DATABASE_URL` without posting its value and make sure the configured service is running.
+- `migration status=not_at_head` or `unversioned`: run `.\.venv\Scripts\alembic.exe upgrade head`, then retry readiness.
+- `configuration issue_count > 0`: run `.\.venv\Scripts\python.exe -m atdr.scripts.config_doctor --pretty`. An enabled but incomplete MFU IAM profile intentionally keeps readiness false.
+- `worker_unavailable`: start the explicit worker only if queued background work is intended.
+- `queue_backlog`: inspect the Operations Health job list before starting or restarting a worker; do not delete evidence to clear a queue.
+- `repeated_job_failures`: inspect the latest failed job summary and logs using its request/job correlation, then correct the input/configuration cause.
+
+## v3.95 Deployment Operations Validation
+
+These commands are optional deployment checks. They do not change the normal local backend/frontend commands.
+
+Validate committed deployment references and safety policy:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.validate_deployment_operations --pretty
+```
+
+Preview the read-only load plan:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.load_test_readonly --pretty
+```
+
+Execution uses GET only. Provide a short-lived bearer token in `ATDR_LOAD_TEST_BEARER_TOKEN`, use `--execute`, and remove the variable afterward. Remote targets also require `--allow-remote --confirm READ_ONLY_REMOTE_LOAD_TEST`. Never put a token on the command line or in Git.
+
+Verify the newest configured backup without restoring:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.verify_latest_backup --pretty
+```
+
+Run the isolated recovery exercise:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_disaster_recovery_drill --execute --confirm ISOLATED_V395_DRILL --pretty
+```
+
+The exercise creates and restores only disposable databases under ignored `.tmp` storage. It validates checksum, integrity, table counts, and Alembic revision and refuses active-database overwrite.
+
+Deployment references:
+
+- Nginx/HTTPS: `deploy/nginx/README.md`
+- Prometheus/alerts: `deploy/monitoring/README.md`
+- API/worker/timers: `deploy/systemd/README.md`
+- managed secrets: `deploy/secrets/README.md`
+- complete recovery and drain procedure: `docs/V3_95_DEPLOYMENT_SECURITY_MONITORING_AND_RECOVERY.md`
+
+RPO 24 hours and RTO 4 hours are planning assumptions only. Do not present them as measured guarantees until an approved PostgreSQL deployment drill records timing evidence.

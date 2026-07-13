@@ -210,7 +210,8 @@ def test_maintenance_dry_run_and_stale_marking_protect_evidence():
         assert marked.status == "failed"
         assert "Marked stale" in (marked.error_summary or "")
         assert db.scalar(select(func.count(RawLog.id))) == 1
-        assert db.scalar(select(func.count(AuditLog.id))) == 1
+        assert db.scalar(select(func.count(AuditLog.id))) == 2
+        assert db.scalar(select(AuditLog.action).where(AuditLog.action == "operation_job_marked_stale")) == "operation_job_marked_stale"
 
 
 def test_maintenance_cleanup_only_deletes_old_terminal_operation_jobs():

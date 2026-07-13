@@ -104,13 +104,17 @@ Final presentation material:
 - Rule-based detection, alert deduplication, lightweight case grouping, ATT&CK-style mapping, and "Why flagged?" explanations.
 - IsolationForest anomaly scoring and supervised ML decision support with AI Governance, labeling workflow, active learning, and model validation gates.
 - Simulated response actions with confirmation, protected-IP safeguards, justification notes, and audit logs.
-- The supervisor template can act as the optional MFU school-email login shell. ATDR validates the template session through its protected profile endpoint, maps approved email domains to local ATDR users, defaults new users to analyst, requires explicit admin mapping, and keeps local login as fallback. The local handoff has been exercised; preprod/production routing, IAM group sync, provider-managed 2FA evidence, and lifecycle/deprovisioning policy remain future deployment work.
-- Supervisor-template integration is a controlled outer-shell handoff, not a migration to the template's Node/Vue/MongoDB runtime. See `docs/ATDR_TEMPLATE_SHELL_INTEGRATION_PLAN.md` and `docs/V3_86_TEMPLATE_SHELL_LIVE_RUNTIME_CHECK.md`.
+- The official MFU template is the optional school-identity outer shell. v3.91 uses a short-lived, single-use code and server-to-server exchange; ATDR never receives a school credential in a browser URL. New external users default to analyst and admin requires an approved IAM group. Local ATDR login remains a recovery path.
+- Supervisor-template integration is a controlled outer-shell handoff, not a migration to the template's Node/Vue/MongoDB runtime. See `docs/V3_91_MFU_OUTER_SHELL_SECURE_HANDOFF.md` and `docs/security/ATDR_MFU_IAM_PREPROD_VALIDATION.md`.
 - The SOC Assistant has an optional private-config Gemini path with validated structured answers, bounded conversation context, citations, redaction, retries, rate limits, and deterministic fallback. It remains read-only, excludes raw logs by default, and cannot execute ATDR actions. See `docs/V3_87_REAL_LLM_SOC_ASSISTANT.md`.
 - Safe synthetic scenario validation under `data/samples/scenarios/`.
 - Release gate, performance smoke, onboarding docs, IAM/RBAC docs, PRD, traceability, and university workflow documentation.
 
 The v3.88 checkpoint consolidates the template-shell and assistant work into one reviewed commit set before PostgreSQL, durable workers, or further model productization. See `docs/V3_88_PRODUCT_BASELINE_CHECKPOINT.md`.
+
+The v3.89 shared-lab persistence foundation keeps SQLite as the normal local workflow and adds isolated backup/restore validation, checksum manifests, optional PostgreSQL pool settings, and an ephemeral PostgreSQL CI drill. See `docs/V3_89_SHARED_LAB_PERSISTENCE_AND_BACKUP_RESTORE.md`.
+
+v3.90 adds an opt-in durable operation queue for selected long-running imports, detection, ML, and report actions. The API never starts a worker automatically; a separately launched worker records heartbeats, leases, safe retries, and audit events. See `docs/V3_90_DURABLE_BACKGROUND_JOBS.md`.
 
 ## Safety And Scope
 
@@ -225,6 +229,14 @@ Safe replay dry-run:
 ```powershell
 python -m atdr.scripts.replay_logs --dry-run --limit 20 --rate 5 --pretty
 ```
+
+For an explicitly queued operation, start one manual worker cycle after submitting a queued job:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_operation_worker --once --pretty
+```
+
+The worker is opt-in, read from the database queue, and never starts with the backend command. It cannot execute response actions, real firewall changes, user changes, label changes, or model activation.
 
 Register a lab source and replay as that source:
 
@@ -526,7 +538,8 @@ Governance and university workflow:
 - `docs/security/ATDR_IAM_RBAC_MATRIX.md` - admin/analyst permission matrix and IAM limitations.
 - `docs/security/ATDR_EXTERNAL_IAM_PLAN.md` - disabled-by-default OIDC groundwork for future school-email login.
 - `docs/security/ATDR_MFU_IAM_ADAPTER_PLAN.md` - safe MFU IAM / Google SSO adapter plan based on supervisor template guidance.
-- `docs/V3_65_MFU_IAM_AND_REAL_ASSISTANT_HARNESS.md` - current disabled-by-default MFU token-login and real assistant provider probe harness.
+- `docs/V3_91_MFU_OUTER_SHELL_SECURE_HANDOFF.md` - canonical secure MFU outer-shell handoff architecture and local configuration guide.
+- `docs/security/ATDR_MFU_IAM_PREPROD_VALIDATION.md` - preproduction validation and rollback checklist for the secure handoff.
 - `docs/security/MFU_IAM_PROVIDER_DETAILS_CHECKLIST.md` - provider questions needed before real external IAM work.
 - `docs/security/ATDR_PERMISSION_PATHS.md` - NewSystem-style ATDR permission path registry.
 - `docs/security/ATDR_OWASP_LAB_SECURITY_REVIEW.md` - lab security review baseline and remaining hardening gaps.

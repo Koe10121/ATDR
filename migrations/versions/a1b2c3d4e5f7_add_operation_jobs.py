@@ -5,7 +5,7 @@ Revises: 9c2d4e6f8a10
 Create Date: 2026-06-19 10:00:00.000000
 """
 
-from alembic import op
+from alembic import context, op
 import sqlalchemy as sa
 from sqlalchemy import inspect
 
@@ -17,9 +17,10 @@ depends_on = None
 
 
 def upgrade() -> None:
-    inspector = inspect(op.get_bind())
-    if "operation_jobs" in set(inspector.get_table_names()):
-        return
+    if not context.is_offline_mode():
+        inspector = inspect(op.get_bind())
+        if "operation_jobs" in set(inspector.get_table_names()):
+            return
     op.create_table(
         "operation_jobs",
         sa.Column("id", sa.Integer(), nullable=False),
@@ -59,6 +60,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    if context.is_offline_mode():
+        return
     inspector = inspect(op.get_bind())
     if "operation_jobs" not in set(inspector.get_table_names()):
         return
@@ -79,6 +82,9 @@ def downgrade() -> None:
 
 
 def _drop_index_if_exists(index_name: str) -> None:
+    if context.is_offline_mode():
+        op.execute(f'DROP INDEX IF EXISTS "{index_name}"')
+        return
     inspector = inspect(op.get_bind())
     existing = {index["name"] for index in inspector.get_indexes("operation_jobs")}
     if index_name in existing:

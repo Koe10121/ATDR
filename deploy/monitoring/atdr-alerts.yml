@@ -1,0 +1,90 @@
+groups:
+  - name: atdr-operational-safety
+    rules:
+      - alert: ATDRTargetDown
+        expr: up{job="atdr"} == 0 or absent(up{job="atdr"})
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: ATDR metrics target is unavailable
+
+      - alert: ATDRServiceNotReady
+        expr: atdr_service_ready != 1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: ATDR readiness checks are failing
+
+      - alert: ATDRDatabaseUnavailable
+        expr: atdr_database_ready != 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: ATDR cannot verify database availability
+
+      - alert: ATDRUnsafeRuntimeConfiguration
+        expr: atdr_runtime_configuration_issues > 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: ATDR runtime configuration has safety issues
+
+      - alert: ATDRResponseSimulationDisabled
+        expr: atdr_response_simulation_enabled != 1
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: ATDR response simulation is unexpectedly disabled
+
+      - alert: ATDROperationQueueBacklog
+        expr: sum(atdr_operation_queue_depth{state=~"queued|retry_wait"}) > 25
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: ATDR durable operation queue is backlogged
+
+      - alert: ATDRStaleOperationWorker
+        expr: atdr_operation_workers{state="stale"} > 0
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: ATDR has a stale operation-worker heartbeat
+
+      - alert: ATDRRepeatedOperationFailures
+        expr: sum(atdr_operation_recent_failures) >= 3
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: ATDR has repeated operation failures in the monitoring window
+
+      - alert: ATDRRecentIngestionFailure
+        expr: atdr_ingestion_recent_failed_runs > 0 or atdr_ingestion_recent_parse_failures > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: ATDR has recent failed ingestion or parser results
+
+      - alert: ATDRRecentDetectionFailure
+        expr: atdr_detection_recent_failed_runs > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: ATDR has a recent failed detection run
+
+      - alert: ATDRStagingPressure
+        expr: atdr_ingestion_staging_pressure > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: ATDR durable ingestion staging is under capacity pressure

@@ -1,0 +1,12 @@
+[Unit]
+Description=Schedule ATDR staged-input cleanup preview
+
+[Timer]
+OnBootSec=10m
+OnUnitActiveSec=1h
+RandomizedDelaySec=5m
+Persistent=true
+Unit=atdr-staging-cleanup-report.service
+
+[Install]
+WantedBy=timers.target

@@ -5,11 +5,12 @@ import sys
 import time
 from typing import Any
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.engine import make_url
 
 from atdr.app.core.config import PROJECT_ROOT, Settings
+from atdr.app.db.engine import create_configured_engine, public_database_profile
 
 
 def _database_kind(database_url: str) -> str:
@@ -22,13 +23,6 @@ def _database_kind(database_url: str) -> str:
     if driver.startswith("sqlite"):
         return "sqlite"
     return driver or "unknown"
-
-
-def _safe_database_url(database_url: str) -> str:
-    try:
-        return make_url(database_url).render_as_string(hide_password=True)
-    except Exception:
-        return "<unparseable>"
 
 
 def _run_command(command: list[str], timeout: int = 60) -> dict[str, Any]:
@@ -80,7 +74,7 @@ def run_postgres_lab_validation(
             "postgres_lab_validated": False,
             "local_sqlite_mode": database_kind == "sqlite",
             "database_kind": database_kind,
-            "database_url": _safe_database_url(settings.database_url),
+            "database_profile": public_database_profile(settings),
             "current_database_modified": False,
             "message": (
                 "Current configuration is not PostgreSQL. Normal local SQLite workflow remains valid; "
@@ -145,8 +139,9 @@ def run_postgres_lab_validation(
         }
 
     checks: list[dict[str, Any]] = []
+    engine = None
     try:
-        engine = create_engine(settings.database_url, future=True)
+        engine = create_configured_engine(settings)
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))
         checks.append({"name": "database_connection", "passed": True, "detail": "PostgreSQL connection succeeded."})
@@ -155,9 +150,12 @@ def run_postgres_lab_validation(
             {
                 "name": "database_connection",
                 "passed": False,
-                "detail": f"{exc.__class__.__name__}: {exc}",
+                "detail": exc.__class__.__name__,
             }
         )
+    finally:
+        if engine is not None:
+            engine.dispose()
 
     if run_alembic_check:
         alembic = _run_command([sys.executable, "-m", "alembic", "check"], timeout=90)
@@ -165,7 +163,7 @@ def run_postgres_lab_validation(
             {
                 "name": "alembic_check",
                 "passed": bool(alembic["ok"]),
-                "detail": "Alembic check passed." if alembic["ok"] else (alembic["stderr"] or alembic["stdout"]),
+                "detail": "Alembic check passed." if alembic["ok"] else "Alembic check failed; inspect the local command output.",
                 "runtime_seconds": alembic["runtime_seconds"],
             }
         )
@@ -196,7 +194,7 @@ def run_postgres_lab_validation(
             {
                 "name": "seed_users_idempotent",
                 "passed": bool(seed["ok"]),
-                "detail": "seed_users completed." if seed["ok"] else (seed["stderr"] or seed["stdout"]),
+                "detail": "seed_users completed." if seed["ok"] else "seed_users failed; inspect the local command output.",
                 "runtime_seconds": seed["runtime_seconds"],
                 "writes_safe_sample_data": True,
             }
@@ -209,7 +207,7 @@ def run_postgres_lab_validation(
             {
                 "name": "safe_no_hardware_source_pilot",
                 "passed": bool(pilot["ok"]),
-                "detail": "No-hardware source pilot completed." if pilot["ok"] else (pilot["stderr"] or pilot["stdout"]),
+                "detail": "No-hardware source pilot completed." if pilot["ok"] else "No-hardware source pilot failed; inspect the local command output.",
                 "runtime_seconds": pilot["runtime_seconds"],
                 "writes_safe_sample_data": True,
             }
@@ -229,7 +227,7 @@ def run_postgres_lab_validation(
             {
                 "name": "performance_smoke",
                 "passed": bool(smoke["ok"]),
-                "detail": "Performance smoke completed." if smoke["ok"] else (smoke["stderr"] or smoke["stdout"]),
+                "detail": "Performance smoke completed." if smoke["ok"] else "Performance smoke failed; inspect the local command output.",
                 "runtime_seconds": smoke["runtime_seconds"],
             }
         )
@@ -248,7 +246,7 @@ def run_postgres_lab_validation(
             {
                 "name": "release_gate",
                 "passed": bool(release["ok"]),
-                "detail": "Release gate completed." if release["ok"] else (release["stderr"] or release["stdout"]),
+                "detail": "Release gate completed." if release["ok"] else "Release gate failed; inspect the local command output.",
                 "runtime_seconds": release["runtime_seconds"],
             }
         )
@@ -267,7 +265,7 @@ def run_postgres_lab_validation(
         "status": "postgres_lab_validated" if passed else "postgres_lab_validation_failed",
         "postgres_lab_validated": passed,
         "database_kind": "postgresql",
-        "database_url": _safe_database_url(settings.database_url),
+        "database_profile": public_database_profile(settings),
         "current_database_modified": include_sample_ingest,
         "safe_sample_data_written": include_sample_ingest,
         "checks": checks,

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, func
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, func, true
 from sqlalchemy.orm import Mapped, foreign, mapped_column, relationship
 
 from atdr.app.db.database import Base
@@ -414,11 +414,32 @@ class OperationJob(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     progress_current: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     progress_total: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    checkpoint_line: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    checkpoint_bytes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    checkpoint_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    chunk_commits: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    input_size_bytes: Mapped[int | None] = mapped_column(Integer)
+    input_fingerprint: Mapped[str | None] = mapped_column(String(64))
+    cancellation_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    cancellation_requested_by: Mapped[str | None] = mapped_column(String(128))
+    resume_of_job_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    original_job_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    resume_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     result_summary_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     error_summary: Mapped[str | None] = mapped_column(Text)
     related_ingestion_run_id: Mapped[int | None] = mapped_column(ForeignKey("ingestion_runs.id"), index=True)
     related_detection_run_id: Mapped[int | None] = mapped_column(ForeignKey("detection_runs.id"), index=True)
     related_ml_model_run_id: Mapped[int | None] = mapped_column(ForeignKey("ml_model_runs.id"), index=True)
+    idempotency_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    payload_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    max_attempts: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    lease_owner: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    lease_token: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    claim_generation: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    staging_storage_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
     details_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
     updated_at: Mapped[datetime] = mapped_column(
@@ -428,6 +449,17 @@ class OperationJob(Base):
         nullable=False,
         index=True,
     )
+
+
+class OperationWorkerHeartbeat(Base):
+    __tablename__ = "operation_worker_heartbeats"
+
+    worker_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    status: Mapped[str] = mapped_column(String(32), default="idle", nullable=False, index=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    current_job_id: Mapped[int | None] = mapped_column(ForeignKey("operation_jobs.id"), index=True)
+    details_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
 
 
 class MLLabel(Base):
@@ -441,7 +473,7 @@ class MLLabel(Base):
     reviewer: Mapped[str] = mapped_column(String(128), index=True, nullable=False)
     review_note: Mapped[str | None] = mapped_column(Text)
     label_source: Mapped[str] = mapped_column(String(32), default="manual", server_default="manual", nullable=False, index=True)
-    reviewed: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1", nullable=False, index=True)
+    reviewed: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true(), nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
 
     log: Mapped[NormalizedLog] = relationship(back_populates="ml_labels")
@@ -452,6 +484,9 @@ Index("ix_ml_labels_reviewed_label", MLLabel.reviewed, MLLabel.label)
 Index("ix_ml_labels_source_reviewed", MLLabel.label_source, MLLabel.reviewed)
 Index("ix_ml_labels_label_label_source", MLLabel.label, MLLabel.label_source)
 Index("ix_ml_model_runs_model_operation_created", MLModelRun.model_name, MLModelRun.operation, MLModelRun.created_at)
+Index("ux_operation_jobs_idempotency_key", OperationJob.idempotency_key, unique=True)
+Index("ix_operation_jobs_queue_claim", OperationJob.status, OperationJob.next_attempt_at, OperationJob.created_at)
+Index("ix_operation_jobs_original_status", OperationJob.original_job_id, OperationJob.status)
 Index("ix_normalized_anomaly_app", NormalizedLog.is_anomaly, NormalizedLog.app)
 Index("ix_normalized_anomaly_dst_port", NormalizedLog.is_anomaly, NormalizedLog.dst_port)
 Index("ix_alert_status_severity_updated", Alert.status, Alert.severity, Alert.updated_at)

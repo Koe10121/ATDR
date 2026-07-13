@@ -2,17 +2,20 @@
 
 ## Status
 
-This document maps the supervisor NewSystem IAM template to ATDR without enabling external IAM. ATDR remains a FastAPI + React + SQLAlchemy/Alembic system with local JWT login as the active authentication path.
+This document maps the supervisor MFU IAM template to ATDR. ATDR remains a FastAPI + React + SQLAlchemy/Alembic system. Its normal local authentication path is local JWT login; the optional v3.91 MFU outer-shell handoff is the school-identity path when the two services are explicitly configured.
 
 Current implementation status:
 
-- `MFU_IAM_ENABLED=false` by default.
+- `MFU_IAM_HANDOFF_ENABLED=false` by default.
 - `GOOGLE_SSO_ENABLED=false` by default.
-- No OAuth/OIDC/Google/MFU IAM callback flow is active.
-- No external IAM network calls are made by default.
+- The template, not ATDR, owns school sign-in and 2FA. ATDR consumes only a short-lived opaque one-time code and exchanges it server-to-server.
+- No external IAM network calls are made during normal local startup.
 - No IAM client secrets are returned by APIs or committed to Git.
 - Local username/password and local email login remain the working login methods.
+- New MFU users map to `analyst`; an approved IAM group is required for `admin`.
 - Response automation remains disabled.
+
+The canonical implementation and operating documents are `docs/V3_91_MFU_OUTER_SHELL_SECURE_HANDOFF.md` and `docs/security/ATDR_MFU_IAM_PREPROD_VALIDATION.md`. Earlier token/session handoff documents are historical evidence only.
 
 ## Source Evidence Reviewed
 
@@ -58,28 +61,28 @@ This does not mean ATDR should migrate to Node, Vue, MongoDB, or the NewSystem r
 | User lifecycle | Local user creation, update, disable, password reset, email, email verified flag, auth provider metadata |
 | Email verification groundwork | Disabled-by-default verification, hashed tokens, admin-only dev outbox, audit events |
 | Generic external IAM placeholders | Disabled-by-default OIDC config/status endpoint |
+| MFU outer-shell handoff | Disabled-by-default opaque code, form POST, exact-origin/path checks, server-side exchange, HttpOnly session cookie, audit, analyst default, and group-based admin mapping |
 | Response safety | Simulated response only, admin-only response actions, justification required, protected IP denial, audit logs |
 | Audit | Audit records for login failures, user actions, verification actions, response attempts, assistant questions, and other workflows |
 | Permission documentation | ATDR IAM/RBAC matrix and permission path registry |
 
 ## What ATDR Is Missing
 
-ATDR does not yet implement:
+ATDR does not yet have operating proof or implementation for:
 
-- Real MFU IAM SDK client.
-- Real Google SSO or MFU Mail login.
-- OAuth/OIDC redirect and callback routes.
-- External token validation or introspection.
-- External logout/session synchronization.
-- Full email OTP/2FA enforcement.
+- Provider-backed preproduction validation of the v3.91 handoff.
+- A direct ATDR-owned Google SSO or MFU Mail login.
+- Direct ATDR OAuth/OIDC redirect and callback routes.
+- External logout/session synchronization beyond clearing the ATDR cookie.
+- Full email OTP/2FA enforcement in ATDR; the template owns its own 2FA behavior.
 - Trusted device management.
 - Invite flow connected to a real email provider.
 - Fine-grained permission matrix in the database.
-- External IAM group-to-role synchronization.
+- Verified live IAM group identifiers and lifecycle synchronization.
 - B2B client credentials or service-token support.
 - Real SMTP delivery.
 
-These are future work and require provider details and approval.
+These require approved provider configuration, group policy, and preproduction evidence. They are not implied by the source implementation.
 
 ## Safe Mapping To ATDR
 
@@ -87,8 +90,8 @@ These are future work and require provider details and approval.
 
 | Supervisor IAM Concept | ATDR Mapping |
 | --- | --- |
-| MFU IAM account | Local `users` row linked by email and future `external_subject` |
-| Google/MFU Mail identity | Future external user identity, matched by verified school email and provider subject |
+| MFU outer-shell identity | Local `users` row linked to sanitized email/subject returned by the one-time-code exchange |
+| Google/MFU Mail identity | Template-owned school identity; ATDR receives no browser credential |
 | Account invite | Future admin-created local user plus email verification/invite notification |
 | Active account | `User.is_active=true` |
 | Disabled/deprovisioned account | `User.is_active=false` with `disabled_at` |

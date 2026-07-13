@@ -4,13 +4,13 @@ export default defineConfig({
   testDir: "./tests",
   timeout: 30_000,
   webServer: {
-    command: "npm run dev",
-    url: "http://127.0.0.1:5173",
-    reuseExistingServer: true,
+    command: "npm run test:e2e:server",
+    url: "http://127.0.0.1:4173",
+    reuseExistingServer: false,
     timeout: 120_000
   },
   use: {
-    baseURL: "http://127.0.0.1:5173",
+    baseURL: "http://127.0.0.1:4173",
     trace: "on-first-retry"
   },
   projects: [

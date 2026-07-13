@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from atdr.app.core.config import get_settings, validate_runtime_settings
 from atdr.app.core.logging import configure_logging
-from atdr.app.core.middleware import RequestContextMiddleware, SecurityHeadersMiddleware
+from atdr.app.core.middleware import RequestContextMiddleware, SecurityHeadersMiddleware, TrustedProxyHeadersMiddleware
 from atdr.app.core.request_context import get_request_id
 from atdr.app.db.database import check_database_connection, get_db, init_db
 from atdr.app.routers import (
@@ -26,12 +26,14 @@ from atdr.app.routers import (
     jobs,
     logs,
     ml,
+    observability,
     response,
     sources,
     suppressions,
     users,
     watchlists,
 )
+from atdr.app.services.observability_service import build_readiness
 
 settings = get_settings()
 configure_logging(settings.log_level, settings.log_format)
@@ -65,6 +67,11 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title=settings.app_name, version=settings.service_version, lifespan=lifespan)
 
 app.add_middleware(RequestContextMiddleware)
+app.add_middleware(
+    TrustedProxyHeadersMiddleware,
+    enabled=settings.trust_proxy_headers,
+    trusted_cidrs=settings.trusted_proxy_cidr_list,
+)
 if settings.security_headers_enabled:
     app.add_middleware(SecurityHeadersMiddleware, enable_hsts=settings.environment.lower() == "production")
 
@@ -85,7 +92,7 @@ def health(db: Session = Depends(get_db)) -> dict:
         "database": database_check,
         "ml_model": {
             "status": "ready" if model_path.exists() else "missing",
-            "path": str(model_path),
+            "artifact_exists": model_path.exists(),
         },
         "response_mode": {
             "status": "simulation" if settings.response_simulation else "pending_connector",
@@ -100,6 +107,24 @@ def health(db: Session = Depends(get_db)) -> dict:
         "environment": settings.environment,
         "checks": checks,
     }
+
+
+@app.get("/health/live")
+def health_live() -> dict:
+    """Process-only liveness. This endpoint intentionally performs no database work."""
+
+    return {
+        "status": "ok",
+        "service": settings.app_name,
+        "version": settings.service_version,
+        "secrets_exposed": False,
+    }
+
+
+@app.get("/health/ready")
+def health_ready(db: Session = Depends(get_db)) -> JSONResponse:
+    payload, ready = build_readiness(db, settings)
+    return JSONResponse(status_code=200 if ready else 503, content=jsonable_encoder(payload))
 
 
 @app.exception_handler(HTTPException)
@@ -158,6 +183,7 @@ app.include_router(suppressions.router)
 app.include_router(watchlists.router)
 app.include_router(sources.router)
 app.include_router(ingestion.router)
+app.include_router(observability.router)
 app.include_router(jobs.router)
 app.include_router(detection.router)
 app.include_router(ml.router)

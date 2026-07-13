@@ -1,5 +1,7 @@
 # ATDR MFU IAM Implementation Plan
 
+> **Historical implementation-plan note.** Its v3.65 browser token-login route is retired. The current school-identity architecture is the v3.91 opaque-code outer-shell handoff documented in `docs/V3_91_MFU_OUTER_SHELL_SECURE_HANDOFF.md`; do not use this document to restore browser credential handoff.
+
 ## Status
 
 ATDR has disabled-by-default MFU IAM and Google SSO configuration/status groundwork. v3.65 adds a safe token-login harness behind `MFU_IAM_ENABLED=true`; local username/password login and local email login remain active.

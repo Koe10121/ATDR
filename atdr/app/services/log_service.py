@@ -24,7 +24,7 @@ def count_nonblank_log_lines(file_path: str | Path) -> int:
         return sum(1 for line in stream if line.strip())
 
 
-def _persist_parsed_log(db: Session, parsed: ParsedPaloAltoLog, *, source_id: int | None = None) -> NormalizedLog | None:
+def persist_parsed_log(db: Session, parsed: ParsedPaloAltoLog, *, source_id: int | None = None) -> NormalizedLog | None:
     raw = RawLog(
         source_id=source_id,
         raw_line=parsed.raw_line,
@@ -90,7 +90,7 @@ def import_log_stream(
             existing_raw = db.scalar(select(RawLog.id).where(RawLog.raw_line == line.rstrip("\r\n")).limit(1))
             duplicate_raw_logs += 1 if existing_raw is not None else 0
             parsed_log = parse_log_line_for_profile(line, source.parser_profile)
-            _persist_parsed_log(db, parsed_log, source_id=source.id)
+            persist_parsed_log(db, parsed_log, source_id=source.id)
             imported += 1
             if parsed_log.error:
                 failed += 1
@@ -191,7 +191,7 @@ def import_raw_log_line(
     )
     parsed_log = parse_log_line_for_profile(raw_line, source.parser_profile)
     duplicate_raw_log = db.scalar(select(RawLog.id).where(RawLog.raw_line == raw_line.rstrip("\r\n")).limit(1)) is not None
-    normalized = _persist_parsed_log(db, parsed_log, source_id=source.id)
+    normalized = persist_parsed_log(db, parsed_log, source_id=source.id)
     db.flush()
     record_source_ingestion(
         source,

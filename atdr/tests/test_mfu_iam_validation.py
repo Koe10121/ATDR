@@ -69,12 +69,15 @@ def test_mfu_iam_validation_mock_mode_is_secret_safe(monkeypatch):
     assert "student@lamduan.mfu.ac.th" not in str(report)
 
 
-def test_mfu_iam_validation_template_shell_mode_does_not_run_b2b_without_token(monkeypatch):
+def test_mfu_iam_validation_secure_template_shell_mode_does_not_run_b2b(monkeypatch):
     monkeypatch.setenv("MFU_IAM_ENABLED", "true")
     monkeypatch.setenv("MFU_IAM_TEMPLATE_SHELL_ENABLED", "true")
     monkeypatch.setenv("MFU_IAM_TEMPLATE_SHELL_BASE_URL", "http://template-shell.test")
     monkeypatch.setenv("MFU_IAM_TEMPLATE_SHELL_ME_PATH", "/api/v1/auth/me")
     monkeypatch.setenv("MFU_IAM_ALLOWED_DOMAINS", "lamduan.mfu.ac.th")
+    monkeypatch.setenv("MFU_IAM_HANDOFF_ENABLED", "true")
+    monkeypatch.setenv("MFU_IAM_HANDOFF_SHARED_SECRET", "test-bridge-secret")
+    monkeypatch.setenv("MFU_IAM_HANDOFF_ALLOWED_ORIGINS", "http://template-shell.test")
     get_settings.cache_clear()
 
     def fail_post(*args, **kwargs):  # pragma: no cover - executed only on regression
@@ -87,11 +90,12 @@ def test_mfu_iam_validation_template_shell_mode_does_not_run_b2b_without_token(m
     finally:
         get_settings.cache_clear()
 
-    assert report["ok"] is False
+    assert report["ok"] is True
     assert report["executed_provider_call"] is False
-    assert report["mode"] == "template_shell_session_handoff"
+    assert report["mode"] == "template_shell_secure_handoff"
     assert report["template_shell_enabled"] is True
     assert report["template_shell_ready"] is True
+    assert report["handoff_ready"] is True
     assert report["secrets_exposed"] is False
     assert "validate_template_shell_runtime" in report["message"]
 

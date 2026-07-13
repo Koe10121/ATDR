@@ -138,6 +138,10 @@ def run_verify_release(
             ],
         ),
         ("alembic_check", [python, "-m", "alembic", "check"]),
+        (
+            "deployment_operations",
+            [python, "-m", "atdr.scripts.validate_deployment_operations"],
+        ),
     ]
 
     for name, command in required_commands:

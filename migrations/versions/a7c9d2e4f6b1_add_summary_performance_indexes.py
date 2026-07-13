@@ -5,7 +5,7 @@ Revises: 9f4d2c7a1b8e
 Create Date: 2026-05-25 21:10:00.000000
 """
 
-from alembic import op
+from alembic import context, op
 from sqlalchemy import inspect
 
 
@@ -50,6 +50,9 @@ def downgrade() -> None:
 
 
 def _create_index_if_missing(table_name: str, index_name: str, columns: list[str]) -> None:
+    if context.is_offline_mode():
+        op.execute(f'CREATE INDEX IF NOT EXISTS "{index_name}" ON "{table_name}" ({", ".join(columns)})')
+        return
     inspector = inspect(op.get_bind())
     existing = {index["name"] for index in inspector.get_indexes(table_name)}
     if index_name not in existing:
@@ -57,6 +60,9 @@ def _create_index_if_missing(table_name: str, index_name: str, columns: list[str
 
 
 def _drop_index_if_exists(table_name: str, index_name: str) -> None:
+    if context.is_offline_mode():
+        op.execute(f'DROP INDEX IF EXISTS "{index_name}"')
+        return
     inspector = inspect(op.get_bind())
     existing = {index["name"] for index in inspector.get_indexes(table_name)}
     if index_name in existing:

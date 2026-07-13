@@ -46,6 +46,19 @@ jobs:
       - name: Ruff safety lint
         run: ruff check atdr migrations
 
+      - name: Validate deployment security and operations references
+        run: python -m atdr.scripts.validate_deployment_operations --pretty
+
+      - name: Validate read-only load-test plan
+        run: python -m atdr.scripts.load_test_readonly --pretty
+
+      - name: Validate isolated disaster-recovery drill
+        run: >-
+          python -m atdr.scripts.run_disaster_recovery_drill
+          --execute
+          --confirm ISOLATED_V395_DRILL
+          --pretty
+
   frontend-dashboard:
     runs-on: ubuntu-latest
 
@@ -86,3 +99,121 @@ jobs:
       - name: Run Playwright dashboard tests
         working-directory: frontend
         run: npm run test:e2e
+
+  postgres-persistence:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: atdr_ci
+          POSTGRES_PASSWORD: atdr_ci_ephemeral
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atdr_ci -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+psycopg2://atdr_ci:atdr_ci_ephemeral@127.0.0.1:5432/atdr_v389_control
+      ATDR_PERSISTENCE_SOURCE_DATABASE_URL: postgresql+psycopg2://atdr_ci:atdr_ci_ephemeral@127.0.0.1:5432/atdr_v389_source
+      ATDR_PERSISTENCE_RESTORE_DATABASE_URL: postgresql+psycopg2://atdr_ci:atdr_ci_ephemeral@127.0.0.1:5432/atdr_v389_restore
+      ATDR_V394_POSTGRES_DATABASE_URL: postgresql+psycopg2://atdr_ci:atdr_ci_ephemeral@127.0.0.1:5432/atdr_v394_jobs
+      ATDR_V394_BACKUP_SOURCE_DATABASE_URL: postgresql+psycopg2://atdr_ci:atdr_ci_ephemeral@127.0.0.1:5432/atdr_v394_backup_source
+      ATDR_V394_BACKUP_RESTORE_DATABASE_URL: postgresql+psycopg2://atdr_ci:atdr_ci_ephemeral@127.0.0.1:5432/atdr_v394_backup_restore
+      AUTO_CREATE_TABLES: "false"
+      ENVIRONMENT: development
+      JWT_SECRET_KEY: v389-ci-isolated-database-secret-not-for-deployment
+      RESPONSE_SIMULATION: "true"
+      ASSISTANT_ENABLED: "false"
+      ASSISTANT_LLM_ENABLED: "false"
+      ASSISTANT_ALLOW_RAW_LOG_CONTEXT: "false"
+      MFU_IAM_ENABLED: "false"
+      OIDC_ENABLED: "false"
+      SMTP_ENABLED: "false"
+      OPERATION_WORKER_ENABLED: "true"
+      OPERATION_WORKER_DEPLOYMENT_ID: v394-ci
+      OPERATION_WORKER_CONCURRENCY: "2"
+      OPERATION_STAGING_ROOT: ${{ github.workspace }}/.tmp/v394-shared-staging
+      OPERATION_STAGING_SHARED: "true"
+      OPERATION_STAGING_STORAGE_ID: v394-ci-shared
+      OPERATION_STAGING_MIN_FREE_BYTES: "0"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install backend and PostgreSQL client tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Create isolated control source and restore databases
+        env:
+          PGPASSWORD: atdr_ci_ephemeral
+        run: |
+          psql -h 127.0.0.1 -U atdr_ci -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE atdr_v389_control"
+          psql -h 127.0.0.1 -U atdr_ci -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE atdr_v389_source"
+          psql -h 127.0.0.1 -U atdr_ci -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE atdr_v389_restore"
+          psql -h 127.0.0.1 -U atdr_ci -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE atdr_v394_jobs"
+          psql -h 127.0.0.1 -U atdr_ci -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE atdr_v394_backup_source"
+          psql -h 127.0.0.1 -U atdr_ci -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE atdr_v394_backup_restore"
+
+      - name: Validate isolated PostgreSQL migration backup and restore
+        run: >-
+          python -m atdr.scripts.validate_persistence_profile
+          --include-postgres
+          --execute-postgres
+          --confirm ISOLATED_POSTGRES_DATABASES
+          --pretty
+
+      - name: Check PostgreSQL migration drift
+        env:
+          DATABASE_URL: ${{ env.ATDR_PERSISTENCE_SOURCE_DATABASE_URL }}
+        run: python -m alembic check
+
+      - name: Run persistence regression tests
+        run: >-
+          python -m pytest atdr/tests/test_v389_persistence.py atdr/tests/test_api.py -q
+          -o cache_dir=.tmp/pytest-cache
+          --basetemp=.tmp/pytest-postgres-persistence
+
+      - name: Apply v3.94 migrations to isolated worker database
+        env:
+          DATABASE_URL: ${{ env.ATDR_V394_POSTGRES_DATABASE_URL }}
+        run: python -m alembic upgrade head
+
+      - name: Validate PostgreSQL concurrent workers and shared staging
+        env:
+          DATABASE_URL: ${{ env.ATDR_V394_POSTGRES_DATABASE_URL }}
+        run: >-
+          python -m atdr.scripts.validate_postgres_multiworker
+          --execute
+          --confirm ISOLATED_V394_POSTGRES
+          --pretty
+
+      - name: Apply v3.94 migrations to isolated backup source
+        env:
+          DATABASE_URL: ${{ env.ATDR_V394_BACKUP_SOURCE_DATABASE_URL }}
+        run: python -m alembic upgrade head
+
+      - name: Validate backup drain guard and isolated restore
+        run: >-
+          python -m atdr.scripts.validate_backup_worker_concurrency
+          --execute
+          --confirm ISOLATED_V394_BACKUP_DATABASES
+          --pretty
+
+      - name: Validate managed worker deployment profile
+        env:
+          DATABASE_URL: ${{ env.ATDR_V394_POSTGRES_DATABASE_URL }}
+        run: python -m atdr.scripts.validate_worker_deployment --require-shared --pretty

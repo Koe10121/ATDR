@@ -71,6 +71,8 @@ It does not expose `OIDC_CLIENT_SECRET`, `SMTP_PASSWORD`, or any assistant/email
 
 ## MFU IAM / Google SSO Adapter Groundwork
 
+> **Current path:** v3.91 implements an optional MFU outer-shell secure handoff. The template owns school sign-in and 2FA; ATDR accepts an opaque one-time code and exchanges it server-to-server. See `docs/V3_91_MFU_OUTER_SHELL_SECURE_HANDOFF.md` and `docs/security/ATDR_MFU_IAM_PREPROD_VALIDATION.md`. The fields below remain useful compatibility/reference groundwork, not a reason to build a second browser-token or direct callback flow.
+
 The supervisor NewSystem template includes MFU IAM service integration, Google/MFU Mail login, OTP/2FA, account invites, permission-matrix concepts, and B2B token introspection. ATDR does not copy the NewSystem runtime stack, but it now documents a safe ATDR-specific adapter path:
 
 - `docs/security/ATDR_MFU_IAM_ADAPTER_PLAN.md`
@@ -103,7 +105,7 @@ GOOGLE_SSO_ENABLED=false
 GOOGLE_CLIENT_ID=""
 ```
 
-Real MFU IAM, Google SSO, OAuth/OIDC callback login, token introspection, or OTP/2FA enforcement must wait until the provider details checklist is answered and an approved T1-T20 change record exists. The current implementation plan is `docs/security/ATDR_MFU_IAM_IMPLEMENTATION_PLAN.md`.
+Direct ATDR-owned MFU IAM, Google SSO, OAuth/OIDC callback login, token introspection, or OTP/2FA enforcement must wait until the provider details checklist is answered and an approved T1-T20 change record exists. The current school-login implementation is v3.91 secure handoff, which still requires the preproduction checklist before enablement.
 
 ## Local School-Email Accounts
 

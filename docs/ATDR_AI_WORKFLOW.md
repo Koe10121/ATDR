@@ -136,7 +136,7 @@ Do not update the PRD for purely internal refactors with no behavior, contract, 
 
 ## ATDR IAM / RBAC Adaptation
 
-The university template uses the term IAM. In ATDR, IAM currently means local JWT authentication, role-based authorization, route protection, response-safety permission checks, and auditability. Do not add OAuth, SSO, SAML, LDAP, or enterprise identity-provider integration unless a future approved requirement explicitly asks for it.
+The university template uses the term IAM. In ATDR, IAM means local JWT authentication, role-based authorization, route protection, response-safety permission checks, auditability, and the optional v3.91 MFU outer-shell handoff. The template owns school sign-in and 2FA; ATDR accepts only an opaque one-time code and performs a server-to-server exchange. Do not add a separate direct ATDR OAuth, SSO, SAML, LDAP, or enterprise identity-provider flow unless a future approved requirement explicitly asks for it.
 
 Current ATDR roles are:
 
@@ -148,9 +148,9 @@ For permission decisions, use `docs/security/ATDR_IAM_RBAC_MATRIX.md` as the cur
 
 Current IAM limitations must remain explicit:
 
-- No external SSO/OAuth/SAML/LDAP.
-- No enterprise identity provider.
-- No real MFU IAM SDK, Google SSO callback, or B2B token introspection.
+- No direct ATDR-owned SSO/OAuth/SAML/LDAP flow.
+- No provider-backed preproduction evidence for MFU outer-shell login yet.
+- No validated IAM lifecycle synchronization, provider logout, recovery, or deprovisioning policy yet.
 - Email verification is disabled by default and is local-account groundwork only.
 - Real SMTP delivery, password reset email, and school OIDC login are future work.
 - Demo JWT secrets must be replaced before shared lab or real deployment.
@@ -170,7 +170,7 @@ ATDR follows these NewSystem-style ideas:
 - T1-T20 change handoff: `docs/templates/ATDR_T1_T20_CHANGE_DOCUMENT.md`
 - security review discipline: `docs/security/ATDR_OWASP_LAB_SECURITY_REVIEW.md`
 
-Do not copy NewSystem-specific Node.js, Vue, MongoDB, Google SSO, B2B IAM SDK, or Docker requirements into ATDR unless a future approved requirement explicitly asks for that migration. v0.4 uses generic OIDC groundwork only, disabled by default, so a future school-email provider can be added without changing the ATDR stack. The MFU IAM adapter mapping is documented in `docs/security/ATDR_MFU_IAM_ADAPTER_PLAN.md`; provider questions must be answered in `docs/security/MFU_IAM_PROVIDER_DETAILS_CHECKLIST.md` before real implementation. The active adaptation guide is `docs/ATDR_NEWSYSTEM_TEMPLATE_ALIGNMENT.md`.
+Do not copy NewSystem-specific Node.js, Vue, MongoDB, Google SSO, B2B IAM SDK, or Docker requirements into ATDR unless a future approved requirement explicitly asks for that migration. The current school-email architecture is the v3.91 secure outer-shell handoff in `docs/V3_91_MFU_OUTER_SHELL_SECURE_HANDOFF.md`; its preproduction gate is `docs/security/ATDR_MFU_IAM_PREPROD_VALIDATION.md`. The MFU IAM adapter mapping is documented in `docs/security/ATDR_MFU_IAM_ADAPTER_PLAN.md`; the active adaptation guide is `docs/ATDR_NEWSYSTEM_TEMPLATE_ALIGNMENT.md`.
 
 ## Analyst Assistant Safety Rule
 

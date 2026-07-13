@@ -15,6 +15,9 @@ DEFAULT_ALLOWED_DOMAINS = "lamduan.mfu.ac.th"
 DEFAULT_ME_PATH = "/api/v1/auth/me"
 DEFAULT_HEADER = "x-access-token"
 DEFAULT_ROLE = "analyst"
+DEFAULT_HANDOFF_EXCHANGE_PATH = "/api/v1/atdr/handoff/exchange"
+DEFAULT_HANDOFF_FRONTEND_URL = "http://127.0.0.1:5173"
+DEFAULT_HANDOFF_RETURN_PATHS = "/overview,/alerts,/logs,/assistant,/response,/audit,/ml"
 
 
 def _parse_key(line: str) -> str | None:
@@ -44,6 +47,14 @@ def _template_shell_values(
         "MFU_IAM_TEMPLATE_SHELL_HEADER": _quoted(header.strip() or DEFAULT_HEADER),
         "MFU_IAM_ALLOWED_DOMAINS": _quoted(allowed_domains.strip() or DEFAULT_ALLOWED_DOMAINS),
         "MFU_IAM_DEFAULT_ROLE": _quoted(default_role.strip() or DEFAULT_ROLE),
+        # The bridge stays off until both independent services have the same private
+        # shared secret and approved origins. This helper never writes that secret.
+        "MFU_IAM_HANDOFF_ENABLED": "false",
+        "MFU_IAM_HANDOFF_EXCHANGE_PATH": _quoted(DEFAULT_HANDOFF_EXCHANGE_PATH),
+        "MFU_IAM_HANDOFF_FRONTEND_URL": _quoted(DEFAULT_HANDOFF_FRONTEND_URL),
+        "MFU_IAM_HANDOFF_ALLOWED_ORIGINS": '""',
+        "MFU_IAM_HANDOFF_ALLOWED_RETURN_PATHS": _quoted(DEFAULT_HANDOFF_RETURN_PATHS),
+        "MFU_IAM_ADMIN_GROUPS": '""',
     }
 
 
@@ -128,9 +139,15 @@ def apply_template_shell_config(
         "template_base_url": template_base_url,
         "allowed_domains": [domain.strip() for domain in allowed_domains.split(",") if domain.strip()],
         "default_role": default_role,
+        "handoff_enabled": False,
+        "handoff_shared_secret_written": False,
         "admin_mapping_changed": False,
         "secrets_exposed": False,
-        "recommendation": "Start the supervisor template shell, then run validate_template_shell_runtime --check-runtime.",
+        "recommendation": (
+            "Review the generated non-secret settings, then configure the same private handoff shared secret and "
+            "approved template origin in both services before enabling MFU_IAM_HANDOFF_ENABLED. "
+            "Run validate_template_shell_runtime --check-runtime after both services are running."
+        ),
     }
 
     if not write:

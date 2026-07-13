@@ -123,7 +123,6 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
     route.fulfill({
       json: {
         enabled: false,
-        token_login_ready: false,
         b2b_ready: false,
         mock_enabled: false,
         google_sso_enabled: false,
@@ -178,7 +177,6 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
         init_admin_emails_configured: false,
         seed_admin_email_configured: false,
         b2b_ready: false,
-        token_login_ready: false,
         admin_api_ready: false,
         permission_bootstrap_ready: false,
         mode: "local_login_only",
@@ -519,6 +517,12 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
       related_ingestion_run_id: null,
       related_detection_run_id: 8,
       related_ml_model_run_id: null,
+      attempt_count: 1,
+      max_attempts: 1,
+      next_attempt_at: null,
+      lease_expires_at: null,
+      can_cancel: false,
+      can_retry: false,
       details: { limit: 10 },
       created_at: "2026-05-22T00:00:02Z",
       updated_at: "2026-05-22T00:00:03Z"
@@ -526,13 +530,19 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
     if (route.request().url().includes("/api/jobs/summary")) {
       return route.fulfill({
         json: {
-          counts: { cancelled: 0, completed: 1, failed: 0, queued: 0, running: 0 },
+          counts: { cancelled: 0, completed: 1, failed: 0, queued: 0, retry_wait: 0, running: 0 },
           active_count: 0,
           failed_count: 0,
           stale_count: 0,
           stale_job_ids: [],
           latest_failed_job: null,
           latest_successful_job: job,
+          queue: { queued: 0, retry_wait: 0, running: 0, failed: 0 },
+          worker: { enabled: false, status: "idle", worker_id: "test-worker", last_seen_at: "2026-05-22T00:00:03Z", current_job_id: null },
+          health_status: "warning",
+          warning_count: 1,
+          recent_failure_count: 0,
+          warnings: [{ code: "migration_drift", severity: "warning", message: "Database migration revision is not at Alembic head." }],
           retention_policy: {
             job_stale_after_minutes: 60,
             job_retention_days: 30,
@@ -1795,158 +1805,39 @@ async function chooseSafeSelect(page: Page, ariaLabel: string, optionName: strin
 }
 
 test("login page loads", async ({ page }) => {
+  await page.route("**/api/auth/me", (route) => route.fulfill({ status: 401, json: { detail: "Not authenticated" } }));
   await page.goto("/login");
   await expect(page.getByText("MFU ATDR SOC Console")).toBeVisible();
   await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
 });
 
-test("template IAM handoff logs in and clears token from URL", async ({ page }) => {
-  let handoffToken: string | null = null;
-  await page.route("**/health", async (route) =>
-    route.fulfill({
-      json: {
-        status: "ok",
-        service: "MFU ATDR",
-        checks: { database: { status: "ok" }, response_mode: { status: "simulation" } }
-      }
-    })
-  );
-  await page.route("**/api/auth/me", async (route) =>
-    route.fulfill({
-      json: {
-        id: 7,
-        username: "student@lamduan.mfu.ac.th",
-        email: "student@lamduan.mfu.ac.th",
-        full_name: "Template Handoff Student",
-        role: "analyst",
-        is_active: true,
-        email_verified: true,
-        auth_provider: "external",
-        created_at: "2026-07-11T00:00:00Z"
-      }
-    })
-  );
-  await page.route("**/api/users/me", async (route) =>
-    route.fulfill({
-      json: {
-        id: 7,
-        username: "student@lamduan.mfu.ac.th",
-        email: "student@lamduan.mfu.ac.th",
-        full_name: "Template Handoff Student",
-        role: "analyst",
-        is_active: true,
-        email_verified: true,
-        auth_provider: "external",
-        created_at: "2026-07-11T00:00:00Z"
-      }
-    })
-  );
+test("legacy browser credential query is blocked and removed", async ({ page }) => {
+  await page.route("**/api/auth/me", (route) => route.fulfill({ status: 401, json: { detail: "Not authenticated" } }));
   await page.route("**/api/auth/mfu-iam/public-status", async (route) =>
     route.fulfill({
       json: {
         enabled: true,
-        token_login_ready: true,
-        b2b_ready: true,
-        mock_enabled: true,
+        b2b_ready: false,
+        mock_enabled: false,
+        template_shell_enabled: true,
+        template_shell_ready: true,
+        handoff_enabled: true,
+        handoff_ready: true,
         google_sso_enabled: false,
         google_client_id_configured: false,
         allowed_domains: ["lamduan.mfu.ac.th"],
         domain_hints: ["lamduan.mfu.ac.th"],
         default_role: "analyst",
         auth_require_2fa: true,
-        mode: "mfu_iam_configured",
+        mode: "template_shell_secure_handoff",
         secrets_exposed: false
       }
     })
   );
-  await page.route("**/api/assistant/status", async (route) =>
-    route.fulfill({
-      json: {
-        enabled: true,
-        provider: "disabled",
-        external_provider_configured: false,
-        external_provider_enabled: false,
-        raw_log_context_allowed: false,
-        redaction_enabled: true,
-        read_only: true,
-        response_automation_disabled: true,
-        secrets_exposed: false
-      }
-    })
-  );
-  await page.route("**/api/assistant/history**", async (route) => route.fulfill({ json: [] }));
-  await page.route("**/api/assistant/feedback/recent**", async (route) => route.fulfill({ json: [] }));
-  await page.route("**/api/assistant/feedback/summary**", async (route) =>
-    route.fulfill({
-      json: {
-        total_count: 0,
-        rating_counts: {},
-        unsafe_or_incorrect_count: 0,
-        needs_review_count: 0,
-        external_provider_used_count: 0,
-        raw_log_context_included_count: 0,
-        action_requested_count: 0,
-        action_executed_count: 0,
-        latest_unsafe_or_incorrect: []
-      }
-    })
-  );
-  await page.route("**/api/auth/mfu-iam/token-login", async (route) => {
-    const payload = (await route.request().postDataJSON()) as { token: string };
-    handoffToken = payload.token;
-    await route.fulfill({
-      json: {
-        access_token: "handoff-session-token",
-        token_type: "bearer",
-        expires_in_minutes: 60,
-        username: "student@lamduan.mfu.ac.th",
-        role: "analyst",
-        email: "student@lamduan.mfu.ac.th",
-        auth_provider: "external",
-        external_login: true
-      }
-    });
-  });
-
-  await page.goto("/login?mode=mfu-handoff&mfu_token=mock%3Astudent%40lamduan.mfu.ac.th&next=/assistant&source=template-shell");
-
-  await expect.poll(() => handoffToken).toBe("mock:student@lamduan.mfu.ac.th");
-  await expect.poll(() => new URL(page.url()).pathname).toBe("/assistant");
-  expect(page.url()).not.toContain("mock%3Astudent");
-  expect(page.url()).not.toContain("mfu_token");
-  await expect(page.getByText("SOC Command Center")).toBeVisible();
-});
-
-test("template IAM handoff falls back cleanly when school IAM is disabled", async ({ page }) => {
-  await page.route("**/api/auth/mfu-iam/public-status", async (route) =>
-    route.fulfill({
-      json: {
-        enabled: false,
-        token_login_ready: false,
-        b2b_ready: false,
-        mock_enabled: false,
-        google_sso_enabled: false,
-        google_client_id_configured: false,
-        allowed_domains: [],
-        domain_hints: [],
-        default_role: "analyst",
-        auth_require_2fa: false,
-        mode: "local_login_only",
-        secrets_exposed: false
-      }
-    })
-  );
-  let tokenLoginCalled = false;
-  await page.route("**/api/auth/mfu-iam/token-login", async (route) => {
-    tokenLoginCalled = true;
-    await route.fulfill({ status: 500, json: { detail: "Should not be called" } });
-  });
-
   await page.goto("/login?mfu_token=tiny-token&next=/assistant");
 
-  await expect(page.getByText("Handoff blocked: school IAM is not ready.")).toBeVisible();
+  await expect(page.getByText("A legacy browser-token handoff was blocked. Start from the approved MFU application shell.")).toBeVisible();
   await expect(page.getByRole("button", { name: /sign in/i })).toBeVisible();
-  expect(tokenLoginCalled).toBe(false);
   expect(page.url()).not.toContain("tiny-token");
   expect(page.url()).not.toContain("mfu_token");
 });
@@ -1981,13 +1872,14 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByText("14/14 scenarios")).toBeVisible();
   await expect(page.getByText("Benchmark", { exact: true })).toBeVisible();
   await expect(page.getByText("700 fresh blind | F1 0.9174")).toBeVisible();
-  await expect(page.getByText("Drift")).toBeVisible();
+  await expect(page.getByText("Drift", { exact: true })).toBeVisible();
   await expect(page.getByText("0 warnings")).toBeVisible();
   await expect(page.getByText("Lab-Scale Validation")).toBeVisible();
   await expect(page.getByText("Manual Approval Required", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Final Controlled Validation Candidate", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Real device validation remains future work.")).not.toBeVisible();
   await expect(page.getByText("Operations Health")).toBeVisible();
+  await expect(page.getByTestId("operational-warnings")).toContainText("Database migration revision is not at Alembic head.");
   await expect(page.getByText("Log Sources")).toBeVisible();
   await expect(page.getByText("local_import")).toBeVisible();
   await expect(page.getByRole("button", { name: /scenario-raw-fallback/ })).toBeVisible();
@@ -2005,6 +1897,8 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByText("Latest Ingestion Run")).toBeVisible();
   await expect(page.getByText("Latest Detection Run")).toBeVisible();
   await expect(page.getByText("Active Jobs")).toBeVisible();
+  await expect(page.getByTestId("operation-queue-panel")).toContainText("0 queued / 0 running");
+  await expect(page.getByTestId("operation-queue-panel")).toContainText("idle");
   await expect(page.getByText("Stale Jobs")).toBeVisible();
   await expect(page.getByText("Response Mode")).toBeVisible();
   await expect(page.getByText("Config: local lab profile")).toBeVisible();
@@ -2159,6 +2053,186 @@ test("deep-linked alert and log drawers render", async ({ page }) => {
   await expect(page.getByText("Automation Disabled", { exact: true })).toBeVisible();
   await expect(page.getByText("Analyst ML Label")).toBeVisible();
   await expect(page.getByText("Raw Evidence", { exact: true })).toBeVisible();
+});
+
+test("operations queue shows safe queued-job cancellation", async ({ page }) => {
+  await mockApi(page);
+  await seedSession(page);
+  let cancelled = false;
+  const queuedJob = {
+    job_id: 91,
+    job_type: "run_detection",
+    status: "queued",
+    requested_by: "admin",
+    started_at: null,
+    finished_at: null,
+    progress_current: 0,
+    progress_total: 1,
+    result_summary: {},
+    error_summary: null,
+    related_ingestion_run_id: null,
+    related_detection_run_id: null,
+    related_ml_model_run_id: null,
+    attempt_count: 0,
+    max_attempts: 1,
+    next_attempt_at: "2026-05-22T00:00:03Z",
+    lease_expires_at: null,
+    can_cancel: !cancelled,
+    can_retry: false,
+    details: { limit: 100 },
+    created_at: "2026-05-22T00:00:02Z",
+    updated_at: "2026-05-22T00:00:03Z"
+  };
+  await page.route("**/api/jobs**", async (route) => {
+    const url = route.request().url();
+    if (route.request().method() === "POST" && url.includes("/91/cancel")) {
+      cancelled = true;
+      return route.fulfill({ json: { ...queuedJob, status: "cancelled", finished_at: "2026-05-22T00:00:04Z", can_cancel: false } });
+    }
+    if (url.includes("/api/jobs/summary")) {
+      return route.fulfill({
+        json: {
+          counts: { cancelled: cancelled ? 1 : 0, completed: 0, failed: 0, queued: cancelled ? 0 : 1, retry_wait: 0, running: 0 },
+          active_count: cancelled ? 0 : 1,
+          failed_count: 0,
+          stale_count: 0,
+          stale_job_ids: [],
+          latest_failed_job: null,
+          latest_successful_job: null,
+          queue: { queued: cancelled ? 0 : 1, retry_wait: 0, running: 0, failed: 0 },
+          worker: { enabled: false, status: "idle", worker_id: "test-worker", last_seen_at: "2026-05-22T00:00:03Z", current_job_id: null },
+          retention_policy: {}
+        }
+      });
+    }
+    return route.fulfill({ json: [{ ...queuedJob, status: cancelled ? "cancelled" : "queued", can_cancel: !cancelled }] });
+  });
+
+  await page.goto("/overview");
+  await page.getByText("Recent Run History").click();
+  const cancel = page.getByLabel("Cancel operation job 91");
+  await expect(cancel).toBeVisible();
+  page.once("dialog", (dialog) => dialog.accept());
+  await cancel.click();
+  await expect(cancel).not.toBeVisible();
+  await expect(page.getByTestId("operation-queue-panel")).toContainText("0 queued / 0 running");
+});
+
+test("resumable import progress and admin controls stay compact", async ({ page }) => {
+  await mockApi(page);
+  await seedSession(page);
+  let resumed = false;
+  const importJob = {
+    job_id: 193,
+    job_type: "import_logs",
+    status: "failed",
+    requested_by: "admin",
+    started_at: "2026-07-13T10:00:00Z",
+    finished_at: "2026-07-13T10:00:03Z",
+    progress_current: 500,
+    progress_total: 2000,
+    progress_percentage: 25,
+    checkpoint_line: 500,
+    checkpoint_bytes: 125000,
+    checkpoint_at: "2026-07-13T10:00:02Z",
+    chunk_commits: 1,
+    cancellation_requested: false,
+    resume_eligible: true,
+    resume_ineligible_reason: null,
+    resume_of_job_id: null,
+    original_job_id: 193,
+    resume_expires_at: "2026-07-14T10:00:00Z",
+    result_summary: {},
+    error_summary: "Worker interruption after a committed checkpoint.",
+    attempt_count: 1,
+    max_attempts: 1,
+    can_cancel: false,
+    can_retry: false,
+    can_resume: true,
+    details: { input_name: "firewall.log" },
+    created_at: "2026-07-13T10:00:00Z",
+    updated_at: "2026-07-13T10:00:03Z"
+  };
+  await page.route("**/api/jobs**", async (route) => {
+    const url = route.request().url();
+    if (route.request().method() === "POST" && url.includes("/193/resume")) {
+      resumed = true;
+      return route.fulfill({ json: { ...importJob, job_id: 194, status: "queued", can_resume: false, resume_of_job_id: 193 } });
+    }
+    if (url.includes("/api/jobs/summary")) {
+      return route.fulfill({
+        json: {
+          counts: { failed: 1, queued: resumed ? 1 : 0, retry_wait: 0, running: 0, cancel_requested: 0, completed: 0, cancelled: 0 },
+          active_count: resumed ? 1 : 0,
+          failed_count: 1,
+          stale_count: 0,
+          stale_job_ids: [],
+          latest_failed_job: importJob,
+          latest_successful_job: null,
+          queue: { queued: resumed ? 1 : 0, retry_wait: 0, running: 0, cancel_requested: 0, failed: 1 },
+          worker: { enabled: false, status: "idle" },
+          staging: { state: "healthy", pressure: false },
+          retention_policy: {},
+          health_status: "warning",
+          warnings: []
+        }
+      });
+    }
+    return route.fulfill({ json: [importJob] });
+  });
+
+  await page.goto("/overview");
+  await expect(page.getByTestId("latest-job-progress")).toContainText("500 of 2000 lines committed");
+  await expect(page.getByTestId("operation-queue-panel")).toContainText("Import Staging");
+  await page.getByText("Recent Run History").click();
+  await expect(page.getByLabel("Resume operation job 193")).toBeVisible();
+  await expect(page.getByText("Technical details")).toBeVisible();
+  await page.getByLabel("Resume operation job 193").click();
+  await expect.poll(() => resumed).toBe(true);
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(1);
+});
+
+test("admin can stage a durable import without exposing a local path", async ({ page }) => {
+  await mockApi(page);
+  await seedSession(page);
+  let uploadSeen = false;
+  await page.route("**/api/jobs/import", async (route) => {
+    uploadSeen = true;
+    const body = route.request().postDataBuffer();
+    expect(body?.length ?? 0).toBeGreaterThan(0);
+    return route.fulfill({
+      json: {
+        job_id: 195,
+        job_type: "import_logs",
+        status: "queued",
+        requested_by: "admin",
+        progress_current: 0,
+        progress_total: 2,
+        progress_percentage: 0,
+        result_summary: {},
+        attempt_count: 0,
+        max_attempts: 1,
+        can_cancel: true,
+        can_resume: false,
+        details: { input_name: "safe.log", available_lines: 2 },
+        created_at: "2026-07-13T10:00:00Z",
+        updated_at: "2026-07-13T10:00:00Z"
+      }
+    });
+  });
+
+  await page.goto("/demo");
+  const durable = page.getByTestId("durable-import-control");
+  await durable.locator('input[type="file"]').setInputFiles({
+    name: "safe.log",
+    mimeType: "text/plain",
+    buffer: Buffer.from("safe synthetic line one\nsafe synthetic line two\n")
+  });
+  await durable.getByRole("button", { name: "Queue import" }).click();
+  await expect.poll(() => uploadSeen).toBe(true);
+  await expect(page.getByText("Import queued")).toBeVisible();
+  await expect(page.getByTestId("technical-details")).toHaveCount(0);
 });
 
 test("analyst cannot access admin routes", async ({ page }) => {

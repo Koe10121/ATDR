@@ -5,7 +5,7 @@ Revises: b3d8e2a9c4f7
 Create Date: 2026-05-26 09:15:00.000000
 """
 
-from alembic import op
+from alembic import context, op
 import sqlalchemy as sa
 from sqlalchemy import inspect
 
@@ -18,8 +18,8 @@ depends_on = None
 
 def upgrade() -> None:
     bind = op.get_bind()
-    inspector = inspect(bind)
-    existing_tables = set(inspector.get_table_names())
+    inspector = None if context.is_offline_mode() else inspect(bind)
+    existing_tables = set() if inspector is None else set(inspector.get_table_names())
     if "log_sources" not in existing_tables:
         op.create_table(
             "log_sources",
@@ -51,7 +51,7 @@ def upgrade() -> None:
     ]:
         _create_index_if_missing("log_sources", name, columns, unique=unique)
 
-    raw_columns = {column["name"] for column in inspector.get_columns("raw_logs")}
+    raw_columns = set() if inspector is None else {column["name"] for column in inspector.get_columns("raw_logs")}
     if "source_id" not in raw_columns:
         # SQLite cannot add a foreign key constraint to an existing table with
         # ALTER TABLE. Keep this as an indexed application-level relationship so
@@ -61,6 +61,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    if context.is_offline_mode():
+        return
     _drop_index_if_exists("raw_logs", "ix_raw_logs_source_id")
     inspector = inspect(op.get_bind())
     raw_columns = {column["name"] for column in inspector.get_columns("raw_logs")}
@@ -81,6 +83,10 @@ def downgrade() -> None:
 
 
 def _create_index_if_missing(table_name: str, index_name: str, columns: list[str], *, unique: bool = False) -> None:
+    if context.is_offline_mode():
+        prefix = "CREATE UNIQUE INDEX" if unique else "CREATE INDEX"
+        op.execute(f'{prefix} IF NOT EXISTS "{index_name}" ON "{table_name}" ({", ".join(columns)})')
+        return
     inspector = inspect(op.get_bind())
     existing = {index["name"] for index in inspector.get_indexes(table_name)}
     if index_name not in existing:
@@ -88,6 +94,9 @@ def _create_index_if_missing(table_name: str, index_name: str, columns: list[str
 
 
 def _drop_index_if_exists(table_name: str, index_name: str) -> None:
+    if context.is_offline_mode():
+        op.execute(f'DROP INDEX IF EXISTS "{index_name}"')
+        return
     inspector = inspect(op.get_bind())
     existing = {index["name"] for index in inspector.get_indexes(table_name)}
     if index_name in existing:

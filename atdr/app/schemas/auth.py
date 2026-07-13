@@ -14,23 +14,15 @@ class TokenResponse(BaseModel):
     role: str
 
 
-class MfuIamTokenLoginRequest(BaseModel):
-    token: str = Field(min_length=1, max_length=4096)
-
-
-class MfuIamTokenLoginResponse(TokenResponse):
-    email: str | None = None
-    auth_provider: str = "external"
-    external_login: bool = True
-
-
 class MfuIamPublicStatusRead(BaseModel):
     enabled: bool
-    token_login_ready: bool
     b2b_ready: bool
     mock_enabled: bool = False
     template_shell_enabled: bool = False
     template_shell_ready: bool = False
+    handoff_enabled: bool = False
+    handoff_ready: bool = False
+    template_shell_launch_url: str | None = None
     google_sso_enabled: bool
     google_client_id_configured: bool
     allowed_domains: list[str]
@@ -99,6 +91,16 @@ class MfuIamStatusRead(BaseModel):
     template_shell_me_path: str = "/api/v1/auth/me"
     template_shell_header: str = "x-access-token"
     template_shell_ready: bool = False
+    handoff_enabled: bool = False
+    handoff_secret_configured: bool = False
+    handoff_exchange_path_configured: bool = False
+    handoff_frontend_url_configured: bool = False
+    handoff_allowed_origins_configured: bool = False
+    handoff_allowed_return_paths: list[str] = Field(default_factory=list)
+    handoff_cookie_secure: bool = False
+    handoff_ready: bool = False
+    template_shell_launch_url_configured: bool = False
+    admin_group_mapping_configured: bool = False
     admin_email_mapping_configured: bool = False
     google_sso_enabled: bool
     google_client_id_configured: bool
@@ -117,8 +119,10 @@ class MfuIamStatusRead(BaseModel):
     init_admin_emails_configured: bool = False
     seed_admin_email_configured: bool = False
     b2b_ready: bool = False
-    token_login_ready: bool = False
     admin_api_ready: bool = False
     permission_bootstrap_ready: bool = False
     mode: str
+    last_safe_validation_status: str = "not_run"
+    last_safe_validation_at: str | None = None
+    last_safe_validation_reason: str | None = None
     secrets_exposed: bool = False

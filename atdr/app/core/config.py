@@ -1,4 +1,5 @@
 from functools import lru_cache
+from ipaddress import ip_network
 from pathlib import Path
 
 from pydantic import AliasChoices, Field
@@ -19,6 +20,12 @@ class Settings(BaseSettings):
 
     app_name: str = "MFU ATDR"
     database_url: str = Field(default="sqlite:///./atdr.db", alias="DATABASE_URL")
+    db_pool_size: int = Field(default=5, alias="DB_POOL_SIZE")
+    db_max_overflow: int = Field(default=10, alias="DB_MAX_OVERFLOW")
+    db_pool_timeout_seconds: int = Field(default=30, alias="DB_POOL_TIMEOUT_SECONDS")
+    db_connect_timeout_seconds: int = Field(default=10, alias="DB_CONNECT_TIMEOUT_SECONDS")
+    db_pool_pre_ping: bool = Field(default=True, alias="DB_POOL_PRE_PING")
+    db_statement_timeout_ms: int = Field(default=30000, alias="DB_STATEMENT_TIMEOUT_MS")
     auto_create_tables: bool = Field(default=True, alias="AUTO_CREATE_TABLES")
     response_simulation: bool = Field(default=True, alias="RESPONSE_SIMULATION")
     response_provider: str = Field(default="simulation", alias="RESPONSE_PROVIDER")
@@ -46,6 +53,8 @@ class Settings(BaseSettings):
         alias="CORS_ALLOWED_ORIGINS",
     )
     security_headers_enabled: bool = Field(default=True, alias="SECURITY_HEADERS_ENABLED")
+    trust_proxy_headers: bool = Field(default=False, alias="TRUST_PROXY_HEADERS")
+    trusted_proxy_cidrs: str = Field(default="127.0.0.1/32,::1/128", alias="TRUSTED_PROXY_CIDRS")
     syslog_enabled: bool = Field(default=False, alias="SYSLOG_ENABLED")
     syslog_host: str = Field(default="127.0.0.1", alias="SYSLOG_HOST")
     syslog_port: int = Field(default=5514, alias="SYSLOG_PORT")
@@ -130,6 +139,32 @@ class Settings(BaseSettings):
     )
     mfu_iam_template_shell_me_path: str = Field(default="/api/v1/auth/me", alias="MFU_IAM_TEMPLATE_SHELL_ME_PATH")
     mfu_iam_template_shell_header: str = Field(default="x-access-token", alias="MFU_IAM_TEMPLATE_SHELL_HEADER")
+    # The template owns school sign-in. ATDR receives only a short-lived, one-time
+    # handoff code and exchanges it server-to-server; no template bearer token is
+    # carried in an ATDR URL or retained by the React application.
+    mfu_iam_handoff_enabled: bool = Field(default=False, alias="MFU_IAM_HANDOFF_ENABLED")
+    mfu_iam_handoff_exchange_path: str = Field(
+        default="/api/v1/atdr/handoff/exchange",
+        alias="MFU_IAM_HANDOFF_EXCHANGE_PATH",
+    )
+    mfu_iam_handoff_shared_secret: str = Field(default="", alias="MFU_IAM_HANDOFF_SHARED_SECRET")
+    mfu_iam_handoff_secret_header: str = Field(
+        default="x-atdr-handoff-secret",
+        alias="MFU_IAM_HANDOFF_SECRET_HEADER",
+    )
+    mfu_iam_handoff_frontend_url: str = Field(
+        default="http://127.0.0.1:5173",
+        alias="MFU_IAM_HANDOFF_FRONTEND_URL",
+    )
+    mfu_iam_handoff_cookie_name: str = Field(default="atdr_session", alias="MFU_IAM_HANDOFF_COOKIE_NAME")
+    mfu_iam_handoff_cookie_secure: bool = Field(default=False, alias="MFU_IAM_HANDOFF_COOKIE_SECURE")
+    mfu_iam_handoff_allowed_origins: str = Field(default="", alias="MFU_IAM_HANDOFF_ALLOWED_ORIGINS")
+    mfu_iam_handoff_allowed_return_paths: str = Field(
+        default="/overview,/alerts,/logs,/assistant,/response,/audit,/ml",
+        alias="MFU_IAM_HANDOFF_ALLOWED_RETURN_PATHS",
+    )
+    mfu_iam_template_shell_launch_url: str = Field(default="", alias="MFU_IAM_TEMPLATE_SHELL_LAUNCH_URL")
+    mfu_iam_admin_groups: str = Field(default="", alias="MFU_IAM_ADMIN_GROUPS")
     mfu_iam_admin_emails: str = Field(
         default="",
         validation_alias=AliasChoices("MFU_IAM_ADMIN_EMAILS", "MFU_IAM_ADMIN_EMAIL_ALLOWLIST"),
@@ -219,6 +254,39 @@ class Settings(BaseSettings):
     job_stale_after_minutes: int = Field(default=60, alias="JOB_STALE_AFTER_MINUTES")
     job_retention_days: int = Field(default=30, alias="JOB_RETENTION_DAYS")
     run_history_retention_days: int = Field(default=90, alias="RUN_HISTORY_RETENTION_DAYS")
+    operation_worker_enabled: bool = Field(default=False, alias="OPERATION_WORKER_ENABLED")
+    operation_worker_poll_seconds: float = Field(default=1.0, alias="OPERATION_WORKER_POLL_SECONDS")
+    operation_worker_lease_seconds: int = Field(default=900, alias="OPERATION_WORKER_LEASE_SECONDS")
+    operation_worker_heartbeat_seconds: int = Field(default=15, alias="OPERATION_WORKER_HEARTBEAT_SECONDS")
+    operation_worker_deployment_id: str = Field(default="local", alias="OPERATION_WORKER_DEPLOYMENT_ID")
+    operation_worker_concurrency: int = Field(default=1, alias="OPERATION_WORKER_CONCURRENCY")
+    operation_worker_shutdown_grace_seconds: int = Field(
+        default=120,
+        alias="OPERATION_WORKER_SHUTDOWN_GRACE_SECONDS",
+    )
+    operation_job_default_max_attempts: int = Field(default=1, alias="OPERATION_JOB_DEFAULT_MAX_ATTEMPTS")
+    operation_job_max_attempts: int = Field(default=3, alias="OPERATION_JOB_MAX_ATTEMPTS")
+    operation_job_retry_delay_seconds: int = Field(default=60, alias="OPERATION_JOB_RETRY_DELAY_SECONDS")
+    operation_job_max_input_bytes: int = Field(default=52_428_800, alias="OPERATION_JOB_MAX_INPUT_BYTES")
+    ingestion_chunk_size: int = Field(default=500, alias="INGESTION_CHUNK_SIZE")
+    ingestion_progress_update_interval: int = Field(default=500, alias="INGESTION_PROGRESS_UPDATE_INTERVAL")
+    operation_max_queued_imports: int = Field(default=10, alias="OPERATION_MAX_QUEUED_IMPORTS")
+    operation_max_queued_jobs_per_actor: int = Field(default=5, alias="OPERATION_MAX_QUEUED_JOBS_PER_ACTOR")
+    operation_staging_max_total_bytes: int = Field(default=1_073_741_824, alias="OPERATION_STAGING_MAX_TOTAL_BYTES")
+    operation_staging_min_free_bytes: int = Field(default=268_435_456, alias="OPERATION_STAGING_MIN_FREE_BYTES")
+    operation_staging_retention_hours: int = Field(default=24, alias="OPERATION_STAGING_RETENTION_HOURS")
+    operation_staging_root: str = Field(default="", alias="OPERATION_STAGING_ROOT")
+    operation_staging_shared: bool = Field(default=False, alias="OPERATION_STAGING_SHARED")
+    operation_staging_storage_id: str = Field(default="local", alias="OPERATION_STAGING_STORAGE_ID")
+    operation_queue_backlog_warning: int = Field(default=25, alias="OPERATION_QUEUE_BACKLOG_WARNING")
+    operation_job_failure_warning_count: int = Field(default=3, alias="OPERATION_JOB_FAILURE_WARNING_COUNT")
+    operation_job_failure_warning_window_minutes: int = Field(
+        default=60,
+        alias="OPERATION_JOB_FAILURE_WARNING_WINDOW_MINUTES",
+    )
+    audit_retention_days: int = Field(default=365, alias="AUDIT_RETENTION_DAYS")
+    audit_retention_min_days: int = Field(default=90, alias="AUDIT_RETENTION_MIN_DAYS")
+    audit_retention_batch_size: int = Field(default=500, alias="AUDIT_RETENTION_BATCH_SIZE")
     assistant_enabled: bool = Field(default=False, alias="ASSISTANT_ENABLED")
     assistant_provider: str = Field(default="disabled", alias="ASSISTANT_PROVIDER")
     assistant_model: str = Field(default="", alias="ASSISTANT_MODEL")
@@ -258,6 +326,10 @@ class Settings(BaseSettings):
         return origins or ["http://127.0.0.1:8501"]
 
     @property
+    def trusted_proxy_cidr_list(self) -> list[str]:
+        return [value.strip() for value in self.trusted_proxy_cidrs.split(",") if value.strip()]
+
+    @property
     def school_email_domain_list(self) -> list[str]:
         domains = self.school_email_domains or self.oidc_allowed_domains
         return [domain.strip().lower() for domain in domains.split(",") if domain.strip()]
@@ -277,6 +349,19 @@ class Settings(BaseSettings):
     @property
     def mfu_iam_admin_email_list(self) -> list[str]:
         return [email.strip().lower() for email in self.mfu_iam_admin_emails.split(",") if email.strip()]
+
+    @property
+    def mfu_iam_admin_group_list(self) -> list[str]:
+        return [group.strip().lower() for group in self.mfu_iam_admin_groups.split(",") if group.strip()]
+
+    @property
+    def mfu_iam_handoff_allowed_origin_list(self) -> list[str]:
+        return [origin.strip().rstrip("/") for origin in self.mfu_iam_handoff_allowed_origins.split(",") if origin.strip()]
+
+    @property
+    def mfu_iam_handoff_allowed_return_path_list(self) -> list[str]:
+        values = [path.strip() for path in self.mfu_iam_handoff_allowed_return_paths.split(",") if path.strip()]
+        return [path if path.startswith("/") else f"/{path}" for path in values]
 
     @property
     def mfu_iam_domain_hints(self) -> list[str]:
@@ -299,6 +384,16 @@ class Settings(BaseSettings):
 
 def validate_runtime_settings(settings: Settings) -> list[str]:
     issues: list[str] = []
+    if settings.db_pool_size <= 0:
+        issues.append("DB_POOL_SIZE must be greater than zero.")
+    if settings.db_max_overflow < 0:
+        issues.append("DB_MAX_OVERFLOW must be zero or greater.")
+    if settings.db_pool_timeout_seconds <= 0:
+        issues.append("DB_POOL_TIMEOUT_SECONDS must be greater than zero.")
+    if settings.db_connect_timeout_seconds <= 0:
+        issues.append("DB_CONNECT_TIMEOUT_SECONDS must be greater than zero.")
+    if settings.db_statement_timeout_ms < 0:
+        issues.append("DB_STATEMENT_TIMEOUT_MS must be zero or greater.")
     if settings.environment.lower() == "production":
         if settings.jwt_secret_key in {"change-this-dev-secret", "change-this-secret-before-production"}:
             issues.append("JWT_SECRET_KEY must be changed for production.")
@@ -308,6 +403,15 @@ def validate_runtime_settings(settings: Settings) -> list[str]:
             issues.append("RESPONSE_SIMULATION should remain true until a firewall connector is formally approved.")
         if "*" in settings.cors_origins:
             issues.append("CORS_ALLOWED_ORIGINS must not include '*' in production.")
+    trusted_proxy_cidrs = settings.trusted_proxy_cidr_list
+    if settings.trust_proxy_headers and not trusted_proxy_cidrs:
+        issues.append("TRUSTED_PROXY_CIDRS is required when TRUST_PROXY_HEADERS=true.")
+    for cidr in trusted_proxy_cidrs:
+        try:
+            ip_network(cidr, strict=False)
+        except ValueError:
+            issues.append("TRUSTED_PROXY_CIDRS must contain only valid IP addresses or CIDR networks.")
+            break
     if settings.syslog_enabled and settings.syslog_host in {"0.0.0.0", "::"} and settings.environment.lower() != "production":
         issues.append("SYSLOG_HOST binds publicly outside production; use 127.0.0.1 for lab demo mode.")
     if not settings.response_simulation and settings.response_provider.lower() in {"simulation", "none", "manual"}:
@@ -329,9 +433,27 @@ def validate_runtime_settings(settings: Settings) -> list[str]:
         issues.append("MFU_IAM_DEFAULT_ROLE must be 'admin' or 'analyst'.")
     if settings.mfu_iam_enabled:
         template_shell_enabled = settings.mfu_iam_template_shell_enabled
-        b2b_required = not settings.mfu_iam_mock_enabled and not template_shell_enabled
+        secure_handoff_enabled = template_shell_enabled and settings.mfu_iam_handoff_enabled
+        b2b_required = not settings.mfu_iam_mock_enabled and not secure_handoff_enabled
         if template_shell_enabled and not settings.mfu_iam_template_shell_base_url.strip():
             issues.append("MFU_IAM_TEMPLATE_SHELL_BASE_URL is required when MFU_IAM_TEMPLATE_SHELL_ENABLED=true.")
+        if settings.mfu_iam_handoff_enabled:
+            if not template_shell_enabled:
+                issues.append("MFU_IAM_TEMPLATE_SHELL_ENABLED must be true when MFU_IAM_HANDOFF_ENABLED=true.")
+            if not settings.mfu_iam_handoff_shared_secret.strip():
+                issues.append("MFU_IAM_HANDOFF_SHARED_SECRET is required when MFU_IAM_HANDOFF_ENABLED=true.")
+            if not settings.mfu_iam_handoff_exchange_path.strip().startswith("/"):
+                issues.append("MFU_IAM_HANDOFF_EXCHANGE_PATH must start with '/'.")
+            if not settings.mfu_iam_handoff_frontend_url.strip().startswith(("http://", "https://")):
+                issues.append("MFU_IAM_HANDOFF_FRONTEND_URL must be an http(s) URL when MFU_IAM_HANDOFF_ENABLED=true.")
+            if not settings.mfu_iam_handoff_allowed_origin_list:
+                issues.append("MFU_IAM_HANDOFF_ALLOWED_ORIGINS is required when MFU_IAM_HANDOFF_ENABLED=true.")
+            if not settings.mfu_iam_handoff_allowed_return_path_list:
+                issues.append("MFU_IAM_HANDOFF_ALLOWED_RETURN_PATHS is required when MFU_IAM_HANDOFF_ENABLED=true.")
+            if not settings.mfu_iam_handoff_cookie_name.strip():
+                issues.append("MFU_IAM_HANDOFF_COOKIE_NAME is required when MFU_IAM_HANDOFF_ENABLED=true.")
+            if settings.environment.lower() == "production" and not settings.mfu_iam_handoff_cookie_secure:
+                issues.append("MFU_IAM_HANDOFF_COOKIE_SECURE must be true in production.")
         if not settings.mfu_iam_base_url.strip() and b2b_required:
             issues.append("MFU_IAM_BASE_URL is required when MFU_IAM_ENABLED=true.")
         if not settings.mfu_iam_client_id.strip() and b2b_required:
@@ -389,6 +511,64 @@ def validate_runtime_settings(settings: Settings) -> list[str]:
         issues.append("JOB_RETENTION_DAYS must be greater than zero.")
     if settings.run_history_retention_days <= 0:
         issues.append("RUN_HISTORY_RETENTION_DAYS must be greater than zero.")
+    if settings.operation_worker_poll_seconds <= 0:
+        issues.append("OPERATION_WORKER_POLL_SECONDS must be greater than zero.")
+    if settings.operation_worker_lease_seconds <= 0:
+        issues.append("OPERATION_WORKER_LEASE_SECONDS must be greater than zero.")
+    if settings.operation_worker_heartbeat_seconds <= 0:
+        issues.append("OPERATION_WORKER_HEARTBEAT_SECONDS must be greater than zero.")
+    if not settings.operation_worker_deployment_id.strip():
+        issues.append("OPERATION_WORKER_DEPLOYMENT_ID must not be empty.")
+    if settings.operation_worker_concurrency <= 0:
+        issues.append("OPERATION_WORKER_CONCURRENCY must be greater than zero.")
+    if settings.operation_worker_shutdown_grace_seconds <= 0:
+        issues.append("OPERATION_WORKER_SHUTDOWN_GRACE_SECONDS must be greater than zero.")
+    if settings.database_url.lower().startswith("sqlite") and settings.operation_worker_concurrency != 1:
+        issues.append("OPERATION_WORKER_CONCURRENCY must be 1 for the SQLite local profile.")
+    if settings.operation_job_default_max_attempts <= 0:
+        issues.append("OPERATION_JOB_DEFAULT_MAX_ATTEMPTS must be greater than zero.")
+    if settings.operation_job_max_attempts < settings.operation_job_default_max_attempts:
+        issues.append("OPERATION_JOB_MAX_ATTEMPTS must be greater than or equal to OPERATION_JOB_DEFAULT_MAX_ATTEMPTS.")
+    if settings.operation_job_retry_delay_seconds <= 0:
+        issues.append("OPERATION_JOB_RETRY_DELAY_SECONDS must be greater than zero.")
+    if settings.operation_job_max_input_bytes <= 0:
+        issues.append("OPERATION_JOB_MAX_INPUT_BYTES must be greater than zero.")
+    if settings.ingestion_chunk_size <= 0:
+        issues.append("INGESTION_CHUNK_SIZE must be greater than zero.")
+    if settings.ingestion_progress_update_interval <= 0:
+        issues.append("INGESTION_PROGRESS_UPDATE_INTERVAL must be greater than zero.")
+    if settings.operation_max_queued_imports <= 0:
+        issues.append("OPERATION_MAX_QUEUED_IMPORTS must be greater than zero.")
+    if settings.operation_max_queued_jobs_per_actor <= 0:
+        issues.append("OPERATION_MAX_QUEUED_JOBS_PER_ACTOR must be greater than zero.")
+    if settings.operation_staging_max_total_bytes <= 0:
+        issues.append("OPERATION_STAGING_MAX_TOTAL_BYTES must be greater than zero.")
+    if settings.operation_staging_min_free_bytes < 0:
+        issues.append("OPERATION_STAGING_MIN_FREE_BYTES must be zero or greater.")
+    if settings.operation_staging_retention_hours <= 0:
+        issues.append("OPERATION_STAGING_RETENTION_HOURS must be greater than zero.")
+    storage_id = settings.operation_staging_storage_id.strip()
+    if not storage_id:
+        issues.append("OPERATION_STAGING_STORAGE_ID must not be empty.")
+    if settings.operation_staging_shared:
+        if not settings.operation_staging_root.strip():
+            issues.append("OPERATION_STAGING_ROOT is required when OPERATION_STAGING_SHARED=true.")
+        elif not Path(settings.operation_staging_root).expanduser().is_absolute():
+            issues.append("OPERATION_STAGING_ROOT must be absolute when OPERATION_STAGING_SHARED=true.")
+        if storage_id.lower() == "local":
+            issues.append("OPERATION_STAGING_STORAGE_ID must be an explicit shared-storage identifier when shared staging is enabled.")
+    if settings.operation_queue_backlog_warning <= 0:
+        issues.append("OPERATION_QUEUE_BACKLOG_WARNING must be greater than zero.")
+    if settings.operation_job_failure_warning_count <= 0:
+        issues.append("OPERATION_JOB_FAILURE_WARNING_COUNT must be greater than zero.")
+    if settings.operation_job_failure_warning_window_minutes <= 0:
+        issues.append("OPERATION_JOB_FAILURE_WARNING_WINDOW_MINUTES must be greater than zero.")
+    if settings.audit_retention_min_days <= 0:
+        issues.append("AUDIT_RETENTION_MIN_DAYS must be greater than zero.")
+    if settings.audit_retention_days < settings.audit_retention_min_days:
+        issues.append("AUDIT_RETENTION_DAYS must be greater than or equal to AUDIT_RETENTION_MIN_DAYS.")
+    if settings.audit_retention_batch_size <= 0:
+        issues.append("AUDIT_RETENTION_BATCH_SIZE must be greater than zero.")
     if settings.assistant_max_context_rows <= 0:
         issues.append("ASSISTANT_MAX_CONTEXT_ROWS must be greater than zero.")
     if settings.assistant_enabled and settings.assistant_provider.lower() in {"", "disabled", "none"}:

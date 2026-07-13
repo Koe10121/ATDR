@@ -23,7 +23,14 @@ def test_verify_release_json_shape_and_skipped_smoke():
     assert result["include_smoke"] is False
     assert result["require_docker"] is False
     assert result["failed_required_checks"] == []
-    assert {"config_doctor", "compileall", "pytest", "alembic_check", "lab_smoke_check"} <= set(checks)
+    assert {
+        "config_doctor",
+        "compileall",
+        "pytest",
+        "alembic_check",
+        "deployment_operations",
+        "lab_smoke_check",
+    } <= set(checks)
     assert checks["lab_smoke_check"]["skipped"] is True
     assert checks["pytest"]["return_code"] == 0
     pytest_basetemp = next(item for item in checks["pytest"]["command"] if item.startswith("--basetemp="))

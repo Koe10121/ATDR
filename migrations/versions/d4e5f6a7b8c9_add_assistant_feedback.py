@@ -5,7 +5,7 @@ Revises: c8d9e0f1a2b3
 Create Date: 2026-06-22 10:30:00.000000
 """
 
-from alembic import op
+from alembic import context, op
 import sqlalchemy as sa
 from sqlalchemy import inspect
 
@@ -17,9 +17,10 @@ depends_on = None
 
 
 def upgrade() -> None:
-    inspector = inspect(op.get_bind())
-    if "assistant_feedback" in set(inspector.get_table_names()):
-        return
+    if not context.is_offline_mode():
+        inspector = inspect(op.get_bind())
+        if "assistant_feedback" in set(inspector.get_table_names()):
+            return
 
     op.create_table(
         "assistant_feedback",
@@ -61,6 +62,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    if context.is_offline_mode():
+        return
     inspector = inspect(op.get_bind())
     if "assistant_feedback" not in set(inspector.get_table_names()):
         return

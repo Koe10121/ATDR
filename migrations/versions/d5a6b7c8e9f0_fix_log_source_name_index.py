@@ -5,7 +5,7 @@ Revises: c4f1a8d9e2b6
 Create Date: 2026-05-26 09:45:00.000000
 """
 
-from alembic import op
+from alembic import context, op
 from sqlalchemy import inspect
 
 
@@ -24,6 +24,8 @@ def downgrade() -> None:
 
 
 def _ensure_name_index(*, unique: bool) -> None:
+    if context.is_offline_mode():
+        return
     inspector = inspect(op.get_bind())
     if "log_sources" not in set(inspector.get_table_names()):
         return
