@@ -6,7 +6,7 @@ import hashlib
 import json
 
 from fastapi import Request
-from sqlalchemy import create_engine
+from sqlalchemy import UniqueConstraint, create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 from starlette.responses import Response
@@ -14,6 +14,7 @@ from starlette.responses import Response
 from atdr.app.core.config import Settings, get_settings, validate_runtime_settings
 from atdr.app.core.middleware import TrustedProxyHeadersMiddleware
 from atdr.app.db.database import Base
+from atdr.app.db.models import LogSource
 from atdr.app.services.load_test_service import run_read_only_load_test
 from atdr.app.services.metrics_service import render_prometheus_metrics
 from atdr.app.services.persistence_service import verify_database_backup_artifact
@@ -78,6 +79,19 @@ def test_trusted_proxy_headers_apply_only_for_allowlisted_direct_peer():
 def test_proxy_configuration_rejects_invalid_networks():
     settings = Settings(TRUST_PROXY_HEADERS=True, TRUSTED_PROXY_CIDRS="not-a-network")
     assert any("TRUSTED_PROXY_CIDRS" in issue for issue in validate_runtime_settings(settings))
+
+
+def test_log_source_metadata_matches_migrated_unique_constraint_and_index():
+    name_constraints = [
+        constraint
+        for constraint in LogSource.__table__.constraints
+        if isinstance(constraint, UniqueConstraint)
+        and tuple(column.name for column in constraint.columns) == ("name",)
+    ]
+    name_index = next(index for index in LogSource.__table__.indexes if index.name == "ix_log_sources_name")
+
+    assert len(name_constraints) == 1
+    assert name_index.unique is True
 
 
 def test_metrics_cover_operational_alerts_without_sensitive_dimensions(monkeypatch):

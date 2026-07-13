@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, func, true
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint, func, true
 from sqlalchemy.orm import Mapped, foreign, mapped_column, relationship
 
 from atdr.app.db.database import Base
@@ -8,6 +8,7 @@ from atdr.app.db.database import Base
 
 class LogSource(Base):
     __tablename__ = "log_sources"
+    __table_args__ = (UniqueConstraint("name"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)

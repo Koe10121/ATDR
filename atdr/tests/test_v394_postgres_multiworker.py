@@ -217,6 +217,7 @@ def test_graceful_stop_releases_import_at_committed_checkpoint(monkeypatch):
 
 def test_worker_profile_validation_and_dry_run_harnesses_are_safe(tmp_path):
     local = Settings(
+        _env_file=None,
         DATABASE_URL="sqlite:///./test.db",
         OPERATION_WORKER_CONCURRENCY=1,
         OPERATION_STAGING_ROOT=str(tmp_path / "local"),
