@@ -13,6 +13,7 @@ from starlette.requests import Request
 
 from atdr.app.core.config import get_settings
 from atdr.app.db.database import Base, get_db
+from atdr.app.db.engine import database_kind
 from atdr.app.db.models import Alert
 from atdr.app.main import app, database_operational_exception_handler
 from atdr.app.routers import dashboard as dashboard_router
@@ -69,6 +70,7 @@ def _login(client: TestClient, username: str, password: str) -> dict[str, str]:
 def test_login_and_me_api():
     client = _client()
     try:
+        configured_database_kind = database_kind(get_settings().database_url)
         health = client.get("/health", headers={"X-Request-ID": "health-test-id"})
         assert health.status_code == 200
         assert health.headers["X-Request-ID"] == "health-test-id"
@@ -76,9 +78,10 @@ def test_login_and_me_api():
         assert health.headers["X-Frame-Options"] == "DENY"
         assert health.json()["status"] == "ok"
         assert health.json()["checks"]["database"]["status"] == "ok"
-        assert health.json()["checks"]["database"]["dialect"] == "sqlite"
+        assert health.json()["checks"]["database"]["dialect"] == configured_database_kind
         assert health.json()["checks"]["database"]["migration"]["status"] in {"at_head", "unversioned"}
-        assert health.json()["checks"]["database"]["backup_tools"]["sqlite_backup_api"] is True
+        if configured_database_kind == "sqlite":
+            assert health.json()["checks"]["database"]["backup_tools"]["sqlite_backup_api"] is True
         assert health.json()["checks"]["database"]["secrets_exposed"] is False
         headers = _login(client, "admin", "admin123")
 
