@@ -49,6 +49,9 @@ jobs:
       - name: Validate deployment security and operations references
         run: python -m atdr.scripts.validate_deployment_operations --pretty
 
+      - name: Validate secret-safe preproduction preflight
+        run: python -m atdr.scripts.run_v396_preproduction_preflight --pretty
+
       - name: Validate read-only load-test plan
         run: python -m atdr.scripts.load_test_readonly --pretty
 

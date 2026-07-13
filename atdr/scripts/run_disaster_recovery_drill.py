@@ -12,6 +12,12 @@ def run_disaster_recovery_drill(*, execute: bool = False, confirmed: bool = Fals
     base = {
         "rpo_assumption_hours": 24,
         "rto_assumption_hours": 4,
+        "measurement_scope": "isolated_synthetic_sqlite",
+        "approved_host_measurement": False,
+        "measured_rehearsal_rto_seconds": None,
+        "measured_rpo_seconds": None,
+        "rto_measured": False,
+        "rpo_measured": False,
         "current_database_modified": False,
         "active_database_restore_allowed": False,
         "response_automation_allowed": False,
@@ -56,6 +62,8 @@ def run_disaster_recovery_drill(*, execute: bool = False, confirmed: bool = Fals
         "migration_revision_match": bool(restore.get("migration_revision_match")),
         "current_database_unchanged": bool(result.get("current_database_unchanged")),
         "runtime_seconds": result.get("runtime_seconds"),
+        "measured_rehearsal_rto_seconds": result.get("runtime_seconds"),
+        "rto_measured": isinstance(result.get("runtime_seconds"), (int, float)),
         "rpo_rto_are_assumptions_not_certified": True,
     }
 

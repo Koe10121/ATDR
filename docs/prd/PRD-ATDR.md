@@ -462,3 +462,13 @@ ATDR shall support an opt-in database-backed operation queue for selected long-r
 - Backup verification shall check manifest, checksum, age, revision, and recorded counts without restoring. Recovery drills shall restore only to a separate target and shall never overwrite the configured database.
 - Planning assumptions are RPO 24 hours and RTO 4 hours until measured deployment drills establish evidence. They are not service guarantees.
 - TLS certificates, external alert routing, secret-manager integration, environment-sized recovery evidence, and remote PostgreSQL CI remain deployment gates. v3.95 does not claim production readiness.
+
+## v3.96 Controlled Preproduction Acceptance Addendum
+
+- A secret-safe preproduction gate shall reject acceptance unless an approved shared-lab/preproduction Linux host, PostgreSQL at Alembic head, HTTPS/DNS/TLS, scoped trusted proxy, explicit CORS, protected shared staging, fresh verified backup, Prometheus, managed secrets, multi-worker profile, and MFU secure handoff are evidenced together.
+- A production profile shall not be used as a substitute for the controlled preproduction rehearsal.
+- Preflight output shall expose no secret, connection URL, private path, token, raw log, email, or IP value. Database probing requires an exact operator confirmation and remains read-only.
+- Monitoring shall include bounded database-pool and backup-freshness state without high-cardinality or sensitive labels.
+- Controlled load shall remain GET-only, body-free, token-safe, bounded, and remote-confirmed. Local SQLite measurements do not establish PostgreSQL capacity or an SLA.
+- Recovery evidence shall distinguish isolated synthetic timing from approved-host RPO/RTO. A measured synthetic RTO shall not be presented as deployment RTO, and RPO remains unmeasured without a real failure/backup point.
+- Operational acceptance remains blocked when approved environment evidence is unavailable. This status is not an application-test failure and is not a production-readiness claim.

@@ -25,6 +25,22 @@ groups:
         annotations:
           summary: ATDR cannot verify database availability
 
+      - alert: ATDRDatabasePoolSaturation
+        expr: atdr_database_pool_observable == 1 and atdr_database_pool_utilization_ratio > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: ATDR database connection pool is near capacity
+
+      - alert: ATDRBackupUnavailableOrStale
+        expr: atdr_backup_configured != 1 or atdr_backup_fresh != 1
+        for: 30m
+        labels:
+          severity: critical
+        annotations:
+          summary: ATDR has no valid backup inside the configured age budget
+
       - alert: ATDRUnsafeRuntimeConfiguration
         expr: atdr_runtime_configuration_issues > 0
         for: 2m

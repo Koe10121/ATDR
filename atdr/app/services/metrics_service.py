@@ -10,7 +10,9 @@ from sqlalchemy.orm import Session
 
 from atdr.app.core.config import get_settings, validate_runtime_settings
 from atdr.app.db.database import check_database_connection
+from atdr.app.db.engine import database_kind
 from atdr.app.db.models import DetectionRun, IngestionRun, OperationJob, OperationWorkerHeartbeat
+from atdr.app.services.backup_monitoring_service import verify_latest_backup_status
 from atdr.app.services.job_service import JOB_STATUSES, JOB_TYPES
 from atdr.app.services.staging_service import staging_pressure_state
 
@@ -236,6 +238,67 @@ def _pipeline_metrics(lines: list[str], db: Session, *, failure_window_minutes: 
     _metric(lines, "atdr_detection_recent_failed_runs", recent_detection_failures)
 
 
+def _database_pool_metrics(lines: list[str], db: Session) -> None:
+    settings = get_settings()
+    pool = getattr(db.get_bind(), "pool", None)
+    values: dict[str, int] = {}
+    for state, method_name in (("checked_in", "checkedin"), ("checked_out", "checkedout"), ("overflow", "overflow")):
+        method = getattr(pool, method_name, None)
+        if not callable(method):
+            continue
+        try:
+            values[state] = max(0, int(method()))
+        except (TypeError, ValueError):
+            continue
+    observable = database_kind(settings.database_url) == "postgresql" and "checked_out" in values
+    capacity = settings.db_pool_size + settings.db_max_overflow if observable else 0
+    utilization = (values.get("checked_out", 0) / capacity) if capacity > 0 else 0.0
+    lines.extend(
+        [
+            "# HELP atdr_database_pool_observable Whether bounded SQLAlchemy pool telemetry is available.",
+            "# TYPE atdr_database_pool_observable gauge",
+            "# HELP atdr_database_pool_connections SQLAlchemy pool counts by bounded state.",
+            "# TYPE atdr_database_pool_connections gauge",
+            "# HELP atdr_database_pool_configured_size Configured persistent connection count.",
+            "# TYPE atdr_database_pool_configured_size gauge",
+            "# HELP atdr_database_pool_max_overflow Configured overflow connection allowance.",
+            "# TYPE atdr_database_pool_max_overflow gauge",
+            "# HELP atdr_database_pool_utilization_ratio Checked-out connections divided by total configured capacity.",
+            "# TYPE atdr_database_pool_utilization_ratio gauge",
+        ]
+    )
+    _metric(lines, "atdr_database_pool_observable", 1 if observable else 0)
+    for state in ("checked_in", "checked_out", "overflow"):
+        _metric(lines, "atdr_database_pool_connections", values.get(state, 0), {"state": state})
+    _metric(lines, "atdr_database_pool_configured_size", settings.db_pool_size if observable else 0)
+    _metric(lines, "atdr_database_pool_max_overflow", settings.db_max_overflow if observable else 0)
+    _metric(lines, "atdr_database_pool_utilization_ratio", round(utilization, 6))
+
+
+def _backup_metrics(lines: list[str]) -> None:
+    settings = get_settings()
+    result = verify_latest_backup_status(
+        backup_dir=settings.backup_directory,
+        max_age_hours=settings.backup_max_age_hours,
+    )
+    configured = bool(result.get("backup_directory_configured"))
+    age_hours = result.get("age_hours")
+    age_seconds = max(0.0, float(age_hours) * 3600) if isinstance(age_hours, (int, float)) else 0.0
+    lines.extend(
+        [
+            "# HELP atdr_backup_configured Whether the protected backup directory is configured.",
+            "# TYPE atdr_backup_configured gauge",
+            "# HELP atdr_backup_fresh Whether the newest manifest-backed backup is valid and inside its age budget.",
+            "# TYPE atdr_backup_fresh gauge",
+            "# HELP atdr_backup_age_seconds Age of the newest verified backup, or zero when unavailable.",
+            "# TYPE atdr_backup_age_seconds gauge",
+        ]
+    )
+    _metric(lines, "atdr_backup_configured", 1 if configured else 0)
+    _metric(lines, "atdr_backup_fresh", 1 if result.get("ok") else 0)
+    _metric(lines, "atdr_backup_age_seconds", round(age_seconds, 3))
+
+
 def render_prometheus_metrics(db: Session, *, heartbeat_seconds: int) -> str:
     """Render a dependency-free Prometheus text snapshot with intentionally low-cardinality labels."""
 
@@ -254,6 +317,8 @@ def render_prometheus_metrics(db: Session, *, heartbeat_seconds: int) -> str:
             db,
             failure_window_minutes=settings.operation_job_failure_warning_window_minutes,
         )
+        _database_pool_metrics(lines, db)
+        _backup_metrics(lines)
         staging = staging_pressure_state(
             max_total_bytes=settings.operation_staging_max_total_bytes,
             min_free_bytes=settings.operation_staging_min_free_bytes,

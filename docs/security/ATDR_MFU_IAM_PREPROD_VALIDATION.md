@@ -75,3 +75,7 @@ Stop and rollback to local ATDR login if any of the following occur:
 ## Rollback
 
 Set `MFU_IAM_HANDOFF_ENABLED=false` in ATDR and `ATDR_HANDOFF_ENABLED=false` in the template, then restart both services. Local ATDR credentials remain available. No ATDR database reset is required.
+
+## v3.96 Environment Finding
+
+The private local profile inspected on 2026-07-13 had MFU IAM enabled while neither a complete B2B profile nor the secure handoff was ready. This is a fail-closed configuration finding, not successful provider validation. For ordinary local SQLite use, override `MFU_IAM_ENABLED=false`. For preproduction, configure the approved v3.91 one-time-code handoff privately and require `run_v396_preproduction_preflight --require-accepted` to pass. Do not copy any credential value into this document or a support message.

@@ -4,7 +4,7 @@ from hashlib import sha1
 from typing import Any
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from atdr.app.db.models import Alert, AlertEvidence, LogSource, NormalizedLog, RawLog
 from atdr.app.detection.attack_mapping import infer_attack_type_from_rules
@@ -105,7 +105,12 @@ def list_alert_cases(
     limit: int = 50,
     window_hours: int = 24,
 ) -> list[dict[str, Any]]:
-    statement = select(Alert).order_by(Alert.updated_at.desc(), Alert.id.desc()).limit(max(limit * 4, limit))
+    statement = (
+        select(Alert)
+        .options(selectinload(Alert.evidence).joinedload(AlertEvidence.normalized_log))
+        .order_by(Alert.updated_at.desc(), Alert.id.desc())
+        .limit(max(limit * 4, limit))
+    )
     if active_only:
         statement = statement.where(Alert.status.in_(ACTIVE_CASE_STATUSES))
     if source_id is not None:

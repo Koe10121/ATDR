@@ -45,6 +45,7 @@ def validate_deployment_operations(*, settings: Settings | None = None) -> dict:
         nginx = rules = api_service = secret_guide = ""
         scheduled_services = []
     nginx_controls = {
+        "http_redirect": "return 301 https://$host$request_uri" in nginx,
         "https": "ssl_certificate" in nginx and "TLSv1.2 TLSv1.3" in nginx,
         "secure_headers": "Strict-Transport-Security" in nginx and "Content-Security-Policy" in nginx,
         "request_limit": "client_max_body_size" in nginx,
@@ -53,11 +54,14 @@ def validate_deployment_operations(*, settings: Settings | None = None) -> dict:
         "metrics_restricted": "location = /metrics" in nginx and "deny all" in nginx,
         "forwarded_chain_overwritten": "X-Forwarded-For $remote_addr" in nginx
         and "$proxy_add_x_forwarded_for" not in nginx,
+        "spa_fallback": "try_files $uri $uri/ /index.html" in nginx,
     }
     required_alerts = {
         "ATDRTargetDown",
         "ATDRServiceNotReady",
         "ATDRDatabaseUnavailable",
+        "ATDRDatabasePoolSaturation",
+        "ATDRBackupUnavailableOrStale",
         "ATDRUnsafeRuntimeConfiguration",
         "ATDRResponseSimulationDisabled",
         "ATDROperationQueueBacklog",

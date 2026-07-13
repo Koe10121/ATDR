@@ -1445,3 +1445,23 @@ Deployment references:
 - complete recovery and drain procedure: `docs/V3_95_DEPLOYMENT_SECURITY_MONITORING_AND_RECOVERY.md`
 
 RPO 24 hours and RTO 4 hours are planning assumptions only. Do not present them as measured guarantees until an approved PostgreSQL deployment drill records timing evidence.
+
+## v3.96 Preproduction Acceptance Preflight
+
+The v3.96 preflight is safe to run locally and makes no database connection by default:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v396_preproduction_preflight --pretty
+```
+
+Missing Linux, PostgreSQL, DNS, TLS, staging, Prometheus, managed-secret, or MFU handoff checks mean the environment is incomplete; they do not mean the local SQLite application failed.
+
+On an approved host only, add the exact read-only probe confirmation:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v396_preproduction_preflight --probe-database --confirm READ_ONLY_V396_PREPRODUCTION_PREFLIGHT --require-accepted --pretty
+```
+
+For a local GET-only load sample, keep the short-lived token in `ATDR_LOAD_TEST_BEARER_TOKEN` and optionally observe internal metrics with `--metrics-url http://127.0.0.1:8000/metrics`. Remove the token immediately afterward. Remote load also requires `--allow-remote --confirm READ_ONLY_REMOTE_LOAD_TEST` and prior target approval.
+
+The current private configuration enables MFU IAM without completing B2B or secure-handoff requirements. For normal local SQLite use, temporarily set `MFU_IAM_ENABLED=false`; otherwise complete the private v3.91 handoff fields. Never post their values. See `docs/V3_96_PREPRODUCTION_DEPLOYMENT_REHEARSAL.md` and `docs/V3_96_OPERATIONAL_ACCEPTANCE_CHECKLIST.md`.

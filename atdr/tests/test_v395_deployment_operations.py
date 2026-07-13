@@ -120,6 +120,10 @@ def test_metrics_cover_operational_alerts_without_sensitive_dimensions(monkeypat
         "atdr_ingestion_recent_failed_runs",
         "atdr_detection_recent_failed_runs",
         "atdr_ingestion_staging_pressure",
+        "atdr_database_pool_observable",
+        "atdr_database_pool_utilization_ratio",
+        "atdr_backup_configured",
+        "atdr_backup_fresh",
     ):
         assert metric in rendered
     for forbidden in ("request_id=", "email=", "src_ip=", "raw_log=", "file_path=", "token="):
@@ -133,6 +137,23 @@ def test_read_only_load_test_reports_percentiles_and_never_writes():
         calls.append((url, headers))
         return 200, 0.025
 
+    def fake_metrics(_url: str, _timeout: float) -> tuple[int, str]:
+        return (
+            200,
+            "\n".join(
+                (
+                    "atdr_database_pool_observable 1",
+                    'atdr_database_pool_connections{state="checked_in"} 3',
+                    'atdr_database_pool_connections{state="checked_out"} 2',
+                    'atdr_database_pool_connections{state="overflow"} 0',
+                    "atdr_database_pool_configured_size 5",
+                    "atdr_database_pool_max_overflow 10",
+                    "atdr_database_pool_utilization_ratio 0.133333",
+                    'atdr_operation_queue_depth{job_type="import",state="queued"} 4',
+                )
+            ),
+        )
+
     result = run_read_only_load_test(
         base_url="http://127.0.0.1:8000",
         bearer_token="private-test-token",
@@ -140,6 +161,8 @@ def test_read_only_load_test_reports_percentiles_and_never_writes():
         concurrency=2,
         execute=True,
         request_function=fake_request,
+        metrics_url="http://127.0.0.1:8000/metrics",
+        metrics_probe_function=fake_metrics,
     )
 
     assert result["ok"] is True
@@ -150,6 +173,9 @@ def test_read_only_load_test_reports_percentiles_and_never_writes():
     assert result["secrets_exposed"] is False
     assert all(row["p95_seconds"] == 0.025 for row in result["results"])
     assert all(url.startswith("http://127.0.0.1:8000/") for url, _ in calls)
+    assert result["operational_metrics"]["pool_observable"] is True
+    assert result["operational_metrics"]["checked_out"] == 2
+    assert result["operational_metrics"]["queue_depth"] == 4
     assert "private-test-token" not in json.dumps(result)
 
 
@@ -198,6 +224,9 @@ def test_disaster_recovery_drill_is_dry_run_by_default():
     assert result["executed"] is False
     assert result["active_database_restore_allowed"] is False
     assert result["current_database_modified"] is False
+    assert result["rto_measured"] is False
+    assert result["rpo_measured"] is False
+    assert result["approved_host_measurement"] is False
 
 
 def test_deployment_assets_are_safe_and_complete(tmp_path):

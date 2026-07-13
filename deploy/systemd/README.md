@@ -23,3 +23,5 @@ sudo systemctl enable --now atdr-backup-verify.timer
 ```
 
 Backup creation remains a separate approved operator policy. The verification timer never creates, restores, or deletes a backup.
+
+The environment example now contains disabled v3.96 deployment-acceptance placeholders. Keep `DEPLOYMENT_REHEARSAL_APPROVED=false` until the named Linux host, PostgreSQL, DNS/TLS, shared staging, Prometheus, backup, managed secrets, and MFU handoff have all been reviewed. Run `python -m atdr.scripts.run_v396_preproduction_preflight --pretty` before starting services.

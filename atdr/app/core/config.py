@@ -55,6 +55,13 @@ class Settings(BaseSettings):
     security_headers_enabled: bool = Field(default=True, alias="SECURITY_HEADERS_ENABLED")
     trust_proxy_headers: bool = Field(default=False, alias="TRUST_PROXY_HEADERS")
     trusted_proxy_cidrs: str = Field(default="127.0.0.1/32,::1/128", alias="TRUSTED_PROXY_CIDRS")
+    deployment_rehearsal_approved: bool = Field(default=False, alias="DEPLOYMENT_REHEARSAL_APPROVED")
+    deployment_public_base_url: str = Field(default="", alias="DEPLOYMENT_PUBLIC_BASE_URL")
+    deployment_dns_name: str = Field(default="", alias="DEPLOYMENT_DNS_NAME")
+    deployment_tls_certificate_path: str = Field(default="", alias="DEPLOYMENT_TLS_CERTIFICATE_PATH")
+    deployment_tls_private_key_path: str = Field(default="", alias="DEPLOYMENT_TLS_PRIVATE_KEY_PATH")
+    deployment_prometheus_url: str = Field(default="", alias="DEPLOYMENT_PROMETHEUS_URL")
+    deployment_secret_provider: str = Field(default="disabled", alias="DEPLOYMENT_SECRET_PROVIDER")
     syslog_enabled: bool = Field(default=False, alias="SYSLOG_ENABLED")
     syslog_host: str = Field(default="127.0.0.1", alias="SYSLOG_HOST")
     syslog_port: int = Field(default=5514, alias="SYSLOG_PORT")
@@ -284,6 +291,8 @@ class Settings(BaseSettings):
         default=60,
         alias="OPERATION_JOB_FAILURE_WARNING_WINDOW_MINUTES",
     )
+    backup_directory: str = Field(default="", alias="ATDR_BACKUP_DIRECTORY")
+    backup_max_age_hours: float = Field(default=30.0, alias="ATDR_BACKUP_MAX_AGE_HOURS")
     audit_retention_days: int = Field(default=365, alias="AUDIT_RETENTION_DAYS")
     audit_retention_min_days: int = Field(default=90, alias="AUDIT_RETENTION_MIN_DAYS")
     audit_retention_batch_size: int = Field(default=500, alias="AUDIT_RETENTION_BATCH_SIZE")
@@ -563,6 +572,8 @@ def validate_runtime_settings(settings: Settings) -> list[str]:
         issues.append("OPERATION_JOB_FAILURE_WARNING_COUNT must be greater than zero.")
     if settings.operation_job_failure_warning_window_minutes <= 0:
         issues.append("OPERATION_JOB_FAILURE_WARNING_WINDOW_MINUTES must be greater than zero.")
+    if settings.backup_max_age_hours <= 0:
+        issues.append("ATDR_BACKUP_MAX_AGE_HOURS must be greater than zero.")
     if settings.audit_retention_min_days <= 0:
         issues.append("AUDIT_RETENTION_MIN_DAYS must be greater than zero.")
     if settings.audit_retention_days < settings.audit_retention_min_days:

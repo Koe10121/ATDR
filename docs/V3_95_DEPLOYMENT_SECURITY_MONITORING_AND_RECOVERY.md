@@ -205,3 +205,7 @@ On 2026-07-13:
 - cold large-SQLite Overview and ML Governance performance investigation.
 
 ATDR remains a controlled lab/shared-deployment candidate, not certified production software.
+
+## v3.96 Acceptance Follow-Up
+
+The canonical next-stage decision is `docs/V3_96_PREPRODUCTION_DEPLOYMENT_REHEARSAL.md`. v3.96 adds a strict secret-safe host preflight, database-pool and backup-freshness monitoring, load-time queue/pool observations, and explicit synthetic-versus-deployment recovery measurements. Repository/local rehearsal passed, but operational acceptance remains blocked because no approved Linux/DNS/TLS/PostgreSQL/Prometheus/managed-secret/MFU environment was supplied.

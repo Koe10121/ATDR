@@ -3,6 +3,7 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 import math
+import re
 import time
 from typing import Callable
 from urllib.error import HTTPError, URLError
@@ -30,6 +31,7 @@ READ_ONLY_ENDPOINTS = (
 )
 
 RequestFunction = Callable[[str, dict[str, str], float], tuple[int, float]]
+MetricsProbeFunction = Callable[[str, float], tuple[int, str]]
 
 
 def _percentile(values: list[float], percentile: float) -> float | None:
@@ -54,6 +56,61 @@ def _http_get(url: str, headers: dict[str, str], timeout_seconds: float) -> tupl
     return status, time.perf_counter() - started
 
 
+def _http_text_get(url: str, timeout_seconds: float) -> tuple[int, str]:
+    request = Request(url, headers={"Accept": "text/plain"}, method="GET")
+    try:
+        with urlopen(request, timeout=timeout_seconds) as response:  # noqa: S310 - operator-confirmed target.
+            return int(response.status), response.read(1_000_000).decode("utf-8", errors="replace")
+    except HTTPError as exc:
+        return int(exc.code), ""
+    except (OSError, URLError, TimeoutError):
+        return 0, ""
+
+
+def _parse_operational_metrics(payload: str) -> dict:
+    scalar_names = {
+        "pool_observable": "atdr_database_pool_observable",
+        "configured_size": "atdr_database_pool_configured_size",
+        "max_overflow": "atdr_database_pool_max_overflow",
+        "utilization_ratio": "atdr_database_pool_utilization_ratio",
+    }
+    scalars: dict[str, float] = {}
+    pool_connections: dict[str, float] = {}
+    queue_depth = 0.0
+    scalar_pattern = re.compile(r"^([a-zA-Z_:][a-zA-Z0-9_:]*)\s+([-+0-9.eE]+)$")
+    pool_pattern = re.compile(r'^atdr_database_pool_connections\{state="([a-z_]+)"\}\s+([-+0-9.eE]+)$')
+    queue_pattern = re.compile(r"^atdr_operation_queue_depth\{[^}]+\}\s+([-+0-9.eE]+)$")
+    for line in payload.splitlines():
+        clean = line.strip()
+        pool_match = pool_pattern.match(clean)
+        if pool_match:
+            pool_connections[pool_match.group(1)] = float(pool_match.group(2))
+            continue
+        queue_match = queue_pattern.match(clean)
+        if queue_match:
+            queue_depth += float(queue_match.group(1))
+            continue
+        scalar_match = scalar_pattern.match(clean)
+        if not scalar_match:
+            continue
+        for public_name, metric_name in scalar_names.items():
+            if scalar_match.group(1) == metric_name:
+                scalars[public_name] = float(scalar_match.group(2))
+                break
+    observable = scalars.get("pool_observable") == 1
+    return {
+        "available": bool(scalars),
+        "pool_observable": observable,
+        "configured_size": int(scalars.get("configured_size", 0)),
+        "max_overflow": int(scalars.get("max_overflow", 0)),
+        "checked_in": int(pool_connections.get("checked_in", 0)),
+        "checked_out": int(pool_connections.get("checked_out", 0)),
+        "overflow": int(pool_connections.get("overflow", 0)),
+        "utilization_ratio": round(scalars.get("utilization_ratio", 0.0), 6),
+        "queue_depth": int(queue_depth),
+    }
+
+
 def is_local_target(base_url: str) -> bool:
     parsed = urlparse(base_url)
     return parsed.scheme in {"http", "https"} and (parsed.hostname or "").lower() in {
@@ -74,6 +131,8 @@ def run_read_only_load_test(
     allow_remote: bool = False,
     remote_confirmed: bool = False,
     request_function: RequestFunction | None = None,
+    metrics_url: str = "",
+    metrics_probe_function: MetricsProbeFunction | None = None,
 ) -> dict:
     if not 1 <= requests_per_endpoint <= 1000:
         raise ValueError("requests_per_endpoint must be between 1 and 1000")
@@ -82,12 +141,15 @@ def run_read_only_load_test(
     if not 0.1 <= timeout_seconds <= 120:
         raise ValueError("timeout_seconds must be between 0.1 and 120")
     local_target = is_local_target(base_url)
+    metrics_target = metrics_url.strip()
+    metrics_target_local = not metrics_target or is_local_target(metrics_target)
     base = {
         "mode": "read_only",
         "endpoint_count": len(READ_ONLY_ENDPOINTS),
         "requests_per_endpoint": requests_per_endpoint,
         "concurrency": concurrency,
         "local_target": local_target,
+        "metrics_probe_requested": bool(metrics_target),
         "write_requests_allowed": False,
         "raw_logs_included": False,
         "response_bodies_reported": False,
@@ -103,6 +165,8 @@ def run_read_only_load_test(
             "endpoints": [endpoint.name for endpoint in READ_ONLY_ENDPOINTS],
         }
     if not local_target and (not allow_remote or not remote_confirmed):
+        return {**base, "ok": False, "status": "remote_confirmation_required", "executed": False}
+    if not metrics_target_local and (not allow_remote or not remote_confirmed):
         return {**base, "ok": False, "status": "remote_confirmation_required", "executed": False}
     if not bearer_token.strip():
         return {**base, "ok": False, "status": "bearer_token_environment_missing", "executed": False}
@@ -159,6 +223,21 @@ def run_read_only_load_test(
             }
         )
     error_rate = 1 - (total_success / total_requests) if total_requests else 1.0
+    metrics_observation = {"status": "not_requested", "available": False}
+    if metrics_target:
+        metrics_reader = metrics_probe_function or _http_text_get
+        try:
+            metrics_status, metrics_payload = metrics_reader(metrics_target, timeout_seconds)
+        except Exception:
+            metrics_status, metrics_payload = 0, ""
+        parsed_metrics = _parse_operational_metrics(metrics_payload) if metrics_status == 200 else {"available": False}
+        metrics_observation = {
+            "status": "available" if parsed_metrics.get("available") else "unavailable",
+            "http_status": metrics_status,
+            **parsed_metrics,
+        }
+        if not parsed_metrics.get("available"):
+            warnings.append("database pool and queue telemetry were unavailable during the load sample")
     return {
         **base,
         "ok": error_rate == 0,
@@ -170,5 +249,6 @@ def run_read_only_load_test(
         "throughput_requests_per_second": round(total_requests / elapsed, 3),
         "runtime_seconds": round(elapsed, 4),
         "performance_budget_warnings": warnings,
+        "operational_metrics": metrics_observation,
         "results": results,
     }

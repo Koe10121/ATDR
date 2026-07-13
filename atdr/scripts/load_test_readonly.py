@@ -14,6 +14,11 @@ def main() -> None:
     parser.add_argument("--requests-per-endpoint", type=int, default=5)
     parser.add_argument("--concurrency", type=int, default=4)
     parser.add_argument("--timeout", type=float, default=15.0)
+    parser.add_argument(
+        "--metrics-url",
+        default="",
+        help="Optional internal /metrics URL for bounded pool and queue observations.",
+    )
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--allow-remote", action="store_true")
     parser.add_argument("--confirm", default="")
@@ -28,6 +33,7 @@ def main() -> None:
         execute=args.execute,
         allow_remote=args.allow_remote,
         remote_confirmed=args.confirm == REMOTE_CONFIRMATION,
+        metrics_url=args.metrics_url,
     )
     print(json.dumps(result, indent=2 if args.pretty else None, default=str))
     raise SystemExit(0 if result.get("ok") else 1)

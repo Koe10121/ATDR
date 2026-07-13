@@ -261,3 +261,14 @@ For docs-only changes, at minimum verify the docs exist, links are correct, and 
 | RBAC and auditability | Satisfied | Scoped `/api/jobs` routes, lifecycle `AuditLog` events, and `atdr/tests/test_v390_durable_operation_jobs.py` | Fine-grained per-job-type permission policy can be expanded later. |
 | AI/response safety | Satisfied | Worker dispatcher has no response, activation/promotion, IAM, LLM, label, or account action handlers | Human approval and broader deployment governance remain required. |
 | Production claim discipline | Satisfied | v3.90 documents local/shared-lab limits explicitly | PostgreSQL/multi-worker runtime evidence and operational monitoring are still pending. |
+
+## v3.96 Preproduction Rehearsal Compliance Status
+
+| Rule | Current Status | Evidence | Remaining Gap |
+| --- | --- | --- | --- |
+| Source evidence / no guessing | Satisfied | Environment audit, strict preflight, v3.96 report/checklist/change record | Required external resources are recorded as unavailable, not inferred. |
+| Approval and destructive-action boundary | Satisfied | DB probe confirmation, remote-load confirmation, separate-target restore, no deploy/commit/push | Approved-host execution still requires explicit operator approval. |
+| Secret and privacy safety | Satisfied in source/local rehearsal | Boolean-only preflight, body-free load report, low-cardinality metrics, secret tests | Managed-secret runtime and rotation drill remain pending. |
+| Verification and traceability | Satisfied for repository/local scope | Focused tests, CI dry preflight, PRD/traceability/task-board updates | Final approved-host acceptance evidence remains open. |
+| IAM/AI/response safety | Satisfied in controls | MFU handoff is fail-closed; assistant raw logs/actions disabled; response simulated; no model activation | Provider-backed MFU session lifecycle remains unvalidated. |
+| Production claim discipline | Satisfied | Operational acceptance is explicitly blocked | Linux/TLS/DNS/PostgreSQL/monitoring/recovery evidence is required before any stronger claim. |

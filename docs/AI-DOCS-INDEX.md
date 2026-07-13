@@ -27,6 +27,9 @@ This index defines the active ATDR documentation set for AI/Codex-assisted work.
 | `docs/detection/ATDR_SCENARIO_CORPUS_CONTRACT.md` | Controlled scenario-corpus contract for parser, detection, deduplication, explanation, and response-safety validation. |
 | `docs/V3_72_UNIFIED_DETECTION_ML_EVALUATION.md` | Read-only unified detection/ML productization evaluator covering rule/scenario contracts, optional temp-DB scenario quality, latest supervised policy artifacts, and safety invariants. |
 | `docs/V3_95_DEPLOYMENT_SECURITY_MONITORING_AND_RECOVERY.md` | Optional reverse-proxy, monitoring, scheduled maintenance, secret, read-only load, and isolated recovery operating guide. |
+| `docs/V3_96_PREPRODUCTION_DEPLOYMENT_REHEARSAL.md` | Canonical secret-safe preproduction preflight, local rehearsal evidence, environment availability, blockers, and acceptance decision. |
+| `docs/V3_96_OPERATIONAL_ACCEPTANCE_CHECKLIST.md` | Approved-host topology, IAM, monitoring, load, backup/recovery, safety, stop, and closure checklist. |
+| `docs/changes/T1_T20_V3_96_PREPRODUCTION_REHEARSAL.md` | T1-T20 change/evidence record for the v3.96 controlled rehearsal. |
 | `docs/V3_94_RELEASE_COMMIT_ALLOWLIST.md` | Exact v3.89-v3.94 path boundary and safe staging warning for the cumulative worktree. |
 | `docs/V3_95_RELEASE_MANIFEST.md` | Approval-gated cumulative v3.89-v3.95 staging, commit, push, CI, exclusion, and rollback boundary. |
 
