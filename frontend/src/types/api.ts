@@ -67,6 +67,11 @@ export interface MfuIamStatus {
   domain_hints: string[];
   default_role: Role | string;
   mock_enabled: boolean;
+  template_shell_enabled: boolean;
+  template_shell_base_url_configured: boolean;
+  template_shell_me_path: string;
+  template_shell_header: string;
+  template_shell_ready: boolean;
   admin_email_mapping_configured: boolean;
   google_sso_enabled: boolean;
   google_client_id_configured: boolean;
@@ -88,7 +93,7 @@ export interface MfuIamStatus {
   token_login_ready: boolean;
   admin_api_ready: boolean;
   permission_bootstrap_ready: boolean;
-  mode: "local_login_only" | "mfu_iam_configured" | string;
+  mode: "local_login_only" | "mfu_iam_mock" | "template_shell_session_handoff" | "mfu_iam_b2b_token" | "mfu_iam_incomplete" | string;
   secrets_exposed: boolean;
 }
 
@@ -97,6 +102,8 @@ export interface MfuIamPublicStatus {
   token_login_ready: boolean;
   b2b_ready: boolean;
   mock_enabled: boolean;
+  template_shell_enabled: boolean;
+  template_shell_ready: boolean;
   google_sso_enabled: boolean;
   google_client_id_configured: boolean;
   allowed_domains: string[];
@@ -159,6 +166,16 @@ export interface AssistantChatRequest {
   source_id?: number | null;
   case_id?: string | null;
   include_recent_context?: boolean;
+  conversation_id?: string | null;
+  reset_context?: boolean;
+}
+
+export interface AssistantActiveContext {
+  alert_id?: number | null;
+  log_id?: number | null;
+  source_id?: number | null;
+  case_id?: string | null;
+  primary?: "alert" | "log" | "source" | "case" | null;
 }
 
 export interface AssistantCitation {
@@ -178,6 +195,8 @@ export interface AssistantChatResponse {
   raw_log_context_included: boolean;
   suggested_followups: string[];
   details: Record<string, unknown>;
+  conversation_id: string;
+  active_context: AssistantActiveContext;
 }
 
 export type AssistantFeedbackRating = "helpful" | "not_helpful" | "unsafe" | "incorrect" | "unclear";
@@ -242,6 +261,8 @@ export interface AssistantHistoryItem {
   created_at: string;
   context_used: string[];
   external_provider_used: boolean;
+  conversation_id?: string | null;
+  question_category?: string | null;
 }
 
 export interface AssistantStatusResponse {
@@ -259,6 +280,11 @@ export interface AssistantStatusResponse {
   llm_secret_configured: boolean;
   llm_base_url_configured: boolean;
   llm_timeout_seconds: number;
+  llm_max_retries: number;
+  llm_max_prompt_chars: number;
+  conversation_history_turns: number;
+  rate_limit_requests: number;
+  rate_limit_window_seconds: number;
   llm_secrets_exposed: boolean;
   redaction_enabled: boolean;
   raw_log_context_allowed: boolean;

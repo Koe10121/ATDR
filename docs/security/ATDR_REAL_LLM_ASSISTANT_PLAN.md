@@ -4,7 +4,7 @@
 
 The SOC Assistant normally runs in deterministic local mode. It is read-only, audited, and cannot execute response actions, run detection, mutate labels, activate models, change accounts, or expose raw logs by default.
 
-v3.63 adds a real provider adapter for Gemini, OpenAI-compatible APIs, Claude/Anthropic, and a mock test provider. v3.65 adds a command-line provider probe. External LLM calls are still disabled by default and require explicit `.env` configuration.
+v3.63 added provider adapters for Gemini, OpenAI-compatible APIs, Claude/Anthropic, and a mock provider. v3.65 added a command-line provider probe. v3.87 completes validated structured answers, bounded conversation context, retries, rate limiting, privacy filtering, safe audit telemetry, and full-service real-provider validation. External LLM calls remain disabled by default and require explicit private `.env` configuration.
 
 ## Recommended Provider Strategy
 
@@ -87,7 +87,21 @@ The external LLM adapter must:
 
 ## Current Decision
 
-The best real-AI candidate remains Gemini if MFU/Google access is approved. Until provider details, key handling, and data-sharing policy are confirmed, ATDR should keep deterministic local assistant behavior as the default.
+Gemini is the validated local provider candidate. ATDR must still keep deterministic behavior as the default for unconfigured environments and must obtain organizational approval for provider data sharing, key custody, quotas, and deployment use.
+
+## v3.87 Implemented Contract
+
+- ATDR retrieves evidence and sends only bounded, sanitized structured context.
+- Raw log lines remain excluded by default.
+- IP redaction remains enabled by default.
+- Provider output must pass the `soc_evidence_grounded_structured_v2` JSON contract.
+- Citations are limited to references supplied by ATDR.
+- Actor-scoped conversation context supports follow-ups without trusting client-only state.
+- Explicit global prompts clear stale alert/log/source/case context.
+- Transient provider failures are retried within configured limits; failures fall back deterministically.
+- Per-actor rate limiting protects provider quota and the API.
+- Prompt-injection, secret, and action requests stay local and are refused.
+- The provider cannot execute ATDR actions or mutate data.
 
 ## Safe Provider Probe
 

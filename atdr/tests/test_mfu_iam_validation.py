@@ -9,6 +9,7 @@ from atdr.app.services.mfu_iam_validation import build_mfu_iam_validation_report
 
 def _set_live_env(monkeypatch) -> None:
     monkeypatch.setenv("MFU_IAM_ENABLED", "true")
+    monkeypatch.setenv("MFU_IAM_TEMPLATE_SHELL_ENABLED", "false")
     monkeypatch.setenv("MFU_IAM_BASE_URL", "https://iam.example.test")
     monkeypatch.setenv("MFU_IAM_CLIENT_ID", "client-id")
     monkeypatch.setenv("MFU_IAM_CLIENT_SECRET", "secret-that-must-not-leak")
@@ -66,6 +67,33 @@ def test_mfu_iam_validation_mock_mode_is_secret_safe(monkeypatch):
     assert report["secrets_exposed"] is False
     assert "mock-secret-that-must-not-leak" not in str(report)
     assert "student@lamduan.mfu.ac.th" not in str(report)
+
+
+def test_mfu_iam_validation_template_shell_mode_does_not_run_b2b_without_token(monkeypatch):
+    monkeypatch.setenv("MFU_IAM_ENABLED", "true")
+    monkeypatch.setenv("MFU_IAM_TEMPLATE_SHELL_ENABLED", "true")
+    monkeypatch.setenv("MFU_IAM_TEMPLATE_SHELL_BASE_URL", "http://template-shell.test")
+    monkeypatch.setenv("MFU_IAM_TEMPLATE_SHELL_ME_PATH", "/api/v1/auth/me")
+    monkeypatch.setenv("MFU_IAM_ALLOWED_DOMAINS", "lamduan.mfu.ac.th")
+    get_settings.cache_clear()
+
+    def fail_post(*args, **kwargs):  # pragma: no cover - executed only on regression
+        raise AssertionError("B2B provider should not be called for template-shell mode without an explicit token")
+
+    monkeypatch.setattr(mfu_iam_validation.requests, "post", fail_post)
+
+    try:
+        report = build_mfu_iam_validation_report(execute=True)
+    finally:
+        get_settings.cache_clear()
+
+    assert report["ok"] is False
+    assert report["executed_provider_call"] is False
+    assert report["mode"] == "template_shell_session_handoff"
+    assert report["template_shell_enabled"] is True
+    assert report["template_shell_ready"] is True
+    assert report["secrets_exposed"] is False
+    assert "validate_template_shell_runtime" in report["message"]
 
 
 def test_mfu_iam_validation_live_probe_uses_mocked_provider_and_hides_tokens(monkeypatch):

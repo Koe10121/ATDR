@@ -55,6 +55,15 @@ export function UserAdmin() {
       : emailStatus.data?.delivery_mode === "smtp"
         ? "SMTP configured"
         : "Disabled";
+  const mfuModeLabel = mfuIamStatus.data?.mode === "template_shell_session_handoff"
+    ? "Template shell handoff"
+    : mfuIamStatus.data?.mode === "mfu_iam_b2b_token"
+      ? "MFU B2B token"
+      : mfuIamStatus.data?.mode === "mfu_iam_mock"
+        ? "Mock test harness"
+        : mfuIamStatus.data?.enabled
+          ? "Incomplete"
+          : "Local login only";
 
   return (
     <div className="space-y-5">
@@ -126,9 +135,19 @@ export function UserAdmin() {
             <div className="text-sm font-extrabold uppercase tracking-wide text-muted">MFU IAM Adapter</div>
             <h2 className="mt-1 text-xl font-black">School-email integration readiness</h2>
           </div>
-          <Badge value={mfuIamStatus.data?.enabled ? "Configured" : "Disabled"} />
+          <Badge value={mfuModeLabel} />
         </div>
         <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <div className="rounded-lg border border-line bg-panel2 p-3">
+            <div className="text-xs uppercase tracking-wide text-muted">Template Shell</div>
+            <div className="mt-1 font-bold">{mfuIamStatus.data?.template_shell_ready ? "Ready" : "Not ready"}</div>
+          </div>
+          <div className="rounded-lg border border-line bg-panel2 p-3">
+            <div className="text-xs uppercase tracking-wide text-muted">Session Check</div>
+            <div className="mt-1 font-bold">
+              {mfuIamStatus.data?.template_shell_base_url_configured ? mfuIamStatus.data.template_shell_me_path : "Not configured"}
+            </div>
+          </div>
           <div className="rounded-lg border border-line bg-panel2 p-3">
             <div className="text-xs uppercase tracking-wide text-muted">B2B Client</div>
             <div className="mt-1 font-bold">{mfuIamStatus.data?.b2b_ready ? "Ready" : "Not ready"}</div>
@@ -177,7 +196,7 @@ export function UserAdmin() {
           </div>
         </div>
         <div className="mt-3 rounded-lg border border-line bg-panel2 p-3 text-sm text-muted">
-          ATDR can read the supervisor template IAM variables from local `.env`. Local login stays active. School-email token login is available only when MFU IAM is explicitly enabled and validated; admin role mapping requires an explicit allowlist.
+          The supervisor template can own school login and 2FA, then launch ATDR through a session handoff. ATDR validates the template session, maps the verified school email, keeps local login as a fallback, and grants admin only through an explicit allowlist.
         </div>
         {mfuIamStatus.isError ? <ErrorBanner error={mfuIamStatus.error} fallback="MFU IAM status is unavailable." /> : null}
       </section>

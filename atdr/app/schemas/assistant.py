@@ -10,6 +10,16 @@ class AssistantChatRequest(BaseModel):
     source_id: int | None = Field(default=None, ge=1)
     case_id: str | None = Field(default=None, max_length=120)
     include_recent_context: bool = True
+    conversation_id: str | None = Field(default=None, min_length=8, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+    reset_context: bool = False
+
+
+class AssistantActiveContext(BaseModel):
+    alert_id: int | None = None
+    log_id: int | None = None
+    source_id: int | None = None
+    case_id: str | None = None
+    primary: Literal["alert", "log", "source", "case"] | None = None
 
 
 class AssistantCitation(BaseModel):
@@ -29,6 +39,8 @@ class AssistantChatResponse(BaseModel):
     raw_log_context_included: bool
     suggested_followups: list[str] = Field(default_factory=list)
     details: dict[str, Any] = Field(default_factory=dict)
+    conversation_id: str
+    active_context: AssistantActiveContext
 
 
 AssistantFeedbackRating = Literal["helpful", "not_helpful", "unsafe", "incorrect", "unclear"]
@@ -102,6 +114,11 @@ class AssistantStatusResponse(BaseModel):
     llm_secret_configured: bool = False
     llm_base_url_configured: bool = False
     llm_timeout_seconds: float = 15.0
+    llm_max_retries: int = 2
+    llm_max_prompt_chars: int = 12000
+    conversation_history_turns: int = 4
+    rate_limit_requests: int = 30
+    rate_limit_window_seconds: int = 60
     llm_secrets_exposed: bool = False
     redaction_enabled: bool
     raw_log_context_allowed: bool
@@ -116,3 +133,5 @@ class AssistantHistoryItem(BaseModel):
     created_at: str
     context_used: list[str] = Field(default_factory=list)
     external_provider_used: bool = False
+    conversation_id: str | None = None
+    question_category: str | None = None

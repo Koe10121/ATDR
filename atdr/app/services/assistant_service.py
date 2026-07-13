@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -16,7 +17,7 @@ from atdr.app.detection.supervised_detector import supervised_model_report
 from atdr.app.detection.explanations import build_alert_detection_summary, explain_log_triage
 from atdr.app.services.case_service import list_alert_cases
 from atdr.app.services.alert_service import get_alert, list_alerts
-from atdr.app.services.assistant_llm import AssistantLLMRequest, maybe_generate_external_answer
+from atdr.app.services.assistant_llm import AssistantLLMRequest, AssistantLLMResult, maybe_generate_external_answer
 from atdr.app.services.job_service import build_job_summary, job_to_dict
 from atdr.app.services.log_service import get_log
 from atdr.app.services.ml_service import evaluation_report
@@ -29,6 +30,23 @@ ALERT_ID_PATTERN = re.compile(r"\b(?:alert|id|#)\s*#?\s*(\d{1,10})\b", re.IGNORE
 LOG_ID_PATTERN = re.compile(r"\b(?:log|row|event)\s*#?\s*(\d{1,10})\b", re.IGNORECASE)
 SOURCE_ID_PATTERN = re.compile(r"\b(?:source|sensor)\s*#?\s*(\d{1,10})\b", re.IGNORECASE)
 CASE_ID_PATTERN = re.compile(r"\bcase\s*#?\s*([a-zA-Z0-9_-]{4,120})\b", re.IGNORECASE)
+CONVERSATION_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
+
+SENSITIVE_CONTEXT_KEYS = {
+    "api_key",
+    "authorization",
+    "client_secret",
+    "full_path",
+    "model_path",
+    "password",
+    "private_path",
+    "raw_line",
+    "raw_line_excerpt",
+    "raw_log",
+    "raw_log_line",
+    "secret",
+    "token",
+}
 
 ALERT_EXPLANATION_TERMS = [
     "why",
@@ -94,6 +112,10 @@ class AssistantResult:
     suggested_followups: list[str] = field(default_factory=list)
 
 
+class AssistantRateLimitError(RuntimeError):
+    pass
+
+
 def _redact(value: Any, *, enabled: bool) -> Any:
     if not enabled:
         return value
@@ -121,6 +143,27 @@ def _without_raw_context(value: Any) -> Any:
             if key not in raw_keys
         }
     return value
+
+
+def _safe_llm_context(value: Any, *, redacted: bool, depth: int = 0) -> Any:
+    if depth > 6:
+        return "[context-depth-limited]"
+    if isinstance(value, str):
+        clean = _text(value, redacted=redacted)
+        if re.match(r"^[A-Za-z]:\\", clean) or clean.startswith("/") and "api/" not in clean:
+            return "[private-path-removed]"
+        return clean[:1000]
+    if isinstance(value, list):
+        return [_safe_llm_context(item, redacted=redacted, depth=depth + 1) for item in value[:50]]
+    if isinstance(value, dict):
+        return {
+            str(key)[:120]: _safe_llm_context(item, redacted=redacted, depth=depth + 1)
+            for key, item in list(value.items())[:100]
+            if str(key).lower() not in SENSITIVE_CONTEXT_KEYS
+        }
+    if isinstance(value, (bool, int, float)) or value is None:
+        return value
+    return _text(value, redacted=redacted)[:500]
 
 
 def _question_alert_id(question: str, explicit_alert_id: int | None) -> int | None:
@@ -179,6 +222,132 @@ def _is_alert_explanation_followup(value: str) -> bool:
     return _has_any_term(value, ALERT_EXPLANATION_TERMS)
 
 
+def _normalize_conversation_id(value: str | None) -> str:
+    clean = (value or "").strip()
+    if clean and CONVERSATION_ID_PATTERN.fullmatch(clean):
+        return clean
+    return uuid.uuid4().hex
+
+
+def _question_resets_context(lowered: str) -> bool:
+    return any(
+        phrase in lowered
+        for phrase in [
+            "latest critical alert",
+            "latest critical alerts",
+            "show latest critical",
+            "show open alerts",
+            "summarize open alerts",
+            "summarize source health",
+            "which sources have warnings",
+            "current ml model",
+            "recent detection runs",
+            "failed jobs",
+            "controlled validation scenario",
+            "response safety rules",
+        ]
+    )
+
+
+def _conversation_rows(db: Session, *, actor: str, conversation_id: str, limit: int = 100) -> list[AuditLog]:
+    rows = list(
+        db.scalars(
+            select(AuditLog)
+            .where(AuditLog.action == "assistant_question", AuditLog.actor == actor)
+            .order_by(desc(AuditLog.created_at), desc(AuditLog.id))
+            .limit(max(1, min(limit, 200)))
+        )
+    )
+    return [
+        row
+        for row in rows
+        if isinstance(row.details, dict) and row.details.get("conversation_id") == conversation_id
+    ]
+
+
+def _load_conversation_context(db: Session, *, actor: str, conversation_id: str) -> dict[str, Any]:
+    rows = _conversation_rows(db, actor=actor, conversation_id=conversation_id, limit=100)
+    if not rows:
+        return {}
+    context = rows[0].details.get("active_context")
+    return dict(context) if isinstance(context, dict) else {}
+
+
+def _load_conversation_history(
+    db: Session,
+    *,
+    actor: str,
+    conversation_id: str,
+    limit: int,
+) -> list[dict[str, str]]:
+    if limit <= 0:
+        return []
+    rows = list(reversed(_conversation_rows(db, actor=actor, conversation_id=conversation_id, limit=limit)))
+    return [
+        {
+            "question": str(row.target_value or "")[:255],
+            "answer_summary": str((row.details or {}).get("answer_summary", ""))[:600],
+        }
+        for row in rows[-limit:]
+    ]
+
+
+def _enforce_assistant_rate_limit(db: Session, *, actor: str, settings: Settings) -> None:
+    window_start = datetime.now(UTC) - timedelta(seconds=settings.assistant_rate_limit_window_seconds)
+    count = db.scalar(
+        select(func.count(AuditLog.id)).where(
+            AuditLog.action == "assistant_question",
+            AuditLog.actor == actor,
+            AuditLog.created_at >= window_start,
+        )
+    ) or 0
+    if count >= settings.assistant_rate_limit_requests:
+        raise AssistantRateLimitError("Assistant request rate limit reached. Wait briefly and try again.")
+
+
+def _active_context_from_result(
+    result: AssistantResult,
+    *,
+    alert_id: int | None,
+    log_id: int | None,
+    source_id: int | None,
+    case_id: str | None,
+) -> dict[str, Any]:
+    active: dict[str, Any] = {
+        "alert_id": alert_id,
+        "log_id": log_id,
+        "source_id": source_id,
+        "case_id": case_id,
+        "primary": None,
+    }
+    for citation in result.citations:
+        reference = citation.reference_id
+        if not reference:
+            continue
+        try:
+            numeric_reference = int(reference)
+        except (TypeError, ValueError):
+            numeric_reference = None
+        if citation.source == "/api/alerts/{alert_id}" and numeric_reference:
+            active["alert_id"] = numeric_reference
+            active["primary"] = active["primary"] or "alert"
+        elif citation.source == "/api/logs/{log_id}" and numeric_reference:
+            active["log_id"] = numeric_reference
+            active["primary"] = active["primary"] or "log"
+        elif citation.source == "/api/sources/{source_id}" and numeric_reference:
+            active["source_id"] = numeric_reference
+            active["primary"] = active["primary"] or "source"
+        elif citation.source == "/api/alerts/cases":
+            active["case_id"] = str(reference)[:120]
+            active["primary"] = active["primary"] or "case"
+    if active["primary"] is None:
+        for key, name in [("alert_id", "alert"), ("log_id", "log"), ("source_id", "source"), ("case_id", "case")]:
+            if active[key]:
+                active["primary"] = name
+                break
+    return active
+
+
 def _record_assistant_audit(
     db: Session,
     *,
@@ -187,6 +356,15 @@ def _record_assistant_audit(
     context_used: list[str],
     external_provider_used: bool,
     redaction_applied: bool,
+    conversation_id: str,
+    actor_user_id: int | None,
+    active_context: dict[str, Any],
+    question_category: str,
+    provider: str,
+    provider_called: bool,
+    fallback_used: bool,
+    latency_ms: int | None,
+    answer_summary: str,
 ) -> int:
     audit = AuditLog(
         actor=actor,
@@ -196,8 +374,18 @@ def _record_assistant_audit(
         details={
             "context_used": context_used,
             "external_provider_used": external_provider_used,
+            "provider": provider,
+            "provider_called": provider_called,
+            "fallback_used": fallback_used,
             "redaction_applied": redaction_applied,
             "raw_log_context_included": False,
+            "action_executed": False,
+            "conversation_id": conversation_id,
+            "actor_user_id": actor_user_id,
+            "active_context": active_context,
+            "question_category": question_category,
+            "latency_ms": latency_ms,
+            "answer_summary": answer_summary[:600],
         },
     )
     db.add(audit)
@@ -210,6 +398,7 @@ def _llm_answer_guard_reason(
     deterministic_answer: str,
     provider_answer: str | None,
     context_used: list[str],
+    forbidden_values: list[str] | None = None,
 ) -> str | None:
     """Reject external wording that drops too much ATDR evidence or implies action."""
     answer = (provider_answer or "").strip()
@@ -231,6 +420,11 @@ def _llm_answer_guard_reason(
     ]
     if any(phrase in lowered for phrase in unsafe_action_phrases):
         return "provider_answer_implies_action_execution"
+
+    for secret in forbidden_values or []:
+        clean_secret = secret.strip()
+        if len(clean_secret) >= 8 and clean_secret in answer:
+            return "provider_answer_contains_secret"
 
     deterministic_length = len(deterministic_answer.strip())
     if deterministic_length >= 400 and len(answer) < 180:
@@ -275,6 +469,11 @@ def assistant_status(settings: Settings) -> dict[str, Any]:
         "llm_secret_configured": bool(settings.assistant_llm_api_key.strip()),
         "llm_base_url_configured": bool(settings.assistant_llm_base_url.strip()),
         "llm_timeout_seconds": settings.assistant_llm_timeout_seconds,
+        "llm_max_retries": settings.assistant_llm_max_retries,
+        "llm_max_prompt_chars": settings.assistant_llm_max_prompt_chars,
+        "conversation_history_turns": settings.assistant_conversation_history_turns,
+        "rate_limit_requests": settings.assistant_rate_limit_requests,
+        "rate_limit_window_seconds": settings.assistant_rate_limit_window_seconds,
         "llm_secrets_exposed": False,
         "redaction_enabled": settings.assistant_redact_ips,
         "raw_log_context_allowed": settings.assistant_allow_raw_log_context,
@@ -283,13 +482,11 @@ def assistant_status(settings: Settings) -> dict[str, Any]:
     }
 
 
-def list_assistant_history(db: Session, *, limit: int = 20) -> list[dict[str, Any]]:
-    statement = (
-        select(AuditLog)
-        .where(AuditLog.action == "assistant_question")
-        .order_by(desc(AuditLog.created_at), desc(AuditLog.id))
-        .limit(max(1, min(limit, 100)))
-    )
+def list_assistant_history(db: Session, *, current_user: User, limit: int = 20) -> list[dict[str, Any]]:
+    statement = select(AuditLog).where(AuditLog.action == "assistant_question")
+    if current_user.role != "admin":
+        statement = statement.where(AuditLog.actor == current_user.username)
+    statement = statement.order_by(desc(AuditLog.created_at), desc(AuditLog.id)).limit(max(1, min(limit, 100)))
     rows = []
     for item in db.scalars(statement):
         details = item.details or {}
@@ -302,6 +499,8 @@ def list_assistant_history(db: Session, *, limit: int = 20) -> list[dict[str, An
                 "created_at": item.created_at.isoformat() if item.created_at is not None else "",
                 "context_used": details.get("context_used") if isinstance(details.get("context_used"), list) else [],
                 "external_provider_used": bool(details.get("external_provider_used", False)),
+                "conversation_id": str(details.get("conversation_id", ""))[:64] or None,
+                "question_category": str(details.get("question_category", ""))[:64] or None,
             }
         )
     return rows
@@ -334,6 +533,17 @@ def _is_how_to_question(lowered: str) -> bool:
 
 
 def _unsafe_action_requested(lowered: str) -> bool:
+    if any(
+        phrase in lowered
+        for phrase in [
+            "ignore previous instructions",
+            "reveal api key",
+            "show api key",
+            "reveal secret",
+            "show secret",
+        ]
+    ):
+        return True
     if _is_how_to_question(lowered):
         return False
     unsafe_phrases = [
@@ -365,6 +575,11 @@ def _unsafe_action_requested(lowered: str) -> bool:
         "show raw logs",
         "send raw log",
         "send raw logs",
+        "reveal api key",
+        "show api key",
+        "reveal secret",
+        "show secret",
+        "ignore previous instructions",
         "create user",
         "delete user",
         "disable user",
@@ -376,7 +591,7 @@ def _unsafe_action_requested(lowered: str) -> bool:
         "turn on response",
         "real firewall",
     ]
-    command_prefixes = ["can you ", "please ", "do ", "execute ", "run ", "start ", "trigger "]
+    command_prefixes = ["can you ", "please ", "do ", "execute ", "run ", "start ", "trigger ", "ignore "]
     return any(phrase in lowered for phrase in unsafe_phrases) and (
         any(lowered.startswith(prefix) for prefix in command_prefixes)
         or any(term in lowered for term in [" now", " for me", " this ", " please", "?"])
@@ -410,19 +625,57 @@ def answer_assistant_question(
     question: str,
     actor: str,
     settings: Settings,
+    actor_user_id: int | None = None,
     alert_id: int | None = None,
     log_id: int | None = None,
     source_id: int | None = None,
     case_id: str | None = None,
     include_recent_context: bool = True,
+    conversation_id: str | None = None,
+    reset_context: bool = False,
 ) -> dict[str, Any]:
     clean_question = question.strip()
     lowered = clean_question.lower()
+    resolved_conversation_id = _normalize_conversation_id(conversation_id)
+    _enforce_assistant_rate_limit(db, actor=actor, settings=settings)
     context_limit = min(max(1, settings.assistant_max_context_rows), 50)
     redacted = settings.assistant_redact_ips
-    requested_alert_id = _question_alert_id(clean_question, alert_id)
-    requested_log_id = _question_log_id(clean_question, log_id)
-    requested_source_id = _question_source_id(clean_question, source_id)
+    should_reset_context = reset_context or _question_resets_context(lowered)
+    previous_context = {} if should_reset_context else _load_conversation_context(
+        db,
+        actor=actor,
+        conversation_id=resolved_conversation_id,
+    )
+    question_alert_id = _question_alert_id(clean_question, None)
+    question_log_id = _question_log_id(clean_question, None)
+    question_source_id = _question_source_id(clean_question, None)
+    question_case_id = _question_case_id(clean_question, None)
+
+    payload_alert_id = None if should_reset_context else alert_id
+    payload_log_id = None if should_reset_context else log_id
+    payload_source_id = None if should_reset_context else source_id
+    payload_case_id = None if should_reset_context else case_id
+    requested_alert_id = question_alert_id or payload_alert_id or previous_context.get("alert_id")
+    requested_log_id = question_log_id or payload_log_id or previous_context.get("log_id")
+    requested_source_id = question_source_id or payload_source_id or previous_context.get("source_id")
+    requested_case_id = question_case_id or payload_case_id or previous_context.get("case_id")
+
+    if question_alert_id is not None:
+        requested_log_id = question_log_id
+        requested_source_id = question_source_id
+        requested_case_id = question_case_id
+    elif question_log_id is not None:
+        requested_alert_id = question_alert_id
+        requested_source_id = question_source_id
+        requested_case_id = question_case_id
+    elif question_source_id is not None:
+        requested_alert_id = question_alert_id
+        requested_log_id = question_log_id
+        requested_case_id = question_case_id
+    elif question_case_id is not None:
+        requested_alert_id = question_alert_id
+        requested_log_id = question_log_id
+        requested_source_id = question_source_id
 
     if not clean_question:
         result = AssistantResult(
@@ -435,10 +688,10 @@ def answer_assistant_question(
         result = _answer_investigation_brief(
             db,
             clean_question,
-            alert_id=_question_alert_id(clean_question, alert_id),
+            alert_id=requested_alert_id,
             log_id=requested_log_id,
             source_id=requested_source_id,
-            case_id=_question_case_id(clean_question, case_id),
+            case_id=requested_case_id,
             limit=context_limit,
             redacted=redacted,
         )
@@ -505,11 +758,11 @@ def answer_assistant_question(
         result = _answer_detection_runs_question(db, redacted=redacted)
     elif any(term in lowered for term in ["open alerts", "latest critical alerts", "critical alerts", "show alerts"]):
         result = _answer_alert_list_question(db, question=clean_question, redacted=redacted)
-    elif any(term in lowered for term in ["case", "alert group", "related alert group"]) or case_id:
+    elif any(term in lowered for term in ["case", "alert group", "related alert group"]) or requested_case_id:
         result = _answer_case_question(
             db,
-            case_id=_question_case_id(clean_question, case_id),
-            source_id=source_id,
+            case_id=requested_case_id,
+            source_id=requested_source_id,
             limit=context_limit,
             redacted=redacted,
         )
@@ -527,7 +780,7 @@ def answer_assistant_question(
         result = _answer_safe_next_steps(db, clean_question, alert_id=requested_alert_id, redacted=redacted)
     elif requested_log_id and ("log" in lowered or ("flagged" in lowered and requested_alert_id is None)):
         result = _answer_log_triage_question(db, clean_question, log_id=requested_log_id, redacted=redacted)
-    elif _is_alert_explanation_followup(lowered) or alert_id:
+    elif _is_alert_explanation_followup(lowered) or requested_alert_id:
         result = _answer_alert_question(db, clean_question, alert_id=requested_alert_id, redacted=redacted)
     elif any(term in lowered for term in ["source", "sensor", "syslog", "parser", "health"]) or requested_source_id:
         result = _answer_source_question(db, source_id=requested_source_id, limit=context_limit, redacted=redacted, warnings_only="warning" in lowered or "error" in lowered)
@@ -543,6 +796,13 @@ def answer_assistant_question(
         result = _answer_general_question(db, limit=context_limit if include_recent_context else 0, redacted=redacted)
 
     _ensure_answer_sections(result)
+    active_context = _active_context_from_result(
+        result,
+        alert_id=requested_alert_id,
+        log_id=requested_log_id,
+        source_id=requested_source_id,
+        case_id=requested_case_id,
+    )
     response = {
         "answer": result.answer,
         "mode": "deterministic_local",
@@ -557,27 +817,48 @@ def answer_assistant_question(
         "raw_log_context_included": False,
         "suggested_followups": result.suggested_followups,
         "details": result.details,
+        "conversation_id": resolved_conversation_id,
+        "active_context": active_context,
     }
-    llm_result = maybe_generate_external_answer(
-        AssistantLLMRequest(
-            question=clean_question,
-            deterministic_answer=response["answer"],
-            context_used=response["context_used"],
-            citations=response["citations"],
-            suggested_followups=response["suggested_followups"],
-            safety=response["safety"],
-        ),
-        settings,
+    conversation_history = _load_conversation_history(
+        db,
+        actor=actor,
+        conversation_id=resolved_conversation_id,
+        limit=settings.assistant_conversation_history_turns if include_recent_context else 0,
+    )
+    llm_request = AssistantLLMRequest(
+        question=clean_question,
+        deterministic_answer=response["answer"],
+        context_used=response["context_used"],
+        citations=response["citations"],
+        suggested_followups=response["suggested_followups"],
+        safety=response["safety"],
+        safe_context=_safe_llm_context(result.details, redacted=redacted),
+        conversation_history=conversation_history,
+    )
+    llm_result = (
+        AssistantLLMResult(
+            used=False,
+            provider=settings.assistant_llm_provider.strip().lower() or "disabled",
+            fallback_reason="unsafe_request_local_only",
+        )
+        if "assistant_safety_guardrail" in response["context_used"]
+        else maybe_generate_external_answer(llm_request, settings)
     )
     llm_guard_reason = _llm_answer_guard_reason(
         deterministic_answer=response["answer"],
         provider_answer=llm_result.answer,
         context_used=response["context_used"],
+        forbidden_values=[settings.assistant_llm_api_key, settings.assistant_api_key],
     ) if llm_result.used else None
+    provider_called = bool(
+        llm_result.used
+        or llm_result.fallback_reason in {"provider_request_failed", "empty_provider_response", "malformed_provider_response"}
+    )
     if settings.assistant_llm_enabled or settings.assistant_llm_provider.strip():
         response["details"]["llm"] = {
             **llm_result.safe_details(),
-            "provider_called": bool(llm_result.used),
+            "provider_called": provider_called,
             "answer_used": bool(llm_result.used and llm_result.answer and not llm_guard_reason),
             "answer_guard_reason": llm_guard_reason,
         }
@@ -587,11 +868,34 @@ def answer_assistant_question(
         response["external_provider_used"] = True
         response["raw_log_context_included"] = llm_result.raw_log_context_included
         response["context_used"] = [*response["context_used"], f"external_llm:{llm_result.provider}"]
+        structured = llm_result.structured_answer or {}
+        response["details"]["answer_sections"] = {
+            "summary": [structured.get("summary", "")],
+            "evidence": structured.get("evidence", []),
+            "risk_interpretation": structured.get("risk_interpretation", []),
+            "what_to_check_next": structured.get("analyst_checks", []),
+            "safe_next_steps": structured.get("analyst_checks", []),
+            "limitations": structured.get("missing_information", []),
+            "safety_note": [structured.get("safety_notice", "")],
+            "safety_limitation": [structured.get("safety_notice", "")],
+            "citations": structured.get("citation_references", []),
+        }
+        if structured.get("suggested_followups"):
+            response["suggested_followups"] = structured["suggested_followups"]
     elif llm_result.used:
         response["mode"] = f"deterministic_local_llm_guarded_{llm_result.provider}"
-        response["external_provider_used"] = True
+        response["external_provider_used"] = False
         response["raw_log_context_included"] = llm_result.raw_log_context_included
         response["context_used"] = [*response["context_used"], f"external_llm_guarded:{llm_result.provider}"]
+    elif provider_called:
+        response["mode"] = f"deterministic_local_llm_fallback_{llm_result.provider}"
+        response["context_used"] = [*response["context_used"], f"external_llm_fallback:{llm_result.provider}"]
+    response["details"]["conversation"] = {
+        "conversation_id": resolved_conversation_id,
+        "history_turns_used": len(conversation_history),
+        "context_reset": should_reset_context,
+        "active_context": active_context,
+    }
     audit_id = _record_assistant_audit(
         db,
         actor=actor,
@@ -599,6 +903,18 @@ def answer_assistant_question(
         context_used=response["context_used"],
         external_provider_used=bool(response["external_provider_used"]),
         redaction_applied=redacted,
+        conversation_id=resolved_conversation_id,
+        actor_user_id=actor_user_id,
+        active_context=active_context,
+        question_category=str(
+            active_context.get("primary")
+            or (result.context_used[0] if result.context_used else "general")
+        )[:64],
+        provider=llm_result.provider,
+        provider_called=provider_called,
+        fallback_used=bool(provider_called and not response["external_provider_used"]),
+        latency_ms=llm_result.latency_ms,
+        answer_summary=response["answer"],
     )
     response["details"]["assistant_audit_id"] = audit_id
     return response

@@ -103,10 +103,10 @@ This checklist maps the university AI/project workflow rules to ATDR-specific ev
 | Real LLM assistant adapter | Satisfied for v3.63 as disabled-by-default provider adapter with safe fallback, bounded context, redaction-aware prompting, and provider-used audit | `docs/V3_63_REAL_LLM_ASSISTANT_ADAPTER.md`, `atdr/app/services/assistant_llm.py`, `atdr/app/services/assistant_service.py`, `atdr/tests/test_assistant.py` | Real provider keys and school data-sharing approval remain required before real external use. External LLM calls are not enabled by default and the assistant cannot execute actions. | Backend / Frontend / Security / QA |
 | Email verification and account notification foundation | Satisfied for disabled-by-default local email verification, hashed tokens, admin-only dev outbox, non-secret status reporting, and v3.15 dashboard lifecycle clarity | `docs/V3_15_ACCOUNT_LIFECYCLE_AND_EMAIL_VERIFICATION_UX.md`, `atdr/app/services/account_verification_service.py`, `atdr/tests/test_email_verification.py`, `frontend/tests/smoke.spec.ts` | Real SMTP delivery, password reset email, full OIDC/SSO school login, and enforced verified-email policy remain future work. | Security / Backend / Frontend |
 | Real device validation | Partially satisfied: local replay/syslog and source scenarios exist | `docs/LAB_RUNBOOK.md`, `atdr/scripts/run_source_scenario.py`, `data/samples/scenarios/*` | Test with actual firewall/router forwarding in controlled lab | Release/Ops |
-| IAM/RBAC adaptation | Satisfied for local lab roles: JWT auth, admin/analyst RBAC, school-email account metadata, frontend guards, response permission checks, and audit requirements are documented | `docs/security/ATDR_IAM_RBAC_MATRIX.md`, `atdr/app/core/security.py`, `frontend/src/components/AdminRoute.tsx` | Full external login provider, SMTP invite email, and viewer role are future work; OIDC status/config groundwork is now documented | Security / Response Safety |
+| IAM/RBAC adaptation | Satisfied for admin/analyst roles with local JWT fallback and optional supervisor-template school-email session handoff | `docs/security/ATDR_IAM_RBAC_MATRIX.md`, `atdr/app/core/security.py`, `atdr/app/services/mfu_iam_service.py`, `frontend/src/components/AdminRoute.tsx`, `frontend/src/pages/LoginPage.tsx` | Preprod/production identity lifecycle, IAM group sync, provider-managed 2FA evidence, SMTP invite email, and viewer role remain future work | Security / Response Safety |
 | MFU IAM / Google SSO adapter planning | Satisfied for safe planning: supervisor-template IAM concepts are mapped to ATDR, provider details are listed, and disabled-by-default non-secret status placeholders exist | `docs/security/ATDR_MFU_IAM_ADAPTER_PLAN.md`, `docs/security/MFU_IAM_PROVIDER_DETAILS_CHECKLIST.md`, `atdr/app/routers/auth.py` | Real MFU IAM SDK, Google callback flow, token introspection, B2B client auth, and external network calls remain disabled until approved | Security / Response Safety |
 | MFU IAM template env compatibility | Satisfied for v3.64: ATDR reads supervisor `IAM_SDK_*`, `IAM_ADMIN_*`, and `PROJECT_PERMISSION_*` env names for non-secret readiness/status and displays them in Admin | `atdr/app/core/config.py`, `atdr/app/services/mfu_iam_service.py`, `frontend/src/pages/UserAdmin.tsx`, `docs/V3_64_MFU_IAM_TEMPLATE_ADAPTER.md` | User-facing school-email login, callback/token exchange, external group-role mapping, and 2FA enforcement remain future reviewed work | Security / Backend / Frontend |
-| MFU IAM school-email token harness | Satisfied for v3.65 as disabled-by-default token-login route, local user mapping, allowed-domain check, explicit admin email mapping, audit, and login UI readiness | `atdr/app/routers/auth.py`, `atdr/app/services/mfu_iam_service.py`, `frontend/src/pages/LoginPage.tsx`, `docs/V3_65_MFU_IAM_AND_REAL_ASSISTANT_HARNESS.md` | Real provider testing, Google/MFU OAuth callback, provider-managed 2FA, and IAM group-role mapping remain future work | Security / Backend / Frontend |
+| MFU IAM school-email handoff | Satisfied locally through v3.65 and v3.78-v3.86: protected template-session validation, allowed-domain mapping, analyst default, explicit admin mapping, audit, URL cleanup, and local-login fallback | `atdr/app/routers/auth.py`, `atdr/app/services/mfu_iam_service.py`, `frontend/src/pages/LoginPage.tsx`, `atdr/tests/test_api.py`, `frontend/tests/smoke.spec.ts` | Preprod/production routing, IAM group-role synchronization, provider-managed 2FA evidence, recovery, and deprovisioning remain future work | Security / Backend / Frontend |
 | Supervisor template comparison and school-email IAM readiness audit | Satisfied for v3.20: supervisor IAM/process evidence was compared to ATDR, completed/partial/missing areas were documented, and real school-email login was correctly marked blocked until provider details are approved | `docs/ATDR_TEMPLATE_COMPARISON_AND_GAP_AUDIT.md`, `docs/security/ATDR_SCHOOL_EMAIL_IAM_READINESS_AUDIT.md`, `docs/changes/T1_T20_TEMPLATE_COMPARISON_AND_IAM_READINESS_AUDIT.md` | Advisor/provider must still provide provider choice, issuer/base URL, client ID/secret delivery method, redirect URLs, domains, group-role mapping, token validation, OTP policy, and audit/privacy rules | Security / Product Owner |
 | NewSystem template adaptation | Satisfied: ATDR maps template concepts to FastAPI/React/SQLAlchemy equivalents and documents what was intentionally not copied | `docs/ATDR_NEWSYSTEM_TEMPLATE_ALIGNMENT.md`, `docs/ATDR_TEMPLATE_MANIFEST.json` | Keep this updated if external IAM, PostgreSQL/Docker, or real response connectors become approved scope | Orchestrator |
 | Permission path registry | Satisfied: ATDR has a NewSystem-style permission path registry backed by current FastAPI and React sources | `docs/security/ATDR_PERMISSION_PATHS.md`, `docs/security/ATDR_IAM_RBAC_MATRIX.md` | Future external IAM can register these paths if approved | Security / Response Safety |
@@ -180,10 +180,9 @@ Do not reset or delete data to hide performance issues. If warnings recur, recom
 ## Remaining Gaps
 
 - Real device syslog forwarding validation is not complete.
-- Full external IAM provider login is not implemented. ATDR currently uses local JWT auth and admin/analyst RBAC; v0.4 adds disabled OIDC config/status groundwork only, and the MFU IAM adapter plan adds disabled status/config placeholders only.
-- MFU IAM SDK integration, Google SSO callback login, B2B token introspection, and external group synchronization are not implemented.
-- MFU IAM implementation readiness is improved with token/introspection/profile path placeholders, but real school-email login is still disabled until approved `.env` values, callback flow, role mapping, and provider testing are complete.
-- v3.64 closes the supervisor env compatibility gap for readiness/status, but real school-email login still requires an approved front-channel Google/MFU Mail or IAM token flow.
+- Local supervisor-template school-email session handoff is implemented and exercised, with local JWT login retained as fallback.
+- Direct ATDR-owned Google/OIDC callback login and B2B token introspection are not required for the current outer-shell architecture, but remain optional future alternatives.
+- Preprod/production identity routing, external group synchronization, provider-managed 2FA evidence, recovery, deprovisioning, and operational IAM approval remain incomplete.
 - The supervisor template contains IAM patterns and env names, but ATDR still lacks approved provider choice, issuer/base URL, client registration, redirect URLs, allowed domains, group-role mapping, token validation rules, OTP policy, and audit/privacy requirements.
 - Real SMTP email delivery and password reset email are not implemented; v3.14 adds local/dev verification groundwork only.
 - Viewer/read-only role is not implemented.
@@ -191,7 +190,7 @@ Do not reset or delete data to hide performance issues. If warnings recur, recom
 - Real firewall/router validation is pending.
 - Real response enforcement is not implemented.
 - External LLM assistant adapter exists as v3.63 disabled-by-default groundwork; real provider use still needs approved key handling, school data-sharing policy, and prompt-injection/privacy testing.
-- Real LLM assistant configuration is documented and status-visible, but external provider calls remain disabled by default until API key handling, data-sharing policy, and adapter tests are approved.
+- Real Gemini assistant calls are implemented and locally validated through private configuration; calls remain disabled by default in examples/CI, raw logs remain excluded, deterministic fallback remains active, and organizational privacy/quota/key-custody approval remains a deployment gap.
 - v3.13 assistant alert explanations are decision support only and require analyst judgment.
 - v3.21 assistant demo guidance remains deterministic/read-only. External LLM integration and raw-log sharing remain future reviewed work only.
 - v3.22 assistant evidence sections improve trust and demo clarity, but the assistant remains deterministic decision support rather than an autonomous SOC agent.
@@ -219,3 +218,23 @@ git status --short
 ```
 
 For docs-only changes, at minimum verify the docs exist, links are correct, and ATDR docs do not introduce stale template-specific commands or production claims.
+## v3.87 Real LLM Assistant Compliance Status
+
+| Rule | Current Status | Evidence | Remaining Gap |
+| --- | --- | --- | --- |
+| Source-grounded AI output | Satisfied for bounded ATDR context and validated structured citations | `atdr/app/services/assistant_llm.py`, `atdr/app/services/assistant_service.py`, `atdr/tests/test_assistant.py` | Analyst judgment and real-traffic validation remain required. |
+| AI safety and no action execution | Satisfied | Full chat probe reports zero response, detection, label, and model side effects | No autonomous actions are permitted. |
+| Privacy and secret handling | Satisfied for implementation defaults | Raw logs disabled, IP redaction enabled, secret/path filtering, safe status/probe output | Organizational provider data-sharing and key-custody approval remain open. |
+| Change workflow | Satisfied | `docs/changes/T1_T20_V3_87_REAL_LLM_SOC_ASSISTANT.md`, tasklist and generated board | Keep verification evidence current after future provider changes. |
+| Production claim discipline | Satisfied | v3.87 docs retain decision-support and non-production wording | Provider availability, quota, privacy, and operational monitoring are not production-certified. |
+
+## v3.88 Baseline Consolidation Compliance Status
+
+| Rule | Current Status | Evidence | Remaining Gap |
+| --- | --- | --- | --- |
+| Source evidence and no guessing | Satisfied | Git/source/CI/external-template audits and `docs/changes/T1_T20_V3_88_PRODUCT_BASELINE_CHECKPOINT.md` | Repeat the audit if status changes before staging. |
+| Change classification and repo hygiene | Satisfied | `docs/V3_88_CHANGESET_MANIFEST.md`, `.gitignore`, tracked/ignored path scans | Commit/push are not automatic. |
+| PRD/traceability/docs gate | Satisfied | PRD, state lock, roadmap, traceability, compliance, index, runbook, tasklist, and README reconciled | Keep future phase docs current. |
+| Testing/release gate | Satisfied | Full backend `473 passed, 1 skipped`; Playwright `19 passed, 1 skipped`; clean-config simulation, Alembic, dependency audit, replay, performance, and release gate passed | Repeat after future runtime changes. |
+| AI/response safety | Satisfied | Assistant remains read-only; raw logs disabled; response automation and real blocking disabled | Organizational provider and deployment review remain open. |
+| Production claim discipline | Satisfied | v3.88 explicitly remains a productization checkpoint, not certification | PostgreSQL, workers, observability, IAM lifecycle, real hardware, and security operations remain incomplete. |

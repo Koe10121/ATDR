@@ -40,6 +40,15 @@ This index defines the active ATDR documentation set for AI/Codex-assisted work.
 | `docs/V3_65_MFU_IAM_AND_REAL_ASSISTANT_HARNESS.md` | Disabled-by-default MFU school-email token-login harness and safe real LLM provider probe. |
 | `docs/V3_74_MFU_IAM_VALIDATION_HARNESS.md` | Safe MFU IAM configuration/probe harness for private `.env` validation without exposing secrets or enabling external login by default. |
 | `docs/V3_77_MFU_IAM_CONFIG_DOCTOR_VISIBILITY.md` | MFU IAM readiness visibility in config doctor so operators can see local-login, token-login, B2B, admin API, and permission-bootstrap readiness without exposing secrets. |
+| `docs/ATDR_TEMPLATE_SHELL_INTEGRATION_PLAN.md` | Source-backed plan for using the supervisor template as the outer school-email/IAM shell and launching ATDR through a safe token handoff. |
+| `docs/V3_79_TEMPLATE_TO_ATDR_HANDOFF_RECEIVER.md` | ATDR-side frontend receiver for supervisor-template handoff URLs, with URL cleanup and local-login fallback. |
+| `docs/V3_80_SUPERVISOR_TEMPLATE_RUNTIME_BRIDGE.md` | Source-contract validator for the official supervisor template shell, template `x-access-token` handoff evidence, and ATDR receiver readiness. |
+| `docs/V3_81_TEMPLATE_ATDR_LAUNCHER_HELPER.md` | Dry-run-first helper for adding an `Open ATDR SOC Dashboard` launcher to the official supervisor template registry page. |
+| `docs/V3_82_TEMPLATE_LAUNCHER_APPLIED_RUNTIME_PREP.md` | Status after applying the ATDR launcher to the external supervisor template copy, including backup path and runtime test steps. |
+| `docs/V3_83_TEMPLATE_SHELL_SESSION_ADAPTER.md` | ATDR-side adapter that validates the supervisor template session through the template backend profile endpoint and maps the verified school email into an ATDR user. |
+| `docs/V3_84_TEMPLATE_SHELL_RUNTIME_VALIDATION.md` | Non-mutating CLI validation for static bridge state, private template-shell IAM config, and optional live ATDR/template reachability. |
+| `docs/V3_85_TEMPLATE_SHELL_CONFIG_HELPER.md` | Dry-run-first helper for preparing private `.env` template-shell handoff settings with backup-on-write behavior. |
+| `docs/V3_86_TEMPLATE_SHELL_LIVE_RUNTIME_CHECK.md` | Local runtime validation record showing ATDR and the supervisor template running together with the protected profile endpoint detected. |
 | `docs/security/ATDR_REAL_LLM_ASSISTANT_PLAN.md` | Real LLM assistant provider plan with Gemini/OpenAI/Claude options, disabled by default and read-only. |
 | `docs/security/ATDR_SCHOOL_EMAIL_IAM_READINESS_AUDIT.md` | School-email IAM readiness audit explaining why real MFU/Google/OIDC login remains disabled until provider details are approved. |
 | `docs/security/MFU_IAM_PROVIDER_DETAILS_CHECKLIST.md` | Advisor/provider questions required before real MFU IAM or Google SSO implementation. |
@@ -97,6 +106,9 @@ This index defines the active ATDR documentation set for AI/Codex-assisted work.
 | `docs/V3_70_ASSISTANT_PROVIDER_TELEMETRY.md` | SOC Assistant dashboard telemetry that clearly shows local, external-used, guarded, or fallback provider behavior without exposing secrets or raw logs. |
 | `docs/V3_75_ASSISTANT_FOLLOWUP_CONTEXT_REPAIR.md` | SOC Assistant follow-up context repair so alert-scoped follow-ups keep the correct alert/log/source/case context and do not revive stale URL context. |
 | `docs/V3_76_REAL_LLM_ASSISTANT_FULL_CHAT_PROBE.md` | Safe full assistant chat provider probe using a synthetic temporary database to validate configured real LLM behavior without exposing secrets or mutating ATDR data. |
+| `docs/V3_87_REAL_LLM_SOC_ASSISTANT.md` | Completed optional real-provider SOC Assistant path with structured answers, bounded follow-up context, privacy filtering, reliability controls, deterministic fallback, and zero action capability. |
+| `docs/V3_88_PRODUCT_BASELINE_CHECKPOINT.md` | Consolidated v3.78-v3.87 source/runtime/docs baseline, current safety posture, CI position, remaining risks, and next product phase. |
+| `docs/V3_88_CHANGESET_MANIFEST.md` | Exact intended commit allowlist, ignored/private exclusions, external template change, rollback notes, risks, and staging commands. |
 | `docs/V3_73_DETECTION_ML_GOVERNANCE_DASHBOARD.md` | AI Governance dashboard integration for the read-only v3.72 Detection/ML productization evaluator. |
 | `docs/DETECTION_RULE_CATALOG.md` | Source-backed catalog of deterministic detection rules, false positives, mappings, and analyst next steps. |
 | `docs/ATDR_TEMPLATE_MERGE_ANALYSIS.md` | Current controlled template-merge analysis: adopt IAM/process concepts without migrating ATDR to Node/Vue/MongoDB. |

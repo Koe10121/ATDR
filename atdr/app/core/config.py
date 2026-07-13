@@ -35,14 +35,14 @@ class Settings(BaseSettings):
     demo_admin_password: str = Field(default="admin123", alias="DEMO_ADMIN_PASSWORD")
     demo_analyst_username: str = Field(default="analyst", alias="DEMO_ANALYST_USERNAME")
     demo_analyst_password: str = Field(default="analyst123", alias="DEMO_ANALYST_PASSWORD")
-    demo_sample_log_path: str = Field(default="paloalto-firewall(1).log", alias="DEMO_SAMPLE_LOG_PATH")
+    demo_sample_log_path: str = Field(default="data/samples/paloalto-demo.txt", alias="DEMO_SAMPLE_LOG_PATH")
     demo_import_limit: int = Field(default=5000, alias="DEMO_IMPORT_LIMIT")
     environment: str = Field(default="development", alias="ENVIRONMENT")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     log_format: str = Field(default="json", alias="LOG_FORMAT")
     service_version: str = Field(default="0.1.0", alias="SERVICE_VERSION")
     cors_allowed_origins: str = Field(
-        default="http://127.0.0.1:8501,http://localhost:8501",
+        default="http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:8501,http://localhost:8501",
         alias="CORS_ALLOWED_ORIGINS",
     )
     security_headers_enabled: bool = Field(default=True, alias="SECURITY_HEADERS_ENABLED")
@@ -123,6 +123,13 @@ class Settings(BaseSettings):
     )
     mfu_iam_default_role: str = Field(default="analyst", alias="MFU_IAM_DEFAULT_ROLE")
     mfu_iam_mock_enabled: bool = Field(default=False, alias="MFU_IAM_MOCK_ENABLED")
+    mfu_iam_template_shell_enabled: bool = Field(default=False, alias="MFU_IAM_TEMPLATE_SHELL_ENABLED")
+    mfu_iam_template_shell_base_url: str = Field(
+        default="",
+        validation_alias=AliasChoices("MFU_IAM_TEMPLATE_SHELL_BASE_URL", "TEMPLATE_SHELL_BASE_URL", "PROJECT_BASE_URL", "BASE_SERVER_URL"),
+    )
+    mfu_iam_template_shell_me_path: str = Field(default="/api/v1/auth/me", alias="MFU_IAM_TEMPLATE_SHELL_ME_PATH")
+    mfu_iam_template_shell_header: str = Field(default="x-access-token", alias="MFU_IAM_TEMPLATE_SHELL_HEADER")
     mfu_iam_admin_emails: str = Field(
         default="",
         validation_alias=AliasChoices("MFU_IAM_ADMIN_EMAILS", "MFU_IAM_ADMIN_EMAIL_ALLOWLIST"),
@@ -222,6 +229,11 @@ class Settings(BaseSettings):
     assistant_llm_api_key: str = Field(default="", alias="ASSISTANT_LLM_API_KEY")
     assistant_llm_base_url: str = Field(default="", alias="ASSISTANT_LLM_BASE_URL")
     assistant_llm_timeout_seconds: float = Field(default=15.0, alias="ASSISTANT_LLM_TIMEOUT_SECONDS")
+    assistant_llm_max_retries: int = Field(default=2, alias="ASSISTANT_LLM_MAX_RETRIES")
+    assistant_llm_max_prompt_chars: int = Field(default=12000, alias="ASSISTANT_LLM_MAX_PROMPT_CHARS")
+    assistant_conversation_history_turns: int = Field(default=4, alias="ASSISTANT_CONVERSATION_HISTORY_TURNS")
+    assistant_rate_limit_requests: int = Field(default=30, alias="ASSISTANT_RATE_LIMIT_REQUESTS")
+    assistant_rate_limit_window_seconds: int = Field(default=60, alias="ASSISTANT_RATE_LIMIT_WINDOW_SECONDS")
     assistant_max_context_rows: int = Field(default=20, alias="ASSISTANT_MAX_CONTEXT_ROWS")
     assistant_redact_ips: bool = Field(default=True, alias="ASSISTANT_REDACT_IPS")
     assistant_allow_raw_log_context: bool = Field(default=False, alias="ASSISTANT_ALLOW_RAW_LOG_CONTEXT")
@@ -316,19 +328,23 @@ def validate_runtime_settings(settings: Settings) -> list[str]:
     if settings.mfu_iam_default_role not in {"admin", "analyst"}:
         issues.append("MFU_IAM_DEFAULT_ROLE must be 'admin' or 'analyst'.")
     if settings.mfu_iam_enabled:
-        if not settings.mfu_iam_base_url.strip() and not settings.mfu_iam_mock_enabled:
+        template_shell_enabled = settings.mfu_iam_template_shell_enabled
+        b2b_required = not settings.mfu_iam_mock_enabled and not template_shell_enabled
+        if template_shell_enabled and not settings.mfu_iam_template_shell_base_url.strip():
+            issues.append("MFU_IAM_TEMPLATE_SHELL_BASE_URL is required when MFU_IAM_TEMPLATE_SHELL_ENABLED=true.")
+        if not settings.mfu_iam_base_url.strip() and b2b_required:
             issues.append("MFU_IAM_BASE_URL is required when MFU_IAM_ENABLED=true.")
-        if not settings.mfu_iam_client_id.strip() and not settings.mfu_iam_mock_enabled:
+        if not settings.mfu_iam_client_id.strip() and b2b_required:
             issues.append("MFU_IAM_CLIENT_ID is required when MFU_IAM_ENABLED=true.")
-        if not settings.mfu_iam_client_secret.strip() and not settings.mfu_iam_mock_enabled:
+        if not settings.mfu_iam_client_secret.strip() and b2b_required:
             issues.append("MFU_IAM_CLIENT_SECRET is required when MFU_IAM_ENABLED=true.")
-        if not settings.mfu_iam_audience.strip() and not settings.mfu_iam_mock_enabled:
+        if not settings.mfu_iam_audience.strip() and b2b_required:
             issues.append("MFU_IAM_AUDIENCE is required when MFU_IAM_ENABLED=true.")
-        if not settings.mfu_iam_token_path.strip() and not settings.mfu_iam_mock_enabled:
+        if not settings.mfu_iam_token_path.strip() and b2b_required:
             issues.append("MFU_IAM_TOKEN_PATH is required when MFU_IAM_ENABLED=true.")
-        if not settings.mfu_iam_introspect_path.strip() and not settings.mfu_iam_mock_enabled:
+        if not settings.mfu_iam_introspect_path.strip() and b2b_required:
             issues.append("MFU_IAM_INTROSPECT_PATH is required when MFU_IAM_ENABLED=true.")
-        if not settings.mfu_iam_profile_path.strip() and not settings.mfu_iam_mock_enabled:
+        if not settings.mfu_iam_profile_path.strip() and b2b_required:
             issues.append("MFU_IAM_PROFILE_PATH is required when MFU_IAM_ENABLED=true.")
         if not settings.mfu_iam_allowed_domains.strip():
             issues.append("MFU_IAM_ALLOWED_DOMAINS is required when MFU_IAM_ENABLED=true.")
@@ -398,8 +414,18 @@ def validate_runtime_settings(settings: Settings) -> list[str]:
             issues.append("ASSISTANT_LLM_API_KEY is required when ASSISTANT_LLM_ENABLED=true.")
         if settings.assistant_llm_timeout_seconds <= 0:
             issues.append("ASSISTANT_LLM_TIMEOUT_SECONDS must be greater than zero.")
+        if not 0 <= settings.assistant_llm_max_retries <= 5:
+            issues.append("ASSISTANT_LLM_MAX_RETRIES must be between zero and five.")
+        if not 2000 <= settings.assistant_llm_max_prompt_chars <= 50000:
+            issues.append("ASSISTANT_LLM_MAX_PROMPT_CHARS must be between 2000 and 50000.")
         if settings.assistant_allow_raw_log_context:
             issues.append("ASSISTANT_ALLOW_RAW_LOG_CONTEXT must remain false for external LLM use by default.")
+    if not 0 <= settings.assistant_conversation_history_turns <= 10:
+        issues.append("ASSISTANT_CONVERSATION_HISTORY_TURNS must be between zero and ten.")
+    if settings.assistant_rate_limit_requests <= 0:
+        issues.append("ASSISTANT_RATE_LIMIT_REQUESTS must be greater than zero.")
+    if settings.assistant_rate_limit_window_seconds <= 0:
+        issues.append("ASSISTANT_RATE_LIMIT_WINDOW_SECONDS must be greater than zero.")
     return issues
 
 

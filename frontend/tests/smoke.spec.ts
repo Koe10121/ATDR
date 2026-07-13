@@ -216,6 +216,20 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
         external_provider_used_by_default: false,
         provider: "disabled",
         model_configured: false,
+        llm_enabled: false,
+        llm_provider_configured: false,
+        llm_provider_name: "",
+        llm_ready: false,
+        llm_model_configured: false,
+        llm_secret_configured: false,
+        llm_base_url_configured: false,
+        llm_timeout_seconds: 15,
+        llm_max_retries: 2,
+        llm_max_prompt_chars: 12000,
+        conversation_history_turns: 4,
+        rate_limit_requests: 30,
+        rate_limit_window_seconds: 60,
+        llm_secrets_exposed: false,
         redaction_enabled: true,
         raw_log_context_allowed: false,
         max_context_rows: 20,
@@ -360,7 +374,7 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
             fallback_reason: null,
             raw_log_context_included: false,
             secrets_exposed: false,
-            prompt_contract: "soc_evidence_preserving_v1",
+            prompt_contract: "soc_evidence_grounded_structured_v2",
             provider_called: false,
             answer_used: false,
             answer_guard_reason: null
@@ -380,7 +394,9 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
             safety_limitation: ["The assistant is read-only.", "Response automation is disabled."],
             citations: ["Alert detail: /api/alerts/{alert_id} #1", "Detection rule catalog: docs/DETECTION_RULE_CATALOG.md"]
           }
-        }
+        },
+        conversation_id: "smoke-assistant-conversation",
+        active_context: { alert_id: 1, log_id: 1, source_id: 1, case_id: null, primary: "alert" }
       }
     })
   );
@@ -1781,7 +1797,158 @@ async function chooseSafeSelect(page: Page, ariaLabel: string, optionName: strin
 test("login page loads", async ({ page }) => {
   await page.goto("/login");
   await expect(page.getByText("MFU ATDR SOC Console")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
+});
+
+test("template IAM handoff logs in and clears token from URL", async ({ page }) => {
+  let handoffToken: string | null = null;
+  await page.route("**/health", async (route) =>
+    route.fulfill({
+      json: {
+        status: "ok",
+        service: "MFU ATDR",
+        checks: { database: { status: "ok" }, response_mode: { status: "simulation" } }
+      }
+    })
+  );
+  await page.route("**/api/auth/me", async (route) =>
+    route.fulfill({
+      json: {
+        id: 7,
+        username: "student@lamduan.mfu.ac.th",
+        email: "student@lamduan.mfu.ac.th",
+        full_name: "Template Handoff Student",
+        role: "analyst",
+        is_active: true,
+        email_verified: true,
+        auth_provider: "external",
+        created_at: "2026-07-11T00:00:00Z"
+      }
+    })
+  );
+  await page.route("**/api/users/me", async (route) =>
+    route.fulfill({
+      json: {
+        id: 7,
+        username: "student@lamduan.mfu.ac.th",
+        email: "student@lamduan.mfu.ac.th",
+        full_name: "Template Handoff Student",
+        role: "analyst",
+        is_active: true,
+        email_verified: true,
+        auth_provider: "external",
+        created_at: "2026-07-11T00:00:00Z"
+      }
+    })
+  );
+  await page.route("**/api/auth/mfu-iam/public-status", async (route) =>
+    route.fulfill({
+      json: {
+        enabled: true,
+        token_login_ready: true,
+        b2b_ready: true,
+        mock_enabled: true,
+        google_sso_enabled: false,
+        google_client_id_configured: false,
+        allowed_domains: ["lamduan.mfu.ac.th"],
+        domain_hints: ["lamduan.mfu.ac.th"],
+        default_role: "analyst",
+        auth_require_2fa: true,
+        mode: "mfu_iam_configured",
+        secrets_exposed: false
+      }
+    })
+  );
+  await page.route("**/api/assistant/status", async (route) =>
+    route.fulfill({
+      json: {
+        enabled: true,
+        provider: "disabled",
+        external_provider_configured: false,
+        external_provider_enabled: false,
+        raw_log_context_allowed: false,
+        redaction_enabled: true,
+        read_only: true,
+        response_automation_disabled: true,
+        secrets_exposed: false
+      }
+    })
+  );
+  await page.route("**/api/assistant/history**", async (route) => route.fulfill({ json: [] }));
+  await page.route("**/api/assistant/feedback/recent**", async (route) => route.fulfill({ json: [] }));
+  await page.route("**/api/assistant/feedback/summary**", async (route) =>
+    route.fulfill({
+      json: {
+        total_count: 0,
+        rating_counts: {},
+        unsafe_or_incorrect_count: 0,
+        needs_review_count: 0,
+        external_provider_used_count: 0,
+        raw_log_context_included_count: 0,
+        action_requested_count: 0,
+        action_executed_count: 0,
+        latest_unsafe_or_incorrect: []
+      }
+    })
+  );
+  await page.route("**/api/auth/mfu-iam/token-login", async (route) => {
+    const payload = (await route.request().postDataJSON()) as { token: string };
+    handoffToken = payload.token;
+    await route.fulfill({
+      json: {
+        access_token: "handoff-session-token",
+        token_type: "bearer",
+        expires_in_minutes: 60,
+        username: "student@lamduan.mfu.ac.th",
+        role: "analyst",
+        email: "student@lamduan.mfu.ac.th",
+        auth_provider: "external",
+        external_login: true
+      }
+    });
+  });
+
+  await page.goto("/login?mode=mfu-handoff&mfu_token=mock%3Astudent%40lamduan.mfu.ac.th&next=/assistant&source=template-shell");
+
+  await expect.poll(() => handoffToken).toBe("mock:student@lamduan.mfu.ac.th");
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/assistant");
+  expect(page.url()).not.toContain("mock%3Astudent");
+  expect(page.url()).not.toContain("mfu_token");
+  await expect(page.getByText("SOC Command Center")).toBeVisible();
+});
+
+test("template IAM handoff falls back cleanly when school IAM is disabled", async ({ page }) => {
+  await page.route("**/api/auth/mfu-iam/public-status", async (route) =>
+    route.fulfill({
+      json: {
+        enabled: false,
+        token_login_ready: false,
+        b2b_ready: false,
+        mock_enabled: false,
+        google_sso_enabled: false,
+        google_client_id_configured: false,
+        allowed_domains: [],
+        domain_hints: [],
+        default_role: "analyst",
+        auth_require_2fa: false,
+        mode: "local_login_only",
+        secrets_exposed: false
+      }
+    })
+  );
+  let tokenLoginCalled = false;
+  await page.route("**/api/auth/mfu-iam/token-login", async (route) => {
+    tokenLoginCalled = true;
+    await route.fulfill({ status: 500, json: { detail: "Should not be called" } });
+  });
+
+  await page.goto("/login?mfu_token=tiny-token&next=/assistant");
+
+  await expect(page.getByText("Handoff blocked: school IAM is not ready.")).toBeVisible();
   await expect(page.getByRole("button", { name: /sign in/i })).toBeVisible();
+  expect(tokenLoginCalled).toBe(false);
+  expect(page.url()).not.toContain("tiny-token");
+  expect(page.url()).not.toContain("mfu_token");
 });
 
 test("core analyst routes render with mocked API", async ({ page }) => {
@@ -2101,13 +2268,13 @@ test("SOC assistant page is read-only and contains long responses safely", async
   await expect(panel.getByTestId("assistant-provider-telemetry")).toContainText("Not included");
   await expect(panel.getByTestId("assistant-provider-telemetry")).toContainText("Secrets");
   await expect(panel.getByTestId("assistant-provider-telemetry")).toContainText("Not exposed");
-  await expect(panel.getByTestId("assistant-provider-telemetry")).toContainText("soc_evidence_preserving_v1");
+  await expect(panel.getByTestId("assistant-provider-telemetry")).toContainText("soc_evidence_grounded_structured_v2");
   await expect(panel).toContainText("Safety note");
   await expect(panel).toContainText("Alert detail");
   await expect(panel.getByTestId("assistant-citations")).toContainText("/api/alerts/{alert_id}");
   await expect(panel.getByTestId("assistant-citation-open-alert-detail-1")).toHaveAttribute("href", "/alerts?alert=1");
   await expect(panel.getByTestId("assistant-citation-open-log-detail-1")).toHaveAttribute("href", "/logs?log=1");
-  await expect(panel.getByTestId("assistant-citation-open-source-1")).toHaveAttribute("href", "/?source=1");
+  await expect(panel.getByTestId("assistant-citation-open-source-1")).toHaveAttribute("href", "/overview?source=1");
   await expect(panel.getByTestId("assistant-citation-open-detection-run-8")).toHaveAttribute("href", "/?detection_run=8");
   await expect(panel.getByTestId("assistant-citation-open-operation-job-3")).toHaveAttribute("href", "/?job=3");
   await expect(panel.getByTestId("assistant-citation-open-ml-report-api")).toHaveAttribute("href", "/ml");
@@ -2185,7 +2352,7 @@ test("SOC assistant provider telemetry shows guarded external LLM state", async 
             raw_log_context_included: false,
             secrets_exposed: false,
             context_characters: 1400,
-            prompt_contract: "soc_evidence_preserving_v1",
+            prompt_contract: "soc_evidence_grounded_structured_v2",
             provider_called: true,
             answer_used: false,
             answer_guard_reason: "provider_answer_too_short_for_evidence_context"
@@ -2196,7 +2363,9 @@ test("SOC assistant provider telemetry shows guarded external LLM state", async 
             what_to_check_next: ["Review linked logs and source health before response."],
             safety_note: ["The assistant is read-only."]
           }
-        }
+        },
+        conversation_id: "guarded-assistant-conversation",
+        active_context: { alert_id: 3225, log_id: null, source_id: null, case_id: null, primary: "alert" }
       }
     })
   );
@@ -2213,7 +2382,7 @@ test("SOC assistant provider telemetry shows guarded external LLM state", async 
   await expect(telemetry).toContainText("Not included");
   await expect(telemetry).toContainText("Secrets");
   await expect(telemetry).toContainText("Not exposed");
-  await expect(telemetry).toContainText("soc_evidence_preserving_v1");
+  await expect(telemetry).toContainText("soc_evidence_grounded_structured_v2");
   await expect(page.getByTestId("assistant-response-panel")).toContainText("Alert #3225");
   await expect(page.getByText("ASSISTANT_LLM_API_KEY")).not.toBeVisible();
   await expect(page.getByRole("button", { name: "Record simulated block" })).not.toBeVisible();
@@ -2262,7 +2431,11 @@ test("SOC assistant follow-up questions keep the previous alert context", async 
             what_to_check_next: [isLogFollowUp ? "Review nearby logs before containment." : "Review related logs before containment."],
             safety_note: ["The assistant is read-only."]
           }
-        }
+        },
+        conversation_id: String(payload.conversation_id ?? "follow-up-conversation"),
+        active_context: isLogFollowUp
+          ? { alert_id: alertId, log_id: logId, source_id: 44, case_id: null, primary: "log" }
+          : { alert_id: alertId, log_id: 9001, source_id: 44, case_id: null, primary: "alert" }
       }
     });
   });
@@ -2279,6 +2452,8 @@ test("SOC assistant follow-up questions keep the previous alert context", async 
   expect(assistantRequests.length).toBeGreaterThanOrEqual(2);
   expect(assistantRequests[0].alert_id).toBe(1717);
   expect(assistantRequests[1].alert_id).toBe(1717);
+  expect(typeof assistantRequests[0].conversation_id).toBe("string");
+  expect(assistantRequests[1].conversation_id).toBe(assistantRequests[0].conversation_id);
   expect(assistantRequests[1].log_id).toBeNull();
   expect(assistantRequests[1].source_id).toBeNull();
   await page.getByRole("button", { name: "What is the recommended next step?" }).click();
@@ -2308,6 +2483,7 @@ test("SOC assistant follow-up questions keep the previous alert context", async 
   expect(assistantRequests[5].alert_id).toBeNull();
   expect(assistantRequests[5].log_id).toBeNull();
   expect(assistantRequests[5].source_id).toBeNull();
+  expect(assistantRequests[5].reset_context).toBe(true);
 });
 
 test("SOC assistant clear context removes URL-scoped alert before the next question", async ({ page }) => {
@@ -2334,7 +2510,9 @@ test("SOC assistant clear context removes URL-scoped alert before the next quest
             what_to_check_next: ["Continue with the selected workflow."],
             safety_note: ["The assistant is read-only."]
           }
-        }
+        },
+        conversation_id: String(payload.conversation_id ?? "clear-context-conversation"),
+        active_context: { alert_id: null, log_id: null, source_id: null, case_id: null, primary: null }
       }
     });
   });
@@ -2352,6 +2530,8 @@ test("SOC assistant clear context removes URL-scoped alert before the next quest
   expect(assistantRequests.at(-1)?.alert_id).toBeNull();
   expect(assistantRequests.at(-1)?.log_id).toBeNull();
   expect(assistantRequests.at(-1)?.source_id).toBeNull();
+  expect(assistantRequests.at(-1)?.reset_context).toBe(true);
+  expect(typeof assistantRequests.at(-1)?.conversation_id).toBe("string");
 });
 
 test("simulated response confirmation and denied audit are visible", async ({ page }) => {

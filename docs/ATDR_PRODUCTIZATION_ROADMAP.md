@@ -136,8 +136,9 @@ Current state:
 - Local username/password JWT login works.
 - Local email login and school-email metadata exist.
 - Admin and analyst roles exist.
-- MFU IAM and OIDC placeholders exist and are disabled by default.
-- MFU template variable aliases are recognized in planning/status work.
+- Generic OIDC remains disabled-by-default groundwork.
+- The optional supervisor-template session handoff is implemented behind private configuration, including protected-profile validation, allowed-domain checks, local user mapping, analyst default, explicit admin allowlist, URL cleanup, and local-login fallback.
+- Local runtime validation and one external-user login audit exist; preprod/production identity lifecycle validation does not.
 
 Target direction:
 
@@ -154,10 +155,10 @@ Target direction:
 
 Recommended next IAM implementation slice:
 
-1. Add a safe MFU IAM live-validation command that reads private `.env` settings, validates configuration completeness, performs a no-mutation token/profile/introspection probe when explicitly requested, and redacts all secrets.
-2. Add backend tests with a mock MFU IAM server for token introspection/profile mapping.
-3. Add a dashboard/Admin IAM readiness panel that reports configured/not configured, provider reachability if checked, allowed domains, role mapping status, and last validation result without secrets.
-4. Only after that, implement an actual browser login/callback path if provider docs and callback registration are confirmed.
+1. Preserve the supervisor template as the login/account shell and ATDR as the SOC application.
+2. Validate the same handoff contract in an approved preprod environment using HTTPS and provider-approved session/callback settings.
+3. Define authoritative IAM group-to-role mapping, deprovisioning, recovery, 2FA evidence, and audit-retention policy.
+4. Add a direct ATDR-owned OAuth/OIDC callback only if the supervisor template can no longer own the outer login flow.
 
 Provider input required:
 
@@ -175,7 +176,9 @@ Current state:
 
 - Read-only SOC Assistant exists.
 - Deterministic fallback works.
-- External provider adapter exists and is disabled unless configured.
+- Optional Gemini, OpenAI-compatible, and Claude adapters exist and are disabled unless configured privately.
+- The Gemini path has been validated through provider and full-service probes with structured output and zero mutation side effects.
+- Server-owned actor-scoped context preserves alert/log/source/case follow-ups and clears stale context for global prompts.
 - Raw log context is disabled by default.
 - IP redaction is enabled by default.
 - Assistant questions are audited.
@@ -196,10 +199,10 @@ Target direction:
 
 Recommended next assistant implementation slice:
 
-1. Stabilize follow-up context with an explicit `conversation_context` contract for alert ID, log ID, source ID, case/correlation ID, and last answer references.
-2. Add tests proving follow-up questions inherit the intended alert/source context and do not fall back to unrelated alert IDs.
-3. Add real-provider quality probes that use sanitized synthetic context only.
-4. Keep deterministic fallback first-class for demos, CI, and provider outages.
+1. Keep deterministic fallback, structured validation, context isolation, privacy filtering, and no-action checks as release invariants.
+2. Add provider cost/quota dashboards and operational alerting only after shared deployment requirements are known.
+3. Expand controlled answer-quality evaluation with real-source-safe summaries without enabling raw-log sharing.
+4. Keep assistant work secondary to persistence, background processing, and operational hardening unless a real quality defect appears.
 
 ## Detection And ML Pipeline Direction
 
@@ -367,20 +370,17 @@ External LLM privacy:
 
 ### Phase B: SOC Assistant Follow-Up And Real Provider QA
 
-- Fix follow-up context around alert/log/source/case continuity.
-- Validate real provider status and failure fallback.
-- Improve citations and investigation briefs.
-- Keep raw logs disabled and assistant read-only.
+- Completed locally through v3.87: actor-scoped follow-up context, explicit context reset, structured Gemini output, citations, provider telemetry, retries, privacy controls, prompt-injection resistance, deterministic fallback, and zero action side effects.
+- Deployment approval, quota/cost monitoring, and real-traffic answer evaluation remain operational follow-up work.
 
 ### Phase C: Real School-Email IAM Path
 
-- Implement or validate MFU IAM token introspection if enough live details exist.
-- Add or plan Google/MFU OAuth callback if provider details are available.
-- Map school-email users to local ATDR users.
-- Add explicit admin mapping, analyst default, and future viewer role.
-- Keep local login fallback.
+- Local supervisor-template session handoff is implemented and exercised.
+- School-email users map to local ATDR users; analyst is the default and admin requires explicit mapping.
+- Local login fallback remains available.
+- Preprod/production HTTPS routing, IAM group synchronization, provider-managed 2FA evidence, recovery, and deprovisioning remain incomplete.
 
-Implementation order note: if advisor priority is school-email IAM, Phase C can move ahead of Phase B. The safest first step is still a validation harness, not a full browser login cutover.
+Implementation order note: Phase B is complete for the local checkpoint. Continue Phase C only in an approved preprod/production identity environment; do not replace the working local fallback or duplicate the supervisor template's login UI inside ATDR.
 
 ### Phase D: Detection And ML Product Hardening
 
@@ -446,12 +446,12 @@ Choose one of these as the next code phase:
 
 | Candidate | Why now | Main risk | Definition of done |
 | --- | --- | --- | --- |
-| MFU IAM live-safe validation harness | School-email IAM is a top product requirement and the supervisor template contains usable IAM variable families and flow evidence. | Live provider details may be incomplete or credentials may not have expected permissions. | Private `.env` can be checked without printing secrets; mock tests pass; optional live probe reports safe status; local login still works. |
-| Assistant follow-up context repair | User-facing chatbot quality matters and prior manual testing showed alert context confusion. | LLM responses can hide context bugs unless deterministic tests pin the contract. | Follow-up questions keep selected alert/log/source context; no side effects; external provider remains optional; Playwright/manual flow is stable. |
-| SOC queue model redesign | Detection/ML quality is central to the product mission. | Model work can consume time without improving independent split stability. | Diagnostic comparison report exists; no activation; registry/dashboard clearly separate diagnostic vs active. |
-| Repo cleanup/reference archive | The in-repo `NewSystem/` copy is confusing and not runtime truth. | Deleting too early could remove useful reference evidence. | References audited; useful docs archived; ignored artifacts remain uncommitted; official template path documented. |
+| PostgreSQL/shared-lab persistence and backup/restore | SQLite is the largest remaining multi-user operational constraint, while portability and drill scripts already exist. | Environment availability and migration/backup correctness. | PostgreSQL validation passes on an approved host; migrations, backup, restore, and rollback are documented and tested without changing normal SQLite startup. |
+| Durable background-job architecture | Import, detection, and ML operations are tracked but still execute synchronously in the API process. | Added operational complexity and duplicate execution risk. | A queue/worker design has idempotency, retries, cancellation, progress, audit, and failure recovery with SQLite local compatibility. |
+| Detection/ML independent quality validation | Detection quality is central and real-source evidence remains limited. | More synthetic tuning can overfit without new independent data. | Frozen candidate evaluated on independent/source-aware data; no activation; evidence-first explanations and conservative gates remain. |
+| Observability/security/audit hardening | Shared operation needs metrics, correlation IDs, health breakdowns, and retention/integrity controls. | Telemetry can leak sensitive evidence if designed poorly. | Secret-safe metrics and request/operation IDs cover ingestion, jobs, IAM, assistant, detection, and failures; audit retention/integrity is tested. |
 
-Recommended first code phase: **MFU IAM live-safe validation harness**, followed by **Assistant follow-up context repair**. That order attacks the two largest advisor-visible gaps while preserving the current detection/response safety model.
+Recommended next code phase after the v3.88 checkpoint: **PostgreSQL/shared-lab persistence and backup/restore validation**, followed by a durable background-job architecture. The assistant and local template-shell handoff have reached stable local checkpoints; persistence and operation isolation now have the largest product-level risk reduction.
 
 ## Phase 2 Completion Evidence
 

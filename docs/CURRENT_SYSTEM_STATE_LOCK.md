@@ -1,10 +1,10 @@
 # ATDR Current System State Lock
 
-Date: 2026-06-27
+Date: 2026-07-12
 
 Purpose: this document is the current-state memory anchor before larger ATDR productization work. It captures what exists now, what must stay safe, and what must not be deleted or committed while ATDR moves from controlled academic/lab prototype toward a more serious SOC/SaaS-style product.
 
-Checkpoint: v3.73 detection/ML governance dashboard integration is present in the worktree. This document is a planning lock, not a claim that ATDR is production-ready.
+Checkpoint: v3.88 consolidates the implemented v3.78-v3.87 supervisor-template handoff and real-LLM assistant work into a release baseline. This document remains a source-backed state lock, not a production-readiness claim.
 
 ## Source Evidence
 
@@ -166,7 +166,8 @@ Current SOC Assistant support includes:
 - Authenticated read-only assistant API.
 - Deterministic fallback answers.
 - External LLM adapter for configured providers, including Gemini, OpenAI-compatible APIs, Claude/Anthropic, and mock test provider.
-- Safe provider probe script: `atdr/scripts/test_assistant_llm_provider.py`.
+- Validated structured-answer contract, bounded actor-scoped conversation context, citation filtering, retry/timeout handling, rate limiting, prompt-injection refusal, and deterministic fallback.
+- Safe provider and full-service probes: `atdr/scripts/test_assistant_llm_provider.py` and `atdr/scripts/test_assistant_chat_provider.py`.
 - Raw log context disabled by default.
 - IP redaction enabled by default.
 - Audit logging for assistant questions.
@@ -175,7 +176,7 @@ Current SOC Assistant support includes:
 
 The assistant must never execute response actions, run detection, change labels, activate/promote models, mutate users, delete data, or enable automation.
 
-Known limitation: the assistant should continue improving contextual follow-up behavior, investigation continuity, citation quality, and real-provider fallback resilience.
+Known limitation: external-provider availability, cost/quota, key custody, organizational privacy approval, and real-traffic answer evaluation remain operational work. The assistant is not autonomous and cannot execute ATDR actions.
 
 ## IAM / School Email Status
 
@@ -186,16 +187,18 @@ Current IAM support includes:
 - Admin/analyst RBAC.
 - School-email metadata on local accounts.
 - Disabled-by-default email verification/dev-outbox foundation.
-- Disabled-by-default OIDC and MFU IAM status/config placeholders.
-- Disabled-by-default MFU token-login harness.
+- Disabled-by-default generic OIDC groundwork.
+- Optional supervisor-template session handoff and MFU token-login path configured only through private `.env`.
+- Verified school-email mapping into local ATDR users with analyst default and explicit admin allowlist.
+- Local runtime validation, frontend handoff success/fallback tests, and a recorded local external-login audit event.
 - Config aliases for supervisor template `IAM_SDK_*`, `IAM_ADMIN_*`, and `PROJECT_PERMISSION_*` variable names.
 - Supervisor template wrapper env names and backend env names have been inspected by key name only. The backend template contains `IAM_SDK_*`, `IAM_ADMIN_*`, `PROJECT_PERMISSION_*`, `PROJECT_IAM_*`, `PROJECT_INIT_ADMIN_EMAILS`, `PROJECT_AUTH_REQUIRE_2FA`, and `GOOGLE_CLIENT_ID`. Values are secrets/private deployment settings and must not be printed or committed.
 
 Current gaps:
 
-- No full Google/MFU OAuth browser callback flow.
+- No direct ATDR-owned Google/MFU OAuth browser callback flow; the supervisor template remains the intended outer login shell.
 - No external IAM group-to-role sync.
-- No production 2FA/OTP enforcement.
+- No independently verified preprod/production template callback, provider-managed 2FA, recovery, or deprovisioning policy.
 - No real SMTP delivery by default.
 - No viewer/read-only role.
 - No formal production IAM hardening.
@@ -220,7 +223,7 @@ Real firewall blocking must remain disabled unless explicitly approved later wit
 - ATDR is not production-certified software.
 - SQLite is local-development friendly but not the target for multi-user SaaS scale.
 - Real firewall/router syslog forwarding still needs controlled hardware validation.
-- Real MFU IAM / Google SSO needs live provider configuration, approved redirect/callback details, and role/group mapping.
+- The local template-shell handoff is implemented and exercised, but preprod/production URLs, IAM group-role mapping, provider-managed 2FA evidence, recovery, deprovisioning, and deployment approval remain incomplete.
 - Real SMTP/OTP requires provider approval and security policy.
 - Supervised ML still needs better stability, calibration, and real-source validation before stronger claims.
 - Case grouping is lightweight, not a full incident/ticketing platform.
@@ -320,17 +323,17 @@ Future work can make larger architectural, backend, and UI changes, but every ma
 
 ## Latest Verified Checkpoint
 
-The latest v3.73 verification evidence in this workspace showed:
+The latest v3.87 verification evidence in this workspace showed:
 
 - Ruff: passed.
 - Compileall: passed.
-- Backend tests: `440 passed, 1 skipped`.
+- Backend tests: `471 passed, 1 skipped`.
 - Alembic check: no drift.
 - React lint/build: passed.
-- Playwright: `16 passed, 1 skipped`.
-- Detection/ML productization evaluator: `ok=true`, required checks `5/5`, no database mutation, no model activation, no labels written, no response actions, raw log context excluded.
+- Playwright: `19 passed, 1 skipped`.
+- Real Gemini provider and full assistant probes: structured output valid, raw logs excluded, secrets hidden, assistant audit created, and response/detection/label/model side effects all zero.
 - Replay dry-run: passed against the safe two-line sample.
-- Performance smoke: no warnings; overview summary under one second, cached overview near instant, ML Governance lightweight under two seconds.
+- Performance smoke: no warnings; Overview `0.4715s`, cached Overview `0.0073s`, alert list `0.0504s`, case summary `0.0394s`, and ML Governance `1.314s`.
 - Release gate: passed.
 
 This evidence proves the current controlled productization checkpoint, not production readiness.

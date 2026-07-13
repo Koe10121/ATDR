@@ -4,7 +4,7 @@
 | --- | --- |
 | Product | MFU AI-Driven Log-Based Threat Detection and Response System |
 | Short name | ATDR |
-| Current stage | v3.65 MFU IAM and real assistant harness |
+| Current stage | v3.88 product baseline consolidation and release checkpoint |
 | Production claim | None. ATDR is not certified production software. |
 | Main workflow doc | `docs/ATDR_AI_WORKFLOW.md` |
 | Agent model | `docs/agents/ATDR_AGENT_OPERATING_MODEL.md` |
@@ -391,3 +391,23 @@ Update this PRD when a change affects:
 - Tasklist/progress-board requirements, evidence gates, or handoff workflow.
 
 If no PRD update is needed, record the reason in T17 of the ATDR T1-T20 change document.
+## v3.87 Real LLM SOC Assistant Requirement Addendum
+
+- Real-provider assistant mode is optional and disabled by default.
+- ATDR, not the external provider, owns authorization, evidence retrieval, context limits, redaction, citations, and audit policy.
+- Provider answers must use a validated structured contract and fall back to deterministic ATDR output when unavailable, malformed, unsafe, or insufficiently grounded.
+- Conversation context must be actor-scoped, bounded, resettable, and resistant to stale client identifiers.
+- Raw log lines, secrets, credentials, private paths, and model paths must not be sent to the provider by default.
+- The assistant remains read-only and cannot execute detection, response, labeling, model, user, source, email, firewall, or deletion operations.
+- External-provider deployment requires approved privacy, key-custody, quota, cost, and data-sharing controls; implementation does not constitute production readiness.
+
+## v3.88 Product Baseline Requirement Addendum
+
+- A release checkpoint must classify every visible modified/untracked file before staging.
+- Commit preparation must use an exact path allowlist; `git add .` is not acceptable for a worktree containing ignored private/runtime data.
+- The supervisor template remains the optional external login/account shell; ATDR remains FastAPI/React/SQLAlchemy/Alembic.
+- Local login and deterministic assistant fallback are required recovery paths.
+- CI must run without private `.env`, real provider calls, MFU IAM availability, PostgreSQL, Docker, or the user's current database.
+- Generated progress-board HTML may be tracked only because it is an intentional governance artifact generated from canonical Markdown.
+- Checkpoint completion requires clean-config verification, full local release verification, secret/path hygiene evidence, rollback notes, and exact commit commands.
+- No productization checkpoint may imply production certification.

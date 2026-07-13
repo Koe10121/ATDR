@@ -53,14 +53,26 @@ def build_report(*, execute: bool) -> dict[str, Any]:
         report["message"] = "ASSISTANT_LLM_ENABLED is false; no provider call was made."
         return report
     result = maybe_generate_external_answer(_build_probe_request(), settings)
-    report["executed_provider_call"] = result.used
+    report["executed_provider_call"] = bool(
+        result.used
+        or result.fallback_reason in {"provider_request_failed", "empty_provider_response", "malformed_provider_response"}
+    )
     report["provider"] = result.provider
     report["model_configured"] = bool(result.model)
     report["fallback_reason"] = result.fallback_reason
     report["raw_log_context_included"] = result.raw_log_context_included
     report["context_characters"] = result.context_characters
+    report["structured_output_valid"] = bool(result.structured_answer)
+    report["latency_ms"] = result.latency_ms
+    report["attempts"] = result.attempts
+    report["usage"] = result.usage
     report["secrets_exposed"] = result.secrets_exposed
-    report["ok"] = bool(result.used and not result.secrets_exposed and not result.raw_log_context_included)
+    report["ok"] = bool(
+        result.used
+        and result.structured_answer
+        and not result.secrets_exposed
+        and not result.raw_log_context_included
+    )
     report["message"] = "Provider probe completed." if report["ok"] else "Provider probe did not complete successfully."
     return report
 

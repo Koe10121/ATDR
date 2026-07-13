@@ -17,6 +17,7 @@ from atdr.app.schemas.assistant import (
     AssistantStatusResponse,
 )
 from atdr.app.services.assistant_service import (
+    AssistantRateLimitError,
     answer_assistant_question,
     assistant_feedback_summary,
     assistant_status,
@@ -45,17 +46,23 @@ def ask_assistant(
     settings: Settings = Depends(get_settings),
 ) -> dict:
     """Answer an analyst question using read-only ATDR context."""
-    return answer_assistant_question(
-        db,
-        question=request.question,
-        actor=current_user.username,
-        settings=settings,
-        alert_id=request.alert_id,
-        log_id=request.log_id,
-        source_id=request.source_id,
-        case_id=request.case_id,
-        include_recent_context=request.include_recent_context,
-    )
+    try:
+        return answer_assistant_question(
+            db,
+            question=request.question,
+            actor=current_user.username,
+            actor_user_id=current_user.id,
+            settings=settings,
+            alert_id=request.alert_id,
+            log_id=request.log_id,
+            source_id=request.source_id,
+            case_id=request.case_id,
+            include_recent_context=request.include_recent_context,
+            conversation_id=request.conversation_id,
+            reset_context=request.reset_context,
+        )
+    except AssistantRateLimitError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
 
 
 @router.get("/history", response_model=list[AssistantHistoryItem])
@@ -65,7 +72,7 @@ def get_assistant_history(
     limit: int = 20,
 ) -> list[dict]:
     """Return recent assistant audit summaries without raw logs or secrets."""
-    return list_assistant_history(db, limit=limit)
+    return list_assistant_history(db, current_user=current_user, limit=limit)
 
 
 @router.post("/feedback", response_model=AssistantFeedbackItem)

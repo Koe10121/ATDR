@@ -66,6 +66,14 @@ def build_mfu_iam_status(settings: Settings) -> dict[str, Any]:
             _configured(settings.mfu_iam_profile_path),
         ]
     )
+    template_shell_ready = all(
+        [
+            settings.mfu_iam_template_shell_enabled,
+            _configured(settings.mfu_iam_template_shell_base_url),
+            _configured(settings.mfu_iam_template_shell_me_path),
+            _configured(settings.mfu_iam_template_shell_header),
+        ]
+    )
     admin_ready = all(
         [
             admin_client_configured,
@@ -102,6 +110,11 @@ def build_mfu_iam_status(settings: Settings) -> dict[str, Any]:
         "domain_hints": domain_hints,
         "default_role": settings.mfu_iam_default_role,
         "mock_enabled": settings.mfu_iam_mock_enabled,
+        "template_shell_enabled": settings.mfu_iam_template_shell_enabled,
+        "template_shell_base_url_configured": _configured(settings.mfu_iam_template_shell_base_url),
+        "template_shell_me_path": settings.mfu_iam_template_shell_me_path,
+        "template_shell_header": settings.mfu_iam_template_shell_header,
+        "template_shell_ready": template_shell_ready,
         "admin_email_mapping_configured": bool(settings.mfu_iam_admin_email_list),
         "google_sso_enabled": settings.google_sso_enabled,
         "google_client_id_configured": _configured(settings.google_client_id),
@@ -120,10 +133,10 @@ def build_mfu_iam_status(settings: Settings) -> dict[str, Any]:
         "init_admin_emails_configured": bool(settings.mfu_iam_init_admin_email_list),
         "seed_admin_email_configured": _configured(settings.mfu_iam_init_seed_admin_email),
         "b2b_ready": b2b_ready,
-        "token_login_ready": bool(settings.mfu_iam_enabled and (b2b_ready or settings.mfu_iam_mock_enabled)),
+        "token_login_ready": bool(settings.mfu_iam_enabled and (b2b_ready or settings.mfu_iam_mock_enabled or template_shell_ready)),
         "admin_api_ready": admin_ready,
         "permission_bootstrap_ready": permission_ready,
-        "mode": "mfu_iam_configured" if settings.mfu_iam_enabled else "local_login_only",
+        "mode": _mfu_iam_mode(settings, b2b_ready=b2b_ready, template_shell_ready=template_shell_ready),
         "secrets_exposed": False,
     }
 
@@ -137,6 +150,8 @@ def build_mfu_iam_public_status(settings: Settings) -> dict[str, Any]:
         "token_login_ready": status["token_login_ready"],
         "b2b_ready": status["b2b_ready"],
         "mock_enabled": status["mock_enabled"],
+        "template_shell_enabled": status["template_shell_enabled"],
+        "template_shell_ready": status["template_shell_ready"],
         "google_sso_enabled": status["google_sso_enabled"],
         "google_client_id_configured": status["google_client_id_configured"],
         "allowed_domains": status["allowed_domains"],
@@ -163,6 +178,8 @@ def authenticate_mfu_iam_token(token: str, settings: Settings) -> MfuIamIdentity
         raise MfuIamAuthenticationError("MFU IAM token is required.")
     if settings.mfu_iam_mock_enabled:
         return _mock_identity_from_token(clean_token, settings)
+    if settings.mfu_iam_template_shell_enabled:
+        return _template_shell_identity_from_token(clean_token, settings)
     if not build_mfu_iam_status(settings)["b2b_ready"]:
         raise MfuIamAuthenticationError("MFU IAM token login is not fully configured.")
 
@@ -257,6 +274,90 @@ def _mock_identity_from_token(token: str, settings: Settings) -> MfuIamIdentity:
     if not email or "@" not in email:
         raise MfuIamAuthenticationError("MFU IAM mock token must include an email address.")
     return _identity_from_email(email, subject=f"mock:{email}", full_name="MFU IAM Test User", provider="mfu_iam_mock", settings=settings)
+
+
+def _mfu_iam_mode(settings: Settings, *, b2b_ready: bool, template_shell_ready: bool) -> str:
+    if not settings.mfu_iam_enabled:
+        return "local_login_only"
+    if settings.mfu_iam_mock_enabled:
+        return "mfu_iam_mock"
+    if template_shell_ready:
+        return "template_shell_session_handoff"
+    if b2b_ready:
+        return "mfu_iam_b2b_token"
+    return "mfu_iam_incomplete"
+
+
+def _template_shell_identity_from_token(token: str, settings: Settings) -> MfuIamIdentity:
+    if not settings.mfu_iam_template_shell_base_url.strip():
+        raise MfuIamAuthenticationError("Template shell base URL is not configured.")
+    url = _join_url(settings.mfu_iam_template_shell_base_url, settings.mfu_iam_template_shell_me_path)
+    header_name = settings.mfu_iam_template_shell_header.strip() or "x-access-token"
+    try:
+        response = requests.get(
+            url,
+            headers={header_name: token},
+            timeout=max(1.0, min(settings.mfu_iam_timeout_ms / 1000, 60.0)),
+        )
+    except requests.RequestException as exc:
+        raise MfuIamAuthenticationError("Template shell session validation failed.") from exc
+    if response.status_code >= 400:
+        raise MfuIamAuthenticationError("Template shell session is invalid.")
+    data = response.json()
+    if not isinstance(data, dict):
+        raise MfuIamAuthenticationError("Template shell returned an invalid profile payload.")
+    payload = _extract_template_shell_profile(data)
+    email = _first_text(
+        payload,
+        "email",
+        "authen.0.email",
+        "authen.0.username",
+        "username",
+        "account.email",
+        "data.email",
+    )
+    if not email or "@" not in email:
+        raise MfuIamAuthenticationError("Template shell profile did not include an email address.")
+    subject = _first_text(payload, "_id", "id", "account_id", "data._id") or email
+    full_name = _template_full_name(payload)
+    return _identity_from_email(
+        email.lower(),
+        subject=f"template-shell:{subject}",
+        full_name=full_name,
+        provider="template_shell",
+        settings=settings,
+    )
+
+
+def _extract_template_shell_profile(data: dict[str, Any]) -> dict[str, Any]:
+    raw_profile = data.get("data") if isinstance(data.get("data"), dict) else data
+    flattened = _flatten_candidates(raw_profile)
+    if isinstance(raw_profile.get("authen"), list):
+        for index, item in enumerate(raw_profile["authen"]):
+            if isinstance(item, dict):
+                for key, value in item.items():
+                    flattened[f"authen.{index}.{key}"] = value
+    return flattened
+
+
+def _template_full_name(payload: dict[str, Any]) -> str | None:
+    explicit = _first_text(payload, "name", "full_name", "display_name")
+    if explicit:
+        return explicit
+    first_name = _lang_value(payload.get("userinfo.firstName"))
+    last_name = _lang_value(payload.get("userinfo.lastName"))
+    full_name = " ".join(part for part in [first_name, last_name] if part).strip()
+    return full_name or None
+
+
+def _lang_value(value: Any) -> str | None:
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    if isinstance(value, list):
+        for item in value:
+            if isinstance(item, dict) and isinstance(item.get("value"), str) and item["value"].strip():
+                return item["value"].strip()
+    return None
 
 
 def _identity_from_payloads(

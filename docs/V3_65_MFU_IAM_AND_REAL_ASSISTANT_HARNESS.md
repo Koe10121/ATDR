@@ -34,7 +34,7 @@ The SOC Assistant real-LLM path remains disabled by default. A command-line prov
 
 The supervisor template provides MFU IAM B2B variables, token/introspection/profile paths, Google client ID placeholders, 2FA/OTP UI references, and permission bootstrap concepts. ATDR now understands those values through ATDR-specific settings and aliases, but real provider operation still requires private `.env` configuration and provider reachability.
 
-The test school email `6631501139@lamduan.mfu.ac.th` can be used as a local test account, but it is not hard-coded as the only allowed user. Allowed users are controlled by domain and optional role mapping.
+The synthetic school email `student.test@lamduan.mfu.ac.th` can be used in local test examples, but it is not hard-coded as the only allowed user. Allowed users are controlled by domain and optional role mapping.
 
 ## Real LLM Assistant Harness
 
@@ -60,13 +60,13 @@ For local mock IAM testing only:
 MFU_IAM_ENABLED=true
 MFU_IAM_MOCK_ENABLED=true
 MFU_IAM_ALLOWED_DOMAINS="lamduan.mfu.ac.th"
-MFU_IAM_ADMIN_EMAILS="6631501139@lamduan.mfu.ac.th"
+MFU_IAM_ADMIN_EMAILS="student.test@lamduan.mfu.ac.th"
 ```
 
 Then start the normal backend/frontend and use token:
 
 ```text
-mock:6631501139@lamduan.mfu.ac.th
+mock:student.test@lamduan.mfu.ac.th
 ```
 
 Do not commit `.env`.

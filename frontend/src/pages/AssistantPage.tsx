@@ -51,6 +51,10 @@ interface AssistantLlmDetails {
   provider_called?: boolean;
   answer_used?: boolean;
   answer_guard_reason?: string | null;
+  structured_output_valid?: boolean;
+  latency_ms?: number | null;
+  attempts?: number;
+  usage?: Record<string, number>;
 }
 
 const emptyAssistantContext: AssistantContextState = {
@@ -60,6 +64,13 @@ const emptyAssistantContext: AssistantContextState = {
   caseId: null,
   primary: null
 };
+
+function createConversationId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `atdr-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+}
 
 const promptGroups = [
   {
@@ -222,7 +233,7 @@ function citationHref(citation: AssistantCitation): string | null {
     case "/api/logs":
       return "/logs";
     case "/api/sources/{source_id}":
-      return ref ? `/?source=${ref}` : "/";
+      return ref ? `/overview?source=${ref}` : "/overview";
     case "/api/sources":
       return "/";
     case "/api/detection/runs/{run_id}":
@@ -465,8 +476,15 @@ function guardReasonLabel(reason?: string | null) {
       return "Provider answer was guarded because it did not preserve the alert context.";
     case "empty_provider_answer":
       return "Provider answer was empty, so ATDR used the deterministic fallback.";
+    case "malformed_provider_response":
+      return "Provider output did not match the required SOC structure, so ATDR used the deterministic fallback.";
+    case "provider_answer_contains_secret":
+      return "Provider output failed the secret-disclosure guard, so ATDR used the deterministic fallback.";
     case "provider_call_failed":
+    case "provider_request_failed":
       return "Provider call failed, so ATDR used the deterministic fallback.";
+    case "unsafe_request_local_only":
+      return "ATDR handled this safety-sensitive request locally and did not send it to an external provider.";
     default:
       return reason ? reason.replaceAll("_", " ") : "ATDR kept the local evidence-grounded answer.";
   }
@@ -478,17 +496,22 @@ function AssistantProviderTelemetry({ response }: { response: AssistantChatRespo
   const answerUsed = Boolean(llm?.answer_used ?? (response.external_provider_used && response.mode.startsWith("external_llm_")));
   const guarded = providerCalled && !answerUsed && (Boolean(llm?.answer_guard_reason) || response.mode.includes("guarded"));
   const fallback = Boolean(llm?.fallback_reason) && !answerUsed && !guarded;
+  const localSafetyGuard = llm?.fallback_reason === "unsafe_request_local_only";
   const provider = providerDisplayName(llm?.provider);
   const promptContract = llm?.prompt_contract ?? null;
   const rawLogContextIncluded = Boolean(llm?.raw_log_context_included ?? response.raw_log_context_included);
-  const title = guarded
+  const title = localSafetyGuard
+    ? "Local Safety Guard"
+    : guarded
     ? "External LLM Guarded"
     : providerCalled && answerUsed
       ? "External LLM Answer Used"
       : fallback
         ? "External LLM Fallback"
         : "Local Deterministic Answer";
-  const status = guarded
+  const status = localSafetyGuard
+    ? "Safety-sensitive request was answered locally without contacting the external provider."
+    : guarded
     ? "Provider was contacted, but ATDR kept the evidence-grounded local answer."
     : providerCalled && answerUsed
       ? "Provider wording passed ATDR safety checks."
@@ -508,7 +531,7 @@ function AssistantProviderTelemetry({ response }: { response: AssistantChatRespo
         </div>
         <span className={`rounded-full border px-3 py-1 text-xs font-black uppercase tracking-wide ${accent}`}>{providerCalled ? provider : "Local"}</span>
       </div>
-      <div className="mt-4 grid gap-2 text-xs font-bold text-muted sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-4 grid gap-2 text-xs font-bold text-muted sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <div className="rounded-lg border border-line bg-white px-3 py-2">
           <div className="uppercase tracking-wide">Raw logs</div>
           <div className="mt-1 text-sm text-text">{rawLogContextIncluded ? "Included" : "Not included"}</div>
@@ -524,6 +547,14 @@ function AssistantProviderTelemetry({ response }: { response: AssistantChatRespo
         <div className="rounded-lg border border-line bg-white px-3 py-2">
           <div className="uppercase tracking-wide">Prompt contract</div>
           <div className="mt-1 break-words text-sm text-text">{promptContract ?? "Local deterministic"}</div>
+        </div>
+        <div className="rounded-lg border border-line bg-white px-3 py-2">
+          <div className="uppercase tracking-wide">Structured output</div>
+          <div className="mt-1 text-sm text-text">{providerCalled ? boolLabel(llm?.structured_output_valid, "Validated", "Fallback") : "Local"}</div>
+        </div>
+        <div className="rounded-lg border border-line bg-white px-3 py-2">
+          <div className="uppercase tracking-wide">Provider latency</div>
+          <div className="mt-1 text-sm text-text">{typeof llm?.latency_ms === "number" ? `${llm.latency_ms} ms / ${llm.attempts ?? 1} attempt(s)` : "Not called"}</div>
         </div>
       </div>
     </div>
@@ -587,6 +618,7 @@ export function AssistantPage() {
   const [feedbackContextFilter, setFeedbackContextFilter] = useState("all");
   const [feedbackSinceFilter, setFeedbackSinceFilter] = useState("30");
   const [feedbackLimit, setFeedbackLimit] = useState("20");
+  const [conversationId, setConversationId] = useState(createConversationId);
   const [lastContext, setLastContext] = useState<AssistantContextState>({
     alertId,
     logId,
@@ -606,15 +638,15 @@ export function AssistantPage() {
   );
   const feedbackSummary = useAssistantFeedbackSummary(feedbackParams);
   const feedbackRecent = useAssistantFeedbackRecent(feedbackParams);
-  const hasInvestigationContext = Boolean(alertId || logId || sourceId || caseId);
+  const hasInvestigationContext = Boolean(lastContext.alertId || lastContext.logId || lastContext.sourceId || lastContext.caseId);
   const contextBriefQuestion = useMemo(() => {
-    if (alertId && logId) return `Create investigation brief for alert ${alertId} and related log ${logId}.`;
-    if (alertId) return `Create investigation brief for alert ${alertId}.`;
-    if (logId) return `Create investigation brief for log ${logId}.`;
-    if (sourceId) return `Create investigation brief for source ${sourceId}.`;
-    if (caseId) return `Create investigation brief for case ${caseId}.`;
+    if (lastContext.alertId && lastContext.logId) return `Create investigation brief for alert ${lastContext.alertId} and related log ${lastContext.logId}.`;
+    if (lastContext.alertId) return `Create investigation brief for alert ${lastContext.alertId}.`;
+    if (lastContext.logId) return `Create investigation brief for log ${lastContext.logId}.`;
+    if (lastContext.sourceId) return `Create investigation brief for source ${lastContext.sourceId}.`;
+    if (lastContext.caseId) return `Create investigation brief for case ${lastContext.caseId}.`;
     return "Create investigation brief for the latest critical alert.";
-  }, [alertId, logId, sourceId, caseId]);
+  }, [lastContext]);
 
   const providerLabel = useMemo(() => {
     if (!status.data) return "Checking";
@@ -648,19 +680,22 @@ export function AssistantPage() {
 
   useEffect(() => {
     if (!response) return;
-    const responsePrimary = primaryContextFromResponse(response);
+    const responsePrimary = response.active_context?.primary ?? primaryContextFromResponse(response);
     const responseAlertId = citationNumber(response, "/api/alerts/{alert_id}", ["alert"]);
     const responseLogId = citationNumber(response, "/api/logs/{log_id}", ["log", "related"]);
     const responseSourceId = citationNumber(response, "/api/sources/{source_id}", ["source"]);
     const responseCaseId = citationString(response, "/api/alerts/cases", ["case"]);
-    setLastContext((current) => ({
-      alertId: responseAlertId ?? current.alertId,
-      logId: responseLogId ?? current.logId,
-      sourceId: responseSourceId ?? current.sourceId,
-      caseId: responseCaseId ?? current.caseId,
-      primary: responsePrimary ?? current.primary
-    }));
-  }, [response]);
+    setLastContext({
+      alertId: response.active_context?.alert_id ?? responseAlertId ?? null,
+      logId: response.active_context?.log_id ?? responseLogId ?? null,
+      sourceId: response.active_context?.source_id ?? responseSourceId ?? null,
+      caseId: response.active_context?.case_id ?? responseCaseId ?? null,
+      primary: responsePrimary ?? null
+    });
+    if (response.conversation_id && response.conversation_id !== conversationId) {
+      setConversationId(response.conversation_id);
+    }
+  }, [conversationId, response]);
 
   function askQuestion(value: string, options: { resetContext?: boolean } = {}) {
     const trimmed = value.trim();
@@ -743,12 +778,17 @@ export function AssistantPage() {
       log_id: carriedLogId,
       source_id: carriedSourceId,
       case_id: carriedCaseId,
-      include_recent_context: true
+      include_recent_context: true,
+      conversation_id: conversationId,
+      reset_context: resetContext
     });
   }
 
   function clearContext() {
     setLastContext(emptyAssistantContext);
+    setConversationId(createConversationId());
+    assistant.reset();
+    setQuestion("What is the latest critical alert?");
     const next = new URLSearchParams(searchParams);
     ["alert", "log", "source", "case", "prompt"].forEach((key) => next.delete(key));
     setSearchParams(next);
@@ -834,24 +874,24 @@ export function AssistantPage() {
             <p className="mt-2 max-w-3xl text-sm font-semibold text-muted">
               Ask about alerts, sources, operations, ML governance, and lab workflow. The assistant cannot execute response actions.
             </p>
-            {alertId ? (
+            {lastContext.alertId ? (
               <div className="mt-3 inline-flex rounded-full border border-cyan/30 bg-cyan/10 px-3 py-1 text-xs font-black uppercase tracking-wide text-cyan">
-                Alert context #{alertId}
+                Alert context #{lastContext.alertId}
               </div>
             ) : null}
-            {logId ? (
+            {lastContext.logId ? (
               <div className="mt-3 ml-2 inline-flex rounded-full border border-cyan/30 bg-cyan/10 px-3 py-1 text-xs font-black uppercase tracking-wide text-cyan">
-                Log context #{logId}
+                Log context #{lastContext.logId}
               </div>
             ) : null}
-            {sourceId ? (
+            {lastContext.sourceId ? (
               <div className="mt-3 inline-flex rounded-full border border-cyan/30 bg-cyan/10 px-3 py-1 text-xs font-black uppercase tracking-wide text-cyan">
-                Source context #{sourceId}
+                Source context #{lastContext.sourceId}
               </div>
             ) : null}
-            {caseId ? (
+            {lastContext.caseId ? (
               <div className="mt-3 ml-2 inline-flex rounded-full border border-cyan/30 bg-cyan/10 px-3 py-1 text-xs font-black uppercase tracking-wide text-cyan">
-                Case context {caseId}
+                Case context {lastContext.caseId}
               </div>
             ) : null}
           </div>

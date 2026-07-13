@@ -104,11 +104,13 @@ Final presentation material:
 - Rule-based detection, alert deduplication, lightweight case grouping, ATT&CK-style mapping, and "Why flagged?" explanations.
 - IsolationForest anomaly scoring and supervised ML decision support with AI Governance, labeling workflow, active learning, and model validation gates.
 - Simulated response actions with confirmation, protected-IP safeguards, justification notes, and audit logs.
-- External school-email IAM groundwork via disabled-by-default generic OIDC and MFU IAM/Google SSO adapter status. Local login remains the default; v3.65 adds a disabled-by-default MFU token-login harness for configured school-email identities. Real SMTP delivery, Google/MFU OAuth callback login, provider-managed 2FA, IAM group sync, and full school OIDC login remain future work.
-- Supervisor-template IAM integration is tracked as controlled ATDR integration, not stack migration. See `docs/ATDR_TEMPLATE_MERGE_ANALYSIS.md` and `docs/security/ATDR_MFU_IAM_IMPLEMENTATION_PLAN.md`.
-- SOC Assistant real-LLM provider adapters are documented in `docs/V3_63_REAL_LLM_ASSISTANT_ADAPTER.md` and `docs/security/ATDR_REAL_LLM_ASSISTANT_PLAN.md`; external LLM calls remain disabled by default.
+- The supervisor template can act as the optional MFU school-email login shell. ATDR validates the template session through its protected profile endpoint, maps approved email domains to local ATDR users, defaults new users to analyst, requires explicit admin mapping, and keeps local login as fallback. The local handoff has been exercised; preprod/production routing, IAM group sync, provider-managed 2FA evidence, and lifecycle/deprovisioning policy remain future deployment work.
+- Supervisor-template integration is a controlled outer-shell handoff, not a migration to the template's Node/Vue/MongoDB runtime. See `docs/ATDR_TEMPLATE_SHELL_INTEGRATION_PLAN.md` and `docs/V3_86_TEMPLATE_SHELL_LIVE_RUNTIME_CHECK.md`.
+- The SOC Assistant has an optional private-config Gemini path with validated structured answers, bounded conversation context, citations, redaction, retries, rate limits, and deterministic fallback. It remains read-only, excludes raw logs by default, and cannot execute ATDR actions. See `docs/V3_87_REAL_LLM_SOC_ASSISTANT.md`.
 - Safe synthetic scenario validation under `data/samples/scenarios/`.
 - Release gate, performance smoke, onboarding docs, IAM/RBAC docs, PRD, traceability, and university workflow documentation.
+
+The v3.88 checkpoint consolidates the template-shell and assistant work into one reviewed commit set before PostgreSQL, durable workers, or further model productization. See `docs/V3_88_PRODUCT_BASELINE_CHECKPOINT.md`.
 
 ## Safety And Scope
 
@@ -174,7 +176,7 @@ Invoke-RestMethod http://127.0.0.1:8000/health
 
 ## Start The React Dashboard
 
-Install Node.js 20.x LTS or newer. Node 16 may fail with the current Vite, ESLint, and Playwright toolchain.
+Install Node.js 20.19.0 or newer, preferably the current Node 20 LTS release. Node 16 is unsupported, and older Node 20 releases may emit engine warnings with the current ESLint toolchain.
 
 ```powershell
 cd frontend

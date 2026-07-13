@@ -29,6 +29,8 @@ class MfuIamPublicStatusRead(BaseModel):
     token_login_ready: bool
     b2b_ready: bool
     mock_enabled: bool = False
+    template_shell_enabled: bool = False
+    template_shell_ready: bool = False
     google_sso_enabled: bool
     google_client_id_configured: bool
     allowed_domains: list[str]
@@ -92,6 +94,11 @@ class MfuIamStatusRead(BaseModel):
     domain_hints: list[str] = Field(default_factory=list)
     default_role: str
     mock_enabled: bool = False
+    template_shell_enabled: bool = False
+    template_shell_base_url_configured: bool = False
+    template_shell_me_path: str = "/api/v1/auth/me"
+    template_shell_header: str = "x-access-token"
+    template_shell_ready: bool = False
     admin_email_mapping_configured: bool = False
     google_sso_enabled: bool
     google_client_id_configured: bool

@@ -156,6 +156,32 @@ def test_config_doctor_reports_mfu_iam_readiness_without_secret_leakage():
     assert admin_secret not in rendered
 
 
+def test_config_doctor_reports_template_shell_readiness_without_secret_leakage():
+    result = run_config_doctor(
+        Settings(
+            ENVIRONMENT="development",
+            MFU_IAM_ENABLED=True,
+            MFU_IAM_TEMPLATE_SHELL_ENABLED=True,
+            MFU_IAM_TEMPLATE_SHELL_BASE_URL="http://127.0.0.1:8214",
+            MFU_IAM_TEMPLATE_SHELL_ME_PATH="/api/v1/auth/me",
+            MFU_IAM_TEMPLATE_SHELL_HEADER="x-access-token",
+            MFU_IAM_ALLOWED_DOMAINS="lamduan.mfu.ac.th",
+            MFU_IAM_DEFAULT_ROLE="analyst",
+        )
+    )
+    rendered = str(result)
+
+    assert result["ok"] is True
+    assert result["mfu_iam"]["mode"] == "template_shell_session_handoff"
+    assert result["mfu_iam"]["token_login_ready"] is True
+    assert result["mfu_iam"]["template_shell_enabled"] is True
+    assert result["mfu_iam"]["template_shell_ready"] is True
+    assert result["mfu_iam"]["template_shell_base_url_configured"] is True
+    assert result["mfu_iam"]["template_shell_me_path"] == "/api/v1/auth/me"
+    assert result["mfu_iam"]["secrets_exposed"] is False
+    assert "x-access-token" in rendered
+
+
 def test_config_doctor_warns_when_mfu_iam_values_are_present_but_disabled():
     secret = "disabled-mfu-secret-that-must-not-leak"
     result = run_config_doctor(

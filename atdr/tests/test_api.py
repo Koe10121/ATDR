@@ -16,6 +16,7 @@ from atdr.app.db.database import Base, get_db
 from atdr.app.db.models import Alert
 from atdr.app.main import app, database_operational_exception_handler
 from atdr.app.routers import dashboard as dashboard_router
+from atdr.app.services import mfu_iam_service
 from atdr.app.services.user_service import create_user
 from atdr.tests.test_parser import TRAFFIC_LINE
 
@@ -219,16 +220,16 @@ def test_mfu_iam_status_accepts_supervisor_template_env_names_and_hides_secrets(
     monkeypatch.setenv("PROJECT_PERMISSION_BOOTSTRAP_MODE", "iam")
     monkeypatch.setenv("PROJECT_PERMISSION_ROOT_PATH", "/mfu-ai-driven-log-based-threat-detection-and-response/security/permission")
     monkeypatch.setenv("PROJECT_PERMISSION_PATHS", "/dashboard,/security/audit")
-    monkeypatch.setenv("PROJECT_PERMISSION_ACCOUNT_EMAIL", "6631501139@lamduan.mfu.ac.th")
+    monkeypatch.setenv("PROJECT_PERMISSION_ACCOUNT_EMAIL", "student.test@lamduan.mfu.ac.th")
     monkeypatch.setenv("PROJECT_AUTH_REQUIRE_2FA", "true")
     monkeypatch.setenv("PROJECT_AUDIT_RETENTION_DAYS", "90")
     monkeypatch.setenv("PROJECT_IAM_MANAGED_CLIENT_ID", "managed-client")
     monkeypatch.setenv("PROJECT_IAM_MANAGED_CLIENT_ENDPOINT", "http://127.0.0.1:8214")
-    monkeypatch.setenv("PROJECT_IAM_MANAGED_CLIENT_OWNER_EMAIL", "6631501139@lamduan.mfu.ac.th")
+    monkeypatch.setenv("PROJECT_IAM_MANAGED_CLIENT_OWNER_EMAIL", "student.test@lamduan.mfu.ac.th")
     monkeypatch.setenv("PROJECT_IAM_MANAGED_CLIENT_ALLOWED_SCOPES", "read write")
     monkeypatch.setenv("PROJECT_IAM_MANAGED_CLIENT_ALLOWED_AUDIENCES", "mfu-api")
-    monkeypatch.setenv("PROJECT_INIT_ADMIN_EMAILS", "6631501139@lamduan.mfu.ac.th")
-    monkeypatch.setenv("PROJECT_INIT_SEED_ADMIN_EMAIL", "6631501139@lamduan.mfu.ac.th")
+    monkeypatch.setenv("PROJECT_INIT_ADMIN_EMAILS", "student.test@lamduan.mfu.ac.th")
+    monkeypatch.setenv("PROJECT_INIT_SEED_ADMIN_EMAIL", "student.test@lamduan.mfu.ac.th")
     get_settings.cache_clear()
     client = _client()
     try:
@@ -314,11 +315,11 @@ def test_mfu_iam_mock_token_login_creates_external_analyst_and_audits(monkeypatc
     get_settings.cache_clear()
     client = _client()
     try:
-        response = client.post("/api/auth/mfu-iam/token-login", json={"token": "mock:6631501139@lamduan.mfu.ac.th"})
+        response = client.post("/api/auth/mfu-iam/token-login", json={"token": "mock:student.test@lamduan.mfu.ac.th"})
         assert response.status_code == 200
         payload = response.json()
-        assert payload["username"] == "6631501139@lamduan.mfu.ac.th"
-        assert payload["email"] == "6631501139@lamduan.mfu.ac.th"
+        assert payload["username"] == "student.test@lamduan.mfu.ac.th"
+        assert payload["email"] == "student.test@lamduan.mfu.ac.th"
         assert payload["role"] == "analyst"
         assert payload["auth_provider"] == "external"
         assert payload["external_login"] is True
@@ -364,13 +365,137 @@ def test_mfu_iam_explicit_admin_email_mapping_is_required(monkeypatch):
     monkeypatch.setenv("MFU_IAM_MOCK_ENABLED", "true")
     monkeypatch.setenv("MFU_IAM_ALLOWED_DOMAINS", "lamduan.mfu.ac.th")
     monkeypatch.setenv("MFU_IAM_DEFAULT_ROLE", "analyst")
-    monkeypatch.setenv("MFU_IAM_ADMIN_EMAILS", "6631501139@lamduan.mfu.ac.th")
+    monkeypatch.setenv("MFU_IAM_ADMIN_EMAILS", "student.test@lamduan.mfu.ac.th")
     get_settings.cache_clear()
     client = _client()
     try:
-        response = client.post("/api/auth/mfu-iam/token-login", json={"token": "mock:6631501139@lamduan.mfu.ac.th"})
+        response = client.post("/api/auth/mfu-iam/token-login", json={"token": "mock:student.test@lamduan.mfu.ac.th"})
         assert response.status_code == 200
         assert response.json()["role"] == "admin"
+    finally:
+        app.dependency_overrides.clear()
+        get_settings.cache_clear()
+
+
+def test_mfu_iam_template_shell_status_is_safe_and_ready(monkeypatch):
+    monkeypatch.setenv("MFU_IAM_ENABLED", "true")
+    monkeypatch.setenv("MFU_IAM_TEMPLATE_SHELL_ENABLED", "true")
+    monkeypatch.setenv("MFU_IAM_TEMPLATE_SHELL_BASE_URL", "http://127.0.0.1:8214")
+    monkeypatch.setenv("MFU_IAM_TEMPLATE_SHELL_ME_PATH", "/api/v1/auth/me")
+    monkeypatch.setenv("MFU_IAM_TEMPLATE_SHELL_HEADER", "x-access-token")
+    monkeypatch.setenv("MFU_IAM_ALLOWED_DOMAINS", "lamduan.mfu.ac.th")
+    monkeypatch.setenv("MFU_IAM_CLIENT_SECRET", "template-shell-secret-that-must-not-leak")
+    get_settings.cache_clear()
+    client = _client()
+    try:
+        public = client.get("/api/auth/mfu-iam/public-status")
+        assert public.status_code == 200
+        public_payload = public.json()
+        assert public_payload["token_login_ready"] is True
+        assert public_payload["template_shell_enabled"] is True
+        assert public_payload["template_shell_ready"] is True
+        assert public_payload["mode"] == "template_shell_session_handoff"
+        assert public_payload["secrets_exposed"] is False
+        assert "template-shell-secret-that-must-not-leak" not in str(public_payload)
+
+        headers = _login(client, "admin", "admin123")
+        status = client.get("/api/auth/mfu-iam/status", headers=headers)
+        assert status.status_code == 200
+        payload = status.json()
+        assert payload["template_shell_base_url_configured"] is True
+        assert payload["template_shell_me_path"] == "/api/v1/auth/me"
+        assert payload["template_shell_header"] == "x-access-token"
+        assert payload["b2b_ready"] is False
+        assert payload["token_login_ready"] is True
+        assert "template-shell-secret-that-must-not-leak" not in str(payload)
+    finally:
+        app.dependency_overrides.clear()
+        get_settings.cache_clear()
+
+
+def test_template_shell_token_login_maps_verified_school_email_and_hides_token(monkeypatch):
+    monkeypatch.setenv("MFU_IAM_ENABLED", "true")
+    monkeypatch.setenv("MFU_IAM_TEMPLATE_SHELL_ENABLED", "true")
+    monkeypatch.setenv("MFU_IAM_TEMPLATE_SHELL_BASE_URL", "http://template-shell.test")
+    monkeypatch.setenv("MFU_IAM_TEMPLATE_SHELL_ME_PATH", "/api/v1/auth/me")
+    monkeypatch.setenv("MFU_IAM_ALLOWED_DOMAINS", "lamduan.mfu.ac.th")
+    monkeypatch.setenv("MFU_IAM_DEFAULT_ROLE", "admin")
+    monkeypatch.setenv("MFU_IAM_ADMIN_EMAILS", "")
+    get_settings.cache_clear()
+    calls: list[dict] = []
+
+    class FakeResponse:
+        status_code = 200
+
+        def json(self) -> dict:
+            return {
+                "data": {
+                    "_id": "template-account-id",
+                    "email": "student.test@lamduan.mfu.ac.th",
+                    "userinfo": {
+                        "firstName": [{"key": "en", "value": "MFU"}],
+                        "lastName": [{"key": "en", "value": "Student"}],
+                    },
+                    "authen": [{"email": "student.test@lamduan.mfu.ac.th"}],
+                }
+            }
+
+    def fake_get(url, **kwargs):
+        calls.append({"url": url, "headers": kwargs.get("headers", {})})
+        return FakeResponse()
+
+    monkeypatch.setattr(mfu_iam_service.requests, "get", fake_get)
+    client = _client()
+    try:
+        token = "template-session-token-that-must-not-leak"
+        response = client.post("/api/auth/mfu-iam/token-login", json={"token": token})
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["username"] == "student.test@lamduan.mfu.ac.th"
+        assert payload["email"] == "student.test@lamduan.mfu.ac.th"
+        assert payload["role"] == "analyst"
+        assert payload["auth_provider"] == "external"
+        assert payload["external_login"] is True
+        assert calls[0]["url"] == "http://template-shell.test/api/v1/auth/me"
+        assert calls[0]["headers"]["x-access-token"] == token
+
+        admin_headers = _login(client, "admin", "admin123")
+        audit = client.get("/api/audit", headers=admin_headers)
+        assert audit.status_code == 200
+        assert "mfu_iam_login_success" in str(audit.json())
+        assert token not in str(audit.json())
+    finally:
+        app.dependency_overrides.clear()
+        get_settings.cache_clear()
+
+
+def test_template_shell_token_login_failure_hides_token(monkeypatch):
+    monkeypatch.setenv("MFU_IAM_ENABLED", "true")
+    monkeypatch.setenv("MFU_IAM_TEMPLATE_SHELL_ENABLED", "true")
+    monkeypatch.setenv("MFU_IAM_TEMPLATE_SHELL_BASE_URL", "http://template-shell.test")
+    monkeypatch.setenv("MFU_IAM_ALLOWED_DOMAINS", "lamduan.mfu.ac.th")
+    get_settings.cache_clear()
+
+    class FakeResponse:
+        status_code = 401
+
+        def json(self) -> dict:
+            return {"error": "invalid_token"}
+
+    monkeypatch.setattr(mfu_iam_service.requests, "get", lambda *args, **kwargs: FakeResponse())
+    client = _client()
+    try:
+        token = "bad-template-token-that-must-not-leak"
+        response = client.post("/api/auth/mfu-iam/token-login", json={"token": token})
+        assert response.status_code == 401
+        assert response.json()["detail"] == "MFU IAM login failed."
+        assert token not in str(response.json())
+
+        admin_headers = _login(client, "admin", "admin123")
+        audit = client.get("/api/audit", headers=admin_headers)
+        assert audit.status_code == 200
+        assert "mfu_iam_login_failed" in str(audit.json())
+        assert token not in str(audit.json())
     finally:
         app.dependency_overrides.clear()
         get_settings.cache_clear()

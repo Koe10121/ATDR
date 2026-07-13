@@ -78,7 +78,7 @@ v3.64 closes the template-env compatibility gap. The remaining real-login gap is
 
 ## Test School Account Policy
 
-`6631501139@lamduan.mfu.ac.th` may be used as a local test school email account. It must not be hard-coded as the only user. Future school-email rules should allow approved domains and map roles through configuration or an advisor-approved IAM group policy.
+`student.test@lamduan.mfu.ac.th` is the synthetic account used in local test examples. It must not be hard-coded as the only user. School-email rules allow approved domains and map roles through configuration or an advisor-approved IAM group policy.
 
 ## Merge Rules
 

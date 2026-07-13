@@ -33,9 +33,32 @@ Invoke-RestMethod http://127.0.0.1:8000/health
 
 Expected result: status `ok`, database `ok`, and response mode `simulation`.
 
+## Optional Supervisor-Template Login Shell
+
+ATDR can run behind the advisor-provided supervisor template as an optional local school-email login shell. This does not replace FastAPI/React and does not change the normal local startup commands.
+
+Safe readiness checks:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.validate_template_bridge_contract --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.validate_template_shell_runtime --check-runtime --pretty
+```
+
+The private local profile uses the template backend profile endpoint to validate a template session, maps an approved school-email domain to a local ATDR user, defaults new users to analyst, and grants admin only through an explicit allowlist. Local username/password login remains available if template handoff is disabled or fails.
+
+Current local evidence includes a successful external-login audit and one mapped external user. This does not prove preprod/production callback routing, IAM group synchronization, provider-managed 2FA, recovery, or deprovisioning.
+
+The template launcher source lives outside this repository at:
+
+```text
+C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\frontend-vue\src\views\Dashboard.vue
+```
+
+Do not copy template `.env` files or credentials into ATDR or Git.
+
 ## SOC Assistant
 
-v3.9 keeps the assistant read-only and adds broader analyst question coverage, prompt presets, source references, and safe audit-backed recent-question history.
+v3.87 keeps the assistant read-only and adds validated external-provider answers, bounded server-owned follow-up context, structured citations, retries, rate limiting, and deterministic fallback.
 
 Open the React dashboard and use:
 
@@ -61,7 +84,7 @@ Safe example questions:
 
 Assistant safety defaults:
 
-- External LLM provider is disabled by default.
+- External LLM provider is disabled by default and enabled only through private `.env` configuration.
 - Raw log context is disabled by default.
 - IP redaction is enabled by default.
 - Questions are audited.
@@ -80,7 +103,21 @@ ASSISTANT_REDACT_IPS=true
 ASSISTANT_ALLOW_RAW_LOG_CONTEXT=false
 ```
 
-Do not commit `.env` files or API keys. Any future external LLM provider must go through privacy/security review first.
+Do not commit `.env` files or API keys. External-provider deployment still requires privacy, quota, key-custody, and organizational review.
+
+### Real Provider Safety Checks
+
+These commands never print the configured API key:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.test_assistant_llm_provider --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.test_assistant_llm_provider --execute --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.test_assistant_chat_provider --execute --pretty
+```
+
+The last command uses synthetic data in a temporary database. Confirm `structured_output_valid=true`, `raw_log_context_included=false`, `secrets_exposed=false`, and zero response, detection, label, and model side effects.
+
+For a dashboard check, ask about a valid alert, ask a follow-up such as `What logs are related?`, verify the active alert context and citations remain correct, then use **Clear context** before asking a global question such as `Explain the latest critical alert.`
 
 ## v3.4 Shared-Lab Readiness Checks
 

@@ -43,6 +43,8 @@ def _configured_checks(status: dict[str, Any]) -> dict[str, bool]:
         "token_path": bool(status["token_path_configured"]),
         "introspect_path": bool(status["introspect_path_configured"]),
         "profile_path": bool(status["profile_path_configured"]),
+        "template_shell": bool(status["template_shell_ready"]),
+        "template_shell_base_url": bool(status["template_shell_base_url_configured"]),
         "allowed_domains": bool(status["allowed_domains"]),
     }
 
@@ -71,6 +73,8 @@ def build_mfu_iam_validation_report(
         "mode": status["mode"],
         "enabled": status["enabled"],
         "mock_enabled": status["mock_enabled"],
+        "template_shell_enabled": status["template_shell_enabled"],
+        "template_shell_ready": status["template_shell_ready"],
         "b2b_ready": status["b2b_ready"],
         "token_login_ready": status["token_login_ready"],
         "admin_api_ready": status["admin_api_ready"],
@@ -115,6 +119,27 @@ def build_mfu_iam_validation_report(
                 "secrets_exposed": False,
             }
             report["message"] = "MFU IAM mock validation completed."
+            return report
+
+        if runtime_settings.mfu_iam_template_shell_enabled:
+            if not token:
+                report["ok"] = False
+                report["message"] = (
+                    "Template-shell session handoff is configured. No session token was provided, so no provider call "
+                    "was made. Run atdr.scripts.validate_template_shell_runtime --check-runtime for service readiness, "
+                    "or provide a token only for a manual session validation."
+                )
+                return report
+            identity = authenticate_mfu_iam_token(token, runtime_settings)
+            report["executed_provider_call"] = True
+            report["provider_result"] = {
+                "mode": "template_shell",
+                "identity_validated": True,
+                "email_domain": identity.details.get("email_domain"),
+                "role": identity.role,
+                "secrets_exposed": False,
+            }
+            report["message"] = "Template-shell session validation completed."
             return report
 
         probe_token = token or _fetch_client_credentials_token(runtime_settings)

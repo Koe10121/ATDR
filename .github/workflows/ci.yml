@@ -56,13 +56,20 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "20.19.0"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+
+      - name: Validate tasklist progress standard
+        run: node scripts/check-tasklist-progress-standard.js .
 
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci
+
+      - name: Audit frontend dependencies
+        working-directory: frontend
+        run: npm audit --audit-level=high
 
       - name: Install Playwright Chromium
         working-directory: frontend
