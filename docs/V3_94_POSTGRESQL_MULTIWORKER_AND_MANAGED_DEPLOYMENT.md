@@ -181,7 +181,7 @@ The read-only performance smoke completed successfully but reported cold large-S
 
 ## Remaining Gaps
 
-- A successful remote PostgreSQL CI or approved-host run must be recorded.
+- Ephemeral PostgreSQL CI passed in GitHub Actions run [#49](https://github.com/Koe10121/ATDR/actions/runs/29247673505) on commit `50c37e5`.
 - Multi-host shared-storage mount behavior and permissions need environment evidence.
 - API mutation quiescing during backup needs a deployment maintenance procedure.
 - External metrics persistence, alert routing, TLS/reverse proxy, secret management, and disaster recovery remain separate phases.

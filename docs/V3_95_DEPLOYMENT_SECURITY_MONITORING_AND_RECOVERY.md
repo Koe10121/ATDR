@@ -173,9 +173,9 @@ The deployment validator checks proxy controls, alert coverage, dry-run-only sch
 
 ## PostgreSQL CI Status
 
-The `postgres-persistence` GitHub Actions job is configured to use disposable PostgreSQL 16 databases and exercise migrations, persistence restore, concurrent workers, shared staging, lease recovery, and backup coordination. This workstation cannot provide remote GitHub Actions evidence. A deliberate reviewed commit and push is still required before that job can run; no push was performed in v3.95 without user approval.
+The `postgres-persistence` GitHub Actions job uses disposable PostgreSQL 16 databases to exercise migrations, persistence restore, concurrent workers, shared staging, lease recovery, and backup coordination. After explicit approval, GitHub Actions run [#49](https://github.com/Koe10121/ATDR/actions/runs/29247673505) passed this job on commit `50c37e5`. The same run passed the backend release gate (`525 passed, 1 skipped`) and frontend dashboard job (`21 passed` Playwright tests).
 
-The latest public remote run is CI #44 for older commit `9d8580b`, and it failed before this cumulative work was pushed. Local `main` is one commit ahead of `origin/main`, while v3.89-v3.95 remain uncommitted. Therefore the remote result is not evidence for or against the current v3.95 implementation.
+This closes the ephemeral CI PostgreSQL evidence gap. It does not validate multi-host mount permissions, a managed Linux installation, real certificates, persistent monitoring, secret-provider operation, or deployment-sized recovery objectives.
 
 ## Final Local Verification
 
@@ -195,7 +195,6 @@ On 2026-07-13:
 
 ## Remaining Environment Gaps
 
-- successful remote PostgreSQL CI evidence;
 - installation and validation on an approved Linux host;
 - real TLS certificates and DNS;
 - persistent Prometheus storage and approved alert routing;

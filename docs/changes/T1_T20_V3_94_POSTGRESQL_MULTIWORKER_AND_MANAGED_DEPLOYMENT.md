@@ -62,7 +62,7 @@ ATDR now has a PostgreSQL-aware multi-worker contract and deployable service exa
 
 ## T16 Tests Run / Evidence
 
-Local focused v3.90-v3.94 tests, migration application/check, SQL compilation, deployment validation, and both validator dry runs passed. Full backend passed `515 passed, 1 skipped`; React lint/build and Playwright passed `21 passed, 1 skipped`; replay dry-run wrote zero; release gate returned `ok: true`. Performance smoke completed with cold large-SQLite warnings and a fast cached Overview. Environment-backed PostgreSQL execution remains pending the ephemeral CI/approved-host run and must not be described as passed before that evidence exists.
+Local focused v3.90-v3.94 tests, migration application/check, SQL compilation, deployment validation, and both validator dry runs passed. Full backend passed `515 passed, 1 skipped`; React lint/build and Playwright passed `21 passed, 1 skipped`; replay dry-run wrote zero; release gate returned `ok: true`. Performance smoke completed with cold large-SQLite warnings and a fast cached Overview. GitHub Actions run [#49](https://github.com/Koe10121/ATDR/actions/runs/29247673505) then passed disposable PostgreSQL migrations, restore, drift checking, persistence regressions, concurrent workers/shared staging, lease recovery, and backup coordination on commit `50c37e5`.
 
 ## T17 PRD / Docs Updated
 
@@ -70,7 +70,7 @@ Local focused v3.90-v3.94 tests, migration application/check, SQL compilation, d
 
 ## T18 Risks / Blockers / Assumptions / Decisions
 
-Local Docker/PostgreSQL/client tools are unavailable, so local evidence is unit/SQL/dry-run only. Shared storage must be a real common mount with one storage ID. Advisory locking coordinates ATDR workers, not arbitrary database clients. The queue is lease-fenced at-least-once with chunk replay protection, not global exactly-once.
+Local Docker/PostgreSQL/client tools are unavailable, so local evidence is unit/SQL/dry-run only; ephemeral PostgreSQL behavior is validated in CI. Shared storage must be a real common mount with one storage ID, and multi-host permissions remain untested. Advisory locking coordinates ATDR workers, not arbitrary database clients. The queue is lease-fenced at-least-once with chunk replay protection, not global exactly-once.
 
 ## T19 Release / Rollback
 
@@ -78,4 +78,4 @@ Apply Alembic before starting v3.94 workers. Install private environment setting
 
 ## T20 Final Handoff
 
-Keep SQLite and one worker for normal local use. On an approved PostgreSQL host, run the isolated validators, inspect their secret-safe output, record CI/host evidence, then deploy the separately managed API and worker services. Production readiness is not claimed.
+Keep SQLite and one worker for normal local use. CI-hosted PostgreSQL behavior is validated. Before shared deployment, run the same validators on an approved host, validate its shared mount and service permissions, and inspect secret-safe evidence before deploying separate API and worker services. Production readiness is not claimed.

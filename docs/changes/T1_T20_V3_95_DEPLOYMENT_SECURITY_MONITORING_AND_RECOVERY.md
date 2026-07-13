@@ -47,7 +47,7 @@ In scope: optional deployment references, trusted-forwarded-header policy, safe 
 - Controlled local read-only load reports zero errors and no budget warnings.
 - Isolated recovery drill passes and confirms the configured database is unchanged.
 - Full repository verification passes.
-- Remote PostgreSQL evidence remains explicitly pending until an approved push.
+- Remote PostgreSQL CI evidence must pass after an explicitly approved push; approved-host deployment evidence remains separate.
 
 ## T9 API Contract
 
@@ -86,7 +86,7 @@ Implemented optional Nginx, Prometheus, alert-rule, systemd-timer, and secret-ma
 
 ## T16 Tests Run / Evidence
 
-Focused Ruff, compileall, and v3.95 tests passed (`8 passed`). Deployment validation passed. The isolated recovery drill passed with checksum, integrity, row-count, and revision validation and no configured-DB change. A 24-request local read-only load sample completed with zero errors and no budget warnings. Full backend passed `523 passed, 1 skipped`; Alembic had no drift; React lint/build passed; Playwright passed `21 passed, 1 skipped`; replay, performance, task-board checks, and release gate all passed.
+Focused Ruff, compileall, and v3.95 tests passed. Deployment validation passed. The isolated recovery drill passed with checksum, integrity, row-count, and revision validation and no configured-DB change. A 24-request local read-only load sample completed with zero errors and no budget warnings. Local full backend passed `523 passed, 1 skipped`; Alembic had no drift; React lint/build passed; Playwright passed `21 passed, 1 skipped`; replay, performance, task-board checks, and release gate all passed. After the approved push and portability fixes, GitHub Actions run [#49](https://github.com/Koe10121/ATDR/actions/runs/29247673505) passed all jobs on `50c37e5`: backend `525 passed, 1 skipped`, frontend Playwright `21 passed`, and the complete disposable PostgreSQL persistence/multi-worker workflow.
 
 ## T17 PRD / Docs Updated
 
@@ -94,7 +94,7 @@ Updated PRD, traceability, productization roadmap, lab runbook, task board, and 
 
 ## T18 Risks / Blockers / Assumptions / Decisions
 
-- Remote PostgreSQL CI cannot run until a reviewed commit is pushed.
+- Ephemeral PostgreSQL CI passed; multi-host storage permissions and managed-host operation remain unvalidated.
 - TLS, DNS, Linux service installation, alert routing, and secret-manager integration require an approved environment.
 - RPO 24h and RTO 4h are planning assumptions, not measured guarantees.
 - Cold large-SQLite Overview/ML Governance performance remains a known warning.
@@ -106,4 +106,4 @@ Use an exact path allowlist; never `git add .`. Do not commit or push without ap
 
 ## T20 Final Handoff
 
-Repository-side v3.95 controls are ready for final verification. Environment-backed PostgreSQL CI, real TLS/monitoring/secret-service installation, and measured recovery exercises remain explicit deployment gates. Recommended v3.96 is approved-host deployment rehearsal and remote evidence closure, not additional runtime features.
+Repository-side v3.95 controls and ephemeral PostgreSQL CI are verified. Real TLS/monitoring/secret-service installation, multi-host storage validation, and measured recovery exercises remain explicit approved-host deployment gates. Recommended v3.96 is an approved-host deployment rehearsal, not additional runtime features.
