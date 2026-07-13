@@ -139,6 +139,8 @@
 - Performance smoke passed without warnings: Overview `0.4473s`, cached Overview `0.0062s`, alerts `0.0350s`, cases `0.0743s`, and ML Governance `1.1685s`.
 - Release gate returned `ok: true` with no failed required checks.
 - GitHub Actions #50 independently remained successful for backend, frontend, and disposable PostgreSQL persistence at baseline commit `c05e3e0`.
+- GitHub Actions run `29258487703` passed backend, frontend, and disposable PostgreSQL persistence for committed v3.96 SHA `f49a50a`.
+- Credential-free environment discovery found the supervisor-named preproduction FQDN unresolved, HTTPS unavailable, no configured GitHub Environment, and no ATDR deployment-host coordinates; no IAM call or remote state change occurred.
 
 Skipped environment checks:
 
@@ -157,6 +159,7 @@ Skipped environment checks:
 - Local SQLite alert/case p95 warnings are not PostgreSQL capacity evidence.
 - Synthetic recovery timing is not an SLA.
 - Environment-backed checks are blockers, not test failures.
+- The supervisor-named preproduction URL is a configuration intention, not evidence of a provisioned host; DNS and HTTPS were unavailable during the read-only check.
 
 ## T19 Release / Rollback
 

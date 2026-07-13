@@ -18,7 +18,7 @@ ATDR remains a controlled shared-deployment candidate. It is not production-cert
 | --- | --- | --- |
 | Approved Linux host | unavailable | Current host is Windows. Obtain the hostname, OS/version, owner, access method, and written rehearsal approval. |
 | PostgreSQL deployment instance | unavailable locally | Disposable PostgreSQL 16 migration, concurrency, lease-recovery, and backup coordination passed in GitHub Actions #50. An approved private `DATABASE_URL` and host tools are still required. |
-| DNS name | unavailable | Obtain the approved preproduction FQDN and ownership of its DNS record. |
+| DNS name | candidate unprovisioned | The supervisor package names `preprod-mfu-ai-driven-log-based-threat-detection-and-response.mfu.ac.th`, but a credential-free read-only check on 2026-07-13 found no DNS A record and no HTTPS endpoint. Confirm ownership and provision the approved record before rehearsal. |
 | TLS certificate and key | unavailable | Install approved material outside Git and restrict the key to its service owner. |
 | Shared staging mount | unavailable | Provide an absolute shared path, storage identity, service owner/group, capacity, and mount behavior on every worker host. |
 | Prometheus / alert destination | unavailable | Provide an internal Prometheus URL, retention policy, Alertmanager destination, and alert owner. |
@@ -26,6 +26,8 @@ ATDR remains a controlled shared-deployment candidate. It is not production-cert
 | MFU outer-shell handoff | incomplete in private profile | The current private profile enables MFU IAM but does not complete either B2B credentials or secure handoff. Disable it for local use or privately configure the v3.91 handoff contract. |
 
 No remote deployment, DNS change, certificate installation, secret rotation, MFU call, or non-read-only remote load was performed.
+
+The same discovery pass found no configured GitHub Environment and no usable ATDR host/PostgreSQL/TLS/Prometheus/shared-storage coordinates in the supervisor package. Its MFU IAM variables and generic Node/Vue/Mongo deployment files do not constitute an ATDR preproduction runtime. No IAM endpoint was contacted and no secret value was read into the report.
 
 ## Acceptance Preflight
 
