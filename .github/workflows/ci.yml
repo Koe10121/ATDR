@@ -10,6 +10,7 @@ jobs:
     env:
       DATABASE_URL: sqlite:///./atdr_ci.db
       AUTO_CREATE_TABLES: "true"
+      ATDR_AUTH_MODE: local_recovery
       RESPONSE_SIMULATION: "true"
       ASSISTANT_LLM_ENABLED: "false"
       ASSISTANT_ALLOW_RAW_LOG_CONTEXT: "false"
@@ -127,6 +128,7 @@ jobs:
       ATDR_V394_BACKUP_SOURCE_DATABASE_URL: postgresql+psycopg2://atdr_ci:atdr_ci_ephemeral@127.0.0.1:5432/atdr_v394_backup_source
       ATDR_V394_BACKUP_RESTORE_DATABASE_URL: postgresql+psycopg2://atdr_ci:atdr_ci_ephemeral@127.0.0.1:5432/atdr_v394_backup_restore
       AUTO_CREATE_TABLES: "false"
+      ATDR_AUTH_MODE: local_recovery
       ENVIRONMENT: development
       JWT_SECRET_KEY: v389-ci-isolated-database-secret-not-for-deployment
       RESPONSE_SIMULATION: "true"
