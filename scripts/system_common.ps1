@@ -127,6 +127,111 @@ function Get-TemplateShellFingerprint {
     }
 }
 
+function Get-InstalledMfuShellPackageStatus {
+    param([Parameter(Mandatory = $true)][string]$TemplateRoot)
+
+    $manifestPath = Join-Path $TemplateRoot "mfu-shell-release.json"
+    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+        return [pscustomobject]@{
+            managed = $false
+            valid = $false
+            release_version = $null
+            source_fingerprint = $null
+            file_count = 0
+            diagnosis = "package_manifest_missing"
+            secrets_exposed = $false
+        }
+    }
+    try {
+        $contract = Read-TemplateShellContract
+        $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+        if ([int]$manifest.package_format_version -ne [int]$contract.package_release.format_version) {
+            throw "package_format_mismatch"
+        }
+        if ([string]$manifest.release_version -ne [string]$contract.package_release.release_version) {
+            throw "release_version_mismatch"
+        }
+        if ([string]$manifest.source_fingerprint -ne [string]$contract.package_release.source_fingerprint) {
+            throw "source_fingerprint_mismatch"
+        }
+        foreach ($entry in @($manifest.files)) {
+            $relative = ([string]$entry.path).Replace('/', '\')
+            $target = Join-Path $TemplateRoot $relative
+            if (-not (Test-Path -LiteralPath $target -PathType Leaf)) {
+                throw "source_file_missing"
+            }
+            $actual = (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actual -ne [string]$entry.sha256) {
+                throw "source_integrity_failed"
+            }
+        }
+        return [pscustomobject]@{
+            managed = $true
+            valid = $true
+            release_version = [string]$manifest.release_version
+            source_fingerprint = [string]$manifest.source_fingerprint
+            file_count = @($manifest.files).Count
+            diagnosis = "verified"
+            secrets_exposed = $false
+        }
+    }
+    catch {
+        return [pscustomobject]@{
+            managed = $true
+            valid = $false
+            release_version = $null
+            source_fingerprint = $null
+            file_count = 0
+            diagnosis = [string]$_.Exception.Message
+            secrets_exposed = $false
+        }
+    }
+}
+
+function Copy-MfuShellPrivateConfiguration {
+    param(
+        [Parameter(Mandatory = $true)][string]$SourceRoot,
+        [Parameter(Mandatory = $true)][string]$DestinationRoot
+    )
+
+    $contract = Read-TemplateShellContract
+    $copied = [System.Collections.Generic.List[string]]::new()
+    $missing = [System.Collections.Generic.List[string]]::new()
+    foreach ($item in @($contract.provider_private_files)) {
+        $relative = ([string]$item).Replace('/', '\')
+        $source = Join-Path $SourceRoot $relative
+        $destination = Join-Path $DestinationRoot $relative
+        if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+            $missing.Add([string]$item)
+            continue
+        }
+        $parent = Split-Path -Parent $destination
+        New-Item -ItemType Directory -Path $parent -Force | Out-Null
+        Copy-Item -LiteralPath $source -Destination $destination -Force
+        $copied.Add([string]$item)
+    }
+    return [pscustomobject]@{
+        copied = @($copied)
+        missing = @($missing)
+        secrets_exposed = $false
+    }
+}
+
+function Get-MfuProviderBlocker {
+    param(
+        [object[]]$MissingProviderFields,
+        [Parameter(Mandatory = $true)]$GoogleStatus
+    )
+
+    if (@($MissingProviderFields).Count -gt 0) {
+        return "Install the approved private MFU shell configuration, then rerun setup."
+    }
+    if (-not $GoogleStatus.ready) {
+        return Get-TemplateGoogleClientAction $GoogleStatus
+    }
+    return $null
+}
+
 function Test-NodeVersionSupported {
     param([AllowNull()][string]$Version)
     if ([string]::IsNullOrWhiteSpace($Version) -or $Version -notmatch '^v?(\d+)\.(\d+)\.(\d+)') {

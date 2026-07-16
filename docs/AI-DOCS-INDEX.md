@@ -93,6 +93,9 @@ This index defines the active ATDR documentation set for AI/Codex-assisted work.
 | `README.md` | Short project overview, startup commands, verification commands, and doc map. |
 | `docs/QUICKSTART_FOR_TEAM.md` | Windows setup for teammates using clone or zip download. |
 | `docs/TEAM_ONE_COMMAND_START.md` | Canonical two-command post-clone setup/start workflow for the separate MFU shell and ATDR services. |
+| `docs/V4_6_VERSIONED_MFU_SHELL_DISTRIBUTION.md` | Sanitized companion archive design, checksum contract, clean-machine acceptance, and remaining provider gate. |
+| `docs/V4_6_REPO_HYGIENE_REPORT.md` | v4.6 package and Git-boundary hygiene evidence. |
+| `docs/V4_6_COMMIT_ALLOWLIST.md` | Exact review boundary for a future explicitly approved v4.6 commit. |
 | `docs/LAB_RUNBOOK.md` | Local/lab operations, replay, syslog, sources, scenarios, and troubleshooting. |
 | `docs/ACCEPTANCE_TEST_CHECKLIST.md` | Manual acceptance workflow. |
 | `docs/FINAL_SYSTEM_STATUS.md` | Current final controlled academic status. |

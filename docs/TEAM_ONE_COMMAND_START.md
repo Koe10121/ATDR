@@ -9,42 +9,45 @@ ATDR uses the approved MFU application as its mandatory outer shell. A normal us
 - Node.js `20.19.0` or newer with npm.
 - MongoDB Community Server running on `127.0.0.1:27017` for the MFU shell.
 - A clone or zip of this ATDR repository.
-- A separate approved copy of the supervisor MFU shell.
+- The approved `mfu-atdr-shell-1.4.0-atdr.1.zip` companion release.
 - The shell's private backend/frontend environment files, obtained through the approved channel.
 - One university-approved Google OAuth Web client ID configured identically as `VUE_APP_CLIENTID` and `GOOGLE_CLIENT_ID` before normal startup.
 
-The supervisor shell is not copied into ATDR and its private environment file is never committed.
+The shell archive, installed shell, and private environment files are not committed to ATDR.
 
 ## First Setup
 
-Open PowerShell in the ATDR repository and run one command. The shell can be in any folder, including a path containing spaces.
+Open PowerShell in the ATDR repository and run one command. Archive and project paths may contain spaces; keep the clone in a reasonably short Windows path.
 
 ```powershell
-.\scripts\setup_team.cmd -TemplateRoot "D:\Approved Projects\mfu-ai-driven-log-based-threat-detection-and-response"
+.\scripts\setup_team.cmd -ShellPackage "D:\Approved Artifacts\mfu-atdr-shell-1.4.0-atdr.1.zip"
 ```
 
 The setup command:
 
 - discovers the ATDR root from the script location;
-- validates the approved shell structure without printing secrets;
+- verifies the package release, checksum, source manifest, and safety boundary;
+- installs the shell under ignored `.atdr_runtime/shell/<release>`;
 - creates `.venv` and installs missing dependencies;
 - creates ignored private ATDR configuration with random local secrets;
-- records the shell location in ignored `.atdr_runtime/team-config.json`;
+- records only non-secret release metadata in ignored `.atdr_runtime/team-config.json`;
 - backs up an existing SQLite database before migrations;
 - applies additive Alembic migrations without resetting or seeding data.
 
-Setup also checks whether the private shell profile contains the required MongoDB, IAM proxy, admin-scope, permission-group, and 2FA field names with non-placeholder values. It never prints or copies those values. Missing provider settings do not block dependency installation or Alembic migration; they are reported as a separate provider-readiness blocker, and normal startup remains fail-closed.
+Setup also checks whether the separately supplied private shell profile contains the required MongoDB, IAM proxy, admin-scope, permission-group, OAuth, and 2FA fields with non-placeholder values. It never prints those values. Missing provider settings do not block dependency installation or Alembic migration; they are reported as one separate provider-readiness blocker, and normal startup remains fail-closed.
 
-When matching Google frontend/backend client configuration is present, setup also removes the old source fallback with an ignored backup. Diagnose without displaying the value:
+Install approved private configuration without adding it to the package or repository:
 
 ```powershell
-.\.venv\Scripts\python.exe -m atdr.scripts.template_auth_doctor --template-root "D:\Approved Projects\mfu-ai-driven-log-based-threat-detection-and-response" --pretty
+.\scripts\setup_team.cmd `
+  -ShellPackage "D:\Approved Artifacts\mfu-atdr-shell-1.4.0-atdr.1.zip" `
+  -ShellPrivateConfigRoot "D:\Private MFU Configuration"
 ```
 
 For an existing private `.env` that must be converted to shell mode, review it first and use:
 
 ```powershell
-.\scripts\setup_team.cmd -TemplateRoot "D:\Approved Projects\mfu-ai-driven-log-based-threat-detection-and-response" -UpdateExistingConfig
+.\scripts\setup_team.cmd -ShellPackage "D:\Approved Artifacts\mfu-atdr-shell-1.4.0-atdr.1.zip" -UpdateExistingConfig
 ```
 
 The previous `.env` is copied to ignored `.atdr_runtime/config-backups/` before updates.
@@ -52,7 +55,7 @@ The previous `.env` is copied to ignored `.atdr_runtime/config-backups/` before 
 To inspect setup without changing files or the database:
 
 ```powershell
-.\scripts\setup_team.cmd -TemplateRoot "D:\Approved Projects\mfu-ai-driven-log-based-threat-detection-and-response" -DryRun
+.\scripts\setup_team.cmd -ShellPackage "D:\Approved Artifacts\mfu-atdr-shell-1.4.0-atdr.1.zip" -DryRun
 ```
 
 ## Start, Check, And Stop
@@ -86,7 +89,7 @@ Check configuration and service state without exposing secret values:
 
 The report deliberately separates:
 
-- **Installation ready:** Python/pip, Node 20.19+, npm, shell structure, private ATDR configuration, SQLite/Alembic, and response simulation are usable;
+- **Installation ready:** Python/pip, Node 20.19+, npm, package integrity, shell structure, private ATDR configuration, SQLite/Alembic, and response simulation are usable;
 
 - **IAM proxy configured:** required private shell fields appear usable;
 - **Google authentication ready:** both private client fields are configured identically and no source fallback exists;
@@ -116,7 +119,8 @@ Stop only processes recorded by the launcher:
 | --- | --- |
 | Script execution is blocked | Use the `.cmd` launchers above; they apply process-only PowerShell bypass and do not change machine policy. |
 | Node version is rejected | Install Node.js 20.19 or newer and rerun setup. |
-| Shell path missing | Rerun setup with `-TemplateRoot`; no username-specific path is built into ATDR. |
+| Shell package missing | Obtain the approved versioned archive and rerun setup with `-ShellPackage`; no username-specific path is built into ATDR. |
+| Windows extraction reports a long path | Move the clone to a shorter location such as `C:\ATDR Team\ATDR`; spaces remain supported. |
 | MongoDB unavailable | Start MongoDB, then run `check_system.cmd`. MongoDB is required by the MFU shell, not by ATDR's SQL database. |
 | Port already occupied | Run `stop_system.cmd`; if the process was not launcher-owned, stop the owning application and rerun. |
 | Configuration incomplete | Run `check_system.cmd`; it lists missing field names only. |
@@ -129,4 +133,4 @@ Stop only processes recorded by the launcher:
 
 ## Honest Scope
 
-The local shell-to-ATDR contract is testable and portable. Real MFU provider authentication, provider-managed 2FA, approved group mapping, recovery, and deprovisioning still require authorized university environment validation. Response automation and real firewall blocking remain disabled.
+The versioned shell-to-ATDR package contract and clean-machine installation are verified. Real MFU provider authentication, provider-managed 2FA, approved group mapping, recovery, and deprovisioning still require authorized university environment validation. Response automation and real firewall blocking remain disabled.

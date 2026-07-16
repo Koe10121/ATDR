@@ -1,10 +1,10 @@
 {
-  "contract_version": 1,
+  "contract_version": 2,
   "dependency_name": "MFU supervisor application shell",
   "runtime_role": "authentication and application-entry shell",
-  "distribution_mode": "separately_supplied_approved_copy",
-  "source_revision_status": "not_published_as_versioned_companion_repository",
-  "distribution_blocker": "MFU must provide an approved versioned archive or companion repository reference before clean-clone distribution can be fully self-service.",
+  "distribution_mode": "sanitized_versioned_companion_archive",
+  "source_revision_status": "approved_local_release_candidate",
+  "distribution_blocker": "The sanitized archive must be delivered through an approved university or team channel; private provider configuration is always distributed separately.",
   "required_paths": [
     "backend-node/package.json",
     "backend-node/server.js",
@@ -27,6 +27,66 @@
     "backend-node/.env.local",
     "frontend-vue/.env.localdev"
   ],
+  "package_release": {
+    "format_version": 1,
+    "release_version": "1.4.0-atdr.1",
+    "source_template_version": "1.4.0",
+    "archive_name": "mfu-atdr-shell-1.4.0-atdr.1.zip",
+    "archive_sha256": "ce327eb315eac0591026e68eb416ba8415c0d3f2e6e6b371c2671f1ac2c72d3a",
+    "source_fingerprint": "cd6ce0de6824b6d1749f7c937d63b0d6a4e7b8df565e3f353ae0d6f2eded1201",
+    "manifest_name": "mfu-shell-release.json",
+    "private_configuration_included": false,
+    "sanitization_policy": {
+      "included_roots": [
+        "backend-node",
+        "frontend-vue"
+      ],
+      "excluded_directory_names": [
+        ".git",
+        ".idea",
+        ".cache",
+        "node_modules",
+        "dist",
+        "coverage",
+        "backups",
+        "logs",
+        "test-results",
+        "playwright-report",
+        "__pycache__"
+      ],
+      "excluded_relative_prefixes": [
+        "backend-node/docs",
+        "backend-node/public/account",
+        "backend-node/test",
+        "frontend-vue/public/models",
+        "frontend-vue/src/projects/views/Login.vue",
+        "frontend-vue/tests"
+      ],
+      "excluded_name_prefixes": [
+        ".env"
+      ],
+      "excluded_name_suffixes": [
+        ".log",
+        ".db",
+        ".sqlite",
+        ".sqlite3",
+        ".zip",
+        ".bak",
+        ".backup",
+        ".pem",
+        ".key",
+        ".p12",
+        ".pfx",
+        ".bin",
+        ".test.js",
+        ".spec.js",
+        ".snap"
+      ],
+      "excluded_name_contains": [
+        ".bak-"
+      ]
+    }
+  },
   "approved_local_urls": {
     "shell_frontend": "http://localhost:8080",
     "shell_backend": "http://127.0.0.1:8214",

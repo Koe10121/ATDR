@@ -19,6 +19,7 @@ venv/
 tmp/
 *.log
 !atdr/data/samples/*.log
+mfu-atdr-shell-*.zip
 data/private/
 atdr/data/private/
 real_logs/

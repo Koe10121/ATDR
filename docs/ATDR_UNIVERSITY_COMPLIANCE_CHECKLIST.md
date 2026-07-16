@@ -353,6 +353,17 @@ For docs-only changes, at minimum verify the docs exist, links are correct, and 
 | AI/response safety | Unchanged and satisfied | Assistant remains read-only; raw-log context disabled; response simulation true; no model promotion | No production or autonomous-response claim is authorized. |
 | Change workflow | Satisfied | v4.3 guide, T1-T20 record, PRD, traceability, quickstart, runbook, task board, and tests | Final verification evidence must remain synchronized with the exact worktree. |
 
+## v4.6 Versioned MFU Shell Distribution Compliance Status
+
+| Rule | Current Status | Evidence | Remaining Gap |
+| --- | --- | --- | --- |
+| Reproducible supervisor shell | Satisfied locally | Contract v2 locks release, archive checksum, source fingerprint, required files, and sanitization policy | The approved archive still needs an authorized distribution channel or release asset. |
+| Secret/repository hygiene | Satisfied | Deterministic builder excludes private environments, credentials, uploads, DB/log/model/generated content; package and runtime remain ignored | Private provider files require managed delivery and rotation outside Git. |
+| Teammate installation | Satisfied on disposable Windows clone | Fresh path-with-spaces setup installed all dependencies and migrated disposable SQLite; repeat setup reused the verified release | Legacy shell dependencies make first setup slow and emit upstream deprecation warnings. |
+| Authentication safety | Satisfied locally / provider pending | Shell remains normal entry; startup fails closed with one provider blocker; local login remains explicit recovery | University OAuth Web client, domains/groups, 2FA, and real-account acceptance remain external. |
+| Database/safety controls | Satisfied | No configured DB copy/reset; clean-room used new disposable SQLite; response simulation, no blocking, and no model promotion remain enforced | Approved-host and real-source validation remain separate product gates. |
+| Change workflow | Satisfied | v4.6 status, T1-T20 record, hygiene report, exact allowlist, task board, tests, and verification evidence | Commit/push require explicit owner approval of the exact allowlist. |
+
 ## v4.4 MFU Authentication Stabilization Compliance Status
 
 | Rule | Current Status | Evidence | Remaining Gap |

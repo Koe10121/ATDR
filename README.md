@@ -141,13 +141,13 @@ For a beginner-friendly Windows setup from a fresh clone or GitHub zip download,
 - `docs/QUICKSTART_FOR_TEAM.md`
 - `docs/TEAM_ONE_COMMAND_START.md`
 
-Requirements include Python 3.11 and Node.js `20.19.0` or newer. The approved MFU shell is supplied separately and may live in any folder. Run setup once from the ATDR root:
+Requirements include Python 3.11 and Node.js `20.19.0` or newer. Obtain the approved, checksum-locked MFU companion archive through the authorized team channel, then run setup once from the ATDR root:
 
 ```powershell
-.\scripts\setup_team.cmd -TemplateRoot "D:\Path To\mfu-ai-driven-log-based-threat-detection-and-response"
+.\scripts\setup_team.cmd -ShellPackage "D:\Approved Artifacts\mfu-atdr-shell-1.4.0-atdr.1.zip"
 ```
 
-Setup can install and migrate ATDR before private provider configuration is available. It reports provider readiness separately. Normal startup remains fail-closed until the shell's ignored frontend `VUE_APP_CLIENTID` and backend `GOOGLE_CLIENT_ID` contain the same university-approved OAuth Web client and the remaining approved private shell profile is present.
+Setup verifies the package version, checksum, source manifest, and absence of private configuration before installing it under ignored runtime storage. It can install and migrate ATDR before provider configuration is available, and reports provider readiness separately. Normal startup remains fail-closed until the approved private shell configuration contains a matching university OAuth Web client and the required IAM profile.
 
 Then start all four components and open the MFU sign-in page:
 
@@ -165,7 +165,7 @@ Internal component addresses are FastAPI `http://127.0.0.1:8000` and React `http
 
 Configuration profiles are documented in `.env.example`, `.env.shell.example`, `.env.lab.example`, and `.env.production.example`. Private `.env` files are ignored and must never be committed.
 
-Use `python -m atdr.scripts.template_auth_doctor --template-root <MFU_SHELL_ROOT> --pretty` for secret-free Google configuration diagnostics. See `docs/V4_4_MFU_AUTH_STABILIZATION.md` for the exact MFU administrator action still required for real provider acceptance.
+Use `.\scripts\check_system.cmd` for secret-free installation, package-integrity, and provider diagnostics. See `docs/V4_6_VERSIONED_MFU_SHELL_DISTRIBUTION.md` and `docs/V4_4_MFU_AUTH_STABILIZATION.md` for distribution and provider acceptance boundaries.
 
 Prepare the bundled synthetic dashboard scenario without touching existing data:
 

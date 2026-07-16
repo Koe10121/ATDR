@@ -16,6 +16,13 @@ try {
     try { $resolvedTemplate = Resolve-TemplateRoot $TemplateRoot } catch { $templateError = $_.Exception.Message }
 
     $structure = if ($resolvedTemplate) { Test-TemplateShellStructure $resolvedTemplate } else { [pscustomobject]@{ valid = $false; missing = @("MFU_TEMPLATE_ROOT") } }
+    $teamConfig = Read-TeamConfig
+    $shellDistributionMode = if ($null -ne $teamConfig -and $teamConfig.PSObject.Properties.Name -contains "shell_distribution_mode") { [string]$teamConfig.shell_distribution_mode } else { "approved_directory" }
+    $packageStatus = if ($resolvedTemplate) { Get-InstalledMfuShellPackageStatus $resolvedTemplate } else { [pscustomobject]@{
+        managed = $false; valid = $false; release_version = $null; source_fingerprint = $null;
+        file_count = 0; diagnosis = "template_root_missing"; secrets_exposed = $false
+    } }
+    $packageIntegrityReady = ($shellDistributionMode -ne "versioned_package") -or ($packageStatus.managed -and $packageStatus.valid)
     $envPath = Join-Path $root ".env"
     $envValues = Read-DotEnvFile $envPath
     $missingAuth = @(Get-MissingShellAuthFields $envValues)
@@ -60,6 +67,7 @@ try {
 
     $installationReady = [bool](
         $structure.valid -and
+        $packageIntegrityReady -and
         (Test-Path -LiteralPath $pythonPath -PathType Leaf) -and
         $pythonPipReady -and
         $nodeVersionOk -and
@@ -69,6 +77,10 @@ try {
         $responseSimulation
     )
     $providerReady = [bool]($missingShellPrivate.Count -eq 0 -and $googleStatus.ready -and $mongoReady)
+    $providerBlocker = Get-MfuProviderBlocker -MissingProviderFields $missingShellPrivate -GoogleStatus $googleStatus
+    if (-not $providerBlocker -and -not $mongoReady) {
+        $providerBlocker = "Start MongoDB on 127.0.0.1:27017 for the MFU shell."
+    }
     $ok = $installationReady
     if ($RequireReady) { $ok = $installationReady -and $providerReady -and $allServicesReady }
 
@@ -79,6 +91,15 @@ try {
         template_error = $templateError
         template_structure_valid = $structure.valid
         template_missing_files = @($structure.missing)
+        shell_distribution = [ordered]@{
+            mode = $shellDistributionMode
+            package_managed = $packageStatus.managed
+            package_integrity_ready = $packageIntegrityReady
+            release_version = $packageStatus.release_version
+            source_fingerprint_configured = -not [string]::IsNullOrWhiteSpace([string]$packageStatus.source_fingerprint)
+            diagnosis = $packageStatus.diagnosis
+            secrets_exposed = $false
+        }
         installation_ready = $installationReady
         provider_ready = $providerReady
         dependencies = [ordered]@{
@@ -125,6 +146,7 @@ try {
         Write-Host "ATDR system preflight" -ForegroundColor Cyan
         Write-Host "  Authentication: $authMode"
         Write-Host "  Template shell: $(if ($structure.valid) { 'found' } else { 'missing or invalid' })"
+        Write-Host "  Shell distribution: $shellDistributionMode$(if ($packageStatus.valid) { " / $($packageStatus.release_version) verified" } else { '' })"
         Write-Host "  MFU IAM proxy: $(if ($iamProxyConfigured) { 'configured' } else { 'incomplete' })"
         Write-Host "  Google authentication: $(if ($googleStatus.ready) { 'ready' } else { "not ready ($($googleStatus.diagnosis))" })"
         Write-Host "  MFU account acceptance: not validated (requires a real sign-in)"
@@ -137,9 +159,7 @@ try {
         Write-Host "  Response simulation: $responseSimulation"
         Write-Host "  Gemini configured: $geminiKeyConfigured"
         if ($missingAuth.Count) { Write-Host "  Missing ATDR settings: $($missingAuth -join ', ')" -ForegroundColor Yellow }
-        if ($missingShellPrivate.Count) { Write-Host "  Missing shell settings: $($missingShellPrivate -join ', ')" -ForegroundColor Yellow }
-        if (-not $googleStatus.ready) { Write-Host "  Action: $(Get-TemplateGoogleClientAction $googleStatus)" -ForegroundColor Yellow }
-        if (-not $mongoReady) { Write-Host "  Action: start MongoDB for the supervisor shell; ATDR itself does not use MongoDB." -ForegroundColor Yellow }
+        if (-not $providerReady) { Write-Host "  Provider blocker: $providerBlocker" -ForegroundColor Yellow }
         Write-Host "  Running services: $(@($services.Values | Where-Object reachable).Count)/4"
         Write-Host "  Preflight: $(if ($ok) { 'PASS' } else { 'NEEDS ATTENTION' })" -ForegroundColor $(if ($ok) { 'Green' } else { 'Yellow' })
     }

@@ -1,6 +1,8 @@
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)][string]$TemplateRoot,
+    [string]$TemplateRoot,
+    [string]$ShellPackage,
+    [string]$ShellPrivateConfigRoot,
     [switch]$DryRun,
     [switch]$SkipDependencyInstall,
     [switch]$UpdateExistingConfig,
@@ -17,12 +19,11 @@ function Write-Step([string]$Message) {
 
 try {
     $root = Get-AtdrProjectRoot
-    $template = [System.IO.Path]::GetFullPath($TemplateRoot)
-    $structure = Test-TemplateShellStructure $template
-    if (-not $structure.valid) {
-        throw "The selected MFU shell is incomplete. Missing: $($structure.missing -join ', ')"
+    $usingDirectory = -not [string]::IsNullOrWhiteSpace($TemplateRoot)
+    $usingPackage = -not [string]::IsNullOrWhiteSpace($ShellPackage)
+    if ($usingDirectory -eq $usingPackage) {
+        throw "Choose exactly one shell source: -ShellPackage <approved zip> or -TemplateRoot <approved directory>."
     }
-
     $pyLauncher = Get-CommandPathSafe "py"
     $systemPython = Get-CommandPathSafe "python"
     $nodePath = Get-CommandPathSafe "node"
@@ -40,6 +41,81 @@ try {
         throw "Python 3.11 is missing. Install Python 3.11 and enable the py launcher, then rerun setup."
     }
 
+    $runtime = Get-AtdrRuntimeDirectory
+    $packageResult = $null
+    $shellDistributionMode = "approved_directory"
+    if ($usingPackage) {
+        $packagePath = [System.IO.Path]::GetFullPath($ShellPackage)
+        if (-not (Test-Path -LiteralPath $packagePath -PathType Leaf)) {
+            throw "The selected MFU shell package does not exist."
+        }
+        $bootstrapPython = $null
+        $bootstrapPrefix = @()
+        if ($pyLauncher) {
+            $bootstrapPython = $pyLauncher
+            $bootstrapPrefix = @("-3.11")
+        }
+        elseif ($systemPython) {
+            $bootstrapPython = $systemPython
+        }
+        else {
+            $bootstrapPython = $venvPython
+        }
+        $packageArguments = @(
+            "-m", "atdr.scripts.mfu_shell_package",
+            $(if ($DryRun) { "--verify-package" } else { "--install" }),
+            "--package", $packagePath,
+            "--contract", (Get-TemplateShellContractPath)
+        )
+        if (-not $DryRun) {
+            New-Item -ItemType Directory -Path $runtime -Force | Out-Null
+            $packageArguments += @(
+                "--install-base", (Join-Path $runtime "shell"),
+                "--confirm", "INSTALL_VERIFIED_MFU_SHELL"
+            )
+        }
+        $allArguments = @($bootstrapPrefix) + $packageArguments
+        $packageOutput = @(& $bootstrapPython @allArguments)
+        if ($LASTEXITCODE -ne 0) {
+            throw "MFU shell package verification or installation failed."
+        }
+        try { $packageResult = ($packageOutput -join "`n") | ConvertFrom-Json } catch { throw "MFU shell package returned an invalid result." }
+        if (-not $packageResult.ok) { throw "MFU shell package verification or installation failed." }
+        $shellDistributionMode = "versioned_package"
+        if ($DryRun) {
+            $template = $null
+            $contract = Read-TemplateShellContract
+            $structure = [pscustomobject]@{
+                valid = $true
+                missing = @()
+                contract_version = [int]$contract.contract_version
+                distribution_mode = [string]$contract.distribution_mode
+                source_revision_status = [string]$contract.source_revision_status
+            }
+        }
+        else {
+            $template = [System.IO.Path]::GetFullPath([string]$packageResult.install_root)
+            if (-not [string]::IsNullOrWhiteSpace($ShellPrivateConfigRoot)) {
+                $privateRoot = [System.IO.Path]::GetFullPath($ShellPrivateConfigRoot)
+                if (-not (Test-Path -LiteralPath $privateRoot -PathType Container)) {
+                    throw "The MFU shell private configuration directory does not exist."
+                }
+                $privateCopy = Copy-MfuShellPrivateConfiguration -SourceRoot $privateRoot -DestinationRoot $template
+                if ($privateCopy.missing.Count) {
+                    Write-Host "  Private configuration is incomplete; provider start remains blocked." -ForegroundColor Yellow
+                }
+            }
+            $structure = Test-TemplateShellStructure $template
+        }
+    }
+    else {
+        $template = [System.IO.Path]::GetFullPath($TemplateRoot)
+        $structure = Test-TemplateShellStructure $template
+    }
+    if (-not $structure.valid) {
+        throw "The selected MFU shell is incomplete. Missing: $($structure.missing -join ', ')"
+    }
+
     $envPath = Join-Path $root ".env"
     $shellExample = Join-Path $root ".env.shell.example"
     if (-not (Test-Path -LiteralPath $shellExample)) { throw ".env.shell.example is missing from the ATDR repository." }
@@ -52,30 +128,36 @@ try {
         }
     }
 
-    $shellBackendEnv = Join-Path $template "backend-node\.env.local"
-    $shellPrivate = Read-DotEnvFile $shellBackendEnv
+    $providerRoot = if ($template) { $template } elseif (-not [string]::IsNullOrWhiteSpace($ShellPrivateConfigRoot)) { [System.IO.Path]::GetFullPath($ShellPrivateConfigRoot) } else { $null }
+    $shellBackendEnv = if ($providerRoot) { Join-Path $providerRoot "backend-node\.env.local" } else { "" }
+    $shellPrivate = if ($shellBackendEnv) { Read-DotEnvFile $shellBackendEnv } else { [ordered]@{} }
     $missingProvider = @(Get-MissingTemplateProviderFields $shellPrivate)
-    $googleStatus = Get-TemplateGoogleClientStatus $template
-    $providerReady = ($missingProvider.Count -eq 0) -and $googleStatus.credentials_ready
+    $googleStatus = if ($providerRoot) { Get-TemplateGoogleClientStatus $providerRoot } else { [pscustomobject]@{
+        ready = $false; credentials_ready = $false; diagnosis = "private_config_not_supplied";
+        frontend_client_configured = $false; backend_client_configured = $false; client_ids_match = $false;
+        frontend_legacy_fallback_present = $false; backend_legacy_fallback_present = $false;
+        secrets_exposed = $false
+    } }
+    $providerReady = ($missingProvider.Count -eq 0) -and $googleStatus.ready
+    $providerBlocker = Get-MfuProviderBlocker -MissingProviderFields $missingProvider -GoogleStatus $googleStatus
     if ($RequireProviderReady -and -not $providerReady) {
-        $providerIssue = if ($missingProvider.Count) { "private provider fields missing: $($missingProvider -join ', ')" } else { "Google authentication: $($googleStatus.diagnosis)" }
-        throw "MFU identity provider is not ready ($providerIssue). Setup can run without provider acceptance; start remains fail-closed."
+        throw "MFU identity provider is not ready. $providerBlocker Setup can run without provider acceptance; start remains fail-closed."
     }
 
     Write-Step "ATDR root: $root"
-    Write-Step "MFU shell: $template"
+    Write-Step "MFU shell: $(if ($template) { $template } else { [string]$packageResult.archive_name })"
     Write-Step "Node: $nodeVersion"
     Write-Step "MFU shell contract: v$($structure.contract_version) ($($structure.distribution_mode))"
+    Write-Step "Shell distribution: $shellDistributionMode$(if ($packageResult) { " / $($packageResult.release_version)" } else { '' })"
     Write-Step "Mode: $(if ($DryRun) { 'dry run (no changes)' } else { 'apply' })"
     if (-not $providerReady) {
-        Write-Host "  Provider acceptance blocker: $(Get-TemplateGoogleClientAction $googleStatus)" -ForegroundColor Yellow
-        if ($missingProvider.Count) { Write-Host "  Missing private provider field names: $($missingProvider -join ', ')" -ForegroundColor Yellow }
+        Write-Host "  Provider acceptance blocker: $providerBlocker" -ForegroundColor Yellow
     }
 
     if ($DryRun) {
         Write-Step "Would create/install the Python environment and JavaScript dependencies when missing."
         Write-Step "Would create or safely update private shell-mode configuration."
-        if (-not $googleStatus.ready) {
+        if ($usingDirectory -and -not $googleStatus.ready) {
             Write-Step "Would remove the legacy Google client fallback without changing private environment values."
         }
         Write-Step "Would back up SQLite before running Alembic migrations."
@@ -84,7 +166,6 @@ try {
         exit 0
     }
 
-    $runtime = Get-AtdrRuntimeDirectory
     New-Item -ItemType Directory -Path $runtime -Force | Out-Null
 
     if (-not (Test-Path -LiteralPath $venvPython)) {
@@ -142,6 +223,9 @@ try {
     }
 
     if ($googleStatus.credentials_ready -and -not $googleStatus.ready) {
+        if ($shellDistributionMode -eq "versioned_package") {
+            throw "The versioned MFU shell package requires source hardening. Rebuild a sanitized release instead of modifying installed package source."
+        }
         Write-Step "Removing the legacy Google client fallback from the approved shell."
         Invoke-CheckedProcess -FilePath $venvPython -ArgumentList @(
             "-m", "atdr.scripts.harden_template_google_auth",
@@ -195,10 +279,14 @@ try {
     }
 
     $teamConfig = [ordered]@{
-        version = 2
+        version = 3
         template_root = $template
+        shell_distribution_mode = $shellDistributionMode
         shell_contract_version = $structure.contract_version
-        shell_source_fingerprint = Get-TemplateShellFingerprint $template
+        shell_release_version = $(if ($packageResult) { [string]$packageResult.release_version } else { $null })
+        shell_archive_sha256 = $(if ($packageResult) { [string]$packageResult.archive_sha256 } else { $null })
+        shell_package_verified = [bool]($shellDistributionMode -eq "versioned_package")
+        shell_source_fingerprint = $(if ($packageResult) { [string]$packageResult.source_fingerprint } else { Get-TemplateShellFingerprint $template })
         shell_source_revision_status = $structure.source_revision_status
         installation_ready = $true
         provider_configuration_ready = $providerReady

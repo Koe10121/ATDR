@@ -267,6 +267,7 @@ Evidence: `atdr/app/db/models.py`, `atdr/app/routers/jobs.py`, `atdr/app/service
 | FR-ATDR-044 | Validate rule, anomaly, supervised SOC queue, and hybrid quality with frozen leakage-controlled holdouts and no model activation | Implemented as v3.98 internal unseen-data validation across temporal, source, and repeated fingerprint-grouped random splits; external provider-blinded or real-source independence remains required |
 | FR-ATDR-045 | Generate source/time-separated synthetic evidence, quarantine overlap with reviewed data, and score it only after internal model/calibration/threshold roles are frozen | Implemented as v3.99 with three generated sources, four windows, exact/near/feature overlap controls, six strategy comparisons, non-importable expectation labels, and conservative `candidate_only` readiness; this is regression evidence, not external accuracy |
 | FR-ATDR-046 | Provide portable teammate setup and lifecycle for the mandatory MFU shell plus ATDR services without machine-specific paths or committed secrets | Implemented in v4.3 with one setup command, one start command, preflight/check/stop commands, ignored runtime configuration, safe SQLite backup/migration, and explicit recovery profile |
+| FR-ATDR-047 | Distribute the reviewed MFU shell as a sanitized, versioned, integrity-checked companion release | Implemented locally in v4.6 with deterministic packaging, secret/generated-file exclusions, contract-locked checksum and fingerprint, versioned ignored installation, package-integrity checks, and disposable clean-clone acceptance; provider-backed sign-in remains external |
 
 ## Non-Functional Requirements
 
@@ -306,7 +307,7 @@ Current limitations:
 - Current role model is suitable for lab prototype validation, not production IAM.
 - Role permissions must be fully reviewed before real deployment or response connector implementation.
 - v3.14 email verification does not block login by default and does not implement real SMTP or external school SSO.
-- The v4.3 team profile selects the MFU shell by default and blocks direct local login. Real provider-backed MFU authentication, approved group mapping, provider-managed 2FA, recovery, and deprovisioning still require university environment acceptance.
+- The v4.6 team profile installs a checksum-locked MFU shell companion release, selects it by default, and blocks direct local login. Real provider-backed MFU authentication, approved group mapping, provider-managed 2FA, recovery, and deprovisioning still require university environment acceptance.
 
 ## University Template Alignment
 

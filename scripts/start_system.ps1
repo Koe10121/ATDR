@@ -66,6 +66,12 @@ try {
     $template = Resolve-TemplateRoot $TemplateRoot
     $structure = Test-TemplateShellStructure $template
     if (-not $structure.valid) { throw "MFU shell is incomplete. Missing: $($structure.missing -join ', ')" }
+    $teamConfig = Read-TeamConfig
+    $shellDistributionMode = if ($null -ne $teamConfig -and $teamConfig.PSObject.Properties.Name -contains "shell_distribution_mode") { [string]$teamConfig.shell_distribution_mode } else { "approved_directory" }
+    $packageStatus = Get-InstalledMfuShellPackageStatus $template
+    if ($shellDistributionMode -eq "versioned_package" -and (-not $packageStatus.managed -or -not $packageStatus.valid)) {
+        throw "Versioned MFU shell integrity check failed ($($packageStatus.diagnosis)). Rerun setup with the approved package."
+    }
 
     $runtime = Get-AtdrRuntimeDirectory
     $metadataPath = Join-Path $runtime "system-processes.json"
@@ -121,6 +127,7 @@ try {
     Write-Host "ATDR system startup preflight passed." -ForegroundColor Green
     Write-Host "  Entry point: http://localhost:8080/#/pages/login"
     Write-Host "  Authentication: template_shell"
+    Write-Host "  Shell distribution: $shellDistributionMode$(if ($packageStatus.valid) { " / $($packageStatus.release_version) verified" } else { '' })"
     Write-Host "  MFU IAM proxy: configured (account acceptance still requires a real sign-in)"
     Write-Host "  Google OAuth client agreement: verified"
     Write-Host "  Response simulation: true"
