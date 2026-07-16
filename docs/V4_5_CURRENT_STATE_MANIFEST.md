@@ -5,8 +5,10 @@
 | Item | State |
 | --- | --- |
 | Branch | `main` |
-| Public baseline before v4.5 approval | `e715302` (`docs: record v3.96 environment discovery`) |
-| Local change boundary | v3.97 through v4.5, currently uncommitted |
+| Published v4.5 source baseline | `dd6ff014fc09d02b224d11be2b0663c2d26c3495` (`feat: establish reproducible ATDR product baseline`) |
+| Final CI closure | `1535a3182d2813b6136a2ee0073c4901fb19d675` (`ci: expose pwsh for portability tests`) |
+| Public verification | GitHub Actions CI #55 passed all backend, frontend, and PostgreSQL jobs |
+| Local change boundary | v3.97 through v4.5 is published; the source worktree was clean at final verification |
 | Backend | FastAPI, SQLAlchemy, Alembic, Python 3.11 |
 | Python dependency baseline | Direct dependencies in `requirements.txt`; exact resolved environment in `requirements.lock.txt` |
 | Main dashboard | React, TypeScript, Vite, shared MFU-token SOC page surfaces |
@@ -45,6 +47,8 @@ The configured database was not mutated for this manifest. Final read-only smoke
 ## Distribution Boundary
 
 ATDR source is versionable, but a complete teammate runtime also needs the separately approved MFU shell, its private environment files, MongoDB for that shell, and university-approved provider configuration. The shell contract is versioned; the external package itself is not yet published as a companion repository or checksummed release. This is a distribution blocker, not an excuse to embed private shell credentials in ATDR.
+
+The final public clone verification used `1535a3182d2813b6136a2ee0073c4901fb19d675`. It found zero tracked protected artifacts, zero personal-machine paths, a clean worktree, successful Python compilation, and `63 passed` focused reproducibility/auth/assistant tests.
 
 ## Source Truth
 

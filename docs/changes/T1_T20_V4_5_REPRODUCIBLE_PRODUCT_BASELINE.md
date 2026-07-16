@@ -68,7 +68,7 @@ Implemented a pinned Python dependency lock, versioned shell contract, resilient
 
 ## T16 Tests Run / Evidence
 
-Targeted backend tests passed (`32 passed`). A disposable setup with no existing environment, dependencies, database, or private configuration reached Alembic head in approximately 699 seconds, and its focused pinned-environment suite passed `75 passed`. Final verification passed Ruff, compileall, PowerShell parsing, task-board checks, backend `589 passed, 1 skipped`, Alembic no drift, React lint/build, Playwright `25 passed, 1 skipped`, replay dry-run, safe-demo dry-run, warm performance smoke with no warnings, and release gate `ok: true`. A separate cold-disk Overview run of `9.12s` remains documented as a large-SQLite risk.
+Targeted backend tests passed (`32 passed`). A disposable setup with no existing environment, dependencies, database, or private configuration reached Alembic head in approximately 699 seconds, and its focused pinned-environment suite passed `75 passed`. Final verification passed Ruff, compileall, PowerShell parsing, task-board checks, backend `589 passed, 1 skipped`, Alembic no drift, React lint/build, Playwright `25 passed, 1 skipped`, replay dry-run, safe-demo dry-run, warm performance smoke with no warnings, and release gate `ok: true`. GitHub Actions CI #55 passed all three jobs at public commit `1535a31`; its Linux backend recorded `589 passed, 1 skipped`. A separate clean public clone compiled and passed `63` focused baseline/auth/assistant tests with zero forbidden tracked artifacts or personal-machine paths. A separate cold-disk Overview run of `9.12s` remains documented as a large-SQLite risk.
 
 ## T17 PRD / Docs Updated
 
@@ -80,8 +80,8 @@ MFU OAuth client and account acceptance remain external blockers. The separately
 
 ## T19 Release / Rollback
 
-No commit or push without explicit allowlist approval. Rollback is a normal source revert. Setup preserves existing `.env` backups and SQLite backups; v4.5 does not reset data.
+The exact approved source allowlist was committed as `dd6ff01`. CI-only corrections `a407ca0` and `1535a31` changed only `.github/workflows/ci.yml`; all pushes were normal and no history was rewritten. Rollback is a normal source revert. Setup preserves existing `.env` backups and SQLite backups; v4.5 does not reset data.
 
 ## T20 Final Handoff
 
-The local source and verification scope is complete. Review the exact 175-path allowlist, obtain explicit staging approval, then commit only those approved files. Provider acceptance, versioned MFU-shell distribution, authorized real-source evidence, and approved-host validation remain follow-up gates.
+The v4.5 repository scope is complete and published at green public commit `1535a31`. A fresh clone receives the intended ATDR source and passes the focused distribution checks. Provider acceptance, versioned MFU-shell distribution, authorized real-source evidence, and approved-host validation remain external follow-up gates; production readiness is not claimed.

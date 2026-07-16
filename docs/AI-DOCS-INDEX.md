@@ -7,7 +7,7 @@ This index defines the active ATDR documentation set for AI/Codex-assisted work.
 - `docs/V4_5_REPRODUCIBLE_PRODUCT_BASELINE.md`: reproducibility, canonical evidence, dashboard, assistant, and clean-room status.
 - `docs/V4_5_CURRENT_STATE_MANIFEST.md`: concise source/runtime capability manifest.
 - `docs/V4_5_REPO_HYGIENE_REPORT.md`: protected material and release-boundary audit.
-- `docs/V4_5_COMMIT_ALLOWLIST.md`: exact proposed staging boundary; approval required.
+- `docs/V4_5_COMMIT_ALLOWLIST.md`: exact approved and executed `dd6ff01` source boundary; future releases require a new allowlist.
 - `docs/changes/T1_T20_V4_5_REPRODUCIBLE_PRODUCT_BASELINE.md`: completed change-workflow record.
 
 ## Active Control Documents

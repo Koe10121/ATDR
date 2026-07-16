@@ -2,7 +2,7 @@
 
 ## Result
 
-The v4.5 source boundary contains application code, tests, migrations, safe synthetic samples, deployment references, and documentation only. No commit or push has been performed. The exact proposed source allowlist is recorded in `docs/V4_5_COMMIT_ALLOWLIST.md` and requires explicit approval before staging.
+The v4.5 source boundary contains application code, tests, migrations, safe synthetic samples, deployment references, and documentation only. The repository owner approved the exact 175-path allowlist in `docs/V4_5_COMMIT_ALLOWLIST.md`; it was staged exactly, audited, committed as `dd6ff01`, and pushed normally without force. Two subsequent CI-only commits changed only `.github/workflows/ci.yml` and produced green GitHub Actions run #55 at `1535a31`.
 
 ## Protected Local Material
 
@@ -24,12 +24,13 @@ The approved MFU shell is supplied outside versioned ATDR source. `config/mfu-sh
 
 ## Hygiene Checks
 
-- The candidate boundary contains exactly 175 modified or untracked source paths. It matches `docs/V4_5_COMMIT_ALLOWLIST.md`. The increase from the initial audit is the deliberate normalization of already-tracked personal paths in 44 historical/reference files plus the final shared SOC page-header, ML operating-policy, and assistant answer-renderer refactors.
-- The 1,414 currently tracked paths contain no database or backup file and no model artifact. Environment-like tracked paths are examples only; the only protected output path is `atdr/data/processed/.gitkeep`.
+- The published boundary contains exactly the 175 source paths approved in `docs/V4_5_COMMIT_ALLOWLIST.md`. The increase from the initial audit was the deliberate normalization of already-tracked personal paths in 44 historical/reference files plus the final shared SOC page-header, ML operating-policy, and assistant answer-renderer refactors.
+- The 1,483 paths tracked at final verification contain no database or backup file and no model artifact. Environment-like tracked paths are examples only; the only protected output path is `atdr/data/processed/.gitkeep`.
 - Candidate scans found zero Google/OpenAI/GitHub/Slack token patterns and zero private-key headers.
 - Full tracked-source scans found zero Windows, macOS, or Linux user-specific absolute paths after normalizing historical references to `<ATDR_ROOT>`, `<MFU_SHELL_ROOT>`, `<USER_HOME>`, and `<UNIVERSITY_TEMPLATE_ROOT>`.
 - Test-only credential placeholders remain synthetic fixtures. No private value was copied from the configured environment or external shell.
 - `.atdr_runtime/`, local clean-room copies, Playwright output, builds, dependencies, databases, model artifacts, generated evidence, and private shell configuration remain ignored and outside the allowlist.
 - The release gate returned `ok: true` with no failed required checks.
+- A clean public clone of `1535a31` reported zero forbidden tracked artifacts, zero personal-machine paths, and a clean worktree before and after focused verification.
 
-Any path outside the exact allowlist blocks staging.
+The executed allowlist remains the immutable source-boundary record for `dd6ff01`. Future releases require a new reviewed allowlist; this record does not authorize broad staging.

@@ -1,6 +1,6 @@
-# v4.5 Proposed Commit Allowlist
+# v4.5 Approved And Executed Commit Allowlist
 
-No file in this document has been staged, committed, or pushed. Explicit repository-owner approval is required before using this list.
+The repository owner explicitly approved this exact 175-path list on 2026-07-16. The list was staged exactly, audited, committed as `dd6ff014fc09d02b224d11be2b0663c2d26c3495`, and pushed normally to `origin/main` without force. The unchecked boxes below preserve the original pre-staging review artifact; they are no longer pending task state.
 
 ## Release Rule
 
@@ -194,4 +194,4 @@ Stage only the exact paths below. Re-run `git status --short --untracked-files=a
 
 ## Approval
 
-Approval must name this v4.5 allowlist (or provide a narrower replacement). Do not use `git add .`, broad directory staging, force-push, or history rewriting.
+This approval was consumed by commit `dd6ff01`; it does not authorize future staging. CI follow-up commits changed only `.github/workflows/ci.yml` under separate explicit one-file approval. Future releases must present a new exact allowlist. Do not use `git add .`, broad directory staging, force-push, or history rewriting.

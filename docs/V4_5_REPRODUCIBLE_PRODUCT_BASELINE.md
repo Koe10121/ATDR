@@ -4,6 +4,8 @@
 
 v4.5 establishes a reproducible Windows baseline and an executive SOC experience for the current ATDR codebase. It does not claim production readiness, provider acceptance, model promotion, automatic response, or real firewall enforcement.
 
+The approved 175-path source boundary is published on `main` in `dd6ff014fc09d02b224d11be2b0663c2d26c3495`. CI-only follow-up commits `a407ca09bb2f77e9e4068f26f2139591777787d4` and `1535a3182d2813b6136a2ee0073c4901fb19d675` select the explicit isolated recovery profile and expose the Linux runner's installed PowerShell Core to Windows portability tests. No product authentication default was weakened.
+
 ## What Changed
 
 - Team setup now requires Node.js `20.19.0` or newer, reports the detected version precisely, and installs the pinned Python environment from `requirements.lock.txt`.
@@ -99,6 +101,27 @@ The command is idempotent for its fixed source, never resets data, and never cre
 - Warm local performance was healthy: Overview `0.4065s`, cached Overview `0.0059s`, ML Governance `1.1306s`, alerts `0.0312s`, cases `0.0719s`, and feature generation `0.2692s`, with no warnings.
 - One cold-disk performance run measured Overview at `9.12s`. This remains an explicit large-SQLite cold-start risk, not an SLA claim.
 - `python -m atdr.scripts.verify_release` returned `ok: true` with no failed required checks.
+- GitHub Actions CI #55 passed `backend-release-gate`, `frontend-dashboard`, and `postgres-persistence` at final public commit `1535a31`. The Linux backend job recorded `589 passed, 1 skipped`.
+- A separate clean public clone of `1535a31` was clean, contained no tracked protected artifacts or personal-machine paths, compiled successfully, and passed `63` focused baseline/auth/assistant tests.
+
+## Completion Audit
+
+| Goal requirement | Authoritative evidence | Decision |
+| --- | --- | --- |
+| 1. Audit the v3.97-v4.4 boundary | `docs/V4_5_COMMIT_ALLOWLIST.md`, `docs/V4_5_REPO_HYGIENE_REPORT.md`, `docs/V4_5_CURRENT_STATE_MANIFEST.md`, exact `dd6ff01` commit | Complete |
+| 2. Repair teammate setup | `scripts/setup_team.ps1`, lifecycle wrappers, pinned requirements, v4.3/v4.4 portability tests, clean-room path-with-spaces run | Complete |
+| 3. Define the external MFU-shell contract | `config/mfu-shell-contract.json`, contract tests, and the explicit unpublished-companion-package blocker below | Complete for repository scope; external distribution gate remains |
+| 4. Run clean-room Windows setup | Disposable no-environment/no-DB/no-private-input setup reached Alembic head; focused clean-room suite passed `75` tests | Complete |
+| 5. Separate installation/provider readiness | Setup/check services report `installation_ready` and `provider_ready` separately; missing OAuth remains concise and fail-closed | Complete |
+| 6. Use one canonical ML evidence snapshot | `GET /api/ml/evidence-snapshot`, `ml_evidence_snapshot_service.py`, Overview/AI Governance consumers, snapshot regression tests | Complete |
+| 7. Separate model operating states | AI Governance distinguishes IsolationForest, active supervised metadata, and diagnostic candidates; unknown metadata is labeled unavailable/unknown | Complete |
+| 8. Refactor primary SOC pages | Shared MFU-token components and `SocPageHeader` cover Overview, Alerts, Investigation, AI Governance, and SOC Assistant | Complete |
+| 9. Bound and isolate assistant output | `AssistantAnswerContent`, two/three/three response contract, redacted tab persistence, read-only tests, admin QA details | Complete |
+| 10. Verify projector/desktop/mobile rendering | Playwright `25 passed, 1 skipped`, including rendered content and horizontal-overflow probes at all three viewport classes | Complete |
+| 11. Add safe scenario preparation | `python -m atdr.scripts.prepare_safe_demo` is dry-run first, explicit-confirmation, idempotent, and response-action free | Complete |
+| 12. Run full release verification | Local release matrix passed; GitHub Actions CI #55 passed all jobs; final public clone passed compilation and `63` focused tests | Complete |
+
+The definition of done is satisfied for versioned ATDR source: a clean clone receives the intended source, setup/start commands are documented, tracked personal paths are absent, ML metrics use explicit provenance, assistant behavior remains concise and mutation-free, protected local state was untouched, and full local/public verification passed. The external MFU shell and private provider configuration remain separately governed dependencies rather than missing ATDR source.
 
 ## Remaining Blockers
 
