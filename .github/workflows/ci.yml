@@ -35,6 +35,16 @@ jobs:
       - name: Compile Python modules
         run: python -m compileall -q atdr migrations
 
+      - name: Expose PowerShell Core for portability tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          pwsh_path="$(command -v pwsh)"
+          test -n "$pwsh_path"
+          mkdir -p "$RUNNER_TEMP/atdr-ci-bin"
+          ln -sf "$pwsh_path" "$RUNNER_TEMP/atdr-ci-bin/powershell.exe"
+          echo "$RUNNER_TEMP/atdr-ci-bin" >> "$GITHUB_PATH"
+
       - name: Run tests
         run: python -m pytest atdr/tests -q -o cache_dir=${{ runner.temp }}/atdr-pytest-cache --basetemp=${{ runner.temp }}/atdr-pytest
 
