@@ -295,7 +295,7 @@ Add a red stop boundary labeled:
 Recommended local folder:
 
 ```text
-C:\Users\User\Pictures\ATDR-Final-Defense\
+<SCREENSHOT_OUTPUT_DIR>\
   01-overview\
   02-source\
   03-investigation\

@@ -4,7 +4,7 @@
   "compatProfile": "b2b-admin-v1",
   "sourceApplication": {
     "name": "MOU",
-    "path": "/Users/m-vibe/masters/MOU",
+    "path": "<UNIVERSITY_TEMPLATE_ROOT>",
     "description": "Generated IAM-integrated application from the shared MFU IAM project template."
   },
   "requiredEnvKeys": [

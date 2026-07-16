@@ -112,7 +112,7 @@ export function DemoControls() {
             <input
               aria-label="Sample log file path"
               className="input"
-              placeholder='Blank = data/samples/paloalto-demo.txt. Example: C:\Users\User\Downloads\paloalto-firewall(1).log'
+              placeholder='Blank = data/samples/paloalto-demo.txt. Example: D:\Private Logs\paloalto-firewall.log'
               value={samplePath}
               onChange={(event) => setSamplePath(event.target.value)}
             />

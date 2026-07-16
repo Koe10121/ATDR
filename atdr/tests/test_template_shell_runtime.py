@@ -24,7 +24,8 @@ def _write_complete_template(root: Path) -> None:
     twofaSend
     introspectToken
     getClientProfile
-    /atdr/handoff/start
+    app.use(path + '/atdr/handoff'
+    router.post('/start'
     /exchange
     handoff_code
     /mfu-ai-driven-log-based-threat-detection-and-response/registry
@@ -62,6 +63,7 @@ def _write_complete_atdr(root: Path) -> None:
 
 def _template_shell_settings() -> Settings:
     return Settings(
+        ATDR_AUTH_MODE="template_shell",
         MFU_IAM_ENABLED=True,
         MFU_IAM_TEMPLATE_SHELL_ENABLED=True,
         MFU_IAM_TEMPLATE_SHELL_BASE_URL="http://template-shell.test",
@@ -71,6 +73,7 @@ def _template_shell_settings() -> Settings:
         MFU_IAM_HANDOFF_SHARED_SECRET="test-bridge-secret-that-must-not-leak",
         MFU_IAM_HANDOFF_FRONTEND_URL="http://127.0.0.1:5173",
         MFU_IAM_HANDOFF_ALLOWED_ORIGINS="http://template-shell.test",
+        MFU_IAM_TEMPLATE_SHELL_LAUNCH_URL="http://template-shell.test/#/pages/login",
     )
 
 
@@ -93,6 +96,8 @@ def test_template_shell_runtime_static_report_is_secret_safe(tmp_path):
     assert report["mfu_iam"]["handoff_ready"] is True
     assert report["blocking_config_issues"] == []
     assert report["secrets_exposed"] is False
+    assert "Start all four services" in report["recommended_next_step"]
+    assert "Set the private bridge secret" not in report["recommended_next_step"]
     assert "secret-value-that-must-not-leak" not in rendered
     assert "test-bridge-secret-that-must-not-leak" not in rendered
 
@@ -136,3 +141,4 @@ def test_template_shell_runtime_check_detects_safe_handoff_status(tmp_path, monk
     assert report["template_runtime"]["handoff_status_detected"] is True
     assert report["atdr_runtime"]["health_reachable"] is True
     assert report["atdr_runtime"]["handoff_ready"] is True
+    assert "Complete one approved MFU account sign-in" in report["recommended_next_step"]

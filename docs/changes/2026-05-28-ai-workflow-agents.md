@@ -20,8 +20,8 @@
 
 | Area | Source path / route / command | What was verified |
 |---|---|---|
-| Existing agent examples | `/Users/m-vibe/masters/docs/agents/*.md` | agent structure and role format |
-| Existing PRD template | `/Users/m-vibe/masters/docs/prd/templates/PRD-Master-Data-Module-Template.md` | source-evidence-first PRD style |
+| Existing agent examples | `<UNIVERSITY_TEMPLATE_ROOT>/docs/agents/*.md` | agent structure and role format |
+| Existing PRD template | `<UNIVERSITY_TEMPLATE_ROOT>/docs/prd/templates/PRD-Master-Data-Module-Template.md` | source-evidence-first PRD style |
 | Repo overview | `README.md`, `TEMPLATE.md` | NewSystem purpose, run commands, IAM setup |
 | Current PRD | `backend-node/docs/IAM_PRD.md` | historical IAM/backend PRD exists but may conflict with mounted routes |
 | Backend route truth | `backend-node/server/routes/app.routes.js` | mounted routes under `/api/v1` |

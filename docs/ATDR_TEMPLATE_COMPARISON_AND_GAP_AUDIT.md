@@ -2,7 +2,7 @@
 
 Date: 2026-06-21
 
-This audit compares the supervisor-provided project template at `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response` with the current ATDR repository at `C:\Users\User\Desktop\ATDR`.
+This audit compares the supervisor-provided project template at `<MFU_SHELL_ROOT>` with the current ATDR repository at `<ATDR_ROOT>`.
 
 The template is a Node/Vue/MongoDB/IAM reference. ATDR remains a FastAPI + React + SQLAlchemy/Alembic defensive SOC prototype. This audit adapts process, security, IAM, and workflow expectations without migrating ATDR to the template stack.
 
@@ -10,9 +10,9 @@ The template is a Node/Vue/MongoDB/IAM reference. ATDR remains a FastAPI + React
 
 | Area | Evidence |
 | --- | --- |
-| Supervisor IAM PRD | `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\backend-node\docs\IAM_PRD.md` |
-| Supervisor IAM architecture | `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\backend-node\docs\IAM_SYSTEM_OVERVIEW.md` |
-| Supervisor IAM recommendations | `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\backend-node\docs\IAM_RECOMMENDATIONS.md` |
+| Supervisor IAM PRD | `<MFU_SHELL_ROOT>\backend-node\docs\IAM_PRD.md` |
+| Supervisor IAM architecture | `<MFU_SHELL_ROOT>\backend-node\docs\IAM_SYSTEM_OVERVIEW.md` |
+| Supervisor IAM recommendations | `<MFU_SHELL_ROOT>\backend-node\docs\IAM_RECOMMENDATIONS.md` |
 | Supervisor IAM adapter/source patterns | `backend-node/server/integrations/iam/*`, `backend-node/server/Project/security/*` in the supervisor template |
 | Supervisor frontend IAM UI | `frontend-vue/src/projects/components/dialog/SignIn.vue`, `frontend-vue/src/projects/components/dialog/TwoFA.vue`, `frontend-vue/src/store/modules/Security/*` in the supervisor template |
 | Supervisor progress-board process | `docs/tasks/tasklist-progress.md`, `docs/templates/T1-T20-change-document.md`, `scripts/render-tasklist-progress-html.js`, `scripts/check-tasklist-progress-standard.js` in the supervisor template |

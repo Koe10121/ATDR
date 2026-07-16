@@ -15,6 +15,9 @@ class TokenResponse(BaseModel):
 
 
 class MfuIamPublicStatusRead(BaseModel):
+    auth_mode: str
+    local_login_enabled: bool = False
+    template_shell_required: bool = True
     enabled: bool
     b2b_ready: bool
     mock_enabled: bool = False
@@ -66,6 +69,9 @@ class OidcStatusRead(BaseModel):
 
 
 class MfuIamStatusRead(BaseModel):
+    auth_mode: str
+    local_login_enabled: bool = False
+    template_shell_required: bool = True
     enabled: bool
     base_url_configured: bool
     client_id_configured: bool

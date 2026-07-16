@@ -2,6 +2,14 @@
 
 This index defines the active ATDR documentation set for AI/Codex-assisted work. It adapts the university template documentation pattern to ATDR without making NewSystem, Node, Vue, MongoDB, or full external IAM implementation truth.
 
+## Current Baseline
+
+- `docs/V4_5_REPRODUCIBLE_PRODUCT_BASELINE.md`: reproducibility, canonical evidence, dashboard, assistant, and clean-room status.
+- `docs/V4_5_CURRENT_STATE_MANIFEST.md`: concise source/runtime capability manifest.
+- `docs/V4_5_REPO_HYGIENE_REPORT.md`: protected material and release-boundary audit.
+- `docs/V4_5_COMMIT_ALLOWLIST.md`: exact proposed staging boundary; approval required.
+- `docs/changes/T1_T20_V4_5_REPRODUCIBLE_PRODUCT_BASELINE.md`: completed change-workflow record.
+
 ## Active Control Documents
 
 | Document | Purpose |
@@ -30,6 +38,24 @@ This index defines the active ATDR documentation set for AI/Codex-assisted work.
 | `docs/V3_96_PREPRODUCTION_DEPLOYMENT_REHEARSAL.md` | Canonical secret-safe preproduction preflight, local rehearsal evidence, environment availability, blockers, and acceptance decision. |
 | `docs/V3_96_OPERATIONAL_ACCEPTANCE_CHECKLIST.md` | Approved-host topology, IAM, monitoring, load, backup/recovery, safety, stop, and closure checklist. |
 | `docs/changes/T1_T20_V3_96_PREPRODUCTION_REHEARSAL.md` | T1-T20 change/evidence record for the v3.96 controlled rehearsal. |
+| `docs/V3_97_LARGE_FILE_INGESTION_RELIABILITY.md` | Canonical v3.97 indexed duplicate accounting, resumability semantics, safe validator, measured 100k result, and remaining limits. |
+| `docs/changes/T1_T20_V3_97_LARGE_FILE_INGESTION_RELIABILITY.md` | T1-T20 change/evidence record for the v3.97 large-file reliability slice. |
+| `docs/V3_98_INDEPENDENT_DETECTION_ML_HOLDOUT_VALIDATION.md` | Canonical v3.98 frozen internal holdout protocol, leakage controls, rule/anomaly/queue/hybrid comparison, conservative result, and external-independence gap. |
+| `docs/changes/T1_T20_V3_98_INDEPENDENT_DETECTION_ML_HOLDOUT_VALIDATION.md` | T1-T20 change/evidence record for the v3.98 read-only Detection/ML holdout validation. |
+| `docs/V3_98_CHANGESET_MANIFEST.md` | Exact 27-path v3.97/v3.98 review/staging allowlist, private-output exclusions, configured-DB boundary, and pre-existing template-binary hygiene finding. |
+| `docs/V3_99_INDEPENDENT_MULTI_SOURCE_EVIDENCE_AND_FROZEN_REVALIDATION.md` | Canonical v3.99 deterministic synthetic multi-source/time evidence manifest, overlap quarantine, frozen evaluation protocol, metrics, calibration blocker, and real-evidence limitation. |
+| `docs/changes/T1_T20_V3_99_INDEPENDENT_MULTI_SOURCE_EVIDENCE.md` | T1-T20 change/evidence record for the v3.99 synthetic evidence and frozen revalidation phase. |
+| `docs/V3_99_CHANGESET_MANIFEST.md` | Exact cumulative 33-path v3.97-v3.99 review boundary and generated/private-output exclusions. |
+| `docs/V4_0_PROVIDER_BLINDED_EXTERNAL_EVIDENCE_AND_FROZEN_VALIDATION.md` | Official CSE-CIC-IDS2018 provenance, immutable sampling/prediction ordering, honest adapter/rule applicability, external metrics, failed generalization gate, and next evidence boundary. |
+| `docs/V4_0_CHANGESET_MANIFEST.md` | Exact cumulative 39-path v3.97-v4.0 review boundary and provider/generated/private exclusions. |
+| `docs/changes/T1_T20_V4_0_PROVIDER_BLINDED_EXTERNAL_EVIDENCE.md` | Completed university change record for v4.0 external provider validation. |
+| `docs/V4_1_SCHEMA_AWARE_SOC_QUEUE_MODEL_REDESIGN.md` | v4.0-locked, schema-aware development-only SOC queue diagnostic with explicit data contracts, no-invention missingness handling, stability/calibration results, and candidate-only decision. |
+| `docs/V4_1_CHANGESET_MANIFEST.md` | Exact v4.1 additions, inherited worktree boundary, ignored evidence/output exclusions, and no-staging/no-commit record. |
+| `docs/changes/T1_T20_V4_1_SCHEMA_AWARE_SOC_QUEUE_MODEL_REDESIGN.md` | Completed university change record for the v4.1 schema-aware diagnostic. |
+| `docs/V4_3_PORTABLE_MFU_SHELL_RUNTIME.md` | Portable mandatory-shell runtime, auth profiles, lifecycle controls, validation boundary, and unchanged safety constraints. |
+| `docs/changes/T1_T20_V4_3_PORTABLE_MFU_SHELL_RUNTIME.md` | T1-T20 change/evidence record for v4.3. |
+| `docs/V4_4_MFU_AUTH_STABILIZATION.md` | Current fail-closed Google client configuration, secure handoff diagnostics, exact provider action, recovery boundary, and acceptance status. |
+| `docs/changes/T1_T20_V4_4_MFU_AUTH_STABILIZATION.md` | T1-T20 change/evidence record for v4.4. |
 | `docs/V3_94_RELEASE_COMMIT_ALLOWLIST.md` | Exact v3.89-v3.94 path boundary and safe staging warning for the cumulative worktree. |
 | `docs/V3_95_RELEASE_MANIFEST.md` | Approval-gated cumulative v3.89-v3.95 staging, commit, push, CI, exclusion, and rollback boundary. |
 
@@ -66,6 +92,7 @@ This index defines the active ATDR documentation set for AI/Codex-assisted work.
 | --- | --- |
 | `README.md` | Short project overview, startup commands, verification commands, and doc map. |
 | `docs/QUICKSTART_FOR_TEAM.md` | Windows setup for teammates using clone or zip download. |
+| `docs/TEAM_ONE_COMMAND_START.md` | Canonical two-command post-clone setup/start workflow for the separate MFU shell and ATDR services. |
 | `docs/LAB_RUNBOOK.md` | Local/lab operations, replay, syslog, sources, scenarios, and troubleshooting. |
 | `docs/ACCEPTANCE_TEST_CHECKLIST.md` | Manual acceptance workflow. |
 | `docs/FINAL_SYSTEM_STATUS.md` | Current final controlled academic status. |
@@ -113,6 +140,7 @@ This index defines the active ATDR documentation set for AI/Codex-assisted work.
 | `docs/V3_75_ASSISTANT_FOLLOWUP_CONTEXT_REPAIR.md` | SOC Assistant follow-up context repair so alert-scoped follow-ups keep the correct alert/log/source/case context and do not revive stale URL context. |
 | `docs/V3_76_REAL_LLM_ASSISTANT_FULL_CHAT_PROBE.md` | Safe full assistant chat provider probe using a synthetic temporary database to validate configured real LLM behavior without exposing secrets or mutating ATDR data. |
 | `docs/V3_87_REAL_LLM_SOC_ASSISTANT.md` | Completed optional real-provider SOC Assistant path with structured answers, bounded follow-up context, privacy filtering, reliability controls, deterministic fallback, and zero action capability. |
+| `docs/V4_2_PRESENTATION_READY_SOC_ASSISTANT.md` | Current assistant behavior: truthful grounding, safe Gemini labeling, session-scoped investigation continuity, concise answers, and MFU-aligned React UI. |
 | `docs/V3_88_PRODUCT_BASELINE_CHECKPOINT.md` | Consolidated v3.78-v3.87 source/runtime/docs baseline, current safety posture, CI position, remaining risks, and next product phase. |
 | `docs/V3_88_CHANGESET_MANIFEST.md` | Exact intended commit allowlist, ignored/private exclusions, external template change, rollback notes, risks, and staging commands. |
 | `docs/V3_89_SHARED_LAB_PERSISTENCE_AND_BACKUP_RESTORE.md` | SQLite-preserving shared-lab persistence profile, safe backup/restore workflow, PostgreSQL CI validation design, and remaining operational limits. |

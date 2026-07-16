@@ -160,6 +160,7 @@ def test_config_doctor_reports_mfu_iam_readiness_without_secret_leakage():
 def test_config_doctor_reports_template_shell_readiness_without_secret_leakage():
     result = run_config_doctor(
         Settings(
+            ATDR_AUTH_MODE="template_shell",
             ENVIRONMENT="development",
             MFU_IAM_ENABLED=True,
             MFU_IAM_TEMPLATE_SHELL_ENABLED=True,
@@ -171,6 +172,7 @@ def test_config_doctor_reports_template_shell_readiness_without_secret_leakage()
             MFU_IAM_HANDOFF_ENABLED=True,
             MFU_IAM_HANDOFF_SHARED_SECRET="bridge-secret-that-must-not-leak",
             MFU_IAM_HANDOFF_ALLOWED_ORIGINS="http://127.0.0.1:8080",
+            MFU_IAM_TEMPLATE_SHELL_LAUNCH_URL="http://127.0.0.1:8080/#/pages/login",
         )
     )
     rendered = str(result)

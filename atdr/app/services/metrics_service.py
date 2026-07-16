@@ -176,6 +176,49 @@ def _job_metrics(lines: list[str], db: Session, *, heartbeat_seconds: int, failu
     _metric(lines, "atdr_ingestion_cancellations_total", cancelled, {"state": "completed"})
     _metric(lines, "atdr_ingestion_interrupted_total", interrupted)
 
+    active_import_filter = OperationJob.job_type.in_({"import_logs", "replay_logs"}) & OperationJob.status.in_(
+        {"running", "cancel_requested"}
+    )
+    active_imports = int(db.scalar(select(func.count(OperationJob.id)).where(active_import_filter)) or 0)
+    committed_rows = int(
+        db.scalar(select(func.coalesce(func.sum(OperationJob.progress_current), 0)).where(import_filter)) or 0
+    )
+    latest_checkpoint = db.scalar(
+        select(func.max(OperationJob.checkpoint_at)).where(active_import_filter)
+    )
+    checkpoint_age = (
+        max(0.0, (now - _utc(latest_checkpoint)).total_seconds())
+        if latest_checkpoint is not None
+        else 0.0
+    )
+    stale_checkpoint_cutoff = now - timedelta(seconds=max(1, heartbeat_seconds) * 3)
+    stalled_imports = int(
+        db.scalar(
+            select(func.count(OperationJob.id)).where(
+                active_import_filter,
+                OperationJob.checkpoint_at.is_not(None),
+                OperationJob.checkpoint_at < stale_checkpoint_cutoff,
+            )
+        )
+        or 0
+    )
+    lines.extend(
+        [
+            "# HELP atdr_ingestion_active_jobs Active durable ingestion jobs.",
+            "# TYPE atdr_ingestion_active_jobs gauge",
+            "# HELP atdr_ingestion_committed_rows_total Rows durably committed across ingestion jobs.",
+            "# TYPE atdr_ingestion_committed_rows_total gauge",
+            "# HELP atdr_ingestion_checkpoint_age_seconds Age of the newest active ingestion checkpoint.",
+            "# TYPE atdr_ingestion_checkpoint_age_seconds gauge",
+            "# HELP atdr_ingestion_stalled_jobs Active ingestion jobs whose checkpoint is stale.",
+            "# TYPE atdr_ingestion_stalled_jobs gauge",
+        ]
+    )
+    _metric(lines, "atdr_ingestion_active_jobs", active_imports)
+    _metric(lines, "atdr_ingestion_committed_rows_total", committed_rows)
+    _metric(lines, "atdr_ingestion_checkpoint_age_seconds", round(checkpoint_age, 3))
+    _metric(lines, "atdr_ingestion_stalled_jobs", stalled_imports)
+
 
 def _pipeline_metrics(lines: list[str], db: Session, *, failure_window_minutes: int) -> None:
     ingestion = db.execute(

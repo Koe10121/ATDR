@@ -14,7 +14,7 @@ Validate the advisor-template outer-shell handoff path with live local services 
 - `atdr/scripts/validate_template_shell_runtime.py`
 - `docs/V3_84_TEMPLATE_SHELL_RUNTIME_VALIDATION.md`
 - `docs/V3_85_TEMPLATE_SHELL_CONFIG_HELPER.md`
-- Supervisor template path: `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response`
+- Supervisor template path: `<MFU_SHELL_ROOT>`
 
 ## T4 Current Behavior
 

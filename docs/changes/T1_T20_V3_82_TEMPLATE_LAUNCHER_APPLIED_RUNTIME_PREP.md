@@ -12,8 +12,8 @@ The official supervisor template must be able to act as the outer authenticated 
 
 | Source | Path | Evidence / Finding |
 | --- | --- | --- |
-| Active goal | `C:\Users\User\.codex\attachments\6f0b9e08-b585-49fa-ae27-3adddc1ebc9d\goal-objective.md` | Requires supervisor template as outer application shell / IAM gateway, then open ATDR after login. |
-| Template registry page | `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\frontend-vue\src\projects\views\mfuaidrivenlogbasedthreatdetectionandresponse\MFUAIDRIVENLOGBASEDTHREATDETECTIONANDRESPONSERegistry.vue` | Authenticated project page now has the ATDR launcher. |
+| Active goal | `<USER_REQUEST_ATTACHMENT>` | Requires supervisor template as outer application shell / IAM gateway, then open ATDR after login. |
+| Template registry page | `<MFU_SHELL_ROOT>\frontend-vue\src\projects\views\mfuaidrivenlogbasedthreatdetectionandresponse\MFUAIDRIVENLOGBASEDTHREATDETECTIONANDRESPONSERegistry.vue` | Authenticated project page now has the ATDR launcher. |
 | ATDR launcher helper | `atdr/scripts/apply_template_atdr_launcher.py` | Applied the launcher with backup. |
 | ATDR handoff receiver | `frontend/src/pages/LoginPage.tsx` | Receives and cleans handoff token/code URL values. |
 | ATDR token-login backend | `atdr/app/routers/auth.py`, `atdr/app/services/mfu_iam_service.py` | Validates external token and maps a school email user into ATDR. |
@@ -191,23 +191,23 @@ No ATDR database rollback is required.
 Next manual runtime test:
 
 ```powershell
-cd C:\Users\User\Desktop\ATDR
+cd <ATDR_ROOT>
 .\.venv\Scripts\python.exe -m uvicorn atdr.app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 ```powershell
-cd C:\Users\User\Desktop\ATDR\frontend
+cd <ATDR_ROOT>\frontend
 npm.cmd run dev
 ```
 
 ```powershell
-cd C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\backend-node
+cd <MFU_SHELL_ROOT>\backend-node
 npm.cmd install
 npm.cmd run start:local
 ```
 
 ```powershell
-cd C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\frontend-vue
+cd <MFU_SHELL_ROOT>\frontend-vue
 npm.cmd install
 npm.cmd run serve:local
 ```

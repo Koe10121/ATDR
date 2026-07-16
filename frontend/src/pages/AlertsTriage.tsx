@@ -11,6 +11,7 @@ import { MetaGrid } from "../components/MetaGrid";
 import { MetricCard } from "../components/MetricCard";
 import { PaginationControls } from "../components/PaginationControls";
 import { SafeSelect } from "../components/SafeSelect";
+import { SocPageHeader } from "../components/SocPageHeader";
 import { TableToolbar, tableDensityClass } from "../components/TableToolbar";
 import type { SavedView, TableDensity } from "../components/TableToolbar";
 import { useAuth } from "../hooks/useAuth";
@@ -195,11 +196,11 @@ export function AlertsTriage() {
 
   return (
     <div className="space-y-5">
-      <section className="hero-panel">
-        <div className="text-sm font-extrabold uppercase tracking-wide text-danger">Alerts</div>
-        <h1 className="mt-2 text-3xl font-black">Prioritize, investigate, contain, and document alerts.</h1>
-        <p className="mt-2 text-muted">Rule evidence stays primary. ML signals are assistive and response actions remain simulated.</p>
-      </section>
+      <SocPageHeader
+        eyebrow="Alerts"
+        title="Prioritize, investigate, contain, and document alerts."
+        description="Rule evidence stays primary. ML signals are assistive and response actions remain simulated."
+      />
 
       <div className="grid gap-4 md:grid-cols-4">
         <MetricCard label="Filtered Alerts" value={alerts.data?.totalCount ?? "-"} detail="Matching alerts" tone="teal" />

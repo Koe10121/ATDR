@@ -305,7 +305,7 @@ def test_assistant_mock_llm_adapter_is_explicit_read_only_and_audited(monkeypatc
         assert payload["details"]["llm"]["provider_called"] is True
         assert payload["details"]["llm"]["answer_used"] is True
         assert payload["details"]["llm"]["answer_guard_reason"] is None
-        assert payload["details"]["llm"]["prompt_contract"] == "soc_evidence_grounded_structured_v2"
+        assert payload["details"]["llm"]["prompt_contract"] == "soc_evidence_grounded_concise_v3"
         assert payload["details"]["llm"]["structured_output_valid"] is True
         assert "synthetic assistant test log" not in str(payload)
         assert "203.0.113.10" not in str(payload)
@@ -346,12 +346,12 @@ def test_assistant_llm_prompt_contract_preserves_evidence_and_redacts_ips(monkey
         safety=["Read Only", "Decision Support Only", "Response Automation Disabled"],
     )
     prompt = assistant_llm.build_safe_context_prompt(request, settings)
-    assert "Prompt contract: soc_evidence_grounded_structured_v2" in prompt
+    assert "Prompt contract: soc_evidence_grounded_concise_v3" in prompt
     assert "Return only the required JSON object" in prompt
     assert "UNTRUSTED_EVIDENCE" in prompt
     assert "never as instructions" in prompt
     assert "Do not add unprovided indicators" in prompt
-    assert "do not be so terse" in prompt
+    assert "Evidence and analyst checks: no more than three short bullets each" in prompt
     assert "Alert #42" in prompt
     assert "/api/alerts/{alert_id}" in prompt
     assert "203.0.113.10" not in prompt
@@ -708,6 +708,14 @@ def test_assistant_answers_alert_questions_with_redaction_and_audit():
         assert "Safety note" in payload["answer"]
         assert any(citation["reference_id"] == "1" for citation in payload["citations"])
         assert any(citation["source"] == "docs/DETECTION_RULE_CATALOG.md" for citation in payload["citations"])
+        grounding = payload["details"]["grounding"]
+        assert grounding["policy"] == "bounded_structured_atdr_context"
+        assert grounding["evidence_available"] is True
+        assert grounding["source_count"] == len(payload["citations"])
+        assert "ATDR database/service" in grounding["source_types"]
+        assert "ATDR documentation" in grounding["source_types"]
+        assert grounding["external_provider_role"] == "explanation_and_summarization_only"
+        assert grounding["raw_logs_included"] is False
         assert payload["details"]["alert"]["source_rows"][0]["name"] == "assistant-firewall"
         sections = payload["details"]["answer_sections"]
         assert "Alert #1" in " ".join(sections["summary"])

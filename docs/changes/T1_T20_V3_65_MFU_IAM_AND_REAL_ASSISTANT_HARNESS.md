@@ -10,7 +10,7 @@ Use the supervisor MFU IAM template evidence to add an ATDR-specific, disabled-b
 
 ## T3 Source Evidence
 
-- Supervisor template env and IAM files under `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response`
+- Supervisor template env and IAM files under `<MFU_SHELL_ROOT>`
 - `backend-node/server/integrations/iam/iam-sdk-adapter.js`
 - `backend-node/server/integrations/iam/b2b-auth-middleware.js`
 - `frontend-vue/src/projects/components/dialog/SignIn.vue`

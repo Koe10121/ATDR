@@ -8,6 +8,7 @@ import { EmptyState } from "../components/EmptyState";
 import { MetaGrid } from "../components/MetaGrid";
 import { MetricCard } from "../components/MetricCard";
 import { Badge } from "../components/Badge";
+import { SocPageHeader } from "../components/SocPageHeader";
 import {
   useAlerts,
   useAuditPage,
@@ -20,6 +21,7 @@ import {
   useJobs,
   useJobsSummary,
   useMlReport,
+  useMlEvidenceSnapshot,
   useResumeJobMutation,
   useRetryJobMutation,
   useSource,
@@ -31,6 +33,11 @@ import { useAuth } from "../hooks/useAuth";
 
 const chartColors = ["#ef4444", "#f97316", "#f59e0b", "#22c55e", "#22d3ee", "#94a3b8"];
 
+function numericJobDetail(details: Record<string, unknown> | undefined, key: string): number | null {
+  const value = details?.[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
 export function ExecutiveOverview() {
   const { isAdmin } = useAuth();
   const [searchParams] = useSearchParams();
@@ -38,6 +45,7 @@ export function ExecutiveOverview() {
   const validationSummary = useDashboardValidationSummary();
   const health = useHealth();
   const mlReport = useMlReport();
+  const evidenceSnapshot = useMlEvidenceSnapshot();
   const supervised = useSupervisedReport();
   const latestDetectionAudit = useAuditPage({ action: "run_detection", limit: 1 });
   const latestAudit = useAuditPage({ limit: 1 });
@@ -76,6 +84,10 @@ export function ExecutiveOverview() {
   const latestIngestionRun = data?.latest_ingestion_run ?? ingestionRuns.data?.[0] ?? null;
   const latestDetectionRun = data?.latest_detection_run ?? detectionRuns.data?.[0] ?? null;
   const latestJob = jobs.data?.[0] ?? null;
+  const latestRawImported = numericJobDetail(latestJob?.details, "raw_logs_imported");
+  const latestParsed = numericJobDetail(latestJob?.details, "parsed_successfully");
+  const latestParseFailures = numericJobDetail(latestJob?.details, "parse_failures");
+  const latestDuplicates = numericJobDetail(latestJob?.details, "duplicate_raw_logs");
   const staleJobCount = jobsSummary.data?.stale_count ?? 0;
   const latestFailedJob = jobsSummary.data?.latest_failed_job ?? null;
   const queue = jobsSummary.data?.queue;
@@ -91,11 +103,7 @@ export function ExecutiveOverview() {
     ) ?? null;
   const demoSource = (sources.data ?? []).find((source) => source.name.startsWith("scenario-")) ?? (sources.data ?? [])[0] ?? null;
   const validation = validationSummary.data;
-  const independentAi = validation?.v20_ai?.available
-    ? validation.v20_ai
-    : validation?.v19b_ai?.available
-      ? validation.v19b_ai
-      : validation?.v19_ai;
+  const canonicalEvidence = evidenceSnapshot.data?.canonical_evidence;
 
   useEffect(() => {
     if (sourceParamId) {
@@ -105,10 +113,7 @@ export function ExecutiveOverview() {
 
   return (
     <div className="space-y-5">
-      <section className="hero-panel">
-        <div className="text-sm font-extrabold uppercase tracking-wide text-danger">Overview</div>
-        <h1 className="mt-2 text-3xl font-black">ATDR lab SOC status.</h1>
-      </section>
+      <SocPageHeader eyebrow="Overview" title="ATDR lab SOC status." />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Logs Ingested" value={data?.total_logs ?? "-"} detail="Normalized firewall events" tone="teal" />
@@ -250,52 +255,18 @@ export function ExecutiveOverview() {
             </div>
           </div>
           <div className="rounded-lg border border-line bg-panel2 p-3">
-            <div className="text-xs font-bold uppercase tracking-wide text-muted">Benchmark</div>
+            <div className="text-xs font-bold uppercase tracking-wide text-muted">Canonical ML Evidence</div>
             <div className="mt-1 font-bold text-text">
-              {independentAi?.available
-                ? `${independentAi.independent_label_count ?? 0} ${
-                    validation?.v20_ai?.available ? "fresh blind" : "independent"
-                  } | F1 ${
-                    independentAi.threat_positive_f1 ?? "-"
-                  }`
-                : validation?.v18_ai?.available
-                ? `${validation.v18_ai.external_label_count ?? 0} external | F1 ${
-                    validation.v18_ai.threat_positive_f1 ?? "-"
-                  }`
-                : validation?.v17_ai?.available
-                ? `${validation.v17_ai.external_label_count ?? 0} unseen | F1 ${
-                    validation.v17_ai.threat_positive_f1 ?? "-"
-                  }`
-                : validation?.v16_ai?.available
-                ? `${validation.v16_ai.external_label_count ?? 0} unseen | F1 ${
-                    validation.v16_ai.threat_positive_f1 ?? "-"
-                  }`
-                : validation?.v15_ai?.available
-                ? `${validation.v15_ai.benchmark_label_count ?? 0} labels | F1 ${
-                    validation.v15_ai.threat_positive_f1 ?? "-"
-                  }`
-                : validation?.benchmark?.available
-                  ? `Threat F1 ${validation.benchmark.threat_positive_f1 ?? validation.benchmark.f1 ?? "-"}`
-                  : "No benchmark yet"}
+              {canonicalEvidence?.available
+                ? `${canonicalEvidence.evaluated_splits ?? 0} development splits | Snapshot ${canonicalEvidence.snapshot_id}`
+                : "Canonical evidence unavailable"}
             </div>
             <div className="mt-1 text-xs text-muted">
-              {independentAi?.available
-                ? `${independentAi.readiness_decision ?? "analyst_review_eligible"} | FPR ${
-                    independentAi.benign_like_false_positive_rate ?? "-"
-                  }`
-                : validation?.v18_ai?.available
-                ? `${validation.v18_ai.readiness_decision ?? "external_benchmark_validated_candidate"} | v1.8`
-                : validation?.v17_ai?.available
-                ? `${validation.v17_ai.readiness_decision ?? "candidate_only"} | FPR ${
-                    validation.v17_ai.benign_like_false_positive_rate ?? "-"
-                  }`
-                : validation?.v16_ai?.available
-                ? `${validation.v16_ai.readiness_decision ?? "candidate_only"} | external holdout`
-                : validation?.v15_ai?.available
-                ? `${validation.v15_ai.readiness_decision ?? "candidate_only"} | decision support only`
-                : validation?.benchmark?.available
-                ? `${validation.benchmark.detection_mode ?? "benchmark"} | ${validation.benchmark.readiness_decision ?? "candidate_only"}`
-                : validation?.benchmark?.message ?? "Run mapped benchmark adapter."}
+              {canonicalEvidence?.available
+                ? `${(canonicalEvidence.readiness_decision ?? "candidate_only").replaceAll("_", " ")} | ${(
+                    canonicalEvidence.evidence_type ?? "controlled_validation"
+                  ).replaceAll("_", " ")}`
+                : canonicalEvidence?.reason ?? "No historical ML metric fallback is used."}
             </div>
           </div>
           <div className="rounded-lg border border-line bg-panel2 p-3">
@@ -343,9 +314,7 @@ export function ExecutiveOverview() {
           <div className="rounded-lg border border-amber/30 bg-amber/10 p-3 text-sm text-amber">Response Automation Disabled</div>
           <div className="rounded-lg border border-line bg-panel2 p-3 text-sm text-muted">Not Production Promoted</div>
           <div className="rounded-lg border border-success/30 bg-success/10 p-3 text-sm text-success">
-            {validation?.v20_ai?.final_controlled_validation_passed
-              ? "Final Controlled Validation Candidate"
-              : "Controlled Validation Pending"}
+            {canonicalEvidence?.available ? "Canonical Evidence Available" : "Canonical Evidence Pending"}
           </div>
         </div>
       </section>
@@ -533,6 +502,14 @@ export function ExecutiveOverview() {
                 <span>{latestJob.progress_current} of {latestJob.progress_total || "unknown"} lines committed</span>
                 <span>{latestJob.chunk_commits ?? 0} chunk commits</span>
               </div>
+              {latestRawImported !== null ? (
+                <div data-testid="latest-job-counters" className="mt-3 grid gap-2 text-xs text-muted sm:grid-cols-4">
+                  <span>Raw imported: <strong className="text-text">{latestRawImported}</strong></span>
+                  <span>Parsed: <strong className="text-text">{latestParsed ?? 0}</strong></span>
+                  <span>Failed: <strong className="text-text">{latestParseFailures ?? 0}</strong></span>
+                  <span>Duplicates: <strong className="text-text">{latestDuplicates ?? 0}</strong></span>
+                </div>
+              ) : null}
             </div>
           ) : null}
           {latestJob?.error_summary ? <div className="mt-2 text-sm text-amber">{latestJob.error_summary}</div> : null}

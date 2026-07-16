@@ -1,14 +1,19 @@
 import shutil
+import importlib
 from pathlib import Path
 
-from sqlalchemy import func, select
+from sqlalchemy import create_engine, func, select
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from atdr.app.core.config import PROJECT_ROOT
-from atdr.app.db.models import LogSource
+from atdr.app.db.database import Base
+from atdr.app.db.models import LogSource, RawLog, ResponseAction
 from atdr.app.services.log_service import import_log_file
 from atdr.app.services.source_service import get_or_create_source
 from atdr.scripts.export_lab_validation_report import export_lab_validation_report
 from atdr.scripts.run_source_scenario import SCENARIOS, _temp_session_factory, run_source_scenario
+from atdr.scripts.prepare_safe_demo import CONFIRMATION, prepare_safe_demo
 from atdr.scripts.validate_live_source import validate_live_source
 
 
@@ -154,6 +159,59 @@ def test_source_scenario_disable_preserves_existing_rows():
     assert result["source_after"]["health"]["status"] == "disabled"
     assert result["disabled_source_check"]["data_preserved"] is True
     assert result["disabled_source_check"]["raw_logs_after_disable"] == 3
+
+
+def test_safe_demo_requires_confirmation_and_creates_no_response_action():
+    preview = prepare_safe_demo()
+    denied = prepare_safe_demo(execute=True, confirmation="wrong", use_temp_db=True)
+    executed = prepare_safe_demo(execute=True, confirmation=CONFIRMATION, use_temp_db=True)
+
+    assert preview["status"] == "dry_run"
+    assert preview["prepared"] is False
+    assert denied["status"] == "confirmation_required"
+    assert executed["ok"] is True
+    assert executed["prepared"] is True
+    assert executed["expected_outcome"]["response_safety"]["automatic_response_actions_created"] == 0
+    assert executed["safety"]["automatic_response"] is False
+
+
+def test_idempotent_source_scenario_does_not_duplicate_existing_demo(monkeypatch):
+    scenario_module = importlib.import_module("atdr.scripts.run_source_scenario")
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+        future=True,
+    )
+    Base.metadata.create_all(engine)
+    SessionFactory = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+    monkeypatch.setattr(scenario_module, "SessionLocal", SessionFactory)
+    monkeypatch.setattr(scenario_module, "init_db", lambda: None)
+    try:
+        first = run_source_scenario(
+            scenario="port_scan_like_traffic",
+            source_name="fixed-safe-demo",
+            run_detection_after=True,
+            idempotent=True,
+        )
+        second = run_source_scenario(
+            scenario="port_scan_like_traffic",
+            source_name="fixed-safe-demo",
+            run_detection_after=True,
+            idempotent=True,
+        )
+        with SessionFactory() as db:
+            raw_count = int(db.scalar(select(func.count(RawLog.id))) or 0)
+            response_count = int(db.scalar(select(func.count(ResponseAction.id))) or 0)
+
+        assert first["status"] == "prepared"
+        assert second["status"] == "already_prepared"
+        assert second["import_results"] == []
+        assert second["detection_results"] == []
+        assert raw_count == first["expected_outcome"]["source_counts"]["raw_logs"]
+        assert response_count == 0
+    finally:
+        engine.dispose()
 
 
 def test_validate_live_source_checks_source_scoped_detection_without_response_actions():

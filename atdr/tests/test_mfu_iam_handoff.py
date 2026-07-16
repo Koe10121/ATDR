@@ -40,6 +40,7 @@ def _client() -> tuple[TestClient, sessionmaker]:
 
 
 def _configure_handoff(monkeypatch) -> None:
+    monkeypatch.setenv("ATDR_AUTH_MODE", "template_shell")
     monkeypatch.setenv("MFU_IAM_ENABLED", "true")
     monkeypatch.setenv("MFU_IAM_TEMPLATE_SHELL_ENABLED", "true")
     monkeypatch.setenv("MFU_IAM_TEMPLATE_SHELL_BASE_URL", "http://template-shell.test")
@@ -50,6 +51,7 @@ def _configure_handoff(monkeypatch) -> None:
     monkeypatch.setenv("MFU_IAM_HANDOFF_ALLOWED_ORIGINS", "http://template-shell.test")
     monkeypatch.setenv("MFU_IAM_HANDOFF_FRONTEND_URL", "http://127.0.0.1:5173")
     monkeypatch.setenv("MFU_IAM_HANDOFF_EXCHANGE_PATH", "/api/v1/atdr/handoff/exchange")
+    monkeypatch.setenv("MFU_IAM_TEMPLATE_SHELL_LAUNCH_URL", "http://template-shell.test/#/pages/login")
     monkeypatch.setenv("MFU_IAM_ADMIN_GROUPS", "atdr-admin")
     get_settings.cache_clear()
 
@@ -190,7 +192,7 @@ def test_handoff_does_not_link_a_matching_local_admin_email(monkeypatch):
             follow_redirects=False,
         )
         assert response.status_code == 303
-        assert "handoff_rejected" in response.headers["location"]
+        assert "identity_conflict" in response.headers["location"]
         assert "admin@lamduan.mfu.ac.th" not in response.headers["location"]
 
         db = session_factory()

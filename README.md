@@ -1,8 +1,18 @@
 # MFU AI-Driven Log-Based Threat Detection and Response System
 
-ATDR is a defensive senior-project lab prototype for AI-assisted firewall log monitoring. It imports Palo Alto firewall/syslog logs, preserves raw evidence, normalizes investigation fields, generates explainable SOC-style alerts, supports analyst review, and records simulated analyst-approved response actions with audit trails.
+ATDR is a defensive SOC platform under controlled productization for AI-assisted firewall log monitoring. It imports Palo Alto firewall/syslog logs, preserves raw evidence, normalizes investigation fields, generates explainable SOC-style alerts, supports analyst review, and records simulated analyst-approved response actions with audit trails.
 
 ATDR is lab-ready for controlled small-office validation. It is not certified production software, does not perform real firewall blocking, and does not trigger automatic response actions.
+
+## Current Reproducible Baseline
+
+v4.5 makes the current FastAPI/React system reproducible from a clean Windows copy, adds one canonical ML evidence snapshot, separates operational and diagnostic model states, bounds SOC Assistant answers, and verifies rendered core pages at projector, laptop, and mobile sizes. See:
+
+- `docs/V4_5_REPRODUCIBLE_PRODUCT_BASELINE.md`
+- `docs/V4_5_CURRENT_STATE_MANIFEST.md`
+- `docs/V4_5_REPO_HYGIENE_REPORT.md`
+
+Installation is locally reproducible. Real MFU/Google sign-in still requires an approved OAuth Web client and account/group assignment from the university provider owner; authentication intentionally fails closed until those external inputs are supplied.
 
 ## Final Academic Checkpoint
 
@@ -104,7 +114,7 @@ Final presentation material:
 - Rule-based detection, alert deduplication, lightweight case grouping, ATT&CK-style mapping, and "Why flagged?" explanations.
 - IsolationForest anomaly scoring and supervised ML decision support with AI Governance, labeling workflow, active learning, and model validation gates.
 - Simulated response actions with confirmation, protected-IP safeguards, justification notes, and audit logs.
-- The official MFU template is the optional school-identity outer shell. v3.91 uses a short-lived, single-use code and server-to-server exchange; ATDR never receives a school credential in a browser URL. New external users default to analyst and admin requires an approved IAM group. Local ATDR login remains a recovery path.
+- The approved MFU application is the normal identity outer shell. A short-lived, single-use code is exchanged server-to-server; ATDR never receives a school credential in a browser URL. New external users default to analyst, admin requires an approved IAM group, and direct local login is reserved for an explicit recovery profile.
 - Supervisor-template integration is a controlled outer-shell handoff, not a migration to the template's Node/Vue/MongoDB runtime. See `docs/V3_91_MFU_OUTER_SHELL_SECURE_HANDOFF.md` and `docs/security/ATDR_MFU_IAM_PREPROD_VALIDATION.md`.
 - The SOC Assistant has an optional private-config Gemini path with validated structured answers, bounded conversation context, citations, redaction, retries, rate limits, and deterministic fallback. It remains read-only, excludes raw logs by default, and cannot execute ATDR actions. See `docs/V3_87_REAL_LLM_SOC_ASSISTANT.md`.
 - Safe synthetic scenario validation under `data/samples/scenarios/`.
@@ -129,93 +139,55 @@ v3.90 adds an opt-in durable operation queue for selected long-running imports, 
 For a beginner-friendly Windows setup from a fresh clone or GitHub zip download, use:
 
 - `docs/QUICKSTART_FOR_TEAM.md`
+- `docs/TEAM_ONE_COMMAND_START.md`
 
-Minimum local flow:
+Requirements include Python 3.11 and Node.js `20.19.0` or newer. The approved MFU shell is supplied separately and may live in any folder. Run setup once from the ATDR root:
 
 ```powershell
-py -3.11 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-Copy-Item .env.example .env
-.\.venv\Scripts\alembic.exe upgrade head
-python -m atdr.scripts.seed_users
+.\scripts\setup_team.cmd -TemplateRoot "D:\Path To\mfu-ai-driven-log-based-threat-detection-and-response"
 ```
 
-If your system uses `python` instead of the Windows launcher, replace `py -3.11` with `python`.
+Setup can install and migrate ATDR before private provider configuration is available. It reports provider readiness separately. Normal startup remains fail-closed until the shell's ignored frontend `VUE_APP_CLIENTID` and backend `GOOGLE_CLIENT_ID` contain the same university-approved OAuth Web client and the remaining approved private shell profile is present.
 
-Default local demo users from `.env.example`:
+Then start all four components and open the MFU sign-in page:
+
+```powershell
+.\scripts\start_system.cmd
+```
+
+Normal entry point:
 
 ```text
-admin / admin123
-analyst / analyst123
+http://localhost:8080/#/pages/login
 ```
 
-Replace demo secrets before shared lab or real deployment.
+Internal component addresses are FastAPI `http://127.0.0.1:8000` and React `http://127.0.0.1:5173`; users still enter React through the shell handoff.
 
-Environment templates:
+Configuration profiles are documented in `.env.example`, `.env.shell.example`, `.env.lab.example`, and `.env.production.example`. Private `.env` files are ignored and must never be committed.
 
-- `.env.example` - normal local SQLite/demo setup.
-- `.env.lab.example` - optional PostgreSQL/shared lab starting point.
-- `.env.production.example` - future hardened deployment template, not a production guarantee.
+Use `python -m atdr.scripts.template_auth_doctor --template-root <MFU_SHELL_ROOT> --pretty` for secret-free Google configuration diagnostics. See `docs/V4_4_MFU_AUTH_STABILIZATION.md` for the exact MFU administrator action still required for real provider acceptance.
 
-If login fails with `Database unavailable` and logs mention host `postgres`, `.env` is using the optional Docker/PostgreSQL lab profile outside Docker. For normal local testing, switch back to SQLite:
+Prepare the bundled synthetic dashboard scenario without touching existing data:
 
 ```powershell
-.\.venv\Scripts\python.exe -m atdr.scripts.config_doctor --pretty
-.\.venv\Scripts\python.exe -m atdr.scripts.use_local_sqlite_config --dry-run --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.prepare_safe_demo --pretty
 ```
 
-## Start The Backend
+Check or stop the complete system:
 
 ```powershell
-.\.venv\Scripts\python.exe -m uvicorn atdr.app.main:app --host 127.0.0.1 --port 8000 --reload
+.\scripts\check_system.cmd
+.\scripts\stop_system.cmd
 ```
 
-Health check:
-
-```powershell
-Invoke-RestMethod http://127.0.0.1:8000/health
-```
-
-## Start The React Dashboard
-
-Install Node.js 20.19.0 or newer, preferably the current Node 20 LTS release. Node 16 is unsupported, and older Node 20 releases may emit engine warnings with the current ESLint toolchain.
-
-```powershell
-cd frontend
-Copy-Item .env.example .env
-npm.cmd install
-npm.cmd run dev
-```
-
-Open:
-
-```text
-http://127.0.0.1:5173
-```
-
-Optional projector cleanup mode:
-
-```powershell
-$env:VITE_ATDR_PRESENTATION_MODE="true"
-npm.cmd run dev
-```
-
-FastAPI must be running at:
-
-```text
-http://127.0.0.1:8000
-```
-
-Streamlit remains available only as legacy/demo continuity. React is the priority dashboard path. See `docs/DASHBOARD_PRODUCTION_PATH.md` for the historical dashboard migration context.
+The launcher keeps ATDR's existing FastAPI and React commands intact internally. Direct component startup and `ATDR_AUTH_MODE=local_recovery` are development/recovery tools, not the normal user path. SQLite remains the default ATDR database; MongoDB is required only by the separate MFU shell.
 
 ## Import Or Replay Logs
 
 Keep private logs outside Git and pass an absolute path when importing real data:
 
 ```powershell
-python -m atdr.scripts.import_logs "C:\Users\User\Downloads\paloalto-firewall.log" --limit 5000
+python -m atdr.scripts.import_logs "D:\Private Logs\paloalto-firewall.log" --limit 5000
 ```
 
 Run detection:

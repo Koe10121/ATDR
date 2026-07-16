@@ -4,14 +4,17 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { ChartCard } from "../components/ChartCard";
 import { EmptyState } from "../components/EmptyState";
 import { MetricCard } from "../components/MetricCard";
+import { MLEvidenceSnapshotPanel } from "../components/MLEvidenceSnapshotPanel";
+import { MLGovernancePolicyPanel } from "../components/MLGovernancePolicyPanel";
 import { Badge } from "../components/Badge";
 import { ErrorBanner } from "../components/ErrorBanner";
+import { SocPageHeader } from "../components/SocPageHeader";
 import { api } from "../lib/api";
 import {
   useClassTemporalCoverage,
-  useDashboardValidationSummary,
   useDetectionMlProductization,
   useMlLabelMutations,
+  useMlEvidenceSnapshot,
   useMlReport,
   useMlReviewQueue,
   useSupervisedModels,
@@ -28,18 +31,14 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-function firstMetric(...values: unknown[]) {
-  return values.find((value) => value !== null && value !== undefined && value !== "");
-}
-
 function metricText(value: unknown) {
   return value === null || value === undefined || value === "" ? "-" : String(value);
 }
 
 export function MLGovernance() {
   const report = useMlReport();
+  const evidenceSnapshot = useMlEvidenceSnapshot();
   const supervised = useSupervisedReport();
-  const validationSummary = useDashboardValidationSummary();
   const productization = useDetectionMlProductization();
   const supervisedModels = useSupervisedModels();
   const temporalCoverage = useClassTemporalCoverage();
@@ -49,9 +48,7 @@ export function MLGovernance() {
   const supervisedData = supervised.data;
   const supervisedMetrics = supervisedData?.latest_run?.metrics ?? {};
   const threatPositive = (supervisedMetrics.threat_positive ?? {}) as Record<string, unknown>;
-  const weightedAverage = (supervisedMetrics.weighted_average ?? {}) as Record<string, unknown>;
   const socTriageMode = supervisedData?.soc_triage_mode;
-  const socReviewProfiles = socTriageMode?.review_profiles ?? [];
   const topFeatures = supervisedData?.latest_run?.top_features ?? [];
   const dataQuality = data?.data_quality;
   const validationWarnings = supervisedData?.validation_warnings ?? supervisedData?.latest_run?.validation_warnings ?? [];
@@ -63,136 +60,6 @@ export function MLGovernance() {
   const trainingDiagnostics = supervisedData?.latest_run?.training_dataset_diagnostics ?? {};
   const temporal = temporalCoverage.data;
   const readiness = supervisedData?.model_readiness_checklist ?? supervisedData?.latest_run?.model_readiness_checklist;
-  const benchmark = validationSummary.data?.benchmark;
-  const v13Ai = validationSummary.data?.v13_ai;
-  const v14Ai = validationSummary.data?.v14_ai;
-  const v15Ai = validationSummary.data?.v15_ai;
-  const v16Ai = validationSummary.data?.v16_ai;
-  const v17Ai = validationSummary.data?.v17_ai;
-  const v18Ai = validationSummary.data?.v18_ai;
-  const v19Ai = validationSummary.data?.v19_ai;
-  const v19bAi = validationSummary.data?.v19b_ai;
-  const v20Ai = validationSummary.data?.v20_ai;
-  const v330Quality = validationSummary.data?.v330_detection_ml_quality;
-  const v355Queue = validationSummary.data?.v355_soc_queue;
-  const v357Agreement = validationSummary.data?.v357_queue_evidence_agreement;
-  const v359Policy = validationSummary.data?.v359_supervised_output_policy;
-  const v30Readiness = validationSummary.data?.v30_production_readiness;
-  const independentAi = v20Ai?.available ? v20Ai : v19bAi?.available ? v19bAi : v19Ai;
-  const finalThreatPrecision = firstMetric(
-    independentAi?.threat_positive_precision,
-    v18Ai?.threat_positive_precision,
-    v17Ai?.threat_positive_precision,
-    v14Ai?.threat_positive_precision,
-    benchmark?.precision,
-    threatPositive.precision
-  );
-  const finalThreatRecall = firstMetric(
-    independentAi?.threat_positive_recall,
-    v18Ai?.threat_positive_recall,
-    v17Ai?.threat_positive_recall,
-    v16Ai?.threat_positive_recall,
-    v15Ai?.threat_positive_recall,
-    v14Ai?.threat_positive_recall,
-    benchmark?.recall,
-    threatPositive.recall
-  );
-  const finalThreatF1 = firstMetric(
-    independentAi?.threat_positive_f1,
-    v18Ai?.threat_positive_f1,
-    v17Ai?.threat_positive_f1,
-    v16Ai?.threat_positive_f1,
-    v15Ai?.threat_positive_f1,
-    v14Ai?.threat_positive_f1,
-    benchmark?.threat_positive_f1,
-    benchmark?.f1,
-    threatPositive.f1
-  );
-  const finalBenignFpr = firstMetric(
-    independentAi?.benign_like_false_positive_rate,
-    v18Ai?.benign_like_false_positive_rate,
-    v17Ai?.benign_like_false_positive_rate,
-    v16Ai?.benign_like_false_positive_rate,
-    v15Ai?.benign_like_false_positive_rate,
-    v14Ai?.benign_like_false_positive_rate
-  );
-  const finalMacroF1 = firstMetric(independentAi?.macro_f1, v18Ai?.macro_f1, v17Ai?.macro_f1);
-  const finalWeightedF1 = firstMetric(independentAi?.weighted_f1, v18Ai?.weighted_f1, weightedAverage.f1, supervisedMetrics.f1);
-  const finalValidationRows = firstMetric(
-    independentAi?.independent_label_count,
-    v18Ai?.external_label_count,
-    v17Ai?.external_label_count,
-    v16Ai?.external_label_count,
-    v15Ai?.benchmark_label_count,
-    benchmark?.total_rows,
-    supervisedData?.latest_run?.test_rows
-  );
-  const finalValidationDecision = String(
-    firstMetric(independentAi?.readiness_decision, v18Ai?.readiness_decision, v17Ai?.readiness_decision, promotionGate.decision, "analyst_review_eligible")
-  );
-  const finalValidationSource = independentAi?.available
-    ? v20Ai?.available
-      ? "Fresh blind validation"
-      : "Independent validation"
-    : v18Ai?.available
-    ? "External validation"
-    : v17Ai?.available || v16Ai?.available
-    ? "External holdout"
-    : v15Ai?.available || benchmark?.available
-    ? "Benchmark validation"
-    : "Current supervised report";
-  const v330BaselineFpr = Number(v330Quality?.baseline_benign_like_false_positive_rate ?? NaN);
-  const v330SuspiciousRecall = Number(v330Quality?.baseline_suspicious_recall ?? NaN);
-  const v330CalibrationStatus = String(v330Quality?.calibration_status ?? "not generated");
-  const v330MainBlocker = !v330Quality?.available
-    ? "Run v3.30 revalidation"
-    : Number.isFinite(v330BaselineFpr) && v330BaselineFpr > 0.15
-    ? "False-positive noise"
-    : Number.isFinite(v330SuspiciousRecall) && v330SuspiciousRecall < 0.8
-    ? "Suspicious recall"
-    : v330CalibrationStatus !== "passed"
-    ? "Confidence calibration"
-    : "Monitor drift";
-  const v330BestProfile = String(v330Quality?.best_profile ?? "not generated").replaceAll("_", " ");
-  const v330SafetyLabel =
-    v330Quality?.production_promoted || v330Quality?.model_activated || v330Quality?.response_automation_allowed
-      ? "review safety"
-      : "diagnostic only";
-  const v355QueueLabel = v355Queue?.available
-    ? `${v355Queue.passing_splits ?? 0}/${v355Queue.evaluated_splits ?? 0} splits`
-    : "not generated";
-  const v355QueueReadiness = String(v355Queue?.readiness_decision ?? "candidate_only").replaceAll("_", " ");
-  const v355QueueSafetyLabel =
-    v355Queue?.production_promoted || v355Queue?.model_activated || v355Queue?.response_automation_allowed || v355Queue?.labels_written
-      ? "review safety"
-      : "diagnostic only";
-  const v357AgreementLabel = v357Agreement?.available
-    ? `${v357Agreement.passing_splits ?? 0}/${v357Agreement.evaluated_splits ?? 0} splits`
-    : "not generated";
-  const v357Readiness = String(v357Agreement?.readiness_decision ?? "diagnostic_only").replaceAll("_", " ");
-  const v357SafetyLabel =
-    v357Agreement?.production_promoted ||
-    v357Agreement?.model_activated ||
-    v357Agreement?.response_automation_allowed ||
-    v357Agreement?.labels_written ||
-    v357Agreement?.raw_logs_included
-      ? "review safety"
-      : "diagnostic only";
-  const v357CategoryCounts = v357Agreement?.category_counts ?? {};
-  const v357EvidenceOnly = Number(v357CategoryCounts.evidence_only_review ?? 0);
-  const v357QueueOnly = Number(v357CategoryCounts.queue_only_review ?? 0);
-  const v359PolicyLabel = v359Policy?.available ? `${v359Policy.checks_passed ?? 0}/${v359Policy.checks_total ?? 0} checks` : "not generated";
-  const v359Strategy = String(v359Policy?.recommended_supervised_strategy ?? "binary_soc_review_queue").replaceAll("_", " ");
-  const v359ExactPolicy = String(v359Policy?.exact_classification_policy ?? "explanation_or_ranking_only").replaceAll("_", " ");
-  const v359SafetyLabel =
-    v359Policy?.production_promoted ||
-    v359Policy?.model_activated ||
-    v359Policy?.response_automation_allowed ||
-    v359Policy?.real_firewall_blocking_enabled ||
-    v359Policy?.labels_written
-      ? "review safety"
-      : "activation disabled";
-  const v359AllowedStatuses = v359Policy?.allowed_output_statuses ?? {};
   const productizationData = productization.data;
   const productizationReadiness = String(productizationData?.readiness?.decision ?? "not evaluated").replaceAll("_", " ");
   const productizationReadinessDisplay = productizationData?.ok ? "Passed" : productizationData ? "Needs Review" : "Not Evaluated";
@@ -434,6 +301,7 @@ export function MLGovernance() {
 
   function refreshGovernance() {
     void report.refetch();
+    void evidenceSnapshot.refetch();
     void supervised.refetch();
     void productization.refetch();
     void supervisedModels.refetch();
@@ -443,55 +311,39 @@ export function MLGovernance() {
 
   return (
     <div className="space-y-5">
-      <section className="hero-panel">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="text-sm font-extrabold uppercase tracking-wide text-cyan">ML Governance</div>
-            <h1 className="mt-2 text-3xl font-black">Model status and review operations</h1>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Badge value="Decision Support Only" />
-              <Badge value="Response Automation Disabled" />
-              <Badge value="Not Production Promoted" />
-              <Badge value="Manual Approval Required" />
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
+      <SocPageHeader
+        eyebrow="ML Governance"
+        eyebrowTone="cyan"
+        title="Model status and review operations"
+        badges={[
+          "Decision Support Only",
+          "Response Automation Disabled",
+          "Not Production Promoted",
+          "Manual Approval Required"
+        ]}
+        badgePlacement="under-title"
+        actions={
+          <>
             <Link className="btn-secondary" to={`/assistant?prompt=${encodeURIComponent("Explain current ML model status and why it is not production promoted.")}`}>
               Ask Assistant
             </Link>
             <button className="btn-secondary" type="button" onClick={refreshGovernance}>
               Refresh ML Summary
             </button>
-          </div>
-        </div>
-      </section>
+          </>
+        }
+      />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Model Artifact" value={data?.model_status.artifact_exists ? "Ready" : "Missing"} detail="Saved IsolationForest pipeline" tone="teal" />
+        <MetricCard label="IsolationForest" value={data?.model_status.artifact_exists ? "Ready" : "Missing"} detail="Assistive anomaly pipeline" tone="teal" />
         <MetricCard label="Scored Logs" value={data?.scored_log_count ?? "-"} detail="Latest scored population" tone="cyan" />
         <MetricCard label="Anomalies" value={data?.anomaly_count ?? "-"} detail="Current anomaly flags" tone="amber" />
         <MetricCard label="Anomaly Rate" value={`${data?.anomaly_rate ?? "-"}%`} detail="Assistive signal rate" tone="cyan" />
       </div>
 
+      <MLEvidenceSnapshotPanel snapshot={evidenceSnapshot.data} loading={evidenceSnapshot.isLoading} error={evidenceSnapshot.isError} />
+
       <section className="panel">
-        <div className="mb-4 flex items-center justify-between gap-2">
-          <div>
-            <div className="text-sm font-extrabold uppercase tracking-wide text-cyan">Controlled Validation</div>
-            <h2 className="mt-1 text-xl font-black">Current AI governance snapshot</h2>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Badge value={supervisedData?.artifact_exists ? "trained" : "needs labels"} />
-            <Badge value={finalValidationDecision.replaceAll("_", " ")} />
-          </div>
-        </div>
-        <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-6">
-          <MetricCard label="Threat Precision" value={metricText(finalThreatPrecision)} detail={finalValidationSource} tone="teal" />
-          <MetricCard label="Threat Recall" value={metricText(finalThreatRecall)} detail="Threat-positive triage" tone="cyan" />
-          <MetricCard label="Threat F1" value={metricText(finalThreatF1)} detail="Controlled validation" tone="cyan" />
-          <MetricCard label="Benign FPR" value={metricText(finalBenignFpr)} detail="Noise control" tone="amber" />
-          <MetricCard label="Macro F1" value={metricText(finalMacroF1)} detail="Class balance signal" tone="teal" />
-          <MetricCard label="Weighted F1" value={metricText(finalWeightedF1)} detail={`${metricText(finalValidationRows)} validation rows`} tone="cyan" />
-        </div>
         <div className="mt-4 grid gap-4 md:grid-cols-3">
           <MetricCard label="Reviewed Labels" value={supervisedData?.reviewed_label_count ?? 0} detail="Analyst-reviewed rows" tone="teal" />
           <MetricCard label="Assisted Pending" value={supervisedData?.unreviewed_assisted_label_count ?? 0} detail="Awaiting review" tone="amber" />
@@ -599,309 +451,6 @@ export function MLGovernance() {
         <div className="mt-4 rounded-lg border border-line bg-panel2 p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div>
-              <div className="text-xs font-extrabold uppercase tracking-wide text-muted">Detection Quality Revalidation</div>
-              <div className="mt-1 text-sm text-muted">Current labeled-data diagnostic. No model is activated from this panel.</div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Badge value={v330Quality?.available ? "v3.30 generated" : "not generated"} />
-              <Badge value={v330SafetyLabel} />
-            </div>
-          </div>
-          <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-            <MetricCard label="Main Blocker" value={v330MainBlocker} detail={v330Quality?.split ? `${v330Quality.split} split` : "Run diagnostic script"} tone="amber" />
-            <MetricCard label="Baseline FPR" value={metricText(v330Quality?.baseline_benign_like_false_positive_rate)} detail="Benign-like predicted threat" tone="amber" />
-            <MetricCard label="Best Profile" value={v330BestProfile} detail={`FPR ${metricText(v330Quality?.best_benign_like_false_positive_rate)}`} tone="teal" />
-            <MetricCard label="Threat F1" value={metricText(v330Quality?.best_threat_positive_f1)} detail="Best diagnostic profile" tone="cyan" />
-            <MetricCard label="Calibration" value={v330CalibrationStatus} detail={`ECE ${metricText(v330Quality?.calibration_ece)}`} tone="amber" />
-            <MetricCard label="Review Sample" value={v330Quality?.review_sample?.rows ?? "-"} detail="Rows for analyst review" tone="cyan" />
-          </div>
-          {v330Quality?.available ? (
-            <details className="mt-3">
-              <summary className="cursor-pointer rounded border border-line bg-panel px-3 py-2 text-sm font-bold text-text">
-                View v3.30 diagnostic notes
-              </summary>
-              <div className="mt-3 grid gap-3 text-sm text-muted md:grid-cols-2">
-                <div className="rounded border border-line bg-panel px-3 py-2">
-                  Baseline: Threat F1 <span className="font-bold text-text">{metricText(v330Quality.baseline_threat_positive_f1)}</span>, suspicious recall{" "}
-                  <span className="font-bold text-text">{metricText(v330Quality.baseline_suspicious_recall)}</span>, malicious recall{" "}
-                  <span className="font-bold text-text">{metricText(v330Quality.baseline_malicious_recall)}</span>.
-                </div>
-                <div className="rounded border border-line bg-panel px-3 py-2">
-                  Best profile: <span className="font-bold text-text">{v330BestProfile}</span>, estimated queue{" "}
-                  <span className="font-bold text-text">{metricText(v330Quality.best_review_queue_size_estimate)}</span>, readiness{" "}
-                  <span className="font-bold text-text">{String(v330Quality.readiness_decision ?? "candidate_only").replaceAll("_", " ")}</span>.
-                </div>
-                <div className="rounded border border-line bg-panel px-3 py-2">
-                  Safety: production promoted <span className="font-bold text-text">{String(v330Quality.production_promoted ?? false)}</span>, model activated{" "}
-                  <span className="font-bold text-text">{String(v330Quality.model_activated ?? false)}</span>, response automation{" "}
-                  <span className="font-bold text-text">{String(v330Quality.response_automation_allowed ?? false)}</span>.
-                </div>
-                <div className="rounded border border-line bg-panel px-3 py-2">
-                  Latest report: <span className="font-bold text-text">{v330Quality.latest_report_name ?? "generated local summary"}</span>.
-                </div>
-              </div>
-              {v330Quality.top_patterns?.length ? (
-                <div className="mt-3 overflow-auto rounded border border-line bg-panel px-3 py-2 text-sm">
-                  <div className="mb-2 font-bold text-text">Top error patterns</div>
-                  <table className="soc-table soc-table-compact">
-                    <thead>
-                      <tr>
-                        <th>Pattern</th>
-                        <th>Count</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {v330Quality.top_patterns.slice(0, 5).map((item) => (
-                        <tr key={String(item[0])}>
-                          <td>{String(item[0])}</td>
-                          <td>{String(item[1])}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : null}
-            </details>
-          ) : (
-            <div className="mt-3 rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-              Run <code>python -m atdr.scripts.run_v330_detection_ml_quality_revalidation --split time --test-size 0.3 --min-samples 6 --review-limit 200</code> to refresh this diagnostic.
-            </div>
-          )}
-        </div>
-        <div className="mt-4 rounded-lg border border-line bg-panel2 p-4">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <div className="text-xs font-extrabold uppercase tracking-wide text-muted">Supervised Output Policy</div>
-              <div className="mt-1 text-sm text-muted">Queue scoring is decision support. Exact labels stay explanation/ranking only.</div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Badge value={v359PolicyLabel} />
-              <Badge value={v359SafetyLabel} />
-            </div>
-          </div>
-          {v359Policy?.available ? (
-            <>
-              <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-                <MetricCard label="Queue Output" value="Decision Support" detail={v359Strategy} tone="teal" />
-                <MetricCard label="Exact Labels" value="Explanation Only" detail={v359ExactPolicy} tone="amber" />
-                <MetricCard
-                  label="Rule / Hybrid"
-                  value={String(v359AllowedStatuses.rule_hybrid_evidence ?? "primary_detection_evidence").replaceAll("_", " ")}
-                  detail="Primary detection evidence"
-                  tone="cyan"
-                />
-                <MetricCard label="Runtime Activation" value={String(v359Policy.contract_ready_for_runtime_activation ?? false)} detail="Must remain false" tone="danger" />
-                <MetricCard label="Automation" value={String(v359Policy.response_automation_allowed ?? false)} detail="Response disabled" tone="danger" />
-                <MetricCard label="Guidance" value={String(v359Policy.contract_ready_for_dashboard_guidance ?? false)} detail={String(v359Policy.decision ?? "decision support")} tone="teal" />
-              </div>
-              <details className="mt-3">
-                <summary className="cursor-pointer rounded border border-line bg-panel px-3 py-2 text-sm font-bold text-text">
-                  View supervised output contract
-                </summary>
-                <div className="mt-3 grid gap-3 text-sm text-muted lg:grid-cols-2">
-                  <div className="rounded border border-line bg-panel px-3 py-2">
-                    Queue status: <span className="font-bold text-text">{String(v359Policy.queue_status ?? "unknown").replaceAll("_", " ")}</span>. Splits{" "}
-                    <span className="font-bold text-text">
-                      {v359Policy.queue_passing_splits ?? 0}/{v359Policy.queue_evaluated_splits ?? 0}
-                    </span>
-                    , F1 min <span className="font-bold text-text">{metricText(v359Policy.queue_f1_min)}</span>, FPR max{" "}
-                    <span className="font-bold text-text">{metricText(v359Policy.queue_benign_like_false_positive_rate_max)}</span>.
-                  </div>
-                  <div className="rounded border border-line bg-panel px-3 py-2">
-                    Queue/evidence agreement: <span className="font-bold text-text">{String(v359Policy.agreement_status ?? "unknown").replaceAll("_", " ")}</span>. Splits{" "}
-                    <span className="font-bold text-text">
-                      {v359Policy.agreement_passing_splits ?? 0}/{v359Policy.agreement_evaluated_splits ?? 0}
-                    </span>
-                    , agreement min <span className="font-bold text-text">{metricText(v359Policy.agreement_rate_min)}</span>.
-                  </div>
-                  <div className="rounded border border-line bg-panel px-3 py-2">
-                    Exact severity: <span className="font-bold text-text">{String(v359Policy.exact_severity_status ?? "unstable").replaceAll("_", " ")}</span>. Stable policies{" "}
-                    <span className="font-bold text-text">
-                      {v359Policy.exact_stable_policy_count ?? 0}/{v359Policy.exact_evaluated_policy_count ?? 0}
-                    </span>
-                    .
-                  </div>
-                  <div className="rounded border border-line bg-panel px-3 py-2">
-                    Safety: model activated <span className="font-bold text-text">{String(v359Policy.model_activated ?? false)}</span>, labels written{" "}
-                    <span className="font-bold text-text">{String(v359Policy.labels_written ?? false)}</span>, raw logs included{" "}
-                    <span className="font-bold text-text">{String(v359Policy.raw_logs_included ?? false)}</span>.
-                  </div>
-                </div>
-                {v359Policy.blocked_uses?.length ? (
-                  <div className="mt-3 rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-                    <div className="mb-2 font-bold text-text">Blocked uses</div>
-                    <ul className="list-disc space-y-1 pl-5">
-                      {v359Policy.blocked_uses.slice(0, 6).map((item) => (
-                        <li key={item}>{item}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-              </details>
-            </>
-          ) : (
-            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-              Run <code>python -m atdr.scripts.run_v359_supervised_output_policy_contract --pretty</code> to refresh this policy contract.
-            </div>
-          )}
-        </div>
-        <div className="mt-4 rounded-lg border border-line bg-panel2 p-4">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <div className="text-xs font-extrabold uppercase tracking-wide text-muted">SOC Review Queue Diagnostic</div>
-              <div className="mt-1 text-sm text-muted">Stable queue candidate for decision support. Exact severity remains explanation/ranking only.</div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Badge value={v355QueueLabel} />
-              <Badge value={v355QueueSafetyLabel} />
-            </div>
-          </div>
-          {v355Queue?.available ? (
-            <>
-              <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-                <MetricCard label="Queue F1 Min" value={metricText(v355Queue.queue_f1_min)} detail="Across validation splits" tone="teal" />
-                <MetricCard label="Queue Recall Min" value={metricText(v355Queue.queue_recall_min)} detail="Needs-review capture" tone="cyan" />
-                <MetricCard label="Queue Precision Min" value={metricText(v355Queue.queue_precision_min)} detail="Low-noise queue" tone="cyan" />
-                <MetricCard label="FPR Max" value={metricText(v355Queue.benign_like_false_positive_rate_max)} detail="Benign-like queued" tone="amber" />
-                <MetricCard label="Calibration" value={v355Queue.calibration_status ?? "missing"} detail={`ECE ${metricText(v355Queue.calibration_ece)}`} tone="teal" />
-                <MetricCard label="Readiness" value={v355QueueReadiness} detail={`${v355Queue.checks_passed ?? 0}/${v355Queue.checks_total ?? 0} checks`} tone="amber" />
-              </div>
-              <details className="mt-3">
-                <summary className="cursor-pointer rounded border border-line bg-panel px-3 py-2 text-sm font-bold text-text">
-                  View v3.55 queue diagnostic notes
-                </summary>
-                <div className="mt-3 grid gap-3 text-sm text-muted md:grid-cols-2">
-                  <div className="rounded border border-line bg-panel px-3 py-2">
-                    Best strategy: <span className="font-bold text-text">{v355Queue.best_strategy ?? "not available"}</span>.
-                    Recommended use: <span className="font-bold text-text">{String(v355Queue.recommended_use ?? "diagnostic").replaceAll("_", " ")}</span>.
-                  </div>
-                  <div className="rounded border border-line bg-panel px-3 py-2">
-                    Exact severity status:{" "}
-                    <span className="font-bold text-text">{String(v355Queue.exact_severity_status ?? "not activated").replaceAll("_", " ")}</span>.
-                  </div>
-                  <div className="rounded border border-line bg-panel px-3 py-2">
-                    Threshold selection:{" "}
-                    <span className="font-bold text-text">{(v355Queue.threshold_selected_on ?? ["train_internal_calibration"]).join(", ")}</span>.
-                  </div>
-                  <div className="rounded border border-line bg-panel px-3 py-2">
-                    Safety: production promoted <span className="font-bold text-text">{String(v355Queue.production_promoted ?? false)}</span>, model activated{" "}
-                    <span className="font-bold text-text">{String(v355Queue.model_activated ?? false)}</span>, labels written{" "}
-                    <span className="font-bold text-text">{String(v355Queue.labels_written ?? false)}</span>, response automation{" "}
-                    <span className="font-bold text-text">{String(v355Queue.response_automation_allowed ?? false)}</span>.
-                  </div>
-                </div>
-                {v355Queue.blockers?.length ? (
-                  <div className="mt-3 rounded border border-amber/30 bg-amber/10 px-3 py-2 text-sm text-amber">
-                    Blockers: {v355Queue.blockers.join("; ")}
-                  </div>
-                ) : null}
-              </details>
-            </>
-          ) : (
-            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-              Run <code>python -m atdr.scripts.run_v355_severity_target_policy_reframing --test-size 0.3 --min-samples 6 --pretty</code> to refresh this diagnostic.
-            </div>
-          )}
-        </div>
-        <div className="mt-4 rounded-lg border border-line bg-panel2 p-4">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <div className="text-xs font-extrabold uppercase tracking-wide text-muted">Queue / Evidence Agreement</div>
-              <div className="mt-1 text-sm text-muted">Compares the SOC queue candidate with rule, anomaly, and hybrid evidence.</div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Badge value={v357AgreementLabel} />
-              <Badge value={v357SafetyLabel} />
-            </div>
-          </div>
-          {v357Agreement?.available ? (
-            <>
-              <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-                <MetricCard label="Agreement Min" value={metricText(v357Agreement.agreement_rate_min)} detail="Queue and evidence" tone="teal" />
-                <MetricCard label="Queue F1 Min" value={metricText(v357Agreement.queue_f1_min)} detail="SOC queue target" tone="cyan" />
-                <MetricCard label="Queue FPR Max" value={metricText(v357Agreement.queue_false_positive_rate_max)} detail="Benign-like queued" tone="amber" />
-                <MetricCard label="Evidence-Only" value={v357EvidenceOnly} detail="Rule/evidence flags only" tone="amber" />
-                <MetricCard label="Queue-Only" value={v357QueueOnly} detail="ML queue flags only" tone="cyan" />
-                <MetricCard label="Readiness" value={v357Readiness} detail={`${v357Agreement.checks_passed ?? 0}/${v357Agreement.checks_total ?? 0} checks`} tone="amber" />
-              </div>
-              <details className="mt-3">
-                <summary className="cursor-pointer rounded border border-line bg-panel px-3 py-2 text-sm font-bold text-text">
-                  View queue/evidence disagreement notes
-                </summary>
-                <div className="mt-3 grid gap-3 text-sm text-muted lg:grid-cols-2">
-                  <div className="rounded border border-line bg-panel p-3">
-                    <div className="mb-2 font-bold text-text">Top evidence-only review patterns</div>
-                    {v357Agreement.top_evidence_only_patterns?.length ? (
-                      <table className="soc-table soc-table-compact">
-                        <thead>
-                          <tr>
-                            <th>Pattern</th>
-                            <th>Count</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {v357Agreement.top_evidence_only_patterns.slice(0, 6).map((item) => (
-                            <tr key={String(item[0])}>
-                              <td>{String(item[0])}</td>
-                              <td>{String(item[1])}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    ) : (
-                      <div>No evidence-only disagreement patterns reported.</div>
-                    )}
-                  </div>
-                  <div className="rounded border border-line bg-panel p-3">
-                    <div className="mb-2 font-bold text-text">Top queue-only review patterns</div>
-                    {v357Agreement.top_queue_only_patterns?.length ? (
-                      <table className="soc-table soc-table-compact">
-                        <thead>
-                          <tr>
-                            <th>Pattern</th>
-                            <th>Count</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {v357Agreement.top_queue_only_patterns.slice(0, 6).map((item) => (
-                            <tr key={String(item[0])}>
-                              <td>{String(item[0])}</td>
-                              <td>{String(item[1])}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    ) : (
-                      <div>No queue-only disagreement patterns reported.</div>
-                    )}
-                  </div>
-                  <div className="rounded border border-line bg-panel px-3 py-2">
-                    Recommended use: <span className="font-bold text-text">{String(v357Agreement.recommended_use ?? "diagnostic").replaceAll("_", " ")}</span>.
-                    Calibration ECE max: <span className="font-bold text-text">{metricText(v357Agreement.calibration_ece_max)}</span>.
-                  </div>
-                  <div className="rounded border border-line bg-panel px-3 py-2">
-                    Safety: production promoted <span className="font-bold text-text">{String(v357Agreement.production_promoted ?? false)}</span>, model activated{" "}
-                    <span className="font-bold text-text">{String(v357Agreement.model_activated ?? false)}</span>, labels written{" "}
-                    <span className="font-bold text-text">{String(v357Agreement.labels_written ?? false)}</span>, raw logs included{" "}
-                    <span className="font-bold text-text">{String(v357Agreement.raw_logs_included ?? false)}</span>.
-                  </div>
-                </div>
-                {v357Agreement.blockers?.length || v357Agreement.aggregate_blockers?.length ? (
-                  <div className="mt-3 rounded border border-amber/30 bg-amber/10 px-3 py-2 text-sm text-amber">
-                    Blockers: {[...(v357Agreement.blockers ?? []), ...(v357Agreement.aggregate_blockers ?? [])].join("; ")}
-                  </div>
-                ) : null}
-              </details>
-            </>
-          ) : (
-            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-              Run <code>python -m atdr.scripts.run_v357_queue_rule_hybrid_agreement --test-size 0.3 --min-samples 6 --pretty</code> to refresh this diagnostic.
-            </div>
-          )}
-        </div>
-        <div className="mt-4 rounded-lg border border-line bg-panel2 p-4">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <div>
               <div className="text-xs font-extrabold uppercase tracking-wide text-muted">Supervised Model Registry</div>
               <div className="mt-1 text-sm text-muted">
                 Active and candidate artifacts are tracked for decision support. Automation stays disabled.
@@ -961,338 +510,13 @@ export function MLGovernance() {
             </div>
           </details>
         ) : null}
-        <div className="mt-4 rounded-lg border border-cyan/30 bg-cyan/10 p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <div className="text-xs font-extrabold uppercase tracking-wide text-cyan">Recommended AI Mode</div>
-              <div className="mt-1 text-lg font-black text-text">{socTriageMode?.recommended_ai_mode ?? "SOC triage decision support"}</div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Badge value="Decision Support Only" />
-              {v20Ai?.final_controlled_validation_passed ? <Badge value="Final Controlled Validation Candidate" /> : null}
-            </div>
-          </div>
-          <div className="mt-3 grid gap-2 md:grid-cols-2">
-            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">SOC Triage Mode</div>
-            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">Analyst Review</div>
-            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">Manual Approval Required</div>
-            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">Response Automation Disabled</div>
-          </div>
-          <details className="mt-3">
-            <summary className="cursor-pointer rounded border border-line bg-panel px-3 py-2 text-sm font-bold text-text">
-              Operational readiness details
-            </summary>
-            <div className="mt-3 rounded border border-line bg-panel px-3 py-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <div className="text-xs font-extrabold uppercase tracking-wide text-muted">Production Readiness Track</div>
-                  <div className="mt-1 text-sm font-bold text-text">
-                    {v30Readiness?.status ?? "final_controlled_validation_candidate"}
-                  </div>
-                </div>
-                <Badge value="Not Production Ready" />
-              </div>
-              <div className="mt-3 grid gap-2 text-sm text-muted md:grid-cols-2">
-              <div>
-                Real-source pilot:{" "}
-                <span className="font-bold text-text">{v30Readiness?.real_source_pilot_validated ? "validated" : "pending"}</span>
-              </div>
-              <div>
-                Simulated source:{" "}
-                <span className="font-bold text-text">
-                  {v30Readiness?.simulated_source_validated ? "validated" : v30Readiness?.simulated_source_pilot_status ?? "not run"}
-                </span>
-              </div>
-              <div>
-                Real device forwarding:{" "}
-                <span className="font-bold text-text">
-                  {v30Readiness?.real_device_forwarding_validated ? "validated" : "pending"}
-                </span>
-              </div>
-              <div>
-                PostgreSQL lab:{" "}
-                <span className="font-bold text-text">
-                  {v30Readiness?.postgres_lab_validated ? "validated" : v30Readiness?.postgres_lab_status ?? "pending"}
-                </span>
-              </div>
-              <div>
-                SQLite local workflow:{" "}
-                <span className="font-bold text-text">{v30Readiness?.sqlite_local_workflow_valid ? "valid" : "not active"}</span>
-              </div>
-              <div>
-                Backup/restore:{" "}
-                <span className="font-bold text-text">
-                  {v30Readiness?.backup_restore_validated ? "validated" : v30Readiness?.backup_restore_status ?? "planned"}
-                </span>
-              </div>
-              <div>
-                Doctor: <span className="font-bold text-text">{v30Readiness?.production_doctor_status ?? "not run"}</span>
-              </div>
-              <div>
-                Safety: <span className="font-bold text-text">automation off, real blocking off</span>
-              </div>
-            </div>
-            {v30Readiness?.production_doctor_blockers?.length ? (
-              <details className="mt-3">
-                <summary className="cursor-pointer text-xs font-bold text-amber">View readiness blockers</summary>
-                <ul className="mt-2 space-y-1 text-xs text-muted">
-                  {v30Readiness.production_doctor_blockers.slice(0, 4).map((blocker) => (
-                    <li key={blocker}>{blocker}</li>
-                  ))}
-                </ul>
-              </details>
-            ) : null}
-            </div>
-          </details>
-          <details className="mt-3">
-            <summary className="cursor-pointer rounded border border-line bg-panel px-3 py-2 text-sm font-bold text-text">
-              Technical validation details
-            </summary>
-            <div className="mt-3 space-y-2">
-          <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-            Benchmark:{" "}
-            <span className="font-bold text-text">
-              {independentAi?.available
-                ? `${independentAi.independent_label_count ?? 0} independent rows | Threat F1 ${
-                    independentAi.threat_positive_f1 ?? "-"
-                  } | ${independentAi.readiness_decision ?? "analyst_review_eligible"}`
-                : v18Ai?.available
-                ? `${v18Ai.external_label_count ?? 0} reviewed benchmark rows | Threat F1 ${
-                    v18Ai.threat_positive_f1 ?? "-"
-                  } | ${v18Ai.readiness_decision ?? "candidate_only"}`
-                : v17Ai?.available
-                ? `${v17Ai.external_label_count ?? 0} unseen labels | Threat F1 ${
-                    v17Ai.threat_positive_f1 ?? "-"
-                  } | ${v17Ai.readiness_decision ?? "candidate_only"}`
-                : v16Ai?.available
-                ? `${v16Ai.external_label_count ?? 0} unseen labels | Threat F1 ${
-                    v16Ai.threat_positive_f1 ?? "-"
-                  } | ${v16Ai.readiness_decision ?? "candidate_only"}`
-                : v15Ai?.available
-                ? `${v15Ai.benchmark_label_count ?? 0} labels | Threat F1 ${
-                    v15Ai.threat_positive_f1 ?? "-"
-                  } | ${v15Ai.readiness_decision ?? "candidate_only"}`
-                : benchmark?.available
-                ? `${benchmark.detection_mode ?? "hybrid"} | Threat F1 ${benchmark.threat_positive_f1 ?? benchmark.f1 ?? "-"} | ${
-                    benchmark.readiness_decision ?? "candidate_only"
-                  }`
-                : "not generated"}
-            </span>
-          </div>
-          <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-            Training data:{" "}
-            <span className="font-bold text-text">
-              {v13Ai?.available
-                ? `${v13Ai.reviewed_label_count ?? 0} reviewed | minimum gaps ${v13Ai.minimum_label_gap ?? 0} | ${
-                    v13Ai.readiness_decision ?? "candidate_only"
-                  }`
-                : "v1.3 audit not generated"}
-            </span>
-          </div>
-          <div className="grid gap-2 md:grid-cols-2">
-            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-              <span className="font-bold text-text">Main blocker:</span>{" "}
-              {v20Ai?.available
-                ? v20Ai.fresh_blind_revalidated
-                  ? "No v2.0 metric blocker; real hardware validation remains future work"
-                  : "Fresh blind validation requires review"
-                : v14Ai?.available
-                ? v14Ai.current_blocker ?? "model validation"
-                : "v1.4 evaluation pending"}
-            </div>
-            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-              <span className="font-bold text-text">Calibration:</span>{" "}
-              {independentAi?.available
-                ? `${independentAi.calibration_status ?? "pending"} / ${independentAi.calibration_method ?? "none"}`
-                : v18Ai?.available
-                ? `${v18Ai.calibration_status ?? "pending"} / ${v18Ai.calibration_method ?? "none"}`
-                : v17Ai?.calibration_status ?? v16Ai?.calibration_status ?? v15Ai?.calibration_status ?? v14Ai?.calibration_status ?? "pending"}
-            </div>
-            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-              <span className="font-bold text-text">Confirmed noisy pattern:</span>{" "}
-              {v14Ai?.confirmed_noisy_pattern ?? "analysis pending"}
-            </div>
-            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-              <span className="font-bold text-text">False positives:</span>{" "}
-              {v14Ai?.false_positives_improved ? "improved" : "validation pending"}
-            </div>
-            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-              <span className="font-bold text-text">QUIC/443 mitigation:</span>{" "}
-              {v14Ai?.quic_mitigation_status ?? "pending"}
-            </div>
-            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-              Actionable review sample excludes protected manual labels
-            </div>
-            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-              Model remains decision support only
-            </div>
-            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-              Response automation disabled
-            </div>
-            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-              Not Production Promoted
-            </div>
-            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-              {independentAi?.available
-                ? `${v20Ai?.available ? "Fresh blind" : "Independent"} readiness ${
-                    independentAi.readiness_version ?? "v7"
-                  } ${
-                    independentAi.checks_passed ?? 0
-                  }/${independentAi.checks_total ?? 0}`
-                : v18Ai?.available
-                ? `External readiness v6 ${v18Ai.checks_passed ?? 0}/${v18Ai.checks_total ?? 0}`
-                : v17Ai?.available
-                ? `External readiness checks ${v17Ai.checks_passed ?? 0}/${v17Ai.checks_total ?? 0}`
-                : v16Ai?.available
-                ? `External readiness checks ${v16Ai.checks_passed ?? 0}/${v16Ai.checks_total ?? 0}`
-                : v15Ai?.available
-                ? `Benchmark readiness checks ${v15Ai.checks_passed ?? 0}/${v15Ai.checks_total ?? 0}`
-                : "Benchmark readiness pending"}
-            </div>
-            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-              <span className="font-bold text-text">Generalization:</span>{" "}
-              {independentAi?.available
-                ? `${v20Ai?.available ? (v20Ai.fresh_blind_revalidated ? "fresh blind passed" : "fresh blind review required") : v19bAi?.available ? (v19bAi.fpr_blocker_resolved ? "FPR blocker resolved" : "FPR blocker active") : independentAi.generalization_status ?? "not evaluated"} | FPR ${
-                    independentAi.benign_like_false_positive_rate ?? "-"
-                  }`
-                : v18Ai?.available
-                ? `${v18Ai.overfitting_status ?? "not evaluated"} | FPR ${v18Ai.benign_like_false_positive_rate ?? "-"}`
-                : v17Ai?.available
-                ? `${v17Ai.overfitting_status ?? "not evaluated"} | FPR ${v17Ai.benign_like_false_positive_rate ?? "-"}`
-                : v16Ai?.available
-                ? `${v16Ai.overfitting_status ?? "not evaluated"} | F1 gap ${v16Ai.threat_f1_gap ?? "-"}`
-                : "external holdout pending"}
-            </div>
-            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-              <span className="font-bold text-text">External validation:</span>{" "}
-              {independentAi?.available
-                ? independentAi.external_benchmark_validated
-                  ? "v1.8 external benchmark passed"
-                  : "external benchmark not yet passed"
-                : v18Ai?.available
-                ? v18Ai.external_benchmark_validated
-                  ? "external benchmark candidate passed"
-                  : "not yet passed"
-                : v17Ai?.available
-                ? v17Ai.external_benchmark_validated
-                  ? "passed"
-                  : "not yet passed"
-                : v16Ai?.external_benchmark_validated
-                ? "passed"
-                : "not yet passed"}
-            </div>
-            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-              <span className="font-bold text-text">Current blockers:</span>{" "}
-              {independentAi?.available
-                ? (independentAi.failed_checks ?? []).filter(Boolean).join(", ") || "none"
-                : v18Ai?.available
-                ? (v18Ai.failed_checks ?? []).filter(Boolean).join(", ") || "none"
-                : v17Ai?.available
-                ? (v17Ai.failed_checks ?? []).filter(Boolean).join(", ") || "none"
-                : "v1.7 profile comparison pending"}
-            </div>
-            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-              <span className="font-bold text-text">{v20Ai?.available ? "Fresh blind holdout:" : "Independent holdout:"}</span>{" "}
-              {independentAi?.available
-                ? `${independentAi.independent_label_count ?? 0} rows | ${
-                    independentAi.independent_source_count ?? 0
-                  } sources | ${independentAi.independent_holdout_validated ? "passed" : "review required"}`
-                : v18Ai?.available
-                ? `${v18Ai.recovered_false_negatives ?? 0} threat misses recovered; ${v18Ai.remaining_false_negatives ?? 0} remain`
-                : v17Ai?.available
-                ? `${v17Ai.review_sample_rows ?? 0} rows exported`
-                : "pending"}
-            </div>
-            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-              <span className="font-bold text-text">Validation profile:</span>{" "}
-              {independentAi?.available
-                ? independentAi.best_profile ?? "not selected"
-                : v18Ai?.available
-                ? v18Ai.best_profile ?? "not selected"
-                : v17Ai?.best_profile ?? "pending"}
-            </div>
-            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-              <span className="font-bold text-text">{v20Ai?.available ? "Fresh blind metrics:" : "Independent metrics:"}</span>{" "}
-              {independentAi?.available
-                ? `F1 ${independentAi.threat_positive_f1 ?? "-"} | Recall ${
-                    independentAi.threat_positive_recall ?? "-"
-                  } | FPR ${independentAi.benign_like_false_positive_rate ?? "-"}`
-                : v18Ai?.available
-                ? `Threat ${v18Ai.threat_positive_recall ?? "-"} | Suspicious ${v18Ai.suspicious_recall ?? "-"}`
-                : "v1.8 pending"}
-            </div>
-            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-              <span className="font-bold text-text">Controlled source:</span>{" "}
-              {independentAi?.available
-                ? independentAi.controlled_real_source_validated
-                  ? "validated in safe replay/source workflow"
-                  : "validation pending or requires review"
-                : "v1.9 pending"}
-            </div>
-            {v19bAi?.available ? (
-              <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-                <span className="font-bold text-text">Review boundary:</span>{" "}
-                {v19bAi.analyst_review_boundary_count ?? 0} ambiguous rows routed to analyst review;{" "}
-                {v19bAi.false_positives_reduced ?? 0} false positives removed
-              </div>
-            ) : null}
-            {v20Ai?.available ? (
-              <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-                <span className="font-bold text-text">Final controlled validation:</span>{" "}
-                {v20Ai.final_controlled_validation_passed
-                  ? "passed; candidate remains decision support only"
-                  : "pending or requires review"}
-              </div>
-            ) : null}
-            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-              Decision Support Only
-            </div>
-            <div className="rounded border border-line bg-panel px-3 py-2 text-sm text-muted">
-              Response Automation Disabled
-            </div>
-          </div>
-          {socReviewProfiles.length ? (
-            <details className="mt-3">
-              <summary className="cursor-pointer text-sm font-bold text-text">SOC review profiles</summary>
-              <div className="mt-3 overflow-auto">
-                <table className="soc-table soc-table-compact">
-                  <thead>
-                    <tr>
-                      <th>Profile</th>
-                      <th>Precision</th>
-                      <th>Recall</th>
-                      <th>False Positives</th>
-                      <th>False Negatives</th>
-                      <th>Queue</th>
-                      <th>Guidance</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {socReviewProfiles.map((profile) => (
-                      <tr key={String(profile.profile)}>
-                        <td>{String(profile.profile ?? "-")}</td>
-                        <td>{String(profile.precision ?? "report")}</td>
-                        <td>{String(profile.recall ?? "report")}</td>
-                        <td>{String(profile.false_positives ?? "report")}</td>
-                        <td>{String(profile.false_negatives ?? "report")}</td>
-                        <td>{String(profile.estimated_review_queue_size ?? "report")}</td>
-                        <td>{String(profile.guidance ?? "Diagnostic only; no auto activation.")}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </details>
-          ) : null}
-            </div>
-          </details>
-        </div>
+        <MLGovernancePolicyPanel mode={socTriageMode} />
         <details className="mt-4 rounded-lg border border-line bg-panel2 p-4">
-          <summary className="cursor-pointer text-sm font-bold text-text">Model validation diagnostics</summary>
+          <summary className="cursor-pointer text-sm font-bold text-text">Latest registered training run</summary>
           <div className="mt-4 grid gap-4 md:grid-cols-3">
-            <MetricCard label="Candidate Precision" value={String(supervisedMetrics.precision ?? "-")} detail="Latest training run" tone="amber" />
-            <MetricCard label="Candidate Recall" value={String(supervisedMetrics.recall ?? "-")} detail="Latest training run" tone="danger" />
-            <MetricCard label="Candidate F1" value={String(supervisedMetrics.f1 ?? "-")} detail="Latest training run" tone="cyan" />
+            <MetricCard label="Latest Run Precision" value={String(supervisedMetrics.precision ?? "-")} detail="Separate from canonical validation" tone="amber" />
+            <MetricCard label="Latest Run Recall" value={String(supervisedMetrics.recall ?? "-")} detail="Separate from canonical validation" tone="danger" />
+            <MetricCard label="Latest Run F1" value={String(supervisedMetrics.f1 ?? "-")} detail="Separate from canonical validation" tone="cyan" />
           </div>
           <div className="mt-4 grid gap-4 md:grid-cols-3">
             <MetricCard label="Threat-Positive Precision" value={String(threatPositive.precision ?? "-")} detail="Training report grouping" tone="amber" />

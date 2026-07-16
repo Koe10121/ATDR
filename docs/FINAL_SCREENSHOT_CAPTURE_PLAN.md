@@ -13,7 +13,7 @@ Before capturing:
 - Store working screenshots outside Git, for example:
 
 ```text
-C:\Users\User\Pictures\ATDR-Final-Defense\
+<SCREENSHOT_OUTPUT_DIR>\
 ```
 
 Recommended capture resolution: 1440x900 or 1920x1080.

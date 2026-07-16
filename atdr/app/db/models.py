@@ -3,6 +3,7 @@ from datetime import datetime
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint, func, true
 from sqlalchemy.orm import Mapped, foreign, mapped_column, relationship
 
+from atdr.app.core.log_fingerprint import raw_line_fingerprint_default
 from atdr.app.db.database import Base
 
 
@@ -43,6 +44,13 @@ class RawLog(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     source_id: Mapped[int | None] = mapped_column(Integer, index=True)
     raw_line: Mapped[str] = mapped_column(Text, nullable=False)
+    # Nullable keeps the additive migration safe while every new ORM insert receives a fingerprint.
+    raw_line_hash: Mapped[str | None] = mapped_column(
+        String(64),
+        default=raw_line_fingerprint_default,
+        nullable=True,
+        index=True,
+    )
     syslog_timestamp: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     device_hostname: Mapped[str | None] = mapped_column(String(255), index=True)
     imported_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)

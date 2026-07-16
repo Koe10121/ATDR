@@ -4,7 +4,7 @@
 | --- | --- |
 | Product | MFU AI-Driven Log-Based Threat Detection and Response System |
 | Short name | ATDR |
-| Current stage | v3.93 resumable large-file ingestion; PostgreSQL multi-worker and approved preproduction validation pending |
+| Current stage | v3.99 synthetic multi-source/time frozen revalidation complete; calibration, external real-source independence, and approved preproduction validation pending |
 | Production claim | None. ATDR is not certified production software. |
 | Main workflow doc | `docs/ATDR_AI_WORKFLOW.md` |
 | Agent model | `docs/agents/ATDR_AGENT_OPERATING_MODEL.md` |
@@ -38,6 +38,9 @@
 | v3.4 shared-lab readiness foundation | `docs/V3_4_SHARED_LAB_READINESS.md`, `atdr/scripts/run_v34_shared_lab_readiness.py`, `atdr/scripts/run_backup_restore_drill.py`, `atdr/scripts/profile_dashboard_summary.py` |
 | v3.89 shared-lab persistence | `docs/V3_89_SHARED_LAB_PERSISTENCE_AND_BACKUP_RESTORE.md`, `atdr/app/services/persistence_service.py`, `atdr/scripts/backup_database.py`, `atdr/scripts/restore_database.py`, `atdr/scripts/validate_persistence_profile.py` |
 | v3.93 resumable large-file ingestion | `docs/V3_93_RESUMABLE_LARGE_FILE_INGESTION.md`, `atdr/app/services/resumable_ingestion_service.py`, `atdr/app/services/staging_service.py`, `atdr/app/services/staged_input_retention_service.py`, `atdr/tests/test_v393_resumable_ingestion.py` |
+| v3.97 large-file reliability validation | `docs/V3_97_LARGE_FILE_INGESTION_RELIABILITY.md`, `atdr/scripts/validate_large_ingestion.py`, `migrations/versions/b4c5d6e7f8a9_add_raw_log_content_fingerprint.py`, `atdr/tests/test_v397_large_ingestion.py` |
+| v3.98 independent holdout validation | `docs/V3_98_INDEPENDENT_DETECTION_ML_HOLDOUT_VALIDATION.md`, `atdr/app/detection/v398_independent_holdout_validation.py`, `atdr/scripts/run_v398_independent_holdout_validation.py`, `atdr/tests/test_v398_independent_holdout_validation.py` |
+| v3.99 multi-source frozen revalidation | `docs/V3_99_INDEPENDENT_MULTI_SOURCE_EVIDENCE_AND_FROZEN_REVALIDATION.md`, `atdr/app/detection/v399_multisource_frozen_revalidation.py`, `atdr/scripts/run_v399_multisource_frozen_revalidation.py`, `atdr/tests/test_v399_multisource_frozen_revalidation.py` |
 | v3.5 source/syslog pilot readiness | `docs/V3_5_REAL_SOURCE_SYSLOG_PILOT.md`, `atdr/scripts/run_v35_real_source_pilot_check.py`, `atdr/scripts/export_real_source_pilot_evidence.py` |
 | v3.6 background job hardening | `docs/V3_6_BACKGROUND_JOB_HARDENING.md`, `atdr/app/routers/jobs.py`, `atdr/app/services/job_service.py`, `atdr/tests/test_operation_jobs.py` |
 | v3.7 operation retention and recovery | `docs/V3_7_OPERATION_RETENTION_AND_JOB_RECOVERY.md`, `atdr/scripts/maintenance_jobs.py`, `atdr/app/routers/jobs.py`, `atdr/app/services/job_service.py` |
@@ -245,7 +248,7 @@ Evidence: `atdr/app/db/models.py`, `atdr/app/routers/jobs.py`, `atdr/app/service
 | FR-ATDR-030 | Map supervisor-template MFU IAM/Google SSO/OTP/B2B requirements to ATDR without enabling external IAM | Implemented as safe adapter plan, provider checklist, disabled-by-default config placeholders, and non-secret status API |
 | FR-ATDR-030A | Prepare MFU IAM SDK/token-introspection implementation path without copying secrets or enabling external login | Implemented as source-backed implementation plan and expanded non-secret status/config readiness |
 | FR-ATDR-030B | Prepare real LLM assistant provider integration without enabling external LLM calls by default | Implemented as disabled-by-default `ASSISTANT_LLM_*` config/status groundwork and provider plan |
-| FR-ATDR-030C | Provide a disabled-by-default MFU school-email secure outer-shell handoff while preserving local login | Implemented in v3.91 with opaque one-time code, exact origin and return-path controls, server-side exchange, group-based role mapping, cookie session, audit, and local-login fallback |
+| FR-ATDR-030C | Provide an MFU school-email secure outer-shell handoff while preserving an explicit recovery profile | Implemented in v3.91 and made the normal fail-closed team profile in v4.3 with opaque one-time code, exact origin/return-path controls, server-side exchange, group-based role mapping, HttpOnly cookie session, audit, and explicit local recovery |
 | FR-ATDR-030E | Validate MFU outer-shell handoff in approved preproduction without exposing credentials or changing SOC controls | Preproduction checklist and rollback are documented; live provider validation remains required |
 | FR-ATDR-030D | Provide a safe real LLM provider probe without exposing API keys or raw logs | Implemented in v3.65 as `atdr/scripts/test_assistant_llm_provider.py` |
 | FR-ATDR-031 | Validate parser normalization and controlled detection quality with source-backed, read-only reports | Implemented as v3.17 parser/detection validation and enriched explanation payloads; production accuracy is not claimed |
@@ -261,6 +264,9 @@ Evidence: `atdr/app/db/models.py`, `atdr/app/routers/jobs.py`, `atdr/app/service
 | FR-ATDR-041 | Improve SOC Assistant reasoning quality for professional triage | Implemented as v3.29; alert/log/source/case answers include evidence strength, false-positive caveats, missing-evidence notes, risk interpretation, concrete next checks, citations, and safety notes without external LLM or action execution |
 | FR-ATDR-042 | Revalidate current supervised ML quality and false-positive noise without activating a model | Implemented as v3.30; diagnostic script, markdown report, compact dashboard summary, threshold profile comparison, calibration check, and targeted review CSV without production promotion or response automation |
 | FR-ATDR-043 | Process queued large-file imports in transactional chunks with persisted progress, cooperative cancellation, verified-input resume, queue backpressure, and safe staged-input retention | Implemented as v3.93 for one verified staged input; separate re-imports are not claimed to be globally exactly-once, SQLite remains one-worker only, and PostgreSQL multi-worker runtime validation is pending |
+| FR-ATDR-044 | Validate rule, anomaly, supervised SOC queue, and hybrid quality with frozen leakage-controlled holdouts and no model activation | Implemented as v3.98 internal unseen-data validation across temporal, source, and repeated fingerprint-grouped random splits; external provider-blinded or real-source independence remains required |
+| FR-ATDR-045 | Generate source/time-separated synthetic evidence, quarantine overlap with reviewed data, and score it only after internal model/calibration/threshold roles are frozen | Implemented as v3.99 with three generated sources, four windows, exact/near/feature overlap controls, six strategy comparisons, non-importable expectation labels, and conservative `candidate_only` readiness; this is regression evidence, not external accuracy |
+| FR-ATDR-046 | Provide portable teammate setup and lifecycle for the mandatory MFU shell plus ATDR services without machine-specific paths or committed secrets | Implemented in v4.3 with one setup command, one start command, preflight/check/stop commands, ignored runtime configuration, safe SQLite backup/migration, and explicit recovery profile |
 
 ## Non-Functional Requirements
 
@@ -277,6 +283,8 @@ Evidence: `atdr/app/db/models.py`, `atdr/app/routers/jobs.py`, `atdr/app/service
 | Security | JWT auth and role checks are required for protected endpoints. Demo secrets must be replaced before shared lab use. |
 | Data privacy | Real logs, databases, model artifacts, generated exports, and `.env` files must stay out of Git. |
 | Shared-lab readiness | Backup/restore drills, PostgreSQL validation, performance profiling, and real-source pilot checks must be non-destructive and must not imply production readiness. |
+| Team portability | Runtime paths must be discovered or supplied through ignored configuration; no developer username, workstation path, private shell file, or secret may be required from tracked source. |
+| Authentication entry | The normal team profile must start at the approved MFU shell and fail closed when secure handoff is incomplete; direct local credentials require explicit recovery mode. |
 
 ## IAM / RBAC Constraints
 
@@ -298,7 +306,7 @@ Current limitations:
 - Current role model is suitable for lab prototype validation, not production IAM.
 - Role permissions must be fully reviewed before real deployment or response connector implementation.
 - v3.14 email verification does not block login by default and does not implement real SMTP or external school SSO.
-- MFU IAM handoff is disabled by default. It makes no external calls during normal startup and does not change local login.
+- The v4.3 team profile selects the MFU shell by default and blocks direct local login. Real provider-backed MFU authentication, approved group mapping, provider-managed 2FA, recovery, and deprovisioning still require university environment acceptance.
 
 ## University Template Alignment
 
@@ -472,3 +480,74 @@ ATDR shall support an opt-in database-backed operation queue for selected long-r
 - Controlled load shall remain GET-only, body-free, token-safe, bounded, and remote-confirmed. Local SQLite measurements do not establish PostgreSQL capacity or an SLA.
 - Recovery evidence shall distinguish isolated synthetic timing from approved-host RPO/RTO. A measured synthetic RTO shall not be presented as deployment RTO, and RPO remains unmeasured without a real failure/backup point.
 - Operational acceptance remains blocked when approved environment evidence is unavailable. This status is not an application-test failure and is not a production-readiness claim.
+
+## v3.97 Large-File Ingestion Reliability Addendum
+
+- Queued large-file imports shall preserve transactional chunk checkpoints, monotonic committed progress, lease renewal, cooperative cancellation, and changed-input fail-closed behavior.
+- Duplicate accounting shall use bounded indexed fingerprint lookups followed by exact raw-line comparison. Duplicate evidence shall remain stored; a fingerprint must never replace or delete raw evidence.
+- Raw and normalized rows shall flush at chunk boundaries rather than once per record, keeping memory bounded and preserving one normalized row for each successfully parsed input record.
+- Operations Health and metrics shall expose safe cumulative import, parse, failure, duplicate, checkpoint-age, and stalled-job signals without raw content, paths, fingerprints, actors, IPs, or other high-cardinality labels.
+- Large-file acceptance shall use synthetic data and a disposable database only. The validator must refuse to run without its explicit temporary-database flag and must prove that the configured database was unchanged.
+- The validated local baseline is 100,000 synthetic generic-syslog rows, 200 chunk commits, one forced resume, zero resume duplicates, zero unsafe side effects, 724.45 rows/second, and 8.71 MiB peak traced Python memory.
+- SQLite remains a one-worker local profile. The result is not an SLA, real-device proof, shared-storage proof, PostgreSQL capacity result, or production-readiness claim.
+
+## v3.98 Independent Detection/ML Holdout Validation Addendum
+
+- Detection/ML quality validation shall keep fit, probability calibration, threshold selection, and final-test partitions separate. Final-test labels shall not influence fitting, calibration, feature selection, candidate selection, or threshold selection.
+- Exact raw-evidence fingerprints, near behavior fingerprints, used-feature fingerprints, normalized-log identities, label history, source identity, and time-window overlap shall be audited. Unacceptable overlap shall fail closed or quarantine the affected behavior group.
+- Required diagnostic views shall include strict temporal holdout, source-disjoint holdout, and repeated fingerprint-grouped random splits.
+- Evaluation shall compare deterministic rules, fresh in-memory IsolationForest, the repaired binary SOC review queue, a rule/anomaly/supervised hybrid, Logistic Regression, and a majority baseline without writing an active model artifact.
+- Reports shall include queue precision/recall/F1, benign-like FPR, suspicious/malicious diagnostic recall, macro/weighted F1, calibration, Brier score, ECE, confidence buckets, bootstrap intervals, operational queue size, and errors by source/application/action/port.
+- Internal reviewed-label holdout evidence shall not be described as an external independent benchmark or production accuracy. External real-source/provider-blinded validation remains a separate gate.
+
+## v3.99 Synthetic Multi-Source Evidence Addendum
+
+- Generated evidence shall declare source identity/type, parser profile, collection windows, provenance, scenario/category, evidence kind, expected-label provenance, and duplicate/overlap status.
+- Deterministic scenario expectations shall remain `human_reviewed=false` and `import_ready=false`; they shall not be inserted into the supervised label store automatically.
+- Exact raw fingerprints, normalized near-pattern fingerprints, and used-feature fingerprints shall be compared with existing reviewed evidence before scoring. Overlap shall be quarantined and minimum evidence requirements shall fail closed.
+- Existing reviewed evidence may be used for fit, calibration, and threshold selection. Generated v3.99 evidence may be used only as final evaluation evidence after those roles are frozen.
+- Synthetic multi-source/time performance shall be described as reproducible regression evidence, not provider-blinded, real-device, externally reviewed, or production accuracy.
+- Model activation, artifact writing, production promotion, automatic response, and real firewall blocking remain prohibited regardless of v3.99 metrics.
+- v3.98 shall not create labels, activate or promote models, execute response actions, enable automatic response, or enable real firewall blocking. Readiness remains `candidate_only` unless every documented internal gate passes, and passing internal gates alone cannot authorize production promotion.
+
+## v4.0 Provider-Blinded External Evidence Addendum
+
+- External benchmark acquisition shall use an official primary source with documented publisher, version, terms, citation, checksum, fields, label provenance, and limitations.
+- Sampling and feature mapping shall not consult final provider label values. Predictions and their checksum shall be frozen before provider labels are read for scoring.
+- External rows shall contribute zero rows to model fitting, probability calibration, feature/guard selection, and threshold selection.
+- Provider benchmark labels shall remain non-human ATDR evidence with `human_reviewed=false` and `import_ready=false`; they shall never be inserted automatically into the operational label store.
+- Benchmark adapters shall map only available fields. Missing IP, action, application, zone, source-port, and risk fields shall be reported unavailable rather than fabricated.
+- Rules whose required fields are unavailable shall report `unavailable`; partial rule results shall not be presented as full ATDR rule-engine accuracy.
+- Exact, near-pattern, and used-feature overlap shall be quarantined against internal reviewed and prior synthetic evidence before scoring.
+- External classification, calibration, bootstrap, stability, and error results shall be reported even when they fail. No final-label tuning is permitted after the prediction freeze.
+- The v4.0 CSE-CIC-IDS2018 sample is locked final evidence. Its FPR `1.0000` and weak calibration are blockers requiring schema-aware redesign on separate development evidence and validation on a new untouched benchmark.
+- v4.0 cannot activate or promote a model, write an active artifact, import labels, execute response actions, enable automatic response, or enable real firewall blocking. Readiness remains `candidate_only` regardless of metrics.
+
+## v4.1 Schema-Aware Diagnostic Addendum
+
+- ATDR shall distinguish Palo Alto, generic syslog, provider-flow, and raw-fallback evidence schemas. It shall expose field availability and missingness rather than fabricate unavailable source/destination identity, action, application, zone, risk, or behavior-window fields.
+- A rule shall report unavailable when its required fields are absent. Unavailable evidence shall not be treated as a negative detection signal or as full rule-engine coverage.
+- v4.0 public-provider files and manifests are locked final evidence and shall not be used for v4.1 feature engineering, fitting, calibration, threshold selection, or candidate selection. Separate provider development data remains non-human and non-importable.
+- Schema-aware model evaluations shall report time, source-aware, repeated random, and schema-held-out diagnostics where evidence supports them, including calibration. Strong random-split results alone shall not authorize promotion.
+- v4.1 results remain `candidate_only`: no model activation/promotion, active-artifact write, response automation, real firewall blocking, or automatic label import is permitted. A separately governed untouched benchmark and authorized multi-source real firewall/syslog validation are required before activation can even be reconsidered.
+
+## v4.2 Evidence-Grounded Assistant Addendum
+
+- Every assistant answer shall expose the ATDR record, service, run, or documentation references actually used. Missing record-specific evidence shall be stated rather than fabricated.
+- Optional Gemini use shall be limited to explanation and summarization of bounded, structured, redacted ATDR context. Gemini shall not be treated as a source of database facts.
+- The assistant shall remain read-only and shall not expose controls for response, detection, labels, models, users, deletion, or firewall state.
+- Assistant route navigation shall preserve a whitelisted session-scoped investigation snapshot without resending the question. Raw logs, secrets, access tokens, private paths, and arbitrary technical payloads shall not be persisted.
+- Clear Context, logout, and session expiry shall clear assistant context. Malformed browser storage shall fail safely.
+- Default answers shall prioritize a concise summary, evidence, analyst next steps, one safety line, and compact citations. Secondary detail shall use progressive disclosure.
+- Provider labels shall be truthful: **Gemini Assisted** applies only to an answer that actually used Gemini and passed ATDR guards.
+- MFU visual alignment shall use shared burgundy/gold presentation tokens while preserving React, accessibility, ATDR routes, and SOC identity.
+## v4.4 MFU Authentication Stabilization Addendum
+
+- The separately supplied MFU Vue/Node shell is the required normal authentication entry; ATDR does not implement a parallel direct Google login.
+- Local shell login uses exactly `http://localhost:8080` and requires one university-approved OAuth Web client configured identically as private `VUE_APP_CLIENTID` and `GOOGLE_CLIENT_ID` values.
+- Missing, mismatched, placeholder, or legacy fallback configuration must fail closed before normal startup.
+- The shell-to-ATDR boundary remains a short-lived one-time code exchanged server-to-server, followed by an HttpOnly ATDR cookie.
+- New approved external users default to analyst. Admin requires an explicitly approved IAM group mapping; email address alone is insufficient.
+- Local credentials are an explicit recovery profile only and must never be selected automatically after provider failure.
+- Provider tokens, one-time codes, client values, secrets, raw provider responses, and private environment content must not appear in URLs, API status, logs, audit details, or committed files.
+- Real MFU authentication acceptance requires an approved OAuth client, authorized origins/domain/account policy, and successful live account/handoff evidence. Source-level readiness alone is not production acceptance.

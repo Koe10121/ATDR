@@ -10,6 +10,7 @@ import { LoadingPanel } from "../components/LoadingPanel";
 import { MetaGrid } from "../components/MetaGrid";
 import { PaginationControls } from "../components/PaginationControls";
 import { SafeSelect } from "../components/SafeSelect";
+import { SocPageHeader } from "../components/SocPageHeader";
 import { TableToolbar, tableDensityClass } from "../components/TableToolbar";
 import type { SavedView, TableDensity } from "../components/TableToolbar";
 import { useLog, useLogsPage, useMlLabelMutations, useMlLabels, useSources } from "../hooks/useApiQueries";
@@ -179,11 +180,11 @@ export function LogExplorer() {
 
   return (
     <div className="space-y-5">
-      <section className="hero-panel">
-        <div className="text-sm font-extrabold uppercase tracking-wide text-danger">Investigation</div>
-        <h1 className="mt-2 text-3xl font-black">Search raw evidence and normalized firewall events.</h1>
-        <p className="mt-2 text-muted">Every row remains tied to its original Palo Alto syslog line for investigation evidence.</p>
-      </section>
+      <SocPageHeader
+        eyebrow="Investigation"
+        title="Search raw evidence and normalized firewall events."
+        description="Every row remains tied to its original Palo Alto syslog line for investigation evidence."
+      />
 
       <section className="panel space-y-3">
         <input className="input" placeholder="Search IP, app, rule, action, protocol, or zone" value={search} onChange={(event) => setSearch(event.target.value)} />

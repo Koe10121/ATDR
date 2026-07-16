@@ -51,6 +51,15 @@ def run_config_doctor(settings: Settings | None = None) -> dict[str, Any]:
     database_runtime = inspect_database_runtime(settings, probe_connection=not known_docker_alias)
     mfu_iam_status = build_mfu_iam_status(settings)
 
+    if settings.local_login_enabled:
+        issues.append(
+            _issue(
+                "warning",
+                "local-recovery-auth-mode",
+                "ATDR_AUTH_MODE=local_recovery is explicitly enabled. Use template_shell for the normal MFU user path.",
+            )
+        )
+
     for message in validate_runtime_settings(settings):
         severity = "critical" if is_production else "warning"
         code = message.split(" ", 1)[0].lower().replace("_", "-").replace(".", "")
@@ -218,7 +227,7 @@ def run_config_doctor(settings: Settings | None = None) -> dict[str, Any]:
             _issue(
                 "warning",
                 "mfu-iam-config-present-disabled",
-                "MFU IAM fields are configured while MFU_IAM_ENABLED=false. Local login remains active; set MFU_IAM_ENABLED=true only after validating private credentials and allowed domains.",
+                "MFU IAM fields are configured while MFU_IAM_ENABLED=false. The selected authentication profile will not use them.",
             )
         )
     if settings.mfu_iam_enabled and settings.mfu_iam_template_shell_enabled and not mfu_iam_status["handoff_ready"]:
@@ -282,6 +291,12 @@ def run_config_doctor(settings: Settings | None = None) -> dict[str, Any]:
         "local_workflow_recommendation": "Use DATABASE_URL=\"sqlite:///./atdr.db\" for normal local dashboard testing.",
         "response_simulation": settings.response_simulation,
         "response_provider": settings.response_provider,
+        "authentication": {
+            "mode": settings.normalized_auth_mode,
+            "template_shell_required": settings.template_shell_required,
+            "local_login_enabled": settings.local_login_enabled,
+            "secrets_exposed": False,
+        },
         "operation_worker": {
             "enabled": settings.operation_worker_enabled,
             "poll_seconds": settings.operation_worker_poll_seconds,

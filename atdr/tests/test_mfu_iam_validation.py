@@ -70,6 +70,7 @@ def test_mfu_iam_validation_mock_mode_is_secret_safe(monkeypatch):
 
 
 def test_mfu_iam_validation_secure_template_shell_mode_does_not_run_b2b(monkeypatch):
+    monkeypatch.setenv("ATDR_AUTH_MODE", "template_shell")
     monkeypatch.setenv("MFU_IAM_ENABLED", "true")
     monkeypatch.setenv("MFU_IAM_TEMPLATE_SHELL_ENABLED", "true")
     monkeypatch.setenv("MFU_IAM_TEMPLATE_SHELL_BASE_URL", "http://template-shell.test")
@@ -78,6 +79,8 @@ def test_mfu_iam_validation_secure_template_shell_mode_does_not_run_b2b(monkeypa
     monkeypatch.setenv("MFU_IAM_HANDOFF_ENABLED", "true")
     monkeypatch.setenv("MFU_IAM_HANDOFF_SHARED_SECRET", "test-bridge-secret")
     monkeypatch.setenv("MFU_IAM_HANDOFF_ALLOWED_ORIGINS", "http://template-shell.test")
+    monkeypatch.setenv("MFU_IAM_TEMPLATE_SHELL_LAUNCH_URL", "http://template-shell.test/#/pages/login")
+    monkeypatch.setenv("JWT_SECRET_KEY", "private-template-shell-test-signing-key")
     get_settings.cache_clear()
 
     def fail_post(*args, **kwargs):  # pragma: no cover - executed only on regression

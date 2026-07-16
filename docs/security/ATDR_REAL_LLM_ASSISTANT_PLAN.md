@@ -94,7 +94,7 @@ Gemini is the validated local provider candidate. ATDR must still keep determini
 - ATDR retrieves evidence and sends only bounded, sanitized structured context.
 - Raw log lines remain excluded by default.
 - IP redaction remains enabled by default.
-- Provider output must pass the `soc_evidence_grounded_structured_v2` JSON contract.
+- Provider output must pass the current `soc_evidence_grounded_concise_v3` JSON contract.
 - Citations are limited to references supplied by ATDR.
 - Actor-scoped conversation context supports follow-ups without trusting client-only state.
 - Explicit global prompts clear stale alert/log/source/case context.

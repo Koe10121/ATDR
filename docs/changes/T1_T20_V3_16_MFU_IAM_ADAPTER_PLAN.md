@@ -12,7 +12,7 @@ Map the supervisor NewSystem IAM guidance to ATDR safely without enabling real e
 
 | Area | Evidence |
 | --- | --- |
-| Supervisor IAM docs | `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\backend-node\docs\IAM_PRD.md`, `IAM_SYSTEM_OVERVIEW.md`, `IAM_RECOMMENDATIONS.md` |
+| Supervisor IAM docs | `<MFU_SHELL_ROOT>\backend-node\docs\IAM_PRD.md`, `IAM_SYSTEM_OVERVIEW.md`, `IAM_RECOMMENDATIONS.md` |
 | Supervisor IAM source | `backend-node/server/integrations/iam/*`, `backend-node/server/Project/security/*` |
 | Supervisor sign-in/2FA UI | `frontend-vue/src/projects/components/dialog/SignIn.vue`, `TwoFA.vue`, `frontend-vue/src/store/modules/Security/*` |
 | ATDR config/auth | `atdr/app/core/config.py`, `atdr/app/routers/auth.py`, `atdr/app/schemas/auth.py`, `atdr/app/services/user_service.py` |

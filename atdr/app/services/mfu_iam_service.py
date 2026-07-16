@@ -17,6 +17,22 @@ from atdr.app.services.user_service import create_user, get_user_by_email, get_u
 class MfuIamAuthenticationError(ValueError):
     """Raised when the external MFU IAM login attempt is not acceptable."""
 
+    _SAFE_CODES = {
+        "handoff_rejected",
+        "handoff_not_configured",
+        "handoff_code_invalid",
+        "handoff_expired_or_used",
+        "handoff_backend_unavailable",
+        "handoff_invalid_response",
+        "account_disabled",
+        "identity_conflict",
+        "domain_not_allowed",
+    }
+
+    def __init__(self, message: str, *, code: str = "handoff_rejected") -> None:
+        super().__init__(message)
+        self.safe_code = code if code in self._SAFE_CODES else "handoff_rejected"
+
 
 @dataclass(frozen=True)
 class MfuIamIdentity:
@@ -84,6 +100,7 @@ def build_mfu_iam_status(
     handoff_exchange_path_configured = _configured(settings.mfu_iam_handoff_exchange_path)
     handoff_ready = all(
         [
+            settings.template_shell_required,
             settings.mfu_iam_enabled,
             template_shell_ready,
             settings.mfu_iam_handoff_enabled,
@@ -115,6 +132,9 @@ def build_mfu_iam_status(
     }
 
     return {
+        "auth_mode": settings.normalized_auth_mode,
+        "local_login_enabled": settings.local_login_enabled,
+        "template_shell_required": settings.template_shell_required,
         "enabled": settings.mfu_iam_enabled,
         "base_url_configured": _configured(settings.mfu_iam_base_url),
         "client_id_configured": _configured(settings.mfu_iam_client_id),
@@ -183,6 +203,9 @@ def build_mfu_iam_public_status(settings: Settings) -> dict[str, Any]:
 
     status = build_mfu_iam_status(settings)
     return {
+        "auth_mode": status["auth_mode"],
+        "local_login_enabled": status["local_login_enabled"],
+        "template_shell_required": status["template_shell_required"],
         "enabled": status["enabled"],
         "b2b_ready": status["b2b_ready"],
         "mock_enabled": status["mock_enabled"],
@@ -216,6 +239,14 @@ def get_mfu_iam_last_safe_validation(db: Session) -> dict[str, str | None]:
     safe_reasons = {
         "template_handoff_validated",
         "template_handoff_rejected",
+        "template_handoff_not_configured",
+        "template_handoff_code_invalid",
+        "template_handoff_expired_or_used",
+        "template_handoff_backend_unavailable",
+        "template_handoff_invalid_response",
+        "template_account_disabled",
+        "template_identity_conflict",
+        "template_domain_not_allowed",
         "handoff_origin_not_allowed",
     }
     for event in events:
@@ -270,9 +301,12 @@ def authenticate_mfu_iam_handoff_code(code: str, settings: Settings) -> MfuIamId
     clean_code = code.strip()
     status = build_mfu_iam_status(settings)
     if not status["handoff_ready"]:
-        raise MfuIamAuthenticationError("MFU template handoff is not fully configured.")
+        raise MfuIamAuthenticationError(
+            "MFU template handoff is not fully configured.",
+            code="handoff_not_configured",
+        )
     if not clean_code or len(clean_code) > 512:
-        raise MfuIamAuthenticationError("MFU template handoff code is invalid.")
+        raise MfuIamAuthenticationError("MFU template handoff code is invalid.", code="handoff_code_invalid")
 
     url = _join_url(settings.mfu_iam_template_shell_base_url, settings.mfu_iam_handoff_exchange_path)
     header_name = settings.mfu_iam_handoff_secret_header.strip() or "x-atdr-handoff-secret"
@@ -284,16 +318,35 @@ def authenticate_mfu_iam_handoff_code(code: str, settings: Settings) -> MfuIamId
             timeout=max(1.0, min(settings.mfu_iam_timeout_ms / 1000, 60.0)),
         )
     except requests.RequestException as exc:
-        raise MfuIamAuthenticationError("MFU template handoff service is unavailable.") from exc
+        raise MfuIamAuthenticationError(
+            "MFU template handoff service is unavailable.",
+            code="handoff_backend_unavailable",
+        ) from exc
 
     if response.status_code >= 400:
-        raise MfuIamAuthenticationError("MFU template handoff code is invalid, expired, or already used.")
+        code = (
+            "handoff_backend_unavailable"
+            if response.status_code >= 500
+            else "handoff_expired_or_used"
+            if response.status_code in {401, 404, 409, 410, 422}
+            else "handoff_rejected"
+        )
+        raise MfuIamAuthenticationError(
+            "MFU template handoff code is invalid, expired, or already used.",
+            code=code,
+        )
     try:
         payload = response.json()
     except ValueError as exc:
-        raise MfuIamAuthenticationError("MFU template handoff returned an invalid response.") from exc
+        raise MfuIamAuthenticationError(
+            "MFU template handoff returned an invalid response.",
+            code="handoff_invalid_response",
+        ) from exc
     if not isinstance(payload, dict):
-        raise MfuIamAuthenticationError("MFU template handoff returned an invalid response.")
+        raise MfuIamAuthenticationError(
+            "MFU template handoff returned an invalid response.",
+            code="handoff_invalid_response",
+        )
     identity_payload = payload.get("data") if isinstance(payload.get("data"), dict) else payload
     return _identity_from_template_handoff_payload(identity_payload, settings)
 
@@ -304,17 +357,21 @@ def upsert_mfu_iam_user(db: Session, identity: MfuIamIdentity) -> User:
     existing = get_user_by_email(db, identity.email) or get_user_by_username(db, identity.email)
     if existing is not None:
         if not existing.is_active:
-            raise MfuIamAuthenticationError("Matched ATDR account is disabled.")
+            raise MfuIamAuthenticationError("Matched ATDR account is disabled.", code="account_disabled")
         if identity.provider == "template_shell_handoff":
             # A school-email handoff must not silently inherit a local account's
             # role. An admin can pre-provision the external identity, after
             # which approved template groups control the resulting ATDR role.
             if existing.auth_provider != "external":
                 raise MfuIamAuthenticationError(
-                    "A local ATDR account already uses this email; provision or link the external identity before handoff."
+                    "A local ATDR account already uses this email; provision or link the external identity before handoff.",
+                    code="identity_conflict",
                 )
             if existing.external_subject and existing.external_subject != identity.subject:
-                raise MfuIamAuthenticationError("MFU template identity does not match the linked ATDR account.")
+                raise MfuIamAuthenticationError(
+                    "MFU template identity does not match the linked ATDR account.",
+                    code="identity_conflict",
+                )
         changed = False
         if existing.email is None:
             existing.email = identity.email
@@ -397,8 +454,10 @@ def _mock_identity_from_token(token: str, settings: Settings) -> MfuIamIdentity:
 
 
 def _mfu_iam_mode(settings: Settings, *, b2b_ready: bool, template_shell_ready: bool) -> str:
+    if settings.local_login_enabled:
+        return "local_recovery"
     if not settings.mfu_iam_enabled:
-        return "local_login_only"
+        return "template_shell_not_configured"
     if settings.mfu_iam_mock_enabled:
         return "mfu_iam_mock"
     if (
@@ -460,7 +519,10 @@ def _identity_from_template_handoff_payload(payload: dict[str, Any], settings: S
     flattened = _flatten_candidates(payload)
     email = _first_text(flattened, "email", "account.email", "authen.0.email", "authen.0.username")
     if not email or "@" not in email:
-        raise MfuIamAuthenticationError("MFU template handoff did not include a verified school email.")
+        raise MfuIamAuthenticationError(
+            "MFU template handoff did not include a verified school email.",
+            code="handoff_invalid_response",
+        )
     subject = _first_text(flattened, "subject", "account_id", "account.id", "_id", "id") or email
     full_name = _first_text(flattened, "full_name", "name", "display_name")
     groups = _extract_identity_groups(payload)
@@ -570,9 +632,12 @@ def _identity_from_email(
     domain = _domain_of(email)
     allowed = settings.mfu_iam_allowed_domain_list
     if not allowed:
-        raise MfuIamAuthenticationError("MFU IAM allowed domains are not configured.")
+        raise MfuIamAuthenticationError(
+            "MFU IAM allowed domains are not configured.",
+            code="handoff_not_configured",
+        )
     if domain not in allowed:
-        raise MfuIamAuthenticationError("MFU IAM email domain is not allowed.")
+        raise MfuIamAuthenticationError("MFU IAM email domain is not allowed.", code="domain_not_allowed")
     normalized_groups = _normalize_groups(groups or [])
     approved_admin_groups = set(settings.mfu_iam_admin_group_list)
     matched_admin_groups = sorted(set(normalized_groups) & approved_admin_groups)

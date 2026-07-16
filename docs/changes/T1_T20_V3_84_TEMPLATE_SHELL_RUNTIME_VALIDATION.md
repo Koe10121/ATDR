@@ -16,7 +16,7 @@ Provide a safe way to validate whether the supervisor-template outer-shell hando
 - `atdr/scripts/validate_template_bridge_contract.py`
 - `atdr/scripts/validate_template_shell_runtime.py`
 - `atdr/scripts/config_doctor.py`
-- Official supervisor template path: `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response`
+- Official supervisor template path: `<MFU_SHELL_ROOT>`
 
 ## T4 Current Behavior
 

@@ -65,7 +65,7 @@ Do not commit `.env`. Do not hard-code a single school email as the only accepte
 ATDR includes a dry-run-first helper that prepares the non-secret template-shell handoff values in private `.env`:
 
 ```powershell
-cd C:\Users\User\Desktop\ATDR
+cd <ATDR_ROOT>
 .\.venv\Scripts\python.exe -m atdr.scripts.use_template_shell_config --dry-run --pretty
 ```
 
@@ -92,21 +92,21 @@ It does not set or print client secrets, API keys, session tokens, or `MFU_IAM_A
 Start ATDR backend:
 
 ```powershell
-cd C:\Users\User\Desktop\ATDR
+cd <ATDR_ROOT>
 .\.venv\Scripts\python.exe -m uvicorn atdr.app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 Start ATDR frontend:
 
 ```powershell
-cd C:\Users\User\Desktop\ATDR\frontend
+cd <ATDR_ROOT>\frontend
 npm.cmd run dev
 ```
 
 Start template backend:
 
 ```powershell
-cd C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\backend-node
+cd <MFU_SHELL_ROOT>\backend-node
 npm.cmd install
 npm.cmd run start:local
 ```
@@ -114,7 +114,7 @@ npm.cmd run start:local
 Start template frontend:
 
 ```powershell
-cd C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\frontend-vue
+cd <MFU_SHELL_ROOT>\frontend-vue
 npm.cmd install
 npm.cmd run serve:local
 ```
@@ -122,7 +122,7 @@ npm.cmd run serve:local
 Run the runtime check:
 
 ```powershell
-cd C:\Users\User\Desktop\ATDR
+cd <ATDR_ROOT>
 .\.venv\Scripts\python.exe -m atdr.scripts.validate_template_shell_runtime --check-runtime --pretty
 ```
 

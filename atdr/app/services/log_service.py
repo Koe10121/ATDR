@@ -5,6 +5,7 @@ from typing import TextIO
 from sqlalchemy import Select, desc, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
+from atdr.app.core.log_fingerprint import raw_line_fingerprint
 from atdr.app.db.models import Alert, AlertEvidence, AuditLog, LogSource, NormalizedLog, RawLog
 from atdr.app.parsers.paloalto_parser import ParsedPaloAltoLog, parse_log_line_for_profile
 from atdr.app.services.operation_run_service import (
@@ -28,18 +29,13 @@ def persist_parsed_log(db: Session, parsed: ParsedPaloAltoLog, *, source_id: int
     raw = RawLog(
         source_id=source_id,
         raw_line=parsed.raw_line,
+        raw_line_hash=raw_line_fingerprint(parsed.raw_line),
         syslog_timestamp=parsed.syslog_timestamp,
         device_hostname=parsed.device_hostname,
     )
+    normalized = NormalizedLog(parsed_json=parsed.parsed_json, **({} if parsed.error else parsed.normalized))
+    raw.normalized = normalized
     db.add(raw)
-    db.flush()
-
-    if parsed.error:
-        raw.normalized = NormalizedLog(raw_log_id=raw.id, parsed_json=parsed.parsed_json)
-        return raw.normalized
-
-    normalized = NormalizedLog(raw_log_id=raw.id, parsed_json=parsed.parsed_json, **parsed.normalized)
-    db.add(normalized)
     return normalized
 
 

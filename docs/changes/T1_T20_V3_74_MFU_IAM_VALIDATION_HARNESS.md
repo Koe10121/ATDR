@@ -17,7 +17,7 @@ Add a safe operational harness for validating MFU IAM configuration and optional
 - `atdr/app/services/mfu_iam_service.py`
 - `atdr/app/routers/auth.py`
 - `atdr/app/schemas/auth.py`
-- Supervisor template IAM docs and integration source under `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response`
+- Supervisor template IAM docs and integration source under `<MFU_SHELL_ROOT>`
 
 ## T4 Current Behavior
 

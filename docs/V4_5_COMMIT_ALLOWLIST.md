@@ -1,0 +1,197 @@
+# v4.5 Proposed Commit Allowlist
+
+No file in this document has been staged, committed, or pushed. Explicit repository-owner approval is required before using this list.
+
+## Release Rule
+
+Stage only the exact paths below. Re-run `git status --short --untracked-files=all` immediately before staging; any path not listed here blocks the release until reviewed.
+
+## Exact Paths (175)
+
+- [ ] `.env.example`
+- [ ] `.env.lab.example`
+- [ ] `.env.shell.example`
+- [ ] `.gitignore`
+- [ ] `atdr/app/core/config.py`
+- [ ] `atdr/app/core/log_fingerprint.py`
+- [ ] `atdr/app/db/models.py`
+- [ ] `atdr/app/detection/schema_contracts.py`
+- [ ] `atdr/app/detection/v398_independent_holdout_validation.py`
+- [ ] `atdr/app/detection/v399_multisource_frozen_revalidation.py`
+- [ ] `atdr/app/detection/v400_provider_blinded_external_validation.py`
+- [ ] `atdr/app/detection/v401_schema_aware_soc_queue.py`
+- [ ] `atdr/app/main.py`
+- [ ] `atdr/app/routers/auth.py`
+- [ ] `atdr/app/routers/ml.py`
+- [ ] `atdr/app/schemas/auth.py`
+- [ ] `atdr/app/services/assistant_llm.py`
+- [ ] `atdr/app/services/assistant_service.py`
+- [ ] `atdr/app/services/log_service.py`
+- [ ] `atdr/app/services/metrics_service.py`
+- [ ] `atdr/app/services/mfu_iam_service.py`
+- [ ] `atdr/app/services/ml_evidence_snapshot_service.py`
+- [ ] `atdr/app/services/resumable_ingestion_service.py`
+- [ ] `atdr/app/services/template_bridge_contract.py`
+- [ ] `atdr/app/services/template_shell_auth.py`
+- [ ] `atdr/scripts/config_doctor.py`
+- [ ] `atdr/scripts/harden_template_google_auth.py`
+- [ ] `atdr/scripts/prepare_safe_demo.py`
+- [ ] `atdr/scripts/run_source_scenario.py`
+- [ ] `atdr/scripts/run_v398_independent_holdout_validation.py`
+- [ ] `atdr/scripts/run_v399_multisource_frozen_revalidation.py`
+- [ ] `atdr/scripts/run_v400_provider_blinded_external_validation.py`
+- [ ] `atdr/scripts/run_v401_schema_aware_soc_queue.py`
+- [ ] `atdr/scripts/template_auth_doctor.py`
+- [ ] `atdr/scripts/use_template_shell_config.py`
+- [ ] `atdr/scripts/validate_large_ingestion.py`
+- [ ] `atdr/scripts/validate_template_shell_runtime.py`
+- [ ] `atdr/tests/conftest.py`
+- [ ] `atdr/tests/test_api.py`
+- [ ] `atdr/tests/test_assistant.py`
+- [ ] `atdr/tests/test_hardening_and_ingestion.py`
+- [ ] `atdr/tests/test_mfu_iam_handoff.py`
+- [ ] `atdr/tests/test_mfu_iam_validation.py`
+- [ ] `atdr/tests/test_ml_evidence_snapshot.py`
+- [ ] `atdr/tests/test_source_scenarios.py`
+- [ ] `atdr/tests/test_template_bridge_contract.py`
+- [ ] `atdr/tests/test_template_shell_runtime.py`
+- [ ] `atdr/tests/test_v396_preproduction_rehearsal.py`
+- [ ] `atdr/tests/test_v397_large_ingestion.py`
+- [ ] `atdr/tests/test_v398_independent_holdout_validation.py`
+- [ ] `atdr/tests/test_v399_multisource_frozen_revalidation.py`
+- [ ] `atdr/tests/test_v400_provider_blinded_external_validation.py`
+- [ ] `atdr/tests/test_v401_schema_aware_soc_queue.py`
+- [ ] `atdr/tests/test_v43_portable_shell_runtime.py`
+- [ ] `atdr/tests/test_v44_mfu_auth_stabilization.py`
+- [ ] `config/mfu-shell-contract.json`
+- [ ] `docs/AI-DOCS-INDEX.md`
+- [ ] `docs/ATDR_PRODUCTIZATION_ROADMAP.md`
+- [ ] `docs/ATDR_REPO_CLEANUP_PLAN.md`
+- [ ] `docs/ATDR_REQUIREMENT_TRACEABILITY.md`
+- [ ] `docs/ATDR_TEMPLATE_COMPARISON_AND_GAP_AUDIT.md`
+- [ ] `docs/ATDR_TEMPLATE_MERGE_ANALYSIS.md`
+- [ ] `docs/ATDR_TEMPLATE_SHELL_INTEGRATION_PLAN.md`
+- [ ] `docs/ATDR_UNIVERSITY_COMPLIANCE_CHECKLIST.md`
+- [ ] `docs/changes/2026-05-28-ai-workflow-agents.md`
+- [ ] `docs/changes/T1_T20_DETECTION_ML_PRODUCTIZATION_PLAN.md`
+- [ ] `docs/changes/T1_T20_TASKLIST_PROGRESS_COMPLIANCE.md`
+- [ ] `docs/changes/T1_T20_TEMPLATE_COMPARISON_AND_IAM_READINESS_AUDIT.md`
+- [ ] `docs/changes/T1_T20_V3_16_MFU_IAM_ADAPTER_PLAN.md`
+- [ ] `docs/changes/T1_T20_V3_5_REAL_SOURCE_SYSLOG_PILOT.md`
+- [ ] `docs/changes/T1_T20_V3_64_MFU_IAM_TEMPLATE_ADAPTER.md`
+- [ ] `docs/changes/T1_T20_V3_65_MFU_IAM_AND_REAL_ASSISTANT_HARNESS.md`
+- [ ] `docs/changes/T1_T20_V3_71_RULE_PACK_AND_SCENARIO_CONTRACT.md`
+- [ ] `docs/changes/T1_T20_V3_72_UNIFIED_DETECTION_ML_EVALUATION.md`
+- [ ] `docs/changes/T1_T20_V3_74_MFU_IAM_VALIDATION_HARNESS.md`
+- [ ] `docs/changes/T1_T20_V3_78_TEMPLATE_SHELL_INTEGRATION_PLAN.md`
+- [ ] `docs/changes/T1_T20_V3_79_TEMPLATE_TO_ATDR_HANDOFF_RECEIVER.md`
+- [ ] `docs/changes/T1_T20_V3_80_SUPERVISOR_TEMPLATE_RUNTIME_BRIDGE.md`
+- [ ] `docs/changes/T1_T20_V3_81_TEMPLATE_ATDR_LAUNCHER_HELPER.md`
+- [ ] `docs/changes/T1_T20_V3_82_TEMPLATE_LAUNCHER_APPLIED_RUNTIME_PREP.md`
+- [ ] `docs/changes/T1_T20_V3_83_TEMPLATE_SHELL_SESSION_ADAPTER.md`
+- [ ] `docs/changes/T1_T20_V3_84_TEMPLATE_SHELL_RUNTIME_VALIDATION.md`
+- [ ] `docs/changes/T1_T20_V3_86_TEMPLATE_SHELL_LIVE_RUNTIME_CHECK.md`
+- [ ] `docs/changes/T1_T20_V3_91_MFU_OUTER_SHELL_IAM_HANDOFF.md`
+- [ ] `docs/changes/T1_T20_V3_97_LARGE_FILE_INGESTION_RELIABILITY.md`
+- [ ] `docs/changes/T1_T20_V3_98_INDEPENDENT_DETECTION_ML_HOLDOUT_VALIDATION.md`
+- [ ] `docs/changes/T1_T20_V3_99_INDEPENDENT_MULTI_SOURCE_EVIDENCE.md`
+- [ ] `docs/changes/T1_T20_V4_0_PROVIDER_BLINDED_EXTERNAL_EVIDENCE.md`
+- [ ] `docs/changes/T1_T20_V4_1_SCHEMA_AWARE_SOC_QUEUE_MODEL_REDESIGN.md`
+- [ ] `docs/changes/T1_T20_V4_2_PRESENTATION_READY_SOC_ASSISTANT.md`
+- [ ] `docs/changes/T1_T20_V4_3_PORTABLE_MFU_SHELL_RUNTIME.md`
+- [ ] `docs/changes/T1_T20_V4_4_MFU_AUTH_STABILIZATION.md`
+- [ ] `docs/changes/T1_T20_V4_5_REPRODUCIBLE_PRODUCT_BASELINE.md`
+- [ ] `docs/CURRENT_SYSTEM_STATE_LOCK.md`
+- [ ] `docs/DEMO_DAY_RUNBOOK.md`
+- [ ] `docs/DETECTION_ML_PRODUCTIZATION_PLAN.md`
+- [ ] `docs/ENVIRONMENT_GUIDE.md`
+- [ ] `docs/FINAL_DEMO_SCRIPT.md`
+- [ ] `docs/FINAL_REHEARSAL_CHECKLIST.md`
+- [ ] `docs/FINAL_SCREENSHOT_CAPTURE_PLAN.md`
+- [ ] `docs/FINAL_SLIDE_ASSET_GUIDE.md`
+- [ ] `docs/LAB_RUNBOOK.md`
+- [ ] `docs/prd/PRD-ATDR.md`
+- [ ] `docs/PRODUCTIZATION_TEMPLATE_GAP_ANALYSIS.md`
+- [ ] `docs/QUICKSTART_FOR_TEAM.md`
+- [ ] `docs/security/ATDR_MFU_IAM_ADAPTER_PLAN.md`
+- [ ] `docs/security/ATDR_MFU_IAM_IMPLEMENTATION_PLAN.md`
+- [ ] `docs/security/ATDR_MFU_IAM_PREPROD_VALIDATION.md`
+- [ ] `docs/security/ATDR_REAL_LLM_ASSISTANT_PLAN.md`
+- [ ] `docs/tasks/tasklist-progress.html`
+- [ ] `docs/tasks/tasklist-progress.md`
+- [ ] `docs/TEAM_ONE_COMMAND_START.md`
+- [ ] `docs/V3_67_CI_AND_ASSISTANT_STABILITY.md`
+- [ ] `docs/V3_72_UNIFIED_DETECTION_ML_EVALUATION.md`
+- [ ] `docs/V3_80_SUPERVISOR_TEMPLATE_RUNTIME_BRIDGE.md`
+- [ ] `docs/V3_81_TEMPLATE_ATDR_LAUNCHER_HELPER.md`
+- [ ] `docs/V3_82_TEMPLATE_LAUNCHER_APPLIED_RUNTIME_PREP.md`
+- [ ] `docs/V3_84_TEMPLATE_SHELL_RUNTIME_VALIDATION.md`
+- [ ] `docs/V3_85_TEMPLATE_SHELL_CONFIG_HELPER.md`
+- [ ] `docs/V3_88_CHANGESET_MANIFEST.md`
+- [ ] `docs/V3_91_CHANGESET_MANIFEST.md`
+- [ ] `docs/V3_97_LARGE_FILE_INGESTION_RELIABILITY.md`
+- [ ] `docs/V3_98_CHANGESET_MANIFEST.md`
+- [ ] `docs/V3_98_INDEPENDENT_DETECTION_ML_HOLDOUT_VALIDATION.md`
+- [ ] `docs/V3_99_CHANGESET_MANIFEST.md`
+- [ ] `docs/V3_99_INDEPENDENT_MULTI_SOURCE_EVIDENCE_AND_FROZEN_REVALIDATION.md`
+- [ ] `docs/V4_0_CHANGESET_MANIFEST.md`
+- [ ] `docs/V4_0_PROVIDER_BLINDED_EXTERNAL_EVIDENCE_AND_FROZEN_VALIDATION.md`
+- [ ] `docs/V4_1_CHANGESET_MANIFEST.md`
+- [ ] `docs/V4_1_SCHEMA_AWARE_SOC_QUEUE_MODEL_REDESIGN.md`
+- [ ] `docs/V4_2_PRESENTATION_READY_SOC_ASSISTANT.md`
+- [ ] `docs/V4_3_PORTABLE_MFU_SHELL_RUNTIME.md`
+- [ ] `docs/V4_4_MFU_AUTH_STABILIZATION.md`
+- [ ] `docs/V4_5_COMMIT_ALLOWLIST.md`
+- [ ] `docs/V4_5_CURRENT_STATE_MANIFEST.md`
+- [ ] `docs/V4_5_REPO_HYGIENE_REPORT.md`
+- [ ] `docs/V4_5_REPRODUCIBLE_PRODUCT_BASELINE.md`
+- [ ] `frontend/.env.example`
+- [ ] `frontend/README.md`
+- [ ] `frontend/src/components/AppShell.tsx`
+- [ ] `frontend/src/components/AssistantAnswerContent.tsx`
+- [ ] `frontend/src/components/MLEvidenceSnapshotPanel.tsx`
+- [ ] `frontend/src/components/MLGovernancePolicyPanel.tsx`
+- [ ] `frontend/src/components/SocPageHeader.tsx`
+- [ ] `frontend/src/hooks/useApiQueries.ts`
+- [ ] `frontend/src/hooks/useAuth.tsx`
+- [ ] `frontend/src/lib/api.ts`
+- [ ] `frontend/src/lib/assistantSession.ts`
+- [ ] `frontend/src/pages/AlertsTriage.tsx`
+- [ ] `frontend/src/pages/AssistantPage.tsx`
+- [ ] `frontend/src/pages/DemoControls.tsx`
+- [ ] `frontend/src/pages/ExecutiveOverview.tsx`
+- [ ] `frontend/src/pages/LogExplorer.tsx`
+- [ ] `frontend/src/pages/LoginPage.tsx`
+- [ ] `frontend/src/pages/MLGovernance.tsx`
+- [ ] `frontend/src/pages/UserAdmin.tsx`
+- [ ] `frontend/src/styles.css`
+- [ ] `frontend/src/types/api.ts`
+- [ ] `frontend/tailwind.config.ts`
+- [ ] `frontend/tests/e2e_workflow.spec.ts`
+- [ ] `frontend/tests/smoke.spec.ts`
+- [ ] `migrations/versions/b4c5d6e7f8a9_add_raw_log_content_fingerprint.py`
+- [ ] `NewSystem/.iam-template.json`
+- [ ] `NewSystem/template.manifest.json`
+- [ ] `README.md`
+- [ ] `requirements.lock.txt`
+- [ ] `scripts/check_system.cmd`
+- [ ] `scripts/check_system.ps1`
+- [ ] `scripts/setup_team.cmd`
+- [ ] `scripts/setup_team.ps1`
+- [ ] `scripts/start_system.cmd`
+- [ ] `scripts/start_system.ps1`
+- [ ] `scripts/stop_system.cmd`
+- [ ] `scripts/stop_system.ps1`
+- [ ] `scripts/system_common.ps1`
+
+## Explicit Exclusions
+
+- `.env`, private shell/frontend environments, credentials, API keys, and secrets.
+- ATDR databases/backups, PostgreSQL dumps, private or real logs, processed logs, and staged imports.
+- Model artifacts, benchmark snapshots, generated ML reports, `ml_baseline_reviews/`, and `demo_exports/`.
+- `.venv/`, `node_modules/`, build/test output, caches, `.atdr_runtime/`, and clean-room artifacts.
+- The separately supplied MFU shell and all of its private provider configuration.
+
+## Approval
+
+Approval must name this v4.5 allowlist (or provide a narrower replacement). Do not use `git add .`, broad directory staging, force-push, or history rewriting.

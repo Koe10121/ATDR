@@ -105,6 +105,12 @@ def _validate_template_handoff_origin(request: Request, settings) -> bool:
 
 @router.post("/login", response_model=TokenResponse)
 def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)) -> dict:
+    settings = get_settings()
+    if not settings.local_login_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Local login is disabled. Sign in through the MFU application shell.",
+        )
     _check_rate_limit(request, payload.username)
     user = authenticate_user(db, payload.username, payload.password)
     if user is None:
@@ -116,7 +122,6 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
         )
     _clear_failed_logins(request, payload.username)
     record_successful_login(db, user)
-    settings = get_settings()
     token = create_access_token(subject=user.username, role=user.role)
     return {
         "access_token": token,
@@ -144,7 +149,7 @@ async def consume_mfu_iam_template_handoff(request: Request, db: Session = Depen
 
     settings = get_settings()
     return_path = _safe_handoff_return_path(request.query_params.get("return_to"), settings)
-    if not settings.mfu_iam_handoff_enabled:
+    if not settings.template_shell_required or not settings.mfu_iam_handoff_enabled:
         return RedirectResponse(
             _handoff_redirect_url(settings, return_path=return_path, error="handoff_not_configured"),
             status_code=status.HTTP_303_SEE_OTHER,
@@ -174,11 +179,11 @@ async def consume_mfu_iam_template_handoff(request: Request, db: Session = Depen
             db,
             actor="anonymous",
             success=False,
-            reason="template_handoff_rejected",
+            reason=f"template_{exc.safe_code}",
             client_ip=client_ip,
         )
         return RedirectResponse(
-            _handoff_redirect_url(settings, return_path=return_path, error="handoff_rejected"),
+            _handoff_redirect_url(settings, return_path=return_path, error=exc.safe_code),
             status_code=status.HTTP_303_SEE_OTHER,
         )
 
@@ -258,7 +263,7 @@ def oidc_status(current_user: User = Depends(require_analyst_or_admin)) -> dict:
         "client_configured": bool(settings.oidc_client_id.strip()),
         "allowed_domains": _split_allowed_domains(settings.oidc_allowed_domains),
         "default_role": settings.oidc_default_role,
-        "mode": "external_oidc" if settings.oidc_enabled else "local_login_only",
+        "mode": "external_oidc" if settings.oidc_enabled else settings.normalized_auth_mode,
         "school_email_domains": settings.school_email_domain_list,
         "require_school_email": settings.require_school_email,
         "local_email_login_enabled": settings.local_email_login_enabled,

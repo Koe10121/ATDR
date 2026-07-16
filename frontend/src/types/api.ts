@@ -41,6 +41,9 @@ export interface OidcStatus {
 }
 
 export interface MfuIamStatus {
+  auth_mode: "template_shell" | "local_recovery" | string;
+  local_login_enabled: boolean;
+  template_shell_required: boolean;
   enabled: boolean;
   base_url_configured: boolean;
   client_id_configured: boolean;
@@ -104,6 +107,9 @@ export interface MfuIamStatus {
 }
 
 export interface MfuIamPublicStatus {
+  auth_mode: "template_shell" | "local_recovery" | string;
+  local_login_enabled: boolean;
+  template_shell_required: boolean;
   enabled: boolean;
   b2b_ready: boolean;
   mock_enabled: boolean;
@@ -1602,6 +1608,109 @@ export interface SupervisedModelRegistry {
   production_promoted: boolean;
   response_automation_allowed: boolean;
   decision_support_only: boolean;
+}
+
+export interface MLEvidenceMetricRange {
+  min: number | null;
+  max: number | null;
+}
+
+export interface MLEvidenceSnapshot {
+  schema_version: string;
+  canonical_evidence: {
+    available: boolean;
+    status: string;
+    reason?: string;
+    expected_report_name?: string;
+    snapshot_id?: string;
+    generated_at?: string;
+    version?: string;
+    evidence_type?: string;
+    readiness_decision?: string;
+    selected_strategy?: string;
+    selection_scope?: string;
+    evaluated_splits?: number;
+    calibration_passed_splits?: number;
+    dataset?: {
+      dataset_id?: string;
+      title?: string;
+      publisher?: string;
+      role?: string;
+      accepted_rows?: number;
+      sample_sha256?: string;
+      provider_ground_truth?: boolean;
+      human_reviewed?: boolean;
+    };
+    provenance?: {
+      report_name?: string;
+      development_manifest_hash?: string;
+      source_file_count?: number;
+    };
+    metric_ranges?: Record<string, MLEvidenceMetricRange>;
+    worst_split?: {
+      split_mode?: string;
+      metrics?: Record<string, number | null>;
+    };
+    calibration?: {
+      status: string;
+      passed: boolean;
+      brier_score?: number | null;
+      expected_calibration_error?: number | null;
+      max_confidence_accuracy_gap?: number | null;
+    };
+    safety?: {
+      development_only: boolean;
+      model_activated: boolean;
+      model_artifact_written: boolean;
+      production_promoted: boolean;
+      response_automation_allowed: boolean;
+      real_firewall_blocking_enabled: boolean;
+      database_counts_unchanged: boolean;
+    };
+    limitations?: string[];
+  };
+  operational_models: {
+    isolation_forest: {
+      role: string;
+      artifact_exists: boolean;
+      model_type: string;
+      last_trained_at?: string | null;
+      last_scored_at?: string | null;
+      scored_log_count?: number | null;
+      anomaly_count?: number | null;
+      anomaly_rate_percent?: number | null;
+      decision_support_only: boolean;
+    };
+    active_supervised_artifact: {
+      artifact_exists: boolean;
+      metadata_status?: string;
+      metadata_unknown: boolean;
+      model_type?: string | null;
+      feature_set?: string | null;
+      message: string;
+      production_promoted: boolean;
+      response_automation_allowed: boolean;
+    };
+    diagnostic_candidates: {
+      registry_entry_count: number;
+      latest_candidate?: {
+        model_id: number;
+        model_type?: string | null;
+        created_at?: string | null;
+        readiness_decision?: string | null;
+        is_active: boolean;
+      } | null;
+      canonical_candidate_is_active: boolean;
+    };
+  };
+  safety: {
+    decision_support_only: boolean;
+    production_promoted: boolean;
+    response_automation_allowed: boolean;
+    real_firewall_blocking_enabled: boolean;
+    secrets_exposed: boolean;
+    local_paths_exposed: boolean;
+  };
 }
 
 export interface ModelReadinessItem {

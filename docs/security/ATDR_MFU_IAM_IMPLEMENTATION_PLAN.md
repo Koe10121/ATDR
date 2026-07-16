@@ -1,5 +1,7 @@
 # ATDR MFU IAM Implementation Plan
 
+> **v4.4 current-state note.** The normal architecture is now the separately supplied MFU shell plus the v3.91 one-time server-side handoff. The legacy Google client fallback has been removed. Normal startup requires matching private `VUE_APP_CLIENTID` and `GOOGLE_CLIENT_ID` values from an approved OAuth Web client. Direct ATDR Google/OIDC login and the historical browser token-login route remain out of scope. See `docs/V4_4_MFU_AUTH_STABILIZATION.md`.
+
 > **Historical implementation-plan note.** Its v3.65 browser token-login route is retired. The current school-identity architecture is the v3.91 opaque-code outer-shell handoff documented in `docs/V3_91_MFU_OUTER_SHELL_SECURE_HANDOFF.md`; do not use this document to restore browser credential handoff.
 
 ## Status

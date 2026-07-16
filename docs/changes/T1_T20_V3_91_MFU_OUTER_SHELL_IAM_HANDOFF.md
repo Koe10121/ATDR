@@ -10,7 +10,7 @@ Use the official MFU template as the school identity entry shell and open ATDR o
 
 ## T3 Source Evidence
 
-`atdr/app/routers/auth.py`, `atdr/app/services/mfu_iam_service.py`, `atdr/app/core/security.py`, `frontend/src/pages/LoginPage.tsx`, and official template IAM/login sources under `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response`.
+`atdr/app/routers/auth.py`, `atdr/app/services/mfu_iam_service.py`, `atdr/app/core/security.py`, `frontend/src/pages/LoginPage.tsx`, and official template IAM/login sources under `<MFU_SHELL_ROOT>`.
 
 ## T4 Current Behavior
 

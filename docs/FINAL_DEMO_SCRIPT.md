@@ -87,7 +87,7 @@ commands have remained stable throughout development."
 Return to the repository root in a third terminal:
 
 ```powershell
-cd C:\Users\User\Desktop\ATDR
+cd <ATDR_ROOT>
 ```
 
 Run:

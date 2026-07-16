@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-PROJECT_TEMPLATE_DEFAULT = Path(r"C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response")
+# Runtime callers should pass --template-root or set MFU_TEMPLATE_ROOT. The
+# sentinel is deliberately portable and produces a clear missing-path report.
+PROJECT_TEMPLATE_DEFAULT = Path(os.environ.get("MFU_TEMPLATE_ROOT", "__MFU_TEMPLATE_ROOT_REQUIRED__"))
 
 SECRET_NAME_RE = re.compile(r"(SECRET|PASSWORD|TOKEN|KEY|PRIVATE)", re.IGNORECASE)
 ENV_LINE_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=")
@@ -21,6 +24,7 @@ REQUIRED_TEMPLATE_FILES = {
     "twofa_dialog": "frontend-vue/src/projects/components/dialog/TwoFA.vue",
     "handoff_route": "backend-node/server/Project/atdr/atdr_handoff.routes.js",
     "handoff_service": "backend-node/server/Project/atdr/service/atdr_handoff.js",
+    "app_routes": "backend-node/server/routes/app.routes.js",
     "handoff_helper": "frontend-vue/src/projects/utils/atdr-handoff.js",
     "template_router": "frontend-vue/src/router/index.js",
     "registry_launcher": "frontend-vue/src/projects/views/mfuaidrivenlogbasedthreatdetectionandresponse/MFUAIDRIVENLOGBASEDTHREATDETECTIONANDRESPONSERegistry.vue",
@@ -40,7 +44,8 @@ EXPECTED_TEMPLATE_MARKERS = {
     "twofa_verify_action": "twofaSend",
     "bearer_introspection": "introspectToken",
     "profile_endpoint": "getClientProfile",
-    "handoff_start": "/atdr/handoff/start",
+    "handoff_mount": "app.use(path + '/atdr/handoff'",
+    "handoff_start": "router.post('/start'",
     "handoff_exchange": "/exchange",
     "handoff_form_post": "handoff_code",
     "registered_atdr_registry_route": "/mfu-ai-driven-log-based-threat-detection-and-response/registry",

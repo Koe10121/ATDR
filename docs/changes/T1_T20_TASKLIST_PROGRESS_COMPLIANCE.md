@@ -21,10 +21,10 @@
 
 | Area | Source path / route / command | What was verified |
 | --- | --- | --- |
-| Supervisor tasklist guide | `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\docs\tasks\README.md` | Required tasklist storage, columns, statuses, progress gates, and HTML regeneration rule. |
-| Supervisor progress file | `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\docs\tasks\tasklist-progress.md` | Required T1-T5 progress-board structure. |
-| Supervisor T1-T20 template | `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\docs\templates\T1-T20-change-document.md` | Required handoff sections and evidence fields. |
-| Supervisor progress scripts | `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\scripts\*.js` | Renderer/checker behavior to adapt. |
+| Supervisor tasklist guide | `<MFU_SHELL_ROOT>\docs\tasks\README.md` | Required tasklist storage, columns, statuses, progress gates, and HTML regeneration rule. |
+| Supervisor progress file | `<MFU_SHELL_ROOT>\docs\tasks\tasklist-progress.md` | Required T1-T5 progress-board structure. |
+| Supervisor T1-T20 template | `<MFU_SHELL_ROOT>\docs\templates\T1-T20-change-document.md` | Required handoff sections and evidence fields. |
+| Supervisor progress scripts | `<MFU_SHELL_ROOT>\scripts\*.js` | Renderer/checker behavior to adapt. |
 | Backend route truth | `atdr/app/main.py`, `atdr/app/routers/*.py` | ATDR remains FastAPI; no route/API behavior changed. |
 | Frontend route/API truth | `frontend/src/App.tsx`, `frontend/src/lib/api.ts` | ATDR remains React; no route/UI behavior changed. |
 | PRD/docs | `docs/ATDR_AI_WORKFLOW.md`, `docs/prd/PRD-ATDR.md`, `docs/ATDR_UNIVERSITY_COMPLIANCE_CHECKLIST.md`, `README.md` | Governance docs needed tasklist/progress-board references. |

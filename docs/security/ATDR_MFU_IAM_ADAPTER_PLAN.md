@@ -21,13 +21,13 @@ The canonical implementation and operating documents are `docs/V3_91_MFU_OUTER_S
 
 | Evidence | Source |
 | --- | --- |
-| Supervisor IAM PRD | `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\backend-node\docs\IAM_PRD.md` |
-| Supervisor IAM overview | `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\backend-node\docs\IAM_SYSTEM_OVERVIEW.md` |
-| Supervisor IAM recommendations | `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\backend-node\docs\IAM_RECOMMENDATIONS.md` |
-| Supervisor IAM SDK and B2B middleware | `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\backend-node\server\integrations\iam\*` |
-| Supervisor security permission services | `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\backend-node\server\Project\security\*` |
-| Supervisor Vue sign-in dialogs | `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\frontend-vue\src\projects\components\dialog\SignIn.vue`, `TwoFA.vue` |
-| Supervisor Vue security store | `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\frontend-vue\src\store\modules\Security\*` |
+| Supervisor IAM PRD | `<MFU_SHELL_ROOT>\backend-node\docs\IAM_PRD.md` |
+| Supervisor IAM overview | `<MFU_SHELL_ROOT>\backend-node\docs\IAM_SYSTEM_OVERVIEW.md` |
+| Supervisor IAM recommendations | `<MFU_SHELL_ROOT>\backend-node\docs\IAM_RECOMMENDATIONS.md` |
+| Supervisor IAM SDK and B2B middleware | `<MFU_SHELL_ROOT>\backend-node\server\integrations\iam\*` |
+| Supervisor security permission services | `<MFU_SHELL_ROOT>\backend-node\server\Project\security\*` |
+| Supervisor Vue sign-in dialogs | `<MFU_SHELL_ROOT>\frontend-vue\src\projects\components\dialog\SignIn.vue`, `TwoFA.vue` |
+| Supervisor Vue security store | `<MFU_SHELL_ROOT>\frontend-vue\src\store\modules\Security\*` |
 | ATDR auth/config | `atdr/app/core/config.py`, `atdr/app/core/security.py`, `atdr/app/routers/auth.py`, `atdr/app/services/user_service.py` |
 | ATDR IAM docs | `docs/security/ATDR_EXTERNAL_IAM_PLAN.md`, `docs/security/ATDR_IAM_RBAC_MATRIX.md` |
 

@@ -1,0 +1,41 @@
+{
+  "contract_version": 1,
+  "dependency_name": "MFU supervisor application shell",
+  "runtime_role": "authentication and application-entry shell",
+  "distribution_mode": "separately_supplied_approved_copy",
+  "source_revision_status": "not_published_as_versioned_companion_repository",
+  "distribution_blocker": "MFU must provide an approved versioned archive or companion repository reference before clean-clone distribution can be fully self-service.",
+  "required_paths": [
+    "backend-node/package.json",
+    "backend-node/server.js",
+    "backend-node/server/Project/atdr/atdr_handoff.routes.js",
+    "backend-node/server/Project/atdr/service/atdr_handoff.js",
+    "frontend-vue/package.json",
+    "frontend-vue/src/projects/utils/atdr-handoff.js"
+  ],
+  "fingerprint_paths": [
+    "backend-node/package.json",
+    "backend-node/package-lock.json",
+    "backend-node/server.js",
+    "backend-node/server/Project/atdr/atdr_handoff.routes.js",
+    "backend-node/server/Project/atdr/service/atdr_handoff.js",
+    "frontend-vue/package.json",
+    "frontend-vue/package-lock.json",
+    "frontend-vue/src/projects/utils/atdr-handoff.js"
+  ],
+  "provider_private_files": [
+    "backend-node/.env.local",
+    "frontend-vue/.env.localdev"
+  ],
+  "approved_local_urls": {
+    "shell_frontend": "http://localhost:8080",
+    "shell_backend": "http://127.0.0.1:8214",
+    "atdr_frontend": "http://127.0.0.1:5173",
+    "atdr_backend": "http://127.0.0.1:8000"
+  },
+  "security": {
+    "authentication_fail_closed": true,
+    "private_values_must_not_be_copied_into_atdr": true,
+    "provider_acceptance_requires_real_approved_account": true
+  }
+}

@@ -122,8 +122,10 @@ def build_template_shell_runtime_report(
         atdr_check = _check_atdr_api(runtime_settings, timeout=timeout)
 
     blocking_config_issues: list[str] = []
+    if not runtime_settings.template_shell_required:
+        blocking_config_issues.append("ATDR_AUTH_MODE is not template_shell.")
     if not mfu_status["enabled"]:
-        blocking_config_issues.append("MFU_IAM_ENABLED is false; ATDR will stay in local-login mode.")
+        blocking_config_issues.append("MFU_IAM_ENABLED is false; mandatory shell authentication cannot start.")
     if not mfu_status["template_shell_enabled"]:
         blocking_config_issues.append("MFU_IAM_TEMPLATE_SHELL_ENABLED is false.")
     if not mfu_status["template_shell_base_url_configured"]:
@@ -147,6 +149,23 @@ def build_template_shell_runtime_report(
             and template_check.get("handoff_status_detected")
         )
 
+    if not contract["ok"]:
+        recommended_next_step = "Repair the reported static shell/ATDR contract blockers, then rerun this validation."
+    elif blocking_config_issues:
+        recommended_next_step = "Repair the reported ATDR handoff configuration issues, then rerun this validation."
+    elif not check_runtime:
+        recommended_next_step = (
+            "Start all four services, rerun with --check-runtime, and validate Google/MFU provider readiness separately "
+            "with template_auth_doctor."
+        )
+    elif ok:
+        recommended_next_step = (
+            "Static and runtime handoff checks passed. Complete one approved MFU account sign-in to record provider "
+            "acceptance."
+        )
+    else:
+        recommended_next_step = "Repair the reported runtime service or handoff-status failure, then rerun this validation."
+
     return {
         "ok": ok,
         "static_contract_ok": contract["ok"],
@@ -156,6 +175,9 @@ def build_template_shell_runtime_report(
         "atdr_receiver_detected": contract["atdr_receiver_detected"],
         "launcher_expected": True,
         "mfu_iam": {
+            "auth_mode": mfu_status["auth_mode"],
+            "local_login_enabled": mfu_status["local_login_enabled"],
+            "template_shell_required": mfu_status["template_shell_required"],
             "enabled": mfu_status["enabled"],
             "mode": mfu_status["mode"],
             "template_shell_enabled": mfu_status["template_shell_enabled"],
@@ -172,10 +194,7 @@ def build_template_shell_runtime_report(
         "template_runtime": template_check,
         "atdr_runtime": atdr_check,
         "secrets_exposed": False,
-        "recommended_next_step": (
-            "Set the private bridge secret in both services, allow the template frontend origin in ATDR, start the template "
-            "backend/frontend and ATDR backend/frontend, then run this command with --check-runtime."
-        ),
+        "recommended_next_step": recommended_next_step,
     }
 
 

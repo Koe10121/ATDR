@@ -23,9 +23,9 @@
 
 | Source | Path | Evidence / Finding |
 | --- | --- | --- |
-| Supervisor IAM PRD | `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\backend-node\docs\IAM_PRD.md` | Defines authentication, Google SSO/MFU Mail, 2FA, account lifecycle, permission matrix, B2B introspection, audit, and environment expectations. |
-| Supervisor IAM overview | `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\backend-node\docs\IAM_SYSTEM_OVERVIEW.md` | Describes IAM-first/local permission sources, sign-in flow, authorization flow, and B2B token flow. |
-| Supervisor IAM recommendations | `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\backend-node\docs\IAM_RECOMMENDATIONS.md` | Provides security recommendations; secret values must not be copied. |
+| Supervisor IAM PRD | `<MFU_SHELL_ROOT>\backend-node\docs\IAM_PRD.md` | Defines authentication, Google SSO/MFU Mail, 2FA, account lifecycle, permission matrix, B2B introspection, audit, and environment expectations. |
+| Supervisor IAM overview | `<MFU_SHELL_ROOT>\backend-node\docs\IAM_SYSTEM_OVERVIEW.md` | Describes IAM-first/local permission sources, sign-in flow, authorization flow, and B2B token flow. |
+| Supervisor IAM recommendations | `<MFU_SHELL_ROOT>\backend-node\docs\IAM_RECOMMENDATIONS.md` | Provides security recommendations; secret values must not be copied. |
 | Supervisor IAM source | `backend-node/server/integrations/iam/*`, `backend-node/server/Project/security/*` in the supervisor template | Shows IAM SDK adapter, token introspection, account access, permissions, and audit patterns. |
 | Supervisor frontend IAM UI | `frontend-vue/src/projects/components/dialog/SignIn.vue`, `frontend-vue/src/projects/components/dialog/TwoFA.vue` in the supervisor template | Shows Google/MFU Mail sign-in and OTP UX patterns. |
 | ATDR auth/config source | `atdr/app/core/config.py`, `atdr/app/core/security.py`, `atdr/app/routers/auth.py`, `atdr/app/routers/users.py` | Shows local JWT login, email login, disabled OIDC/MFU IAM placeholders, and user admin. |

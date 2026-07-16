@@ -10,7 +10,7 @@ Use the supervisor template as the outer login/account shell and allow ATDR to a
 
 ## T3 Source Evidence
 
-- Supervisor template runtime path: `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response`
+- Supervisor template runtime path: `<MFU_SHELL_ROOT>`
 - Template profile endpoint evidence: `backend-node/server/Project/accounts/accounts.routes.js`
 - Template launcher target: `frontend-vue/src/projects/views/mfuaidrivenlogbasedthreatdetectionandresponse/MFUAIDRIVENLOGBASEDTHREATDETECTIONANDRESPONSERegistry.vue`
 - ATDR auth router: `atdr/app/routers/auth.py`

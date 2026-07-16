@@ -5,15 +5,16 @@
 @layer base {
   html {
     color-scheme: light;
+    overflow-x: clip;
   }
 
   body {
     margin: 0;
     min-width: 320px;
     min-height: 100vh;
-    background: #eef3f8;
+    background: #f2f4f7;
     font-family: Inter, "Segoe UI", Arial, sans-serif;
-    overflow-x: hidden;
+    overflow-x: clip;
   }
 
   * {
@@ -33,7 +34,7 @@
   .hero-panel::before {
     content: "";
     @apply absolute left-0 right-0 top-0 h-1;
-    background: linear-gradient(90deg, #8c1515, #0f766e, #2563eb);
+    background: #8c1515;
   }
 
   .input {
@@ -41,11 +42,27 @@
   }
 
   .btn-primary {
-    @apply rounded-lg border border-danger/30 bg-danger px-4 py-2 text-sm font-extrabold text-white transition hover:bg-danger/90 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply rounded-lg border border-danger bg-danger px-4 py-2 text-sm font-extrabold text-white transition hover:bg-[#6f1111] disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .btn-secondary {
-    @apply rounded-lg border border-line bg-panel2 px-4 py-2 text-sm font-extrabold text-text transition hover:border-cyan/40 hover:bg-cyan/10 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply rounded-lg border border-line bg-white px-4 py-2 text-sm font-extrabold text-text transition hover:border-danger/40 hover:bg-danger/5 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .metric-card {
+    @apply min-w-0 rounded-lg border border-line bg-white p-4 shadow-panel;
+  }
+
+  .metric-label {
+    @apply text-[11px] font-black uppercase tracking-wide text-muted;
+  }
+
+  .metric-value {
+    @apply mt-2 break-words font-black text-text;
+  }
+
+  .metric-help {
+    @apply mt-1 text-xs font-semibold leading-relaxed text-muted;
   }
 
   .badge {

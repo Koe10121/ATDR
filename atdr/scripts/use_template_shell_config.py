@@ -40,6 +40,7 @@ def _template_shell_values(
     header: str,
 ) -> dict[str, str]:
     return {
+        "ATDR_AUTH_MODE": '"template_shell"',
         "MFU_IAM_ENABLED": "true",
         "MFU_IAM_TEMPLATE_SHELL_ENABLED": "true",
         "MFU_IAM_TEMPLATE_SHELL_BASE_URL": _quoted(template_base_url.strip() or DEFAULT_TEMPLATE_BASE_URL),

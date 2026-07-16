@@ -108,7 +108,7 @@ No suspicious non-ignored artifact was found. Numerous permission-denied warning
 Outside the ATDR repository:
 
 ```text
-C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\frontend-vue\src\views\Dashboard.vue
+<MFU_SHELL_ROOT>\frontend-vue\src\views\Dashboard.vue
 ```
 
 The file contains the `Open ATDR SOC Dashboard` launcher. The external template folder is not a Git repository and the v3.88 audit did not find a current `Dashboard.vue.bak-*` file. Before future edits, preserve a clean advisor archive or create a new versioned backup outside ATDR. Do not stage this external file in the ATDR commit.
@@ -130,7 +130,7 @@ The file contains the `Open ATDR SOC Dashboard` launcher. The external template 
 
 ## Exact Staging Commands
 
-Run from `C:\Users\User\Desktop\ATDR` after reviewing `git status`:
+Run from `<ATDR_ROOT>` after reviewing `git status`:
 
 ```powershell
 $v388Files = @(

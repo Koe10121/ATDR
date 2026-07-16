@@ -2,7 +2,7 @@
 
 Date: 2026-06-27
 
-Scope: Phase 1 audit comparing the current ATDR repository with the official supervisor template at `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response`. This document is a planning artifact only. No files were deleted and no runtime behavior was changed.
+Scope: Phase 1 audit comparing the current ATDR repository with the official supervisor template at `<MFU_SHELL_ROOT>`. This document is a planning artifact only. No files were deleted and no runtime behavior was changed.
 
 ## Evidence Inspected
 
@@ -15,7 +15,7 @@ Scope: Phase 1 audit comparing the current ATDR repository with the official sup
 | ATDR frontend routes | `frontend/src/App.tsx`, `frontend/src/pages/*` |
 | ATDR CI | `.github/workflows/ci.yml` |
 | ATDR template docs | `docs/ATDR_TEMPLATE_MERGE_ANALYSIS.md`, `docs/security/ATDR_MFU_IAM_IMPLEMENTATION_PLAN.md` |
-| Official supervisor template root | `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response` |
+| Official supervisor template root | `<MFU_SHELL_ROOT>` |
 | Supervisor IAM docs | `backend-node/docs/IAM_PRD.md`, `backend-node/docs/IAM_SYSTEM_OVERVIEW.md`, `backend-node/docs/IAM_RECOMMENDATIONS.md` |
 | Supervisor IAM integration source | `backend-node/server/integrations/iam/*` |
 | Supervisor security/account source | `backend-node/server/Project/security/*`, `backend-node/server/Project/accounts/*` |
@@ -185,7 +185,7 @@ The repository contains `NewSystem/`. A file comparison against the official tem
 Recommendation:
 
 1. Do not delete `NewSystem/` during Phase 1.
-2. Treat `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response` as the official reference.
+2. Treat `<MFU_SHELL_ROOT>` as the official reference.
 3. In the cleanup phase, either:
    - move only the useful tracked docs/manifest from `NewSystem/` into `docs/reference/NewSystem/`, or
    - delete the tracked `NewSystem/` copy after confirming all ATDR docs point to the external official template path and useful reference material is preserved.

@@ -23,7 +23,8 @@ def _write_complete_template(root: Path) -> None:
     twofaSend
     introspectToken
     getClientProfile
-    /atdr/handoff/start
+    app.use(path + '/atdr/handoff'
+    router.post('/start'
     /exchange
     handoff_code
     /mfu-ai-driven-log-based-threat-detection-and-response/registry

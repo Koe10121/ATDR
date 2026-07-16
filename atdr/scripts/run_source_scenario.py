@@ -438,6 +438,7 @@ def run_source_scenario(
     run_detection_after: bool = False,
     use_temp_db: bool = False,
     disable_source_after: bool = False,
+    idempotent: bool = False,
 ) -> dict[str, Any]:
     spec = SCENARIOS[scenario]
     path = _scenario_path(spec)
@@ -484,6 +485,35 @@ def run_source_scenario(
             db.commit()
             db.refresh(source)
             baseline_response_action_count = int(db.query(ResponseAction).count())
+            existing_counts = _source_counts(db, source.id)
+            if idempotent and existing_counts["raw_logs"] > 0:
+                after = source_to_dict(source, include_quality=True, db=db)
+                return {
+                    "ok": True,
+                    "status": "already_prepared",
+                    "prepared": False,
+                    "dry_run": False,
+                    "use_temp_db": use_temp_db,
+                    "scenario": scenario,
+                    "sample_path": str(path),
+                    "available_lines": count_nonblank_log_lines(path),
+                    "source_before": before,
+                    "source_after": after,
+                    "import_results": [],
+                    "detection_results": [],
+                    "disabled_source_check": None,
+                    "expected_outcome": {
+                        "skipped": True,
+                        "reason": "The fixed safe-scenario source already contains data; no rows or actions were created.",
+                    },
+                    "response_safety": {
+                        "response_actions_before": baseline_response_action_count,
+                        "response_actions_after": baseline_response_action_count,
+                        "automatic_response_actions_created": 0,
+                        "response_automation_allowed": False,
+                        "real_firewall_blocking_enabled": False,
+                    },
+                }
 
             import_results = [
                 import_log_file(
@@ -557,6 +587,8 @@ def run_source_scenario(
             )
             return {
                 "ok": bool(expected_outcome.get("passed", True)) if not expected_outcome.get("skipped") else True,
+                "status": "prepared",
+                "prepared": True,
                 "dry_run": False,
                 "use_temp_db": use_temp_db,
                 "scenario": scenario,
@@ -584,6 +616,7 @@ def main() -> None:
     parser.add_argument("--run-detection", action="store_true")
     parser.add_argument("--use-temp-db", action="store_true")
     parser.add_argument("--disable-source-after", action="store_true")
+    parser.add_argument("--idempotent", action="store_true", help="Skip writes when the named source already contains logs.")
     parser.add_argument("--pretty", action="store_true")
     args = parser.parse_args()
 
@@ -596,6 +629,7 @@ def main() -> None:
         run_detection_after=args.run_detection,
         use_temp_db=args.use_temp_db,
         disable_source_after=args.disable_source_after,
+        idempotent=args.idempotent,
     )
     print(json.dumps(result, default=_json_default, indent=2 if args.pretty else None))
     raise SystemExit(0 if result.get("ok") else 1)

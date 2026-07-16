@@ -2,7 +2,7 @@
 
 ## Status
 
-ATDR should merge the useful supervisor-template requirements and patterns without migrating runtime stacks. The supervisor package at `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response` is a NewSystem-style Node/Vue/MongoDB template with IAM, 2FA, permission-matrix, B2B, and process guidance. ATDR remains the working FastAPI + React + SQLAlchemy/Alembic system.
+ATDR should merge the useful supervisor-template requirements and patterns without migrating runtime stacks. The supervisor package at `<MFU_SHELL_ROOT>` is a NewSystem-style Node/Vue/MongoDB template with IAM, 2FA, permission-matrix, B2B, and process guidance. ATDR remains the working FastAPI + React + SQLAlchemy/Alembic system.
 
 Current decision:
 

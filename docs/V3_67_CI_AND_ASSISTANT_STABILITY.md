@@ -26,7 +26,7 @@ No application runtime commands changed.
 
 ## Findings
 
-The no-private-`.env` clean-copy backend sequence passed when pytest was given a writable base temp directory. The earlier local failure was a Windows temp-folder permission issue while pytest tried to scan `C:\Users\User\AppData\Local\Temp\pytest-of-User`; it was not an ATDR logic failure.
+The no-private-`.env` clean-copy backend sequence passed when pytest was given a writable base temp directory. The earlier local failure was a Windows temp-folder permission issue while pytest tried to scan `<USER_HOME>\AppData\Local\Temp\pytest-of-User`; it was not an ATDR logic failure.
 
 ## Verification Evidence
 

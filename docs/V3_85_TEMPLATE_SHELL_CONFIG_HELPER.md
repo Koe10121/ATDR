@@ -52,7 +52,7 @@ MFU_IAM_DEFAULT_ROLE=analyst
 Preview:
 
 ```powershell
-cd C:\Users\User\Desktop\ATDR
+cd <ATDR_ROOT>
 .\.venv\Scripts\python.exe -m atdr.scripts.use_template_shell_config --dry-run --pretty
 ```
 

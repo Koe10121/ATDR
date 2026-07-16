@@ -12,7 +12,7 @@ ATDR needs a source-backed, repeatable way to validate that the official supervi
 
 | Source | Path | Evidence / Finding |
 | --- | --- | --- |
-| Official supervisor template | `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response` | Contains IAM docs, IAM SDK adapter, B2B middleware, Vue login, 2FA, security permissions, and env variable names. |
+| Official supervisor template | `<MFU_SHELL_ROOT>` | Contains IAM docs, IAM SDK adapter, B2B middleware, Vue login, 2FA, security permissions, and env variable names. |
 | Template auth store | `frontend-vue/src/store/modules/Authen/index.js` | Uses `x-access-token` and a post-sign-in route after login/2FA. |
 | Template IAM adapter | `backend-node/server/integrations/iam/iam-sdk-adapter.js` | Uses token, introspection, and profile endpoints. |
 | Template B2B middleware | `backend-node/server/integrations/iam/b2b-auth-middleware.js` | Validates bearer tokens through introspection and scope checks. |
@@ -183,7 +183,7 @@ Rollback is code/docs only. Remove the new scanner, script, test, and docs if ne
 Run:
 
 ```powershell
-cd C:\Users\User\Desktop\ATDR
+cd <ATDR_ROOT>
 .\.venv\Scripts\python.exe -m atdr.scripts.validate_template_bridge_contract --pretty
 ```
 

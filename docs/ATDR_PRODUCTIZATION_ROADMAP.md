@@ -4,7 +4,7 @@ Date: 2026-06-27
 
 Purpose: define the target SaaS-like SOC product direction for ATDR after the Phase 0 current-state lock and Phase 1 supervisor-template gap analysis. This is a planning document. It does not claim production readiness, does not enable real firewall blocking, does not enable automatic response, and does not change runtime behavior by itself.
 
-Checkpoint: updated after the v3.73 detection/ML governance dashboard integration. The roadmap treats the official supervisor template as IAM/process evidence and keeps ATDR on FastAPI + React + SQLAlchemy/Alembic.
+Checkpoint: updated after v3.97 large-file reliability, v3.98 leakage-controlled internal Detection/ML holdout validation, and v3.99 synthetic multi-source/time frozen revalidation. The roadmap treats the official supervisor template as IAM/process evidence and keeps ATDR on FastAPI + React + SQLAlchemy/Alembic.
 
 ## Source Evidence
 
@@ -18,7 +18,7 @@ Checkpoint: updated after the v3.73 detection/ML governance dashboard integratio
 | Database models | `atdr/app/db/models.py`, `migrations/versions/*.py` |
 | Frontend routes/pages | `frontend/src/App.tsx`, `frontend/src/pages/*`, `frontend/src/lib/api.ts` |
 | Verification and CI | `atdr/scripts/verify_release.py`, `.github/workflows/ci.yml`, `frontend/tests/*`, `atdr/tests/*` |
-| Official supervisor template | `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response` |
+| Official supervisor template | `<MFU_SHELL_ROOT>` (separately supplied approved copy) |
 | Supervisor IAM evidence | `backend-node/docs/IAM_PRD.md`, `backend-node/docs/IAM_SYSTEM_OVERVIEW.md`, `backend-node/docs/IAM_RECOMMENDATIONS.md`, `backend-node/server/integrations/iam/*`, `frontend-vue/src/projects/components/dialog/SignIn.vue`, `frontend-vue/src/projects/components/dialog/TwoFA.vue` |
 
 ## Product Direction
@@ -452,7 +452,7 @@ Choose one of these as the next code phase:
 | Detection/ML independent quality validation | Detection quality is central and real-source evidence remains limited. | More synthetic tuning can overfit without new independent data. | Frozen candidate evaluated on independent/source-aware data; no activation; evidence-first explanations and conservative gates remain. |
 | Observability/security/audit hardening | Shared operation needs metrics, correlation IDs, health breakdowns, and retention/integrity controls. | Telemetry can leak sensitive evidence if designed poorly. | Secret-safe metrics and request/operation IDs cover ingestion, jobs, IAM, assistant, detection, and failures; audit retention/integrity is tested. |
 
-Recommended next code phase after the v3.88 checkpoint: **PostgreSQL/shared-lab persistence and backup/restore validation**, followed by a durable background-job architecture. The assistant and local template-shell handoff have reached stable local checkpoints; persistence and operation isolation now have the largest product-level risk reduction.
+Historical recommendation after v3.88: PostgreSQL/shared-lab persistence followed by durable background jobs. Those repository foundations now exist through v3.97; approved-host deployment evidence and independent real-source Detection/ML evidence remain open.
 
 ### v3.89 Checkpoint Update
 
@@ -488,6 +488,42 @@ Repository-side deployment security and recovery controls are now implemented. A
 
 This closes the repository-design gap, not the environment evidence gap. Real certificates/DNS, Linux service installation, Prometheus persistence and alert routing, managed-secret integration, measured PostgreSQL RPO/RTO, multi-host shared storage, and remote PostgreSQL CI remain pending. The recommended v3.96 phase is an approved-host deployment rehearsal and evidence closure. If no approved environment is available, prioritize independent detection/ML validation rather than adding more deployment abstractions.
 
+### v3.97 Checkpoint Update
+
+Large-file ingestion now has indexed exact duplicate accounting, bounded chunk persistence, cumulative progress/metrics, verified resume, changed-input rejection, cooperative cancellation, and an isolated 100,000-row acceptance harness. This closes the main local ingestion hot-path gap but not PostgreSQL multi-worker, shared-storage, sustained concurrency, real-source capacity, retention-policy, or SLA evidence.
+
+Migration `b4c5d6e7f8a9` is additive and was validated against a disposable copy of the current 145,232-row SQLite database. A timestamped ignored backup exists, but the configured database remains intentionally unmigrated until explicit user approval.
+
+### v3.98 Checkpoint Update
+
+Detection/ML validation now uses reviewed latest labels, exact/near/feature leakage components, isolated fit/calibration/threshold/final partitions, strict temporal and source modes, and repeated grouped random diagnostics. It compares rules, fresh IsolationForest, the repaired binary SOC queue, hybrid decision support, Logistic Regression, and a majority baseline without activation, promotion, label writes, or response actions.
+
+The present corpus cannot satisfy source holdout because every reviewed row belongs to `local_import`; temporal holdout fails closed because the final window has one queue class. Random diagnostics show strong queue recall/F1 but unstable benign-like FPR and sparse-bucket calibration. Readiness therefore remains `candidate_only`, and this phase is internal unseen holdout evidence rather than external independent validation.
+
+The next quality phase should obtain labels from at least two genuinely independent sources/time windows under a frozen protocol, improve non-threat temporal support, and validate calibration without tuning on final evidence. In parallel, approved-host work remains necessary for real TLS/DNS, managed secrets, persistent monitoring, PostgreSQL multi-worker/shared storage, measured recovery, and MFU IAM lifecycle evidence.
+
+### v3.99 Checkpoint Update
+
+ATDR now has a deterministic synthetic evidence pack with three source identities, parser-profile metadata, four time windows, scenario expectation provenance, and exact/near/used-feature overlap quarantine. Models, calibration, and thresholds freeze on existing reviewed evidence before any generated final labels are scored. The evaluator compares rules, fresh IsolationForest, supervised queue, Logistic Regression, hybrid decision support, and majority baseline with bootstrap, calibration, source/app/action/port error, and safety evidence.
+
+The current 720-row pack passes synthetic independence checks and gives stable primary queue F1 around `0.95` with zero synthetic benign FPR. This is deliberately not treated as production accuracy: all evidence comes from an ATDR-owned generator, confidence calibration remains weak, and allowed unknown-service `needs_context` rows are under-queued. Readiness stays `candidate_only`; no model/artifact/response state changes.
+
+The next Detection/ML milestone must acquire approved provider-blinded or independently reviewed real-source evidence and run it once through the already frozen protocol. Do not tune against the v3.99 final pack. Approved-host deployment, PostgreSQL/shared storage, monitoring, recovery, and MFU IAM lifecycle evidence remain parallel operational requirements.
+
+### v4.0 Checkpoint Update
+
+ATDR acquired and verified official CSE-CIC-IDS2018 evidence and ran one prediction-before-label evaluation without external fitting, calibration, or threshold selection. The evaluator quarantined exact duplicates and found zero accepted overlap with internal reviewed and v3.99 synthetic evidence. This closes the missing public-provider protocol step.
+
+The frozen model did not generalize to the provider flow schema: benign FPR was `1.0000`, primary calibration was weak, and the queue selected every flow. This exposes dependence on Palo Alto categorical and source-window context. v4.0 is now locked final evidence and must not become development data.
+
+Recommended next Detection/ML phase: define a separate schema-aware development corpus, add explicit missingness/domain indicators or a dedicated flow-schema model path, and freeze that design before evaluating a new untouched provider dataset. Authorized real-device, multi-window evidence remains necessary. Readiness stays `candidate_only`; no model or response activation is allowed.
+
+### v4.1 Checkpoint Update
+
+The schema-aware development phase is complete. ATDR now keeps the v4.0 public-provider evidence hash-locked and uses a separate verified flow development corpus with explicit Palo Alto, generic syslog, provider-flow, and raw-fallback contracts. Common features include schema/availability/missingness indicators, and unavailable rule evidence stays unavailable rather than becoming a fabricated negative signal.
+
+Pooled and schema-routed diagnostics improve random-split queue scores, but calibration is weak for every evaluated strategy. Provider source/time views and both schema-held-out directions remain unstable. This is a model-generalization/evidence gate, not a runtime defect: no candidate is activated, promoted, or allowed to influence automated response. The next scoped ML phase must define an untouched final benchmark protocol and obtain authorized multi-source real firewall/syslog evidence; it must not tune against v4.0.
+
 ## Phase 2 Completion Evidence
 
 This roadmap now reflects:
@@ -500,3 +536,17 @@ This roadmap now reflects:
 - the v3.73 detection/ML governance checkpoint.
 
 No runtime behavior, database schema, IAM behavior, LLM behavior, model state, or response behavior was changed by this document.
+
+### v4.5 Reproducible Baseline Update
+
+The immediate productization priority is now evidence-backed reproducibility rather than another tuning cycle. v4.5 adds a clean-room Windows setup proof, exact Node `20.19+` and pip checks, safe broken-venv preservation, a versioned external-shell structure contract, separate installation/provider readiness, a strict canonical ML evidence API, distinct operational model states, bounded assistant output, an idempotent synthetic demo command, and rendered multi-viewport UI checks.
+
+The next gates, in order, are:
+
+1. have the university/provider owner supply and approve the MFU/Google OAuth Web client and project-group assignment, then run real account acceptance without bypassing fail-closed checks;
+2. publish or formally distribute the approved MFU shell as a versioned companion package with a checksum;
+3. run PostgreSQL, multi-worker, TLS, monitoring, secret-management, and recovery acceptance on an approved host;
+4. collect authorized independent multi-source firewall/syslog evidence and evaluate the frozen supervised design without activation;
+5. complete Gemini privacy, quota, cost, key-rotation, and real-traffic answer-quality governance.
+
+Dashboard polish is no longer a substitute for these gates. Detection remains rule-first, ML remains decision support, the assistant remains read-only, response remains simulated, and no production-readiness claim is permitted.

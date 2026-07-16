@@ -272,3 +272,95 @@ For docs-only changes, at minimum verify the docs exist, links are correct, and 
 | Verification and traceability | Satisfied for repository/local scope | Focused tests, CI dry preflight, PRD/traceability/task-board updates | Final approved-host acceptance evidence remains open. |
 | IAM/AI/response safety | Satisfied in controls | MFU handoff is fail-closed; assistant raw logs/actions disabled; response simulated; no model activation | Provider-backed MFU session lifecycle remains unvalidated. |
 | Production claim discipline | Satisfied | Operational acceptance is explicitly blocked | Linux/TLS/DNS/PostgreSQL/monitoring/recovery evidence is required before any stronger claim. |
+
+## v3.97 Large-File Ingestion Reliability Compliance Status
+
+| Rule | Current Status | Evidence | Remaining Gap |
+| --- | --- | --- | --- |
+| Source evidence / no guessing | Satisfied | v3.93 ingestion source, pre-change profile, v3.97 migration/service/tests, and measured 100,000-line validator output | Real-device and approved-host load evidence remains unavailable. |
+| Database and evidence safety | Satisfied for implementation validation | Additive fingerprint migration, exact raw-line collision check, retained duplicate evidence, disposable migration and acceptance databases | The current user DB was not migrated; the operator must run the documented additive migration before updated ingestion. |
+| Verification and traceability | Satisfied for repository/local scope | PRD addendum, traceability rows, T1-T20 record, task board, targeted tests, frontend checks, and isolated acceptance | PostgreSQL/shared-storage and sustained concurrent acceptance remain external. |
+| Privacy and operational metrics | Satisfied | Low-cardinality job/checkpoint metrics and compact dashboard counters expose no paths, fingerprints, raw logs, IPs, actors, or secrets | Persistent metrics and alert routing require an approved deployment. |
+| AI/response safety | Satisfied | Validator confirms zero detection, label, model, and response side effects; response automation and real blocking remain disabled | No dangerous behavior is authorized by this phase. |
+| Production claim discipline | Satisfied | 100k result is explicitly local synthetic evidence, not an SLA or production certification | Approved-host capacity, recovery, IAM, monitoring, and real-source evidence remain open. |
+
+## v3.98 Independent Detection/ML Holdout Compliance Status
+
+| Rule | Current Status | Evidence | Remaining Gap |
+| --- | --- | --- | --- |
+| Source evidence / no guessing | Satisfied | Current rule/anomaly/supervised/hybrid source audit, reviewed latest-label provenance, v3.98 evaluator, and generated ignored reports | No external provider-blinded or real-device labeled corpus was supplied. |
+| Frozen evaluation and leakage control | Implemented fail-closed | Four isolated partitions; exact/near/feature/log-ID grouping; source and temporal checks; deterministic seeds | Current labels cannot support a source split and the temporal final window lacks both classes. |
+| Honest metric/readiness reporting | Satisfied | Split ranges, worst-split metrics, calibration, bootstrap intervals, error patterns, and `candidate_only` decision | Worst random FPR is unstable and sparse confidence buckets fail calibration. |
+| AI/response/data safety | Satisfied | Before/after DB and artifact checks; no label/model/detection/response writes; raw lines and IPs absent from reports | No future phase may convert these diagnostics into activation without a separate approved gate. |
+| Change workflow and traceability | Satisfied | Canonical v3.98 doc, T1-T20 record, PRD, traceability, state lock, roadmap, tests, and task board | Final verification evidence must stay current with the exact worktree. |
+| Production claim discipline | Satisfied | Internal unseen holdout is explicitly distinguished from external independence and production accuracy | Independent real-source, multi-source, temporal-support, drift, deployment, and governance evidence remain open. |
+
+## v3.99 Synthetic Multi-Source Frozen Revalidation Compliance Status
+
+| Rule | Current Status | Evidence | Remaining Gap |
+| --- | --- | --- | --- |
+| Source evidence / no guessing | Satisfied for the generated pack | Versioned generator, evidence manifest, source/parser/time/provenance fields, deterministic seed, and measured ignored output | The pack is generated synthetic evidence, not provider-blinded or real-device data. |
+| Label provenance integrity | Satisfied | Every expectation is marked deterministic synthetic, `human_reviewed=false`, and `import_ready=false`; no labels are imported | Independent human/provider review is still missing. |
+| Frozen evaluation and leakage control | Satisfied for v3.99 | Internal fit/calibration/threshold roles freeze before external scoring; exact/near/feature overlap is quarantined; five final views pass isolation checks | Existing internal model-development evidence remains single-source and narrow-window. |
+| Honest metric/readiness reporting | Satisfied | Full metrics, bootstrap intervals, calibration buckets, source/app/action/port errors, worst split, and `candidate_only` decision | Calibration fails all five splits; synthetic separability can overstate real performance. |
+| AI/response/data safety | Satisfied | Disposable DB counts and artifact metadata unchanged; no labels, model runs, artifacts, detection runs, or responses created; reports exclude raw lines/IPs/secrets | No activation or response authority is granted. |
+| Change workflow and traceability | Satisfied | Canonical guide, T1-T20 record, exact manifest, tests, PRD, traceability, state lock, roadmap, runbook, and task board | Approved real-source evidence acquisition remains a future separately governed phase. |
+| Production claim discipline | Satisfied | Documentation calls results synthetic regression evidence and preserves `candidate_only` | Provider-blinded/real-source validation, calibration repair on development evidence, drift, deployment, IAM, monitoring, and recovery evidence remain open. |
+
+## v4.0 Provider-Blinded External Validation Compliance Status
+
+| Rule | Current Status | Evidence | Remaining Gap |
+| --- | --- | --- | --- |
+| No guessing / official source evidence | Satisfied | Official UNB and AWS pages, fixed S3 object metadata, byte counts, SHA-256 values, version, terms, citation, and known limitations | Only two published days are sampled; no authorized real-device evidence exists. |
+| Provider-label integrity | Satisfied | Label-independent feature sample; predictions hashed before labels are read; provider labels remain `human_reviewed=false`, `import_ready=false`, and outside the DB | Provider labels are dataset ground truth, not independent ATDR analyst review. |
+| Frozen evaluation and leakage control | Satisfied | Internal `random_seed_42` roles frozen; external fit/calibration/threshold rows `0/0/0`; exact/near/feature overlap zero after quarantine | Missing provider fields create cross-schema shift that leakage controls cannot solve. |
+| Honest result and blocker reporting | Satisfied | FPR `1.0000`, weak calibration, all-benign false-positive count, bootstrap intervals, split range, and unsupported rules are reported without post-label tuning | A separate development corpus and new untouched final benchmark are required. |
+| AI/response/data safety | Satisfied | Disposable DB and active artifact unchanged; zero label/model/detection/response writes; provider data and reports ignored | No activation, promotion, automatic response, or real blocking is authorized. |
+| T1-T20, traceability, and task board | Satisfied | Canonical v4.0 guide, completed change record, exact manifest, focused tests, PRD, traceability, compliance, and task-board updates | Final command evidence must remain synchronized with the exact worktree. |
+| Production claim discipline | Satisfied | Result remains `candidate_only` and is explicitly a failed external gate | Real-device drift, schema-aware generalization, approved-host deployment, MFU IAM lifecycle, and operations acceptance remain open. |
+
+## v4.1 Schema-Aware SOC Queue Redesign Compliance Status
+
+| Rule | Current Status | Evidence | Remaining Gap |
+| --- | --- | --- | --- |
+| No guessing / source evidence | Satisfied | Official CSE-CIC-IDS2018 and UNSW-NB15 references, checksum-verified development files, explicit schema contracts, and source-backed evaluator | Authorized multi-source real firewall/syslog data is still needed. |
+| v4.0 evidence lock and label integrity | Satisfied | Seven v4.0 file/hash records are checked before/after each v4.1 run; development/provider labels remain non-human and non-importable | A future untouched benchmark must remain separate from v4.1 development work. |
+| Honest schema-aware evaluation | Satisfied | Missing fields remain unavailable; unsupported rules are unavailable rather than negative; time/source/random/schema-held-out diagnostics are reported | Provider source/time and cross-schema transfer remain unstable. |
+| Calibration and readiness discipline | Satisfied | Weak calibration and failed held-out views are reported; readiness stays `candidate_only` | No candidate meets activation/promotion criteria. |
+| AI/response/data safety | Satisfied | Disposable DB/artifact/session state unchanged; zero label/model/detection/response writes; automation and real blocking disabled | No automatic model or response authority is permitted. |
+| Change workflow and traceability | Satisfied | Canonical guide, T1-T20 record, changeset manifest, traceability addendum, task board, and focused tests | Full repository verification evidence must remain synchronized with this checkpoint. |
+
+## v4.2 Presentation-Ready SOC Assistant Compliance Status
+
+| Rule | Current Status | Evidence | Remaining Gap |
+| --- | --- | --- | --- |
+| Source evidence and no guessing | Satisfied for assistant output | `details.grounding` and **Grounded In** derive from returned ATDR citations; unavailable evidence is stated | Analyst verification is still required for incident conclusions. |
+| AI safety | Satisfied for v4.2 scope | Gemini is optional summarization over bounded redacted context; deterministic fallback and output guards remain active | Provider privacy approval, quota monitoring, and key rotation remain deployment work. |
+| Response safety | Satisfied for v4.2 scope | Assistant has no action controls; automation and real blocking remain disabled | Any future action integration requires a separate approved design. |
+| Browser privacy | Satisfied for local implementation | Raw-log context is rejected, arbitrary details are excluded, and persistence is whitelisted/session scoped | Formal shared-device policy remains future operations work. |
+| Change workflow | Satisfied | v4.2 canonical status, T1-T20 record, traceability, tests, and task board | Closure evidence must match the final worktree. |
+| UI/template adaptation | Satisfied as an ATDR-specific adaptation | React keeps its runtime; MFU colors come from official template visual sources without Node/Vue/MongoDB migration | Formal brand approval remains external. |
+
+## v4.3 Portable MFU Shell Runtime Compliance Status
+
+| Rule | Current Status | Evidence | Remaining Gap |
+| --- | --- | --- | --- |
+| Supervisor shell as normal entry | Satisfied for local/team runtime | `ATDR_AUTH_MODE=template_shell`, backend enforcement, fail-closed React login, portable launcher | Real MFU provider acceptance still requires an approved university environment. |
+| No machine-specific runtime path | Satisfied | Shell root is supplied to setup and stored only in ignored runtime configuration; active runtime source has no developer path | The external shell must still be distributed through the approved channel. |
+| Secret/repository hygiene | Satisfied in implementation | `.env.shell.example` contains placeholders; setup generates private values; check/status output exposes booleans and field names only | Operational secret rotation and managed storage remain deployment work. |
+| Database preservation | Satisfied | No reset/seed path; setup backs up existing SQLite before additive Alembic migration | Shared PostgreSQL acceptance remains separate. |
+| Authentication/role safety | Satisfied for handoff contract | One-time code, server exchange, HttpOnly cookie, analyst default, approved-group admin mapping, local recovery isolation | Provider 2FA, recovery, deprovisioning, and approved group identifiers need live evidence. |
+| AI/response safety | Unchanged and satisfied | Assistant remains read-only; raw-log context disabled; response simulation true; no model promotion | No production or autonomous-response claim is authorized. |
+| Change workflow | Satisfied | v4.3 guide, T1-T20 record, PRD, traceability, quickstart, runbook, task board, and tests | Final verification evidence must remain synchronized with the exact worktree. |
+
+## v4.4 MFU Authentication Stabilization Compliance Status
+
+| Rule | Current Status | Evidence | Remaining Gap |
+| --- | --- | --- | --- |
+| Source evidence / no guessing | Satisfied locally | Private fields were inspected as configured/not-configured only; source fallback evidence and exact runtime origins are recorded without credential values | University provider policy still requires administrator confirmation. |
+| Google configuration safety | Satisfied locally | Matching frontend/backend private client preflight, secret-free doctor, legacy fallback removal, safe backend 503 | Approved OAuth Web client has not yet been supplied. |
+| Handoff and role safety | Satisfied in source/tests | Exact origins, one-time server exchange, HttpOnly cookie, analyst default, explicit group-based admin, conflict/domain rejection | Real provider account, group, 2FA, expiry, logout, and deprovisioning evidence remain. |
+| Recovery safety | Satisfied | Normal profile fails closed; local password login requires explicit `local_recovery` | Recovery authorization/operations policy requires environment owner approval. |
+| Secret/repo hygiene | Satisfied locally | Status uses booleans/codes, backups are ignored, no `.env` value is copied or returned | Managed secret delivery remains deployment work; any administrator credential disclosed outside the approved channel must be revoked and rotated. |
+| AI/response safety | Unchanged | Detection/ML behavior is untouched; assistant is read-only; automation and real blocking remain disabled | No autonomous action authority is approved. |
+| Change workflow | Locally verified | v4.4 status, T1-T20, PRD, traceability, compliance, regenerated task board, `584 passed, 1 skipped`, React/external-shell checks, and release gate `ok: true` | Live provider acceptance must be recorded after MFU administrator configuration. |

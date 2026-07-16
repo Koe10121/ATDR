@@ -12,6 +12,7 @@ from sqlalchemy.pool import StaticPool
 from starlette.requests import Request
 
 from atdr.app.core.config import get_settings
+from atdr.app.core.security import create_access_token
 from atdr.app.db.database import Base, get_db
 from atdr.app.db.engine import database_kind
 from atdr.app.db.models import Alert
@@ -140,7 +141,7 @@ def test_oidc_status_is_authenticated_and_does_not_expose_secret(monkeypatch):
         payload = response.json()
 
         assert payload["enabled"] is False
-        assert payload["mode"] == "local_login_only"
+        assert payload["mode"] == "local_recovery"
         assert payload["default_role"] == "analyst"
         assert payload["local_email_login_enabled"] is True
         assert payload["smtp_enabled"] is False
@@ -183,7 +184,7 @@ def test_mfu_iam_status_is_authenticated_disabled_by_default_and_hides_secrets(m
         payload = response.json()
 
         assert payload["enabled"] is False
-        assert payload["mode"] == "local_login_only"
+        assert payload["mode"] == "local_recovery"
         assert payload["base_url_configured"] is False
         assert payload["client_id_configured"] is False
         assert payload["client_secret_configured"] is True
@@ -334,6 +335,7 @@ def test_mfu_iam_legacy_browser_token_route_is_not_exposed(monkeypatch):
 
 
 def test_mfu_iam_template_shell_status_is_safe_and_ready(monkeypatch):
+    monkeypatch.setenv("ATDR_AUTH_MODE", "template_shell")
     monkeypatch.setenv("MFU_IAM_ENABLED", "true")
     monkeypatch.setenv("MFU_IAM_TEMPLATE_SHELL_ENABLED", "true")
     monkeypatch.setenv("MFU_IAM_TEMPLATE_SHELL_BASE_URL", "http://127.0.0.1:8214")
@@ -343,6 +345,7 @@ def test_mfu_iam_template_shell_status_is_safe_and_ready(monkeypatch):
     monkeypatch.setenv("MFU_IAM_HANDOFF_ENABLED", "true")
     monkeypatch.setenv("MFU_IAM_HANDOFF_SHARED_SECRET", "template-shell-secret-that-must-not-leak")
     monkeypatch.setenv("MFU_IAM_HANDOFF_ALLOWED_ORIGINS", "http://127.0.0.1:8080")
+    monkeypatch.setenv("MFU_IAM_TEMPLATE_SHELL_LAUNCH_URL", "http://127.0.0.1:8080/#/pages/login")
     get_settings.cache_clear()
     client = _client()
     try:
@@ -356,7 +359,7 @@ def test_mfu_iam_template_shell_status_is_safe_and_ready(monkeypatch):
         assert public_payload["secrets_exposed"] is False
         assert "template-shell-secret-that-must-not-leak" not in str(public_payload)
 
-        headers = _login(client, "admin", "admin123")
+        headers = {"Authorization": f"Bearer {create_access_token(subject='admin', role='admin')}"}
         status = client.get("/api/auth/mfu-iam/status", headers=headers)
         assert status.status_code == 200
         payload = status.json()

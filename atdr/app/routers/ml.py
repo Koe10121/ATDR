@@ -61,6 +61,7 @@ from atdr.app.services.ml_label_service import (
     ml_label_csv_template,
     update_ml_label,
 )
+from atdr.app.services.ml_evidence_snapshot_service import build_ml_evidence_snapshot
 from atdr.app.services.ml_service import (
     apply_anomaly_scoring,
     dataset_profile,
@@ -72,6 +73,14 @@ from atdr.app.services.ml_service import (
 )
 
 router = APIRouter(prefix="/api/ml", tags=["ml"])
+
+
+@router.get("/evidence-snapshot")
+def get_ml_evidence_snapshot(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    return build_ml_evidence_snapshot(db)
 
 
 @router.get("/labels", response_model=list[MLLabelRead])

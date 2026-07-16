@@ -122,6 +122,9 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
   await page.route("**/api/auth/mfu-iam/public-status", async (route) =>
     route.fulfill({
       json: {
+        auth_mode: "local_recovery",
+        local_login_enabled: true,
+        template_shell_required: false,
         enabled: false,
         b2b_ready: false,
         mock_enabled: false,
@@ -131,7 +134,7 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
         domain_hints: [],
         default_role: "analyst",
         auth_require_2fa: false,
-        mode: "local_login_only",
+        mode: "local_recovery",
         secrets_exposed: false
       }
     })
@@ -139,6 +142,9 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
   await page.route("**/api/auth/mfu-iam/status", async (route) =>
     route.fulfill({
       json: {
+        auth_mode: "local_recovery",
+        local_login_enabled: true,
+        template_shell_required: false,
         enabled: false,
         base_url_configured: false,
         client_id_configured: false,
@@ -372,7 +378,7 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
             fallback_reason: null,
             raw_log_context_included: false,
             secrets_exposed: false,
-            prompt_contract: "soc_evidence_grounded_structured_v2",
+            prompt_contract: "soc_evidence_grounded_concise_v3",
             provider_called: false,
             answer_used: false,
             answer_guard_reason: null
@@ -849,6 +855,93 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
           ]
         },
         decision_support_only: true
+      }
+    })
+  );
+  await page.route("**/api/ml/evidence-snapshot", async (route) =>
+    route.fulfill({
+      json: {
+        schema_version: "1.0",
+        canonical_evidence: {
+          available: true,
+          status: "completed_candidate_only",
+          snapshot_id: "v41-test-snapshot",
+          generated_at: "2026-07-14T06:02:49Z",
+          version: "v4.1",
+          evidence_type: "controlled_development_validation",
+          readiness_decision: "candidate_only",
+          selected_strategy: "pooled_schema_aware_calibrated_extra_trees",
+          selection_scope: "development_only_not_activation",
+          evaluated_splits: 3,
+          calibration_passed_splits: 0,
+          dataset: {
+            dataset_id: "cse-cic-ids2018-v401-development-days",
+            title: "CSE-CIC-IDS2018 development-only evidence",
+            publisher: "Canadian Institute for Cybersecurity",
+            role: "development_only_not_final_external_evidence",
+            accepted_rows: 16817,
+            provider_ground_truth: true,
+            human_reviewed: false
+          },
+          metric_ranges: {
+            queue_precision: { min: 0.8595, max: 0.9312 },
+            queue_recall: { min: 0.9432, max: 0.9983 },
+            queue_f1: { min: 0.9237, max: 0.9524 },
+            benign_like_false_positive_rate: { min: 0.0882, max: 0.1997 },
+            suspicious_recall: { min: 0.9931, max: 1 },
+            malicious_recall: { min: 0.9275, max: 0.9978 }
+          },
+          worst_split: { split_mode: "random_seed_42", metrics: { queue_f1: 0.9237 } },
+          calibration: {
+            status: "weak",
+            passed: false,
+            brier_score: 0.1144,
+            expected_calibration_error: 0.173,
+            max_confidence_accuracy_gap: 0.5666
+          },
+          safety: {
+            development_only: true,
+            model_activated: false,
+            model_artifact_written: false,
+            production_promoted: false,
+            response_automation_allowed: false,
+            real_firewall_blocking_enabled: false,
+            database_counts_unchanged: true
+          },
+          limitations: ["Development-only evidence.", "Calibration remains weak."]
+        },
+        operational_models: {
+          isolation_forest: {
+            role: "assistive_anomaly_signal",
+            artifact_exists: true,
+            model_type: "IsolationForest",
+            anomaly_rate_percent: 0.98,
+            decision_support_only: true
+          },
+          active_supervised_artifact: {
+            artifact_exists: true,
+            metadata_status: "metadata_unknown",
+            metadata_unknown: true,
+            model_type: null,
+            feature_set: null,
+            message: "Active artifact metadata unknown.",
+            production_promoted: false,
+            response_automation_allowed: false
+          },
+          diagnostic_candidates: {
+            registry_entry_count: 26,
+            latest_candidate: null,
+            canonical_candidate_is_active: false
+          }
+        },
+        safety: {
+          decision_support_only: true,
+          production_promoted: false,
+          response_automation_allowed: false,
+          real_firewall_blocking_enabled: false,
+          secrets_exposed: false,
+          local_paths_exposed: false
+        }
       }
     })
   );
@@ -1775,7 +1868,7 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
         training_log_count: 1000,
         contamination: 0.02,
         model_type: "IsolationForest",
-        model_path: "C:\\Users\\User\\Desktop\\ATDR\\models\\very\\long\\windows\\path\\isolation_forest.joblib",
+        model_path: "D:\\Synthetic\\ATDR\\models\\very\\long\\windows\\path\\isolation_forest.joblib",
         feature_columns: Array.from({ length: 80 }, (_, index) => `very_long_feature_name_${index}_with_more_text_to_force_wrapping`),
         feature_summary: {
           huge: Array.from({ length: 60 }, (_, index) => ({ feature: `feature_${index}`, value: `long-value-${index}` }))
@@ -1789,7 +1882,7 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
   await page.route("**/api/demo/export-bundle", async (route) =>
     route.fulfill({
       json: {
-        export_dir: "C:\\Users\\User\\Desktop\\ATDR\\demo_exports\\atdr_demo_bundle_with_a_very_long_name",
+        export_dir: "D:\\Synthetic\\ATDR\\demo_exports\\atdr_demo_bundle_with_a_very_long_name",
         files: { "dashboard_summary.json": "...", "ml_evaluation.json": "..." },
         counts: { total_logs: 1200, total_alerts: 12 }
       }
@@ -1806,9 +1899,29 @@ async function chooseSafeSelect(page: Page, ariaLabel: string, optionName: strin
 
 test("login page loads", async ({ page }) => {
   await page.route("**/api/auth/me", (route) => route.fulfill({ status: 401, json: { detail: "Not authenticated" } }));
+  await page.route("**/api/auth/mfu-iam/public-status", (route) =>
+    route.fulfill({
+      json: {
+        auth_mode: "local_recovery",
+        local_login_enabled: true,
+        template_shell_required: false,
+        enabled: false,
+        b2b_ready: false,
+        mock_enabled: false,
+        google_sso_enabled: false,
+        google_client_id_configured: false,
+        allowed_domains: [],
+        domain_hints: [],
+        default_role: "analyst",
+        auth_require_2fa: false,
+        mode: "local_recovery",
+        secrets_exposed: false
+      }
+    })
+  );
   await page.goto("/login");
   await expect(page.getByText("MFU ATDR SOC Console")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sign in for recovery", exact: true })).toBeVisible();
 });
 
 test("legacy browser credential query is blocked and removed", async ({ page }) => {
@@ -1816,6 +1929,9 @@ test("legacy browser credential query is blocked and removed", async ({ page }) 
   await page.route("**/api/auth/mfu-iam/public-status", async (route) =>
     route.fulfill({
       json: {
+        auth_mode: "template_shell",
+        local_login_enabled: false,
+        template_shell_required: true,
         enabled: true,
         b2b_ready: false,
         mock_enabled: false,
@@ -1823,6 +1939,7 @@ test("legacy browser credential query is blocked and removed", async ({ page }) 
         template_shell_ready: true,
         handoff_enabled: true,
         handoff_ready: true,
+        template_shell_launch_url: "http://localhost:8080/#/pages/login",
         google_sso_enabled: false,
         google_client_id_configured: false,
         allowed_domains: ["lamduan.mfu.ac.th"],
@@ -1837,9 +1954,48 @@ test("legacy browser credential query is blocked and removed", async ({ page }) 
   await page.goto("/login?mfu_token=tiny-token&next=/assistant");
 
   await expect(page.getByText("A legacy browser-token handoff was blocked. Start from the approved MFU application shell.")).toBeVisible();
-  await expect(page.getByRole("button", { name: /sign in/i })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Return to MFU Sign In" })).toBeVisible();
+  await expect(page.getByLabel("Username or email")).toHaveCount(0);
   expect(page.url()).not.toContain("tiny-token");
   expect(page.url()).not.toContain("mfu_token");
+});
+
+test("school handoff errors are actionable and do not expose credentials", async ({ page }) => {
+  await page.route("**/api/auth/me", (route) => route.fulfill({ status: 401, json: { detail: "Not authenticated" } }));
+  await page.route("**/api/auth/mfu-iam/public-status", (route) =>
+    route.fulfill({
+      json: {
+        auth_mode: "template_shell",
+        local_login_enabled: false,
+        template_shell_required: true,
+        enabled: true,
+        b2b_ready: false,
+        mock_enabled: false,
+        template_shell_enabled: true,
+        template_shell_ready: true,
+        handoff_enabled: true,
+        handoff_ready: true,
+        template_shell_launch_url: "http://localhost:8080/#/pages/login",
+        google_sso_enabled: true,
+        google_client_id_configured: true,
+        allowed_domains: ["lamduan.mfu.ac.th"],
+        domain_hints: ["lamduan.mfu.ac.th"],
+        default_role: "analyst",
+        auth_require_2fa: true,
+        mode: "template_shell_secure_handoff",
+        secrets_exposed: false
+      }
+    })
+  );
+
+  await page.goto("/login?handoff_error=handoff_expired_or_used");
+
+  await expect(page.getByText("The one-time sign-in handoff expired or was already used. Sign in again from the MFU shell.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Return to MFU Sign In" })).toHaveAttribute(
+    "href",
+    "http://localhost:8080/#/pages/login"
+  );
+  await expect(page.getByText(/token|secret/i)).toHaveCount(0);
 });
 
 test("core analyst routes render with mocked API", async ({ page }) => {
@@ -1847,7 +2003,7 @@ test("core analyst routes render with mocked API", async ({ page }) => {
   await seedSession(page);
   for (const path of ["/overview", "/alerts", "/logs", "/response", "/controls", "/audit", "/tuning", "/ml"]) {
     await page.goto(path);
-    await expect(page.getByText("SOC Command Center")).toBeVisible();
+    await expect(page.getByText("MFU Security Operations")).toBeVisible();
     await expect(page.getByText("API health check failed")).not.toBeVisible();
   }
 });
@@ -1870,13 +2026,14 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByText("3/3 passed")).toBeVisible();
   await expect(page.getByText("Reliability")).toBeVisible();
   await expect(page.getByText("14/14 scenarios")).toBeVisible();
-  await expect(page.getByText("Benchmark", { exact: true })).toBeVisible();
-  await expect(page.getByText("700 fresh blind | F1 0.9174")).toBeVisible();
+  await expect(page.getByText("Canonical ML Evidence", { exact: true })).toBeVisible();
+  await expect(page.getByText("3 development splits | Snapshot v41-test-snapshot")).toBeVisible();
+  await expect(page.getByText("candidate only | controlled development validation")).toBeVisible();
   await expect(page.getByText("Drift", { exact: true })).toBeVisible();
   await expect(page.getByText("0 warnings")).toBeVisible();
   await expect(page.getByText("Lab-Scale Validation")).toBeVisible();
   await expect(page.getByText("Manual Approval Required", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Final Controlled Validation Candidate", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Canonical Evidence Available", { exact: true })).toBeVisible();
   await expect(page.getByText("Real device validation remains future work.")).not.toBeVisible();
   await expect(page.getByText("Operations Health")).toBeVisible();
   await expect(page.getByTestId("operational-warnings")).toContainText("Database migration revision is not at Alembic head.");
@@ -1905,100 +2062,37 @@ test("overview system health panel and ML governance wording render", async ({ p
 
   await page.goto("/ml");
   await expect(page.getByRole("heading", { name: "Model status and review operations" })).toBeVisible();
-  await expect(page.getByText("Controlled Validation", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Current AI governance snapshot")).toBeVisible();
-  await expect(page.getByText("Threat F1", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("0.9174", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Benign FPR")).toBeVisible();
-  await expect(page.getByText("0.1303", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Macro F1")).toBeVisible();
-  await expect(page.getByText("0.868", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Weighted F1")).toBeVisible();
-  await expect(page.getByText("0.8753", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Canonical ML Evidence", { exact: true })).toBeVisible();
+  await expect(page.getByText("Controlled validation snapshot", { exact: true })).toBeVisible();
+  await expect(page.getByText("Queue F1", { exact: true })).toBeVisible();
+  await expect(page.getByText("0.9237-0.9524", { exact: true })).toBeVisible();
+  await expect(page.getByText("Benign FPR", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("0.0882-0.1997", { exact: true })).toBeVisible();
+  await expect(page.getByText("Evidence Provenance", { exact: true })).toBeVisible();
+  await expect(page.getByText("CSE-CIC-IDS2018 development-only evidence", { exact: true })).toBeVisible();
+  await expect(page.getByText("Supervised Artifact", { exact: true })).toBeVisible();
+  await expect(page.getByText("Metadata unknown", { exact: true })).toBeVisible();
   await expect(page.getByText("Review focus: benign and suspicious separation need more analyst-verified examples.")).not.toBeVisible();
   await expect(page.getByTestId("detection-ml-productization-panel")).toContainText("Detection / ML Productization");
   await expect(page.getByTestId("detection-ml-productization-panel")).toContainText("diagnostic evaluation passed");
   await expect(page.getByTestId("detection-ml-productization-panel")).toContainText("18 implemented rules");
-  await expect(page.getByText("Detection Quality Revalidation")).toBeVisible();
-  await expect(page.getByText("False-positive noise")).toBeVisible();
-  await expect(page.getByText("Baseline FPR")).toBeVisible();
-  await expect(page.getByText("0.7211", { exact: true })).toBeVisible();
-  await expect(page.getByText("low noise soc queue", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("weak", { exact: true }).first()).toBeVisible();
-  await page.getByText("View v3.30 diagnostic notes").click();
-  await expect(page.getByText(/estimated queue\s*215/)).toBeVisible();
-  await expect(page.getByText("app=quic-base|action=allow|port=443").first()).toBeVisible();
-  await expect(page.getByText("SOC Review Queue Diagnostic")).toBeVisible();
-  await expect(page.getByText("5/5 splits")).toBeVisible();
-  await expect(page.getByText("Queue F1 Min").first()).toBeVisible();
-  await expect(page.locator(".panel").filter({ hasText: "Queue F1 Min" }).filter({ hasText: "0.9725" }).first()).toBeVisible();
-  await expect(page.locator(".panel").filter({ hasText: "FPR Max" }).first()).toBeVisible();
-  await expect(page.locator(".panel").filter({ hasText: "FPR Max" }).filter({ hasText: "0.04" }).first()).toBeVisible();
-  await page.getByText("View v3.55 queue diagnostic notes").click();
-  await expect(page.getByText("binary_review_queue_queue_only")).toBeVisible();
-  await expect(page.getByText("explanation or ranking only").first()).toBeVisible();
-  await expect(page.getByText("train_internal_calibration")).toBeVisible();
-  await expect(page.getByText("Queue / Evidence Agreement")).toBeVisible();
-  await expect(page.getByText("4/5 splits")).toBeVisible();
-  await expect(page.getByText("Agreement Min", { exact: true })).toBeVisible();
-  await expect(page.locator(".panel").filter({ hasText: "Agreement Min" }).filter({ hasText: "0.884" }).first()).toBeVisible();
-  await expect(page.getByText("Evidence-Only", { exact: true })).toBeVisible();
-  await expect(page.getByText("310", { exact: true })).toBeVisible();
-  await page.getByText("View queue/evidence disagreement notes").click();
-  await expect(page.getByText("app=quic-base|action=allow|port=443").nth(1)).toBeVisible();
-  await expect(page.getByText("evidence-only misses remain reviewable")).toBeVisible();
-  await expect(page.getByText("Supervised Output Policy")).toBeVisible();
-  await expect(page.getByText("Queue scoring is decision support. Exact labels stay explanation/ranking only.")).toBeVisible();
-  await expect(page.getByText("binary soc review queue")).toBeVisible();
-  await expect(page.getByText("Explanation Only")).toBeVisible();
-  await expect(page.getByText("activation disabled")).toBeVisible();
-  await page.getByText("View supervised output contract").click();
-  await expect(page.getByText("automatic response from supervised ML output")).toBeVisible();
-  await expect(page.getByText(/Stable policies\s*0\/6/)).toBeVisible();
-  await page.getByText("Technical validation details").click();
-  await expect(page.getByText(/1528 reviewed \| minimum gaps 44/)).toBeVisible();
-  await expect(page.getByText("Recommended AI Mode")).toBeVisible();
+  const currentPolicy = page.getByTestId("ml-governance-policy");
+  await expect(currentPolicy).toContainText("Current Operating Policy");
   await expect(page.getByText("SOC triage decision support")).toBeVisible();
-  await expect(page.getByText("SOC Triage Mode")).toBeVisible();
-  await expect(page.getByText("Analyst Review", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Manual Approval Required", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Response Automation Disabled", { exact: true }).first()).toBeVisible();
-  await expect(
-    page.getByText(/Main blocker:\s*No v2.0 metric blocker; real hardware validation remains future work/),
-  ).toBeVisible();
-  await expect(page.getByText(/Calibration:\s*passed \/ raw_confidence/)).toBeVisible();
-  await expect(
-    page.getByText(/700 independent rows \| Threat F1 0.9174 \| final_controlled_validation_candidate/),
-  ).toBeVisible();
-  await expect(page.getByText("Fresh blind readiness v8 22/22")).toBeVisible();
-  await expect(page.getByText(/fresh blind passed \| FPR 0.1303/)).toBeVisible();
-  await expect(page.getByText("v1.8 external benchmark passed")).toBeVisible();
-  await expect(page.getByText(/Current blockers:\s*none/)).toBeVisible();
-  await expect(page.getByText(/Fresh blind holdout:\s*700 rows \| 7 sources \| passed/)).toBeVisible();
-  await expect(page.getByText(/Validation profile:\s*independent_fpr_stabilized/)).toBeVisible();
-  await expect(page.getByText(/Fresh blind metrics:\s*F1 0.9174 \| Recall 0.9459 \| FPR 0.1303/)).toBeVisible();
-  await expect(page.getByText(/Controlled source:\s*validated in safe replay\/source workflow/)).toBeVisible();
-  await expect(
-    page.getByText(/Review boundary:\s*15 ambiguous rows routed to analyst review; 15 false positives removed/),
-  ).toBeVisible();
-  await expect(
-    page.getByText(/Final controlled validation:\s*passed; candidate remains decision support only/),
-  ).toBeVisible();
+  await expect(currentPolicy).toContainText("threat positive review priority");
+  await expect(currentPolicy).toContainText("not production promoted");
   await expect(page.getByText("Decision Support Only", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Response Automation Disabled", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Detection Quality Revalidation")).toHaveCount(0);
+  await expect(page.getByText("SOC Review Queue Diagnostic")).toHaveCount(0);
+  await expect(page.getByText("Technical validation details")).toHaveCount(0);
+  await expect(page.getByText("v1.8 external benchmark passed")).toHaveCount(0);
   await expect(page.getByText("Import Benchmark Review CSV")).toBeVisible();
   await page.getByText("CSV import rules").click();
   await expect(page.getByText(/Files containing `benchmark_row_id` must use Benchmark Review Import/)).toBeVisible();
-  await expect(page.getByText(/Confirmed noisy pattern:\s*normal QUIC\/443/)).toBeVisible();
-  await expect(page.getByText(/False positives:\s*improved/)).toBeVisible();
-  await expect(page.getByText(/QUIC\/443 mitigation:\s*validated candidate; not activated/)).toBeVisible();
-  await expect(page.getByText("Actionable review sample excludes protected manual labels", { exact: true })).toBeVisible();
-  await expect(page.getByText("Model remains decision support only", { exact: true })).toBeVisible();
-  await expect(page.getByText("Response automation disabled", { exact: true })).toBeVisible();
   await expect(page.getByText("Not Production Promoted", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Final Controlled Validation Candidate", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Technical Review Notes")).not.toBeVisible();
-  await page.getByText("Model validation diagnostics").click();
+  await page.getByText("Latest registered training run").click();
   await expect(page.getByText("Technical Review Notes")).toBeVisible();
   await page.getByText("Technical Review Notes").click();
   await expect(page.getByText("Malicious reviewed target is met; do not prioritize malicious-heavy review unless evidence is strong.")).toBeVisible();
@@ -2136,6 +2230,13 @@ test("resumable import progress and admin controls stay compact", async ({ page 
     checkpoint_bytes: 125000,
     checkpoint_at: "2026-07-13T10:00:02Z",
     chunk_commits: 1,
+    details: {
+      input_name: "firewall.log",
+      raw_logs_imported: 500,
+      parsed_successfully: 492,
+      parse_failures: 8,
+      duplicate_raw_logs: 12
+    },
     cancellation_requested: false,
     resume_eligible: true,
     resume_ineligible_reason: null,
@@ -2149,7 +2250,6 @@ test("resumable import progress and admin controls stay compact", async ({ page 
     can_cancel: false,
     can_retry: false,
     can_resume: true,
-    details: { input_name: "firewall.log" },
     created_at: "2026-07-13T10:00:00Z",
     updated_at: "2026-07-13T10:00:03Z"
   };
@@ -2183,6 +2283,10 @@ test("resumable import progress and admin controls stay compact", async ({ page 
 
   await page.goto("/overview");
   await expect(page.getByTestId("latest-job-progress")).toContainText("500 of 2000 lines committed");
+  await expect(page.getByTestId("latest-job-counters")).toContainText("Raw imported: 500");
+  await expect(page.getByTestId("latest-job-counters")).toContainText("Parsed: 492");
+  await expect(page.getByTestId("latest-job-counters")).toContainText("Failed: 8");
+  await expect(page.getByTestId("latest-job-counters")).toContainText("Duplicates: 12");
   await expect(page.getByTestId("operation-queue-panel")).toContainText("Import Staging");
   await page.getByText("Recent Run History").click();
   await expect(page.getByLabel("Resume operation job 193")).toBeVisible();
@@ -2254,7 +2358,7 @@ test("admin settings shows external IAM groundwork", async ({ page }) => {
   await expect(page.getByText("Email Login", { exact: true })).toBeVisible();
   expect(await page.getByText("Enabled", { exact: true }).count()).toBeGreaterThanOrEqual(1);
   expect(await page.getByText("Not configured").count()).toBeGreaterThanOrEqual(2);
-  await expect(page.getByText("Local username/password login remains active.")).toBeVisible();
+  await expect(page.getByText("Normal access uses the MFU application shell.")).toBeVisible();
   await expect(page.getByText("MFU IAM Adapter")).toBeVisible();
   await expect(page.getByText("School-email integration readiness")).toBeVisible();
   await expect(page.getByText("B2B Client")).toBeVisible();
@@ -2288,12 +2392,13 @@ test("SOC assistant page is read-only and contains long responses safely", async
   await seedSession(page);
   await page.goto("/assistant");
 
-  await expect(page.getByRole("heading", { name: "Read-only analyst guidance" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Evidence-grounded analyst guidance" })).toBeVisible();
   await expect(page.getByText("Read Only", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Decision Support Only", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Response Automation Disabled", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Simulation Mode", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Raw Logs Disabled", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Raw logs are excluded by default.")).toBeVisible();
+  await page.getByText("More analyst playbooks").click();
   await expect(page.getByTestId("assistant-presets")).toContainText("Alert Triage");
   await expect(page.getByTestId("assistant-presets")).toContainText("False Positive Review");
   await expect(page.getByTestId("assistant-presets")).toContainText("Source Health");
@@ -2335,16 +2440,17 @@ test("SOC assistant page is read-only and contains long responses safely", async
   await expect(panel).toContainText("False-positive/noise review");
   await expect(panel).toContainText("ATT&CK mapping");
   await expect(panel).toContainText("Related context");
-  await expect(panel).toContainText("What to check next");
+  await expect(panel).toContainText("Analyst next steps");
   await expect(panel.getByTestId("assistant-answer-sections")).toBeVisible();
-  await expect(panel.getByTestId("assistant-provider-telemetry")).toContainText("Local Deterministic Answer");
+  await expect(panel.getByTestId("assistant-provider-telemetry")).toContainText("Local Evidence Assistant");
   await expect(panel.getByTestId("assistant-provider-telemetry")).toContainText("Raw logs");
   await expect(panel.getByTestId("assistant-provider-telemetry")).toContainText("Not included");
   await expect(panel.getByTestId("assistant-provider-telemetry")).toContainText("Secrets");
   await expect(panel.getByTestId("assistant-provider-telemetry")).toContainText("Not exposed");
-  await expect(panel.getByTestId("assistant-provider-telemetry")).toContainText("soc_evidence_grounded_structured_v2");
-  await expect(panel).toContainText("Safety note");
+  await expect(panel.getByTestId("assistant-provider-telemetry")).toContainText("soc_evidence_grounded_concise_v3");
+  await expect(panel).toContainText("Safety");
   await expect(panel).toContainText("Alert detail");
+  await expect(panel.getByTestId("assistant-citations")).toContainText("Grounded In");
   await expect(panel.getByTestId("assistant-citations")).toContainText("/api/alerts/{alert_id}");
   await expect(panel.getByTestId("assistant-citation-open-alert-detail-1")).toHaveAttribute("href", "/alerts?alert=1");
   await expect(panel.getByTestId("assistant-citation-open-log-detail-1")).toHaveAttribute("href", "/logs?log=1");
@@ -2353,6 +2459,7 @@ test("SOC assistant page is read-only and contains long responses safely", async
   await expect(panel.getByTestId("assistant-citation-open-operation-job-3")).toHaveAttribute("href", "/?job=3");
   await expect(panel.getByTestId("assistant-citation-open-ml-report-api")).toHaveAttribute("href", "/ml");
   await expect(panel.getByText("Text reference")).toBeVisible();
+  await panel.getByText("Rate answer quality").click();
   await expect(panel.getByTestId("assistant-feedback-controls")).toContainText("Answer quality");
   await panel.getByLabel("Optional note").fill("Clear enough for triage.");
   await panel.getByRole("button", { name: "Helpful", exact: true }).click();
@@ -2364,6 +2471,7 @@ test("SOC assistant page is read-only and contains long responses safely", async
   await expect(feedbackReview).toContainText("Review recommended");
   await expect(feedbackReview).toContainText("helpful");
   await expect(feedbackReview).toContainText("No action");
+  await feedbackReview.getByText("Feedback quality review").click();
   await feedbackReview.getByRole("button", { name: "Feedback rating filter" }).click();
   await page.getByRole("option", { name: "Incorrect" }).click();
   await feedbackReview.getByRole("button", { name: "Feedback context filter" }).click();
@@ -2396,7 +2504,7 @@ test("SOC assistant page is read-only and contains long responses safely", async
   await expect(page.getByLabel("Analyst question")).toHaveValue("Summarize case smoke-case and related alert group.");
 
   await page.goto("/assistant");
-  await page.getByRole("button", { name: "Latest Critical", exact: true }).click();
+  await page.getByRole("button", { name: "Latest Critical Alert", exact: true }).click();
   await page.getByTestId("assistant-citation-open-alert-detail-1").click();
   await expect(page).toHaveURL(/\/alerts\?alert=1/);
 });
@@ -2426,7 +2534,7 @@ test("SOC assistant provider telemetry shows guarded external LLM state", async 
             raw_log_context_included: false,
             secrets_exposed: false,
             context_characters: 1400,
-            prompt_contract: "soc_evidence_grounded_structured_v2",
+            prompt_contract: "soc_evidence_grounded_concise_v3",
             provider_called: true,
             answer_used: false,
             answer_guard_reason: "provider_answer_too_short_for_evidence_context"
@@ -2449,17 +2557,95 @@ test("SOC assistant provider telemetry shows guarded external LLM state", async 
   await page.getByRole("button", { name: "Ask assistant" }).click();
 
   const telemetry = page.getByTestId("assistant-provider-telemetry");
-  await expect(telemetry).toContainText("External LLM Guarded");
+  await expect(telemetry).toContainText("Gemini Fallback: Local Evidence Assistant");
   await expect(telemetry).toContainText("Gemini");
   await expect(telemetry).toContainText("too short");
   await expect(telemetry).toContainText("Raw logs");
   await expect(telemetry).toContainText("Not included");
   await expect(telemetry).toContainText("Secrets");
   await expect(telemetry).toContainText("Not exposed");
-  await expect(telemetry).toContainText("soc_evidence_grounded_structured_v2");
+  await expect(telemetry).toContainText("soc_evidence_grounded_concise_v3");
   await expect(page.getByTestId("assistant-response-panel")).toContainText("Alert #3225");
   await expect(page.getByText("ASSISTANT_LLM_API_KEY")).not.toBeVisible();
   await expect(page.getByRole("button", { name: "Record simulated block" })).not.toBeVisible();
+});
+
+test("SOC assistant labels Gemini only after an answer uses the provider", async ({ page }) => {
+  await mockApi(page);
+  await page.route("**/api/assistant/status", async (route) =>
+    route.fulfill({
+      json: {
+        available: true,
+        mode: "external_llm_configured",
+        external_provider_configured: true,
+        external_provider_used_by_default: false,
+        provider: "gemini",
+        model_configured: true,
+        llm_enabled: true,
+        llm_provider_configured: true,
+        llm_provider_name: "gemini",
+        llm_ready: true,
+        llm_model_configured: true,
+        llm_secret_configured: true,
+        llm_base_url_configured: false,
+        llm_timeout_seconds: 15,
+        llm_max_retries: 2,
+        llm_max_prompt_chars: 12000,
+        conversation_history_turns: 4,
+        rate_limit_requests: 30,
+        rate_limit_window_seconds: 60,
+        llm_secrets_exposed: false,
+        redaction_enabled: true,
+        raw_log_context_allowed: false,
+        max_context_rows: 20,
+        safety: ["Read Only", "Decision Support Only", "Response Automation Disabled"]
+      }
+    })
+  );
+  await page.route("**/api/assistant/chat", async (route) =>
+    route.fulfill({
+      json: {
+        answer: "Alert #77 is supported by bounded ATDR evidence.",
+        mode: "external_llm_gemini",
+        external_provider_used: true,
+        safety: ["Read Only", "Decision Support Only", "Response Automation Disabled"],
+        context_used: ["alert_detail", "external_llm:gemini"],
+        citations: [{ label: "Alert detail", source: "/api/alerts/{alert_id}", reference_id: "77" }],
+        redaction_applied: true,
+        raw_log_context_included: false,
+        suggested_followups: ["What logs are related?"],
+        details: {
+          answer_sections: {
+            summary: ["Alert #77 is supported by bounded ATDR evidence."],
+            evidence: ["ATDR alert detail was supplied."],
+            what_to_check_next: ["Review linked evidence."],
+            safety_note: ["Read-only decision support; response automation remains disabled."]
+          },
+          llm: {
+            used: true,
+            provider: "gemini",
+            provider_called: true,
+            answer_used: true,
+            structured_output_valid: true,
+            raw_log_context_included: false,
+            secrets_exposed: false,
+            prompt_contract: "soc_evidence_grounded_concise_v3"
+          }
+        },
+        conversation_id: "gemini-verified-conversation",
+        active_context: { alert_id: 77, log_id: null, source_id: null, case_id: null, primary: "alert" }
+      }
+    })
+  );
+  await seedSession(page);
+  await page.goto("/assistant");
+  await expect(page.getByText("Gemini Configured", { exact: true })).toBeVisible();
+  await expect(page.getByText("Gemini Assisted", { exact: true })).toHaveCount(0);
+  await page.getByLabel("Analyst question").fill("Why was alert 77 flagged?");
+  await page.getByRole("button", { name: "Ask assistant" }).click();
+  await expect(page.getByText("Gemini Assisted", { exact: true }).first()).toBeVisible();
+  await expect(page.getByTestId("assistant-citations")).toContainText("Alert detail");
+  await expect(page.getByText("ASSISTANT_LLM_API_KEY")).toHaveCount(0);
 });
 
 test("SOC assistant follow-up questions keep the previous alert context", async ({ page }) => {
@@ -2519,6 +2705,14 @@ test("SOC assistant follow-up questions keep the previous alert context", async 
   await page.getByLabel("Analyst question").fill("Why was alert 1717 flagged?");
   await page.getByRole("button", { name: "Ask assistant" }).click();
   await expect(page.getByTestId("assistant-response-panel")).toContainText("Alert #1717 context was retained.");
+  const requestCountBeforeNavigation = assistantRequests.length;
+  await page.goto("/alerts");
+  await expect(page).toHaveURL(/\/alerts$/);
+  await page.goto("/assistant");
+  await expect(page.getByLabel("Analyst question")).toHaveValue("Why was alert 1717 flagged?");
+  await expect(page.getByTestId("assistant-response-panel")).toContainText("Alert #1717 context was retained.");
+  await expect(page.getByText("Using alert #1717")).toBeVisible();
+  expect(assistantRequests).toHaveLength(requestCountBeforeNavigation);
   await page.getByRole("button", { name: "What logs are related?" }).click();
   await expect(page.getByLabel("Analyst question")).toHaveValue("What logs are related?");
   await expect(page.getByText("Using alert #1717")).toBeVisible();
@@ -2597,6 +2791,7 @@ test("SOC assistant clear context removes URL-scoped alert before the next quest
   await page.getByRole("button", { name: "Clear context" }).click();
   await expect(page.getByText("Using alert #1")).not.toBeVisible();
   await expect(page).toHaveURL(/\/assistant$/);
+  await expect.poll(() => page.evaluate(() => window.sessionStorage.getItem("atdr.assistant.session.v1"))).toBeNull();
 
   await page.getByLabel("Analyst question").fill("Summarize source health.");
   await page.getByRole("button", { name: "Ask assistant" }).click();
@@ -2606,6 +2801,28 @@ test("SOC assistant clear context removes URL-scoped alert before the next quest
   expect(assistantRequests.at(-1)?.source_id).toBeNull();
   expect(assistantRequests.at(-1)?.reset_context).toBe(true);
   expect(typeof assistantRequests.at(-1)?.conversation_id).toBe("string");
+});
+
+test("SOC assistant session storage is resilient and clears on logout", async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  await page.addInitScript(() => {
+    window.sessionStorage.setItem("atdr.assistant.session.v1", "{malformed-json");
+  });
+  await mockApi(page);
+  await seedSession(page);
+  await page.goto("/assistant");
+  await expect(page.getByLabel("Analyst question")).toHaveValue("What is the latest critical alert?");
+  expect(pageErrors).toEqual([]);
+
+  await page.getByLabel("Analyst question").fill("Why was alert 1 flagged?");
+  await page.getByRole("button", { name: "Ask assistant" }).click();
+  await expect(page.getByTestId("assistant-response-panel")).toContainText("Alert #1");
+  await expect.poll(() => page.evaluate(() => Boolean(window.sessionStorage.getItem("atdr.assistant.session.v1")))).toBe(true);
+
+  await page.getByRole("button", { name: "Logout" }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  expect(await page.evaluate(() => window.sessionStorage.getItem("atdr.assistant.session.v1"))).toBeNull();
 });
 
 test("simulated response confirmation and denied audit are visible", async ({ page }) => {
@@ -2695,16 +2912,14 @@ test("dashboard dropdowns close and do not block follow-up clicks", async ({ pag
 
   await page.goto("/ml");
   await expect(page.getByRole("heading", { name: "Model status and review operations" })).toBeVisible();
-  await expect(page.getByText("Current AI governance snapshot")).toBeVisible();
-  await expect(page.getByText("Threat F1", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("0.9174", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Canonical ML Evidence", { exact: true })).toBeVisible();
+  await expect(page.getByText("Queue F1", { exact: true })).toBeVisible();
+  await expect(page.getByText("0.9237-0.9524", { exact: true })).toBeVisible();
   await expect(page.getByText("Production Readiness Track")).not.toBeVisible();
   await expect(page.getByText("Review focus: benign and suspicious separation need more analyst-verified examples.")).not.toBeVisible();
-  await page.getByText("Operational readiness details").click();
-  await expect(page.getByText("Production Readiness Track")).toBeVisible();
-  await expect(page.getByText("Not Production Ready")).toBeVisible();
-  await expect(page.getByText("real_source_pilot_ready")).toBeVisible();
-  await page.getByText("Operational readiness details").click();
+  await page.getByText("Current limitations").click();
+  await expect(page.getByText("Exact class separation still needs review.")).toBeVisible();
+  await page.getByText("Current limitations").click();
   await page.getByText("Review exports and technical reports").click();
   await expect(page.getByRole("button", { name: "General Active Learning Sample" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Malicious-Focused Sample" })).toBeVisible();
@@ -2766,7 +2981,7 @@ test("demo import limit is editable and custom sample path is sent", async ({ pa
   await limitInput.fill("1000");
   await expect(limitInput).toHaveValue("1000");
 
-  await page.getByLabel("Sample log file path").fill("C:\\Users\\User\\Downloads\\paloalto-firewall(1).log");
+  await page.getByLabel("Sample log file path").fill("D:\\Synthetic\\paloalto-firewall.log");
   await page.getByRole("button", { name: "Import sample logs" }).click();
 
   const importResult = page.getByTestId("action-result-import");
@@ -2774,7 +2989,7 @@ test("demo import limit is editable and custom sample path is sent", async ({ pa
   await expect(importResult).toContainText("1000");
   await expect(importResult).toContainText("Available lines");
   await expect(importResult).toContainText("Raw logs imported");
-  await expect(importResult).toContainText("paloalto-firewall(1).log");
+  await expect(importResult).toContainText("paloalto-firewall.log");
   await expect(page.getByText("contains 2 non-empty log lines")).not.toBeVisible();
 });
 
@@ -2803,8 +3018,89 @@ test("demo import strips copy-as-path quotes before sending sample path", async 
   });
   await seedSession(page);
   await page.goto("/demo");
-  await page.getByLabel("Sample log file path").fill('"C:\\Users\\User\\Downloads\\paloalto-firewall(1).log"');
+  await page.getByLabel("Sample log file path").fill('"D:\\Synthetic\\paloalto-firewall.log"');
   await page.getByRole("button", { name: "Import sample logs" }).click();
   await expect(page.getByTestId("action-result-import")).toContainText("2000");
-  expect(postedPath).toBe("C:\\Users\\User\\Downloads\\paloalto-firewall(1).log");
+  expect(postedPath).toBe("D:\\Synthetic\\paloalto-firewall.log");
+});
+
+test("core SOC pages fit projector, laptop, and mobile viewports", async ({ page }, testInfo) => {
+  test.setTimeout(90_000);
+  await seedSession(page);
+  await mockApi(page);
+  const viewports = [
+    { name: "projector", width: 1920, height: 1080 },
+    { name: "laptop", width: 1366, height: 768 },
+    { name: "mobile", width: 390, height: 844 }
+  ];
+  const routes = ["overview", "alerts", "logs", "assistant", "ml"];
+  const routeHeadings: Record<string, RegExp> = {
+    overview: /ATDR lab SOC status/i,
+    alerts: /Prioritize, investigate, contain, and document alerts/i,
+    logs: /Search raw evidence and normalized firewall events/i,
+    assistant: /Evidence-grounded analyst guidance/i,
+    ml: /Model status and review operations/i
+  };
+
+  for (const viewport of viewports) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    for (const routeName of routes) {
+      await page.goto(`/${routeName}`);
+      await expect(page.locator("main")).toBeVisible();
+      await expect(page.locator("main")).not.toBeEmpty();
+      await expect(page.getByRole("heading", { level: 1, name: routeHeadings[routeName] })).toBeVisible();
+      const overflowMetrics = await page.evaluate(() => ({
+        overflow: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - window.innerWidth,
+        innerWidth: window.innerWidth,
+        htmlScrollWidth: document.documentElement.scrollWidth,
+        htmlClientWidth: document.documentElement.clientWidth,
+        bodyScrollWidth: document.body.scrollWidth,
+        bodyClientWidth: document.body.clientWidth
+      }));
+      const overflowNodes = await page.evaluate(() => {
+        const viewportWidth = window.innerWidth;
+        const isContainedByHorizontalScroller = (element: Element) => {
+          let ancestor = element.parentElement;
+          while (ancestor && ancestor !== document.body) {
+            const overflowX = window.getComputedStyle(ancestor).overflowX;
+            if (["auto", "scroll", "hidden", "clip"].includes(overflowX)) {
+              const rect = ancestor.getBoundingClientRect();
+              return rect.left >= -1 && rect.right <= viewportWidth + 1;
+            }
+            ancestor = ancestor.parentElement;
+          }
+          return false;
+        };
+        return Array.from(document.querySelectorAll("body *"))
+          .filter((element) => {
+            const rect = element.getBoundingClientRect();
+            return (
+              (rect.left < -1 || rect.right > viewportWidth + 1) &&
+              !isContainedByHorizontalScroller(element)
+            );
+          })
+          .map((element) => {
+            const rect = element.getBoundingClientRect();
+            return {
+              tag: element.tagName.toLowerCase(),
+              className: element.getAttribute("class") ?? "",
+              text: (element.textContent ?? "").trim().slice(0, 80),
+              left: Math.round(rect.left),
+              right: Math.round(rect.right),
+              width: Math.round(rect.width)
+            };
+          })
+          .slice(0, 8);
+      });
+      expect(
+        overflowNodes,
+        `${routeName} elements cross ${viewport.name} viewport: ${JSON.stringify({ ...overflowMetrics, overflowNodes })}`
+      ).toEqual([]);
+      await page.screenshot({ path: testInfo.outputPath(`${viewport.name}-${routeName}.png`), fullPage: false });
+      await page.evaluate(() => window.scrollTo(999, window.scrollY));
+      const horizontalScroll = await page.evaluate(() => window.scrollX);
+      expect(horizontalScroll, `${routeName} can scroll horizontally at ${viewport.name}`).toBeLessThanOrEqual(1);
+      await page.evaluate(() => window.scrollTo(0, 0));
+    }
+  }
 });

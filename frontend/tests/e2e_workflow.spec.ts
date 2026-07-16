@@ -3,6 +3,8 @@ import type { Page, Route } from "@playwright/test";
 
 async function seedSession(page: Page) {
   await page.goto("/login");
+  await page.getByLabel("Username or email").fill("admin");
+  await page.getByLabel("Password").fill("test-password");
   await page.getByRole("button", { name: /sign in/i }).click();
   await expect(page).toHaveURL(/\/overview/);
 }
@@ -148,6 +150,9 @@ async function mockWorkflowApi(page: Page) {
   );
   await page.route("**/api/auth/mfu-iam/public-status", (route) =>
     fulfill(route, {
+      auth_mode: "local_recovery",
+      local_login_enabled: true,
+      template_shell_required: false,
       enabled: false,
       b2b_ready: false,
       mock_enabled: false,
@@ -157,12 +162,15 @@ async function mockWorkflowApi(page: Page) {
       domain_hints: [],
       default_role: "analyst",
       auth_require_2fa: false,
-      mode: "local_login_only",
+      mode: "local_recovery",
       secrets_exposed: false
     })
   );
   await page.route("**/api/auth/mfu-iam/status", (route) =>
     fulfill(route, {
+      auth_mode: "local_recovery",
+      local_login_enabled: true,
+      template_shell_required: false,
       enabled: false,
       base_url_configured: false,
       client_id_configured: false,
@@ -318,6 +326,31 @@ async function mockWorkflowApi(page: Page) {
   await page.route("**/api/logs**", (route) => fulfill(route, [log], { "X-Total-Count": "1" }));
   await page.route("**/api/logs/1**", (route) => fulfill(route, log));
   await page.route("**/api/ml/report", (route) => fulfill(route, { model_status: "Decision Support", response_automation_allowed: false }));
+  await page.route("**/api/ml/evidence-snapshot", (route) =>
+    fulfill(route, {
+      schema_version: "1.0",
+      canonical_evidence: { available: false, status: "not_available", reason: "Canonical evidence not present in workflow fixture." },
+      operational_models: {
+        isolation_forest: { role: "assistive_anomaly_signal", artifact_exists: false, model_type: "IsolationForest", decision_support_only: true },
+        active_supervised_artifact: {
+          artifact_exists: false,
+          metadata_unknown: false,
+          message: "No active supervised artifact is present.",
+          production_promoted: false,
+          response_automation_allowed: false
+        },
+        diagnostic_candidates: { registry_entry_count: 0, latest_candidate: null, canonical_candidate_is_active: false }
+      },
+      safety: {
+        decision_support_only: true,
+        production_promoted: false,
+        response_automation_allowed: false,
+        real_firewall_blocking_enabled: false,
+        secrets_exposed: false,
+        local_paths_exposed: false
+      }
+    })
+  );
   await page.route("**/api/ml/supervised/report", (route) =>
     fulfill(route, {
       current_model_status: "candidate_improved",

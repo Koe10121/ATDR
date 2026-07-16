@@ -12,7 +12,7 @@ ATDR needs a practical, safe way to add an ATDR launch button to the official su
 
 | Source | Path | Evidence / Finding |
 | --- | --- | --- |
-| Template registry page | `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\frontend-vue\src\projects\views\mfuaidrivenlogbasedthreatdetectionandresponse\MFUAIDRIVENLOGBASEDTHREATDETECTIONANDRESPONSERegistry.vue` | Project-specific page where an authenticated user can launch ATDR. |
+| Template registry page | `<MFU_SHELL_ROOT>\frontend-vue\src\projects\views\mfuaidrivenlogbasedthreatdetectionandresponse\MFUAIDRIVENLOGBASEDTHREATDETECTIONANDRESPONSERegistry.vue` | Project-specific page where an authenticated user can launch ATDR. |
 | Template auth store | `frontend-vue/src/store/modules/Authen/index.js` | Stores session as `x-access-token` and Vuex `XAccessToken`. |
 | ATDR handoff receiver | `frontend/src/pages/LoginPage.tsx` | Accepts `mfu_token` and clears token-like URL values. |
 | ATDR token-login backend | `atdr/app/routers/auth.py`, `atdr/app/services/mfu_iam_service.py` | Validates external token/handoff material and maps school email to ATDR user. |

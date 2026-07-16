@@ -5,15 +5,17 @@ export default {
   theme: {
     extend: {
       colors: {
-        shell: "#eef3f8",
+        shell: "#f2f4f7",
         panel: "#ffffff",
-        panel2: "#f8fafc",
-        line: "#d8e0ea",
-        muted: "#64748b",
-        text: "#172033",
-        cyan: "#2563eb",
+        panel2: "#f8f9fb",
+        line: "#d9dee7",
+        muted: "#5f6b7a",
+        text: "#243047",
+        cyan: "#8c1515",
         teal: "#0f766e",
-        amber: "#d97706",
+        amber: "#b86b18",
+        gold: "#c77f28",
+        goldSoft: "#fff4df",
         danger: "#8c1515",
         success: "#16a34a"
       },
@@ -21,7 +23,7 @@ export default {
         sans: ["Inter", "Segoe UI", "Arial", "sans-serif"]
       },
       boxShadow: {
-        panel: "0 10px 28px rgba(15, 23, 42, 0.07)"
+        panel: "0 8px 22px rgba(36, 48, 71, 0.07)"
       }
     }
   },

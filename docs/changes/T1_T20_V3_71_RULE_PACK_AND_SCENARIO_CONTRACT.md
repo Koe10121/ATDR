@@ -17,7 +17,7 @@ Make ATDR deterministic detection rules and controlled scenario corpus product-g
 - `data/samples/scenarios/scenario_expectations.json`
 - `docs/DETECTION_RULE_CATALOG.md`
 - `docs/DETECTION_ML_PRODUCTIZATION_PLAN.md`
-- Supervisor template workflow/taskboard evidence under `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response`
+- Supervisor template workflow/taskboard evidence under `<MFU_SHELL_ROOT>`
 
 ## T4 Current Behavior
 

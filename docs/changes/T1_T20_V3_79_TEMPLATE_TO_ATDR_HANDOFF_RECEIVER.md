@@ -199,7 +199,7 @@ Rollback is frontend/docs only. Revert `LoginPage.tsx`, the Playwright tests, an
 Manual test:
 
 ```powershell
-cd C:\Users\User\Desktop\ATDR
+cd <ATDR_ROOT>
 .\.venv\Scripts\python.exe -m atdr.scripts.config_doctor --pretty
 cd frontend
 npm.cmd run dev

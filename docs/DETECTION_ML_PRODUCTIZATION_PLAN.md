@@ -26,9 +26,9 @@ ATDR source evidence inspected:
 
 Supervisor-template evidence inspected:
 
-- `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\docs\prd\PRD-MFUAIDRIVENLOGBASEDTHREATDETECTIONANDRESPONSE.md`
-- `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\docs\AI-WORKFLOW.md`
-- `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\docs\tasks\tasklist-progress.md`
+- `<MFU_SHELL_ROOT>\docs\prd\PRD-MFUAIDRIVENLOGBASEDTHREATDETECTIONANDRESPONSE.md`
+- `<MFU_SHELL_ROOT>\docs\AI-WORKFLOW.md`
+- `<MFU_SHELL_ROOT>\docs\tasks\tasklist-progress.md`
 
 Supervisor-template conclusion: the template supplies process discipline, PRD traceability, IAM/security workflow, task tracking, and release expectations. It does not contain a reusable log-threat detection or ML pipeline. ATDR should keep its FastAPI/React/Python ML design and adapt only the workflow evidence standards.
 

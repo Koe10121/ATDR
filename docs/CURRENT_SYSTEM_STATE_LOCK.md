@@ -1,10 +1,10 @@
 # ATDR Current System State Lock
 
-Date: 2026-07-13
+Date: 2026-07-15
 
 Purpose: this document is the current-state memory anchor before larger ATDR productization work. It captures what exists now, what must stay safe, and what must not be deleted or committed while ATDR moves from controlled academic/lab prototype toward a more serious SOC/SaaS-style product.
 
-Checkpoint: v3.90 adds an opt-in durable operation queue/worker to the v3.88-v3.89 local product baseline. This document remains a source-backed state lock, not a production-readiness claim.
+Checkpoint: v4.3 adds the portable MFU outer-shell team runtime on top of the v4.2 assistant and v4.1 diagnostic model baseline. The approved shell is now the normal entry profile; direct local login is explicit recovery only. Existing ATDR data, detection/ML behavior, and response safety remain unchanged. This document remains a source-backed state lock, not a production-readiness claim.
 
 ## Source Evidence
 
@@ -22,9 +22,11 @@ Checkpoint: v3.90 adds an opt-in durable operation queue/worker to the v3.88-v3.
 | IAM / school-email groundwork | `atdr/app/routers/auth.py`, `atdr/app/services/mfu_iam_service.py`, `docs/security/ATDR_MFU_IAM_IMPLEMENTATION_PLAN.md` |
 | Response safety | `atdr/app/routers/response.py`, `atdr/app/services/response_service.py`, `atdr/tests/test_response_safety.py` |
 | Detection/ML productization evidence | `atdr/app/detection/v372_unified_detection_ml_evaluation.py`, `atdr/scripts/evaluate_detection_ml_productization.py`, `frontend/src/pages/MLGovernance.tsx` |
+| Independent holdout evidence | `atdr/app/detection/v398_independent_holdout_validation.py`, `atdr/scripts/run_v398_independent_holdout_validation.py`, `atdr/tests/test_v398_independent_holdout_validation.py`, `docs/V3_98_INDEPENDENT_DETECTION_ML_HOLDOUT_VALIDATION.md` |
+| Synthetic multi-source frozen revalidation | `atdr/app/detection/v399_multisource_frozen_revalidation.py`, `atdr/scripts/run_v399_multisource_frozen_revalidation.py`, `atdr/tests/test_v399_multisource_frozen_revalidation.py`, `docs/V3_99_INDEPENDENT_MULTI_SOURCE_EVIDENCE_AND_FROZEN_REVALIDATION.md` |
 | Frontend route truth | `frontend/src/App.tsx`, `frontend/src/pages/*`, `frontend/src/lib/api.ts` |
 | Tests and release gate | `atdr/tests/*`, `frontend/tests/*`, `atdr/scripts/verify_release.py`, `.github/workflows/ci.yml` |
-| Supervisor template reference | `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response` |
+| Supervisor shell contract | Separately supplied `<MFU_SHELL_ROOT>` plus `docs/V4_3_PORTABLE_MFU_SHELL_RUNTIME.md` and `scripts/*system*` |
 
 ## Current Architecture
 
@@ -34,9 +36,8 @@ ATDR currently uses:
 - Frontend: React 18, Vite, TypeScript, React Router, TanStack Query/Table, Recharts, Playwright.
 - Database: SQLite for normal local workflow, with optional PostgreSQL/shared-lab validation paths. The current local workflow does not require Docker or PostgreSQL.
 - ML stack: Python feature generation, rule detection, IsolationForest anomaly support, supervised classifier experiments, model registry, and conservative governance gates.
-- Runtime command shape:
-  - Backend: `.\.venv\Scripts\python.exe -m uvicorn atdr.app.main:app --host 127.0.0.1 --port 8000 --reload`
-  - Frontend: `cd frontend` then `npm.cmd run dev`
+- Normal team runtime: `.\scripts\start_system.cmd`, which starts the MFU shell backend/frontend and the existing ATDR FastAPI/React components, then opens the shell sign-in page.
+- Existing direct component commands remain available for diagnostics/development. Direct ATDR authentication requires explicit `ATDR_AUTH_MODE=local_recovery`.
 
 ## Backend API Status
 
@@ -123,6 +124,14 @@ Alembic migrations exist under `migrations/versions/`. Any schema change must us
 - Worker dispatch excludes response actions, firewall changes, model activation/promotion, label changes, user changes, external IAM/LLM calls, and deletion.
 - SQLite is validated with one worker. Managed-worker supervision, PostgreSQL/multi-worker behavior, resumable large imports, and automatic retention remain future work.
 
+### v3.97 Large-File Ingestion Status
+
+- The queued import path uses bounded indexed raw-content fingerprint lookups and chunk-level ORM flushing while preserving exact raw evidence and storing duplicate events.
+- Cumulative raw/parsed/failed/duplicate counters are visible in Operations Health and low-cardinality metrics.
+- The isolated 100,000-row synthetic validator passed at 724.45 rows/second with 8.71 MiB peak traced memory, one forced resume, zero resume duplicates, changed-input rejection, cooperative cancellation, and zero response/detection/label/model side effects.
+- Migration `b4c5d6e7f8a9` was validated on a disposable copy of the current SQLite database. Every one of its 145,232 raw rows received a 64-character fingerprint.
+- A timestamped ignored backup exists. The configured database is still at revision `a3b4c5d6e7f8`; do not apply v3.97 to it without explicit user approval.
+
 ## Log Ingestion Status
 
 ATDR can currently:
@@ -161,6 +170,26 @@ Current detection combines:
 - Scenario validation against safe synthetic corpora.
 
 Current detection quality work has improved controlled validation, but real-source validation and continued false-positive/false-negative hardening remain important productization work.
+
+### v3.98 Holdout Status
+
+- v3.98 evaluates deterministic rules, fresh in-memory IsolationForest, the repaired binary SOC review queue, hybrid decision support, Logistic Regression, and a majority baseline without activation or artifact writes.
+- Reviewed latest labels are grouped by exact raw fingerprint, near behavior, used-feature equality, and normalized-log identity before splitting.
+- Fit, sigmoid calibration, threshold selection, and final test are isolated; final-test labels are never reused for tuning.
+- Three fingerprint-grouped random diagnostics evaluated. Primary queue F1 ranged from 0.9713 to 0.9804, but benign-like FPR ranged from 0.0303 to 0.3939 and sparse confidence buckets failed the conservative calibration gate.
+- Temporal holdout failed closed because its final window had no `non_threat` support. Source holdout is unavailable because all 2,235 reviewed rows belong to `local_import`.
+- Readiness remains `candidate_only`. Current evidence is internal unseen holdout evidence, not an external independent benchmark or production accuracy.
+
+### v3.99 Synthetic Multi-Source Revalidation Status
+
+- v3.99 generated 720 deterministic synthetic rows across `v399-campus-router-normal`, `v399-edge-firewall-probing`, and `v399-mixed-workstation`, with four seven-day-separated collection windows.
+- The evidence manifest records source type, parser profile, category/scenario distribution, expectation provenance, evidence kind, and duplicate/overlap state. Every row is `human_reviewed=false` and `import_ready=false`.
+- All 720 rows passed exact raw, normalized near-pattern, and used-feature overlap checks against reviewed evidence; no row required quarantine.
+- Existing reviewed evidence alone supplied 1,006 fit, 335 calibration, and 335 threshold rows. A separate 559-row internal holdout remained reserved. No v3.99 row or label entered fitting, calibration, or threshold selection.
+- The primary queue produced F1 `0.9524-0.9551`, synthetic FPR `0.0`, and suspicious/malicious recall `1.0` across source, latest-window temporal, and three grouped random final views.
+- Calibration remained weak on every split: ECE approximately `0.1097-0.1115` and maximum bucket gap `0.5128-0.5227`.
+- False negatives were allowed `needs_context` unknown TCP/UDP services; no synthetic suspicious/malicious control was missed.
+- Readiness remains `candidate_only`. Results are reproducible regression evidence, not provider-blinded, real-device, externally reviewed, or production accuracy.
 
 ## Supervised ML Status
 
@@ -295,7 +324,7 @@ Keep:
 Reference only:
 
 - `NewSystem/` inside this repo until a separate cleanup phase proves it can be moved or removed safely.
-- `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response` is the official supervisor template source and should be inspected before major template/IAM/process work.
+- The separately supplied `<MFU_SHELL_ROOT>` is the approved supervisor shell source. Its location is private runtime configuration, not a repository constant.
 
 ## Ignored Or Sensitive Folders
 
@@ -340,17 +369,56 @@ Future work can make larger architectural, backend, and UI changes, but every ma
 
 ## Latest Verified Checkpoint
 
-The latest v3.87 verification evidence in this workspace showed:
+The cumulative v3.97-v3.99 worktree was verified on 2026-07-14:
 
-- Ruff: passed.
-- Compileall: passed.
-- Backend tests: `471 passed, 1 skipped`.
-- Alembic check: no drift.
+- Ruff and compileall: passed.
+- Backend tests: `549 passed, 1 skipped`.
+- Configured database: unchanged at `a3b4c5d6e7f8`; disposable copy: `b4c5d6e7f8a9 (head)` with no Alembic drift.
+- v3.97 100,000-row closure rerun: passed in 146.1105 seconds at 684.41 rows/second with 8.70 MiB peak traced memory and zero unsafe side effects.
+- v3.98 internal holdout: completed on 2,235 reviewed latest labels; three random splits evaluated, strict temporal/source splits failed closed, readiness `candidate_only`, database/artifact/session unchanged.
+- v3.99 frozen multi-source evaluation: 720/720 accepted synthetic rows across three sources/four windows; zero exact/near/feature overlap; primary F1 `0.9524-0.9551`, FPR `0.0`, suspicious/malicious recall `1.0`; calibration passed `0/5`; readiness `candidate_only`; database/artifact/session unchanged.
 - React lint/build: passed.
-- Playwright: `19 passed, 1 skipped`.
-- Real Gemini provider and full assistant probes: structured output valid, raw logs excluded, secrets hidden, assistant audit created, and response/detection/label/model side effects all zero.
-- Replay dry-run: passed against the safe two-line sample.
-- Performance smoke: no warnings; Overview `0.4715s`, cached Overview `0.0073s`, alert list `0.0504s`, case summary `0.0394s`, and ML Governance `1.314s`.
-- Release gate: passed.
+- Playwright: `21 passed, 1 skipped`.
+- Replay dry-run: parsed two safe rows and wrote zero.
+- Performance smoke: no warnings with Overview `0.4315s`, cached Overview `0.0062s`, alert list `0.0334s`, case summary `0.0666s`, ML Governance `1.1671s`, and feature sample `0.2731s`.
+- Release gate: `ok: true`; config, compile, repeated tests, Alembic, and deployment-operations checks passed. Optional running-stack smoke was skipped.
 
-This evidence proves the current controlled productization checkpoint, not production readiness.
+This evidence proves the current controlled repository/local checkpoint. It does not establish production readiness, provider-blinded or real-source Detection/ML independence, approved-host deployment acceptance, or permission to activate a model or response action.
+
+## v4.0 External Evidence Update
+
+ATDR has now executed one provider-blinded public benchmark under frozen prediction-before-label ordering. Two official CSE-CIC-IDS2018 days supplied 4,000 deterministic feature-only samples; seven duplicate exact flows were quarantined and 3,993 were scored. Accepted exact, near-pattern, and used-feature overlap with 2,235 reviewed internal rows and 720 v3.99 rows was zero.
+
+The protocol succeeded but the model gate failed. The frozen supervised queue produced precision `0.3171`, recall `1.0000`, F1 `0.4815`, benign FPR `1.0000`, Brier `0.6538`, and ECE `0.6614`. The provider schema lacks IP/action/app/zone/source-port/app-risk and source-window context, causing nearly all flows to receive high review probability. The benchmark is locked final evidence and cannot be used for tuning.
+
+Configured database and active artifact state remained unchanged. No labels, models, detection runs, response actions, automation, or firewall behavior changed. Current readiness remains `candidate_only`.
+
+Final v4.0 closure verification passed: task-board render/check, Ruff, compileall, backend `556 passed, 1 skipped`, disposable Alembic no-drift check, React lint/build, Playwright `21 passed, 1 skipped`, replay dry-run, warning-free performance smoke, and release gate `ok: true`. The configured database was not migrated or written during these checks.
+
+## v4.1 Schema-Aware Development Update
+
+v4.1 keeps the v4.0 provider-blinded benchmark immutable by checking all seven locked files and hashes before and after each run. It uses three separate checksum-verified CSE-CIC-IDS2018 development files only for diagnostic design work and reserves UNSW-NB15 as a future untouched benchmark. Provider data remains non-human and non-importable.
+
+The evaluator defines distinct Palo Alto, generic syslog, provider-flow, and raw-fallback contracts. It records missingness and schema availability rather than inventing absent IP, action, application, zone, or source-window fields. A complete 16,817-flow development run produced strong pooled random-split signals, but calibration was weak for every strategy and provider source/time plus schema-held-out transfer remained unstable. The candidate gate therefore failed honestly: readiness is `candidate_only`, no active model/artifact changed, and no labels, detection runs, response actions, automation, or firewall behavior changed.
+
+Focused v4.1 tests passed (`12 passed`). Final closure verification also passed: task-board render/check, Ruff, compileall, full backend `568 passed, 1 skipped`, disposable Alembic no-drift check, React lint/build, Playwright `21 passed, 1 skipped`, replay dry-run, warning-free performance smoke, and release gate `ok: true`. The configured database was not migrated or written during these checks. The next detection/ML gate is a separately governed untouched benchmark and independently collected multi-source real firewall/syslog evidence, not further tuning against v4.0.
+
+## v4.2 Assistant And UI Update
+
+v4.2 does not alter the v4.1 model evidence, configured database, active artifact, detection rules, response policy, or startup commands. It adds citation-derived grounding metadata, a concise external-provider contract, and a sanitized session-scoped React snapshot so assistant context survives route navigation without replaying a provider request.
+
+The private Gemini readiness check and one synthetic probe passed on 2026-07-14 without printing a key: provider/model/key configured, structured output valid, IP redaction enabled, raw-log context excluded, and `secrets_exposed=false`. The dashboard calls an answer **Gemini Assisted** only when that answer actually reports successful provider use; otherwise it shows the local evidence or fallback mode.
+
+MFU burgundy/gold visual tokens are adapted from the official external supervisor shell. ATDR remains FastAPI + React + SQLAlchemy/Alembic; no Node/Vue/MongoDB runtime migration occurred. The assistant remains read-only and cannot trigger response, detection, label, model, account, deletion, or firewall actions.
+
+## v4.5 Reproducible Product Baseline Update
+
+v4.5 supersedes the earlier local migration warning: the configured SQLite database is now at Alembic head `b4c5d6e7f8a9`, with no reset or deletion. A disposable path-with-spaces copy with no existing venv, JavaScript dependencies, database, private environment, private logs, models, review reports, or exports completed setup from scratch using Python 3.11 and Node `20.19.0`.
+
+Installation readiness and identity-provider readiness are now separate. The current approved shell copy has its private MFU IAM proxy field contract populated, but both Google OAuth client fields are absent. Provider readiness is therefore false and normal startup intentionally fails closed. Real MFU account acceptance remains an external university/provider action.
+
+AI Governance now reads one canonical evidence snapshot and returns unavailable when that ignored evidence is absent; it no longer substitutes historical metrics. IsolationForest, active supervised artifact metadata, and diagnostic candidate state are displayed independently. The assistant visible contract is bounded to two summary points, three evidence points, and three next steps. Rendered Overview, Alerts, Investigation, Assistant, and AI Governance pages are checked at projector, laptop, and mobile viewports.
+
+The separately supplied shell still lacks a published companion repository/archive version and checksum. `config/mfu-shell-contract.json` provides structure and non-secret fingerprinting, but approved shell distribution remains a release blocker. See `docs/V4_5_REPRODUCIBLE_PRODUCT_BASELINE.md` and `docs/V4_5_CURRENT_STATE_MANIFEST.md`.
+
+Final v4.2 closure verification passed: task-board render/check, Ruff, compileall, full backend `568 passed, 1 skipped`, disposable Alembic no-drift, React lint/build, Playwright `23 passed, 1 skipped`, replay dry-run, secret-safe Gemini status/probe, warning-free disposable-copy performance smoke, and release gate `ok: true`. A live authenticated Gemini-backed request returned grounded, redacted context and left response actions, detection runs, labels, and model runs unchanged. The configured database was not written or migrated. Its inherited v3.97 additive migration remains pending, so the operator must run `alembic upgrade head` before using current-model dashboard queries against that database.

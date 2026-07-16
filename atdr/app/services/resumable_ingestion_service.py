@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from atdr.app.core.config import get_settings
+from atdr.app.core.log_fingerprint import raw_line_fingerprint
 from atdr.app.db.models import AuditLog, IngestionRun, OperationJob, RawLog
 from atdr.app.parsers.paloalto_parser import parse_log_line_for_profile
 from atdr.app.services.job_service import (
@@ -32,6 +33,8 @@ from atdr.app.services.staging_service import StagedInputMetadata, validate_stag
 
 
 logger = logging.getLogger(__name__)
+
+_DUPLICATE_LOOKUP_BATCH_SIZE = 400
 
 
 class CooperativeImportCancelled(RuntimeError):
@@ -75,6 +78,36 @@ def _target_total(metadata: StagedInputMetadata, limit: int | None) -> int:
     if limit is None:
         return metadata.available_lines
     return min(metadata.available_lines, max(0, int(limit)))
+
+
+def _chunk_duplicate_count(db: Session, raw_lines: list[str]) -> int:
+    """Count exact duplicates with bounded indexed lookups and bounded memory.
+
+    A hash narrows candidates, while the full line comparison preserves exact
+    semantics even in the theoretical event of a hash collision. Repeated
+    lines inside the same uncommitted chunk are counted after their first
+    occurrence, matching the prior row-by-row behavior.
+    """
+
+    if not raw_lines:
+        return 0
+    fingerprints = {raw_line_fingerprint(raw_line) for raw_line in raw_lines}
+    existing_lines: set[str] = set()
+    ordered_fingerprints = sorted(fingerprints)
+    for offset in range(0, len(ordered_fingerprints), _DUPLICATE_LOOKUP_BATCH_SIZE):
+        batch = ordered_fingerprints[offset : offset + _DUPLICATE_LOOKUP_BATCH_SIZE]
+        existing_lines.update(
+            db.scalars(select(RawLog.raw_line).where(RawLog.raw_line_hash.in_(batch)))
+        )
+
+    seen = existing_lines
+    duplicate_count = 0
+    for raw_line in raw_lines:
+        if raw_line in seen:
+            duplicate_count += 1
+        else:
+            seen.add(raw_line)
+    return duplicate_count
 
 
 def _initialize_run(
@@ -307,11 +340,9 @@ def run_resumable_import(
 
             chunk_parsed = 0
             chunk_failed = 0
-            chunk_duplicates = 0
-            for line_number, line in records:
-                raw_text = line.rstrip("\r\n")
-                existing_raw = db.scalar(select(RawLog.id).where(RawLog.raw_line == raw_text).limit(1))
-                chunk_duplicates += int(existing_raw is not None)
+            raw_texts = [line.rstrip("\r\n") for _, line in records]
+            chunk_duplicates = _chunk_duplicate_count(db, raw_texts)
+            for (line_number, line), _raw_text in zip(records, raw_texts, strict=True):
                 parsed_log = parse_log_line_for_profile(line, source.parser_profile)
                 persist_parsed_log(db, parsed_log, source_id=source.id)
                 if parsed_log.error:
@@ -355,6 +386,11 @@ def run_resumable_import(
                     "latest_heartbeat_at": job.checkpoint_at.isoformat(),
                     "last_chunk_records": committed_count,
                     "last_chunk_parse_failures": chunk_failed,
+                    "raw_logs_imported": run.raw_logs_created,
+                    "parsed_successfully": run.parsed_successfully,
+                    "parse_failures": run.parse_failures,
+                    "duplicate_raw_logs": run.duplicate_raw_logs,
+                    "ingestion_run_id": run.id,
                 }
             )
             job.details_json = public_job_details(job_details)

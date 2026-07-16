@@ -22,7 +22,7 @@ ATDR should not be blindly migrated to the supervisor template's Node/Vue/MongoD
 
 Supervisor template source path:
 
-`C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response`
+`<MFU_SHELL_ROOT>`
 
 Supervisor template files reviewed without printing secret values:
 

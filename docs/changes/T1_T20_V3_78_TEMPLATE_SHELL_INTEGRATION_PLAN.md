@@ -12,9 +12,9 @@ The supervisor template must become the outer application shell and school-email
 
 | Source | Path | Evidence / Finding |
 | --- | --- | --- |
-| Supervisor IAM overview | `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\backend-node\docs\IAM_SYSTEM_OVERVIEW.md` | Documents IAM service integration, Google/MFU login, permission matrix, B2B introspection, and audit behavior. |
-| Supervisor IAM PRD | `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\backend-node\docs\IAM_PRD.md` | Defines login, OTP/2FA, account lifecycle, permission matrix, invitation, and B2B requirements. |
-| Supervisor IAM recommendations | `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\backend-node\docs\IAM_RECOMMENDATIONS.md` | Warns that secrets must be moved/rotated and hardening is required before production use. |
+| Supervisor IAM overview | `<MFU_SHELL_ROOT>\backend-node\docs\IAM_SYSTEM_OVERVIEW.md` | Documents IAM service integration, Google/MFU login, permission matrix, B2B introspection, and audit behavior. |
+| Supervisor IAM PRD | `<MFU_SHELL_ROOT>\backend-node\docs\IAM_PRD.md` | Defines login, OTP/2FA, account lifecycle, permission matrix, invitation, and B2B requirements. |
+| Supervisor IAM recommendations | `<MFU_SHELL_ROOT>\backend-node\docs\IAM_RECOMMENDATIONS.md` | Warns that secrets must be moved/rotated and hardening is required before production use. |
 | Supervisor IAM adapters | `backend-node/server/integrations/iam/*.js` in the supervisor template | Provides SDK adapter, B2B middleware, token introspection, profile, and admin API boundaries. |
 | Supervisor frontend shell | `frontend-vue/src/projects/components/dialog/SignIn.vue`, `TwoFA.vue`, `frontend-vue/src/router/index.js` | Provides Google/MFU login entry, 2FA dialog, and route guard/permission loading pattern. |
 | ATDR auth | `atdr/app/routers/auth.py`, `atdr/app/services/mfu_iam_service.py` | ATDR already has disabled-by-default MFU IAM token-login, public status, authenticated status, local user mapping, and audit. |

@@ -12,7 +12,7 @@ Implement a non-destructive real-source/syslog pilot workflow that can verify so
 
 | Area | Source Evidence |
 | --- | --- |
-| User prompt | `C:\Users\User\.codex\attachments\9bb5642d-8c9a-4808-ab9b-d5a9a12f05b0\pasted-text.txt` |
+| User prompt | `<USER_REQUEST_ATTACHMENT>` |
 | Runtime app | `atdr/app/main.py`, `atdr/app/core/config.py` |
 | Data model | `atdr/app/db/models.py` |
 | Source management | `atdr/app/routers/sources.py`, `atdr/app/services/source_service.py` |

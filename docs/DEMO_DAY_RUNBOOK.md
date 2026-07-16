@@ -7,7 +7,7 @@ Use this checklist on local Windows before presenting to a supervisor.
 Open PowerShell in the project root:
 
 ```powershell
-cd C:\Users\User\Desktop\ATDR
+cd <ATDR_ROOT>
 .\.venv\Scripts\python.exe -m atdr.scripts.seed_users
 .\.venv\Scripts\python.exe -m atdr.scripts.config_doctor --pretty
 .\.venv\Scripts\python.exe -m uvicorn atdr.app.main:app --host 127.0.0.1 --port 8000
@@ -16,7 +16,7 @@ cd C:\Users\User\Desktop\ATDR
 In a second PowerShell window:
 
 ```powershell
-cd C:\Users\User\Desktop\ATDR
+cd <ATDR_ROOT>
 $env:API_BASE_URL="http://127.0.0.1:8000"
 .\.venv\Scripts\streamlit.exe run atdr/dashboard/streamlit_app.py --server.address 127.0.0.1 --server.port 8501 --server.headless true --browser.gatherUsageStats false
 ```

@@ -13,7 +13,7 @@ The goal is to prove the template has the expected school-login/IAM shell contra
 The official supervisor template at:
 
 ```text
-C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response
+<MFU_SHELL_ROOT>
 ```
 
 contains the expected IAM/login building blocks:

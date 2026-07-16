@@ -25,7 +25,7 @@ Create a source-backed plan for making ATDR detection and ML more product-grade 
 - `docs/V3_55_SEVERITY_TARGET_POLICY_REFRAMING.md`
 - `docs/V3_56_SOC_QUEUE_DIAGNOSTIC_INTEGRATION.md`
 - `docs/V3_59_SUPERVISED_OUTPUT_POLICY_CONTRACT.md`
-- Supervisor template PRD/workflow/taskboard under `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response`
+- Supervisor template PRD/workflow/taskboard under `<MFU_SHELL_ROOT>`
 
 ## T4 Current Behavior
 

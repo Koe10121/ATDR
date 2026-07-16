@@ -35,6 +35,7 @@ def _settings(tmp_path, **overrides) -> Settings:
     private_key.chmod(0o600)
     values = {
         "ENVIRONMENT": "preproduction",
+        "ATDR_AUTH_MODE": "template_shell",
         "DATABASE_URL": "postgresql+psycopg2://atdr:private-db-value@127.0.0.1:5432/atdr",
         "AUTO_CREATE_TABLES": False,
         "JWT_SECRET_KEY": "v396-private-test-signing-value-with-safe-length",
@@ -63,6 +64,7 @@ def _settings(tmp_path, **overrides) -> Settings:
         "MFU_IAM_ALLOWED_DOMAINS": "lamduan.mfu.ac.th",
         "MFU_IAM_TEMPLATE_SHELL_ENABLED": True,
         "MFU_IAM_TEMPLATE_SHELL_BASE_URL": "https://shell.example.test",
+        "MFU_IAM_TEMPLATE_SHELL_LAUNCH_URL": "https://shell.example.test/#/pages/login",
         "MFU_IAM_HANDOFF_ENABLED": True,
         "MFU_IAM_HANDOFF_SHARED_SECRET": "private-handoff-test-value",
         "MFU_IAM_HANDOFF_FRONTEND_URL": "https://atdr.example.test",
@@ -143,7 +145,7 @@ def test_approved_synthetic_profile_can_satisfy_source_checks(tmp_path, monkeypa
         backup_status_function=_fresh_backup,
     )
 
-    assert result["accepted"] is True
+    assert result["accepted"] is True, result["missing_requirement_ids"]
     assert result["status"] == "operational_acceptance_passed"
     assert result["missing_requirement_ids"] == []
     assert result["approved_host_evidence"] is True

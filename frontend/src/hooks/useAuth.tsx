@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { api } from "../lib/api";
+import { clearAssistantSession } from "../lib/assistantSession";
 import { clearSession, loadSession, saveSession, tokenToSession, userToCookieSession } from "../lib/session";
 import type { Session } from "../lib/session";
 
@@ -40,7 +41,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    const expire = () => setSession(null);
+    const expire = () => {
+      clearAssistantSession();
+      setSession(null);
+    };
     window.addEventListener("atdr:session-expired", expire);
     return () => window.removeEventListener("atdr:session-expired", expire);
   }, []);
@@ -81,6 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       logout: () => {
         void api.logout().catch(() => undefined);
+        clearAssistantSession();
         clearSession();
         setSession(null);
       }

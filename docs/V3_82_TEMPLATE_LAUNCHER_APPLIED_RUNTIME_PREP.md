@@ -13,13 +13,13 @@ The template can now show an **Open ATDR SOC Dashboard** button on the authentic
 Changed external file:
 
 ```text
-C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\frontend-vue\src\projects\views\mfuaidrivenlogbasedthreatdetectionandresponse\MFUAIDRIVENLOGBASEDTHREATDETECTIONANDRESPONSERegistry.vue
+<MFU_SHELL_ROOT>\frontend-vue\src\projects\views\mfuaidrivenlogbasedthreatdetectionandresponse\MFUAIDRIVENLOGBASEDTHREATDETECTIONANDRESPONSERegistry.vue
 ```
 
 Backup created:
 
 ```text
-C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\frontend-vue\src\projects\views\mfuaidrivenlogbasedthreatdetectionandresponse\MFUAIDRIVENLOGBASEDTHREATDETECTIONANDRESPONSERegistry.vue.bak-20260711T125345Z
+<MFU_SHELL_ROOT>\frontend-vue\src\projects\views\mfuaidrivenlogbasedthreatdetectionandresponse\MFUAIDRIVENLOGBASEDTHREATDETECTIONANDRESPONSERegistry.vue.bak-20260711T125345Z
 ```
 
 The external template folder is not part of the ATDR Git repo. The backup file should stay outside ATDR and should not be committed.
@@ -67,21 +67,21 @@ ATDR receives that through the v3.79 handoff receiver, clears token-like values 
 Start ATDR backend:
 
 ```powershell
-cd C:\Users\User\Desktop\ATDR
+cd <ATDR_ROOT>
 .\.venv\Scripts\python.exe -m uvicorn atdr.app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 Start ATDR frontend:
 
 ```powershell
-cd C:\Users\User\Desktop\ATDR\frontend
+cd <ATDR_ROOT>\frontend
 npm.cmd run dev
 ```
 
 Start the supervisor template backend:
 
 ```powershell
-cd C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\backend-node
+cd <MFU_SHELL_ROOT>\backend-node
 npm.cmd install
 npm.cmd run start:local
 ```
@@ -89,7 +89,7 @@ npm.cmd run start:local
 Start the supervisor template frontend:
 
 ```powershell
-cd C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\frontend-vue
+cd <MFU_SHELL_ROOT>\frontend-vue
 npm.cmd install
 npm.cmd run serve:local
 ```

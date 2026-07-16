@@ -9,6 +9,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 
+def _is_documentation_placeholder(value: str) -> bool:
+    clean = value.strip().lower()
+    return not clean or any(marker in clean for marker in ("replace-during", "replace-with", "change-this", "placeholder"))
+
+
 class Settings(BaseSettings):
     """Runtime settings loaded from environment variables or .env."""
 
@@ -68,6 +73,9 @@ class Settings(BaseSettings):
     syslog_batch_size: int = Field(default=100, alias="SYSLOG_BATCH_SIZE")
     login_rate_limit_attempts: int = Field(default=5, alias="LOGIN_RATE_LIMIT_ATTEMPTS")
     login_rate_limit_window_seconds: int = Field(default=300, alias="LOGIN_RATE_LIMIT_WINDOW_SECONDS")
+    # The MFU shell is the normal entry path. Local credentials are available
+    # only when an operator explicitly selects the recovery/test profile.
+    auth_mode: str = Field(default="template_shell", alias="ATDR_AUTH_MODE")
     oidc_enabled: bool = Field(default=False, alias="OIDC_ENABLED")
     oidc_provider_name: str = Field(default="", alias="OIDC_PROVIDER_NAME")
     oidc_client_id: str = Field(default="", alias="OIDC_CLIENT_ID")
@@ -373,6 +381,18 @@ class Settings(BaseSettings):
         return [path if path.startswith("/") else f"/{path}" for path in values]
 
     @property
+    def normalized_auth_mode(self) -> str:
+        return self.auth_mode.strip().lower()
+
+    @property
+    def local_login_enabled(self) -> bool:
+        return self.normalized_auth_mode == "local_recovery"
+
+    @property
+    def template_shell_required(self) -> bool:
+        return self.normalized_auth_mode == "template_shell"
+
+    @property
     def mfu_iam_domain_hints(self) -> list[str]:
         emails = [
             self.mfu_iam_project_account_email,
@@ -393,6 +413,20 @@ class Settings(BaseSettings):
 
 def validate_runtime_settings(settings: Settings) -> list[str]:
     issues: list[str] = []
+    auth_mode = settings.normalized_auth_mode
+    if auth_mode not in {"template_shell", "local_recovery"}:
+        issues.append("ATDR_AUTH_MODE must be 'template_shell' or 'local_recovery'.")
+    if auth_mode == "template_shell":
+        if not settings.mfu_iam_enabled:
+            issues.append("MFU_IAM_ENABLED must be true when ATDR_AUTH_MODE=template_shell.")
+        if not settings.mfu_iam_template_shell_enabled:
+            issues.append("MFU_IAM_TEMPLATE_SHELL_ENABLED must be true when ATDR_AUTH_MODE=template_shell.")
+        if not settings.mfu_iam_handoff_enabled:
+            issues.append("MFU_IAM_HANDOFF_ENABLED must be true when ATDR_AUTH_MODE=template_shell.")
+        if not settings.mfu_iam_template_shell_launch_url.strip():
+            issues.append("MFU_IAM_TEMPLATE_SHELL_LAUNCH_URL is required when ATDR_AUTH_MODE=template_shell.")
+        if _is_documentation_placeholder(settings.jwt_secret_key):
+            issues.append("JWT_SECRET_KEY must be a generated private value when ATDR_AUTH_MODE=template_shell.")
     if settings.db_pool_size <= 0:
         issues.append("DB_POOL_SIZE must be greater than zero.")
     if settings.db_max_overflow < 0:
@@ -440,16 +474,17 @@ def validate_runtime_settings(settings: Settings) -> list[str]:
             issues.append("OIDC_ALLOWED_DOMAINS is required when OIDC_ENABLED=true.")
     if settings.mfu_iam_default_role not in {"admin", "analyst"}:
         issues.append("MFU_IAM_DEFAULT_ROLE must be 'admin' or 'analyst'.")
-    if settings.mfu_iam_enabled:
+    if settings.mfu_iam_enabled and auth_mode == "template_shell":
         template_shell_enabled = settings.mfu_iam_template_shell_enabled
-        secure_handoff_enabled = template_shell_enabled and settings.mfu_iam_handoff_enabled
-        b2b_required = not settings.mfu_iam_mock_enabled and not secure_handoff_enabled
+        # Shell handoff and direct IAM B2B are separate contracts. A selected
+        # shell profile must never demand unrelated B2B client credentials.
+        b2b_required = False
         if template_shell_enabled and not settings.mfu_iam_template_shell_base_url.strip():
             issues.append("MFU_IAM_TEMPLATE_SHELL_BASE_URL is required when MFU_IAM_TEMPLATE_SHELL_ENABLED=true.")
         if settings.mfu_iam_handoff_enabled:
             if not template_shell_enabled:
                 issues.append("MFU_IAM_TEMPLATE_SHELL_ENABLED must be true when MFU_IAM_HANDOFF_ENABLED=true.")
-            if not settings.mfu_iam_handoff_shared_secret.strip():
+            if _is_documentation_placeholder(settings.mfu_iam_handoff_shared_secret):
                 issues.append("MFU_IAM_HANDOFF_SHARED_SECRET is required when MFU_IAM_HANDOFF_ENABLED=true.")
             if not settings.mfu_iam_handoff_exchange_path.strip().startswith("/"):
                 issues.append("MFU_IAM_HANDOFF_EXCHANGE_PATH must start with '/'.")

@@ -1,6 +1,6 @@
 # MFU ATDR React Dashboard
 
-This is the priority SOC dashboard for ATDR. It connects to the FastAPI backend at `http://127.0.0.1:8000` and provides the current React workflow for Overview, Alerts, Investigation, SOC Assistant, AI Governance, Response & Audit, Threat Controls, Detection Tuning, User Admin, and Demo Controls.
+This is the priority SOC dashboard for ATDR. It connects to FastAPI at `http://127.0.0.1:8000`. In the normal team profile, users enter it through the approved MFU outer shell and secure one-time handoff rather than a direct local login.
 
 Streamlit remains in the repository only as legacy/demo continuity while React is the main dashboard path.
 
@@ -18,7 +18,22 @@ ATDR remains a lab prototype, not certified production software. Response action
 
 Node 16 is unsupported, and Node 20 releases older than 20.19 may emit engine warnings with the current ESLint toolchain.
 
-## Setup
+## Normal Team Startup
+
+From the ATDR repository root, use the portable lifecycle commands:
+
+```powershell
+.\scripts\setup_team.cmd -TemplateRoot "D:\Path To\mfu-ai-driven-log-based-threat-detection-and-response"
+.\scripts\start_system.cmd
+```
+
+The browser opens the MFU shell at `http://127.0.0.1:8080/#/pages/login`. After shell authentication, **Open ATDR SOC Dashboard** establishes an HttpOnly ATDR session through a one-time server-side exchange.
+
+See `docs/TEAM_ONE_COMMAND_START.md` for prerequisites and troubleshooting.
+
+## Direct Frontend Development
+
+The following commands remain available for frontend development, but they are not the normal authenticated user entry path:
 
 ```powershell
 cd frontend
@@ -34,7 +49,7 @@ npm.cmd install
 npm.cmd run dev
 ```
 
-Open `http://127.0.0.1:5173`.
+Open `http://127.0.0.1:5173`. In `template_shell` mode, an unauthenticated browser is directed back to the MFU shell. Local credentials appear only in the explicit `local_recovery` profile.
 
 FastAPI must be running at `http://127.0.0.1:8000`. The backend CORS demo settings include the Vite dev origins:
 

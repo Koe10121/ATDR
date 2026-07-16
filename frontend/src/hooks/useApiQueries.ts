@@ -40,6 +40,7 @@ export const queryKeys = {
   watchlists: ["watchlists"],
   tuning: ["detection-tuning"],
   mlReport: ["ml-report"],
+  mlEvidenceSnapshot: ["ml-evidence-snapshot"],
   supervisedReport: ["supervised-report"],
   supervisedModels: ["supervised-models"],
   classTemporalCoverage: ["class-temporal-coverage"],
@@ -308,6 +309,10 @@ export function useMlReport() {
 
 export function useSupervisedReport() {
   return useQuery({ queryKey: queryKeys.supervisedReport, queryFn: api.supervisedReport, ...mlGovernanceQueryOptions });
+}
+
+export function useMlEvidenceSnapshot() {
+  return useQuery({ queryKey: queryKeys.mlEvidenceSnapshot, queryFn: api.mlEvidenceSnapshot, ...mlGovernanceQueryOptions });
 }
 
 export function useSupervisedModels() {

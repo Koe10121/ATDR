@@ -1,29 +1,37 @@
 # ATDR Lab Runbook
 
-This runbook keeps the normal local workflow intact while adding optional lab-readiness checks. SQLite remains valid for local testing. Docker and PostgreSQL are optional lab-pilot targets, not required for daily development.
+This runbook covers the portable MFU-shell team profile and deeper lab checks. SQLite remains the normal ATDR database. Docker and PostgreSQL are optional ATDR deployment targets; MongoDB is required locally only because the approved MFU shell owns authentication and account lifecycle.
 
-## Normal Local Workflow
+## Normal Team Workflow
 
-Start the backend:
+Run setup once with the separately approved shell path:
 
 ```powershell
-.\.venv\Scripts\python.exe -m uvicorn atdr.app.main:app --host 127.0.0.1 --port 8000 --reload
+.\scripts\setup_team.cmd -TemplateRoot "<MFU_SHELL_ROOT>"
 ```
 
-Start the React dashboard:
+Start all components:
 
 ```powershell
-cd frontend
-npm.cmd run dev
+.\scripts\start_system.cmd
 ```
 
 Open:
 
 ```text
-http://127.0.0.1:5173
+http://localhost:8080/#/pages/login
 ```
 
-This workflow must continue to support log import, detection, alert triage, ML Governance, reviewed CSV import, model retraining, simulated response actions, and audit review.
+Sign in through the shell, then open ATDR through its registry/dashboard action. The one-time handoff creates an HttpOnly ATDR session. Direct local credentials are available only in explicit `local_recovery` mode.
+
+Check or stop the system:
+
+```powershell
+.\scripts\check_system.cmd
+.\scripts\stop_system.cmd
+```
+
+The lifecycle retains the existing component commands internally and must continue to support log import, detection, alert triage, AI Governance, reviewed CSV import, diagnostic model training, simulated response actions, and audit review.
 
 ## Health Check
 
@@ -33,25 +41,28 @@ Invoke-RestMethod http://127.0.0.1:8000/health
 
 Expected result: status `ok`, database `ok`, and response mode `simulation`.
 
-## Optional Supervisor-Template Login Shell
+## MFU Supervisor-Template Login Shell
 
-ATDR can run behind the advisor-provided MFU template as an optional school-email identity shell. This does not replace FastAPI/React and does not change the normal local startup commands.
+ATDR runs behind the advisor-provided MFU template as the normal school-email identity shell. This does not replace FastAPI/React; it composes the separate Node/Vue/Mongo shell with the ATDR services.
 
 Safe readiness checks:
 
 ```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.template_auth_doctor --template-root "<MFU_SHELL_ROOT>" --pretty
 .\.venv\Scripts\python.exe -m atdr.scripts.validate_template_bridge_contract --pretty
 .\.venv\Scripts\python.exe -m atdr.scripts.validate_template_shell_runtime --check-runtime --pretty
 ```
 
+The authentication doctor must report matching configured frontend/backend Google clients, no legacy fallback, and `secrets_exposed: false`. Real account acceptance still requires an approved OAuth client and a successful MFU sign-in.
+
 The v3.91 flow is deliberately server-mediated: the template verifies its own school session, creates a short-lived single-use code, and submits it to ATDR by form POST. ATDR exchanges that code with the template backend, maps a minimal identity to a local user, defaults new external users to analyst, and grants admin only through approved IAM groups. No school token, OTP, or bridge secret may be placed in a URL, browser storage, or Git.
 
-Use `docs/V3_91_MFU_OUTER_SHELL_SECURE_HANDOFF.md` for private configuration and `docs/security/ATDR_MFU_IAM_PREPROD_VALIDATION.md` for live validation. Local username/password remains available when handoff is disabled or fails. Source-level implementation does not prove preproduction routing, IAM group values, provider-managed 2FA, recovery, or deprovisioning.
+Use `docs/TEAM_ONE_COMMAND_START.md` for local startup, `docs/V3_91_MFU_OUTER_SHELL_SECURE_HANDOFF.md` for the security contract, and `docs/security/ATDR_MFU_IAM_PREPROD_VALIDATION.md` for provider-backed validation. Local username/password is an explicit recovery profile, not an automatic fallback. Source-level implementation does not prove preproduction routing, IAM group values, provider-managed 2FA, recovery, or deprovisioning.
 
 The template launcher source lives outside this repository at:
 
 ```text
-C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\frontend-vue\src\views\Dashboard.vue
+<MFU_SHELL_ROOT>\frontend-vue\src\views\Dashboard.vue
 ```
 
 Do not copy template `.env` files or credentials into ATDR or Git.
@@ -245,6 +256,51 @@ Failure recovery:
 
 If resume is ineligible, upload the file as a new job. Do not copy an unverified file over the staged input and do not delete raw evidence to restart.
 
+## v3.97 Large-File Reliability Validation
+
+Apply the additive raw-log fingerprint migration before using the optimized worker:
+
+```powershell
+.\.venv\Scripts\alembic.exe upgrade head
+```
+
+Operations Health now shows cumulative raw imported, parsed, failed, and duplicate counts while a chunked import runs. Duplicate counts report previously seen content; they do not delete or suppress raw evidence.
+
+Run the 100,000-line acceptance check only with its required disposable-database flag:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.validate_large_ingestion --use-temp-db --lines 100000 --pretty
+```
+
+The validator creates synthetic generic syslog under ignored `.tmp` storage, forces a checkpoint handoff, validates resume/cancellation/file-change safety, verifies zero unsafe side effects, and cleans up. Without `--use-temp-db` it refuses to run. It never imports a private file and never targets the configured database.
+
+Expected v3.97 reference result: 100,000 raw and normalized rows, 0 parse failures, 200 chunk commits, 0 duplicate rows after resume, changed input rejected, cooperative cancellation passed, and no detection/model/label/response actions. Local runtime was about 138 seconds with an 8.71 MiB traced Python-memory peak; this is local synthetic evidence, not a capacity SLA.
+
+## v3.99 Frozen Multi-Source Revalidation
+
+v3.99 must use a migrated disposable validation database, not the configured database. Set `DATABASE_URL` only in the current PowerShell process:
+
+```powershell
+$env:DATABASE_URL='sqlite:///C:/path/to/disposable-validation.sqlite3'
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v399_multisource_frozen_revalidation --rows-per-source 240 --seed 399 --summary-only --pretty
+```
+
+The command generates three ignored source CSVs and a manifest under `ml_baseline_reviews/v3_99_evidence/`. They contain safe deterministic synthetic evidence and scenario expectations only. They are not human-reviewed, import-ready, real-device, or production evidence.
+
+Expected current reference result:
+
+- 720 attempted and accepted rows;
+- three source identities and four time windows;
+- zero exact, near-pattern, or used-feature overlap with reviewed evidence;
+- external rows used for fit/calibration/threshold selection: zero;
+- primary queue F1 approximately `0.9524-0.9551` and synthetic FPR `0.0`;
+- calibration remains weak;
+- readiness remains `candidate_only`;
+- database counts and active artifact metadata remain unchanged;
+- model activation and response automation remain disabled.
+
+Do not tune using these final results. See `docs/V3_99_INDEPENDENT_MULTI_SOURCE_EVIDENCE_AND_FROZEN_REVALIDATION.md` for protocol and limitations.
+
 ## v3.94 PostgreSQL Multi-Worker And Managed Deployment
 
 The local SQLite workflow remains one worker. Do not set `OPERATION_WORKER_CONCURRENCY` above `1` for SQLite.
@@ -342,7 +398,7 @@ Run against the safe sample file without resetting current data:
 Run against an explicit private log path only when intended:
 
 ```powershell
-.\.venv\Scripts\python.exe -m atdr.scripts.run_lab_scenario --sample-path "C:/Users/User/Downloads/paloalto-firewall(1).log" --limit 5000 --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_lab_scenario --sample-path "$HOME\Downloads\paloalto-firewall.log" --limit 5000 --pretty
 ```
 
 Optional destructive demo reset is explicit:
@@ -358,7 +414,7 @@ The output includes import timing, detection timing, ML scoring timing when enab
 ## Import Logs Manually
 
 ```powershell
-.\.venv\Scripts\python.exe -m atdr.scripts.import_logs "C:/Users/User/Downloads/paloalto-firewall(1).log" --limit 5000
+.\.venv\Scripts\python.exe -m atdr.scripts.import_logs "$HOME\Downloads\paloalto-firewall.log" --limit 5000
 ```
 
 Real or large logs should stay outside Git. Do not place private logs in the repository root.
@@ -933,7 +989,7 @@ Replay directly as a named source and run source-linked detection afterward:
 Replay a real/private log only when you explicitly provide the path:
 
 ```powershell
-.\.venv\Scripts\python.exe -m atdr.scripts.replay_logs --sample-path "C:/Users/User/Downloads/paloalto-firewall(1).log" --send-to syslog --limit 100 --rate 1 --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.replay_logs --sample-path "$HOME\Downloads\paloalto-firewall.log" --send-to syslog --limit 100 --rate 1 --pretty
 ```
 
 Keep real and large logs outside Git.
@@ -1465,3 +1521,63 @@ On an approved host only, add the exact read-only probe confirmation:
 For a local GET-only load sample, keep the short-lived token in `ATDR_LOAD_TEST_BEARER_TOKEN` and optionally observe internal metrics with `--metrics-url http://127.0.0.1:8000/metrics`. Remove the token immediately afterward. Remote load also requires `--allow-remote --confirm READ_ONLY_REMOTE_LOAD_TEST` and prior target approval.
 
 The current private configuration enables MFU IAM without completing B2B or secure-handoff requirements. For normal local SQLite use, temporarily set `MFU_IAM_ENABLED=false`; otherwise complete the private v3.91 handoff fields. Never post their values. See `docs/V3_96_PREPRODUCTION_DEPLOYMENT_REHEARSAL.md` and `docs/V3_96_OPERATIONAL_ACCEPTANCE_CHECKLIST.md`.
+
+## v4.0 Provider-Blinded External Validation
+
+The v4.0 evaluator is a diagnostic research command, not a normal startup step. It requires the two verified official CSE-CIC-IDS2018 files documented in `docs/V4_0_PROVIDER_BLINDED_EXTERNAL_EVIDENCE_AND_FROZEN_VALIDATION.md` beneath ignored `.tmp/external_evidence/cse_cic_ids2018/`.
+
+Run it only against a migrated disposable database:
+
+```powershell
+$env:DATABASE_URL='sqlite:///C:/path/to/disposable-validation.sqlite3'
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v400_provider_blinded_external_validation --rows-per-file 2000 --seed 400 --summary-only --pretty
+```
+
+Expected protocol evidence:
+
+- provider sizes and SHA-256 values verified;
+- feature sample excludes `Label`;
+- prediction artifact is written and hashed before labels are reopened;
+- external fit/calibration/threshold rows are `0/0/0`;
+- provider labels remain non-human and non-importable;
+- no database/model/response side effect occurs;
+- readiness remains `candidate_only`.
+
+The current frozen candidate fails the external benign-FPR gate. Do not tune against the v4.0 labels and do not present the result as production accuracy.
+
+## v4.1 Schema-Aware SOC Queue Development Validation
+
+v4.1 is a diagnostic research command, not a normal dashboard workflow. It uses a separate verified CSE-CIC-IDS2018 development corpus, locks the v4.0 final benchmark by name and SHA-256, and must run only against a migrated disposable database. It does not write labels, active model artifacts, detection runs, response actions, or raw operational evidence.
+
+```powershell
+$env:DATABASE_URL='sqlite:///C:/path/to/disposable-validation.sqlite3'
+$env:MFU_IAM_ENABLED='false'
+$env:ASSISTANT_LLM_ENABLED='false'
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v401_schema_aware_soc_queue --rows-per-provider-label 3000 --seed 401 --summary-only --pretty
+```
+
+Required ignored development files belong under `.tmp/development_corpus/cse_cic_ids2018_v41/`. The command fails closed if checksums differ, a v4.0 locked artifact is supplied for development, or the reserved future benchmark is used. Treat its results as candidate-only: v4.1 random-split metrics are not a production claim because calibration and time/source/schema-held-out stability remain weak.
+
+## v4.2 SOC Assistant Presentation Check
+
+The SOC Assistant retrieves bounded structured context from ATDR services and displays the returned records/documentation under **Grounded In**. Gemini is an optional wording and summarization layer; it is not the detector or database source.
+
+Safe provider checks do not print the key:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.test_assistant_llm_provider --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.test_assistant_llm_provider --execute --pretty
+```
+
+Use `--execute` only when the private `.env` intentionally enables a supported provider. Expected safety fields are `raw_log_context_allowed=false`, `raw_log_context_included=false`, `redaction_enabled=true`, and `secrets_exposed=false`. Provider failure must leave the Local Evidence Assistant available.
+
+Manual workflow:
+
+1. Open **SOC Assistant** and ask about an existing alert ID.
+2. Confirm concise Summary, Why flagged / evidence, Analyst next steps, Safety, and Grounded In sections.
+3. Click a follow-up and verify the same alert remains active.
+4. Navigate to another page and return; the question and answer should remain without another provider request.
+5. Use **Clear context** before starting a different investigation.
+6. Confirm no response-action, detection, label, model, account, deletion, or firewall control is present.
+
+The browser snapshot is tab/session scoped and stores only whitelisted rendered fields. It excludes raw-log context, secrets, tokens, and arbitrary technical payloads. Logout and session expiry clear it. See `docs/V4_2_PRESENTATION_READY_SOC_ASSISTANT.md`.

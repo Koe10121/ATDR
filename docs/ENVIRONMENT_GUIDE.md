@@ -73,7 +73,7 @@ SYSLOG_HOST=127.0.0.1
 
 Demo credentials and the demo JWT secret are intentionally easy to use locally and must not be reused for shared lab or production deployment.
 
-The demo sample path points to a safe tiny sample in `data/samples/`. For real Palo Alto files, set `DEMO_SAMPLE_LOG_PATH` in your private `.env` to an absolute path outside Git, such as `C:/Users/User/Downloads/paloalto-firewall(1).log`.
+The demo sample path points to a safe tiny sample in `data/samples/`. For real Palo Alto files, set `DEMO_SAMPLE_LOG_PATH` in your private `.env` to an absolute path outside Git, such as `<USER_HOME>/Downloads/paloalto-firewall(1).log`.
 
 ## Lab Pilot Profile
 

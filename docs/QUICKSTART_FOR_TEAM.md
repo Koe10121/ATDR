@@ -1,433 +1,176 @@
 # ATDR Quickstart For Team Members
 
-This guide is for teammates who want to download ATDR, run it locally, and open the React dashboard on Windows.
+This is the Windows quickstart for a fresh clone or zip. ATDR's normal entry is the approved MFU application shell; direct React login is not the normal user workflow.
 
-MongoDB is not used currently. The local development database is SQLite because it works with the current FastAPI + SQLAlchemy + Alembic backend and is easiest for a teammate laptop.
+## Architecture You Will Run
 
-## What You Will Run
+| Component | Stack | Local port |
+| --- | --- | ---: |
+| MFU outer-shell frontend | Vue | 8080 |
+| MFU outer-shell backend | Node/Express/MongoDB | 8214 |
+| ATDR API | FastAPI/SQLAlchemy | 8000 |
+| ATDR SOC console | React/Vite | 5173 |
 
-Backend:
+ATDR continues to use SQLite by default. MongoDB is required only by the separately supplied MFU shell.
+
+## Requirements
+
+- Windows 10/11 and PowerShell.
+- Python 3.11.
+- Node.js `20.19.0` or newer and npm. Node 16 and Node 20 releases below 20.19 are unsupported by the current Vite/Playwright toolchain.
+- MongoDB Community Server for the shell.
+- Git, or a GitHub zip download.
+- The separately approved supervisor shell and its private backend/frontend environment files.
+- One approved Google OAuth Web client ID supplied through the university channel.
+
+Never commit the shell's `.env.local`, ATDR `.env`, API keys, DB files, real logs, model artifacts, `ml_baseline_reviews/`, `demo_exports/`, or generated reports.
+
+ATDR configuration references are `.env.example` for explicit local recovery/development, `.env.shell.example` for the normal MFU-shell profile, `.env.lab.example` for optional PostgreSQL lab work, and `frontend/.env.example` for direct React component development. Never commit the private files created from them.
+
+## 1. Get Both Repositories
+
+Clone or extract ATDR into any folder:
 
 ```powershell
-.\.venv\Scripts\python.exe -m uvicorn atdr.app.main:app --host 127.0.0.1 --port 8000 --reload
+git clone <ATDR_REPOSITORY_URL> ATDR
+Set-Location .\ATDR
 ```
 
-Frontend:
+Obtain the approved MFU shell separately from the supervisor/team channel. It can live anywhere and must not be nested into tracked ATDR source. Obtain its private environment through the approved channel.
+
+Provider configuration may be added before or after installation. Normal startup requires the same approved Google OAuth Web client ID in these ignored shell files:
+
+```text
+frontend-vue/.env.localdev: VUE_APP_CLIENTID=<approved client ID>
+backend-node/.env.local:    GOOGLE_CLIENT_ID=<the same client ID>
+```
+
+The local authorized JavaScript origin is exactly `http://localhost:8080`. Do not use the machine IP or `127.0.0.1` for the Google login page, and do not put the client value in ATDR source or documentation.
+
+Check the configuration without displaying either value:
 
 ```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.template_auth_doctor `
+  --template-root "D:\Path To\mfu-ai-driven-log-based-threat-detection-and-response" `
+  --pretty
+```
+
+## 2. Start MongoDB
+
+Start the local MongoDB service used by the shell. The setup preflight checks `127.0.0.1:27017` but does not install or reset MongoDB.
+
+## 3. Run Setup Once
+
+From the ATDR root:
+
+```powershell
+.\scripts\setup_team.cmd -TemplateRoot "D:\Path To\mfu-ai-driven-log-based-threat-detection-and-response"
+```
+
+This installs pinned Python dependencies from `requirements.lock.txt` plus lockfile-backed JavaScript dependencies, creates ignored private configuration, generates local secrets, saves the shell path in ignored runtime metadata, backs up an existing SQLite database, and runs additive migrations. It does not reset or seed data. Installation can complete when private MFU/Google settings are unavailable; setup reports `provider_configuration_ready: false`, and startup stays blocked until the approved provider profile is installed.
+
+Preview the operation without changes:
+
+```powershell
+.\scripts\setup_team.cmd -TemplateRoot "D:\Path To\mfu-ai-driven-log-based-threat-detection-and-response" -DryRun
+```
+
+For an existing ATDR `.env`, use `-UpdateExistingConfig` only after reviewing the change. Setup creates an ignored backup first.
+
+## 4. Start The Whole System
+
+```powershell
+.\scripts\start_system.cmd
+```
+
+The launcher checks configuration and ports, starts all four services, waits for readiness, and opens:
+
+```text
+http://localhost:8080/#/pages/login
+```
+
+Sign in through the MFU shell. After authentication, choose **Open ATDR SOC Dashboard**. The shell issues a short-lived one-time code, ATDR exchanges it server-to-server, and the browser receives an HttpOnly ATDR session cookie.
+
+## 5. Check Or Stop
+
+```powershell
+.\scripts\check_system.cmd
+.\scripts\stop_system.cmd
+```
+
+The check command reports readiness and missing field names without secret values. The stop command acts only on launcher-recorded processes.
+
+## First Safe Validation
+
+After entering ATDR, confirm Overview, Alerts, Investigation, SOC Assistant, AI Governance, and Response & Audit load. Response must show simulation/automation-disabled status.
+
+Safe CLI validation:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.replay_logs --dry-run --limit 20 --rate 5 --pretty
+```
+
+No log is written during this dry run.
+
+Preview the idempotent bundled dashboard scenario:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.prepare_safe_demo --pretty
+```
+
+The preview writes nothing. Intentional execution requires `--execute --confirm SAFE_SYNTHETIC_DEMO`, uses synthetic evidence only, never resets data, and never creates response actions.
+
+## Component Development And Recovery
+
+The shell-first launcher is the normal user workflow. For an authorized recovery event or focused component development, the established commands remain available after selecting `ATDR_AUTH_MODE=local_recovery` privately:
+
+```powershell
+python -m atdr.scripts.check_dev_environment
+python -m atdr.scripts.seed_users
 cd frontend
 npm.cmd run dev
 ```
 
-Dashboard:
+The direct React component URL is `http://127.0.0.1:5173`. It is not the normal authentication entry in `template_shell` mode.
 
-```text
-http://127.0.0.1:5173
-```
-
-## Requirements
-
-Install these first:
-
-- Python 3.11 or newer
-- Node.js 20.19.0 or newer, preferably the current Node 20 LTS release, with npm
-- Git, if cloning instead of downloading a zip
-- VS Code, recommended
-
-Node.js 20.19.0 or newer is recommended because the current Vite, ESLint, and Playwright toolchain requires newer Node APIs. Node 16 is unsupported, and older Node 20 releases may emit engine warnings or fail future installs.
-
-## Option A: Clone From GitHub
-
-```powershell
-cd C:\Users\User\Desktop
-git clone <your-atdr-repo-url> ATDR
-cd ATDR
-```
-
-Replace `<your-atdr-repo-url>` with the actual GitHub repository URL.
-
-## Option B: Zip Download Setup
-
-1. Open the GitHub repository in your browser.
-2. Click **Code**.
-3. Click **Download ZIP**.
-4. Extract the zip file.
-5. Rename the extracted folder to `ATDR` if needed.
-6. Open PowerShell in the extracted folder:
-
-```powershell
-cd C:\Users\User\Desktop\ATDR
-```
-
-Zip downloads do not include Git history, but the app can still run normally.
-
-## Backend Setup
-
-From the project root:
-
-```powershell
-cd C:\Users\User\Desktop\ATDR
-py -3.11 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-```
-
-If `py -3.11` does not work, try:
-
-```powershell
-python -m venv .venv
-```
-
-Copy the local environment example:
-
-```powershell
-Copy-Item .env.example .env
-```
-
-Apply database migrations:
-
-```powershell
-.\.venv\Scripts\alembic.exe upgrade head
-```
-
-Create demo users:
-
-```powershell
-python -m atdr.scripts.seed_users
-```
-
-Default local demo users from `.env.example`:
-
-```text
-admin / admin123
-analyst / analyst123
-```
-
-These are only for local demo use. Replace them before shared lab use.
-
-## Validate Backend Setup
-
-Run the environment checker:
-
-```powershell
-python -m atdr.scripts.check_dev_environment --pretty --no-api
-```
-
-This checks Python, backend dependencies, `.env`, SQLite database connection if the DB exists, Alembic drift, frontend files, Node/npm, and safe sample files. It does not reset the database and does not import real logs.
-
-## Start Backend
-
-From the project root:
-
-```powershell
-.\.venv\Scripts\python.exe -m uvicorn atdr.app.main:app --host 127.0.0.1 --port 8000 --reload
-```
-
-Open another PowerShell window and check:
-
-```powershell
-Invoke-RestMethod http://127.0.0.1:8000/health
-```
-
-If the backend is running, the health response should show database status, ML model status, and response mode.
-
-## Frontend Setup
-
-Open a second PowerShell window. The frontend environment template is `frontend/.env.example`.
-
-```powershell
-cd C:\Users\User\Desktop\ATDR\frontend
-Copy-Item .env.example .env
-npm.cmd install
-npm.cmd run dev
-```
-
-Open:
-
-```text
-http://127.0.0.1:5173
-```
-
-Login with:
-
-```text
-admin / admin123
-```
-
-## Optional MFU Outer-Shell Sign-In
-
-Normal teammate setup uses the local ATDR account above. School-email sign-in is an optional two-service configuration: the official MFU template owns school login and 2FA, then hands a short-lived one-time code to ATDR. It is not required to develop or test ATDR locally.
-
-Do not copy a template `.env`, IAM client secret, browser token, or OTP into ATDR. An approved operator must configure both private environments with a fresh shared bridge secret and exact origins. Follow [v3.91 secure handoff](V3_91_MFU_OUTER_SHELL_SECURE_HANDOFF.md) and the [preproduction checklist](security/ATDR_MFU_IAM_PREPROD_VALIDATION.md) before enabling it. Local ATDR login remains available as a recovery path.
-
-## Run A Safe Scenario Test
-
-From a PowerShell window in the project root with the virtual environment active:
-
-```powershell
-python -m atdr.scripts.run_source_scenario --scenario port_scan_like_traffic --use-temp-db --run-detection --pretty
-```
-
-This uses a temporary database and safe synthetic logs. It does not modify your current local ATDR database.
-
-To intentionally run a scenario into your local dashboard database:
-
-```powershell
-python -m atdr.scripts.run_source_scenario --scenario port_scan_like_traffic --source-name teammate-scenario-firewall --run-detection --pretty
-```
-
-Only do this when you want the scenario to appear in the dashboard.
-
-## Run Replay Dry-Run
-
-```powershell
-python -m atdr.scripts.replay_logs --dry-run --limit 20 --rate 5 --pretty
-```
-
-Dry-run shows what would be replayed but does not write logs to the database.
-
-## Import Real Or Large Logs
-
-Keep real logs outside Git, for example:
-
-```text
-C:\Users\User\Downloads\paloalto-firewall.log
-```
-
-Do not copy real or large firewall logs into the repository.
-
-Example import:
-
-```powershell
-python -m atdr.scripts.import_logs "C:\Users\User\Downloads\paloalto-firewall.log" --limit 5000
-```
-
-For large imports, use smaller chunks. SQLite is convenient but slower for large datasets. PostgreSQL is recommended later for shared lab deployment.
+The safe two-line sample is `data/samples/paloalto-demo.txt`. Keep large or real logs outside Git and provide their private path only at runtime.
 
 ## Database Choice
 
-### SQLite For Local Development
+- **SQLite** remains the default ATDR database for one-machine local use.
+- **PostgreSQL** is the optional shared-lab/deployment database and is configured through `.env.lab.example`; it is not required for normal local startup.
+- **MongoDB is not used currently by ATDR**; it belongs only to the separate supervisor MFU shell. ATDR has not migrated to MongoDB and keeps its relational SQLAlchemy/Alembic data model.
 
-ATDR currently uses SQLite by default:
+Do not migrate ATDR to MongoDB as part of teammate setup; the shell and ATDR intentionally retain separate persistence architectures.
 
-```text
-DATABASE_URL="sqlite:///./atdr.db"
-```
+## Recovery Profile
 
-SQLite is good for:
-
-- One-person local setup.
-- Class project demos.
-- Small local tests.
-- Easy zip/clone setup with no separate database server.
-
-### PostgreSQL For Optional Lab Deployment
-
-PostgreSQL is the recommended future/shared lab database because it handles larger data and concurrent access better than SQLite. Use `.env.lab.example` as the starting point only when a PostgreSQL or Docker-capable lab host is available.
-
-If `.env` contains a PostgreSQL URL with host `postgres`, that host is a Docker Compose service name. It will not resolve on a normal Windows terminal unless the Docker/PostgreSQL lab stack is running.
-
-For normal local dashboard testing, `.env` should use:
-
-```env
-DATABASE_URL="sqlite:///./atdr.db"
-AUTO_CREATE_TABLES=true
-ENVIRONMENT="development"
-RESPONSE_SIMULATION=true
-```
-
-Preview a safe switch back to the local SQLite profile:
-
-```powershell
-python -m atdr.scripts.use_local_sqlite_config --dry-run --pretty
-```
-
-Write the local SQLite profile only when you intentionally want to update `.env`:
-
-```powershell
-python -m atdr.scripts.use_local_sqlite_config --write --pretty
-```
-
-The write mode preserves a backup under ignored `.tmp/env-backups/`.
-
-### MongoDB Is Not Used Currently
-
-Do not migrate ATDR to MongoDB for v0.3.
-
-ATDR has relational workflow data that fits SQLAlchemy/Alembic well:
-
-- users and roles
-- raw logs and normalized logs
-- alerts and alert evidence
-- ML labels and model runs
-- audit logs
-- sources and run history
-- simulated response actions
-
-MongoDB could be future research for a raw log archive or external log lake, but it is not needed for the current ATDR backend.
-
-## Optional Backup And Shared-Lab Validation
-
-Normal local use still requires only SQLite. To validate the current installation without touching `atdr.db`, run:
-
-```powershell
-python -m atdr.scripts.validate_persistence_profile --pretty
-```
-
-This creates temporary synthetic SQLite databases under ignored `.tmp/`, applies migrations, creates a backup and checksum manifest, restores into a separate empty target, and verifies that the current database did not change.
-
-To back up the current local database, choose a directory outside the repository or an ignored directory:
-
-```powershell
-python -m atdr.scripts.backup_database --output-dir C:\ATDR-backups --execute --pretty
-```
-
-PostgreSQL is optional and requires an approved host plus `pg_dump` and `pg_restore`. Follow `docs/V3_89_SHARED_LAB_PERSISTENCE_AND_BACKUP_RESTORE.md`; do not change the normal SQLite `.env` merely to run the dashboard.
+`ATDR_AUTH_MODE=local_recovery` exposes local username/password login for an authorized development or recovery event. It is not the standard teammate workflow and is not selected by the team launcher.
 
 ## Common Problems
 
-### Backend Not Reachable
+| Problem | Resolution |
+| --- | --- |
+| `.ps1` scripts are blocked | Use the documented `.cmd` launchers; they do not change permanent execution policy. |
+| Node version is rejected | Install Node.js 20.19 or newer. `node --version` must report at least `v20.19.0`. |
+| Shell not found | Rerun setup with the correct `-TemplateRoot`. No developer path is hardcoded. |
+| MongoDB unavailable | Start the MongoDB service, then run `check_system.cmd`. |
+| Port 8000/5173/8214/8080 busy | Run `stop_system.cmd`; stop any non-launcher process using the reported port. |
+| Configuration incomplete | Run `check_system.cmd` and correct only the named fields in private configuration. |
+| `frontend_client_not_configured` | Set `VUE_APP_CLIENTID` in ignored `frontend-vue/.env.localdev`. |
+| `backend_client_not_configured` | Set matching `GOOGLE_CLIENT_ID` in ignored `backend-node/.env.local`. |
+| `client_id_mismatch` | Make the two private client IDs identical; do not print them while diagnosing. |
+| Google `400 invalid_request` | Use `http://localhost:8080`; ask the MFU/Google administrator to authorize that exact JavaScript origin and school account/domain for the approved OAuth client. |
+| MFU sign-in fails | Run `template_auth_doctor`; never paste tokens, client values, or private environment files into support messages. |
+| Handoff fails | Confirm the shell is started by the team launcher and both services share the generated private bridge secret. |
+| Large log is outside the repo | This is correct. Pass its private absolute path through the dashboard or CLI; never copy it into Git. |
+| Safe sample imports only a few rows | The bundled sample is intentionally small. Use an external synthetic/private file for larger tests. |
 
-Check that Uvicorn is running:
+## More Detail
 
-```powershell
-Invoke-RestMethod http://127.0.0.1:8000/health
-```
-
-If it fails, start the backend again from the project root.
-
-### Port 8000 Already In Use
-
-Another backend may already be running. Close the old terminal or inspect the port:
-
-```powershell
-netstat -ano | Select-String "127.0.0.1:8000"
-```
-
-### Frontend Cannot Connect To Backend
-
-Check `frontend\.env`:
-
-```text
-VITE_API_BASE_URL=http://127.0.0.1:8000
-```
-
-Restart `npm.cmd run dev` after changing frontend env values.
-
-### npm Install Error
-
-Use `npm.cmd` on Windows PowerShell:
-
-```powershell
-npm.cmd install
-```
-
-If Node is missing, install Node.js 20.19.0 or a newer Node 20 LTS release and reopen PowerShell. Upgrade Node 16 or older Node 20 releases before relying on frontend build or Playwright checks.
-
-### Alembic Migration Error
-
-Make sure the virtual environment is active and backend requirements are installed:
-
-```powershell
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-.\.venv\Scripts\alembic.exe upgrade head
-```
-
-### Missing `.env`
-
-Copy the example:
-
-```powershell
-Copy-Item .env.example .env
-```
-
-Do not commit `.env`.
-
-### Dashboard Login Issue
-
-Create demo users:
-
-```powershell
-python -m atdr.scripts.seed_users
-```
-
-Then log in with `admin / admin123`.
-
-If login returns `Database unavailable` or logs show `could not translate host name "postgres"`, your `.env` is probably using the optional PostgreSQL lab profile while Docker/PostgreSQL is not running. Run:
-
-```powershell
-python -m atdr.scripts.config_doctor --pretty
-python -m atdr.scripts.use_local_sqlite_config --dry-run --pretty
-```
-
-For normal local testing, switch `.env` back to SQLite as shown in the Database Choice section.
-
-### Email Verification / Dev Outbox
-
-Email verification is disabled by default. The normal local dashboard does not send real email:
-
-```env
-EMAIL_NOTIFICATIONS_ENABLED=false
-EMAIL_VERIFICATION_ENABLED=false
-EMAIL_DELIVERY_MODE="disabled"
-```
-
-For local testing only, admins can use the dev outbox:
-
-```env
-EMAIL_NOTIFICATIONS_ENABLED=true
-EMAIL_VERIFICATION_ENABLED=true
-EMAIL_DELIVERY_MODE="dev_outbox"
-```
-
-Restart the backend after changing `.env`, then open Admin / User Admin. Verification codes appear only in the admin-only dev outbox. Do not commit `.env`, SMTP passwords, or real email-provider secrets.
-
-### Safe Sample Only Has A Few Logs
-
-The safe demo sample at `data/samples/paloalto-demo.txt` is intentionally tiny. If you request 1000 demo logs but the safe sample has only a few lines, ATDR can only import what exists in that sample. Use a larger private sample path outside Git when testing larger imports.
-
-### Real Logs And Generated Files Must Stay Out Of Git
-
-Do not commit:
-
-- real firewall/router logs
-- `atdr.db`
-- `.env`
-- model artifacts
-- `ml_baseline_reviews/`
-- `demo_exports/`
-- generated reports
-
-## Quick Verification Checklist
-
-Run these after setup:
-
-```powershell
-python -m atdr.scripts.check_dev_environment --pretty
-python -m atdr.scripts.replay_logs --dry-run --limit 20 --rate 5 --pretty
-```
-
-Optional fuller local check:
-
-```powershell
-.\.venv\Scripts\python.exe -m atdr.scripts.verify_release
-```
-
-### Optional Queued Operation Worker
-
-The normal backend does not start a worker. After an admin has explicitly queued a long import/detection/ML/report operation, process one safe cycle with:
-
-```powershell
-.\.venv\Scripts\python.exe -m atdr.scripts.run_operation_worker --once --pretty
-```
-
-For normal teammate use, leave `OPERATION_WORKER_ENABLED=false`. Do not start `--watch` unless the team intentionally wants a separate local/shared-lab worker process.
-
-## What Remains Simulated
-
-- Response actions are simulated.
-- No real firewall blocking is enabled.
-- ML is decision support only.
-- The system is lab-ready for controlled validation, not certified production software.
+- Full lifecycle: `docs/TEAM_ONE_COMMAND_START.md`
+- Lab operations: `docs/LAB_RUNBOOK.md`
+- v4.3 design and limits: `docs/V4_3_PORTABLE_MFU_SHELL_RUNTIME.md`
+- v4.4 authentication stabilization: `docs/V4_4_MFU_AUTH_STABILIZATION.md`
+- v4.5 reproducible baseline: `docs/V4_5_REPRODUCIBLE_PRODUCT_BASELINE.md`
+- IAM acceptance boundary: `docs/security/ATDR_MFU_IAM_PREPROD_VALIDATION.md`

@@ -8,14 +8,14 @@ Purpose: Phase 3 productization cleanup plan. This document classifies current r
 
 | Evidence | Result |
 | --- | --- |
-| Active goal prompt | `C:\Users\User\.codex\attachments\d6634f84-e46f-4a9a-adce-8401669585af\pasted-text-1.txt` |
+| Active goal prompt | `<USER_REQUEST_ATTACHMENT>` |
 | Current state lock | `docs/CURRENT_SYSTEM_STATE_LOCK.md` |
 | Template gap analysis | `docs/PRODUCTIZATION_TEMPLATE_GAP_ANALYSIS.md` |
 | Productization roadmap | `docs/ATDR_PRODUCTIZATION_ROADMAP.md` |
 | Ignore rules | `.gitignore` |
 | Tracked top-level inventory | `git ls-files` |
 | Ignored local inventory | `git status --ignored --short` |
-| Official supervisor template | `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response` |
+| Official supervisor template | `<MFU_SHELL_ROOT>` |
 | In-repo template copy | `NewSystem/` |
 
 Secret values were not inspected, printed, or copied. `.env` files are classified as protected local configuration.
@@ -24,7 +24,7 @@ Secret values were not inspected, printed, or copied. `.env` files are classifie
 
 - The repository tracks the active ATDR backend, frontend, migrations, safe sample data, docs, scripts, and CI files.
 - The repository also tracks a large `NewSystem/` reference copy with 526 tracked files.
-- The official supervisor template exists outside the repository at `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response`.
+- The official supervisor template exists outside the repository at `<MFU_SHELL_ROOT>`.
 - The workspace contains ignored local/private/generated artifacts such as `.env`, `atdr.db`, virtual environments, caches, model artifacts, processed logs, `ml_baseline_reviews/`, `demo_exports/`, frontend build output, and template `.env` / `node_modules` folders.
 - `.gitignore` already protects the major sensitive/generated categories: `.env`, `**/.env.local`, `**/.env.preprod`, `**/.env.prod`, DB files, SQLite files, logs, model artifacts, processed data, frontend build/test output, `demo_exports/`, `ml_baseline_reviews/`, and `node_modules/`.
 
@@ -116,7 +116,7 @@ Do not print `.env` contents.
 
 ### Step 1: Freeze Reference Truth
 
-- Keep `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response` as the canonical supervisor template.
+- Keep `<MFU_SHELL_ROOT>` as the canonical supervisor template.
 - Update ATDR docs to point to that path for live template reference.
 - Keep `docs/CURRENT_SYSTEM_STATE_LOCK.md`, `docs/PRODUCTIZATION_TEMPLATE_GAP_ANALYSIS.md`, and `docs/ATDR_PRODUCTIZATION_ROADMAP.md` as active productization memory.
 

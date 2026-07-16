@@ -132,7 +132,7 @@ export function UserAdmin() {
           </div>
         </div>
         <div className="mt-3 rounded-lg border border-line bg-panel2 p-3 text-sm text-muted">
-          Local username/password login remains active. OIDC login is configuration groundwork only until school provider details are approved.
+          Normal access uses the MFU application shell. Local username/password access is available only in the explicit recovery profile.
         </div>
       </section>
 
@@ -210,7 +210,7 @@ export function UserAdmin() {
           </div>
         </div>
         <div className="mt-3 rounded-lg border border-line bg-panel2 p-3 text-sm text-muted">
-          The supervisor template owns school login and 2FA, then launches ATDR through a single-use server-side handoff. ATDR keeps local login as a fallback and grants admin only through configured IAM groups.
+          The supervisor shell owns school login and 2FA, then launches ATDR through a single-use server-side handoff. New approved users default to analyst; admin access requires an explicit IAM group mapping.
         </div>
         {mfuIamStatus.isError ? <ErrorBanner error={mfuIamStatus.error} fallback="MFU IAM status is unavailable." /> : null}
       </section>

@@ -482,6 +482,29 @@ def assistant_status(settings: Settings) -> dict[str, Any]:
     }
 
 
+def _grounding_details(citations: list[Citation]) -> dict[str, Any]:
+    source_types: list[str] = []
+    for citation in citations:
+        if citation.source.startswith("/api/"):
+            source_type = "ATDR database/service"
+        elif citation.source.startswith("docs/"):
+            source_type = "ATDR documentation"
+        elif citation.source.startswith(("atdr/", "frontend/")):
+            source_type = "ATDR implementation reference"
+        else:
+            source_type = "ATDR reference"
+        if source_type not in source_types:
+            source_types.append(source_type)
+    return {
+        "policy": "bounded_structured_atdr_context",
+        "evidence_available": bool(citations),
+        "source_count": len(citations),
+        "source_types": source_types,
+        "external_provider_role": "explanation_and_summarization_only",
+        "raw_logs_included": False,
+    }
+
+
 def list_assistant_history(db: Session, *, current_user: User, limit: int = 20) -> list[dict[str, Any]]:
     statement = select(AuditLog).where(AuditLog.action == "assistant_question")
     if current_user.role != "admin":
@@ -820,6 +843,7 @@ def answer_assistant_question(
         "conversation_id": resolved_conversation_id,
         "active_context": active_context,
     }
+    response["details"]["grounding"] = _grounding_details(result.citations)
     conversation_history = _load_conversation_history(
         db,
         actor=actor,

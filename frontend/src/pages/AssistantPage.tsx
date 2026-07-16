@@ -1,10 +1,22 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Bot, Clock3, Send, ShieldCheck } from "lucide-react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
+import {
+  AssistantAnswerContent,
+  AssistantCitationList,
+  AssistantTechnicalContext
+} from "../components/AssistantAnswerContent";
 import { Badge } from "../components/Badge";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { LoadingPanel } from "../components/LoadingPanel";
 import { SafeSelect } from "../components/SafeSelect";
+import { SocPageHeader } from "../components/SocPageHeader";
+import {
+  assistantDefaultQuestion,
+  clearAssistantSession,
+  loadAssistantSession,
+  saveAssistantSession
+} from "../lib/assistantSession";
 import { useAuth } from "../hooks/useAuth";
 import {
   useAssistantFeedbackMutation,
@@ -14,22 +26,7 @@ import {
   useAssistantMutation,
   useAssistantStatus
 } from "../hooks/useApiQueries";
-import type { AssistantChatResponse, AssistantCitation, AssistantFeedbackRating } from "../types/api";
-
-interface AssistantAnswerSections {
-  summary: string[];
-  what_happened: string[];
-  why_flagged_or_not: string[];
-  evidence: string[];
-  risk_interpretation: string[];
-  related_context: string[];
-  what_to_check_next: string[];
-  safe_next_steps: string[];
-  limitations: string[];
-  safety_note: string[];
-  safety_limitation: string[];
-  citations: string[];
-}
+import type { AssistantChatResponse, AssistantFeedbackRating } from "../types/api";
 
 interface AssistantContextState {
   alertId: number | null;
@@ -177,83 +174,6 @@ const feedbackLimitOptions = [
   { value: "100", label: "100 rows" }
 ];
 
-function stringList(value: unknown): string[] {
-  return Array.isArray(value) ? value.map((item) => String(item)).filter(Boolean) : [];
-}
-
-function answerSections(response: AssistantChatResponse): AssistantAnswerSections | null {
-  const rawSections = response.details?.answer_sections;
-  if (!rawSections || typeof rawSections !== "object" || Array.isArray(rawSections)) {
-    return null;
-  }
-  const sections = rawSections as Record<string, unknown>;
-  return {
-    summary: stringList(sections.summary),
-    what_happened: stringList(sections.what_happened),
-    why_flagged_or_not: stringList(sections.why_flagged_or_not),
-    evidence: stringList(sections.evidence),
-    risk_interpretation: stringList(sections.risk_interpretation),
-    related_context: stringList(sections.related_context),
-    what_to_check_next: stringList(sections.what_to_check_next),
-    safe_next_steps: stringList(sections.safe_next_steps),
-    limitations: stringList(sections.limitations),
-    safety_note: stringList(sections.safety_note),
-    safety_limitation: stringList(sections.safety_limitation),
-    citations: stringList(sections.citations)
-  };
-}
-
-function SectionCard({ title, items }: { title: string; items: string[] }) {
-  if (!items.length) return null;
-  return (
-    <div className="rounded-lg border border-line bg-panel2 p-4">
-      <div className="text-xs font-black uppercase tracking-wide text-muted">{title}</div>
-      <ul className="mt-3 space-y-2 text-sm font-semibold leading-relaxed text-text">
-        {items.map((item, index) => (
-          <li key={`${title}-${index}`} className="break-words">
-            {item}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function citationHref(citation: AssistantCitation): string | null {
-  const ref = citation.reference_id ? encodeURIComponent(citation.reference_id) : "";
-  switch (citation.source) {
-    case "/api/alerts/{alert_id}":
-      return ref ? `/alerts?alert=${ref}` : "/alerts";
-    case "/api/alerts/cases":
-      return "/alerts";
-    case "/api/alerts":
-      return "/alerts";
-    case "/api/logs/{log_id}":
-      return ref ? `/logs?log=${ref}` : "/logs";
-    case "/api/logs":
-      return "/logs";
-    case "/api/sources/{source_id}":
-      return ref ? `/overview?source=${ref}` : "/overview";
-    case "/api/sources":
-      return "/";
-    case "/api/detection/runs/{run_id}":
-      return ref ? `/?detection_run=${ref}` : "/";
-    case "/api/detection/runs":
-      return "/";
-    case "/api/jobs/{job_id}":
-      return ref ? `/?job=${ref}` : "/";
-    case "/api/jobs":
-    case "/api/jobs/summary":
-      return "/";
-    case "/api/ml/report":
-    case "/api/ml/supervised/report":
-    case "/api/ml/labels/import":
-      return "/ml";
-    default:
-      return null;
-  }
-}
-
 function normalizeFeedbackContext(context?: string | null): string | null {
   const value = (context ?? "").toLowerCase();
   if (!value) return null;
@@ -283,7 +203,7 @@ function parseQuestionCaseId(question: string): string | null {
   return match?.[1] ?? null;
 }
 
-function citationNumber(response: AssistantChatResponse | undefined, source: string, labels: string[] = []): number | null {
+function citationNumber(response: AssistantChatResponse | null | undefined, source: string, labels: string[] = []): number | null {
   const citation = response?.citations.find((item) => {
     const label = item.label.toLowerCase();
     return item.source === source && (!labels.length || labels.some((needle) => label.includes(needle)));
@@ -293,7 +213,7 @@ function citationNumber(response: AssistantChatResponse | undefined, source: str
   return Number.isFinite(value) && value > 0 ? value : null;
 }
 
-function citationString(response: AssistantChatResponse | undefined, source: string, labels: string[] = []): string | null {
+function citationString(response: AssistantChatResponse | null | undefined, source: string, labels: string[] = []): string | null {
   const citation = response?.citations.find((item) => {
     const label = item.label.toLowerCase();
     return item.source === source && (!labels.length || labels.some((needle) => label.includes(needle)));
@@ -356,85 +276,6 @@ function shouldResetContextForQuestion(lowered: string): boolean {
     "controlled validation scenario",
     "response safety rules"
   ].some((term) => lowered.includes(term));
-}
-
-function CitationList({ citations }: { citations: AssistantCitation[] }) {
-  if (!citations.length) return null;
-  return (
-    <div className="rounded-lg border border-line bg-panel2 p-4" data-testid="assistant-citations">
-      <div className="text-sm font-black uppercase tracking-wide text-muted">Source references</div>
-      <ul className="mt-3 space-y-2 text-sm font-semibold text-muted">
-        {citations.map((citation) => {
-          const href = citationHref(citation);
-          const refLabel = citation.reference_id ? `#${citation.reference_id}` : "reference";
-          return (
-            <li
-              key={`${citation.label}-${citation.source}-${citation.reference_id ?? ""}`}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-white px-3 py-2"
-            >
-              <div className="min-w-0">
-                <div className="break-words font-black text-text">{citation.label}</div>
-                <div className="mt-1 break-all text-xs text-muted">
-                  {citation.source}
-                  {citation.reference_id ? <span className="ml-1 font-bold text-text">{refLabel}</span> : null}
-                </div>
-              </div>
-              {href ? (
-                <Link
-                  className="btn-secondary shrink-0 text-xs"
-                  to={href}
-                  aria-label={`Open ${citation.label}${citation.reference_id ? ` ${citation.reference_id}` : ""}`}
-                  data-testid={`assistant-citation-open-${citation.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}${citation.reference_id ? `-${citation.reference_id}` : ""}`}
-                >
-                  Open
-                </Link>
-              ) : (
-                <span className="shrink-0 rounded-full border border-line bg-shell px-3 py-1 text-xs font-bold text-muted">Text reference</span>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
-}
-
-function AnswerSections({ response }: { response: AssistantChatResponse }) {
-  const sections = answerSections(response);
-  if (!sections) {
-    return (
-      <div className="rounded-lg border border-cyan/30 bg-cyan/10 p-4 text-sm font-semibold leading-relaxed text-text whitespace-pre-wrap break-words">
-        {response.answer}
-      </div>
-    );
-  }
-  return (
-    <div className="space-y-3" data-testid="assistant-answer-sections">
-      <SectionCard title="Summary" items={sections.summary} />
-      <SectionCard title="Evidence" items={sections.evidence} />
-      <SectionCard title="Risk interpretation" items={sections.risk_interpretation.length ? sections.risk_interpretation : sections.why_flagged_or_not} />
-      <SectionCard title="Related context" items={sections.related_context} />
-      <SectionCard title="What to check next" items={sections.what_to_check_next.length ? sections.what_to_check_next : sections.safe_next_steps} />
-      <SectionCard title="Limitations" items={sections.limitations} />
-      <SectionCard title="Safety note" items={sections.safety_note.length ? sections.safety_note : sections.safety_limitation} />
-      {sections.citations.length ? (
-        <div className="rounded-lg border border-line bg-panel2 p-4" data-testid="assistant-section-citations">
-          <div className="text-xs font-black uppercase tracking-wide text-muted">Citations</div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {sections.citations.map((citation) => (
-              <span key={citation} className="max-w-full rounded-full border border-cyan/30 bg-cyan/10 px-3 py-1 text-xs font-bold text-cyan break-words">
-                {citation}
-              </span>
-            ))}
-          </div>
-        </div>
-      ) : null}
-      <details className="rounded-lg border border-line bg-white p-3">
-        <summary className="cursor-pointer text-xs font-black uppercase tracking-wide text-muted">Narrative answer</summary>
-        <div className="mt-3 max-h-72 overflow-auto text-sm font-semibold leading-relaxed text-muted whitespace-pre-wrap break-words">{response.answer}</div>
-      </details>
-    </div>
-  );
 }
 
 function llmDetails(response: AssistantChatResponse): AssistantLlmDetails | null {
@@ -500,86 +341,47 @@ function AssistantProviderTelemetry({ response }: { response: AssistantChatRespo
   const provider = providerDisplayName(llm?.provider);
   const promptContract = llm?.prompt_contract ?? null;
   const rawLogContextIncluded = Boolean(llm?.raw_log_context_included ?? response.raw_log_context_included);
-  const title = localSafetyGuard
-    ? "Local Safety Guard"
-    : guarded
-    ? "External LLM Guarded"
-    : providerCalled && answerUsed
-      ? "External LLM Answer Used"
-      : fallback
-        ? "External LLM Fallback"
-        : "Local Deterministic Answer";
+  const title = providerCalled && answerUsed
+    ? `${provider} Assisted`
+    : localSafetyGuard
+      ? "Local Safety Guard"
+      : guarded || fallback
+        ? `${provider} Fallback: Local Evidence Assistant`
+        : "Local Evidence Assistant";
   const status = localSafetyGuard
     ? "Safety-sensitive request was answered locally without contacting the external provider."
     : guarded
     ? "Provider was contacted, but ATDR kept the evidence-grounded local answer."
     : providerCalled && answerUsed
-      ? "Provider wording passed ATDR safety checks."
+      ? "The provider summarized bounded ATDR evidence and passed the response guards."
       : fallback
         ? "Provider was unavailable, so deterministic ATDR context answered."
-        : "Deterministic ATDR context answered this request.";
-  const accent = guarded || fallback ? "border-warning/50 bg-warning/10 text-warning" : providerCalled && answerUsed ? "border-success/40 bg-success/10 text-success" : "border-cyan/30 bg-cyan/10 text-cyan";
+        : "ATDR services produced this evidence-grounded answer locally.";
+  const accent = guarded || fallback ? "border-amber/50 bg-amber/10 text-amber" : providerCalled && answerUsed ? "border-success/40 bg-success/10 text-success" : "border-cyan/30 bg-cyan/10 text-cyan";
 
   return (
     <div className="rounded-lg border border-line bg-panel2 p-4" data-testid="assistant-provider-telemetry">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="text-xs font-black uppercase tracking-wide text-muted">Provider status</div>
-          <div className="mt-2 text-base font-black text-text">{title}</div>
+          <div className="text-xs font-black uppercase tracking-wide text-muted">Answer mode</div>
+          <div className="mt-1 text-base font-black text-text">{title}</div>
           <p className="mt-1 text-sm font-semibold text-muted">{status}</p>
-          {guarded || fallback ? <p className="mt-2 text-sm font-bold text-warning">{guardReasonLabel(llm?.answer_guard_reason ?? llm?.fallback_reason)}</p> : null}
+          {guarded || fallback ? <p className="mt-2 text-sm font-bold text-amber">{guardReasonLabel(llm?.answer_guard_reason ?? llm?.fallback_reason)}</p> : null}
         </div>
         <span className={`rounded-full border px-3 py-1 text-xs font-black uppercase tracking-wide ${accent}`}>{providerCalled ? provider : "Local"}</span>
       </div>
-      <div className="mt-4 grid gap-2 text-xs font-bold text-muted sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <div className="rounded-lg border border-line bg-white px-3 py-2">
-          <div className="uppercase tracking-wide">Raw logs</div>
-          <div className="mt-1 text-sm text-text">{rawLogContextIncluded ? "Included" : "Not included"}</div>
+      <details className="mt-3 rounded-lg border border-line bg-white p-3">
+        <summary className="cursor-pointer text-xs font-black uppercase tracking-wide text-muted">Provider Detail</summary>
+        <div className="mt-3 grid gap-2 text-xs font-bold text-muted sm:grid-cols-2 lg:grid-cols-3">
+          <div><span className="uppercase tracking-wide">Raw logs:</span> <span className="text-text">{rawLogContextIncluded ? "Included" : "Not included"}</span></div>
+          <div><span className="uppercase tracking-wide">Redaction:</span> <span className="text-text">{boolLabel(response.redaction_applied, "Applied", "Not applied")}</span></div>
+          <div><span className="uppercase tracking-wide">Secrets:</span> <span className="text-text">{boolLabel(llm?.secrets_exposed, "Check required", "Not exposed", "Not exposed")}</span></div>
+          <div><span className="uppercase tracking-wide">Contract:</span> <span className="break-words text-text">{promptContract ?? "Local deterministic"}</span></div>
+          <div><span className="uppercase tracking-wide">Output:</span> <span className="text-text">{providerCalled ? boolLabel(llm?.structured_output_valid, "Validated", "Fallback") : "Local"}</span></div>
+          <div><span className="uppercase tracking-wide">Latency:</span> <span className="text-text">{typeof llm?.latency_ms === "number" ? `${llm.latency_ms} ms` : "Not called"}</span></div>
         </div>
-        <div className="rounded-lg border border-line bg-white px-3 py-2">
-          <div className="uppercase tracking-wide">Redaction</div>
-          <div className="mt-1 text-sm text-text">{boolLabel(response.redaction_applied, "Applied", "Not applied")}</div>
-        </div>
-        <div className="rounded-lg border border-line bg-white px-3 py-2">
-          <div className="uppercase tracking-wide">Secrets</div>
-          <div className="mt-1 text-sm text-text">{boolLabel(llm?.secrets_exposed, "Check required", "Not exposed", "Not exposed")}</div>
-        </div>
-        <div className="rounded-lg border border-line bg-white px-3 py-2">
-          <div className="uppercase tracking-wide">Prompt contract</div>
-          <div className="mt-1 break-words text-sm text-text">{promptContract ?? "Local deterministic"}</div>
-        </div>
-        <div className="rounded-lg border border-line bg-white px-3 py-2">
-          <div className="uppercase tracking-wide">Structured output</div>
-          <div className="mt-1 text-sm text-text">{providerCalled ? boolLabel(llm?.structured_output_valid, "Validated", "Fallback") : "Local"}</div>
-        </div>
-        <div className="rounded-lg border border-line bg-white px-3 py-2">
-          <div className="uppercase tracking-wide">Provider latency</div>
-          <div className="mt-1 text-sm text-text">{typeof llm?.latency_ms === "number" ? `${llm.latency_ms} ms / ${llm.attempts ?? 1} attempt(s)` : "Not called"}</div>
-        </div>
-      </div>
+      </details>
     </div>
-  );
-}
-
-function DetailBlock({ response }: { response: AssistantChatResponse }) {
-  return (
-    <details className="rounded-lg border border-line bg-panel2 p-4">
-      <summary className="cursor-pointer text-sm font-black uppercase tracking-wide text-muted">Technical context</summary>
-      <pre className="mt-3 max-h-80 overflow-auto rounded-lg border border-line bg-white p-3 text-xs leading-relaxed text-muted whitespace-pre-wrap break-words" data-testid="assistant-technical-context">
-        {JSON.stringify(
-          {
-            mode: response.mode,
-            context_used: response.context_used,
-            redaction_applied: response.redaction_applied,
-            raw_log_context_included: response.raw_log_context_included,
-            external_provider_used: response.external_provider_used,
-            details: response.details
-          },
-          null,
-          2
-        )}
-      </pre>
-    </details>
   );
 }
 
@@ -599,6 +401,7 @@ export function AssistantPage() {
   const caseIdParam = searchParams.get("case");
   const caseId = caseIdParam?.trim() || null;
   const promptParam = searchParams.get("prompt");
+  const hasRouteDirective = Boolean(promptParam || alertId || logId || sourceId || caseId);
   const initialQuestion =
     promptParam ||
     (alertId
@@ -609,8 +412,20 @@ export function AssistantPage() {
           ? `Summarize source ${sourceId} health and what an analyst should check next.`
           : caseId
             ? `Summarize case ${caseId} and related alert group.`
-            : "What is the latest critical alert?");
-  const [question, setQuestion] = useState(initialQuestion);
+            : assistantDefaultQuestion);
+  const restoredSessionRef = useRef<ReturnType<typeof loadAssistantSession> | undefined>(undefined);
+  if (restoredSessionRef.current === undefined) {
+    restoredSessionRef.current = loadAssistantSession();
+  }
+  const restoredSession = hasRouteDirective ? null : restoredSessionRef.current;
+  const routeContext: AssistantContextState = {
+    alertId,
+    logId,
+    sourceId,
+    caseId,
+    primary: primaryContextFromValues({ alertId, logId, sourceId, caseId })
+  };
+  const [question, setQuestion] = useState(() => restoredSession?.question ?? initialQuestion);
   const [copyStatus, setCopyStatus] = useState("");
   const [feedbackNote, setFeedbackNote] = useState("");
   const [feedbackStatus, setFeedbackStatus] = useState("");
@@ -618,15 +433,10 @@ export function AssistantPage() {
   const [feedbackContextFilter, setFeedbackContextFilter] = useState("all");
   const [feedbackSinceFilter, setFeedbackSinceFilter] = useState("30");
   const [feedbackLimit, setFeedbackLimit] = useState("20");
-  const [conversationId, setConversationId] = useState(createConversationId);
-  const [lastContext, setLastContext] = useState<AssistantContextState>({
-    alertId,
-    logId,
-    sourceId,
-    caseId,
-    primary: primaryContextFromValues({ alertId, logId, sourceId, caseId })
-  });
-  const response = assistant.data;
+  const [conversationId, setConversationId] = useState(() => restoredSession?.conversationId ?? createConversationId());
+  const [lastContext, setLastContext] = useState<AssistantContextState>(() => restoredSession?.context ?? routeContext);
+  const [persistedResponse, setPersistedResponse] = useState<AssistantChatResponse | null>(() => restoredSession?.response ?? null);
+  const response = assistant.data ?? persistedResponse;
   const feedbackParams = useMemo(
     () => ({
       limit: Number(feedbackLimit),
@@ -650,12 +460,23 @@ export function AssistantPage() {
 
   const providerLabel = useMemo(() => {
     if (!status.data) return "Checking";
-    if (status.data.external_provider_configured) return status.data.provider;
-    if (status.data.llm_enabled && status.data.llm_provider_configured) {
-      return `${status.data.llm_provider_name || "LLM"} configured, not ready`;
+    const responseLlm = response ? llmDetails(response) : null;
+    const providerAnswerUsed = Boolean(
+      response?.external_provider_used
+        && (responseLlm?.answer_used ?? response.mode.startsWith("external_llm_"))
+    );
+    if (providerAnswerUsed && response) {
+      const answerProvider = providerDisplayName(responseLlm?.provider ?? status.data.provider);
+      return `${answerProvider} Assisted`;
     }
-    return "Deterministic local help";
-  }, [status.data]);
+    if (status.data.external_provider_configured) {
+      return `${providerDisplayName(status.data.provider)} Configured`;
+    }
+    if (status.data.llm_enabled && status.data.llm_provider_configured) {
+      return "Provider Not Configured";
+    }
+    return "Local Evidence Assistant";
+  }, [response, status.data]);
   const activeContextLabel = useMemo(() => {
     if (lastContext.primary === "alert" && lastContext.alertId) return `Using alert #${lastContext.alertId}`;
     if (lastContext.primary === "log" && lastContext.logId) return `Using log #${lastContext.logId}`;
@@ -669,14 +490,22 @@ export function AssistantPage() {
   }, [lastContext]);
 
   useEffect(() => {
+    if (!hasRouteDirective) return;
     setQuestion(initialQuestion);
-  }, [initialQuestion]);
+    setPersistedResponse(null);
+  }, [hasRouteDirective, initialQuestion]);
 
   useEffect(() => {
     if (alertId || logId || sourceId || caseId) {
       setLastContext({ alertId, logId, sourceId, caseId, primary: primaryContextFromValues({ alertId, logId, sourceId, caseId }) });
     }
   }, [alertId, logId, sourceId, caseId]);
+
+  useEffect(() => {
+    if (assistant.data) {
+      setPersistedResponse(assistant.data);
+    }
+  }, [assistant.data]);
 
   useEffect(() => {
     if (!response) return;
@@ -697,10 +526,21 @@ export function AssistantPage() {
     }
   }, [conversationId, response]);
 
+  useEffect(() => {
+    saveAssistantSession({
+      question,
+      conversationId,
+      context: lastContext,
+      response
+    });
+  }, [conversationId, lastContext, question, response]);
+
   function askQuestion(value: string, options: { resetContext?: boolean } = {}) {
     const trimmed = value.trim();
     if (!trimmed) return;
     setQuestion(trimmed);
+    setPersistedResponse(null);
+    assistant.reset();
     setCopyStatus("");
     setFeedbackStatus("");
     const lowered = trimmed.toLowerCase();
@@ -785,10 +625,12 @@ export function AssistantPage() {
   }
 
   function clearContext() {
+    clearAssistantSession();
     setLastContext(emptyAssistantContext);
     setConversationId(createConversationId());
     assistant.reset();
-    setQuestion("What is the latest critical alert?");
+    setPersistedResponse(null);
+    setQuestion(assistantDefaultQuestion);
     const next = new URLSearchParams(searchParams);
     ["alert", "log", "source", "case", "prompt"].forEach((key) => next.delete(key));
     setSearchParams(next);
@@ -863,67 +705,56 @@ export function AssistantPage() {
 
   return (
     <div className="space-y-5" data-testid="assistant-page">
-      <section className="rounded-xl border border-line bg-white p-5 shadow-panel">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.18em] text-danger">
-              <Bot size={18} />
-              SOC Assistant
+      <SocPageHeader
+        eyebrow="SOC Assistant"
+        title="Evidence-grounded analyst guidance"
+        description="Bounded ATDR context, concise triage guidance, no action execution."
+        icon={<Bot size={18} />}
+        compact
+        badges={[
+          "Read Only",
+          "Decision Support Only",
+          "Response Automation Disabled",
+          status.data?.raw_log_context_allowed ? "Raw Log Context Restricted" : "Raw Logs Disabled"
+        ]}
+        context={
+          lastContext.alertId || lastContext.logId || lastContext.sourceId || lastContext.caseId ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {lastContext.alertId ? (
+                <div className="inline-flex rounded-full border border-cyan/30 bg-cyan/10 px-3 py-1 text-xs font-black uppercase tracking-wide text-cyan">
+                  Alert context #{lastContext.alertId}
+                </div>
+              ) : null}
+              {lastContext.logId ? (
+                <div className="inline-flex rounded-full border border-cyan/30 bg-cyan/10 px-3 py-1 text-xs font-black uppercase tracking-wide text-cyan">
+                  Log context #{lastContext.logId}
+                </div>
+              ) : null}
+              {lastContext.sourceId ? (
+                <div className="inline-flex rounded-full border border-cyan/30 bg-cyan/10 px-3 py-1 text-xs font-black uppercase tracking-wide text-cyan">
+                  Source context #{lastContext.sourceId}
+                </div>
+              ) : null}
+              {lastContext.caseId ? (
+                <div className="inline-flex rounded-full border border-cyan/30 bg-cyan/10 px-3 py-1 text-xs font-black uppercase tracking-wide text-cyan">
+                  Case context {lastContext.caseId}
+                </div>
+              ) : null}
             </div>
-            <h1 className="mt-2 text-2xl font-black">Read-only analyst guidance</h1>
-            <p className="mt-2 max-w-3xl text-sm font-semibold text-muted">
-              Ask about alerts, sources, operations, ML governance, and lab workflow. The assistant cannot execute response actions.
-            </p>
-            {lastContext.alertId ? (
-              <div className="mt-3 inline-flex rounded-full border border-cyan/30 bg-cyan/10 px-3 py-1 text-xs font-black uppercase tracking-wide text-cyan">
-                Alert context #{lastContext.alertId}
-              </div>
-            ) : null}
-            {lastContext.logId ? (
-              <div className="mt-3 ml-2 inline-flex rounded-full border border-cyan/30 bg-cyan/10 px-3 py-1 text-xs font-black uppercase tracking-wide text-cyan">
-                Log context #{lastContext.logId}
-              </div>
-            ) : null}
-            {lastContext.sourceId ? (
-              <div className="mt-3 inline-flex rounded-full border border-cyan/30 bg-cyan/10 px-3 py-1 text-xs font-black uppercase tracking-wide text-cyan">
-                Source context #{lastContext.sourceId}
-              </div>
-            ) : null}
-            {lastContext.caseId ? (
-              <div className="mt-3 ml-2 inline-flex rounded-full border border-cyan/30 bg-cyan/10 px-3 py-1 text-xs font-black uppercase tracking-wide text-cyan">
-                Case context {lastContext.caseId}
-              </div>
-            ) : null}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Badge value="Read Only" />
-            <Badge value="Decision Support Only" />
-            <Badge value="Response Automation Disabled" />
-            <Badge value="Simulation Mode" />
-            <Badge value={status.data?.raw_log_context_allowed ? "Raw Log Context Restricted" : "Raw Logs Disabled"} />
-            <Badge value="No Auto Tuning" />
-          </div>
-        </div>
-      </section>
+          ) : null
+        }
+      />
 
       <section className="grid gap-4 lg:grid-cols-4">
         <div className="metric-card">
-          <div className="metric-label">Assistant Mode</div>
-          <div className="metric-value text-lg">{status.data?.mode?.replaceAll("_", " ") ?? "Loading"}</div>
-          <div className="metric-help">
-            {status.data?.external_provider_configured
-              ? "External LLM is enabled for wording support only."
-              : "External LLM is disabled unless configured."}
-          </div>
+          <div className="metric-label">Answer Provider</div>
+          <div className="metric-value text-lg">{providerLabel}</div>
+          <div className="metric-help">Gemini labels appear only on answers that used Gemini.</div>
         </div>
         <div className="metric-card">
-          <div className="metric-label">Provider</div>
-          <div className="metric-value text-lg">{providerLabel}</div>
-          <div className="metric-help">
-            {status.data?.external_provider_configured
-              ? "External provider can be used when enabled."
-              : "No API key or endpoint value is exposed."}
-          </div>
+          <div className="metric-label">Grounding</div>
+          <div className="metric-value text-lg">ATDR Evidence</div>
+          <div className="metric-help">Structured records, services, and documentation.</div>
         </div>
         <div className="metric-card">
           <div className="metric-label">Raw Log Context</div>
@@ -933,7 +764,7 @@ export function AssistantPage() {
         <div className="metric-card">
           <div className="metric-label">IP Redaction</div>
           <div className="metric-value text-lg">{status.data?.redaction_enabled ? "Enabled" : "Off"}</div>
-          <div className="metric-help">Sensitive indicators can be masked in answers.</div>
+          <div className="metric-help">Applied before external provider context.</div>
         </div>
       </section>
 
@@ -973,7 +804,7 @@ export function AssistantPage() {
             ) : null}
           </div>
           <div className="mt-5 space-y-4" data-testid="assistant-presets">
-            {promptGroups.map((group) => (
+            {promptGroups.slice(0, 1).map((group) => (
               <div key={group.label}>
                 <div className="mb-2 text-[11px] font-black uppercase tracking-wide text-muted">{group.label}</div>
                 <div className="flex flex-wrap gap-2">
@@ -992,6 +823,30 @@ export function AssistantPage() {
                 </div>
               </div>
             ))}
+            <details className="rounded-lg border border-line bg-panel2 p-3">
+              <summary className="cursor-pointer text-xs font-black uppercase tracking-wide text-muted">More analyst playbooks</summary>
+              <div className="mt-4 space-y-4">
+                {promptGroups.slice(1).map((group) => (
+                  <div key={group.label}>
+                    <div className="mb-2 text-[11px] font-black uppercase tracking-wide text-muted">{group.label}</div>
+                    <div className="flex flex-wrap gap-2">
+                      {group.prompts.map((starter) => (
+                        <button
+                          key={starter.label}
+                          className="btn-secondary text-xs"
+                          type="button"
+                          title={starter.question}
+                          disabled={assistant.isPending}
+                          onClick={() => askQuestion(starter.question, { resetContext: Boolean(starter.resetContext) })}
+                        >
+                          {starter.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </details>
           </div>
         </form>
 
@@ -1017,15 +872,17 @@ export function AssistantPage() {
           ) : null}
           {response ? (
             <div className="mt-4 space-y-4">
-              <AnswerSections response={response} />
+              <AssistantAnswerContent response={response} />
               <AssistantProviderTelemetry response={response} />
               <div className="flex flex-wrap gap-2">
                 {response.safety.map((item) => (
                   <Badge key={item} value={item} />
                 ))}
               </div>
-              <CitationList citations={response.citations} />
-              <div className="rounded-lg border border-line bg-panel2 p-4" data-testid="assistant-feedback-controls">
+              <AssistantCitationList citations={response.citations} />
+              <details className="rounded-lg border border-line bg-panel2 p-4" data-testid="assistant-feedback-controls">
+                <summary className="cursor-pointer text-sm font-black uppercase tracking-wide text-muted">Rate answer quality</summary>
+                <div className="mt-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="text-sm font-black uppercase tracking-wide text-muted">Answer quality</div>
@@ -1061,7 +918,8 @@ export function AssistantPage() {
                 {feedbackStatus ? (
                   <div className={`mt-2 text-sm font-bold ${feedback.isError ? "text-danger" : "text-success"}`}>{feedbackStatus}</div>
                 ) : null}
-              </div>
+                </div>
+              </details>
               {response.suggested_followups.length ? (
                 <div className="rounded-lg border border-line bg-panel2 p-4">
                   <div className="text-sm font-black uppercase tracking-wide text-muted">Suggested follow-ups</div>
@@ -1074,13 +932,15 @@ export function AssistantPage() {
                   </div>
                 </div>
               ) : null}
-              <DetailBlock response={response} />
+              <AssistantTechnicalContext response={response} />
             </div>
           ) : null}
         </section>
       </section>
 
-      <section className="rounded-xl border border-line bg-white p-5 shadow-panel" data-testid="assistant-history">
+      <details className="rounded-xl border border-line bg-white p-5 shadow-panel presentation-technical" data-testid="assistant-history">
+        <summary className="cursor-pointer text-sm font-black uppercase tracking-wide text-muted">Assistant activity</summary>
+        <div className="mt-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 text-sm font-black uppercase tracking-wide text-muted">
@@ -1123,9 +983,12 @@ export function AssistantPage() {
             No assistant questions have been audited yet.
           </div>
         ) : null}
-      </section>
+        </div>
+      </details>
 
-      <section className="rounded-xl border border-line bg-white p-5 shadow-panel" data-testid="assistant-feedback-summary">
+      <details className="rounded-xl border border-line bg-white p-5 shadow-panel presentation-technical" data-testid="assistant-feedback-summary">
+        <summary className="cursor-pointer text-sm font-black uppercase tracking-wide text-muted">Feedback quality review</summary>
+        <div className="mt-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="text-sm font-black uppercase tracking-wide text-muted">Feedback review</div>
@@ -1273,7 +1136,8 @@ export function AssistantPage() {
             No assistant feedback has been recorded yet.
           </div>
         ) : null}
-      </section>
+        </div>
+      </details>
     </div>
   );
 }

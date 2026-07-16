@@ -23,6 +23,10 @@ data/private/
 atdr/data/private/
 real_logs/
 atdr.db
+atdr.backup.*.db
+*.db-journal
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite3
 atdr/models/*.joblib

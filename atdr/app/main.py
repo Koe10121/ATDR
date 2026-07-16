@@ -43,8 +43,18 @@ logger = logging.getLogger("atdr.app")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     config_issues = validate_runtime_settings(settings)
+    app.state.configuration_issues = tuple(config_issues)
     if config_issues:
-        raise RuntimeError("Unsafe ATDR runtime configuration: " + " ".join(config_issues))
+        logger.error(
+            "startup configuration is incomplete; operational routes are unavailable",
+            extra={
+                "event": "startup_configuration_blocked",
+                "issue_count": len(config_issues),
+                "auth_mode": settings.normalized_auth_mode,
+            },
+        )
+        yield
+        return
     if settings.auto_create_tables:
         init_db()
     database_check = check_database_connection()
@@ -72,6 +82,27 @@ app.add_middleware(
     enabled=settings.trust_proxy_headers,
     trusted_cidrs=settings.trusted_proxy_cidr_list,
 )
+
+
+@app.middleware("http")
+async def configuration_readiness_guard(request: Request, call_next):
+    issues = tuple(getattr(request.app.state, "configuration_issues", ()))
+    allowed_paths = {
+        "/health/live",
+        "/health/ready",
+        "/api/auth/mfu-iam/public-status",
+    }
+    if issues and request.url.path not in allowed_paths:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "detail": "ATDR configuration is incomplete. Run scripts/check_system.ps1 and correct the reported field names.",
+                "issue_count": len(issues),
+                "request_id": get_request_id(),
+                "secrets_exposed": False,
+            },
+        )
+    return await call_next(request)
 if settings.security_headers_enabled:
     app.add_middleware(SecurityHeadersMiddleware, enable_hsts=settings.environment.lower() == "production")
 

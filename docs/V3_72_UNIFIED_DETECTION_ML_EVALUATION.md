@@ -40,9 +40,9 @@ Optional controlled scenario validation:
 
 Supervisor-template evidence was rechecked from:
 
-- `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\docs\AI-WORKFLOW.md`
-- `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\docs\tasks\tasklist-progress.md`
-- `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\docs\templates\T1-T20-change-document.md`
+- `<MFU_SHELL_ROOT>\docs\AI-WORKFLOW.md`
+- `<MFU_SHELL_ROOT>\docs\tasks\tasklist-progress.md`
+- `<MFU_SHELL_ROOT>\docs\templates\T1-T20-change-document.md`
 
 The template supplies process discipline and traceability expectations. It does not supply reusable ATDR detection/ML logic.
 

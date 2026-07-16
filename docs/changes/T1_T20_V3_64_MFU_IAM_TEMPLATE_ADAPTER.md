@@ -10,7 +10,7 @@ Adapt the supervisor NewSystem IAM template information to ATDR without migratin
 
 ## T3 Source Evidence
 
-- Supervisor template env profiles under `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\backend-node\.env.*`
+- Supervisor template env profiles under `<MFU_SHELL_ROOT>\backend-node\.env.*`
 - Supervisor IAM SDK: `backend-node/server/integrations/iam/iam-sdk-adapter.js`
 - Supervisor B2B middleware: `backend-node/server/integrations/iam/b2b-auth-middleware.js`
 - Supervisor project IAM service: `backend-node/server/integrations/iam/project-iam-service.js`

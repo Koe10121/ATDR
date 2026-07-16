@@ -4,7 +4,7 @@
 
 - Baseline checkpoint: `docs/V3_88_CHANGESET_MANIFEST.md` and `docs/CURRENT_SYSTEM_STATE_LOCK.md`.
 - The ATDR worktree contained pre-existing, uncommitted productization work before v3.91. It was inspected with `git status --short --untracked-files=all`; no reset, checkout, or database deletion was performed.
-- The official MFU template is an external workspace at `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response`. It is not merged into ATDR or treated as an ATDR runtime dependency beyond the configured handoff boundary.
+- The official MFU template is an external workspace at `<MFU_SHELL_ROOT>`. It is not merged into ATDR or treated as an ATDR runtime dependency beyond the configured handoff boundary.
 
 ## In-Scope ATDR Changes
 

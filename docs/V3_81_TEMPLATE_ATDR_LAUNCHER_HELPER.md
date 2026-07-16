@@ -41,7 +41,7 @@ The write mode creates a backup file beside the changed Vue file unless `--no-ba
 The helper targets:
 
 ```text
-C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response\frontend-vue\src\projects\views\mfuaidrivenlogbasedthreatdetectionandresponse\MFUAIDRIVENLOGBASEDTHREATDETECTIONANDRESPONSERegistry.vue
+<MFU_SHELL_ROOT>\frontend-vue\src\projects\views\mfuaidrivenlogbasedthreatdetectionandresponse\MFUAIDRIVENLOGBASEDTHREATDETECTIONANDRESPONSERegistry.vue
 ```
 
 It adds:

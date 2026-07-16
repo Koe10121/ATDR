@@ -18,7 +18,7 @@ Add one safe command that summarizes ATDR rule-pack status, scenario-corpus stat
 - `docs/detection/ATDR_RULE_PACK_CONTRACT.md`
 - `docs/detection/ATDR_SCENARIO_CORPUS_CONTRACT.md`
 - `docs/DETECTION_ML_PRODUCTIZATION_PLAN.md`
-- Supervisor template workflow/taskboard evidence under `C:\Users\User\Downloads\mfu-ai-driven-log-based-threat-detection-and-response`
+- Supervisor template workflow/taskboard evidence under `<MFU_SHELL_ROOT>`
 
 ## T4 Current Behavior
 
