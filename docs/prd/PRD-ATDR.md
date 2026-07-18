@@ -268,6 +268,7 @@ Evidence: `atdr/app/db/models.py`, `atdr/app/routers/jobs.py`, `atdr/app/service
 | FR-ATDR-045 | Generate source/time-separated synthetic evidence, quarantine overlap with reviewed data, and score it only after internal model/calibration/threshold roles are frozen | Implemented as v3.99 with three generated sources, four windows, exact/near/feature overlap controls, six strategy comparisons, non-importable expectation labels, and conservative `candidate_only` readiness; this is regression evidence, not external accuracy |
 | FR-ATDR-046 | Provide portable teammate setup and lifecycle for the mandatory MFU shell plus ATDR services without machine-specific paths or committed secrets | Implemented in v4.3 with one setup command, one start command, preflight/check/stop commands, ignored runtime configuration, safe SQLite backup/migration, and explicit recovery profile |
 | FR-ATDR-047 | Distribute the reviewed MFU shell as a sanitized, versioned, integrity-checked companion release | Implemented locally in v4.6 with deterministic packaging, secret/generated-file exclusions, contract-locked checksum and fingerprint, versioned ignored installation, package-integrity checks, and disposable clean-clone acceptance; provider-backed sign-in remains external |
+| FR-ATDR-048 | Keep the large local SQLite Overview summary responsive without stale counts, prewarming, or cache-only masking | Implemented in v4.7 through indexed quality-count queries, recent-alert N+1 removal, one-statement freshness checks, repeatable five-run profiling, and cache/write correctness tests; no production SLA is claimed |
 
 ## Non-Functional Requirements
 
@@ -552,3 +553,25 @@ ATDR shall support an opt-in database-backed operation queue for selected long-r
 - Local credentials are an explicit recovery profile only and must never be selected automatically after provider failure.
 - Provider tokens, one-time codes, client values, secrets, raw provider responses, and private environment content must not appear in URLs, API status, logs, audit details, or committed files.
 - Real MFU authentication acceptance requires an approved OAuth client, authorized origins/domain/account policy, and successful live account/handoff evidence. Source-level readiness alone is not production acceptance.
+
+## v4.7 Large-SQLite Overview Performance Addendum
+
+- The Overview summary shall preserve exact counts and data-quality semantics across empty, small, and current large databases.
+- Application caching shall not substitute for repairing an expensive uncached query, and TTL/prewarming shall not be used to hide regressions.
+- Cache freshness shall account for raw/normalized growth, alert changes, ingestion/detection completion, audited mutations, suppression state, and watchlist state.
+- Performance profiling shall be read-only and report application-cache cold/warm distributions, query counts, payload consistency, database dialect, and safe query-plan evidence.
+- Shared service SQL shall remain SQLite/PostgreSQL portable. SQLite-only inspection is allowed only in the profiler's guarded diagnostic path.
+- Current local targets are cold application-cache median `<=2.0s`, p95 `<=3.0s`, and warm cache `<=0.05s`; these are regression budgets, not production SLAs.
+- No performance optimization may reset/delete data, change detection/ML/IAM/assistant/response behavior, activate a model, or enable response automation or real blocking.
+
+## v4.8 End-to-End Acceptance Addendum
+
+- **FR-ATDR-049:** ATDR shall provide a fail-closed integrated acceptance command that can target only a newly created disposable database and refuses configured-database execution.
+- The acceptance path shall apply existing Alembic migrations and exercise real source, durable-job, ingestion, parser, detection, alert deduplication, case, explanation, assistant, metrics, dashboard-summary, and persistence services.
+- It shall validate graceful interruption, cooperative cancellation/resume, monotonic progress, stale mutating-job lease failure, and useful failure diagnostics.
+- It shall preserve raw evidence, parser failure status, source linkage, source health, and exact raw/normalized count accounting.
+- It shall prove source-scoped detection and investigation traceability using safe synthetic scenarios without ML activation or response actions.
+- Assistant acceptance shall remain read-only, exclude raw logs, redact IPs, cite actual ATDR records, preserve follow-up context, and fall back deterministically when an injected external provider failure occurs.
+- Backup/restore acceptance shall use only the disposable source and a second empty disposable target, verify checksum/counts/revision, and refuse overwrite of the active source.
+- Public output shall omit raw evidence, secrets, private paths, credentials, and connection values.
+- Synthetic SQLite acceptance is regression evidence only. It does not satisfy real-device, approved-host PostgreSQL, provider-backed IAM, independent detection/ML, or production-response requirements.

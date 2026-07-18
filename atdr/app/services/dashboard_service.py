@@ -1,11 +1,21 @@
 from copy import deepcopy
 from time import monotonic
 
-from sqlalchemy import case, desc, func, or_, select
+from sqlalchemy import desc, func, or_, select
 from sqlalchemy.orm import Session
 
 from atdr.app.core.config import get_settings
-from atdr.app.db.models import Alert, AuditLog, DetectionRun, IngestionRun, NormalizedLog, RawLog, SuppressionRule, WatchlistItem
+from atdr.app.db.models import (
+    Alert,
+    AlertEvidence,
+    AuditLog,
+    DetectionRun,
+    IngestionRun,
+    NormalizedLog,
+    RawLog,
+    SuppressionRule,
+    WatchlistItem,
+)
 from atdr.app.services.alert_service import alert_sla
 from atdr.app.services.operation_run_service import detection_run_to_dict, ingestion_run_to_dict
 
@@ -32,8 +42,41 @@ def _count_where(db: Session, *filters) -> int:
     return int(db.scalar(statement) or 0)
 
 
-def _sum_if(condition):
-    return func.coalesce(func.sum(case((condition, 1), else_=0)), 0)
+def _count_subquery(column, *filters):
+    statement = select(func.count(column))
+    if filters:
+        statement = statement.where(*filters)
+    return statement.scalar_subquery()
+
+
+def _quality_missing_counts_statement():
+    return select(
+        _count_subquery(
+            NormalizedLog.id,
+            NormalizedLog.generated_time.is_(None),
+            NormalizedLog.receive_time.is_(None),
+        ).label("missing_timestamp"),
+        _count_subquery(
+            NormalizedLog.id,
+            or_(NormalizedLog.src_ip.is_(None), NormalizedLog.src_ip == ""),
+        ).label("missing_source_ip"),
+        _count_subquery(
+            NormalizedLog.id,
+            or_(NormalizedLog.dst_ip.is_(None), NormalizedLog.dst_ip == ""),
+        ).label("missing_destination_ip"),
+        _count_subquery(
+            NormalizedLog.id,
+            or_(NormalizedLog.action.is_(None), NormalizedLog.action == ""),
+        ).label("missing_action"),
+    )
+
+
+def _quality_app_counts_statement():
+    return (
+        select(NormalizedLog.app, func.count(NormalizedLog.id))
+        .where(NormalizedLog.app.is_not(None))
+        .group_by(NormalizedLog.app)
+    )
 
 
 def _parser_error_count(db: Session, total_logs: int) -> int:
@@ -45,8 +88,14 @@ def _parser_error_count(db: Session, total_logs: int) -> int:
 def _parser_error_examples(db: Session, *, total_logs: int, limit: int = 3) -> list[dict]:
     if total_logs > EXACT_JSON_QUALITY_LIMIT:
         return []
-    rows = db.scalars(
-        select(NormalizedLog)
+    rows = db.execute(
+        select(
+            NormalizedLog.id,
+            NormalizedLog.raw_log_id,
+            NormalizedLog.parsed_json,
+            RawLog.raw_line,
+        )
+        .outerjoin(RawLog, RawLog.id == NormalizedLog.raw_log_id)
         .where(_json_parser_error_filter())
         .order_by(NormalizedLog.id.desc())
         .limit(limit)
@@ -56,7 +105,7 @@ def _parser_error_examples(db: Session, *, total_logs: int, limit: int = 3) -> l
             "normalized_log_id": row.id,
             "raw_log_id": row.raw_log_id,
             "parser_error": row.parsed_json.get("parser_error"),
-            "raw_line_excerpt": row.raw_log.raw_line[:180] if row.raw_log else None,
+            "raw_line_excerpt": row.raw_line[:180] if row.raw_line else None,
         }
         for row in rows
     ]
@@ -74,21 +123,26 @@ def _alert_occurrence_count(db: Session) -> int:
 
 
 def _quality_aggregate(db: Session) -> dict:
-    lower_app = func.lower(NormalizedLog.app)
-    row = db.execute(
-        select(
-            _sum_if(NormalizedLog.generated_time.is_(None) & NormalizedLog.receive_time.is_(None)).label("missing_timestamp"),
-            _sum_if(or_(NormalizedLog.src_ip.is_(None), NormalizedLog.src_ip == "")).label("missing_source_ip"),
-            _sum_if(or_(NormalizedLog.dst_ip.is_(None), NormalizedLog.dst_ip == "")).label("missing_destination_ip"),
-            _sum_if(or_(NormalizedLog.action.is_(None), NormalizedLog.action == "")).label("missing_action"),
-            _sum_if(lower_app.in_(UNKNOWN_APPS)).label("unknown_app_count"),
-        )
-    ).mappings().one()
-    return {key: int(value or 0) for key, value in row.items()}
+    row = db.execute(_quality_missing_counts_statement()).mappings().one()
+    unknown_app_count = sum(
+        int(count or 0)
+        for app, count in db.execute(_quality_app_counts_statement()).all()
+        if str(app).lower() in UNKNOWN_APPS
+    )
+    return {
+        **{key: int(value or 0) for key, value in row.items()},
+        "unknown_app_count": unknown_app_count,
+    }
 
 
-def _ingestion_stats(db: Session, total_logs: int, *, parse_failures: int) -> dict:
-    total_raw = int(db.scalar(select(func.count(RawLog.id))) or 0)
+def _ingestion_stats(
+    db: Session,
+    total_logs: int,
+    *,
+    parse_failures: int,
+    total_raw_logs: int | None = None,
+) -> dict:
+    total_raw = total_raw_logs if total_raw_logs is not None else int(db.scalar(select(func.count(RawLog.id))) or 0)
     duplicate_raw_logs = int(db.scalar(select(func.coalesce(func.sum(IngestionRun.duplicate_raw_logs), 0))) or 0)
     latest_generated = db.scalar(select(func.max(NormalizedLog.generated_time)))
     latest_receive = db.scalar(select(func.max(NormalizedLog.receive_time)))
@@ -153,12 +207,27 @@ def build_dashboard_summary(db: Session) -> dict:
         .order_by(desc(func.count(Alert.id)))
         .limit(10)
     ).all()
-    recent_alerts = db.scalars(select(Alert).order_by(Alert.created_at.desc(), Alert.id.desc()).limit(10)).all()
+    evidence_count = (
+        select(func.count(AlertEvidence.id))
+        .where(AlertEvidence.alert_id == Alert.id)
+        .correlate(Alert)
+        .scalar_subquery()
+    )
+    recent_alert_rows = db.execute(
+        select(Alert, evidence_count.label("evidence_count"))
+        .order_by(Alert.created_at.desc(), Alert.id.desc())
+        .limit(10)
+    ).all()
     latest_ingestion_run = db.scalar(select(IngestionRun).order_by(desc(IngestionRun.started_at), desc(IngestionRun.id)).limit(1))
     latest_detection_run = db.scalar(select(DetectionRun).order_by(desc(DetectionRun.started_at), desc(DetectionRun.id)).limit(1))
 
     parse_failures = _parser_error_count(db, total_logs)
-    ingestion_stats = _ingestion_stats(db, total_logs, parse_failures=parse_failures)
+    ingestion_stats = _ingestion_stats(
+        db,
+        total_logs,
+        parse_failures=parse_failures,
+        total_raw_logs=total_raw_logs,
+    )
     data_quality = _data_quality_stats(db, total_logs=total_logs)
 
     return {
@@ -193,11 +262,11 @@ def build_dashboard_summary(db: Session) -> dict:
                 "severity": alert.severity,
                 "status": alert.status,
                 "threat_score": alert.threat_score,
-                "evidence_count": len(alert.evidence),
+                "evidence_count": int(evidence_count or 0),
                 "created_at": alert.created_at,
                 "sla": alert_sla(alert),
             }
-            for alert in recent_alerts
+            for alert, evidence_count in recent_alert_rows
         ],
         "ingestion_stats": ingestion_stats,
         "data_quality": data_quality,
@@ -212,16 +281,30 @@ def clear_dashboard_summary_cache() -> None:
     _SUMMARY_CACHE["signature"] = None
 
 
+def _dashboard_cache_signature_statement():
+    return select(
+        _count_subquery(NormalizedLog.id).label("normalized_log_count"),
+        _count_subquery(RawLog.id).label("raw_log_count"),
+        _count_subquery(Alert.id).label("alert_count"),
+        select(func.max(Alert.updated_at)).scalar_subquery().label("latest_alert_update"),
+        select(func.coalesce(func.max(IngestionRun.id), 0)).scalar_subquery().label("latest_ingestion_run_id"),
+        select(func.max(IngestionRun.finished_at)).scalar_subquery().label("latest_ingestion_finish"),
+        select(func.coalesce(func.max(DetectionRun.id), 0)).scalar_subquery().label("latest_detection_run_id"),
+        select(func.max(DetectionRun.finished_at)).scalar_subquery().label("latest_detection_finish"),
+        select(func.coalesce(func.max(AuditLog.id), 0)).scalar_subquery().label("latest_audit_id"),
+        _count_subquery(SuppressionRule.id, SuppressionRule.active.is_(True)).label("active_suppression_count"),
+        select(func.coalesce(func.sum(SuppressionRule.suppressed_count), 0))
+        .scalar_subquery()
+        .label("suppressed_hit_count"),
+        _count_subquery(WatchlistItem.id, WatchlistItem.active.is_(True)).label("active_watchlist_count"),
+        select(func.coalesce(func.sum(WatchlistItem.match_count), 0)).scalar_subquery().label("watchlist_hit_count"),
+    )
+
+
 def _dashboard_cache_signature(db: Session) -> tuple:
     bind = db.get_bind()
-    return (
-        str(bind.url) if hasattr(bind, "url") else id(bind),
-        int(db.scalar(select(func.count(NormalizedLog.id))) or 0),
-        int(db.scalar(select(func.count(Alert.id))) or 0),
-        int(db.scalar(select(func.coalesce(func.max(IngestionRun.id), 0))) or 0),
-        int(db.scalar(select(func.coalesce(func.max(DetectionRun.id), 0))) or 0),
-        int(db.scalar(select(func.coalesce(func.max(AuditLog.id), 0))) or 0),
-    )
+    row = db.execute(_dashboard_cache_signature_statement()).one()
+    return (str(bind.url) if hasattr(bind, "url") else id(bind), *tuple(row))
 
 
 def build_dashboard_summary_cached(db: Session) -> dict:

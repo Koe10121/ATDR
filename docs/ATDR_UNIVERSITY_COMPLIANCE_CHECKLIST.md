@@ -171,14 +171,15 @@ ATDR now has ATDR-specific workflow governance, PRD, agent operating model, chan
 
 ## Large SQLite Performance Monitoring Note
 
-During compliance closure, large local SQLite performance smoke runs showed that cached dashboard summaries remain fast, but a cold Overview/ingestion summary can still exceed the local budget on the current large database. Keep this note as a monitoring item because local SQLite timing can vary with concurrent backend/dashboard activity and DB lock contention.
+Earlier compliance runs showed that the cached dashboard was fast while a true cold Overview/ingestion summary could exceed nine seconds on the current large database. v4.7 profiled and repaired the dominant uncached query shape without resetting data, increasing TTL, prewarming, or adding an ad hoc index. Keep the inherited cold-disk evidence as a monitoring item because operating-system cache and local contention still affect SQLite timing.
 
-| Metric | Recent Warning Run | Latest Tasklist Pass | Local Budget |
+| Metric | Historical Warning | v4.7 Result | Local Budget |
 | --- | ---: | ---: | --- |
-| Overview / ingestion summary | 10.7997s | 12.216s cold, 0.0126s cached | 1.0s for Overview, 2.0s for ingestion summary |
-| ML Governance lightweight summary | 2.8009s | 3.3442s | 2.0s |
+| Overview application-cache miss | 9.341s true cold-disk observation | median 0.129154s; p95 0.156620s | median <=2.0s; p95 <=3.0s |
+| Overview warm cache | 0.0062s | p95 0.010919s; one query | <=0.05s |
+| ML Governance lightweight summary | 2.8009s historical warning | 1.1921s | <=2.0s |
 
-Do not reset or delete data to hide performance issues. If warnings recur, recommended next action is to profile the Overview/ingestion summary query path on the current large SQLite DB and consider a targeted cache/query/index improvement or PostgreSQL lab validation later.
+Do not reset or delete data to hide performance issues. If warnings recur, run the read-only five-pass profiler, inspect query plans and query counts, and validate on PostgreSQL for shared-host capacity. Do not mask a regression through cache TTL or prewarming.
 
 ## Remaining Gaps
 
@@ -363,6 +364,30 @@ For docs-only changes, at minimum verify the docs exist, links are correct, and 
 | Authentication safety | Satisfied locally / provider pending | Shell remains normal entry; startup fails closed with one provider blocker; local login remains explicit recovery | University OAuth Web client, domains/groups, 2FA, and real-account acceptance remain external. |
 | Database/safety controls | Satisfied | No configured DB copy/reset; clean-room used new disposable SQLite; response simulation, no blocking, and no model promotion remain enforced | Approved-host and real-source validation remain separate product gates. |
 | Change workflow | Satisfied | v4.6 status, T1-T20 record, hygiene report, exact allowlist, task board, tests, and verification evidence | Commit/push require explicit owner approval of the exact allowlist. |
+
+## v4.7 Large-SQLite Performance Compliance Status
+
+| Rule | Current Status | Evidence | Remaining Gap |
+| --- | --- | --- | --- |
+| Source evidence / no guessing | Satisfied | SQLAlchemy timings, five-run before/after distributions, response fingerprints, and SQLite query plans are recorded in the v4.7 status | True OS-cold reproduction remains platform-dependent. |
+| Database preservation | Satisfied | Profiler and smoke are read-only; no reset, copy, migration, index, or configured-DB write occurred | Shared PostgreSQL capacity remains external. |
+| Correctness and freshness | Satisfied | Fixed-time full payload equality and raw/alert/run cache invalidation tests pass | Future summary fields must keep the freshness signature synchronized. |
+| Portability/concurrency | Satisfied for locally controllable scope | PostgreSQL dialect compilation and concurrent file-SQLite reads pass | Approved-host PostgreSQL load/lock evidence remains pending. |
+| AI/response safety | Unchanged and satisfied | Tests confirm zero ML model runs and response actions from summary/profile reads | No production, promotion, automation, or blocking claim is authorized. |
+| Change workflow | Satisfied | v4.7 status, T1-T20 record, exact allowlist, PRD, traceability, runbook, task board, tests, and verification evidence | Commit/push require explicit owner approval of the exact allowlist. |
+
+## v4.8 End-to-End Product Acceptance Compliance Status
+
+| Rule | Current Status | Evidence | Remaining Gap |
+| --- | --- | --- | --- |
+| No guessing / source evidence | Satisfied | v4.8 composes actual ATDR source, job, parser, detection, assistant, metrics, and persistence services; measured checks identify exact contracts | Synthetic behavior does not prove unobserved real-device/provider behavior. |
+| Database preservation | Satisfied | runner requires `--use-temp-db`, migrates a unique disposable SQLite DB, refuses active restore target, compares configured DB markers, and removes temp state | Approved-host PostgreSQL acceptance remains external. |
+| Testing gate | Satisfied for implemented scope | ten focused tests, a passing 50,000-log run, full backend `612 passed, 1 skipped`, no Alembic drift, replay/performance checks, and a green release gate | Frontend was unchanged; approved-host/provider/real-device acceptance remains external. |
+| Requirement/PRD/docs gate | Satisfied | v4.8 status, T1-T20, PRD, traceability, compliance, runbook, task board, and cumulative exact allowlist | Future behavior changes must update the same source-of-truth chain. |
+| AI and assistant safety | Satisfied | no model runs/labels; assistant excludes raw context, redacts IPs, uses cited records, and falls back locally on injected provider failure | Real LLM privacy, quota, rotation, and answer-quality acceptance remain external. |
+| Response safety | Satisfied | zero response actions, automation false, real blocking false | Any real response connector requires a separately approved design and validation. |
+| Repo hygiene | Satisfied by design | generated DB/backups/staging remain under ignored temporary storage and are deleted; public report omits private paths/raw evidence/secrets | Continue pre-commit tracked-file checks. |
+| Change workflow | Satisfied | cumulative v4.7/v4.8 17-path boundary is documented because shared files contain both phases | Commit/push require a new explicit repository-owner instruction. |
 
 ## v4.4 MFU Authentication Stabilization Compliance Status
 

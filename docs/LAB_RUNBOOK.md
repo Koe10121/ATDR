@@ -154,10 +154,10 @@ For SQLite, the non-dry-run command creates an ignored backup copy under `.tmp/a
 Profile cold Overview/ingestion performance:
 
 ```powershell
-.\.venv\Scripts\python.exe -m atdr.scripts.profile_dashboard_summary --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.profile_dashboard_summary --runs 5 --pretty
 ```
 
-If the cold Overview summary is slow but cached hits are fast, treat it as a large-SQLite/shared-lab performance item. Do not reset or delete data to hide performance warnings.
+The v4.7 profiler is read-only. It reports independent application-cache misses and warm hits, min/median/p95/max, query counts, stable payload fingerprints, SQLAlchemy database time, and safe SQLite query-plan details. It does not flush operating-system page caches, so retain separately observed true cold-disk evidence. If the cold Overview summary is slow but cached hits are fast, treat it as a large-SQLite/shared-lab performance item. Do not reset or delete data to hide performance warnings. See `docs/V4_7_LARGE_SQLITE_PERFORMANCE_STABILIZATION.md`.
 
 For PostgreSQL shared-lab validation:
 
@@ -1104,11 +1104,12 @@ This does not import logs, reset data, run detection, score ML, or perform respo
 
 Local lab budgets:
 
-- Overview summary: ideally under `1s`.
+- Overview application-cache miss: median at most `2s` and p95 at most `3s` on the current large local SQLite profile.
+- Overview warm cache hit: at most `0.05s`.
 - ML Governance lightweight summary: ideally under `2s`.
 - Heavy supervised report/export: acceptable up to a few seconds because it is an explicit governance/reporting action.
 
-If a timing warning appears, reduce page limits for the demo and review indexes/query shape before larger lab operation. For larger datasets, prefer PostgreSQL lab mode and keep ML Governance on the default cached view; use **Refresh ML Summary** after training, scoring, or label import.
+If a timing warning appears, run the five-pass v4.7 profiler and review its query plans before changing cache TTL or adding indexes. Do not prewarm or lengthen TTL to hide an uncached regression. For larger/shared datasets, prefer PostgreSQL lab mode and keep ML Governance on the default cached view; use **Refresh ML Summary** after training, scoring, or label import.
 
 Parser-error example extraction is intentionally lightweight for large local datasets. Full raw evidence is still retained and can be inspected through Log Explorer or specific alert/log details.
 
@@ -1581,3 +1582,33 @@ Manual workflow:
 6. Confirm no response-action, detection, label, model, account, deletion, or firewall control is present.
 
 The browser snapshot is tab/session scoped and stores only whitelisted rendered fields. It excludes raw-log context, secrets, tokens, and arbitrary technical payloads. Logout and session expiry clear it. See `docs/V4_2_PRESENTATION_READY_SOC_ASSISTANT.md`.
+
+## v4.8 End-to-End Product Acceptance
+
+Use this command to validate the integrated product workflow without touching the configured database:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v48_product_acceptance `
+  --use-temp-db `
+  --log-count 50000 `
+  --simulate-interruption `
+  --run-detection `
+  --test-assistant `
+  --test-backup-restore `
+  --pretty
+```
+
+Expected high-level result:
+
+- `ok=true` and no failed checks;
+- exact raw/normalized counts equal to `--log-count`;
+- three intentional raw-fallback parser failures with raw evidence preserved;
+- interruption and cancellation resume checks pass;
+- one source-scoped `possible_port_scan` alert is deduplicated to 20 occurrences and 20 related logs;
+- a source-traceable case and `Why flagged?` explanation are available;
+- assistant follow-up context, citations, IP redaction, and deterministic provider-failure fallback pass;
+- response actions, labels, model runs, and users remain zero;
+- backup checksum/count/revision restore checks pass against a separate disposable target;
+- `current_database_unchanged=true` and `temp_artifacts_removed=true`.
+
+The command refuses to run without `--use-temp-db`. It disables external IAM, SMTP, and LLM calls inside the acceptance runtime and does not change normal startup commands. The generic-router warning and raw-fallback error are expected data-quality evidence, not infrastructure failures. See `docs/V4_8_END_TO_END_PRODUCT_ACCEPTANCE.md`.
