@@ -159,7 +159,12 @@ Current IAM limitations must remain explicit:
 
 ## NewSystem Template Adaptation Rule
 
-The repository includes `NewSystem/` as the university template reference. Use it as a process and control reference only.
+Selected university-template evidence is archived under
+`docs/reference/NewSystem/`; its scope is defined by
+`docs/reference/NewSystem/REFERENCE_SCOPE.md`. The archived files are process
+and control references only. The unused tracked Node/Vue/Mongo runtime copy is
+not ATDR source truth, and the versioned MFU companion shell is a separate
+distribution governed by `config/mfu-shell-contract.json`.
 
 ATDR follows these NewSystem-style ideas:
 
@@ -170,7 +175,14 @@ ATDR follows these NewSystem-style ideas:
 - T1-T20 change handoff: `docs/templates/ATDR_T1_T20_CHANGE_DOCUMENT.md`
 - security review discipline: `docs/security/ATDR_OWASP_LAB_SECURITY_REVIEW.md`
 
-Do not copy NewSystem-specific Node.js, Vue, MongoDB, Google SSO, B2B IAM SDK, or Docker requirements into ATDR unless a future approved requirement explicitly asks for that migration. The current school-email architecture is the v3.91 secure outer-shell handoff in `docs/V3_91_MFU_OUTER_SHELL_SECURE_HANDOFF.md`; its preproduction gate is `docs/security/ATDR_MFU_IAM_PREPROD_VALIDATION.md`. The MFU IAM adapter mapping is documented in `docs/security/ATDR_MFU_IAM_ADAPTER_PLAN.md`; the active adaptation guide is `docs/ATDR_NEWSYSTEM_TEMPLATE_ALIGNMENT.md`.
+Do not copy reference-only Node.js, Vue, MongoDB, Google SSO, B2B IAM SDK, or
+Docker requirements into ATDR unless a future approved requirement explicitly
+asks for that migration. The current school-email architecture is the v3.91
+secure outer-shell handoff in `docs/V3_91_MFU_OUTER_SHELL_SECURE_HANDOFF.md`;
+its preproduction gate is
+`docs/security/ATDR_MFU_IAM_PREPROD_VALIDATION.md`. The MFU IAM adapter mapping
+is documented in `docs/security/ATDR_MFU_IAM_ADAPTER_PLAN.md`; the active
+adaptation guide is `docs/ATDR_NEWSYSTEM_TEMPLATE_ALIGNMENT.md`.
 
 ## Analyst Assistant Safety Rule
 

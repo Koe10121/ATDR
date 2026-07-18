@@ -4,6 +4,12 @@ Date: 2026-06-27
 
 Scope: Phase 1 audit comparing the current ATDR repository with the official supervisor template at `<MFU_SHELL_ROOT>`. This document is a planning artifact only. No files were deleted and no runtime behavior was changed.
 
+Status update (2026-07-18): the historical NewSystem cleanup recommendation has
+been executed in the proposed, uncommitted v4.8.1 worktree. Selected evidence is
+under `docs/reference/NewSystem/`; the unused tracked Node/Vue/Mongo runtime copy
+is removed. See `docs/V4_8_1_REPOSITORY_CONSOLIDATION_REPORT.md` for current
+truth.
+
 ## Evidence Inspected
 
 | Evidence | Notes |
@@ -20,7 +26,7 @@ Scope: Phase 1 audit comparing the current ATDR repository with the official sup
 | Supervisor IAM integration source | `backend-node/server/integrations/iam/*` |
 | Supervisor security/account source | `backend-node/server/Project/security/*`, `backend-node/server/Project/accounts/*` |
 | Supervisor login/2FA UI source | `frontend-vue/src/projects/components/dialog/SignIn.vue`, `TwoFA.vue` |
-| Supervisor process docs | `docs/tasks/*`, `docs/templates/*`, `docs/AI-WORKFLOW.md`, `docs/agents/*` |
+| Supervisor process docs | archived `docs/reference/NewSystem/workflow/*`; active ATDR adaptations under `docs/tasks/*`, `docs/templates/*`, and `docs/agents/ATDR_AGENT_OPERATING_MODEL.md` |
 | Supervisor environment key families | Root, `backend-node`, and `frontend-vue` `.env*` files inspected by variable name only |
 
 Secret values were not printed or copied. Environment files were inspected only for variable names and configuration families.
@@ -174,9 +180,9 @@ Do not copy or migrate:
 - The template's generic business modules that do not fit ATDR.
 - Template backend `.env` secret values, even when local permission to inspect exists. Use private `.env` or a real secret manager only.
 
-## In-Repo `NewSystem/` Finding
+## Historical In-Repo `NewSystem/` Finding
 
-The repository contains `NewSystem/`. A file comparison against the official template path found:
+Before v4.8.1, the repository contained `NewSystem/`. A file comparison against the official template path found:
 
 - 526 tracked files under `NewSystem/`.
 - Ignored local artifacts under `NewSystem/`, including `.env.*`, `.idea/`, `.DS_Store`, and `node_modules/`.
@@ -191,15 +197,20 @@ Recommendation:
    - delete the tracked `NewSystem/` copy after confirming all ATDR docs point to the external official template path and useful reference material is preserved.
 4. Remove ignored local artifacts separately if desired, but never stage `.env` or secrets.
 
-Current decision: keep `NewSystem/` untouched until a dedicated cleanup task audits references and confirms the official external template path remains available. The in-repo copy is a cleanup liability, not runtime truth.
+Current decision: the dedicated dependency/reference audit passed. Preserve the
+25-file reference archive (24 preserved/relocated files plus one new scope
+document), remove the 517 unrelated tracked runtime files, and
+leave private local artifacts untouched. Do not publish the cleanup without
+separate exact-allowlist approval.
 
-## Safe Cleanup Plan
+## Safe Cleanup Result
 
-Do not run this plan until the user approves a cleanup phase.
+The proposed v4.8.1 worktree completed only the tracked reference/runtime
+cleanup. Local ignored artifact deletion remains unapproved.
 
 | Path / area | Classification | Proposed action |
 | --- | --- | --- |
-| `NewSystem/` tracked source | Move/delete candidate | Replace with concise `docs/reference/` material or document external official template path. Do not delete until references are audited. |
+| Historical `NewSystem/` tracked source | Completed in proposed cleanup | Nine files preserved from the copy; 517 unrelated tracked runtime files removed after dependency proof. |
 | `NewSystem/**/node_modules/` | Ignore/delete local artifact | Safe to remove locally after confirming no work depends on it. It is ignored and should never be committed. |
 | `NewSystem/.env*`, `NewSystem/**/.env*` | Sensitive local artifact | Keep ignored. Do not print, copy, or commit. |
 | `NewSystem/.idea/`, `.DS_Store` | Local artifact | Safe cleanup candidate. |
@@ -252,7 +263,11 @@ Real LLM mode should require:
 
 ## Phase 1 Decision
 
-Keep ATDR on FastAPI + React + SQLAlchemy/Alembic. Use the supervisor template as a reference for IAM, permission matrix, account lifecycle, audit, deployment discipline, and university workflow evidence. Do not migrate to Node/Vue/MongoDB. Do not delete the in-repo `NewSystem/` until a dedicated cleanup phase is approved and references are updated.
+Keep ATDR on FastAPI + React + SQLAlchemy/Alembic. Use the archived supervisor
+evidence for IAM, permission matrix, account lifecycle, audit, deployment
+discipline, and university workflow traceability. Do not migrate to
+Node/Vue/MongoDB. Use the separately distributed MFU companion shell for the
+normal identity boundary; do not restore the removed template runtime copy.
 
 ## Phase 1 Completion Evidence
 

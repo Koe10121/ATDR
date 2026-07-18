@@ -24,7 +24,10 @@
 
 ## What NewSystem Means In This Repo
 
-`NewSystem/` is a university template/reference. ATDR adapts useful process and UI ideas from it, such as formal navigation, permission thinking, IAM/RBAC documentation, and workflow traceability.
+Selected university template evidence is archived under
+`docs/reference/NewSystem/`. ATDR adapts useful process and UI ideas from it,
+such as formal navigation, permission thinking, IAM/RBAC documentation, and
+workflow traceability; the archived Node/Vue/Mongo material is not ATDR runtime.
 
 ATDR does not migrate to NewSystem's Node/Vue/MongoDB stack. The active runtime remains FastAPI + React + SQLAlchemy/Alembic + Python ML.
 
@@ -45,4 +48,3 @@ The next strong development phase is controlled real-source validation:
 - validate alerts and cases from live forwarded logs;
 - keep response simulation-only;
 - document limitations and evidence.
-

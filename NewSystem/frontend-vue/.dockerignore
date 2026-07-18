@@ -1,6 +1,0 @@
-node_modules
-dist
-coverage
-chromedriver.log
-npm-debug.log
-.git

@@ -12,11 +12,11 @@ Adapt the university `NewSystem` template expectations into ATDR without changin
 
 | Evidence | Source |
 | --- | --- |
-| NewSystem setup and permission path pattern | `NewSystem/TEMPLATE.md` |
-| NewSystem manifest/environment/permission expectations | `NewSystem/template.manifest.json` |
-| NewSystem IAM PRD concepts | `NewSystem/backend-node/docs/IAM_PRD.md` |
-| NewSystem IAM architecture concepts | `NewSystem/backend-node/docs/IAM_SYSTEM_OVERVIEW.md` |
-| NewSystem OWASP-style review pattern | `NewSystem/backend-node/docs/OWASP_TOP10_REPORT.md` |
+| NewSystem setup and permission path pattern | `docs/reference/NewSystem/TEMPLATE.md` |
+| NewSystem manifest/environment/permission expectations | `docs/reference/NewSystem/template.manifest.json` |
+| NewSystem IAM PRD concepts | `docs/reference/NewSystem/backend-node/docs/IAM_PRD.md` |
+| NewSystem IAM architecture concepts | `docs/reference/NewSystem/backend-node/docs/IAM_SYSTEM_OVERVIEW.md` |
+| NewSystem OWASP-style review pattern | `docs/reference/NewSystem/backend-node/docs/OWASP_TOP10_REPORT.md` |
 | ATDR route mounting | `atdr/app/main.py` |
 | ATDR JWT/RBAC dependencies | `atdr/app/core/security.py` |
 | ATDR protected routers | `atdr/app/routers/*.py` |

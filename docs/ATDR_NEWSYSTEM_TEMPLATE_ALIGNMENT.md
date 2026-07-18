@@ -1,6 +1,10 @@
 # ATDR Alignment With The NewSystem University Template
 
-This document explains how ATDR follows the useful parts of the university `NewSystem` template while staying true to ATDR's actual FastAPI + React architecture.
+This document explains how ATDR follows useful university `NewSystem` control
+patterns while staying true to ATDR's FastAPI + React architecture. Selected
+reference files are archived under `docs/reference/NewSystem/`; the unrelated
+tracked Node/Vue/Mongo runtime copy has been removed from the proposed v4.8.1
+tree.
 
 `NewSystem` is a Node.js + Vue + MongoDB + IAM reference project. ATDR is a FastAPI + React + SQLAlchemy/Alembic defensive SOC prototype. Therefore, this alignment copies the workflow standards and control ideas, not the framework-specific implementation.
 
@@ -8,12 +12,13 @@ This document explains how ATDR follows the useful parts of the university `NewS
 
 | Template / ATDR Area | Source |
 | --- | --- |
-| NewSystem template setup and required permission paths | `NewSystem/TEMPLATE.md` |
-| NewSystem manifest and environment/permission standards | `NewSystem/template.manifest.json` |
-| NewSystem tasklist/progress-board standard | `NewSystem/docs/tasks/README.md`, `NewSystem/docs/tasks/tasklist-progress.md`, `NewSystem/scripts/render-tasklist-progress-html.js`, `NewSystem/scripts/check-tasklist-progress-standard.js` |
-| NewSystem IAM PRD concepts | `NewSystem/backend-node/docs/IAM_PRD.md` |
-| NewSystem IAM architecture concepts | `NewSystem/backend-node/docs/IAM_SYSTEM_OVERVIEW.md` |
-| NewSystem security review pattern | `NewSystem/backend-node/docs/OWASP_TOP10_REPORT.md` |
+| NewSystem template setup and required permission paths | `docs/reference/NewSystem/TEMPLATE.md` |
+| NewSystem manifest and environment/permission standards | `docs/reference/NewSystem/template.manifest.json` |
+| NewSystem workflow/change standard | `docs/reference/NewSystem/workflow/AI-WORKFLOW.md`, `docs/reference/NewSystem/workflow/T1-T20-change-document.md`, `docs/reference/NewSystem/workflow/agents/sprint-task-template.md` |
+| ATDR tasklist/progress-board adaptation | `docs/tasks/README.md`, `docs/tasks/tasklist-progress.md`, `scripts/render-tasklist-progress-html.js`, `scripts/check-tasklist-progress-standard.js` |
+| NewSystem IAM PRD concepts | `docs/reference/NewSystem/backend-node/docs/IAM_PRD.md` |
+| NewSystem IAM architecture concepts | `docs/reference/NewSystem/backend-node/docs/IAM_SYSTEM_OVERVIEW.md` |
+| NewSystem security review pattern | `docs/reference/NewSystem/backend-node/docs/OWASP_TOP10_REPORT.md` |
 | ATDR active PRD | `docs/prd/PRD-ATDR.md` |
 | ATDR active workflow | `docs/ATDR_AI_WORKFLOW.md` |
 | ATDR IAM/RBAC matrix | `docs/security/ATDR_IAM_RBAC_MATRIX.md` |
@@ -26,7 +31,7 @@ This document explains how ATDR follows the useful parts of the university `NewS
 | --- | --- | --- |
 | Project manifest | `docs/ATDR_TEMPLATE_MANIFEST.json` | Added for ATDR v0.3 governance. |
 | Permission paths | `docs/security/ATDR_PERMISSION_PATHS.md` and `docs/security/ATDR_IAM_RBAC_MATRIX.md` | Added as ATDR route/action registry. |
-| IAM authentication | Local JWT authentication in `atdr/app/core/security.py` | Implemented for lab prototype. |
+| IAM authentication | Local JWT recovery plus v3.91 MFU outer-shell opaque-code handoff | Implemented in source; real provider acceptance pending. |
 | Role/permission checks | FastAPI dependencies: `require_admin`, `require_analyst_or_admin` | Implemented. |
 | Account administration | Admin user management in `atdr/app/routers/users.py` | Implemented for local lab users. |
 | Audit logging | `AuditLog` model, audit route, response/action audit writes | Implemented. |
@@ -47,9 +52,9 @@ The following NewSystem items are not copied into ATDR because they are framewor
 | Node.js backend structure | Not copied. ATDR remains FastAPI. |
 | Vue/Vuex/CoreUI frontend structure | Not copied. ATDR remains React-first. |
 | MongoDB data model | Not copied. ATDR remains SQLAlchemy/Alembic with SQLite locally and optional PostgreSQL later. |
-| External IAM SDK / B2B client registration | Future work only. ATDR currently uses local JWT auth. |
-| OAuth/SSO/SAML/LDAP | Future work only if explicitly approved later. |
-| Google SSO / 2FA trusted-device flow | Future work, not needed for v0.3 lab validation. |
+| NewSystem IAM SDK runtime | Not copied. ATDR consumes the approved outer-shell handoff contract instead. |
+| Direct ATDR-owned OAuth/SSO/SAML/LDAP | Not implemented; the MFU outer shell owns school sign-in. |
+| Provider-managed Google/MFU SSO and 2FA lifecycle | Source handoff exists; live provider, group, recovery, and deprovisioning acceptance remain external. |
 | Real production deployment assumptions | Not copied. ATDR is lab-ready, not production-certified. |
 | Real enforcement/containment automation | Not copied. ATDR response remains simulated and analyst-approved. |
 
@@ -79,4 +84,6 @@ ATDR should follow the university template at the process and control level:
 - security review
 - clear limitations
 
-ATDR should not be converted into NewSystem's Node/Vue/Mongo/external-IAM architecture unless a future approved requirement explicitly asks for that migration.
+ATDR should not be converted into NewSystem's Node/Vue/Mongo architecture. The
+approved MFU companion shell remains a separately distributed identity boundary,
+not an ATDR stack migration. See `docs/reference/NewSystem/REFERENCE_SCOPE.md`.

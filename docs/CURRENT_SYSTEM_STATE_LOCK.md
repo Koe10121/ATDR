@@ -1,10 +1,17 @@
 # ATDR Current System State Lock
 
-Date: 2026-07-15
+Date: 2026-07-18
 
 Purpose: this document is the current-state memory anchor before larger ATDR productization work. It captures what exists now, what must stay safe, and what must not be deleted or committed while ATDR moves from controlled academic/lab prototype toward a more serious SOC/SaaS-style product.
 
-Checkpoint: v4.3 adds the portable MFU outer-shell team runtime on top of the v4.2 assistant and v4.1 diagnostic model baseline. The approved shell is now the normal entry profile; direct local login is explicit recovery only. Existing ATDR data, detection/ML behavior, and response safety remain unchanged. This document remains a source-backed state lock, not a production-readiness claim.
+Checkpoint: the published v4.8 baseline combines v4.7 large-SQLite Overview
+stabilization with disposable 50,000-log product acceptance. Commit `15e43c8`
+is on `origin/main` and all GitHub Actions jobs passed. The proposed v4.8.1
+repository consolidation is intentionally uncommitted: it archives selected
+NewSystem reference evidence and removes only the unused tracked Node/Vue/Mongo
+runtime copy. Existing ATDR data, detection/ML behavior, MFU companion-shell
+distribution, and response safety remain unchanged. This is a source-backed
+state lock, not a production-readiness claim.
 
 ## Source Evidence
 
@@ -17,6 +24,7 @@ Checkpoint: v4.3 adds the portable MFU outer-shell team runtime on top of the v4
 | Parser and normalization | `atdr/app/parsers/paloalto_parser.py`, `atdr/app/services/log_service.py` |
 | Detection and explanations | `atdr/app/detection/*`, `atdr/app/services/detection_service.py`, `atdr/app/detection/explanations.py` |
 | ML / AI governance | `atdr/app/routers/ml.py`, `atdr/app/services/ml_service.py`, `atdr/app/detection/supervised_*`, `atdr/app/ml/features.py` |
+| Current AI/ML product truth | `docs/CURRENT_AI_ML_PRODUCT_STATUS.md` |
 | SOC Assistant | `atdr/app/routers/assistant.py`, `atdr/app/services/assistant_service.py`, `atdr/app/services/assistant_llm.py`, `frontend/src/pages/AssistantPage.tsx` |
 | Durable operation reliability | `atdr/app/services/job_service.py`, `atdr/app/services/job_dispatcher.py`, `atdr/app/services/operation_worker.py`, `atdr/app/routers/jobs.py`, `atdr/scripts/run_operation_worker.py` |
 | IAM / school-email groundwork | `atdr/app/routers/auth.py`, `atdr/app/services/mfu_iam_service.py`, `docs/security/ATDR_MFU_IAM_IMPLEMENTATION_PLAN.md` |
@@ -274,7 +282,9 @@ Real firewall blocking must remain disabled unless explicitly approved later wit
 - Supervised ML still needs better stability, calibration, and real-source validation before stronger claims.
 - Case grouping is lightweight, not a full incident/ticketing platform.
 - Observability is still mostly app logs, health checks, scripts, and performance smoke; production metrics/alerting is future work.
-- The worktree currently contains many uncommitted productization changes and docs. Treat Git status as a source of truth before any push/cleanup.
+- The published v4.8 baseline is clean. The proposed v4.8.1 consolidation is a
+  separate uncommitted allowlist and must not be pushed without explicit owner
+  approval.
 
 ## Current Verification Commands
 
@@ -323,7 +333,8 @@ Keep:
 
 Reference only:
 
-- `NewSystem/` inside this repo until a separate cleanup phase proves it can be moved or removed safely.
+- `docs/reference/NewSystem/` contains selected archived university-template
+  workflow/IAM/security/manifests only; it is not runtime authority.
 - The separately supplied `<MFU_SHELL_ROOT>` is the approved supervisor shell source. Its location is private runtime configuration, not a repository constant.
 
 ## Ignored Or Sensitive Folders
@@ -367,7 +378,7 @@ Future work can make larger architectural, backend, and UI changes, but every ma
 - repo hygiene
 - verifiable tests and release gates
 
-## Latest Verified Checkpoint
+## Historical v3.99 Checkpoint
 
 The cumulative v3.97-v3.99 worktree was verified on 2026-07-14:
 
@@ -421,4 +432,40 @@ AI Governance now reads one canonical evidence snapshot and returns unavailable 
 
 The separately supplied shell still lacks a published companion repository/archive version and checksum. `config/mfu-shell-contract.json` provides structure and non-secret fingerprinting, but approved shell distribution remains a release blocker. See `docs/V4_5_REPRODUCIBLE_PRODUCT_BASELINE.md` and `docs/V4_5_CURRENT_STATE_MANIFEST.md`.
 
-Final v4.2 closure verification passed: task-board render/check, Ruff, compileall, full backend `568 passed, 1 skipped`, disposable Alembic no-drift, React lint/build, Playwright `23 passed, 1 skipped`, replay dry-run, secret-safe Gemini status/probe, warning-free disposable-copy performance smoke, and release gate `ok: true`. A live authenticated Gemini-backed request returned grounded, redacted context and left response actions, detection runs, labels, and model runs unchanged. The configured database was not written or migrated. Its inherited v3.97 additive migration remains pending, so the operator must run `alembic upgrade head` before using current-model dashboard queries against that database.
+The earlier v4.5 clean-room verification passed its documented backend,
+frontend, replay, assistant, performance, and release gates. Its historical
+migration warning is superseded: the configured SQLite database is now at
+Alembic head `b4c5d6e7f8a9`.
+
+## v4.7 Performance Update
+
+v4.7 replaced the dominant wide Overview quality scan with index-servable
+counts, removed recent-alert evidence N+1 reads, and consolidated freshness
+checks. The read-only five-run profile passed local budgets without increasing
+cache TTL, prewarming, adding a migration, or mutating the configured database.
+The latest 2026-07-18 smoke rerun measured Overview uncached `0.1729s`, first
+cached `0.1437s`, warm `0.0120s`, ML Governance `1.3065s`, alert list `0.0396s`,
+case summary `0.0747s`, and feature sample `0.4803s`, with no warnings.
+
+## v4.8 Product Acceptance Update
+
+v4.8 passed a fail-closed 50,000-log acceptance run on a unique disposable
+SQLite database. It applied existing migrations and exercised source creation,
+durable queue/worker import, resumability and cancellation, parser accounting,
+source-scoped detection, alert deduplication, case/explanation traceability,
+assistant citations/redaction/provider-failure fallback, metrics, and isolated
+backup/restore. It created no users, labels, model runs, or response actions and
+left the configured database unchanged. Commit `15e43c8` was pushed without
+force; GitHub Actions run `29640334774` passed backend, PostgreSQL persistence,
+and frontend jobs.
+
+## v4.8.1 Consolidation Update
+
+The proposed cleanup proves that ATDR runtime, tests, scripts, launchers, and CI
+have no dependency on the tracked `NewSystem/` runtime. Nine selected files from
+that 526-file copy and 15 original workflow/history files are preserved under
+`docs/reference/NewSystem/`; 517 unrelated tracked runtime files are proposed
+for removal. Private environment files, databases, logs, labels, models,
+reviews, exports, migrations, tests, and current ATDR change records remain
+untouched. See `docs/V4_8_1_REPOSITORY_CONSOLIDATION_REPORT.md` and the exact
+approval-gated `docs/V4_8_1_COMMIT_ALLOWLIST.md`.

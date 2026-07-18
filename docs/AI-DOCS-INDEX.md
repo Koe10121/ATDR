@@ -4,11 +4,12 @@ This index defines the active ATDR documentation set for AI/Codex-assisted work.
 
 ## Current Baseline
 
-- `docs/V4_5_REPRODUCIBLE_PRODUCT_BASELINE.md`: reproducibility, canonical evidence, dashboard, assistant, and clean-room status.
-- `docs/V4_5_CURRENT_STATE_MANIFEST.md`: concise source/runtime capability manifest.
-- `docs/V4_5_REPO_HYGIENE_REPORT.md`: protected material and release-boundary audit.
-- `docs/V4_5_COMMIT_ALLOWLIST.md`: exact approved and executed `dd6ff01` source boundary; future releases require a new allowlist.
-- `docs/changes/T1_T20_V4_5_REPRODUCIBLE_PRODUCT_BASELINE.md`: completed change-workflow record.
+- `docs/CURRENT_SYSTEM_STATE_LOCK.md`: current v4.8 source, behavior, safety, and external-gate anchor.
+- `docs/CURRENT_AI_ML_PRODUCT_STATUS.md`: current assistant, Gemini, rules, IsolationForest, supervised-candidate, and registry truth.
+- `docs/V4_7_LARGE_SQLITE_PERFORMANCE_STABILIZATION.md`: current Overview performance repair and measured budgets.
+- `docs/V4_8_END_TO_END_PRODUCT_ACCEPTANCE.md`: disposable 50,000-log integrated acceptance evidence.
+- `docs/V4_8_1_REPOSITORY_CONSOLIDATION_REPORT.md`: proposed uncommitted repository cleanup and protected-file boundary.
+- `docs/V4_8_1_COMMIT_ALLOWLIST.md`: exact cleanup review boundary; no commit/push is authorized by the document.
 
 ## Active Control Documents
 
@@ -30,6 +31,7 @@ This index defines the active ATDR documentation set for AI/Codex-assisted work.
 | `docs/PRODUCTIZATION_TEMPLATE_GAP_ANALYSIS.md` | Phase 1 comparison between ATDR and the official supervisor template with keep/adapt/do-not-copy guidance and safe cleanup plan. |
 | `docs/ATDR_PRODUCTIZATION_ROADMAP.md` | Phase 2 SaaS-like productization roadmap covering target backend/frontend/database/IAM/assistant/detection/deployment/testing/security direction. |
 | `docs/ATDR_REPO_CLEANUP_PLAN.md` | Phase 3 repository cleanup classification covering keep/update/move/delete/ignore decisions without deleting files. |
+| `docs/CURRENT_AI_ML_PRODUCT_STATUS.md` | Canonical current separation of rule detection, IsolationForest, supervised candidates, active-artifact metadata, deterministic assistant evidence, and Gemini's bounded role. |
 | `docs/DETECTION_ML_PRODUCTIZATION_PLAN.md` | Source-backed plan for productizing rule detection, anomaly scoring, supervised SOC queue output, model registry, drift monitoring, and promotion gates without activating models or response automation. |
 | `docs/detection/ATDR_RULE_PACK_CONTRACT.md` | Versioned deterministic detection rule-pack contract aligned to implemented rule IDs and SOC analyst checks. |
 | `docs/detection/ATDR_SCENARIO_CORPUS_CONTRACT.md` | Controlled scenario-corpus contract for parser, detection, deduplication, explanation, and response-safety validation. |
@@ -163,14 +165,17 @@ This index defines the active ATDR documentation set for AI/Codex-assisted work.
 
 For IAM history, v3.65-v3.86 token/session-handoff documents remain change evidence only. The current authentication contract is v3.91; do not reintroduce browser-token URLs from historical documents.
 
-The repository may include NewSystem template documents for traceability. They are reference-only unless an ATDR-specific document explicitly adopts a rule.
+Selected NewSystem template documents are archived for traceability. They are
+reference-only unless an ATDR-specific document explicitly adopts a rule. The
+tracked Node/Vue/Mongo runtime copy is no longer part of the proposed tree.
 
 | Reference | Rule |
 | --- | --- |
-| `NewSystem/` | University process/style/reference material only. Not ATDR runtime code. |
-| `docs/AI-WORKFLOW.md` | Original NewSystem-oriented workflow reference. Active workflow is `docs/ATDR_AI_WORKFLOW.md`. |
-| `docs/prd/PRD-NewSystem.md` | NewSystem PRD reference. Active PRD is `docs/prd/PRD-ATDR.md`. |
-| `docs/agents/agent-*.md` when NewSystem-specific | Reference roles only; active ATDR model is `docs/agents/ATDR_AGENT_OPERATING_MODEL.md`. |
+| `docs/reference/NewSystem/REFERENCE_SCOPE.md` | Defines the archived reference set, sanitization, and authority boundary. |
+| `docs/reference/NewSystem/` | Selected university process/IAM/security/manifests only. Not ATDR runtime code and not the versioned MFU companion shell. |
+| `docs/reference/NewSystem/workflow/AI-WORKFLOW.md` | Original NewSystem-oriented workflow reference. Active workflow is `docs/ATDR_AI_WORKFLOW.md`. |
+| `docs/reference/NewSystem/workflow/PRD-NewSystem.md` | NewSystem PRD reference. Active PRD is `docs/prd/PRD-ATDR.md`. |
+| `docs/reference/NewSystem/workflow/agents/*` | Original reference roles only; active ATDR model is `docs/agents/ATDR_AGENT_OPERATING_MODEL.md`. |
 
 ## Change Rules
 

@@ -4,8 +4,10 @@
   "compatProfile": "mfu-lab-jwt-rbac-v1",
   "sourceTemplateReference": {
     "name": "NewSystem",
-    "path": "NewSystem/",
-    "note": "University reference template only. ATDR adapts workflow, IAM/RBAC, audit, environment, and release standards without copying Node/Vue/Mongo implementation."
+    "path": "docs/reference/NewSystem/",
+    "scope": "docs/reference/NewSystem/REFERENCE_SCOPE.md",
+    "companionShellContract": "config/mfu-shell-contract.json",
+    "note": "Selected university reference evidence only. ATDR adapts workflow, IAM/RBAC, audit, environment, and release standards without using the archived Node/Vue/Mongo implementation as runtime source. The MFU companion shell is a separate versioned distribution."
   },
   "application": {
     "name": "MFU ATDR",
@@ -99,4 +101,3 @@
     "ML remains decision support only."
   ]
 }
-

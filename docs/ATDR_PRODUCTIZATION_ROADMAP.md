@@ -6,6 +6,11 @@ Purpose: define the target SaaS-like SOC product direction for ATDR after the Ph
 
 Checkpoint: updated after v3.97 large-file reliability, v3.98 leakage-controlled internal Detection/ML holdout validation, and v3.99 synthetic multi-source/time frozen revalidation. The roadmap treats the official supervisor template as IAM/process evidence and keeps ATDR on FastAPI + React + SQLAlchemy/Alembic.
 
+Repository update (2026-07-18): Phase A is complete in the proposed v4.8.1
+worktree. Selected template evidence is archived under
+`docs/reference/NewSystem/`; the unused tracked runtime copy is removed. The
+separately distributed MFU companion shell remains unchanged.
+
 ## Source Evidence
 
 | Area | Source evidence |
@@ -363,10 +368,11 @@ External LLM privacy:
 
 ### Phase A: Repository Cleanup And Reference Archiving
 
-- Decide whether in-repo `NewSystem/` is kept, moved to `docs/reference/`, or deleted.
-- Preserve useful supervisor-template evidence.
-- Remove ignored local artifacts only with explicit approval.
-- Update docs so the official external template path remains the canonical reference.
+- Completed in proposed v4.8.1: selected evidence is under
+  `docs/reference/NewSystem/` and the unused tracked runtime copy is removed.
+- Ignored/private local artifacts remain untouched and require separate approval
+  for any local deletion.
+- Active docs distinguish the archive from the versioned MFU companion shell.
 
 ### Phase B: SOC Assistant Follow-Up And Real Provider QA
 
@@ -420,7 +426,8 @@ Implementation order note: Phase B is complete for the local checkpoint. Continu
 ## Non-Goals For This Track
 
 - Do not migrate ATDR to Node, Vue, or MongoDB just because the supervisor template uses them.
-- Do not delete `NewSystem/` without a dedicated cleanup decision.
+- Do not restore or reintroduce the removed NewSystem runtime copy; preserve only
+  the reviewed archive and separate MFU companion-shell distribution.
 - Do not commit secrets or generated/private data.
 - Do not enable real firewall blocking.
 - Do not enable automatic response.

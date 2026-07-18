@@ -6,15 +6,24 @@ ATDR is lab-ready for controlled small-office validation. It is not certified pr
 
 ## Current Reproducible Baseline
 
-v4.5 makes the current FastAPI/React system reproducible from a clean Windows copy, adds one canonical ML evidence snapshot, separates operational and diagnostic model states, bounds SOC Assistant answers, and verifies rendered core pages at projector, laptop, and mobile sizes. See:
+The published v4.8 baseline combines the v4.7 large-SQLite Overview repair with
+a disposable 50,000-log end-to-end acceptance gate. The approved commit is
+`15e43c8`; all GitHub Actions jobs passed. See:
 
-- `docs/V4_5_REPRODUCIBLE_PRODUCT_BASELINE.md`
-- `docs/V4_5_CURRENT_STATE_MANIFEST.md`
-- `docs/V4_5_REPO_HYGIENE_REPORT.md`
+- `docs/V4_7_LARGE_SQLITE_PERFORMANCE_STABILIZATION.md`
+- `docs/V4_8_END_TO_END_PRODUCT_ACCEPTANCE.md`
+- `docs/CURRENT_SYSTEM_STATE_LOCK.md`
+- `docs/CURRENT_AI_ML_PRODUCT_STATUS.md`
 
-Installation is locally reproducible. Real MFU/Google sign-in still requires an approved OAuth Web client and account/group assignment from the university provider owner; authentication intentionally fails closed until those external inputs are supplied.
+Installation is locally reproducible. Real MFU/Google sign-in still requires an
+approved OAuth Web client and account/group assignment from the university
+provider owner; authentication intentionally fails closed until those external
+inputs are supplied. The uncommitted v4.8.1 cleanup archives selected university
+template references under `docs/reference/NewSystem/` and removes the unrelated
+tracked Node/Vue/Mongo runtime copy. It does not alter the separately distributed
+MFU companion shell.
 
-## Final Academic Checkpoint
+## Historical Academic Checkpoint
 
 - Readiness: `final_controlled_validation_candidate`
 - Candidate: `independent_fpr_stabilized`
@@ -386,7 +395,10 @@ ATDR combines:
 - supervised classifier output trained from reviewed/assisted labels
 - hybrid risk scoring for analyst triage
 
-The frozen candidate is a Final Controlled Validation Candidate for SOC triage decision support. It is Not Production Promoted, and Response Automation remains disabled regardless of model output.
+Supervised outputs remain SOC triage decision support. Current candidates are
+`candidate_only`, the legacy active artifact has unknown registration metadata,
+and no current candidate is production-promoted. Response Automation remains
+disabled regardless of model output.
 
 Useful commands:
 
@@ -396,7 +408,8 @@ python -m atdr.scripts.export_active_learning_review_sample --limit 200
 python -m atdr.scripts.train_supervised_model --split time --test-size 0.3 --min-samples 6
 ```
 
-See `docs/AI_TRAINING_RUNBOOK.md` and `docs/ML_BASELINE_TUNING.md`.
+See `docs/CURRENT_AI_ML_PRODUCT_STATUS.md`, `docs/AI_TRAINING_RUNBOOK.md`, and
+`docs/ML_BASELINE_TUNING.md`.
 
 ## Verification
 
@@ -441,6 +454,10 @@ $env:ATDR_RUN_PLAYWRIGHT="1"
 
 Start here:
 
+- `docs/CURRENT_SYSTEM_STATE_LOCK.md` - current source-backed product and safety checkpoint.
+- `docs/CURRENT_AI_ML_PRODUCT_STATUS.md` - current rules, IsolationForest, supervised-candidate, registry, and Gemini boundaries.
+- `docs/V4_8_END_TO_END_PRODUCT_ACCEPTANCE.md` - disposable 50,000-log integrated acceptance evidence.
+- `docs/V4_8_1_REPOSITORY_CONSOLIDATION_REPORT.md` - uncommitted repository consolidation decision and protected-file boundary.
 - `docs/QUICKSTART_FOR_TEAM.md` - Windows setup for teammates using clone or zip download.
 - `docs/LAB_RUNBOOK.md` - lab operations, replay, syslog, source validation, and troubleshooting.
 - `docs/FINAL_REPORT_OUTLINE.md` - complete ATDR-specific senior-project report structure.
@@ -502,6 +519,7 @@ Governance and university workflow:
 - `docs/AI-DOCS-INDEX.md` - active ATDR documentation index and reference-only NewSystem boundary.
 - `docs/ATDR_AI_WORKFLOW.md` - no-guessing, source-evidence, testing, PRD-update, safety, and handoff workflow.
 - `docs/ATDR_NEWSYSTEM_TEMPLATE_ALIGNMENT.md` - how ATDR adapts the university NewSystem template without copying Node/Vue/Mongo implementation.
+- `docs/reference/NewSystem/REFERENCE_SCOPE.md` - preserved reference-only template evidence and authority boundary.
 - `docs/ATDR_TEMPLATE_MANIFEST.json` - ATDR-specific template manifest with env keys, permission paths, validation commands, and safety constraints.
 - `docs/prd/PRD-ATDR.md` - real ATDR PRD.
 - `docs/tasks/README.md` - ATDR tasklist/progress-board rules.
@@ -552,6 +570,7 @@ data/samples/       safe synthetic/demo samples only
 frontend/           React SOC dashboard
 migrations/         Alembic migrations
 docs/               runbooks, PRD, governance, status, release docs
+  reference/NewSystem/ selected reference-only university template evidence
 ```
 
 ## Current Limitations
@@ -560,5 +579,6 @@ docs/               runbooks, PRD, governance, status, release docs
 - Automatic response is not enabled.
 - Real router/firewall syslog forwarding still needs controlled lab validation.
 - SQLite is convenient for local use; PostgreSQL is recommended later for shared/larger lab deployment.
-- Supervised ML still needs more reviewed labels and live validation before stronger claims.
+- Supervised ML remains `candidate_only`; schema transfer, calibration, complete
+  artifact provenance, and independent real-source validation remain blockers.
 - Case grouping is lightweight and not a full incident-management/ticketing platform.

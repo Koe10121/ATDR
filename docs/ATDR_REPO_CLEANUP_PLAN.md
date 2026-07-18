@@ -4,6 +4,12 @@ Date: 2026-06-26
 
 Purpose: Phase 3 productization cleanup plan. This document classifies current repository and local-workspace material as keep, update, move to reference, delete later, or ignore. It is a planning artifact only. No files were deleted or moved while creating this plan.
 
+Completion update (2026-07-18): the proposed v4.8.1 cleanup executed the
+approved planning sequence in the worktree. Selected references are archived,
+the unused tracked runtime copy is removed from the index, and the exact change
+boundary awaits separate commit/push approval. See
+`docs/V4_8_1_REPOSITORY_CONSOLIDATION_REPORT.md`.
+
 ## Source Evidence
 
 | Evidence | Result |
@@ -16,14 +22,16 @@ Purpose: Phase 3 productization cleanup plan. This document classifies current r
 | Tracked top-level inventory | `git ls-files` |
 | Ignored local inventory | `git status --ignored --short` |
 | Official supervisor template | `<MFU_SHELL_ROOT>` |
-| In-repo template copy | `NewSystem/` |
+| Archived in-repo template evidence | `docs/reference/NewSystem/` |
 
 Secret values were not inspected, printed, or copied. `.env` files are classified as protected local configuration.
 
 ## Current Hygiene Summary
 
 - The repository tracks the active ATDR backend, frontend, migrations, safe sample data, docs, scripts, and CI files.
-- The repository also tracks a large `NewSystem/` reference copy with 526 tracked files.
+- The pre-cleanup repository tracked a 526-file `NewSystem/` copy. The proposed
+  cleanup preserves 9 files from that copy and removes the other 517 tracked
+  runtime files.
 - The official supervisor template exists outside the repository at `<MFU_SHELL_ROOT>`.
 - The workspace contains ignored local/private/generated artifacts such as `.env`, `atdr.db`, virtual environments, caches, model artifacts, processed logs, `ml_baseline_reviews/`, `demo_exports/`, frontend build output, and template `.env` / `node_modules` folders.
 - `.gitignore` already protects the major sensitive/generated categories: `.env`, `**/.env.local`, `**/.env.preprod`, `**/.env.prod`, DB files, SQLite files, logs, model artifacts, processed data, frontend build/test output, `demo_exports/`, `ml_baseline_reviews/`, and `node_modules/`.
@@ -49,22 +57,21 @@ Secret values were not inspected, printed, or copied. `.env` files are classifie
 | --- | --- |
 | Older Streamlit-era docs | Several older docs still describe Streamlit as a primary flow. Update or label them as legacy/historical when they are touched. |
 | Older presentation/final academic docs | Keep as evidence, but move under a future docs archive/index if the main docs folder becomes noisy. |
-| `docs/ATDR_TEMPLATE_MANIFEST.json` | Update later to reference the official external supervisor template path as canonical, not only `NewSystem/`. |
-| `docs/ATDR_NEWSYSTEM_TEMPLATE_ALIGNMENT.md` | Update later to say `NewSystem/` is a local reference copy and the official template path is canonical. |
-| `docs/AI-WORKFLOW.md`, `docs/templates/T1-T20-change-document.md`, `docs/agents/agent-*.md` | These are NewSystem-oriented reference files. Add or preserve clear reference-only notes if they remain in place. |
+| `docs/ATDR_TEMPLATE_MANIFEST.json` | Completed: points to the archive scope and the separate companion-shell contract. |
+| `docs/ATDR_NEWSYSTEM_TEMPLATE_ALIGNMENT.md` | Completed: distinguishes the archive from the separate companion shell. |
+| `docs/reference/NewSystem/workflow/*` | Completed: original NewSystem-specific workflow files are grouped under the reference archive. |
 | `README.md` docs map | Add the productization roadmap/cleanup plan once this phase is finalized. |
 
-### Move To `docs/reference/`
+### Moved To `docs/reference/`
 
-Do not move these automatically during planning. Move only in a dedicated cleanup change after references are updated and reviewed.
+The proposed v4.8.1 worktree completed these moves without committing them.
 
 | Source | Target idea | Reason |
 | --- | --- | --- |
-| Selected `NewSystem/TEMPLATE.md`, `NewSystem/README.md`, `NewSystem/ENVIRONMENTS.md`, `NewSystem/.iam-template.json`, `NewSystem/template.manifest.json` | `docs/reference/NewSystem/` | Preserve template evidence without tracking full Node/Vue/Mongo runtime source. |
-| Selected `NewSystem/backend-node/docs/IAM_*.md` | `docs/reference/NewSystem/backend-node/docs/` | Preserve IAM guidance used for ATDR school-email/IAM planning. |
-| Selected `NewSystem/docs/tasks/*` and template scripts if useful | `docs/reference/NewSystem/docs/tasks/` | Preserve supervisor tasklist/progress-board reference. |
-| `docs/AI-WORKFLOW.md` if it remains NewSystem-specific | `docs/reference/NewSystem/AI-WORKFLOW.md` | Avoid confusing it with active `docs/ATDR_AI_WORKFLOW.md`. |
-| `docs/prd/PRD-NewSystem.md` | `docs/reference/NewSystem/PRD-NewSystem.md` | Keep original template PRD but separate it from active ATDR PRD. |
+| Selected template root docs/manifests | `docs/reference/NewSystem/` | Preserved without the full Node/Vue/Mongo runtime. |
+| Selected IAM/security guidance | `docs/reference/NewSystem/backend-node/docs/` | Preserved for school-email/IAM and security traceability. |
+| Original NewSystem workflow/PRD/T1-T20/agent examples | `docs/reference/NewSystem/workflow/` | Separated from active ATDR workflow, PRD, template, and agent model. |
+| Archive boundary | `docs/reference/NewSystem/REFERENCE_SCOPE.md` | Defines authority, provenance, sanitization, and safe use. |
 
 ### Delete Later With Explicit Approval
 
@@ -72,7 +79,7 @@ Do not delete these automatically. These are candidates only.
 
 | Path / area | Why it is a delete candidate | Required precondition |
 | --- | --- | --- |
-| Tracked `NewSystem/` runtime source | It is a large Node/Vue/Mongo reference copy, not ATDR runtime. It can confuse contributors and CI. | Copy selected reference docs/manifests to `docs/reference/`, update references, verify no active tests/docs require full `NewSystem/`, then delete in a dedicated commit. |
+| Tracked `NewSystem/` runtime source | Completed in proposed v4.8.1 cleanup after dependency proof and reference preservation. | Separate exact-allowlist approval is still required before commit/push. |
 | Ignored `NewSystem/**/node_modules/` | Large local dependency folders; never needed in Git. | Confirm no one is running the template from inside this repo; then remove locally if disk cleanup is desired. |
 | Ignored `NewSystem/.env*` and `NewSystem/**/.env*` | Sensitive local configuration. | Never commit or print. Delete locally only if backed up or no longer needed. |
 | Ignored `.pytest_tmp/`, `.pytest_cache/`, `.tmp/`, `.ruff_cache/`, `tmp/`, pytest cache folders | Generated test/cache output. | Safe local cleanup with approval; some folders showed permission-denied warnings and may need closed processes/admin shell. |
@@ -120,7 +127,7 @@ Do not print `.env` contents.
 - Update ATDR docs to point to that path for live template reference.
 - Keep `docs/CURRENT_SYSTEM_STATE_LOCK.md`, `docs/PRODUCTIZATION_TEMPLATE_GAP_ANALYSIS.md`, and `docs/ATDR_PRODUCTIZATION_ROADMAP.md` as active productization memory.
 
-### Step 2: Create `docs/reference/NewSystem/`
+### Step 2: Create `docs/reference/NewSystem/` - Complete
 
 - Copy only selected reference docs/manifests, not full runtime source and not `.env`.
 - Suggested reference set:
@@ -130,20 +137,21 @@ Do not print `.env` contents.
   - tasklist/progress-board docs;
   - any permission matrix documentation.
 
-### Step 3: Update References
+### Step 3: Update References - Complete
 
 - Update `docs/AI-DOCS-INDEX.md`.
 - Update `docs/ATDR_NEWSYSTEM_TEMPLATE_ALIGNMENT.md`.
 - Update `docs/ATDR_TEMPLATE_MANIFEST.json`.
 - Search for `NewSystem/` references and classify each as active ATDR adaptation, reference-only, or stale.
 
-### Step 4: Remove The Tracked `NewSystem/` Runtime Copy
+### Step 4: Remove The Tracked `NewSystem/` Runtime Copy - Proposed Complete
 
-Only after Steps 1-3 pass:
-
-- remove tracked `NewSystem/` from the repository in a dedicated cleanup commit;
-- do not touch external official template path;
-- do not touch ignored `.env` or `node_modules` unless doing local disk cleanup separately.
+- Dependency proof passed and the tracked runtime copy is removed from the
+  proposed worktree.
+- The external/versioned companion shell was not touched.
+- Ignored/private `.env`, local dependencies, databases, logs, reviews, exports,
+  and models were not touched.
+- Publication still requires separate approval of the exact allowlist.
 
 ### Step 5: Local Artifact Cleanup
 
@@ -160,7 +168,7 @@ Dry-run/reference discovery:
 
 ```powershell
 git ls-files NewSystem
-rg -n "NewSystem/|docs/AI-WORKFLOW.md|PRD-NewSystem|backend-node|frontend-vue" README.md docs atdr frontend scripts
+rg -n "NewSystem/|docs/reference/NewSystem/workflow/AI-WORKFLOW.md|PRD-NewSystem|backend-node|frontend-vue" README.md docs atdr frontend scripts
 ```
 
 Potential local artifact cleanup after approval:
@@ -179,12 +187,11 @@ git rm -r NewSystem
 
 ## Current Decision
 
-For now:
-
-- keep active ATDR runtime files;
-- keep all sensitive/generated local data ignored and untouched;
-- keep `NewSystem/` until a dedicated cleanup phase archives selected reference material and updates references;
-- treat the external Downloads template as canonical supervisor reference;
-- do not migrate ATDR to Node, Vue, or MongoDB;
-- proceed next with either SOC Assistant follow-up hardening, real IAM validation, detection/ML product hardening, or the dedicated NewSystem reference-archive cleanup.
-
+- Keep active ATDR runtime, migrations, tests, and historical ATDR evidence.
+- Keep all sensitive/generated local data ignored and untouched.
+- Keep selected template evidence under `docs/reference/NewSystem/` only.
+- Keep the versioned MFU companion package and `config/mfu-shell-contract.json`
+  as the normal outer-shell distribution boundary.
+- Do not migrate ATDR to Node, Vue, or MongoDB.
+- Do not commit or push the v4.8.1 cleanup until the repository owner explicitly
+  approves `docs/V4_8_1_COMMIT_ALLOWLIST.md`.

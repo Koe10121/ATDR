@@ -4,7 +4,7 @@
 | --- | --- |
 | Product | MFU AI-Driven Log-Based Threat Detection and Response System |
 | Short name | ATDR |
-| Current stage | v3.99 synthetic multi-source/time frozen revalidation complete; calibration, external real-source independence, and approved preproduction validation pending |
+| Current stage | v4.8 reproducible product acceptance published; v4.8.1 repository consolidation proposed; external IAM/host/real-source/model gates remain open |
 | Production claim | None. ATDR is not certified production software. |
 | Main workflow doc | `docs/ATDR_AI_WORKFLOW.md` |
 | Agent model | `docs/agents/ATDR_AGENT_OPERATING_MODEL.md` |
@@ -27,6 +27,8 @@
 | Detection and explanation services | `atdr/app/detection/*`, `atdr/app/services/detection_service.py` |
 | Release gate | `atdr/scripts/verify_release.py` |
 | Current status | `docs/FINAL_SYSTEM_STATUS.md` |
+| Current source-backed state | `docs/CURRENT_SYSTEM_STATE_LOCK.md` |
+| Current AI/ML product status | `docs/CURRENT_AI_ML_PRODUCT_STATUS.md` |
 | Lab operations | `docs/LAB_RUNBOOK.md` |
 | AI workflow | `docs/AI_TRAINING_RUNBOOK.md`, `docs/ML_BASELINE_TUNING.md` |
 | IAM/RBAC permission matrix | `docs/security/ATDR_IAM_RBAC_MATRIX.md` |
@@ -312,7 +314,11 @@ Current limitations:
 
 ## University Template Alignment
 
-ATDR uses `NewSystem/` as a university reference template, not as implementation truth. The active ATDR adaptation is documented in:
+ATDR preserves selected NewSystem workflow, IAM, security, and manifest evidence
+under `docs/reference/NewSystem/`, not as implementation truth. The unused
+tracked Node/Vue/Mongo runtime copy is removed by the proposed v4.8.1 cleanup.
+The separately distributed, checksum-locked MFU companion shell remains the
+normal identity outer shell. The active ATDR adaptation is documented in:
 
 - `docs/ATDR_NEWSYSTEM_TEMPLATE_ALIGNMENT.md`
 - `docs/ATDR_TEMPLATE_MANIFEST.json`
@@ -321,6 +327,7 @@ ATDR uses `NewSystem/` as a university reference template, not as implementation
 - `docs/security/ATDR_MFU_IAM_ADAPTER_PLAN.md`
 - `docs/security/MFU_IAM_PROVIDER_DETAILS_CHECKLIST.md`
 - `docs/security/ATDR_OWASP_LAB_SECURITY_REVIEW.md`
+- `docs/reference/NewSystem/REFERENCE_SCOPE.md`
 
 Template ideas adopted by ATDR:
 
@@ -334,7 +341,7 @@ Template ideas adopted by ATDR:
 - release/verification gate
 - OWASP-style security review discipline
 
-Template ideas not adopted in v0.3:
+Template ideas not adopted by ATDR:
 
 - Node.js backend migration
 - Vue/Vuex frontend migration

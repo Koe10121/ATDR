@@ -15,7 +15,8 @@ The template is a Node/Vue/MongoDB/IAM reference. ATDR remains a FastAPI + React
 | Supervisor IAM recommendations | `<MFU_SHELL_ROOT>\backend-node\docs\IAM_RECOMMENDATIONS.md` |
 | Supervisor IAM adapter/source patterns | `backend-node/server/integrations/iam/*`, `backend-node/server/Project/security/*` in the supervisor template |
 | Supervisor frontend IAM UI | `frontend-vue/src/projects/components/dialog/SignIn.vue`, `frontend-vue/src/projects/components/dialog/TwoFA.vue`, `frontend-vue/src/store/modules/Security/*` in the supervisor template |
-| Supervisor progress-board process | `docs/tasks/tasklist-progress.md`, `docs/templates/T1-T20-change-document.md`, `scripts/render-tasklist-progress-html.js`, `scripts/check-tasklist-progress-standard.js` in the supervisor template |
+| Archived supervisor workflow/change examples | `docs/reference/NewSystem/workflow/AI-WORKFLOW.md`, `docs/reference/NewSystem/workflow/T1-T20-change-document.md`, `docs/reference/NewSystem/workflow/agents/sprint-task-template.md` |
+| Active ATDR progress-board process | `docs/tasks/tasklist-progress.md`, `scripts/render-tasklist-progress-html.js`, `scripts/check-tasklist-progress-standard.js` |
 | ATDR runtime truth | `atdr/app/main.py`, `atdr/app/routers/*.py`, `atdr/app/core/security.py`, `atdr/app/core/config.py`, `atdr/app/db/models.py` |
 | ATDR dashboard truth | `frontend/src/App.tsx`, `frontend/src/components/AppShell.tsx`, `frontend/src/pages/*`, `frontend/src/lib/api.ts` |
 | ATDR governance truth | `docs/ATDR_AI_WORKFLOW.md`, `docs/prd/PRD-ATDR.md`, `docs/ATDR_REQUIREMENT_TRACEABILITY.md`, `docs/ATDR_UNIVERSITY_COMPLIANCE_CHECKLIST.md`, `docs/ATDR_NEWSYSTEM_TEMPLATE_ALIGNMENT.md` |

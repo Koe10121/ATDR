@@ -136,6 +136,7 @@ ATDR now has ATDR-specific workflow governance, PRD, agent operating model, chan
 | Real LLM assistant provider plan exists | Satisfied | `docs/security/ATDR_REAL_LLM_ASSISTANT_PLAN.md` |
 | Controlled template merge analysis exists | Satisfied | `docs/ATDR_TEMPLATE_MERGE_ANALYSIS.md` |
 | NewSystem template alignment exists | Satisfied | `docs/ATDR_NEWSYSTEM_TEMPLATE_ALIGNMENT.md` |
+| Reference-only template archive boundary exists | Satisfied in proposed v4.8.1 cleanup | `docs/reference/NewSystem/REFERENCE_SCOPE.md`, `docs/V4_8_1_REPOSITORY_CONSOLIDATION_REPORT.md` |
 | ATDR template manifest exists | Satisfied | `docs/ATDR_TEMPLATE_MANIFEST.json` |
 | Permission path registry exists | Satisfied | `docs/security/ATDR_PERMISSION_PATHS.md` |
 | OWASP lab security review exists | Satisfied | `docs/security/ATDR_OWASP_LAB_SECURITY_REVIEW.md` |
@@ -144,6 +145,7 @@ ATDR now has ATDR-specific workflow governance, PRD, agent operating model, chan
 | Acceptance checklist exists | Satisfied | `docs/ACCEPTANCE_TEST_CHECKLIST.md` |
 | Lab runbook exists | Satisfied | `docs/LAB_RUNBOOK.md` |
 | AI safety documented | Satisfied | `docs/prd/PRD-ATDR.md`, `docs/AI_TRAINING_RUNBOOK.md`, `docs/V0_3_STATUS.md` |
+| Current AI/ML product state documented | Satisfied | `docs/CURRENT_AI_ML_PRODUCT_STATUS.md` |
 | Response safety documented | Satisfied | `docs/prd/PRD-ATDR.md`, `docs/security/ATDR_IAM_RBAC_MATRIX.md`, `atdr/tests/test_response_safety.py` |
 | Repo hygiene documented | Satisfied | `.gitignore`, `docs/ATDR_AI_WORKFLOW.md`, `docs/QUICKSTART_FOR_TEAM.md` |
 | Read-only assistant safety documented | Satisfied | `docs/V3_8_ANALYST_ASSISTANT_MVP.md`, `docs/V3_9_ASSISTANT_HARDENING.md`, `docs/LAB_RUNBOOK.md` |
@@ -388,6 +390,16 @@ For docs-only changes, at minimum verify the docs exist, links are correct, and 
 | Response safety | Satisfied | zero response actions, automation false, real blocking false | Any real response connector requires a separately approved design and validation. |
 | Repo hygiene | Satisfied by design | generated DB/backups/staging remain under ignored temporary storage and are deleted; public report omits private paths/raw evidence/secrets | Continue pre-commit tracked-file checks. |
 | Change workflow | Satisfied | cumulative v4.7/v4.8 17-path boundary is documented because shared files contain both phases | Commit/push require a new explicit repository-owner instruction. |
+
+## v4.8.1 Repository Consolidation Compliance Status
+
+| Rule | Current Status | Evidence | Remaining Gap |
+| --- | --- | --- | --- |
+| No guessing / source evidence | Satisfied | tracked inventory, active path searches, archive inventory, current source/docs, and exact changed-path audit | Historical prose can retain past NewSystem references only when clearly historical/reference-only. |
+| Runtime/reference boundary | Satisfied in proposed cleanup | zero active runtime/test/script/CI dependency; 24 preserved/relocated references plus one new scope document (25 archive files total); zero tracked files remaining under `NewSystem/` | Cleanup is not published until separately approved. |
+| Protected data and secret safety | Satisfied | private environments were not read/moved/staged; DB/log/label/model/review/export patterns remain excluded; archived legacy identifiers were redacted | Operational secret custody and provider approval remain external. |
+| AI/ML truthfulness | Satisfied | `docs/CURRENT_AI_ML_PRODUCT_STATUS.md` separates rules, IsolationForest, supervised candidates, unknown active metadata, deterministic assistant evidence, and Gemini's bounded role | Independent real-source model evidence and provider governance remain open. |
+| Change workflow | Satisfied | cleanup report, T1-T20 record, PRD, traceability, compliance, task board, and exact allowlist | Separate explicit commit/push approval is required. |
 
 ## v4.4 MFU Authentication Stabilization Compliance Status
 
