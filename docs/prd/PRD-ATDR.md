@@ -582,3 +582,346 @@ ATDR shall support an opt-in database-backed operation queue for selected long-r
 - Backup/restore acceptance shall use only the disposable source and a second empty disposable target, verify checksum/counts/revision, and refuse overwrite of the active source.
 - Public output shall omit raw evidence, secrets, private paths, credentials, and connection values.
 - Synthetic SQLite acceptance is regression evidence only. It does not satisfy real-device, approved-host PostgreSQL, provider-backed IAM, independent detection/ML, or production-response requirements.
+
+## v4.9 Detection and ML Reliability Addendum
+
+- **FR-ATDR-050:** Deterministic detection rules shall have stable IDs, semantic versions, required fields, source/window scope, confidence, false-positive guidance, references, explanation templates, and claim boundaries in a machine-readable catalog.
+- Repeated-behavior rules and behavior-window features shall be source-scoped and event-time bounded. Future rows and cross-source address collisions shall not contribute to the current row's features.
+- Generic vendor THREAT, application risk, application characteristics, and directionless byte/packet outliers shall not be promoted to C2, exfiltration, or DoS claims without the required supporting evidence.
+- Supervised evaluation shall preserve original label source, require explicit eligible/reviewed status, disclose assisted-source counts, and never present AI-generated labels as human-reviewed.
+- Fit, calibration, threshold-selection, and final-test roles shall remain separate. Exact/near/feature duplicate groups and normalized-log identities shall not cross partitions.
+- Required reliability views shall include temporal holdout, a source/group proxy where true device holdout is unavailable, and repeated random splits. Proxy evidence must be labeled honestly.
+- Strict gates are FPR `<=0.10`, threat-positive F1 `>=0.85`, suspicious recall `>=0.80`, malicious recall `>=0.80`, ECE `<=0.10`, and max confidence/accuracy gap `<=0.15` on every required split.
+- A locked final external benchmark shall not be used to engineer features, select candidates, calibrate probabilities, or tune thresholds.
+- The active artifact and diagnostic candidates shall be displayed separately. Unknown active metadata must not be guessed, and candidate diagnostics must not be shown as active/promoted models.
+- v4.9 remains `candidate_only`; it shall not write labels, model runs, active artifacts, response actions, or real firewall configuration.
+
+## v5.1 Governed Supervised Lifecycle Addendum
+
+- **FR-ATDR-051:** ATDR shall register reproducible supervised SOC queue artifacts with model/feature versions, dataset fingerprint, label provenance, code revision, split metrics, calibration, threshold, checksum, timestamp, readiness, and lifecycle state.
+- Governed states are `inactive`, `shadow_observation`, and gated `decision_support`. `production_promoted` is not implemented and shall be rejected.
+- Shadow inference may expose queue probability and provenance but shall not create or suppress alerts, change severity, alter labels, start detection, execute response, or enable firewall action.
+- Rules remain alert-authoritative. A missing, corrupt, incompatible, or slow model shall fail safely to rule-only operation.
+- `decision_support` shall be denied unless every required split and locked external gate meets the v4.9 FPR, F1, suspicious/malicious recall, ECE, maximum-gap, leakage, and safety targets.
+- Activation, disable, and rollback shall be admin-controlled and audited. Disable/rollback shall preserve logs, labels, alerts, and evidence.
+- The unknown legacy artifact shall remain unselected unless it can be tied to complete governed registry metadata; v5.1 shall not overwrite it silently.
+- Private-file shadow validation shall use disposable storage, return safe aggregates only, and distinguish operational queue volume from labeled accuracy.
+- v5.1 remains `shadow_observation`: strict quality passes 0/5, external transfer fails, production promotion is false, and response automation is disabled.
+
+## v5.2 Shadow Reliability And Layered Detection Addendum
+
+- **FR-ATDR-052:** Deterministic rule matches shall be the sole authority for
+  alert eligibility, score, severity, and primary attack type. IsolationForest,
+  supervised, and hybrid evidence shall remain advisory and shall not suppress
+  a strong deterministic rule.
+- Controlled layered validation shall preserve scenario cadence and report a
+  machine-readable FP/FN failure matrix with rule, anomaly, supervised, and
+  hybrid evidence components.
+- Field-poor parser/fallback anomaly evidence shall retain its raw anomaly score
+  while using bounded uncertainty language rather than an unsupported attack
+  claim.
+- Supervised selection shall include temporal, source-disjoint (or fail-closed),
+  network-zone proxy, and random-seed views with separated fit, calibration,
+  threshold, and final-test roles.
+- No candidate shall be selected unless every required internal view passes the
+  fixed FPR/F1/recall/calibration/leakage/safety gates. Locked external labels
+  shall never be used for feature, model, calibration, or threshold selection.
+- Shadow telemetry may persist only aggregate model version, inference/failure,
+  latency, missingness, score-distribution, queue-rate, and drift fields. It
+  shall exclude raw logs, IPs, labels, private paths, and secrets.
+- v5.2 selects no supervised candidate and remains `shadow_observation`.
+  Production promotion, automatic response, and real blocking remain false.
+
+## v5.3 Temporal Generalization And OOD Addendum
+
+- **FR-ATDR-053:** Supervised reliability evaluation shall include leakage-safe
+  rolling chronological windows in addition to temporal, source, network-proxy,
+  and repeated random views.
+- Fit, calibration, threshold-selection, and final roles shall remain separate.
+  Final and rolling-future labels shall contribute zero rows to tuning.
+- OOD state shall be derived from fit-only schema, missingness, categorical,
+  numeric-range, and confidence evidence. Unfamiliar or unstable rows shall be
+  reported as `insufficient_model_evidence`, not forced into a confident claim.
+- Abstention shall remain visible in analyst queue and FPR accounting; it shall
+  not improve reported quality by silently dropping difficult rows.
+- Locked external aggregate evidence shall fail closed when row-level frozen
+  predictions are unavailable. Provider labels shall not be reopened for v5.3
+  feature, model, calibration, threshold, or strategy tuning.
+- AI Governance shall expose aggregate temporal drift, OOD, abstention,
+  coverage, calibration, and blocker information without raw logs, identifiers,
+  labels, private paths, or secrets.
+- v5.3 selects no candidate and remains `shadow_observation`. Rules remain
+  alert-authoritative; production promotion, automatic response, and real
+  firewall blocking remain false.
+
+## v5.4 Temporal Evidence And Shadow Drift Addendum
+
+- **FR-ATDR-054:** Every governed supervised evidence role shall have a stable
+  aggregate fingerprint and shall fail closed if fit, calibration, threshold,
+  final, rolling, external, or artifact state changes unexpectedly.
+- Locked temporal-final, rolling-future, external-final, and duplicate
+  quarantine evidence shall contribute zero rows to development or tuning.
+- Development manifests shall preserve provenance, time role, schema profile,
+  pseudonymous source/group identity, duplicate group, and exclusion reason
+  without exporting raw evidence or private identifiers.
+- Rule-, ML-, and hybrid-assisted suggestions shall never be represented as
+  human-reviewed and shall remain non-import-ready until a human confirms them.
+- Private-file inspection shall be read-only, aggregate-only, disposable, and
+  unable to return a path, raw row, IP address, secret, or reusable fingerprint.
+- Shadow drift shall report `Stable`, `Drift Warning`, `OOD Warning`, or
+  `Insufficient Evidence` against the governed fit baseline.
+- v5.4 remains `shadow_observation`; it selects no candidate and changes no
+  model, label, response, detection authority, or active artifact.
+
+## v5.5 Development Model Repair And Anomaly Reliability Addendum
+
+- **FR-ATDR-055:** Supervised model repair shall use only evidence roles
+  explicitly designated for development by the governed v5.4 lock.
+- Nested development validation shall preserve chronological order, isolate
+  duplicate groups, separate fit/calibration/threshold/final roles, and use
+  provenance-aware sampling without changing label provenance.
+- Locked temporal-final labels may be read exactly as a post-freeze,
+  read-only regression and shall not influence feature engineering, strategy
+  ranking, calibration, threshold selection, or repeated tuning.
+- Diagnostic comparison shall include calibrated tree, linear, three-class
+  SOC queue, and hierarchical strategies. A best diagnostic leader is not an
+  activated or promotion-eligible model.
+- IsolationForest shall be evaluated separately for benign noise, threat
+  capture, application/schema/time distributions, controlled benign traffic,
+  and queue stability. Its output remains advisory.
+- Fixed readiness gates remain FPR `<=0.10`, queue F1 `>=0.85`, suspicious
+  recall `>=0.80`, malicious recall `>=0.80`, ECE `<=0.10`, and maximum
+  confidence/accuracy gap `<=0.15` across every required development view.
+- AI Governance may expose aggregate v5.5 metrics and blockers only. It shall
+  not expose raw evidence, private identifiers, labels, paths, or secrets.
+- v5.5 remains `shadow_observation`: no model is activated/promoted, no active
+  artifact is written, rules remain alert-authoritative, and response
+  automation and real blocking remain disabled.
+
+## v5.6 Private PAN-OS Evidence And Assisted Repair Addendum
+
+- **FR-ATDR-056:** Private real-source files shall be processed through
+  bounded, disposable storage without importing them into the configured
+  database or returning paths, raw rows, IPs, secrets, or reusable row
+  fingerprints.
+- Configured-database overlaps and duplicate families shall be quarantined.
+  Exact and near families shall remain wholly within one chronological role.
+- Development fit, calibration, threshold, and untouched future roles shall be
+  declared before assisted labels are calculated. Future labels shall remain
+  sealed until a diagnostic candidate is frozen.
+- AI, rule, vendor, and weak-supervision decisions shall use explicit
+  provenance and `human_reviewed=false`. Ambiguous evidence shall remain
+  `needs_context` or quarantine and shall not enter training.
+- Genuinely human-reviewed development evidence shall remain distinct and have
+  greater sample weight than assisted evidence.
+- Supervised repair shall compare calibrated tree, linear, three-class,
+  hierarchical, and weighted strategies across nested chronological
+  development views. A strong result against assisted future labels shall be
+  described as policy agreement, not independent accuracy.
+- IsolationForest alternatives shall be fitted only on high-confidence benign
+  development evidence and remain advisory.
+- Sparse chronological calibration roles that lack a fitted model class shall
+  fail closed to an explicit uncalibrated diagnostic instead of crashing.
+- AI Governance may expose only aggregate v5.6 counts, metrics, safety state,
+  and blockers.
+- v5.6 remains `shadow_observation`: the ignored diagnostic candidate is not
+  activated/promoted, active artifacts are unchanged, rules remain
+  alert-authoritative, and response automation and real blocking remain
+  disabled.
+
+## v5.7 Independent Evidence And Blind Revalidation Addendum
+
+- **FR-ATDR-057:** The v5.6 diagnostic candidate shall be reproducibly frozen
+  with model family, feature contract, preprocessing, calibration, threshold,
+  training-manifest, code-contract, and artifact identities before any new
+  independent labels are available.
+- v5.3 fit/calibration/threshold/final/rolling/external roles and v5.4-v5.6
+  development/future roles shall remain fingerprinted, immutable, and
+  ineligible as fresh independent evidence.
+- Independent evidence shall require a compatible PAN-OS schema, at least two
+  real devices, at least two independent collection periods, sufficient
+  parsed chronological rows, owner/license permission, zero configured-DB
+  overlap, and a documented local fingerprint/duplicate-family overlap audit.
+- Predictions shall be frozen before labels are revealed. The first valid
+  prediction freeze shall be immutable, the review pack shall omit
+  predictions, and a successful label reveal shall be one-time and sealed.
+- Human-reviewed, advisor-approved human review, and compatible provider
+  ground truth are the only allowed blind labels. AI, rule, vendor-assisted,
+  Codex-assisted, and weak-supervision decisions shall not be accepted as
+  human ground truth.
+- Blind readiness gates are threat/SOC queue F1 `>=0.85`, benign-like FPR
+  `<=0.05`, suspicious recall `>=0.80`, malicious recall `>=0.80`, ECE
+  `<=0.10`, maximum confidence/accuracy gap `<=0.15`, zero evidence leakage,
+  zero actual-threat suppression by post-prediction guards, and valid
+  independent source/time evidence.
+- The frozen v5.6 candidate uses calibrated threshold-only decisions and no
+  post-prediction suppression guard.
+- IsolationForest shall be audited on the same independent evidence only after
+  valid labels are revealed and shall remain advisory.
+- AI Governance shall expose only aggregate candidate, evidence, validation,
+  lifecycle, rule-authority, and response-safety status. It shall not expose
+  private paths, raw logs, IP addresses, row values/fingerprints, labels, or
+  secrets.
+- When valid independent evidence is unavailable, the required outcome is
+  `independent_evidence_required`; blind metrics shall remain hidden and the
+  lifecycle shall remain `shadow_observation`.
+
+## v5.8 Governed Shadow Runtime Addendum
+
+- **FR-ATDR-058:** The frozen v5.6/v5.7 candidate may be evaluated only by a
+  disabled-by-default, bounded, read-only shadow runtime.
+- The runtime shall fail closed if artifact identity, code contract, feature
+  contract, model family, calibration, classes, threshold, inactivity,
+  response-safety, or rule-authority fields are absent or mismatched. It shall
+  never silently select another model.
+- Shadow scoring shall accept only normalized logs, preserve chronological
+  order and optional source/time scope, enforce batch/timeout limits, and
+  produce idempotent aggregate results without persistent evaluation writes.
+- Telemetry may include aggregate queue, score, confidence, drift,
+  source/time stability, rule/ML agreement, and separately identified
+  persisted IsolationForest values. It shall not include raw logs, IPs,
+  paths, hashes, feature names, row fingerprints, labels, or secrets.
+- Shadow output shall not create, suppress, prioritize, or modify
+  authoritative alerts; change cases, labels, runs, users, or model state; or
+  trigger response.
+- Governed evidence intake shall validate manifest/schema/chronology,
+  devices/periods, permission/provenance, checksums, overlap, and duplicate
+  containment. Reused v5.3-v5.7 evidence shall be rejected.
+- Accuracy/calibration metrics shall not be calculated without sealed,
+  independently governed labels.
+- The lifecycle remains `shadow_observation`; rules are alert-authoritative,
+  IsolationForest is advisory, production promotion is false, response
+  automation is disabled, and real blocking is disabled.
+
+## v5.9 Longitudinal Shadow Observation Addendum
+
+- **FR-ATDR-059:** ATDR may persist append-only aggregate observations from
+  the exact frozen governed shadow candidate only when both scoring and
+  observation features are explicitly enabled.
+- Every observation shall be source/time/row bounded, chronologically
+  reproducible, and idempotent for the same candidate contract and scope.
+- Persisted/API/job/UI output shall exclude raw logs, IP addresses, private
+  paths, row/file fingerprints, feature lists, labels, and secrets.
+- Durable observation jobs shall be admin-only, retry-safe, and cooperatively
+  cancellable before aggregate persistence.
+- Retention shall be explicit, previewable, admin-only, audited, and limited
+  to the aggregate observation table.
+- AI Governance may show only aggregate count, drift, queue,
+  rule-disagreement, and bounded trend telemetry with rule-authority and
+  response-safety state.
+- Private source inspection shall use disposable storage, shall not access the
+  configured database, and shall report aggregate drift/parser quality only.
+- Reused unlabeled development evidence shall never support accuracy,
+  false-positive, recall, F1, or calibration claims.
+- Independent model advancement still requires new compatible multi-device,
+  multi-period evidence, prediction-before-label, allowed human/provider
+  ground truth, fixed blind gates, and advisor approval.
+- The lifecycle remains `shadow_observation`; no model activation/promotion,
+  authoritative alert influence, response automation, or real blocking is
+  authorized.
+
+## v5.10 Detection Operations And Shadow Acceptance Addendum
+
+- **FR-ATDR-060:** ATDR shall plan bounded, non-overlapping historical
+  source/time scopes from existing normalized evidence for aggregate
+  operational shadow acceptance.
+- Public scope, API, CLI, job, and dashboard output shall use opaque source
+  labels and exclude source identity, raw logs, IPs, private paths,
+  fingerprints, labels, and secrets.
+- Every operational scope shall be marked reused development operational
+  evidence and shall not be described as independent validation.
+- A frozen-candidate contract mismatch shall fail before observation
+  persistence; cancellation shall not leave partial observations.
+- Repeated execution of the same candidate/scope contract shall reuse the
+  existing observation key rather than create a duplicate.
+- Acceptance shall report queue, rule/shadow disagreement, drift,
+  data-quality, persisted IsolationForest, runtime, and operational gate
+  aggregates without calculating unlabeled accuracy.
+- The AI Governance dashboard shall expose operational warnings and safety
+  state but shall not expose analyst execution controls.
+- The large-SQLite Governance path shall preserve cold/warm response
+  equivalence and remain within the local smoke budget.
+- Rules remain alert-authoritative, IsolationForest remains advisory, the
+  lifecycle remains `shadow_observation`, and activation, promotion,
+  automatic response, and real blocking remain prohibited.
+
+## v5.13 Runtime Parser Contract And Source Quality Addendum
+
+- **FR-ATDR-063:** ATDR shall apply the versioned parser-quality contract to
+  every future file import, direct replay, UDP syslog batch, durable import,
+  and controlled scenario without automatically reparsing historical
+  evidence.
+- Runtime source quality shall distinguish actual parser errors, structural
+  warnings, compatible/extended/partial/unsupported layouts, unresolved,
+  absent, and not-applicable applications, generic syslog, and raw fallback.
+- Unknown or incomplete PAN-OS application values shall remain informational
+  unless independent structural or behavioral evidence indicates a problem.
+- Source aggregates shall retain a fixed supported baseline and a bounded
+  latest window so parser-error increases and structural drift are measured
+  rather than inferred from cumulative totals alone.
+- Operational alerts and dashboard output shall be aggregate and privacy-safe;
+  they shall not expose raw evidence, IP addresses, source identities, private
+  paths, labels, secrets, or model artifacts.
+- Historical contract coverage may be previewed from stored normalized
+  metadata through an authenticated read-only route. The preview shall not
+  read raw evidence, mutate rows, or perform a reparse.
+- Rules remain alert-authoritative, IsolationForest and supervised ML remain
+  advisory, and parser quality shall not trigger labels, model changes,
+  automatic response, or real firewall blocking.
+
+## v5.12 Parser-Profile Baseline Repair Addendum
+
+- **FR-ATDR-062:** ATDR shall identify the parser contract, compatibility
+  state, parser profile, and application-resolution state for newly parsed
+  evidence.
+- PAN-OS unresolved application values shall be represented as data-quality
+  evidence, not as parser failure unless structural parsing actually fails.
+- TRAFFIC, THREAT, and SYSTEM mappings shall remain type-specific; SYSTEM
+  records shall not inherit traffic-only fields.
+- Generic syslog and raw fallback shall preserve raw evidence and report
+  limited/unstructured compatibility without crashing.
+- Operational parser baselines shall use governed development-fit aggregates
+  only, require minimum support, and fall back conservatively for compatible
+  profiles.
+- Baseline selection shall not use labels, accuracy, locked-final evidence,
+  or source identity and shall not create per-device baselines that hide
+  drift.
+- Private parser audit shall be bounded, aggregate-only, disposable, and
+  exclude paths, raw rows, IPs, source identity, fingerprints, and secrets.
+- Historical normalized evidence shall not be reparsed automatically.
+- AI Governance may expose concise parser contract, profile-baseline
+  provenance, structural quality, unresolved-application rate, and aggregate
+  drift only.
+- Rules remain alert-authoritative, IsolationForest remains advisory, the
+  lifecycle remains `shadow_observation`, and activation, promotion,
+  automatic response, and real blocking remain prohibited.
+
+## v5.11 Operational Drift And Shadow Monitoring Addendum
+
+- **FR-ATDR-061:** ATDR shall diagnose longitudinal shadow warnings from
+  aggregate operational evidence without reading labels or calculating
+  accuracy.
+- Diagnostics shall distinguish application-distribution shift,
+  schema/missingness shift, parser-profile limitations, parser-quality shift,
+  source-volume imbalance, sparse windows, candidate score/queue movement,
+  rule/shadow disagreement movement, and IsolationForest variation.
+- Fixed drift thresholds and state hysteresis shall not alter the model,
+  prediction threshold, rule engine, alert authority, or response behavior.
+- Public output shall use opaque source/time labels and exclude source
+  identifiers, raw logs, IPs, private paths, fingerprints, labels, and
+  secrets.
+- Operational cadence shall be disabled by default, bounded, idempotent,
+  retry-safe, and cooperatively cancellable through the existing durable job
+  infrastructure.
+- No always-on scheduler shall be enabled implicitly. An approved external
+  operator or scheduler must invoke due checks after scoring, observation,
+  and monitoring are explicitly enabled.
+- Retention rehearsal shall use disposable storage. Any configured-database
+  retention remains a separate explicit, previewed, audited admin action
+  limited to aggregate shadow observations.
+- AI Governance may expose aggregate root cause, drift, queue,
+  disagreement, anomaly, quality, and runtime diagnostics without execution
+  controls.
+- Rules remain alert-authoritative, IsolationForest remains advisory, the
+  lifecycle remains `shadow_observation`, and activation, promotion,
+  automatic response, and real blocking remain prohibited.

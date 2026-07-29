@@ -1,0 +1,62 @@
+{
+  "version": "v5.4-evidence-lock-v1",
+  "dataset_fingerprint": "ae3d2972bdb888f0fba7631932ae512f674e5dbdb9cc72c1d3cd633d67ec4420",
+  "reviewed_latest_rows": 2235,
+  "temporal_partition_id": "625975fb955f9d7499a8eaec0c01e40db9314fe8462456d87d6c31e85aa003c2",
+  "roles": {
+    "fit": {
+      "rows": 957,
+      "fingerprint": "95247df240aa7e65f010a6cc47bc225c4da3097de7048598dd79b7a1bc04d369"
+    },
+    "calibration": {
+      "rows": 282,
+      "fingerprint": "db88af63bec5b80bc19c9b3fe17f89cbe77c768cd53a3ce7c2e80ecee4a97659"
+    },
+    "threshold": {
+      "rows": 228,
+      "fingerprint": "00f542090cb05c1ba898c15815d6cb9cff174625358d246b6fd4774625d6ff10"
+    },
+    "temporal_final": {
+      "rows": 532,
+      "fingerprint": "db6a13ada1a1fed71e7ec9d013be138a98f1468e4551ee24729c17e4e875e71e"
+    },
+    "quarantine": {
+      "rows": 236,
+      "fingerprint": "93841bb567c28cbc1f0d090a0b583769a38a84e7bbdabb78770959bf115f9e3d"
+    }
+  },
+  "rolling_future_roles": [
+    {
+      "role": "rolling_temporal_1",
+      "rows": 178,
+      "fingerprint": "4cbef61cb835de319c37083e41c732872bb56708065a63dcc31f7025946a8d32"
+    },
+    {
+      "role": "rolling_temporal_2",
+      "rows": 178,
+      "fingerprint": "b6bb23d4949a3fe8863a6434acfeee276b830199c108fc67bac2e7eb183657f1"
+    },
+    {
+      "role": "rolling_temporal_3",
+      "rows": 176,
+      "fingerprint": "4b7a887236b7293d969c12f751457042486aa15f1fc5a3dcf2d2e7055d2177f5"
+    }
+  ],
+  "external_evidence": {
+    "available": true,
+    "passed_v49_gates": false,
+    "fingerprint": "21b4f9daaf372be4419200265bb616e6186861832e220f43dd1ad6e3a33f4978"
+  },
+  "model_artifacts": [
+    {
+      "role": "governed_supervised_artifact",
+      "exists": true,
+      "artifact_name": "supervised_classifier.joblib",
+      "size_bytes": 3670115,
+      "sha256": "b3ff7a891e863924ba5f770ce15fb1638b184969c050873e1d71071edc7f79bb"
+    }
+  ],
+  "locked_final_labels_used_for_tuning": false,
+  "raw_logs_included": false,
+  "private_identifiers_included": false
+}

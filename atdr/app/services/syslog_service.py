@@ -6,6 +6,10 @@ from atdr.app.db.database import SessionLocal, init_db
 from atdr.app.db.models import AuditLog
 from atdr.app.services.log_service import import_raw_log_line
 from atdr.app.services.operation_run_service import complete_ingestion_run, start_ingestion_run
+from atdr.app.services.runtime_parser_quality_service import (
+    empty_runtime_parser_quality,
+    merge_runtime_parser_quality,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -33,6 +37,7 @@ def run_udp_syslog_receiver(
     received = 0
     parsed = 0
     failed = 0
+    parser_quality = empty_runtime_parser_quality()
     timed_out = False
     try:
         sock.bind((bind_host, bind_port))
@@ -67,6 +72,10 @@ def run_udp_syslog_receiver(
                 received += 1
                 parsed += 1 if result["parsed"] else 0
                 failed += 0 if result["parsed"] else 1
+                parser_quality = merge_runtime_parser_quality(
+                    parser_quality,
+                    result.get("parser_quality"),
+                )
                 pending += 1
                 if pending >= flush_every:
                     db.add(
@@ -75,7 +84,12 @@ def run_udp_syslog_receiver(
                             action="ingest_syslog_batch",
                             target_type="syslog",
                             target_value=f"udp:{bind_host}:{bind_port}",
-                            details={"received": received, "parsed": parsed, "failed": failed},
+                            details={
+                                "received": received,
+                                "parsed": parsed,
+                                "failed": failed,
+                                "parser_quality": parser_quality,
+                            },
                         )
                     )
                     db.commit()
@@ -87,7 +101,12 @@ def run_udp_syslog_receiver(
                         action="ingest_syslog_batch",
                         target_type="syslog",
                         target_value=f"udp:{bind_host}:{bind_port}",
-                        details={"received": received, "parsed": parsed, "failed": failed},
+                        details={
+                            "received": received,
+                            "parsed": parsed,
+                            "failed": failed,
+                            "parser_quality": parser_quality,
+                        },
                     )
                 )
             complete_ingestion_run(
@@ -97,7 +116,10 @@ def run_udp_syslog_receiver(
                 raw_logs_created=received,
                 parsed_successfully=parsed,
                 parse_failures=failed,
-                details={"timed_out": timed_out},
+                details={
+                    "timed_out": timed_out,
+                    "parser_quality": parser_quality,
+                },
             )
             db.commit()
     finally:
@@ -110,4 +132,5 @@ def run_udp_syslog_receiver(
         "parsed": parsed,
         "failed": failed,
         "timed_out": timed_out,
+        "parser_quality": parser_quality,
     }

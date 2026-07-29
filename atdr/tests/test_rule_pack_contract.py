@@ -14,6 +14,7 @@ def test_rule_pack_and_scenario_contracts_are_source_aligned():
 
     assert report["ok"] is True, report["issues"]
     assert report["implemented_rule_count"] == report["documented_rule_count"]
+    assert report["implemented_rule_count"] == report["catalog_rule_count"]
     assert report["scenario_count"] == report["documented_scenario_count"]
     assert report["scenario_count"] == report["expectation_count"]
     assert report["safety"]["mutates_database"] is False

@@ -23,6 +23,7 @@ class LogSource(Base):
     logs_received_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     parse_success_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     parse_failure_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    parser_quality_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     latest_error: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
@@ -372,6 +373,76 @@ class MLModelRun(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
 
 
+class MLShadowObservation(Base):
+    __tablename__ = "ml_shadow_observations"
+    __table_args__ = (
+        UniqueConstraint(
+            "observation_key",
+            name="uq_ml_shadow_observations_observation_key",
+        ),
+        Index(
+            "ix_ml_shadow_observations_source_window",
+            "source_id",
+            "window_start",
+            "window_end",
+        ),
+        Index(
+            "ix_ml_shadow_observations_candidate_created",
+            "candidate_version",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    observation_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    candidate_name: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    candidate_version: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    contract_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    contract_matched: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    source_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    window_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    window_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    observed_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    observed_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    requested_limit: Mapped[int] = mapped_column(Integer, nullable=False)
+    rows_evaluated: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    queue_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    queue_rate: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    score_mean: Mapped[float | None] = mapped_column(Float)
+    score_p95: Mapped[float | None] = mapped_column(Float)
+    confidence_mean: Mapped[float | None] = mapped_column(Float)
+    confidence_p95: Mapped[float | None] = mapped_column(Float)
+    missing_feature_values: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    feature_values_checked: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    drift_status: Mapped[str] = mapped_column(
+        String(32),
+        default="Insufficient Evidence",
+        nullable=False,
+        index=True,
+    )
+    application_total_variation: Mapped[float | None] = mapped_column(Float)
+    schema_total_variation: Mapped[float | None] = mapped_column(Float)
+    rule_both_queue: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    rule_only: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    shadow_only: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    neither_queue: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    disagreement_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    disagreement_rate: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    isolation_anomaly_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    isolation_anomaly_rate: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    runtime_seconds: Mapped[float | None] = mapped_column(Float)
+    failure_code: Mapped[str | None] = mapped_column(String(64))
+    aggregate_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    created_by: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+        index=True,
+    )
+
+
 class IngestionRun(Base):
     __tablename__ = "ingestion_runs"
 
@@ -498,4 +569,11 @@ Index("ix_operation_jobs_queue_claim", OperationJob.status, OperationJob.next_at
 Index("ix_operation_jobs_original_status", OperationJob.original_job_id, OperationJob.status)
 Index("ix_normalized_anomaly_app", NormalizedLog.is_anomaly, NormalizedLog.app)
 Index("ix_normalized_anomaly_dst_port", NormalizedLog.is_anomaly, NormalizedLog.dst_port)
+Index(
+    "ix_normalized_ml_profile_cover",
+    NormalizedLog.is_anomaly,
+    NormalizedLog.action,
+    NormalizedLog.app_risk,
+    NormalizedLog.app,
+)
 Index("ix_alert_status_severity_updated", Alert.status, Alert.severity, Alert.updated_at)

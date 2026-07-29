@@ -1,17 +1,18 @@
 # ATDR Current System State Lock
 
-Date: 2026-07-18
+Date: 2026-07-28
 
 Purpose: this document is the current-state memory anchor before larger ATDR productization work. It captures what exists now, what must stay safe, and what must not be deleted or committed while ATDR moves from controlled academic/lab prototype toward a more serious SOC/SaaS-style product.
 
-Checkpoint: the published v4.8 baseline combines v4.7 large-SQLite Overview
-stabilization with disposable 50,000-log product acceptance. Commit `15e43c8`
-is on `origin/main` and all GitHub Actions jobs passed. The proposed v4.8.1
-repository consolidation is intentionally uncommitted: it archives selected
-NewSystem reference evidence and removes only the unused tracked Node/Vue/Mongo
-runtime copy. Existing ATDR data, detection/ML behavior, MFU companion-shell
-distribution, and response safety remain unchanged. This is a source-backed
-state lock, not a production-readiness claim.
+Checkpoint: the published baseline is commit `e05032a` on `origin/main`; its
+GitHub Actions run passed. It includes the v4.8.1 repository consolidation,
+which archives selected NewSystem reference evidence and removes the unused
+tracked Node/Vue/Mongo runtime copy. The cumulative v4.9-v5.13
+Detection/ML/parser/source-quality program is implemented and locally verified
+but remains uncommitted pending the exact v5.13.1 closure review and separate
+owner approval. Existing ATDR data, MFU companion-shell distribution, and
+response safety remain unchanged. This is a source-backed state lock, not a
+production-readiness claim.
 
 ## Source Evidence
 
@@ -30,6 +31,9 @@ state lock, not a production-readiness claim.
 | IAM / school-email groundwork | `atdr/app/routers/auth.py`, `atdr/app/services/mfu_iam_service.py`, `docs/security/ATDR_MFU_IAM_IMPLEMENTATION_PLAN.md` |
 | Response safety | `atdr/app/routers/response.py`, `atdr/app/services/response_service.py`, `atdr/tests/test_response_safety.py` |
 | Detection/ML productization evidence | `atdr/app/detection/v372_unified_detection_ml_evaluation.py`, `atdr/scripts/evaluate_detection_ml_productization.py`, `frontend/src/pages/MLGovernance.tsx` |
+| Current detection/parser program closure | `docs/V4_9_DETECTION_ML_RELIABILITY_LOCK.md`, `docs/V5_1_SUPERVISED_SHADOW_ACTIVATION.md` through `docs/V5_13_RUNTIME_PARSER_CONTRACT_AND_SOURCE_QUALITY.md`, and `docs/V5_13_1_DETECTION_PARSER_PROGRAM_CONSOLIDATION.md` |
+| Runtime parser-quality contract | `atdr/app/parsers/paloalto_contract.py`, `atdr/app/services/runtime_parser_quality_service.py`, `atdr/app/services/source_service.py`, `atdr/tests/test_v513_runtime_parser_contract.py` |
+| Governed shadow operations | `atdr/app/services/v58_shadow_scoring_service.py`, `atdr/app/services/v59_shadow_observation_service.py`, `atdr/app/services/v510_detection_operations_service.py`, `atdr/app/services/v511_shadow_monitoring_service.py` |
 | Independent holdout evidence | `atdr/app/detection/v398_independent_holdout_validation.py`, `atdr/scripts/run_v398_independent_holdout_validation.py`, `atdr/tests/test_v398_independent_holdout_validation.py`, `docs/V3_98_INDEPENDENT_DETECTION_ML_HOLDOUT_VALIDATION.md` |
 | Synthetic multi-source frozen revalidation | `atdr/app/detection/v399_multisource_frozen_revalidation.py`, `atdr/scripts/run_v399_multisource_frozen_revalidation.py`, `atdr/tests/test_v399_multisource_frozen_revalidation.py`, `docs/V3_99_INDEPENDENT_MULTI_SOURCE_EVIDENCE_AND_FROZEN_REVALIDATION.md` |
 | Frontend route truth | `frontend/src/App.tsx`, `frontend/src/pages/*`, `frontend/src/lib/api.ts` |
@@ -109,9 +113,11 @@ Main SQLAlchemy entities include:
 - `SuppressionRule`
 - `WatchlistItem`
 - `MLModelRun`
+- `MLShadowObservation`
 - `IngestionRun`
 - `DetectionRun`
 - `OperationJob`
+- `OperationWorkerHeartbeat`
 - `MLLabel`
 
 Alembic migrations exist under `migrations/versions/`. Any schema change must use Alembic and must not reset or delete the user's current database.
@@ -282,9 +288,9 @@ Real firewall blocking must remain disabled unless explicitly approved later wit
 - Supervised ML still needs better stability, calibration, and real-source validation before stronger claims.
 - Case grouping is lightweight, not a full incident/ticketing platform.
 - Observability is still mostly app logs, health checks, scripts, and performance smoke; production metrics/alerting is future work.
-- The published v4.8 baseline is clean. The proposed v4.8.1 consolidation is a
-  separate uncommitted allowlist and must not be pushed without explicit owner
-  approval.
+- The published v4.8.1 baseline is clean and CI-green at `e05032a`. The
+  cumulative v4.9-v5.13 worktree remains local and must not be staged or pushed
+  outside the exact v5.13.1 allowlist or without explicit owner approval.
 
 ## Current Verification Commands
 
@@ -461,11 +467,40 @@ and frontend jobs.
 
 ## v4.8.1 Consolidation Update
 
-The proposed cleanup proves that ATDR runtime, tests, scripts, launchers, and CI
-have no dependency on the tracked `NewSystem/` runtime. Nine selected files from
-that 526-file copy and 15 original workflow/history files are preserved under
-`docs/reference/NewSystem/`; 517 unrelated tracked runtime files are proposed
-for removal. Private environment files, databases, logs, labels, models,
-reviews, exports, migrations, tests, and current ATDR change records remain
-untouched. See `docs/V4_8_1_REPOSITORY_CONSOLIDATION_REPORT.md` and the exact
-approval-gated `docs/V4_8_1_COMMIT_ALLOWLIST.md`.
+The published cleanup proves that ATDR runtime, tests, scripts, launchers, and
+CI have no dependency on the former tracked `NewSystem/` runtime. Selected
+workflow/IAM/security references remain under `docs/reference/NewSystem/`;
+unrelated Node/Vue/Mongo runtime files were removed. Private environment files,
+databases, logs, labels, models, reviews, exports, migrations, tests, and
+current ATDR change records remained protected. Commit `e05032a` and GitHub
+Actions run `29646770282` completed successfully.
+
+## v4.9-v5.13 Detection And Parser Program Update
+
+The cumulative local program now provides:
+
+- versioned detection taxonomy, rule, scenario, and labeling contracts;
+- controlled rule/anomaly/supervised/hybrid validation with 24/24 scenarios
+  and 288/288 layered runs;
+- a reproducible supervised SOC queue artifact restricted to
+  `shadow_observation`;
+- immutable development/final/external evidence roles and leakage controls;
+- read-only governed shadow scoring, longitudinal aggregate observations,
+  operational acceptance, and drift diagnostics;
+- versioned PAN-OS parser contracts and parser-profile-aware quality baselines;
+  and
+- shared runtime parser-quality accounting for future file, replay, UDP,
+  durable, and scenario ingestion plus privacy-safe source operations.
+
+The strong controlled checks do not satisfy the independent evidence gates.
+Temporal/source/external model results remain insufficient, only one real
+device is available, and the private source lacks independent human ground
+truth. Supervised lifecycle therefore remains `shadow_observation`; no model
+may create/suppress alerts, change severity, or trigger response. Rules remain
+alert-authoritative.
+
+The v5.13 closure verification recorded full backend `741 passed, 1 skipped`,
+Playwright `26 passed, 1 skipped`, controlled `24/24`, layered `288/288`,
+assistant QA `20/20`, a warning-free performance smoke, and a passing release
+gate. The v5.13.1 consolidation reruns the full matrix and records its exact
+approval-gated path set in `docs/V5_13_1_COMMIT_ALLOWLIST.md`.

@@ -2490,11 +2490,14 @@ def _answer_ml_question(db: Session, *, redacted: bool) -> AssistantResult:
     supervised = supervised_model_report(db)
     latest_run = supervised.get("latest_run") or {}
     promotion_gate = latest_run.get("promotion_gate") or {}
+    lifecycle = supervised.get("governed_lifecycle") or {}
     answer = (
         "AI Governance summary: ML is decision support only. "
         f"Anomaly model artifact is {'present' if ml.get('model_status', {}).get('artifact_exists') else 'missing'}, "
         f"current anomaly rate is {ml.get('anomaly_rate', '-')}. "
         f"Supervised label count is {supervised.get('label_count', 0)}. "
+        f"Governed supervised lifecycle is {lifecycle.get('lifecycle_state', 'inactive')}; "
+        f"model version is {lifecycle.get('model_version') or 'not active'}. "
         f"Production promoted: {bool(promotion_gate.get('production_promoted', False))}. "
         f"Response automation allowed: {bool(promotion_gate.get('response_automation_allowed', False))}."
     )
@@ -2518,6 +2521,7 @@ def _answer_ml_question(db: Session, *, redacted: bool) -> AssistantResult:
                 {
                     "label_count": supervised.get("label_count"),
                     "decision_support_only": supervised.get("decision_support_only"),
+                    "governed_lifecycle": lifecycle,
                     "latest_run": {
                         "status": latest_run.get("status"),
                         "split_strategy": latest_run.get("split_strategy"),
@@ -2720,6 +2724,7 @@ def _answer_model_promotion_question(db: Session, *, redacted: bool) -> Assistan
     promotion_gate = latest_run.get("promotion_gate") or {}
     readiness = latest_run.get("model_readiness_checklist") or supervised.get("model_readiness_checklist") or {}
     warnings = latest_run.get("validation_warnings") or supervised.get("validation_warnings") or []
+    lifecycle = supervised.get("governed_lifecycle") or {}
     failed_items = [
         item
         for item in readiness.get("items", [])
@@ -2739,7 +2744,8 @@ def _answer_model_promotion_question(db: Session, *, redacted: bool) -> Assistan
     answer = (
         "The supervised model is not production promoted. "
         + (" ".join(reason_parts) if reason_parts else "No production promotion evidence is present.")
-        + " ATDR keeps ML as SOC triage decision support and response automation disabled."
+        + f" Governed lifecycle: {lifecycle.get('lifecycle_state', 'inactive')}. "
+        + "Rules remain authoritative, and response automation is disabled."
     )
     return AssistantResult(
         answer=_text(answer, redacted=redacted),
@@ -2748,7 +2754,11 @@ def _answer_model_promotion_question(db: Session, *, redacted: bool) -> Assistan
             Citation("Supervised model report", "/api/ml/supervised/report"),
             Citation("AI training runbook", "docs/AI_TRAINING_RUNBOOK.md"),
         ],
-        details={"promotion_gate": _redact(promotion_gate, enabled=redacted), "readiness": _redact(readiness, enabled=redacted)},
+        details={
+            "promotion_gate": _redact(promotion_gate, enabled=redacted),
+            "readiness": _redact(readiness, enabled=redacted),
+            "governed_lifecycle": _redact(lifecycle, enabled=redacted),
+        },
         suggested_followups=["How do I import reviewed labels?", "Explain current ML model status."],
     )
 

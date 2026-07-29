@@ -1,0 +1,72 @@
+{
+  "manifest_version": "v4.9",
+  "dataset_id": "cse-cic-ids2018-official-frozen-evidence",
+  "publisher": "Canadian Institute for Cybersecurity, University of New Brunswick",
+  "official_page": "https://www.unb.ca/cic/datasets/ids-2018.html",
+  "official_aws_page": "https://registry.opendata.aws/cse-cic-ids2018/",
+  "accessed_date": "2026-07-18",
+  "citation": "Iman Sharafaldin, Arash Habibi Lashkari, and Ali A. Ghorbani, Toward Generating a New Intrusion Detection Dataset and Intrusion Traffic Characterization, 2018.",
+  "terms_summary": "The official dataset page permits redistribution, republication, and mirroring and requires citation of the dataset and official AWS page.",
+  "evidence_role": "locked_external_final_evidence_not_for_tuning",
+  "files": [
+    {
+      "file_name": "Wednesday-14-02-2018_TrafficForML_CICFlowMeter.csv",
+      "provider_day": "2018-02-14",
+      "expected_bytes": 358223333,
+      "sha256": "acff8bc61376ee031d80878ee6099e0b1a87a1bd711d8068298421418c9f8147",
+      "scenario": "FTP and SSH brute-force day"
+    },
+    {
+      "file_name": "Thursday-01-03-2018_TrafficForML_CICFlowMeter.csv",
+      "provider_day": "2018-03-01",
+      "expected_bytes": 107842858,
+      "sha256": "b0534c5d7d8b41e03df71c6966c995d116a8ed28e61f377c8b14cdf5d28f4edf",
+      "scenario": "Infiltration day"
+    }
+  ],
+  "schema_contract": {
+    "provider_schema": "CICFlowMeter processed bidirectional flow features",
+    "not_palo_alto_schema": true,
+    "available_examples": [
+      "destination port",
+      "protocol number",
+      "flow duration",
+      "packet and byte statistics",
+      "flow rate statistics"
+    ],
+    "unavailable_palo_alto_fields": [
+      "source identity",
+      "firewall action",
+      "application",
+      "application risk",
+      "source zone",
+      "destination zone",
+      "source port",
+      "source-scoped behavior history"
+    ],
+    "missing_fields_must_not_be_fabricated": true,
+    "partial_rule_coverage_must_not_be_reported_as_full_rule_accuracy": true
+  },
+  "label_policy": {
+    "provider_ground_truth": true,
+    "human_reviewed": false,
+    "import_ready": false,
+    "automatic_label_import_allowed": false,
+    "provider_label_must_be_preserved": true,
+    "mapping_must_not_consult_labels_before_prediction_freeze": true
+  },
+  "safety": {
+    "external_files_must_remain_outside_git": true,
+    "generated_reports_must_remain_ignored": true,
+    "model_activation_allowed": false,
+    "production_promotion_allowed": false,
+    "response_automation_allowed": false,
+    "real_firewall_blocking_allowed": false
+  },
+  "known_result": {
+    "status": "failed_external_generalization_gate",
+    "benign_like_false_positive_rate": 1.0,
+    "threat_positive_f1_range": [0.4363, 0.5243],
+    "locked_against_future_tuning": true
+  }
+}

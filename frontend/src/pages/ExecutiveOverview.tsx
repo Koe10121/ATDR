@@ -29,13 +29,22 @@ import {
   useSupervisedReport
 } from "../hooks/useApiQueries";
 import { inferAttackTypeFromAlertType } from "../lib/attackMapping";
+import { api } from "../lib/api";
 import { useAuth } from "../hooks/useAuth";
+import type { HistoricalReparseImpactPreview } from "../types/api";
 
 const chartColors = ["#ef4444", "#f97316", "#f59e0b", "#22c55e", "#22d3ee", "#94a3b8"];
 
 function numericJobDetail(details: Record<string, unknown> | undefined, key: string): number | null {
   const value = details?.[key];
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function parserQualityDetail(details: Record<string, unknown> | undefined) {
+  const value = details?.parser_quality;
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : null;
 }
 
 export function ExecutiveOverview() {
@@ -62,6 +71,9 @@ export function ExecutiveOverview() {
   const sourceParam = Number(searchParams.get("source"));
   const sourceParamId = Number.isFinite(sourceParam) && sourceParam > 0 ? sourceParam : null;
   const sourceDetail = useSource(selectedSourceId);
+  const [reparsePreview, setReparsePreview] = useState<HistoricalReparseImpactPreview | null>(null);
+  const [reparsePreviewLoading, setReparsePreviewLoading] = useState(false);
+  const [reparsePreviewError, setReparsePreviewError] = useState<string | null>(null);
   const critical = useAlerts({ severity: "Critical", status: "open", limit: 5 });
   const data = summary.data;
   const severityRows = data ? Object.entries(data.severity_counts).map(([name, count]) => ({ name, count })) : [];
@@ -94,6 +106,12 @@ export function ExecutiveOverview() {
   const worker = jobsSummary.data?.worker;
   const staging = jobsSummary.data?.staging;
   const operationWarnings = jobsSummary.data?.warnings ?? [];
+  const parserOperationalAlerts = (sources.data ?? []).flatMap((source) =>
+    (source.health.operational_alerts ?? []).map((alert) => ({
+      ...alert,
+      sourceId: source.source_id
+    }))
+  );
   const latestScenarioRun =
     (ingestionRuns.data ?? []).find(
       (run) =>
@@ -110,6 +128,24 @@ export function ExecutiveOverview() {
       setSelectedSourceId(sourceParamId);
     }
   }, [sourceParamId]);
+
+  useEffect(() => {
+    setReparsePreview(null);
+    setReparsePreviewError(null);
+  }, [selectedSourceId]);
+
+  async function loadReparseImpactPreview() {
+    if (!selectedSourceId || reparsePreviewLoading) return;
+    setReparsePreviewLoading(true);
+    setReparsePreviewError(null);
+    try {
+      setReparsePreview(await api.sourceReparseImpactPreview(selectedSourceId));
+    } catch (error) {
+      setReparsePreviewError(error instanceof Error ? error.message : "Historical contract preview failed.");
+    } finally {
+      setReparsePreviewLoading(false);
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -348,8 +384,10 @@ export function ExecutiveOverview() {
                 <div className="mt-3 grid gap-2 text-sm text-muted sm:grid-cols-2">
                   <div>Logs: <span className="font-bold text-text">{source.logs_received_count}</span></div>
                   <div>Parsed: <span className="font-bold text-text">{source.parse_success_count}</span></div>
-                  <div>Failures: <span className="font-bold text-text">{source.parse_failure_count}</span></div>
-                  <div>Success: <span className="font-bold text-text">{source.health.parse_success_rate}%</span></div>
+                  <div>Fallback / Failed: <span className="font-bold text-text">{source.parse_failure_count}</span></div>
+                  <div>Stored Parse Success: <span className="font-bold text-text">{source.health.parse_success_rate}%</span></div>
+                  <div>Contract: <span className="font-bold text-text">{(source.health.parser_contract_state ?? "legacy_contract").replaceAll("_", " ")}</span></div>
+                  <div>Quality: <span className="font-bold text-text">{(source.health.parser_quality_state ?? "legacy").replaceAll("_", " ")}</span></div>
                   <div className="sm:col-span-2">Last log: <span className="font-bold text-text">{source.last_log_received_at ?? "-"}</span></div>
                 </div>
                 {source.latest_error ? <div className="mt-2 text-xs text-amber">{source.latest_error}</div> : null}
@@ -439,6 +477,27 @@ export function ExecutiveOverview() {
                 <div key={warning.code} className="break-words">
                   <span className="font-bold capitalize">{warning.code.replaceAll("_", " ")}:</span> {warning.message}
                 </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        {parserOperationalAlerts.length ? (
+          <div
+            data-testid="parser-operational-alerts"
+            className="mb-3 rounded-lg border border-amber/40 bg-amber/10 px-4 py-3"
+            role="status"
+          >
+            <div className="text-xs font-extrabold uppercase tracking-wide text-amber">Parser Quality Alerts</div>
+            <div className="mt-2 grid gap-1 text-sm text-text lg:grid-cols-2">
+              {parserOperationalAlerts.slice(0, 6).map((alert, index) => (
+                <button
+                  type="button"
+                  className="break-words text-left"
+                  key={`${alert.sourceId}-${alert.code}-${index}`}
+                  onClick={() => setSelectedSourceId(alert.sourceId)}
+                >
+                  <span className="font-bold capitalize">{alert.code.replaceAll("_", " ")}:</span> {alert.message}
+                </button>
               ))}
             </div>
           </div>
@@ -694,11 +753,32 @@ export function ExecutiveOverview() {
                 { label: "Last Log", value: sourceDetail.data.last_log_received_at },
                 { label: "Logs Received", value: sourceDetail.data.logs_received_count },
                 { label: "Parsed", value: sourceDetail.data.parse_success_count },
-                { label: "Parse Failures", value: sourceDetail.data.parse_failure_count },
-                { label: "Unknown App Rate", value: `${sourceDetail.data.quality?.unknown_app_rate ?? 0}%` },
+                { label: "Fallback / Failed Rows", value: sourceDetail.data.parse_failure_count },
+                { label: "Contract State", value: (sourceDetail.data.health.parser_contract_state ?? "legacy_contract").replaceAll("_", " ") },
+                { label: "Parser Quality", value: (sourceDetail.data.health.parser_quality_state ?? "legacy").replaceAll("_", " ") },
+                { label: "Runtime Parser Errors", value: sourceDetail.data.quality?.parser_error_count ?? 0 },
+                { label: "Structural Warnings", value: sourceDetail.data.quality?.structural_warning_count ?? 0 },
+                { label: "Compatible / Extended", value: `${sourceDetail.data.quality?.compatible_layout_count ?? 0} / ${sourceDetail.data.quality?.extended_layout_count ?? 0}` },
+                { label: "Partial / Unsupported", value: `${sourceDetail.data.quality?.partial_layout_count ?? 0} / ${sourceDetail.data.quality?.unsupported_layout_count ?? 0}` },
+                { label: "Unresolved App Rate", value: `${sourceDetail.data.quality?.unresolved_application_rate ?? 0}%` },
+                { label: "Absent / N/A Apps", value: `${sourceDetail.data.quality?.absent_application_count ?? 0} / ${sourceDetail.data.quality?.not_applicable_application_count ?? 0}` },
+                { label: "Generic / Raw Fallback", value: `${sourceDetail.data.quality?.generic_syslog_count ?? 0} / ${sourceDetail.data.quality?.raw_fallback_count ?? 0}` },
+                { label: "Legacy Contract Rows", value: sourceDetail.data.quality?.legacy_contract_rows ?? 0 },
                 { label: "Alert Count", value: sourceDetail.data.quality?.alert_count ?? 0 }
               ]}
             />
+            {(sourceDetail.data.quality?.operational_alerts ?? []).length ? (
+              <section className="rounded-lg border border-amber/30 bg-amber/10 p-4" data-testid="source-parser-alerts">
+                <div className="text-sm font-extrabold uppercase tracking-wide text-amber">Parser Quality Alerts</div>
+                <div className="mt-2 space-y-2 text-sm text-text">
+                  {(sourceDetail.data.quality?.operational_alerts ?? []).map((alert) => (
+                    <div className="break-words" key={alert.code}>
+                      <span className="font-bold capitalize">{alert.code.replaceAll("_", " ")}:</span> {alert.message}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null}
             <section className="rounded-lg border border-line bg-panel2 p-4">
               <div className="text-sm font-extrabold uppercase tracking-wide text-muted">Troubleshooting Hints</div>
               <div className="mt-2 space-y-2 text-sm text-muted">
@@ -720,6 +800,34 @@ export function ExecutiveOverview() {
                 ))}
               </div>
             </section>
+            <section className="rounded-lg border border-line bg-panel2 p-4" data-testid="historical-contract-preview">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="text-sm font-extrabold uppercase tracking-wide text-muted">Historical Contract Coverage</div>
+                  <div className="mt-1 text-xs text-muted">Read-only metadata preview. No log is reparsed or changed.</div>
+                </div>
+                <button
+                  type="button"
+                  className="btn-secondary text-xs"
+                  disabled={reparsePreviewLoading}
+                  onClick={() => void loadReparseImpactPreview()}
+                >
+                  {reparsePreviewLoading ? "Loading..." : "Preview impact"}
+                </button>
+              </div>
+              {reparsePreviewError ? <div className="mt-3 text-sm text-danger">{reparsePreviewError}</div> : null}
+              {reparsePreview ? (
+                <div className="mt-3 grid gap-2 text-sm text-muted sm:grid-cols-2">
+                  <div>Rows scanned: <span className="font-bold text-text">{reparsePreview.rows_scanned}</span></div>
+                  <div>Total rows: <span className="font-bold text-text">{reparsePreview.total_rows}</span></div>
+                  <div>Current metadata: <span className="font-bold text-text">{reparsePreview.current_contract_metadata_rows}</span></div>
+                  <div>Legacy metadata: <span className="font-bold text-text">{reparsePreview.legacy_contract_rows_scanned}</span></div>
+                  <div className="sm:col-span-2 text-xs">
+                    {reparsePreview.coverage_complete ? "Complete metadata coverage." : "Bounded sample only."} Database mutated: no.
+                  </div>
+                </div>
+              ) : null}
+            </section>
             <section className="rounded-lg border border-line bg-panel2 p-4">
               <div className="text-sm font-extrabold uppercase tracking-wide text-muted">Recent Ingestion Runs</div>
               <div className="mt-3 space-y-2">
@@ -727,6 +835,17 @@ export function ExecutiveOverview() {
                   <div key={run.run_id} className="rounded border border-line bg-shell p-3 text-sm text-muted">
                     <div className="font-bold text-text">Run #{run.run_id} | {run.status}</div>
                     <div>{run.source_type} | parsed {run.parsed_successfully} | failed {run.parse_failures} | {run.runtime_seconds ?? "-"}s</div>
+                    {parserQualityDetail(run.details) ? (
+                      <div className="mt-1 text-xs">
+                        Contract rows {String(parserQualityDetail(run.details)?.observed_rows ?? 0)} | structural warnings{" "}
+                        {String(parserQualityDetail(run.details)?.structural_warning_rows ?? 0)} | unresolved apps{" "}
+                        {String(
+                          (parserQualityDetail(run.details)?.application_resolution_statuses as Record<string, number> | undefined)?.unresolved ?? 0
+                        )}
+                      </div>
+                    ) : (
+                      <div className="mt-1 text-xs">Legacy run: parser-quality contract was not recorded.</div>
+                    )}
                   </div>
                 ))}
                 {!(sourceDetail.data.recent_ingestion_runs ?? []).length ? <EmptyState title="No linked runs" body="Future direct replay or imports from this source will appear here." /> : null}

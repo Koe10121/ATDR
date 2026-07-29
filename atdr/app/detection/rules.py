@@ -1,5 +1,6 @@
 from collections import Counter, defaultdict
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from statistics import mean, pstdev
 from typing import Iterable
 
@@ -13,6 +14,11 @@ SUSPICIOUS_CHARACTERISTICS = {
     "able-to-transfer-file",
     "consume-big-bandwidth",
 }
+BEACON_HIGH_SIGNAL_CHARACTERISTICS = {
+    "used-by-malware",
+    "evasive-behavior",
+}
+HIGH_VOLUME_COMMON_SERVICE_THRESHOLD = 100
 
 COMMON_PORTS = {
     0,
@@ -66,6 +72,19 @@ class DetectionContext:
     source_destination_counts: Counter[tuple[str, str, int | None]]
     byte_outlier_threshold: float
     packet_outlier_threshold: float
+    event_correlations: dict[int, "CorrelationSnapshot"]
+    correlation_window: str = "5m_source_scoped"
+
+
+@dataclass(frozen=True, slots=True)
+class CorrelationSnapshot:
+    source_count: int
+    deny_drop_count: int
+    distinct_ports: frozenset[int]
+    auth_deny_count: int
+    destination_repeat_count: int
+    source_scope: str
+    window_label: str
 
 
 @dataclass(slots=True)
@@ -116,7 +135,37 @@ def _characteristic_set(value: str | None) -> set[str]:
     return {item.strip().lower() for item in value.split(",") if item.strip()}
 
 
+def _event_key(log: NormalizedLog) -> int:
+    return int(log.id) if log.id is not None else id(log)
+
+
+def _source_scope(log: NormalizedLog) -> str:
+    raw_log = getattr(log, "raw_log", None)
+    source_id = getattr(raw_log, "source_id", None) if raw_log is not None else None
+    return f"source:{source_id}" if source_id is not None else "source:unscoped"
+
+
+def _event_time(log: NormalizedLog) -> datetime | None:
+    return log.generated_time or log.receive_time or log.high_res_timestamp or log.start_time
+
+
+def _window_label(log: NormalizedLog) -> str:
+    value = _event_time(log)
+    if value is None:
+        return "missing-event-time"
+    minute = (value.minute // 5) * 5
+    return value.replace(minute=minute, second=0, microsecond=0).isoformat()
+
+
+def _effective_event_count(log: NormalizedLog) -> int:
+    # PAN repeatcnt is the number of otherwise identical sessions observed in
+    # five seconds. It is useful correlation evidence but is bounded here so a
+    # malformed field cannot create an unbounded score contribution.
+    return min(max(int(log.repeat_count or 1), 1), 10_000)
+
+
 def build_detection_context(logs: Iterable[NormalizedLog]) -> DetectionContext:
+    materialized_logs = list(logs)
     source_counts: Counter[str] = Counter()
     source_deny_drop_counts: Counter[str] = Counter()
     source_distinct_ports: dict[str, set[int]] = defaultdict(set)
@@ -125,17 +174,21 @@ def build_detection_context(logs: Iterable[NormalizedLog]) -> DetectionContext:
     byte_values: list[int] = []
     packet_values: list[int] = []
 
-    for log in logs:
+    source_groups: dict[tuple[str, str], list[NormalizedLog]] = defaultdict(list)
+
+    for log in materialized_logs:
         if log.src_ip:
-            source_counts[log.src_ip] += 1
+            effective_count = _effective_event_count(log)
+            source_counts[log.src_ip] += effective_count
             if _is_deny_or_drop(log):
-                source_deny_drop_counts[log.src_ip] += 1
+                source_deny_drop_counts[log.src_ip] += effective_count
                 if log.dst_port in AUTH_SERVICE_PORTS:
-                    source_auth_deny_counts[log.src_ip] += 1
+                    source_auth_deny_counts[log.src_ip] += effective_count
             if log.dst_port is not None:
                 source_distinct_ports[log.src_ip].add(log.dst_port)
             if log.dst_ip:
-                source_destination_counts[(log.src_ip, log.dst_ip, log.dst_port)] += 1
+                source_destination_counts[(log.src_ip, log.dst_ip, log.dst_port)] += effective_count
+            source_groups[(_source_scope(log), log.src_ip)].append(log)
         if log.bytes is not None:
             byte_values.append(log.bytes)
         if log.packets is not None:
@@ -148,6 +201,56 @@ def build_detection_context(logs: Iterable[NormalizedLog]) -> DetectionContext:
     if len(packet_values) >= 10:
         packet_threshold = max(packet_threshold, mean(packet_values) + (3 * pstdev(packet_values)))
 
+    correlation_groups: list[tuple[str, str, list[NormalizedLog]]] = []
+    for (scope, _src_ip), grouped_logs in source_groups.items():
+        timed = sorted(
+            (item for item in grouped_logs if _event_time(item) is not None),
+            key=lambda item: (_event_time(item), _event_key(item)),
+        )
+        missing_time = [item for item in grouped_logs if _event_time(item) is None]
+        current: list[NormalizedLog] = []
+        window_start: datetime | None = None
+        for item in timed:
+            item_time = _event_time(item)
+            if window_start is None or (item_time is not None and item_time - window_start <= timedelta(minutes=5)):
+                current.append(item)
+                window_start = window_start or item_time
+                continue
+            correlation_groups.append((scope, window_start.isoformat(), current))
+            current = [item]
+            window_start = item_time
+        if current and window_start is not None:
+            correlation_groups.append((scope, window_start.isoformat(), current))
+        if missing_time:
+            correlation_groups.append((scope, "missing-event-time", missing_time))
+
+    event_correlations: dict[int, CorrelationSnapshot] = {}
+    for scope, window_label, grouped_logs in correlation_groups:
+        source_count = sum(_effective_event_count(item) for item in grouped_logs)
+        deny_drop_count = sum(
+            _effective_event_count(item) for item in grouped_logs if _is_deny_or_drop(item)
+        )
+        auth_deny_count = sum(
+            _effective_event_count(item)
+            for item in grouped_logs
+            if _is_deny_or_drop(item) and item.dst_port in AUTH_SERVICE_PORTS
+        )
+        distinct_ports = frozenset(item.dst_port for item in grouped_logs if item.dst_port is not None)
+        destination_counts: Counter[tuple[str, int | None]] = Counter()
+        for item in grouped_logs:
+            if item.dst_ip:
+                destination_counts[(item.dst_ip, item.dst_port)] += _effective_event_count(item)
+        for item in grouped_logs:
+            event_correlations[_event_key(item)] = CorrelationSnapshot(
+                source_count=source_count,
+                deny_drop_count=deny_drop_count,
+                distinct_ports=distinct_ports,
+                auth_deny_count=auth_deny_count,
+                destination_repeat_count=destination_counts.get((item.dst_ip or "", item.dst_port), 0),
+                source_scope=scope,
+                window_label=window_label,
+            )
+
     return DetectionContext(
         source_counts=source_counts,
         source_deny_drop_counts=source_deny_drop_counts,
@@ -156,12 +259,14 @@ def build_detection_context(logs: Iterable[NormalizedLog]) -> DetectionContext:
         source_destination_counts=source_destination_counts,
         byte_outlier_threshold=byte_threshold,
         packet_outlier_threshold=packet_threshold,
+        event_correlations=event_correlations,
     )
 
 
 def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMatch]:
     matches: list[RuleMatch] = []
     src_ip = log.src_ip or "unknown source"
+    correlation = context.event_correlations.get(_event_key(log))
 
     if _is_deny_or_drop(log):
         matches.append(
@@ -223,29 +328,35 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
             )
         )
 
-    source_count = context.source_counts.get(src_ip, 0)
+    source_count = correlation.source_count if correlation else context.source_counts.get(src_ip, 0)
     if source_count >= 25:
         matches.append(
             RuleMatch(
                 code="repeated_source_ip",
                 title="Repeated source activity",
                 score=20,
-                explanation=f"{src_ip} appears in {source_count} logs in the detection batch.",
+                explanation=(
+                    f"{src_ip} represents {source_count} session events in the source-scoped "
+                    "five-minute correlation window."
+                ),
             )
         )
 
-    deny_drop_count = context.source_deny_drop_counts.get(src_ip, 0)
+    deny_drop_count = correlation.deny_drop_count if correlation else context.source_deny_drop_counts.get(src_ip, 0)
     if deny_drop_count >= 5:
         matches.append(
             RuleMatch(
                 code="multiple_denied_connections",
                 title="Multiple denied or dropped connections",
                 score=20,
-                explanation=f"{src_ip} has {deny_drop_count} denied or dropped logs in the detection batch.",
+                explanation=(
+                    f"{src_ip} has {deny_drop_count} denied, dropped, or reset session events in the "
+                    "source-scoped five-minute window."
+                ),
             )
         )
 
-    auth_deny_count = context.source_auth_deny_counts.get(src_ip, 0)
+    auth_deny_count = correlation.auth_deny_count if correlation else context.source_auth_deny_counts.get(src_ip, 0)
     if auth_deny_count >= 5:
         matches.append(
             RuleMatch(
@@ -256,26 +367,42 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
             )
         )
 
-    distinct_ports = len(context.source_distinct_ports.get(src_ip, set()))
+    distinct_ports = len(correlation.distinct_ports) if correlation else len(context.source_distinct_ports.get(src_ip, set()))
     if distinct_ports >= 10:
         matches.append(
             RuleMatch(
                 code="possible_port_scan",
                 title="Possible port scanning behavior",
                 score=25,
-                explanation=f"{src_ip} touched {distinct_ports} distinct destination ports.",
+                explanation=(
+                    f"{src_ip} touched {distinct_ports} distinct destination ports in the "
+                    "source-scoped five-minute window."
+                ),
             )
         )
 
-    destination_repeat_count = context.source_destination_counts.get((src_ip, log.dst_ip or "", log.dst_port), 0)
+    destination_repeat_count = (
+        correlation.destination_repeat_count
+        if correlation
+        else context.source_destination_counts.get((src_ip, log.dst_ip or "", log.dst_port), 0)
+    )
     if destination_repeat_count >= 6 and _is_internal_to_external(log):
-        uncommon_or_risky = (
-            (log.dst_port is not None and log.dst_port not in COMMON_PORTS)
-            or (log.app_risk is not None and log.app_risk >= 4)
-            or bool(_characteristic_set(log.app_characteristic) & SUSPICIOUS_CHARACTERISTICS)
-            or _lower(log.app) in {"unknown", "incomplete", "not-applicable", "unknown-tcp"}
-        )
-        if uncommon_or_risky:
+        app_name = _lower(log.app)
+        characteristics = _characteristic_set(log.app_characteristic)
+        beacon_context = []
+        if log.dst_port is not None and log.dst_port not in COMMON_PORTS:
+            beacon_context.append("uncommon destination service")
+        if app_name in {"unknown", "incomplete", "not-applicable", "unknown-tcp"}:
+            beacon_context.append("unidentified application")
+        if str(log.log_type or "").upper() == "THREAT":
+            beacon_context.append("vendor THREAT event")
+        if (
+            log.app_risk is not None
+            and log.app_risk >= 5
+            and characteristics & BEACON_HIGH_SIGNAL_CHARACTERISTICS
+        ):
+            beacon_context.append("very-high-risk application evidence")
+        if beacon_context:
             matches.append(
                 RuleMatch(
                     code="beaconing_like_outbound",
@@ -283,12 +410,22 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
                     score=30,
                     explanation=(
                         f"{src_ip} made {destination_repeat_count} repeated outbound connections to "
-                        f"{log.dst_ip or 'unknown destination'}:{log.dst_port or 'unknown port'}."
+                        f"{log.dst_ip or 'unknown destination'}:{log.dst_port or 'unknown port'}; "
+                        f"supporting context: {', '.join(beacon_context)}."
                     ),
                 )
             )
 
-    if destination_repeat_count >= 20:
+    flood_context = []
+    if _is_outside_to_inside(log):
+        flood_context.append("external-to-internal direction")
+    if _is_deny_or_drop(log):
+        flood_context.append("denied or reset traffic")
+    if str(log.log_type or "").upper() == "THREAT":
+        flood_context.append("vendor THREAT event")
+    if destination_repeat_count >= HIGH_VOLUME_COMMON_SERVICE_THRESHOLD:
+        flood_context.append("very high repeated connection volume")
+    if destination_repeat_count >= 20 and flood_context:
         matches.append(
             RuleMatch(
                 code="connection_flood_suspicion",
@@ -296,7 +433,9 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
                 score=35,
                 explanation=(
                     f"{src_ip} made {destination_repeat_count} repeated connections to "
-                    f"{log.dst_ip or 'unknown destination'}:{log.dst_port or 'unknown port'} in the detection batch."
+                    f"{log.dst_ip or 'unknown destination'}:{log.dst_port or 'unknown port'} in the "
+                    "source-scoped five-minute window; supporting context: "
+                    f"{', '.join(flood_context)}."
                 ),
             )
         )

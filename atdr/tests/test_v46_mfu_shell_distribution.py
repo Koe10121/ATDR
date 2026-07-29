@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import zipfile
 from pathlib import Path
 
@@ -198,7 +199,9 @@ def test_team_setup_package_dry_run_is_path_safe_and_reports_one_provider_blocke
     (binary_dir / "node.cmd").write_text("@echo off\r\necho v20.19.1\r\n", encoding="utf-8")
     (binary_dir / "npm.cmd").write_text("@echo off\r\nexit /b 0\r\n", encoding="utf-8")
     environment = os.environ.copy()
-    environment["PATH"] = f"{binary_dir}{os.pathsep}{environment.get('PATH', '')}"
+    environment["PATH"] = (
+        f"{binary_dir}{os.pathsep}{Path(sys.executable).parent}{os.pathsep}{environment.get('PATH', '')}"
+    )
     environment["PYTHONDONTWRITEBYTECODE"] = "1"
     result = subprocess.run(
         [

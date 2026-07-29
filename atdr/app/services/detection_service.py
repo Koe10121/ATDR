@@ -1,22 +1,30 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session, joinedload
 
 from atdr.app.core.config import get_settings
-from atdr.app.db.models import AuditLog, NormalizedLog, RawLog
+from atdr.app.db.models import Alert, AuditLog, NormalizedLog, RawLog
 from atdr.app.detection.ml_detector import apply_model_to_db
 from atdr.app.detection.rules import DetectionResult, RuleMatch, build_detection_context, evaluate_rules
 from atdr.app.detection.scoring import clamp_score, severity_from_score
-from atdr.app.services.alert_service import create_grouped_alert_from_detections, existing_evidence_log_ids
+from atdr.app.services.alert_service import (
+    ALERT_DEDUP_ACTIVE_STATUSES,
+    create_grouped_alert_from_detections,
+    existing_evidence_log_ids,
+)
 from atdr.app.services.operation_run_service import (
     attack_type_counts_for_alerts,
     complete_detection_run,
     fail_detection_run,
     start_detection_run,
 )
-from atdr.app.services.suppression_service import matching_suppression, record_suppression_hit
+from atdr.app.services.suppression_service import (
+    list_suppressions,
+    matching_suppression,
+    record_suppression_hit,
+)
 from atdr.app.services.watchlist_service import list_watchlist_items, matching_watchlist_items, record_watchlist_hits
 
 
@@ -26,6 +34,7 @@ INTERNET_SWEEP_RULES = {"unusual_destination_port", "unknown_or_incomplete_app",
 APP_RISK_POLICY_RULES = {"app_risk_4", "app_risk_5", "suspicious_app_characteristic"}
 REPEATED_DESTINATION_RULES = {"beaconing_like_outbound", "connection_flood_suspicion"}
 MULTI_EVENT_PATTERN_RULES = {"beaconing_like_outbound", "connection_flood_suspicion", "possible_port_scan"}
+ADVISORY_EVIDENCE_RULES = frozenset({"ml_anomaly_detected"})
 PRIMARY_RULE_PRIORITY = {
     "possible_port_scan": 100,
     "connection_flood_suspicion": 98,
@@ -34,7 +43,6 @@ PRIMARY_RULE_PRIORITY = {
     "multiple_denied_connections": 95,
     "paloalto_threat_log": 90,
     "watchlist_match": 88,
-    "ml_anomaly_detected": 85,
     "deny_drop_action": 80,
     "app_risk_5": 75,
     "app_risk_4": 70,
@@ -46,6 +54,7 @@ PRIMARY_RULE_PRIORITY = {
     "high_outbound_bytes": 38,
     "high_bytes_outlier": 35,
     "high_packets_outlier": 35,
+    "ml_anomaly_detected": 5,
 }
 
 
@@ -56,8 +65,19 @@ class DetectionCandidate:
     primary_rule: RuleMatch
 
 
-def _result_from_matches(matches) -> DetectionResult:
-    score = clamp_score(sum(match.score for match in matches))
+def _alert_authoritative_matches(matches: list[RuleMatch]) -> list[RuleMatch]:
+    """Return evidence that is permitted to create and classify an alert."""
+
+    return [match for match in matches if match.code not in ADVISORY_EVIDENCE_RULES]
+
+
+def _result_from_matches(
+    matches: list[RuleMatch],
+    *,
+    scoring_matches: list[RuleMatch] | None = None,
+) -> DetectionResult:
+    authoritative = matches if scoring_matches is None else scoring_matches
+    score = clamp_score(sum(match.score for match in authoritative))
     severity = severity_from_score(score)
     explanation = " ".join(match.explanation for match in matches)
     return DetectionResult(threat_score=score, severity=severity, explanation=explanation, matched_rules=matches)
@@ -142,6 +162,10 @@ def run_detection(
     source_id: int | None = None,
     source_name: str | None = None,
     source_type: str | None = None,
+    event_time_start: datetime | None = None,
+    event_time_end: datetime | None = None,
+    dedup_alert_cache: list[Alert] | None = None,
+    dedup_evidence_id_cache: dict[int, set[int]] | None = None,
 ) -> dict:
     settings = get_settings()
     run = start_detection_run(
@@ -154,12 +178,28 @@ def run_detection(
             "source_id": source_id,
             "source_name": source_name,
             "source_type": source_type,
+            "event_time_start": event_time_start.isoformat() if event_time_start else None,
+            "event_time_end": event_time_end.isoformat() if event_time_end else None,
         },
     )
-    statement = select(NormalizedLog).order_by(NormalizedLog.id.desc())
+    statement = (
+        select(NormalizedLog)
+        .options(joinedload(NormalizedLog.raw_log))
+        .order_by(NormalizedLog.id.desc())
+    )
     try:
         if source_id is not None:
             statement = statement.join(RawLog, NormalizedLog.raw_log_id == RawLog.id).where(RawLog.source_id == source_id)
+        event_time = func.coalesce(
+            NormalizedLog.generated_time,
+            NormalizedLog.receive_time,
+            NormalizedLog.high_res_timestamp,
+            NormalizedLog.start_time,
+        )
+        if event_time_start is not None:
+            statement = statement.where(event_time >= event_time_start)
+        if event_time_end is not None:
+            statement = statement.where(event_time < event_time_end)
         if limit:
             statement = statement.limit(limit)
         logs = list(db.scalars(statement))
@@ -174,6 +214,8 @@ def run_detection(
         candidates: list[DetectionCandidate] = []
         evaluated = 0
         watchlist_matches = 0
+        advisory_anomaly_signals = 0
+        advisory_only_logs = 0
 
         for log in logs:
             evaluated += 1
@@ -198,11 +240,54 @@ def run_detection(
                 )
             if not matches:
                 continue
-            result = _result_from_matches(matches)
+            advisory_anomaly_signals += sum(
+                1 for match in matches if match.code in ADVISORY_EVIDENCE_RULES
+            )
+            authoritative_matches = _alert_authoritative_matches(matches)
+            if not authoritative_matches:
+                advisory_only_logs += 1
+                continue
+            result = _result_from_matches(matches, scoring_matches=authoritative_matches)
             if result.threat_score >= settings.min_alert_score:
-                candidates.append(DetectionCandidate(log=log, result=result, primary_rule=_primary_rule(matches)))
+                candidates.append(
+                    DetectionCandidate(
+                        log=log,
+                        result=result,
+                        primary_rule=_primary_rule(authoritative_matches),
+                    )
+                )
 
         grouped = group_detection_candidates(candidates)
+        candidate_alert_types = {
+            grouped_candidates[0].primary_rule.code
+            for grouped_candidates in grouped.values()
+            if grouped_candidates
+        }
+        if dedup_alert_cache is None:
+            dedup_alerts = (
+                list(
+                    db.scalars(
+                        select(Alert)
+                        .options(joinedload(Alert.evidence))
+                        .where(
+                            Alert.alert_type.in_(candidate_alert_types),
+                            Alert.status.in_(ALERT_DEDUP_ACTIVE_STATUSES),
+                        )
+                        .order_by(Alert.updated_at.asc(), Alert.id.asc())
+                    ).unique()
+                )
+                if candidate_alert_types
+                else []
+            )
+        else:
+            dedup_alerts = dedup_alert_cache
+        evidence_id_cache = (
+            dedup_evidence_id_cache
+            if dedup_evidence_id_cache is not None
+            else {}
+        )
+        known_alert_objects = {id(item) for item in dedup_alerts}
+        active_suppressions = list_suppressions(db, active_only=True)
         created = 0
         deduplicated_alert_updates = 0
         suppressed_groups = 0
@@ -217,6 +302,7 @@ def run_detection(
                 db,
                 alert_type=grouped_candidates[0].primary_rule.code,
                 logs=group_logs,
+                rules=active_suppressions,
             )
             if suppression is not None:
                 record_suppression_hit(suppression, count=len(grouped_candidates))
@@ -227,12 +313,15 @@ def run_detection(
                 db,
                 detections,
                 primary_rule_code=grouped_candidates[0].primary_rule.code,
+                dedup_alerts=dedup_alerts,
+                evidence_id_cache=evidence_id_cache,
             )
             touched_alerts.append(alert)
-            if alert.id is None:
-                created += 1
-            else:
+            if id(alert) in known_alert_objects:
                 deduplicated_alert_updates += 1
+            else:
+                created += 1
+                known_alert_objects.add(id(alert))
 
         run_attack_types = attack_type_counts_for_alerts(touched_alerts)
         run_details = {
@@ -243,11 +332,16 @@ def run_detection(
             "suppressed_low_groups": suppressed_groups,
             "suppressed_by_rules": suppressed_by_rules,
             "watchlist_matches": watchlist_matches,
+            "advisory_anomaly_signals": advisory_anomaly_signals,
+            "advisory_only_logs": advisory_only_logs,
+            "rule_detection_authoritative": True,
             "limit": limit,
             "use_ml": use_ml,
             "source_id": source_id,
             "source_name": source_name,
             "source_type": source_type,
+            "event_time_start": event_time_start.isoformat() if event_time_start else None,
+            "event_time_end": event_time_end.isoformat() if event_time_end else None,
             "group_bucket_minutes": GROUP_BUCKET_MINUTES,
             "low_severity_group_min_evidence": LOW_SEVERITY_GROUP_MIN_EVIDENCE,
             "top_attack_types": run_attack_types,

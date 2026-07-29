@@ -104,9 +104,18 @@ def matching_suppression(
     *,
     alert_type: str,
     logs: list[NormalizedLog],
+    rules: list[SuppressionRule] | None = None,
 ) -> SuppressionRule | None:
-    rules = list(db.scalars(select(SuppressionRule).where(SuppressionRule.active.is_(True)).order_by(SuppressionRule.id.asc())))
-    for rule in rules:
+    active_rules = rules
+    if active_rules is None:
+        active_rules = list(
+            db.scalars(
+                select(SuppressionRule)
+                .where(SuppressionRule.active.is_(True))
+                .order_by(SuppressionRule.id.asc())
+            )
+        )
+    for rule in active_rules:
         if rule.alert_type and rule.alert_type != alert_type:
             continue
         for log in logs:

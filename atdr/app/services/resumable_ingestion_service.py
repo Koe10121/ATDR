@@ -23,6 +23,13 @@ from atdr.app.services.job_service import (
 )
 from atdr.app.services.log_service import persist_parsed_log
 from atdr.app.services.operation_run_service import complete_ingestion_run, fail_ingestion_run, safe_source_label, start_ingestion_run
+from atdr.app.services.runtime_parser_quality_service import (
+    empty_runtime_parser_quality,
+    finalize_runtime_parser_quality,
+    merge_runtime_parser_quality,
+    normalize_runtime_parser_quality,
+    observe_parser_result,
+)
 from atdr.app.services.source_service import (
     DEFAULT_SOURCE_NAME,
     get_or_create_source,
@@ -305,6 +312,9 @@ def run_resumable_import(
     imported = max(0, int(job.progress_current or 0))
     physical_line = max(0, int(job.checkpoint_line or 0))
     latest_error = source.latest_error
+    parser_quality = normalize_runtime_parser_quality(
+        (run.details_json or {}).get("parser_quality")
+    )
 
     with Path(path).open("rb") as stream:
         stream.seek(max(0, int(job.checkpoint_bytes or 0)))
@@ -340,10 +350,15 @@ def run_resumable_import(
 
             chunk_parsed = 0
             chunk_failed = 0
+            chunk_parser_quality = empty_runtime_parser_quality()
             raw_texts = [line.rstrip("\r\n") for _, line in records]
             chunk_duplicates = _chunk_duplicate_count(db, raw_texts)
             for (line_number, line), _raw_text in zip(records, raw_texts, strict=True):
                 parsed_log = parse_log_line_for_profile(line, source.parser_profile)
+                chunk_parser_quality = observe_parser_result(
+                    chunk_parser_quality,
+                    parsed_log,
+                )
                 persist_parsed_log(db, parsed_log, source_id=source.id)
                 if parsed_log.error:
                     chunk_failed += 1
@@ -354,6 +369,13 @@ def run_resumable_import(
 
             committed_count = len(records)
             imported += committed_count
+            chunk_parser_quality = finalize_runtime_parser_quality(
+                chunk_parser_quality
+            )
+            parser_quality = merge_runtime_parser_quality(
+                parser_quality,
+                chunk_parser_quality,
+            )
             source = lock_source_for_ingestion(db, source.id)
             record_source_ingestion(
                 source,
@@ -361,12 +383,17 @@ def run_resumable_import(
                 parsed_successfully=chunk_parsed,
                 parse_failures=chunk_failed,
                 latest_error=latest_error if chunk_failed else None,
+                parser_quality=chunk_parser_quality,
             )
             run.total_lines_received += committed_count
             run.raw_logs_created += committed_count
             run.parsed_successfully += chunk_parsed
             run.parse_failures += chunk_failed
             run.duplicate_raw_logs += chunk_duplicates
+            run.details_json = {
+                **(run.details_json or {}),
+                "parser_quality": parser_quality,
+            }
 
             job.progress_current = imported
             job.checkpoint_line = physical_line
@@ -391,6 +418,7 @@ def run_resumable_import(
                     "parse_failures": run.parse_failures,
                     "duplicate_raw_logs": run.duplicate_raw_logs,
                     "ingestion_run_id": run.id,
+                    "parser_quality": parser_quality,
                 }
             )
             job.details_json = public_job_details(job_details)
@@ -445,6 +473,7 @@ def run_resumable_import(
             "checkpoint_line": job.checkpoint_line,
             "checkpoint_bytes": job.checkpoint_bytes,
             "chunk_commits": job.chunk_commits,
+            "parser_quality": parser_quality,
         },
     )
     db.add(
@@ -463,6 +492,7 @@ def run_resumable_import(
                 "source_id": source.id,
                 "operation_job_id": job.id,
                 "resumed": job.resume_of_job_id is not None,
+                "parser_quality": parser_quality,
             },
         )
     )
@@ -489,6 +519,7 @@ def run_resumable_import(
         "checkpoint_line": job.checkpoint_line,
         "checkpoint_bytes": job.checkpoint_bytes,
         "resumed": job.resume_of_job_id is not None,
+        "parser_quality": parser_quality,
     }
 
 

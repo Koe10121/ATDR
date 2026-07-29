@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy.orm import Session
 
+from atdr.app.core.config import get_settings
+from atdr.app.db.models import OperationJob
 from atdr.app.detection.supervised_detector import train_supervised_classifier
 from atdr.app.services.demo_service import export_demo_bundle
 from atdr.app.services.detection_service import run_detection
@@ -22,9 +25,22 @@ from atdr.app.services.staging_service import (
 __all__ = ["STAGING_ROOT", "cleanup_staged_payload", "stage_upload_for_job", "staged_payload_fields"]
 
 MAX_QUEUE_LIMIT = 100_000
-QUEUEABLE_JOB_TYPES = {"import_logs", "replay_logs", "run_detection", "train_ml", "apply_ml_scoring", "export_report"}
+QUEUEABLE_JOB_TYPES = {
+    "import_logs",
+    "replay_logs",
+    "run_detection",
+    "train_ml",
+    "apply_ml_scoring",
+    "shadow_observation",
+    "shadow_monitoring_cycle",
+    "export_report",
+}
 ANALYST_QUEUEABLE_JOB_TYPES = {"import_logs", "replay_logs", "run_detection"}
 ADMIN_QUEUEABLE_JOB_TYPES = QUEUEABLE_JOB_TYPES - ANALYST_QUEUEABLE_JOB_TYPES
+
+
+class CooperativeShadowObservationCancelled(RuntimeError):
+    """Raised before an aggregate shadow observation is persisted."""
 
 
 def _as_optional_int(value: Any, *, field: str, minimum: int = 1, maximum: int = MAX_QUEUE_LIMIT) -> int | None:
@@ -56,6 +72,27 @@ def _as_choice(value: Any, *, field: str, choices: set[str], default: str) -> st
     if candidate not in choices:
         raise ValueError(f"{field} must be one of: {', '.join(sorted(choices))}.")
     return candidate
+
+
+def _as_optional_datetime(value: Any, *, field: str) -> str | None:
+    if value is None or value == "":
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f"{field} must be an ISO-8601 timestamp.")
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(
+            f"{field} must be an ISO-8601 timestamp."
+        ) from exc
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc).isoformat()
+
+
+def _stored_datetime(value: Any) -> datetime | None:
+    serialized = _as_optional_datetime(value, field="time boundary")
+    return datetime.fromisoformat(serialized) if serialized else None
 
 
 def validate_job_submission(job_type: str, payload: dict[str, Any] | None) -> dict[str, Any]:
@@ -117,6 +154,105 @@ def validate_job_submission(job_type: str, payload: dict[str, Any] | None) -> di
         }
     if job_type == "apply_ml_scoring":
         return {"limit": _as_optional_int(data.get("limit"), field="limit")}
+    if job_type == "shadow_observation":
+        settings = get_settings()
+        if not settings.governed_shadow_observation_enabled:
+            raise ValueError(
+                "Longitudinal shadow observation is disabled by configuration."
+            )
+        if not settings.governed_shadow_scoring_enabled:
+            raise ValueError(
+                "Governed shadow scoring is disabled by configuration."
+            )
+        start_at = _as_optional_datetime(
+            data.get("start_at"),
+            field="start_at",
+        )
+        end_at = _as_optional_datetime(
+            data.get("end_at"),
+            field="end_at",
+        )
+        if (
+            start_at is not None
+            and end_at is not None
+            and datetime.fromisoformat(start_at)
+            > datetime.fromisoformat(end_at)
+        ):
+            raise ValueError("start_at must not be later than end_at.")
+        return {
+            "source_id": _as_optional_int(
+                data.get("source_id"),
+                field="source_id",
+                maximum=2_147_483_647,
+            ),
+            "start_at": start_at,
+            "end_at": end_at,
+            "limit": _as_optional_int(
+                data.get("limit"),
+                field="limit",
+                maximum=int(settings.governed_shadow_max_batch_size),
+            ),
+        }
+    if job_type == "shadow_monitoring_cycle":
+        settings = get_settings()
+        if not settings.governed_shadow_monitoring_enabled:
+            raise ValueError(
+                "Durable shadow monitoring is disabled by configuration."
+            )
+        if not settings.governed_shadow_observation_enabled:
+            raise ValueError(
+                "Longitudinal shadow observation is disabled by configuration."
+            )
+        if not settings.governed_shadow_scoring_enabled:
+            raise ValueError(
+                "Governed shadow scoring is disabled by configuration."
+            )
+        maximum_sources = _as_optional_int(
+            data.get(
+                "maximum_sources",
+                settings.governed_shadow_monitoring_max_sources,
+            ),
+            field="maximum_sources",
+            maximum=int(settings.governed_shadow_monitoring_max_sources),
+        )
+        maximum_windows = _as_optional_int(
+            data.get(
+                "maximum_windows_per_source",
+                settings.governed_shadow_monitoring_max_windows_per_source,
+            ),
+            field="maximum_windows_per_source",
+            maximum=int(
+                settings.governed_shadow_monitoring_max_windows_per_source
+            ),
+        )
+        minimum_rows = _as_optional_int(
+            data.get(
+                "minimum_rows",
+                settings.governed_shadow_monitoring_min_rows,
+            ),
+            field="minimum_rows",
+            maximum=10_000,
+        )
+        batch_limit = _as_optional_int(
+            data.get(
+                "batch_limit",
+                settings.governed_shadow_monitoring_batch_limit,
+            ),
+            field="batch_limit",
+            maximum=min(
+                int(settings.governed_shadow_monitoring_batch_limit),
+                int(settings.governed_shadow_max_batch_size),
+            ),
+        )
+        return {
+            "maximum_sources": maximum_sources,
+            "maximum_windows_per_source": maximum_windows,
+            "minimum_rows": max(
+                int(minimum_rows or 1),
+                int(settings.governed_shadow_monitoring_min_rows),
+            ),
+            "batch_limit": batch_limit,
+        }
     if job_type == "export_report":
         return {
             "alert_id": _as_optional_int(data.get("alert_id"), field="alert_id", maximum=2_147_483_647),
@@ -219,6 +355,52 @@ def execute_operation_job(
         raise ValueError("Unsupported queued ML operation.")
     if job_type == "apply_ml_scoring":
         return apply_anomaly_scoring(db, limit=payload.get("limit"), actor=actor)
+    if job_type == "shadow_observation":
+        from atdr.app.services.v59_shadow_observation_service import (
+            record_governed_shadow_observation,
+        )
+
+        def cancellation_requested() -> bool:
+            if job_id is None:
+                return False
+            db.expire_all()
+            current = db.get(OperationJob, job_id)
+            return bool(
+                current is not None
+                and current.status == "cancel_requested"
+            )
+
+        result = record_governed_shadow_observation(
+            db,
+            actor=actor,
+            source_id=payload.get("source_id"),
+            start_at=_stored_datetime(payload.get("start_at")),
+            end_at=_stored_datetime(payload.get("end_at")),
+            limit=payload.get("limit"),
+            should_stop=cancellation_requested,
+        )
+        if str(result.get("status") or "").startswith("cancelled_"):
+            raise CooperativeShadowObservationCancelled(job_id)
+        return result
+    if job_type == "shadow_monitoring_cycle":
+        from atdr.app.services.v510_detection_operations_service import (
+            run_historical_shadow_observations,
+        )
+
+        result = run_historical_shadow_observations(
+            db,
+            actor=actor,
+            maximum_sources=int(payload.get("maximum_sources") or 1),
+            maximum_windows_per_source=int(
+                payload.get("maximum_windows_per_source") or 1
+            ),
+            minimum_rows=int(payload.get("minimum_rows") or 50),
+            batch_limit=payload.get("batch_limit"),
+            should_stop=should_stop,
+        )
+        if str(result.get("status") or "").startswith("cancelled_"):
+            raise CooperativeShadowObservationCancelled(job_id)
+        return result
     if job_type == "export_report":
         return export_demo_bundle(
             db,

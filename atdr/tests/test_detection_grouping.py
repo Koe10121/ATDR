@@ -5,6 +5,7 @@ from sqlalchemy.orm import sessionmaker
 
 from atdr.app.db.database import Base
 from atdr.app.db.models import Alert, NormalizedLog, RawLog
+from atdr.app.services import detection_service
 from atdr.app.services.detection_service import run_detection
 
 
@@ -127,3 +128,43 @@ def test_low_severity_singletons_are_suppressed():
     assert result["created_alerts"] == 0
     assert result["suppressed_low_groups"] == 1
     assert alerts == []
+
+
+def test_anomaly_signal_is_advisory_and_cannot_create_alert(monkeypatch):
+    db = _session()
+    raw = RawLog(raw_line="normal backup flow")
+    db.add(raw)
+    db.flush()
+    log = NormalizedLog(
+        raw_log_id=raw.id,
+        generated_time=datetime(2026, 5, 20, 13, 36, 15),
+        log_type="TRAFFIC",
+        src_ip="10.0.0.10",
+        dst_ip="198.51.100.20",
+        src_zone="LAN-Inside",
+        dst_zone="SG-Outside",
+        app="ssl",
+        app_characteristic="able-to-transfer-file",
+        dst_port=443,
+        action="allow",
+        protocol="tcp",
+        bytes=2_000_000,
+        packets=500,
+        parsed_json={},
+    )
+    db.add(log)
+    db.commit()
+
+    def mark_anomaly(_db, *, limit=None):
+        log.is_anomaly = True
+        log.anomaly_score = -0.2
+        return [{"log_id": log.id, "is_anomaly": True}]
+
+    monkeypatch.setattr(detection_service, "apply_model_to_db", mark_anomaly)
+    result = run_detection(db, limit=100, use_ml=True, actor="test")
+
+    assert result["created_alerts"] == 0
+    assert result["candidate_logs"] == 0
+    assert result["advisory_anomaly_signals"] == 1
+    assert result["rule_detection_authoritative"] is True
+    assert list(db.scalars(select(Alert))) == []

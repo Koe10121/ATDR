@@ -43,6 +43,10 @@ export const queryKeys = {
   mlEvidenceSnapshot: ["ml-evidence-snapshot"],
   supervisedReport: ["supervised-report"],
   supervisedModels: ["supervised-models"],
+  shadowObservationSummary: ["shadow-observation-summary"],
+  shadowOperationalAcceptance: ["shadow-operational-acceptance"],
+  shadowMonitoringDiagnostics: ["shadow-monitoring-diagnostics"],
+  parserProfileOperationalDiagnostics: ["parser-profile-operational-diagnostics"],
   classTemporalCoverage: ["class-temporal-coverage"],
   mlLabels: (params?: Record<string, unknown>) => ["ml-labels", params ?? {}],
   mlReviewQueue: (params?: Record<string, unknown>) => ["ml-review-queue", params ?? {}],
@@ -317,6 +321,38 @@ export function useMlEvidenceSnapshot() {
 
 export function useSupervisedModels() {
   return useQuery({ queryKey: queryKeys.supervisedModels, queryFn: api.supervisedModels, ...mlGovernanceQueryOptions });
+}
+
+export function useShadowObservationSummary() {
+  return useQuery({
+    queryKey: queryKeys.shadowObservationSummary,
+    queryFn: api.shadowObservationSummary,
+    ...mlGovernanceQueryOptions
+  });
+}
+
+export function useShadowOperationalAcceptance() {
+  return useQuery({
+    queryKey: queryKeys.shadowOperationalAcceptance,
+    queryFn: api.shadowOperationalAcceptance,
+    ...mlGovernanceQueryOptions
+  });
+}
+
+export function useShadowMonitoringDiagnostics() {
+  return useQuery({
+    queryKey: queryKeys.shadowMonitoringDiagnostics,
+    queryFn: api.shadowMonitoringDiagnostics,
+    ...mlGovernanceQueryOptions
+  });
+}
+
+export function useParserProfileOperationalDiagnostics() {
+  return useQuery({
+    queryKey: queryKeys.parserProfileOperationalDiagnostics,
+    queryFn: api.parserProfileOperationalDiagnostics,
+    ...mlGovernanceQueryOptions
+  });
 }
 
 export function useClassTemporalCoverage() {

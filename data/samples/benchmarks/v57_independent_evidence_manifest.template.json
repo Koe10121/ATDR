@@ -1,0 +1,39 @@
+{
+  "manifest_version": "v5.7-independent-evidence-manifest-v1",
+  "evidence_id": "replace-with-non-sensitive-evidence-id",
+  "status": "draft",
+  "schema_family": "native_panos_syslog",
+  "collection_provenance": "",
+  "license_or_owner_permission": "",
+  "files": {
+    "sample_sha256": ""
+  },
+  "independence": {
+    "real_device_count": 0,
+    "independent_time_window_count": 0,
+    "prior_evidence_overlap_rows": -1,
+    "cross_role_duplicate_groups": -1,
+    "overlap_audit_completed": false,
+    "overlap_audit_method": "",
+    "source_identifiers_pseudonymized": true
+  },
+  "labels": {
+    "status": "not_collected",
+    "available_to_prediction_runner": false,
+    "file": "",
+    "provenance": "",
+    "ground_truth_confirmed": false
+  },
+  "prediction_before_label_protocol": true,
+  "advisor_signoff": {
+    "protocol_acknowledged": false,
+    "approved": false,
+    "approved_at": ""
+  },
+  "safety": {
+    "raw_logs_outside_git": true,
+    "model_activation_allowed": false,
+    "response_automation_allowed": false,
+    "real_firewall_blocking_allowed": false
+  }
+}

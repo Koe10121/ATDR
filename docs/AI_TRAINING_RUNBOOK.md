@@ -1,19 +1,29 @@
 # ATDR Hybrid AI Training Runbook
 
-This runbook explains the supervised AI workflow for the MFU ATDR senior project demo and small-office lab pilot. The AI layer is decision support only. Rule evidence, raw logs, and analyst approval remain required before any response action.
+This runbook explains ATDR's governed AI workflow for controlled lab and
+shared-lab use. Deterministic rules are alert-authoritative. Anomaly,
+supervised, hybrid, and assistant output are decision support only. Rule
+evidence, source evidence, and analyst approval remain required before any
+simulated response action.
 
 ## Current Model Status
 
-Current supervised ML status is `candidate_improved`: it is eligible for analyst review as decision support, but it is not production promoted. Threat-positive triage is strong, while exact suspicious-versus-malicious separation remains imperfect and suspicious recall is still below the project target. Automatic response remains disabled.
+Current supervised lifecycle status is `shadow_observation`. A governed v5.1
+calibrated ExtraTrees binary SOC queue artifact exists, but v5.2 selected no new
+candidate: no supervised strategy passed every temporal, source/proxy, random,
+calibration, and external gate. Shadow scores cannot create or suppress alerts,
+change severity, or authorize response.
 
-The latest external-holdout workflow is v1.8. It finalizes the reviewed
-synthetic benchmark profile and out-of-fold confidence calibration while
-keeping production promotion, model activation, and response automation
-disabled.
+v5.2 repaired the controlled layered matrix from 267/288 to 288/288 with zero
+controlled false positives, false negatives, or response actions. This validates
+the synthetic regression contract, not real-world accuracy. The locked external
+benchmark and source-independent evidence requirements remain failed/open.
 
 Recommended demo wording:
 
-> The model helps prioritize analyst attention. It is not a production-accuracy claim and it cannot trigger containment automatically. Response actions still require reviewed evidence and analyst approval.
+> Deterministic rules create explainable alerts. Supervised and anomaly layers
+> remain shadow/advisory evidence because independent stability gates have not
+> passed. They cannot trigger containment.
 
 ## 1. Start From A Clean Demo Baseline
 
@@ -26,21 +36,19 @@ python -m atdr.scripts.seed_users
 Start the API:
 
 ```powershell
-uvicorn atdr.app.main:app --reload
+.\.venv\Scripts\python.exe -m uvicorn atdr.app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-Start either dashboard:
-
-```powershell
-streamlit run atdr/dashboard/streamlit_app.py --server.headless true --browser.gatherUsageStats false
-```
-
-or:
+Start the main React dashboard in a second terminal:
 
 ```powershell
 cd frontend
 npm.cmd run dev
 ```
+
+For the mandatory MFU outer-shell workflow, use the versioned team lifecycle
+documented in `docs/TEAM_ONE_COMMAND_START.md`. Streamlit is legacy continuity,
+not the primary dashboard.
 
 ## 2. Import Logs
 
@@ -1066,3 +1074,532 @@ Production promotion, model activation, automatic response, and real firewall
 blocking remain disabled.
 
 See `docs/FINAL_ENGINEERING_VALIDATION_SUMMARY.md`.
+
+## v5.1 Governed Shadow Lifecycle
+
+The current governed supervised model is a calibrated ExtraTrees binary SOC
+review queue. It is operationally active in `shadow_observation`, not as an
+alert-authoritative detector. Rules remain authoritative and response automation
+remains disabled.
+
+Inspect the current lifecycle:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.manage_supervised_lifecycle --status --pretty
+```
+
+Train, register, and request safe shadow activation:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v51_supervised_shadow_activation --activation-mode shadow_observation --pretty
+```
+
+This command writes a versioned artifact only under the ignored
+`atdr/models/supervised_candidates/` directory and generated reports only under
+ignored `ml_baseline_reviews/`. It does not overwrite the unknown legacy
+artifact. The run records latest eligible reviewed-row provenance, duplicate and
+leakage isolation, fit/calibration/threshold/final partitions, five validation
+views, locked external evidence, threshold, calibration, artifact checksum, and
+latency.
+
+Requesting `decision_support` uses the same command with
+`--activation-mode decision_support`, but the lifecycle fails closed unless all
+strict and external gates pass. The current result passes 0/5 strict splits, so
+the allowed state is shadow only.
+
+Disable governed inference:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.manage_supervised_lifecycle --disable --pretty
+```
+
+Rollback to the previous governed activation, or disable if no valid predecessor
+exists:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.manage_supervised_lifecycle --rollback --pretty
+```
+
+These commands are audited and do not delete evidence or labels. See
+`docs/V5_1_SUPERVISED_SHADOW_ACTIVATION.md` for metrics, private-file shadow
+validation, and remaining gates.
+
+## v5.3 Temporal Generalization And OOD Evaluation
+
+Run the read-only temporal/OOD evaluator:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v53_temporal_generalization --pretty
+```
+
+The command freezes the current v5.2 dataset fingerprint and state, diagnoses
+chronological drift, evaluates three disjoint future windows, fits OOD profiles
+only on fit rows, and compares memory-only diagnostic strategies. It writes no
+active model artifact, model activation, label, detection run, or response.
+
+Current result: no candidate is selected. The leading diagnostic comparator has
+temporal FPR `0.9976`; rolling FPR is `0.9923` to `1.0000`; source holdout fails
+closed; and locked external evidence remains failed. OOD/unstable rows are
+reported as `insufficient_model_evidence`, but abstentions remain counted in the
+analyst queue so quality cannot be improved by hiding difficult rows.
+
+Inspect the governed state after evaluation:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.manage_supervised_lifecycle --status --pretty
+```
+
+It must remain `shadow_observation`, with production promotion, response
+automation, and real blocking false. Generated v5.3 reports remain ignored
+under `ml_baseline_reviews/`. See
+`docs/V5_3_TEMPORAL_GENERALIZATION_AND_OOD.md`.
+
+## v5.4 Temporal Evidence Preparation And Shadow Drift
+
+Run the configured-database read-only evidence preparation:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v54_temporal_evidence_preparation --pretty
+```
+
+Inspect a private PAN-OS file without importing it or returning private data:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v54_temporal_evidence_preparation `
+  --sample-path "C:\Path\Outside\Git\firewall.log" `
+  --preflight-only `
+  --pretty
+```
+
+Run a bounded disposable validation:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v54_temporal_evidence_preparation `
+  --sample-path "C:\Path\Outside\Git\firewall.log" `
+  --use-temp-db `
+  --limit 5000 `
+  --pretty
+```
+
+The normal run validates the tracked v5.3 evidence lock, audits chronological
+quality, writes an ignored development manifest and optional weak review pack,
+and calculates aggregate shadow drift. Final/rolling/external labels remain
+locked out of development. The private modes return no path, raw log, IP,
+secret, or reusable fingerprint and make no accuracy claim.
+
+The expected current status is `OOD Warning` and `shadow_observation`. Any
+review-pack suggestion is assisted/weak, requires human confirmation, and is
+not import-ready. See `docs/V5_4_TEMPORAL_EVIDENCE_AND_SHADOW_DRIFT.md`.
+
+## v5.5 Development Model Repair And Anomaly Audit
+
+Run the governed development-only evaluator:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v55_development_model_repair --pretty
+```
+
+To validate only the development boundary and freeze without reopening the
+locked temporal-final role:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v55_development_model_repair `
+  --skip-locked-final `
+  --pretty
+```
+
+The command validates the v5.4 lock, compares five memory-only supervised
+strategies across nested chronological development folds, freezes at most one
+diagnostic leader, audits the existing IsolationForest read-only, and then
+optionally runs one post-freeze locked-final regression. It writes only ignored
+aggregate reports and never writes an active model artifact, label, detection
+run, or response action.
+
+Current result: the three-class ExtraTrees SOC queue is the diagnostic leader
+but passes `0/3` strict development folds. Locked-final FPR improves to
+`0.0773`, while F1 `0.4925`, suspicious recall `0.3824`, malicious recall
+`0.4143`, and ECE `0.5405` fail the fixed gates. IsolationForest development
+FPR is `0.2773` with threat capture `0.0818`. Lifecycle therefore remains
+`shadow_observation`; rules remain alert-authoritative.
+
+See `docs/V5_5_DEVELOPMENT_MODEL_REPAIR_AND_ANOMALY_AUDIT.md`.
+
+## v5.6 Private PAN-OS Evidence And Assisted Model Repair
+
+Run a boundary-only preflight against a private file outside Git:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v56_private_panos_model_repair `
+  --sample-path "C:\Path\Outside\Git\firewall.log" `
+  --use-temp-db `
+  --preflight-only `
+  --pretty
+```
+
+Run the governed bounded model comparison:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v56_private_panos_model_repair `
+  --sample-path "C:\Path\Outside\Git\firewall.log" `
+  --use-temp-db `
+  --max-fit-rows 6000 `
+  --max-calibration-rows 2400 `
+  --max-threshold-rows 2800 `
+  --max-future-rows 3500 `
+  --pretty
+```
+
+`--use-temp-db` is an explicit safety acknowledgement. The command streams the
+complete file into disposable SQLite, detects configured-DB overlap read-only,
+predeclares chronological roles, applies the fixed non-human assisted policy,
+compares diagnostic candidates, freezes one candidate, and only then opens the
+private future labels once.
+
+Generated reports and the optional candidate artifact remain ignored under
+`ml_baseline_reviews/`. They do not replace the active model. The command must
+return zero configured-DB, label, model-run, detection-run, alert, and response
+writes.
+
+Current result: 773,551 rows parsed with zero failures; 120,626 rows
+quarantined; HistGradientBoosting is the diagnostic leader. Its private
+future-policy F1/FPR are `0.9889/0.0211`, but maximum confidence gap is
+`0.8143`, the source is one device, and labels are assisted. Lifecycle remains
+`shadow_observation`. See
+`docs/V5_6_PRIVATE_PANOS_EVIDENCE_AND_ASSISTED_MODEL_REPAIR.md`.
+
+## v5.7 Independent Evidence And Blind Shadow Revalidation
+
+v5.7 freezes the ignored v5.6 HistGradientBoosting diagnostic candidate as a
+reproducible, threshold-only shadow evaluator. It records the feature,
+preprocessing, sigmoid calibration, threshold, training-manifest, code, and
+artifact contracts without replacing any active artifact.
+
+The already analyzed private PAN-OS file is valid only for a disposable
+preflight and reuse/leakage confirmation:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v57_independent_shadow_revalidation `
+  --sample-path "<PRIVATE_PAN_OS_FILE>" `
+  --use-temp-db `
+  --preflight-only `
+  --pretty
+```
+
+Expected current result: `independent_evidence_required`. The file overlaps
+v5.6 development evidence and must not be described as a new holdout.
+
+For genuinely new evidence, first complete
+`docs/detection/V5_7_INDEPENDENT_EVIDENCE_ACQUISITION.md` and the manifest
+template. Use prediction and reveal as separate commands:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v57_independent_shadow_revalidation `
+  --sample-path "<INDEPENDENT_PAN_OS_FILE>" `
+  --evidence-manifest "<PRIVATE_EVIDENCE_MANIFEST>" `
+  --use-temp-db `
+  --predictions-only `
+  --pretty
+
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v57_independent_shadow_revalidation `
+  --sample-path "<INDEPENDENT_PAN_OS_FILE>" `
+  --evidence-manifest "<PRIVATE_EVIDENCE_MANIFEST>" `
+  --use-temp-db `
+  --reveal-labels `
+  --pretty
+```
+
+The prediction command is immutable and hides predictions from the review
+pack. Reveal requires complete confirmed labels, allowed provenance, an
+unchanged evidence contract, and advisor approval; it can run only once.
+Assisted labels are never accepted as human ground truth.
+
+If valid evidence is unavailable, do not lower gates, relabel reused rows, or
+rerun opened final windows. Keep the lifecycle `shadow_observation`, rules
+alert-authoritative, IsolationForest advisory, and response automation and
+real blocking disabled.
+
+## v5.8 Governed Shadow Scoring Runtime
+
+The frozen v5.6/v5.7 HistGradientBoosting candidate can be observed through a
+bounded read-only runtime. It remains disabled by default and is not an active
+or promoted model.
+
+Inspect status:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v58_governed_shadow_runtime --pretty
+```
+
+Run a one-process bounded evaluation without editing `.env`:
+
+```powershell
+$env:GOVERNED_SHADOW_SCORING_ENABLED="true"
+$env:GOVERNED_SHADOW_BATCH_SIZE="100"
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v58_governed_shadow_runtime `
+  --execute-shadow `
+  --limit 100 `
+  --pretty
+```
+
+The output is aggregate-only and must report unchanged database/artifact
+state. Queue rate, drift, and rule disagreement are monitoring signals, not
+accuracy. Never use this command to justify activation without the complete
+v5.7 independent-evidence protocol.
+
+Preflight genuinely new evidence only:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v58_governed_shadow_runtime `
+  --sample-path "<NEW_PRIVATE_PANOS_PATH>" `
+  --evidence-manifest "<APPROVED_MANIFEST_PATH>" `
+  --preflight-only `
+  --use-temp-db `
+  --pretty
+```
+
+Reused evidence, invalid provenance, insufficient devices/periods, overlap,
+or duplicate leakage must fail closed. No labels or blind accuracy are read
+during preflight.
+
+## v5.9 Longitudinal Shadow Observation
+
+The v5.9 observation layer persists aggregate governed-shadow telemetry only.
+It is disabled by default and does not change authoritative alerts, labels,
+models, cases, or response state.
+
+Inspect current status and aggregate history:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v59_longitudinal_shadow_observation --pretty
+
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v59_longitudinal_shadow_observation `
+  --list `
+  --pretty
+```
+
+Record one explicitly enabled, bounded observation:
+
+```powershell
+$env:GOVERNED_SHADOW_SCORING_ENABLED="true"
+$env:GOVERNED_SHADOW_OBSERVATION_ENABLED="true"
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v59_longitudinal_shadow_observation `
+  --execute-shadow `
+  --source-id <SOURCE_ID> `
+  --start-at "<ISO_TIMESTAMP>" `
+  --end-at "<ISO_TIMESTAMP>" `
+  --limit 250 `
+  --pretty
+```
+
+Preview retention before any deletion:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v59_longitudinal_shadow_observation `
+  --retention-preview `
+  --pretty
+```
+
+Retention application is an explicit admin operation and affects only
+expired aggregate observation rows. It creates an audit event.
+
+Inspect a private file without importing it:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v59_longitudinal_shadow_observation `
+  --sample-path "<PRIVATE_PANOS_PATH>" `
+  --use-temp-db `
+  --preflight-only `
+  --pretty
+```
+
+The private output is aggregate-only. It must never return paths, raw rows,
+IPs, fingerprints, or secrets. Reused unlabeled data can support parser/drift
+monitoring but not accuracy claims. Follow
+`docs/detection/V5_9_INDEPENDENT_EVIDENCE_ACQUISITION.md` for genuinely new
+blind evidence.
+
+## v5.10 Detection Operations And Shadow Acceptance
+
+Inspect the safe bounded source/time plan:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v510_detection_operations_acceptance --pretty
+```
+
+Inspect aggregate acceptance from stored observations:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v510_detection_operations_acceptance `
+  --acceptance-only `
+  --pretty
+```
+
+Run the governed scopes explicitly:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v510_detection_operations_acceptance `
+  --execute `
+  --pretty
+```
+
+Execution enables governed scoring and observation for that process only.
+Scopes are bounded and non-overlapping; outputs use opaque source labels and
+exclude source IDs/names, raw logs, IPs, private paths, fingerprints, labels,
+and secrets. Repeating the command reuses existing observation keys.
+
+Interpret the result as operational telemetry only:
+
+- `Stable`: aggregate behavior remains within the governed fit baseline.
+- `Drift Warning`: a material distribution shift needs analyst attention.
+- `OOD Warning`: evidence is materially outside the fit baseline; do not
+  treat the queue as validated accuracy.
+- `Insufficient Evidence`: the scope is retained but too small for a stable
+  operational conclusion.
+
+No v5.10 command activates or promotes a model, changes authoritative alerts,
+or enables response. Profile the large-SQLite Governance path with:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.profile_ml_governance --pretty
+```
+
+## v5.11 Operational Drift And Shadow Monitoring
+
+Inspect aggregate root causes, thresholds, hysteresis, and cadence status:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v511_shadow_monitoring --pretty
+```
+
+The output is operational telemetry only. It contains no accuracy, labels,
+source identity, raw logs, IPs, private paths, fingerprints, or secrets.
+
+Monitoring remains disabled by default. To use an approved external due-check
+process, set all three values in the private runtime environment:
+
+```text
+GOVERNED_SHADOW_SCORING_ENABLED=true
+GOVERNED_SHADOW_OBSERVATION_ENABLED=true
+GOVERNED_SHADOW_MONITORING_ENABLED=true
+```
+
+Then request one due check:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v511_shadow_monitoring `
+  --enqueue-if-due `
+  --pretty
+```
+
+The due check is bounded, idempotent for its cadence bucket, retry-safe, and
+cooperatively cancellable. It does not create an always-on scheduler.
+
+Rehearse retention without touching the configured database:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v511_shadow_monitoring `
+  --retention-rehearsal `
+  --pretty
+```
+
+The rehearsal uses disposable in-memory SQLite, previews before deletion,
+removes only an expired aggregate observation, preserves logs, alerts,
+labels, runs, users, and responses, and records an audit event. Do not apply
+configured-database retention without an explicit admin review.
+
+Interpret states conservatively:
+
+- `Stable`: no material aggregate operating shift.
+- `Drift Warning`: a sustained material shift after hysteresis.
+- `OOD Warning`: an immediate large distribution/quality shift.
+- `Insufficient Evidence`: fewer than 50 rows; it cannot clear a warning.
+
+These states do not identify false positives or prove model accuracy. Keep
+the lifecycle `shadow_observation` until independent governed evidence passes
+the fixed blind gates.
+
+## v5.12 Parser-Profile Baseline Repair
+
+Inspect a private PAN-OS file without opening the configured database:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v512_parser_profile_baseline_repair `
+  --sample-path "<PRIVATE_PANOS_PATH>" `
+  --preflight-only `
+  --limit 120000 `
+  --pretty
+```
+
+Run the read-only configured-database comparison plus disposable controlled
+validation:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v512_parser_profile_baseline_repair `
+  --sample-path "<PRIVATE_PANOS_PATH>" `
+  --use-temp-db `
+  --limit 120000 `
+  --pretty
+```
+
+Interpret parser quality precisely:
+
+- `parser_error_rate`: structural parsing failed.
+- `parser_structural_warning_per_row`: parsing completed with structural
+  compatibility/missing-field warnings.
+- `unresolved_application_rate`: PAN-OS did not identify the application or
+  the session lacked sufficient data; this is not automatically parser
+  failure.
+- `Insufficient Evidence`: too few rows or no comparable profile baseline;
+  it must not be upgraded to stable.
+
+Baselines use governed development-fit aggregates only. They never use labels,
+accuracy, source identity, or locked-final evidence. The command must report
+unchanged database entities, a matched v5.11 aggregate lock, and controlled
+detection equivalence. It never authorizes model activation or response.
+
+## v5.13 Runtime Parser Contract And Source Quality Operations
+
+Future file imports, direct replay, UDP syslog, durable imports, and
+controlled scenarios now write the same aggregate parser-quality contract.
+No operator action is needed to backfill existing rows, and historical
+evidence must not be reparsed automatically.
+
+Interpret runtime source quality as follows:
+
+- `parser_error`: structural parsing failed;
+- `structural_warning`: parsing completed with a contract warning;
+- `compatible`, `extended`, `partial`, and `unsupported`: layout
+  compatibility states;
+- `unresolved_application`: application identification is incomplete or
+  unknown and is informational by itself;
+- `absent_application`: the relevant record lacks an application value;
+- `not_applicable`: the record type has no applicable application field;
+- `generic_syslog`: raw evidence is preserved with limited structure; and
+- `raw_fallback`: raw evidence is preserved without structured parsing and
+  is not counted as an actual parser error.
+
+Run a safe replay preview without persisting evidence:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.replay_logs `
+  --dry-run `
+  --limit 20 `
+  --rate 5 `
+  --pretty
+```
+
+For an existing source, analysts and admins may open the read-only historical
+contract preview in the source drawer or call:
+
+```text
+GET /api/sources/{source_id}/reparse-impact-preview
+```
+
+The preview reads only bounded stored normalized metadata. It does not read
+raw logs, perform a reparse, or write to the database. Investigate
+`parser_error_rate_increase`, unsupported layouts, structural drift, or
+prolonged raw fallback as operational problems. Treat unresolved application
+changes as context unless other evidence supports escalation.
+
+Parser quality never changes alert authority, labels, model lifecycle, or
+response behavior. Keep the supervised lifecycle in `shadow_observation`.

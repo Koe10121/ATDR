@@ -16,6 +16,11 @@ from atdr.app.services.demo_service import resolve_demo_sample_path
 from atdr.app.services.job_service import build_result_summary, complete_job, fail_job, start_job
 from atdr.app.services.log_service import import_raw_log_line
 from atdr.app.services.operation_run_service import complete_ingestion_run, fail_ingestion_run, start_ingestion_run
+from atdr.app.services.runtime_parser_quality_service import (
+    empty_runtime_parser_quality,
+    finalize_runtime_parser_quality,
+    observe_parser_result,
+)
 from atdr.app.services.source_service import get_or_create_source
 
 
@@ -83,7 +88,11 @@ def replay_logs(
     settings = get_settings()
     path = _resolve_sample_path(sample_path)
     if not path.exists():
-        return {"ok": False, "error": f"Sample log path does not exist: {path}", "path": str(path)}
+        return {
+            "ok": False,
+            "error": "Sample log path does not exist.",
+            "path": path.name,
+        }
 
     mode = "direct" if send_to == "api" else send_to
     if mode not in {"syslog", "direct"}:
@@ -94,13 +103,17 @@ def replay_logs(
     result: dict[str, Any] = {
         "ok": True,
         "dry_run": dry_run,
-        "path": str(path),
+        "path": path.name,
         "rate_per_second": rate,
         "limit": limit,
         "loop": loop,
         "send_to": send_to,
         "effective_mode": mode,
-        "target": {"host": target_host, "port": target_port} if mode == "syslog" else {"database": settings.database_url},
+        "target": (
+            {"transport": "udp_syslog", "port": target_port}
+            if mode == "syslog"
+            else {"database": "configured_database"}
+        ),
         "source": {
             "name": source_name or path.name,
             "source_type": source_type,
@@ -125,6 +138,7 @@ def replay_logs(
     }
     if send_to == "api":
         result["warnings"].append("API replay is mapped to the local import service in v0.2; HTTP-auth replay remains future work.")
+    parser_quality = empty_runtime_parser_quality()
 
     owns_session = db is None and mode == "direct" and not dry_run
     if owns_session:
@@ -173,6 +187,9 @@ def replay_logs(
         )
     else:
         source = None
+    effective_parser_profile = (
+        source.parser_profile if source is not None else parser_profile
+    )
 
     try:
         for line_number, line in _iter_replay_lines(path, limit=limit, loop=loop):
@@ -180,7 +197,11 @@ def replay_logs(
             if not line.strip():
                 result["blank"] += 1
                 continue
-            parsed = parse_log_line_for_profile(line, parser_profile)
+            parsed = parse_log_line_for_profile(
+                line,
+                effective_parser_profile,
+            )
+            parser_quality = observe_parser_result(parser_quality, parsed)
             if parsed.error:
                 result["failed"] += 1
                 result["errors"].append({"line_number": line_number, "error": parsed.error})
@@ -252,6 +273,9 @@ def replay_logs(
                     "source_name": source.name if source is not None else source_name,
                     "source_type": source.source_type if source is not None else source_type,
                     "parser_profile": source.parser_profile if source is not None else parser_profile,
+                    "parser_quality": finalize_runtime_parser_quality(
+                        parser_quality
+                    ),
                 },
             )
             db.commit()
@@ -280,6 +304,7 @@ def replay_logs(
 
     if result["errors"]:
         result["errors"] = result["errors"][:10]
+    result["parser_quality"] = finalize_runtime_parser_quality(parser_quality)
     return result
 
 

@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
@@ -15,10 +17,12 @@ from atdr.app.detection.supervised_detector import (
     supervised_report_markdown,
     train_supervised_classifier,
 )
-from atdr.app.detection.supervised_workflow import (
-    activate_supervised_model,
-    list_supervised_models,
-    rollback_supervised_model,
+from atdr.app.detection.supervised_workflow import list_supervised_models, rollback_supervised_model
+from atdr.app.detection.v51_supervised_lifecycle import (
+    activate_governed_supervised_model,
+    disable_governed_supervised_model,
+    persist_supervised_telemetry_snapshot,
+    supervised_lifecycle_status,
 )
 from atdr.app.detection.boundary_analysis import build_boundary_analysis, render_boundary_report
 from atdr.app.detection.suspicious_recall_analysis import (
@@ -70,6 +74,25 @@ from atdr.app.services.ml_service import (
     model_status,
     run_to_dict,
     train_anomaly_model,
+)
+from atdr.app.services.v58_shadow_scoring_service import (
+    governed_shadow_runtime_status,
+)
+from atdr.app.services.v59_shadow_observation_service import (
+    list_shadow_observations,
+    preview_shadow_observation_retention,
+    prune_shadow_observations,
+    shadow_observation_summary,
+)
+from atdr.app.services.v510_detection_operations_service import (
+    governed_historical_observation_plan,
+    shadow_operational_acceptance_summary,
+)
+from atdr.app.services.v511_shadow_monitoring_service import (
+    build_shadow_monitoring_diagnostics,
+)
+from atdr.app.services.v512_parser_baseline_service import (
+    build_parser_profile_operational_diagnostics,
 )
 
 router = APIRouter(prefix="/api/ml", tags=["ml"])
@@ -682,6 +705,7 @@ def train_supervised_model(
             split=split,
             model_type=model,
             threshold_profile=threshold_profile,
+            save_candidate=True,
         )
         complete_job(db, job, result_summary=build_result_summary("train_ml", result))
         result["job_id"] = job.id
@@ -694,10 +718,175 @@ def train_supervised_model(
 @router.post("/supervised/models/{model_id}/activate")
 def activate_supervised_model_api(
     model_id: int,
+    mode: str = Query(default="shadow_observation", pattern="^(shadow_observation|decision_support)$"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ) -> dict:
-    return activate_supervised_model(db, model_id=model_id, actor=current_user.username)
+    return activate_governed_supervised_model(
+        db,
+        model_id=model_id,
+        lifecycle_state=mode,
+        actor=current_user.username,
+    )
+
+
+@router.get("/supervised/lifecycle")
+def get_supervised_lifecycle(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    return supervised_lifecycle_status(db)
+
+
+@router.get("/supervised/shadow-runtime")
+def get_supervised_shadow_runtime(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+    execute: bool = Query(default=True),
+    source_id: int | None = Query(default=None, ge=1),
+    start_at: datetime | None = Query(default=None),
+    end_at: datetime | None = Query(default=None),
+    limit: int | None = Query(default=None, ge=1),
+) -> dict:
+    return governed_shadow_runtime_status(
+        db,
+        execute=execute,
+        source_id=source_id,
+        start_at=start_at,
+        end_at=end_at,
+        limit=limit,
+    )
+
+
+@router.get("/supervised/shadow-observations")
+def get_supervised_shadow_observations(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+    source_id: int | None = Query(default=None, ge=1),
+    since: datetime | None = Query(default=None),
+    drift_status: str | None = Query(
+        default=None,
+        pattern=(
+            "^(Stable|Drift Warning|OOD Warning|"
+            "Insufficient Evidence)$"
+        ),
+    ),
+    limit: int = Query(default=30, ge=1, le=365),
+) -> list[dict]:
+    return list_shadow_observations(
+        db,
+        source_id=source_id,
+        since=since,
+        drift_status=drift_status,
+        limit=limit,
+    )
+
+
+@router.get("/supervised/shadow-operations/plan")
+def get_supervised_shadow_operations_plan(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+    maximum_sources: int = Query(default=8, ge=1, le=32),
+    maximum_windows_per_source: int = Query(default=3, ge=1, le=12),
+    minimum_rows: int = Query(default=50, ge=1, le=10_000),
+    batch_limit: int | None = Query(default=None, ge=1, le=10_000),
+) -> dict:
+    return governed_historical_observation_plan(
+        db,
+        maximum_sources=maximum_sources,
+        maximum_windows_per_source=maximum_windows_per_source,
+        minimum_rows=minimum_rows,
+        batch_limit=batch_limit,
+    )
+
+
+@router.get("/supervised/shadow-operations/acceptance")
+def get_supervised_shadow_operations_acceptance(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+    limit: int = Query(default=365, ge=1, le=1000),
+) -> dict:
+    return shadow_operational_acceptance_summary(db, limit=limit)
+
+
+@router.get("/supervised/shadow-operations/diagnostics")
+def get_supervised_shadow_operations_diagnostics(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+    limit: int = Query(default=365, ge=1, le=1000),
+) -> dict:
+    return build_shadow_monitoring_diagnostics(db, limit=limit)
+
+
+@router.get("/supervised/shadow-operations/parser-quality")
+def get_supervised_shadow_operations_parser_quality(
+    limit: int = Query(default=365, ge=1, le=3650),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    return build_parser_profile_operational_diagnostics(
+        db,
+        limit=limit,
+    )
+
+
+@router.get("/supervised/shadow-observations/summary")
+def get_supervised_shadow_observation_summary(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+    source_id: int | None = Query(default=None, ge=1),
+    since: datetime | None = Query(default=None),
+    limit: int | None = Query(default=None, ge=1, le=365),
+) -> dict:
+    return shadow_observation_summary(
+        db,
+        source_id=source_id,
+        since=since,
+        limit=limit,
+    )
+
+
+@router.get("/supervised/shadow-observations/retention/preview")
+def get_supervised_shadow_observation_retention_preview(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+    older_than_days: int | None = Query(default=None, ge=1, le=3650),
+) -> dict:
+    return preview_shadow_observation_retention(
+        db,
+        older_than_days=older_than_days,
+    )
+
+
+@router.post("/supervised/shadow-observations/retention/apply")
+def apply_supervised_shadow_observation_retention(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+    older_than_days: int | None = Query(default=None, ge=1, le=3650),
+    limit: int = Query(default=1000, ge=1, le=10000),
+) -> dict:
+    return prune_shadow_observations(
+        db,
+        actor=current_user.username,
+        older_than_days=older_than_days,
+        limit=limit,
+    )
+
+
+@router.post("/supervised/telemetry/snapshot")
+def snapshot_supervised_telemetry(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+) -> dict:
+    return persist_supervised_telemetry_snapshot(db, actor=current_user.username)
+
+
+@router.post("/supervised/models/disable")
+def disable_supervised_model_api(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+) -> dict:
+    return disable_governed_supervised_model(db, actor=current_user.username)
 
 
 @router.post("/supervised/models/rollback")

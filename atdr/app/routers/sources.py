@@ -5,8 +5,22 @@ from sqlalchemy.orm import Session
 from atdr.app.core.security import require_admin, require_analyst_or_admin
 from atdr.app.db.database import get_db
 from atdr.app.db.models import User
-from atdr.app.schemas.sources import LogSourceCreate, LogSourceRead, LogSourceUpdate, SourceHealthRead
-from atdr.app.services.source_service import create_source, get_source, list_sources, source_health, source_to_dict, update_source
+from atdr.app.schemas.sources import (
+    HistoricalReparsePreviewRead,
+    LogSourceCreate,
+    LogSourceRead,
+    LogSourceUpdate,
+    SourceHealthRead,
+)
+from atdr.app.services.source_service import (
+    create_source,
+    get_source,
+    list_sources,
+    source_health,
+    source_reparse_impact_preview,
+    source_to_dict,
+    update_source,
+)
 
 router = APIRouter(prefix="/api/sources", tags=["sources"])
 
@@ -58,6 +72,26 @@ def get_source_health(
     if source is None:
         raise HTTPException(status_code=404, detail="Log source not found.")
     return source_health(source)
+
+
+@router.get(
+    "/{source_id}/reparse-impact-preview",
+    response_model=HistoricalReparsePreviewRead,
+)
+def get_source_reparse_impact_preview(
+    source_id: int,
+    scan_limit: int = Query(default=5000, ge=1, le=50_000),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    source = get_source(db, source_id)
+    if source is None:
+        raise HTTPException(status_code=404, detail="Log source not found.")
+    return source_reparse_impact_preview(
+        db,
+        source_id,
+        scan_limit=scan_limit,
+    )
 
 
 @router.post("", response_model=LogSourceRead)

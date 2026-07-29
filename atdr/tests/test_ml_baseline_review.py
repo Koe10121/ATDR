@@ -24,9 +24,9 @@ def _session():
 
 def _add_log(db, index: int, *, action: str = "allow", app_risk: int = 2, is_anomaly: bool = False) -> None:
     raw = RawLog(
-        raw_line=f"2026-05-20T13:36:{index:02d}+07:00 MFU-FW.mfu.ac.th sample,{index},TRAFFIC,end",
+        raw_line=f"2026-05-20T13:36:{index:02d}+07:00 lab-fw.example.invalid sample,{index},TRAFFIC,end",
         syslog_timestamp=datetime(2026, 5, 20, 6, 36, index, tzinfo=timezone.utc),
-        device_hostname="MFU-FW.mfu.ac.th",
+        device_hostname="lab-fw.example.invalid",
     )
     db.add(raw)
     db.flush()

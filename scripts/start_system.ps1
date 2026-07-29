@@ -136,6 +136,9 @@ try {
         exit 0
     }
 
+    Write-Host "Starting all four components. Wait for 'All components are ready' before opening the browser." -ForegroundColor Cyan
+    Write-Host "  The MFU shell may need 20-60 seconds for its first compile."
+
     $logDir = Join-Path $runtime "logs"
     New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 

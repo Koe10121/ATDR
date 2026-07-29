@@ -1,6 +1,5 @@
 import csv
 import json
-import shutil
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -548,9 +547,14 @@ def analyze_supervised_errors(
     }
 
 
-def _model_run_to_registry_item(run: MLModelRun, *, active_path: Path) -> dict[str, Any]:
+def _model_run_to_registry_item(
+    run: MLModelRun,
+    *,
+    active_model_run_id: int | None,
+) -> dict[str, Any]:
     metrics = run.metrics_json or {}
     model_path = Path(run.model_path)
+    is_active = bool(active_model_run_id == run.id)
     return {
         "model_id": run.id,
         "model_name": run.model_name,
@@ -563,7 +567,7 @@ def _model_run_to_registry_item(run: MLModelRun, *, active_path: Path) -> dict[s
         "model_path": run.model_path,
         "artifact_sha256": run.artifact_sha256,
         "artifact_exists": model_path.exists(),
-        "is_active_path": model_path.resolve() == active_path.resolve() if model_path.exists() and active_path.exists() else False,
+        "is_active_path": is_active,
         "active_artifact_metadata_status": "registered",
         "active_artifact_metadata_unknown": False,
         "display_model_type": metrics.get("model_type", "random_forest"),
@@ -573,6 +577,11 @@ def _model_run_to_registry_item(run: MLModelRun, *, active_path: Path) -> dict[s
         "split_strategy": metrics.get("split_strategy"),
         "metrics": metrics.get("metrics", {}),
         "readiness_decision": (metrics.get("promotion_gate") or {}).get("decision", "candidate_only"),
+        "lifecycle_state": metrics.get("lifecycle_state", "inactive"),
+        "target_mode": metrics.get("target_mode"),
+        "calibration_method": metrics.get("calibration_method"),
+        "shadow_safety_passed": bool(metrics.get("shadow_safety_passed", False)),
+        "decision_support_eligible": bool((metrics.get("strict_gates") or {}).get("decision_support_eligible", False)),
         "analyst_review_eligible": bool((metrics.get("promotion_gate") or {}).get("analyst_review_eligible", False)),
         "production_promoted": False,
         "response_automation_allowed": False,
@@ -582,17 +591,43 @@ def _model_run_to_registry_item(run: MLModelRun, *, active_path: Path) -> dict[s
 
 
 def list_supervised_models(db: Session, *, limit: int = 25) -> dict[str, Any]:
-    active_path = supervised_model_path()
+    from atdr.app.detection.v51_supervised_lifecycle import supervised_lifecycle_status
+
+    lifecycle = supervised_lifecycle_status(db)
+    active_model_run_id = lifecycle.get("model_run_id")
+    active_model_run = db.get(MLModelRun, int(active_model_run_id)) if active_model_run_id is not None else None
+    governed_active_path = Path(active_model_run.model_path) if active_model_run is not None else None
+    legacy_path = supervised_model_path()
     runs = list(
         db.scalars(
             select(MLModelRun)
-            .where(MLModelRun.operation.in_(["train_supervised", "activate_supervised", "rollback_supervised"]))
+            .where(
+                MLModelRun.operation.in_(
+                    [
+                        "train_supervised",
+                        "activate_supervised_shadow",
+                        "activate_supervised_decision_support",
+                        "rollback_supervised_governed",
+                        "disable_supervised_governed",
+                    ]
+                )
+            )
             .order_by(desc(MLModelRun.created_at), desc(MLModelRun.id))
             .limit(limit)
         )
     )
-    items = [_model_run_to_registry_item(run, active_path=active_path) for run in runs]
-    if active_path.exists() and not any(item["is_active_path"] for item in items):
+    items = [
+        _model_run_to_registry_item(
+            run,
+            active_model_run_id=int(active_model_run_id) if active_model_run_id is not None else None,
+        )
+        for run in runs
+    ]
+    if legacy_path.exists() and not any(
+        Path(run.model_path).resolve() == legacy_path.resolve() and run.artifact_sha256 == _artifact_hash(legacy_path)
+        for run in runs
+        if Path(run.model_path).exists()
+    ):
         items.insert(
             0,
             {
@@ -604,10 +639,10 @@ def list_supervised_models(db: Session, *, limit: int = 25) -> dict[str, Any]:
                 "status": "available",
                 "created_at": None,
                 "actor": "unknown",
-                "model_path": str(active_path),
-                "artifact_sha256": _artifact_hash(active_path),
+                "model_path": str(legacy_path),
+                "artifact_sha256": _artifact_hash(legacy_path),
                 "artifact_exists": True,
-                "is_active_path": True,
+                "is_active_path": False,
                 "active_artifact_metadata_status": "metadata_unknown",
                 "active_artifact_metadata_unknown": True,
                 "display_model_type": "Active artifact metadata unknown",
@@ -622,20 +657,25 @@ def list_supervised_models(db: Session, *, limit: int = 25) -> dict[str, Any]:
                 "response_automation_allowed": False,
                 "report_path": None,
                 "message": (
-                    "Active artifact exists but no matching MLModelRun registry row was found. "
-                    "Treat this as a legacy/unregistered artifact; candidate diagnostics are not active."
+                    "A legacy artifact exists but no matching MLModelRun registry row was found. "
+                    "It is not selected by the governed v5.1 lifecycle."
                 ),
             },
         )
-    active_unknown = next((item for item in items if item.get("is_active_path")), None)
-    active_metadata_unknown = bool(active_unknown and active_unknown.get("active_artifact_metadata_unknown"))
+    active_item = next((item for item in items if item.get("is_active_path")), None)
+    governed_active = lifecycle.get("lifecycle_state") in {"shadow_observation", "decision_support"}
+    active_metadata_unknown = bool(governed_active and active_item and active_item.get("active_artifact_metadata_unknown"))
     return {
         "ok": True,
-        "active_model_path": str(active_path),
-        "active_artifact_exists": active_path.exists(),
-        "active_artifact_sha256": _artifact_hash(active_path),
-        "active_artifact_metadata_status": "metadata_unknown" if active_metadata_unknown else "registered" if active_path.exists() else "missing",
+        "active_model_path": str(governed_active_path) if governed_active_path else "",
+        "active_artifact_exists": bool((lifecycle.get("artifact") or {}).get("available")),
+        "active_artifact_sha256": (lifecycle.get("artifact") or {}).get("artifact_sha256"),
+        "active_artifact_metadata_status": "metadata_unknown" if active_metadata_unknown else "registered" if governed_active else "inactive",
         "active_artifact_metadata_unknown": active_metadata_unknown,
+        "lifecycle_state": lifecycle.get("lifecycle_state", "inactive"),
+        "governed_lifecycle": lifecycle,
+        "legacy_artifact_exists": legacy_path.exists(),
+        "legacy_artifact_selected": False,
         "models": items,
         "production_promoted": False,
         "response_automation_allowed": False,
@@ -644,109 +684,17 @@ def list_supervised_models(db: Session, *, limit: int = 25) -> dict[str, Any]:
 
 
 def activate_supervised_model(db: Session, *, model_id: int, actor: str = "cli") -> dict[str, Any]:
-    run = db.get(MLModelRun, model_id)
-    if run is None or run.operation != "train_supervised":
-        return {"ok": False, "status": "failed", "message": "Training model run not found."}
-    source = Path(run.model_path)
-    if not source.exists():
-        return {"ok": False, "status": "failed", "message": "Model artifact is missing."}
-    active_path = supervised_model_path()
-    active_path.parent.mkdir(parents=True, exist_ok=True)
-    backup_path = None
-    if active_path.exists():
-        backup_path = active_path.with_suffix(f".backup-{_safe_timestamp()}.joblib")
-        shutil.copy2(active_path, backup_path)
-    shutil.copy2(source, active_path)
-    result = {
-        "ok": True,
-        "status": "activated",
-        "activated_model_id": model_id,
-        "active_model_path": str(active_path),
-        "active_artifact_sha256": _artifact_hash(active_path),
-        "previous_active_backup_path": str(backup_path) if backup_path else None,
-        "production_promoted": False,
-        "response_automation_allowed": False,
-        "message": "Model artifact activated for analyst decision support only.",
-    }
-    db.add(
-        MLModelRun(
-            model_name=MODEL_NAME,
-            model_version=run.model_version,
-            operation="activate_supervised",
-            status="activated",
-            actor=actor,
-            model_path=str(active_path),
-            artifact_sha256=result["active_artifact_sha256"],
-            artifact_size_bytes=active_path.stat().st_size if active_path.exists() else None,
-            training_log_count=run.training_log_count,
-            feature_columns_json=run.feature_columns_json,
-            metrics_json={
-                "activated_model_run_id": model_id,
-                "previous_active_backup_path": result["previous_active_backup_path"],
-                "production_promoted": False,
-                "response_automation_allowed": False,
-            },
-            message=result["message"],
-        )
+    from atdr.app.detection.v51_supervised_lifecycle import activate_governed_supervised_model
+
+    return activate_governed_supervised_model(
+        db,
+        model_id=model_id,
+        lifecycle_state="shadow_observation",
+        actor=actor,
     )
-    db.add(
-        AuditLog(
-            actor=actor,
-            action="activate_supervised_model",
-            target_type="ml_model",
-            target_value=str(model_id),
-            details=result,
-        )
-    )
-    db.commit()
-    return result
 
 
 def rollback_supervised_model(db: Session, *, actor: str = "cli") -> dict[str, Any]:
-    activation = db.scalar(
-        select(MLModelRun)
-        .where(MLModelRun.operation == "activate_supervised")
-        .order_by(desc(MLModelRun.created_at), desc(MLModelRun.id))
-        .limit(1)
-    )
-    backup_value = ((activation.metrics_json or {}) if activation else {}).get("previous_active_backup_path")
-    backup_path = Path(str(backup_value)) if backup_value else None
-    if activation is None or backup_path is None or not backup_path.exists():
-        return {"ok": False, "status": "failed", "message": "No rollback backup artifact is available."}
-    active_path = supervised_model_path()
-    shutil.copy2(backup_path, active_path)
-    result = {
-        "ok": True,
-        "status": "rolled_back",
-        "active_model_path": str(active_path),
-        "restored_from": str(backup_path),
-        "active_artifact_sha256": _artifact_hash(active_path),
-        "production_promoted": False,
-        "response_automation_allowed": False,
-    }
-    db.add(
-        MLModelRun(
-            model_name=MODEL_NAME,
-            model_version=activation.model_version,
-            operation="rollback_supervised",
-            status="rolled_back",
-            actor=actor,
-            model_path=str(active_path),
-            artifact_sha256=result["active_artifact_sha256"],
-            artifact_size_bytes=active_path.stat().st_size if active_path.exists() else None,
-            feature_columns_json=activation.feature_columns_json,
-            metrics_json=result,
-            message="Rolled back active supervised model artifact for analyst decision support.",
-        )
-    )
-    db.add(
-        AuditLog(
-            actor=actor,
-            action="rollback_supervised_model",
-            target_type="ml_model",
-            target_value=str(activation.id),
-            details=result,
-        )
-    )
-    db.commit()
-    return result
+    from atdr.app.detection.v51_supervised_lifecycle import rollback_governed_supervised_model
+
+    return rollback_governed_supervised_model(db, actor=actor)

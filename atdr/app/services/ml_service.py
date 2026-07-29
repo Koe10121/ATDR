@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import case, desc, func, or_, select
+from sqlalchemy import desc, func, or_, select
 from sqlalchemy.orm import Session
 
 from atdr.app.core.config import get_settings
@@ -204,13 +204,18 @@ def list_model_runs(db: Session, limit: int = 20) -> list[MLModelRun]:
     return list(db.scalars(select(MLModelRun).order_by(desc(MLModelRun.created_at), desc(MLModelRun.id)).limit(limit)))
 
 
-def model_status(db: Session) -> dict:
+def model_status(
+    db: Session,
+    *,
+    _aggregate: dict | None = None,
+) -> dict:
     settings = get_settings()
     artifact = _artifact_metadata(settings.resolved_model_path)
     latest_train = latest_model_run(db, operation="train")
     latest_score = latest_model_run(db, operation="score")
-    total_logs = int(db.scalar(select(func.count(NormalizedLog.id))) or 0)
-    anomaly_logs = int(db.scalar(select(func.count(NormalizedLog.id)).where(NormalizedLog.is_anomaly.is_(True))) or 0)
+    aggregate = _aggregate or _traffic_aggregate(db)
+    total_logs = int(aggregate["total_logs"])
+    anomaly_logs = int(aggregate["anomaly_logs"])
     return {
         "model_name": MODEL_NAME,
         "model_path": str(settings.resolved_model_path),
@@ -245,8 +250,15 @@ def _count_where(db: Session, *filters) -> int:
     return int(db.scalar(statement) or 0)
 
 
-def _sum_if(condition):
-    return func.coalesce(func.sum(case((condition, 1), else_=0)), 0)
+def _count_subquery(*filters):
+    statement = select(func.count(NormalizedLog.id))
+    if filters:
+        statement = statement.where(*filters)
+    return statement.scalar_subquery()
+
+
+def _value_subquery(expression):
+    return select(expression).scalar_subquery()
 
 
 def _traffic_aggregate(db: Session, *, baseline_max_app_risk: int = 3) -> dict:
@@ -259,19 +271,21 @@ def _traffic_aggregate(db: Session, *, baseline_max_app_risk: int = 3) -> dict:
         & (or_(NormalizedLog.app.is_(None), lower_app.not_in(UNKNOWN_APPS)))
         & (NormalizedLog.is_anomaly.is_(False))
     )
+    # Independent scalar aggregates let SQLite and PostgreSQL use narrow
+    # covering indexes instead of reading every wide normalized-log row.
     row = db.execute(
         select(
-            func.count(NormalizedLog.id).label("total_logs"),
-            func.min(NormalizedLog.generated_time).label("generated_time_min"),
-            func.max(NormalizedLog.generated_time).label("generated_time_max"),
-            _sum_if(NormalizedLog.is_anomaly.is_(True)).label("anomaly_logs"),
-            _sum_if(lower_action.in_(["deny", "drop"])).label("deny_drop_logs"),
-            _sum_if(lower_action.in_(["deny", "drop", "reset-both", "reset-client", "reset-server"])).label(
-                "deny_drop_reset_logs"
-            ),
-            _sum_if(NormalizedLog.app_risk >= 4).label("high_risk_logs"),
-            _sum_if(unknown_app_condition).label("unknown_app_logs"),
-            _sum_if(baseline_candidate_condition).label("baseline_candidate_count"),
+            _count_subquery().label("total_logs"),
+            _value_subquery(func.min(NormalizedLog.generated_time)).label("generated_time_min"),
+            _value_subquery(func.max(NormalizedLog.generated_time)).label("generated_time_max"),
+            _count_subquery(NormalizedLog.is_anomaly.is_(True)).label("anomaly_logs"),
+            _count_subquery(lower_action.in_(["deny", "drop"])).label("deny_drop_logs"),
+            _count_subquery(
+                lower_action.in_(["deny", "drop", "reset-both", "reset-client", "reset-server"])
+            ).label("deny_drop_reset_logs"),
+            _count_subquery(NormalizedLog.app_risk >= 4).label("high_risk_logs"),
+            _count_subquery(unknown_app_condition).label("unknown_app_logs"),
+            _count_subquery(baseline_candidate_condition).label("baseline_candidate_count"),
         )
     ).mappings().one()
     return {key: int(value or 0) if key.endswith(("_logs", "_count")) or key == "total_logs" else value for key, value in row.items()}
@@ -281,11 +295,20 @@ def _quality_aggregate(db: Session) -> dict:
     lower_app = func.lower(NormalizedLog.app)
     row = db.execute(
         select(
-            _sum_if(NormalizedLog.generated_time.is_(None) & NormalizedLog.receive_time.is_(None)).label("missing_timestamp"),
-            _sum_if(or_(NormalizedLog.src_ip.is_(None), NormalizedLog.src_ip == "")).label("missing_source_ip"),
-            _sum_if(or_(NormalizedLog.dst_ip.is_(None), NormalizedLog.dst_ip == "")).label("missing_destination_ip"),
-            _sum_if(or_(NormalizedLog.action.is_(None), NormalizedLog.action == "")).label("missing_action"),
-            _sum_if(lower_app.in_(UNKNOWN_APPS)).label("unknown_app_count"),
+            _count_subquery(
+                NormalizedLog.generated_time.is_(None),
+                NormalizedLog.receive_time.is_(None),
+            ).label("missing_timestamp"),
+            _count_subquery(
+                or_(NormalizedLog.src_ip.is_(None), NormalizedLog.src_ip == "")
+            ).label("missing_source_ip"),
+            _count_subquery(
+                or_(NormalizedLog.dst_ip.is_(None), NormalizedLog.dst_ip == "")
+            ).label("missing_destination_ip"),
+            _count_subquery(
+                or_(NormalizedLog.action.is_(None), NormalizedLog.action == "")
+            ).label("missing_action"),
+            _count_subquery(lower_app.in_(UNKNOWN_APPS)).label("unknown_app_count"),
         )
     ).mappings().one()
     return {key: int(value or 0) for key, value in row.items()}
@@ -301,8 +324,29 @@ def _parser_error_count(db: Session, *, total_logs: int, parser_error_filter) ->
     return int(db.scalar(select(func.coalesce(func.sum(IngestionRun.parse_failures), 0))) or 0)
 
 
-def dataset_profile(db: Session, *, baseline_max_app_risk: int = 3) -> dict:
-    aggregate = _traffic_aggregate(db, baseline_max_app_risk=baseline_max_app_risk)
+def _dataset_distributions(db: Session) -> dict[str, list[dict]]:
+    return {
+        "action_distribution": _count_group(db, NormalizedLog.action),
+        "app_risk_distribution": _count_group(db, NormalizedLog.app_risk),
+        "protocol_distribution": _count_group(db, NormalizedLog.protocol),
+        "top_apps": _count_group(db, NormalizedLog.app),
+        "top_src_zones": _count_group(db, NormalizedLog.src_zone),
+        "top_dst_zones": _count_group(db, NormalizedLog.dst_zone),
+    }
+
+
+def dataset_profile(
+    db: Session,
+    *,
+    baseline_max_app_risk: int = 3,
+    _aggregate: dict | None = None,
+    _distributions: dict[str, list[dict]] | None = None,
+) -> dict:
+    aggregate = _aggregate or _traffic_aggregate(
+        db,
+        baseline_max_app_risk=baseline_max_app_risk,
+    )
+    distributions = _distributions or _dataset_distributions(db)
     total_logs = int(aggregate["total_logs"])
     anomaly_logs = int(aggregate["anomaly_logs"])
     deny_drop_logs = int(aggregate["deny_drop_logs"])
@@ -339,12 +383,7 @@ def dataset_profile(db: Session, *, baseline_max_app_risk: int = 3) -> dict:
         "baseline_max_app_risk": baseline_max_app_risk,
         "baseline_candidate_count": baseline_candidate_count,
         "baseline_candidate_rate": _anomaly_rate(baseline_candidate_count, total_logs),
-        "action_distribution": _count_group(db, NormalizedLog.action),
-        "app_risk_distribution": _count_group(db, NormalizedLog.app_risk),
-        "protocol_distribution": _count_group(db, NormalizedLog.protocol),
-        "top_apps": _count_group(db, NormalizedLog.app),
-        "top_src_zones": _count_group(db, NormalizedLog.src_zone),
-        "top_dst_zones": _count_group(db, NormalizedLog.dst_zone),
+        **distributions,
         "recommendations": recommendations,
     }
 
@@ -398,8 +437,14 @@ def _anomalous_group(db: Session, column, limit: int = 10) -> list[dict]:
     return [{"name": str(name), "count": int(count)} for name, count in rows]
 
 
-def baseline_drift_report(db: Session) -> dict:
-    aggregate = _traffic_aggregate(db)
+def baseline_drift_report(
+    db: Session,
+    *,
+    _aggregate: dict | None = None,
+    _distributions: dict[str, list[dict]] | None = None,
+) -> dict:
+    aggregate = _aggregate or _traffic_aggregate(db)
+    distributions = _distributions or _dataset_distributions(db)
     total_logs = int(aggregate["total_logs"])
     anomaly_logs = int(aggregate["anomaly_logs"])
     deny_drop_reset_logs = int(aggregate["deny_drop_reset_logs"])
@@ -414,8 +459,8 @@ def baseline_drift_report(db: Session) -> dict:
         "deny_drop_reset_rate": _anomaly_rate(deny_drop_reset_logs, total_logs),
         "anomaly_count": anomaly_logs,
         "anomaly_rate": _anomaly_rate(anomaly_logs, total_logs),
-        "app_distribution": _count_group(db, NormalizedLog.app),
-        "action_distribution": _count_group(db, NormalizedLog.action),
+        "app_distribution": distributions["top_apps"],
+        "action_distribution": distributions["action_distribution"],
         "top_source_ips": _count_group(db, NormalizedLog.src_ip),
         "top_destination_ports": _count_group(db, NormalizedLog.dst_port),
         "top_destination_ips": _count_group(db, NormalizedLog.dst_ip),
@@ -606,11 +651,18 @@ def _drift_signals(status: dict, profile: dict, run_comparison: dict) -> list[di
 
 
 def evaluation_report(db: Session) -> dict:
-    status = model_status(db)
-    profile = dataset_profile(db)
+    aggregate = _traffic_aggregate(db)
+    distributions = _dataset_distributions(db)
+    status = model_status(db, _aggregate=aggregate)
+    profile = dataset_profile(
+        db,
+        _aggregate=aggregate,
+        _distributions=distributions,
+    )
     scoring_runs = _latest_scoring_runs(db)
     run_comparison = _run_comparison(scoring_runs)
-    scored_logs = _score_stats(db)["count"]
+    score_stats_all = _score_stats(db)
+    scored_logs = score_stats_all["count"]
     anomaly_count = status["current_anomaly_logs"]
     anomaly_rate = status["current_anomaly_rate"]
 
@@ -634,11 +686,15 @@ def evaluation_report(db: Session) -> dict:
         "scored_log_count": scored_logs,
         "anomaly_count": anomaly_count,
         "anomaly_rate": anomaly_rate,
-        "score_stats_all": _score_stats(db),
+        "score_stats_all": score_stats_all,
         "score_stats_anomalies": _score_stats(db, anomalous_only=True),
         "run_comparison": run_comparison,
         "drift_signals": _drift_signals(status, profile, run_comparison),
-        "baseline_drift_report": baseline_drift_report(db),
+        "baseline_drift_report": baseline_drift_report(
+            db,
+            _aggregate=aggregate,
+            _distributions=distributions,
+        ),
         "top_anomalous_src_ips": _anomalous_group(db, NormalizedLog.src_ip),
         "top_anomalous_dst_ips": _anomalous_group(db, NormalizedLog.dst_ip),
         "top_anomalous_apps": _anomalous_group(db, NormalizedLog.app),

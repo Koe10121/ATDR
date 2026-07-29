@@ -2,7 +2,7 @@ import shutil
 from pathlib import Path
 
 from atdr.app.core.config import PROJECT_ROOT
-from atdr.scripts.run_layered_detection_validation import run_layered_detection_validation
+from atdr.scripts.run_layered_detection_validation import build_failure_matrix, run_layered_detection_validation
 
 
 def _output_dir(name: str) -> Path:
@@ -33,6 +33,42 @@ def test_layered_detection_validation_compares_modes_safely():
     assert by_mode_scenario[("hybrid", "normal_web_dns_quic_traffic")]["alerts_created"] == 0
     assert by_mode_scenario[("anomaly_only", "port_scan_like_traffic")]["diagnostics"] is not None
     assert by_mode_scenario[("supervised_only", "port_scan_like_traffic")]["diagnostics"]["decision_support_only"] is True
+
+
+def test_layered_failure_matrix_captures_root_cause_evidence():
+    matrix = build_failure_matrix(
+        [
+            {
+                "scenario": "suspicious_rare_port_probe",
+                "variant_id": 1,
+                "mode": "hybrid",
+                "passed": False,
+                "false_positive": False,
+                "false_negative": True,
+                "expected_attack_types": ["policy_violation"],
+                "actual_attack_types": ["unknown_anomaly"],
+                "alerts_created": 1,
+                "max_severity": "High",
+                "max_risk_score": 75,
+                "layered_expectation": {"rules": "required"},
+                "alerts": [
+                    {
+                        "rule_signals": ["deny_drop_action", "ml_anomaly_detected"],
+                        "anomaly_scores": [-0.2],
+                        "supervised_probability": 0.7,
+                        "hybrid_components": {"rule_score": 50, "isolation_score": 70},
+                    }
+                ],
+                "safety": {"response_actions_created": 0},
+            }
+        ]
+    )
+
+    assert matrix[0]["classification"] == "false_negative"
+    assert matrix[0]["anomaly_score"] == -0.2
+    assert matrix[0]["supervised_probability"] == 0.7
+    assert "masked" in matrix[0]["likely_root_cause"]
+    assert matrix[0]["response_actions_created"] == 0
 
 
 def test_layered_detection_validation_writes_reports():

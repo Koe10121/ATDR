@@ -6,6 +6,12 @@ from datetime import datetime
 from io import StringIO
 from typing import Any
 
+from atdr.app.parsers.paloalto_contract import (
+    PARSER_CONTRACT_VERSION,
+    application_resolution,
+    compatibility_diagnostics,
+)
+
 logger = logging.getLogger(__name__)
 
 ISO_TIMESTAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T")
@@ -76,24 +82,84 @@ def _split_syslog_line(raw_line: str) -> tuple[str | None, str | None, str | Non
     return parts[0], parts[1], parts[2]
 
 
-def _find_high_res_timestamp(fields: list[str]) -> str | None:
-    for value in reversed(fields):
+def _find_high_res_timestamp_index(fields: list[str]) -> int | None:
+    for index in range(len(fields) - 1, -1, -1):
+        value = fields[index]
         if value and ISO_TIMESTAMP_RE.match(value.strip()):
-            return value.strip()
+            return index
     return None
 
 
-def _tail_app_metadata(fields: list[str]) -> dict[str, Any]:
-    """Palo Alto app metadata appears at the end for TRAFFIC and THREAT logs."""
+def _find_high_res_timestamp(fields: list[str]) -> str | None:
+    index = _find_high_res_timestamp_index(fields)
+    if index is not None:
+        return fields[index].strip()
+    return None
 
-    return {
-        "high_res_timestamp": parse_datetime(_find_high_res_timestamp(fields)),
-        "app_subcategory": _safe_get(fields, -10),
-        "app_category": _safe_get(fields, -9),
-        "app_technology": _safe_get(fields, -8),
-        "app_risk": _to_int(_safe_get(fields, -7)),
-        "app_characteristic": _safe_get(fields, -6),
-    }
+
+def _app_metadata(fields: list[str], log_type: str | None) -> tuple[dict[str, Any], str]:
+    """Read app metadata from the documented high-resolution timestamp anchor.
+
+    PAN-OS adds fields after application metadata over time, so indexing from
+    the tail silently shifts on newer releases. Current TRAFFIC and THREAT
+    formats both retain a high-resolution timestamp immediately before a small,
+    documented group of fields. Legacy tail positions remain a fail-safe for
+    historical lab fixtures.
+    """
+
+    if log_type not in {"TRAFFIC", "THREAT"}:
+        return (
+            {
+                "high_res_timestamp": parse_datetime(
+                    _find_high_res_timestamp(fields)
+                ),
+                "app_subcategory": None,
+                "app_category": None,
+                "app_technology": None,
+                "app_risk": None,
+                "app_characteristic": None,
+            },
+            "not_applicable",
+        )
+
+    high_res_index = _find_high_res_timestamp_index(fields)
+    candidates: list[tuple[str, int]] = []
+    if high_res_index is not None:
+        if log_type == "TRAFFIC":
+            candidates.append(("pan_high_res_anchor_traffic", high_res_index + 3))
+        elif log_type == "THREAT":
+            candidates.append(("pan_high_res_anchor_threat", high_res_index + 4))
+        candidates.append(("pan_high_res_anchor_legacy", high_res_index + 1))
+
+    for mapping_name, start in candidates:
+        risk = _to_int(_safe_get(fields, start + 3))
+        if risk is not None and 1 <= risk <= 5:
+            return (
+                {
+                    "high_res_timestamp": parse_datetime(_safe_get(fields, high_res_index or 0)),
+                    "app_subcategory": _safe_get(fields, start),
+                    "app_category": _safe_get(fields, start + 1),
+                    "app_technology": _safe_get(fields, start + 2),
+                    "app_risk": risk,
+                    "app_characteristic": _safe_get(fields, start + 4),
+                },
+                mapping_name,
+            )
+
+    tail_risk = _to_int(_safe_get(fields, -7))
+    if tail_risk is not None and not 1 <= tail_risk <= 5:
+        tail_risk = None
+    return (
+        {
+            "high_res_timestamp": parse_datetime(_find_high_res_timestamp(fields)),
+            "app_subcategory": _safe_get(fields, -10),
+            "app_category": _safe_get(fields, -9),
+            "app_technology": _safe_get(fields, -8),
+            "app_risk": tail_risk,
+            "app_characteristic": _safe_get(fields, -6),
+        },
+        "legacy_tail_fallback",
+    )
 
 
 def _traffic_specific(fields: list[str]) -> dict[str, Any]:
@@ -130,6 +196,50 @@ def _threat_specific(fields: list[str]) -> dict[str, Any]:
     }
 
 
+def _system_specific(fields: list[str]) -> tuple[dict[str, Any], dict[str, Any]]:
+    normalized = {
+        "src_ip": None,
+        "dst_ip": None,
+        "nat_src_ip": None,
+        "nat_dst_ip": None,
+        "rule_name": None,
+        "src_user": None,
+        "dst_user": None,
+        "app": None,
+        "vsys": _safe_get(fields, 7),
+        "src_zone": None,
+        "dst_zone": None,
+        "inbound_interface": None,
+        "outbound_interface": None,
+        "log_action": None,
+        "session_id": None,
+        "repeat_count": None,
+        "src_port": None,
+        "dst_port": None,
+        "protocol": None,
+        "action": None,
+        "device_name": _safe_get(fields, 22),
+        "high_res_timestamp": parse_datetime(_safe_get(fields, 25)),
+    }
+    details = {
+        "system_event_id": _safe_get(fields, 8),
+        "system_object_present": bool(_safe_get(fields, 9)),
+        "system_module": _safe_get(fields, 12),
+        "system_severity": _safe_get(fields, 13),
+        "system_description_present": bool(_safe_get(fields, 14)),
+    }
+    return normalized, details
+
+
+def _error_json(message: str) -> dict[str, Any]:
+    return {
+        "parser_error": message,
+        "parse_status": "error",
+        "parser_contract_version": PARSER_CONTRACT_VERSION,
+        "parser_profile": "palo_alto",
+    }
+
+
 def parse_log_line(raw_line: str) -> ParsedPaloAltoLog:
     """Parse one syslog-wrapped Palo Alto CSV line without using unsafe comma splitting."""
 
@@ -140,7 +250,7 @@ def parse_log_line(raw_line: str) -> ParsedPaloAltoLog:
             syslog_timestamp=None,
             device_hostname=None,
             normalized={},
-            parsed_json={"parser_error": "blank line"},
+            parsed_json=_error_json("blank line"),
             error="blank line",
         )
 
@@ -151,7 +261,9 @@ def parse_log_line(raw_line: str) -> ParsedPaloAltoLog:
             syslog_timestamp=parse_datetime(syslog_text),
             device_hostname=hostname,
             normalized={},
-            parsed_json={"parser_error": "line did not contain syslog timestamp, hostname, and payload"},
+            parsed_json=_error_json(
+                "line did not contain syslog timestamp, hostname, and payload"
+            ),
             error="malformed syslog wrapper",
         )
 
@@ -163,7 +275,7 @@ def parse_log_line(raw_line: str) -> ParsedPaloAltoLog:
             syslog_timestamp=parse_datetime(syslog_text),
             device_hostname=hostname,
             normalized={},
-            parsed_json={"parser_error": str(exc), "payload": payload},
+            parsed_json=_error_json(str(exc)),
             error=str(exc),
         )
 
@@ -196,10 +308,14 @@ def parse_log_line(raw_line: str) -> ParsedPaloAltoLog:
         "action": _safe_get(fields, 30),
     }
 
+    type_details: dict[str, Any] = {}
     if log_type == "TRAFFIC":
         normalized.update(_traffic_specific(fields))
     elif log_type == "THREAT":
         normalized.update(_threat_specific(fields))
+    elif log_type == "SYSTEM":
+        system_normalized, type_details = _system_specific(fields)
+        normalized.update(system_normalized)
     else:
         normalized.update(
             {
@@ -210,30 +326,53 @@ def parse_log_line(raw_line: str) -> ParsedPaloAltoLog:
             }
         )
 
-    normalized.update(_tail_app_metadata(fields))
+    app_metadata, app_metadata_mapping = _app_metadata(fields, log_type)
+    normalized.update(app_metadata)
 
+    compatibility = compatibility_diagnostics(
+        log_type=log_type,
+        field_count=len(fields),
+        high_res_timestamp_index=_find_high_res_timestamp_index(fields),
+        app_metadata_mapping=app_metadata_mapping,
+    )
     parser_warnings: list[str] = []
-    if log_type == "TRAFFIC" and len(fields) < 47:
-        parser_warnings.append(f"traffic log has fewer fields than expected: {len(fields)}")
-    elif log_type == "THREAT" and len(fields) < 40:
-        parser_warnings.append(f"threat log has fewer fields than expected: {len(fields)}")
-    elif not log_type:
+    if compatibility["status"] == "partial_layout":
+        parser_warnings.append(
+            f"{str(log_type or 'unknown').lower()} log has fewer fields than "
+            f"the contract minimum: {len(fields)}"
+        )
+    elif compatibility["status"] == "missing_log_type":
         parser_warnings.append("missing Palo Alto log type")
+    elif compatibility["status"] == "unsupported_log_type":
+        parser_warnings.append(
+            "unsupported Palo Alto log type preserved with common fields only"
+        )
     if parsed_syslog_timestamp := parse_datetime(syslog_text):
         syslog_timestamp = parsed_syslog_timestamp
     else:
         syslog_timestamp = None
         parser_warnings.append("missing or unparsable syslog timestamp")
-    if normalized.get("generated_time") is None and normalized.get("receive_time") is None:
+    if (
+        normalized.get("generated_time") is None
+        and normalized.get("receive_time") is None
+    ):
         parser_warnings.append("missing generated and receive timestamps")
-    if not normalized.get("src_ip"):
-        parser_warnings.append("missing source IP")
-    if not normalized.get("dst_ip"):
-        parser_warnings.append("missing destination IP")
-    if not normalized.get("action"):
-        parser_warnings.append("missing action")
-    if (normalized.get("app") or "").strip().lower() in {"", "unknown", "incomplete", "not-applicable"}:
-        parser_warnings.append("unknown or incomplete application")
+    if log_type in {"TRAFFIC", "THREAT"} or not log_type:
+        if not normalized.get("src_ip"):
+            parser_warnings.append("missing source IP")
+        if not normalized.get("dst_ip"):
+            parser_warnings.append("missing destination IP")
+        if not normalized.get("action"):
+            parser_warnings.append("missing action")
+        if not normalized.get("app"):
+            parser_warnings.append("missing application field")
+
+    app_resolution = application_resolution(log_type, normalized.get("app"))
+    parser_notices: list[str] = []
+    if app_resolution["status"] == "unresolved":
+        parser_notices.append(
+            "application value is unresolved session evidence, not a parser failure"
+        )
 
     parsed_json = {
         "field_count": len(fields),
@@ -241,6 +380,17 @@ def parse_log_line(raw_line: str) -> ParsedPaloAltoLog:
         "log_type": log_type,
         "unknown_extra_fields": fields[115:] if log_type == "TRAFFIC" and len(fields) > 115 else [],
         "parser_warnings": parser_warnings,
+        "parser_notices": parser_notices,
+        "parse_status": (
+            "partial"
+            if compatibility["confidence"] in {"partial", "unsupported"}
+            else "parsed"
+        ),
+        "parser_contract_version": PARSER_CONTRACT_VERSION,
+        "parser_compatibility": compatibility,
+        "application_resolution": app_resolution,
+        "app_metadata_mapping": app_metadata_mapping,
+        **type_details,
     }
     for key in ("parsed_threat_name", "parsed_threat_severity", "parsed_threat_direction"):
         if key in normalized:
@@ -284,6 +434,12 @@ def parse_log_line_for_profile(raw_line: str, parser_profile: str | None = None)
                 parsed_json={
                     "parser_profile": "generic_syslog",
                     "parser_error": "generic syslog line did not contain timestamp, hostname, and message",
+                    "parse_status": "error",
+                    "parser_contract_version": "generic_syslog_v1",
+                    "parser_compatibility": {
+                        "status": "malformed_generic_syslog",
+                        "confidence": "unsupported",
+                    },
                 },
                 error="malformed generic syslog wrapper",
             )
@@ -295,6 +451,12 @@ def parse_log_line_for_profile(raw_line: str, parser_profile: str | None = None)
             parsed_json={
                 "parser_profile": "generic_syslog",
                 "message": payload,
+                "parse_status": "preserved_unstructured",
+                "parser_contract_version": "generic_syslog_v1",
+                "parser_compatibility": {
+                    "status": "generic_syslog_limited",
+                    "confidence": "limited",
+                },
                 "parser_warnings": [
                     "generic syslog profile preserved raw message with limited normalized fields",
                 ],
@@ -309,6 +471,12 @@ def parse_log_line_for_profile(raw_line: str, parser_profile: str | None = None)
         parsed_json={
             "parser_profile": "raw_fallback",
             "parser_error": "raw fallback parser profile stored raw evidence without structured parsing",
+            "parse_status": "fallback",
+            "parser_contract_version": "raw_fallback_v1",
+            "parser_compatibility": {
+                "status": "raw_fallback",
+                "confidence": "unstructured",
+            },
             "raw_fallback": True,
         },
         error="raw fallback parser profile",

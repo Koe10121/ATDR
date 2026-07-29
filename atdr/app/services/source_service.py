@@ -7,6 +7,11 @@ from sqlalchemy.orm import Session
 
 from atdr.app.db.models import Alert, AlertEvidence, DetectionRun, IngestionRun, LogSource, NormalizedLog, RawLog
 from atdr.app.services.operation_run_service import detection_run_to_dict, ingestion_run_to_dict
+from atdr.app.services.runtime_parser_quality_service import (
+    historical_reparse_impact_preview,
+    merge_runtime_parser_quality,
+    runtime_parser_quality_summary,
+)
 
 SOURCE_TYPES = {"file_import", "replay", "syslog_udp", "syslog_tcp", "router", "firewall", "sample"}
 PARSER_PROFILES = {"palo_alto", "generic_syslog", "raw_fallback"}
@@ -37,7 +42,16 @@ def _normalize_parser_profile(parser_profile: str | None) -> str:
 
 def source_health(source: LogSource, *, now: datetime | None = None) -> dict[str, Any]:
     current = now or utc_now()
-    warnings = _source_warnings(source, current)
+    parser_quality = runtime_parser_quality_summary(
+        source.parser_quality_json,
+        total_rows=source.logs_received_count,
+    )
+    warnings = _source_warnings(source, current, parser_quality)
+    warning_alerts = [
+        alert
+        for alert in parser_quality["operational_alerts"]
+        if alert["severity"] in {"warning", "error"}
+    ]
     if not source.enabled:
         status = "disabled"
     elif not source.last_log_received_at:
@@ -45,17 +59,32 @@ def source_health(source: LogSource, *, now: datetime | None = None) -> dict[str
     else:
         last_log = _aware(source.last_log_received_at)
         age_seconds = (current - last_log).total_seconds() if last_log else None
-        failure_rate = (source.parse_failure_count / source.logs_received_count) if source.logs_received_count else 0.0
-        if failure_rate >= 0.5 and source.parse_failure_count >= 3:
-            status = "error"
-        elif source.latest_error or failure_rate >= 0.1:
-            status = "warning"
-        elif age_seconds is not None and age_seconds > 15 * 60:
-            status = "idle"
+        if parser_quality["observed_rows"]:
+            if parser_quality["quality_state"] == "error":
+                status = "error"
+            elif (
+                parser_quality["quality_state"] in {"warning", "limited"}
+                or warning_alerts
+            ):
+                status = "warning"
+            elif age_seconds is not None and age_seconds > 15 * 60:
+                status = "idle"
+            else:
+                status = "healthy"
         else:
-            status = "healthy"
-    if status == "healthy" and warnings:
-        status = "warning"
+            failure_rate = (
+                source.parse_failure_count / source.logs_received_count
+                if source.logs_received_count
+                else 0.0
+            )
+            if failure_rate >= 0.5 and source.parse_failure_count >= 3:
+                status = "error"
+            elif source.latest_error or failure_rate >= 0.1:
+                status = "warning"
+            elif age_seconds is not None and age_seconds > 15 * 60:
+                status = "idle"
+            else:
+                status = "healthy"
     return {
         "source_id": source.id,
         "status": status,
@@ -69,31 +98,89 @@ def source_health(source: LogSource, *, now: datetime | None = None) -> dict[str
         "last_seen": source.last_seen,
         "last_log_received_at": source.last_log_received_at,
         "latest_error": source.latest_error,
-        "recommendation": _health_recommendation(status),
+        "recommendation": _health_recommendation(
+            status,
+            parser_quality["quality_state"],
+        ),
         "warnings": warnings,
+        "parser_quality_state": parser_quality["quality_state"],
+        "parser_contract_state": parser_quality["contract_state"],
+        "runtime_parser_error_count": parser_quality["parser_error_rows"],
+        "runtime_parser_error_rate": round(
+            parser_quality["parser_error_rate"] * 100,
+            2,
+        ),
+        "structural_warning_count": parser_quality[
+            "structural_warning_count"
+        ],
+        "unresolved_application_count": parser_quality[
+            "unresolved_application_rows"
+        ],
+        "unresolved_application_rate": round(
+            parser_quality["unresolved_application_rate"] * 100,
+            2,
+        ),
+        "generic_syslog_count": parser_quality["generic_syslog_rows"],
+        "raw_fallback_count": parser_quality["raw_fallback_rows"],
+        "operational_alerts": parser_quality["operational_alerts"],
     }
 
 
-def _source_warnings(source: LogSource, current: datetime) -> list[str]:
+def _source_warnings(
+    source: LogSource,
+    current: datetime,
+    parser_quality: dict[str, Any],
+) -> list[str]:
     warnings: list[str] = []
     if source.enabled and source.last_log_received_at:
         last_log = _aware(source.last_log_received_at)
         if last_log and (current - last_log).total_seconds() > 15 * 60:
             warnings.append("Source has not sent logs recently.")
-    if source.logs_received_count:
+    if source.logs_received_count and not parser_quality["observed_rows"]:
         failure_rate = source.parse_failure_count / source.logs_received_count
         if failure_rate >= 0.1:
-            warnings.append(f"Parse failure rate is {failure_rate:.1%}.")
-    if source.latest_error:
+            warnings.append(
+                f"Legacy parse failure history is {failure_rate:.1%}; "
+                "future ingestion will use the v5.13 runtime contract."
+            )
+    if source.latest_error and parser_quality["quality_state"] in {"error", "warning"}:
         warnings.append("Latest parser/source error should be reviewed.")
-    if source.parser_profile == "raw_fallback":
-        warnings.append("Source uses raw fallback parser profile; normalized fields may be limited.")
-    if source.source_type in {"firewall", "router", "syslog_udp", "syslog_tcp"} and source.parser_profile == "generic_syslog":
-        warnings.append("Generic syslog parser profile may not extract Palo Alto CSV fields.")
+    warnings.extend(
+        alert["message"]
+        for alert in parser_quality["operational_alerts"]
+    )
+    if (
+        source.parser_profile == "raw_fallback"
+        and not parser_quality["raw_fallback_rows"]
+    ):
+        warnings.append(
+            "Source is configured for raw fallback; future evidence will be "
+            "preserved without structured fields."
+        )
+    if (
+        source.source_type
+        in {"firewall", "router", "syslog_udp", "syslog_tcp"}
+        and source.parser_profile == "generic_syslog"
+        and not parser_quality["generic_syslog_rows"]
+    ):
+        warnings.append(
+            "Generic syslog is configured and will preserve only limited "
+            "structured fields."
+        )
     return warnings
 
 
-def _health_recommendation(status: str) -> str:
+def _health_recommendation(status: str, quality_state: str) -> str:
+    if status == "warning" and quality_state == "limited":
+        return (
+            "Limited profile: evidence is preserved, but structured fields "
+            "are intentionally limited."
+        )
+    if status == "warning" and quality_state == "warning":
+        return (
+            "Warning: review parser errors, structural layout alerts, or raw "
+            "fallback usage. Unresolved applications alone are not failures."
+        )
     return {
         "healthy": "Healthy: logs recently received and parsed successfully.",
         "idle": "Idle: no recent logs. Confirm sender forwarding, receiver port, and lab network path.",
@@ -265,9 +352,10 @@ def record_source_ingestion(
     parse_failures: int,
     latest_error: str | None = None,
     observed_at: datetime | None = None,
-) -> None:
+    parser_quality: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     if source is None:
-        return
+        return runtime_parser_quality_summary({})
     now = observed_at or utc_now()
     source.last_seen = now
     if logs_received:
@@ -277,9 +365,26 @@ def record_source_ingestion(
     source.parse_failure_count += max(0, parse_failures)
     if latest_error:
         source.latest_error = latest_error[:1000]
+    if (
+        parser_quality
+        and parser_quality.get("observed_rows")
+        and not parser_quality.get("parser_error_rows")
+        and parser_quality.get("raw_fallback_rows")
+        == parser_quality.get("observed_rows")
+    ):
+        source.latest_error = None
     elif parse_failures == 0:
         source.latest_error = None
+    if parser_quality:
+        source.parser_quality_json = merge_runtime_parser_quality(
+            source.parser_quality_json,
+            parser_quality,
+        )
     source.updated_at = now
+    return runtime_parser_quality_summary(
+        source.parser_quality_json,
+        total_rows=source.logs_received_count,
+    )
 
 
 def source_ids_for_filters(
@@ -307,6 +412,7 @@ def source_ids_for_filters(
 
 
 def source_quality(db: Session, source_id: int) -> dict[str, Any]:
+    source = db.get(LogSource, source_id)
     total_logs = int(db.scalar(select(func.count(RawLog.id)).where(RawLog.source_id == source_id)) or 0)
     normalized_logs = int(
         db.scalar(select(func.count(NormalizedLog.id)).join(RawLog).where(RawLog.source_id == source_id)) or 0
@@ -329,13 +435,25 @@ def source_quality(db: Session, source_id: int) -> dict[str, Any]:
         )
         or 0
     )
-    parser_error_filter = NormalizedLog.parsed_json["parser_error"].as_string().is_not(None)
+    parser_error_filter = (
+        NormalizedLog.parsed_json["parser_error"].as_string().is_not(None)
+        & (
+            func.coalesce(
+                NormalizedLog.parsed_json["parser_profile"].as_string(),
+                "",
+            )
+            != "raw_fallback"
+        )
+    )
     parse_failure_examples = [
         {
             "raw_log_id": row.raw_log_id,
             "normalized_log_id": row.id,
             "parser_error": row.parsed_json.get("parser_error"),
-            "raw_line_excerpt": row.raw_log.raw_line[:180] if row.raw_log else None,
+            "raw_line_excerpt": "<redacted; open authorized raw evidence by log ID>"
+            if row.raw_log
+            else None,
+            "raw_evidence_available": bool(row.raw_log),
         }
         for row in db.scalars(
             select(NormalizedLog)
@@ -346,7 +464,11 @@ def source_quality(db: Session, source_id: int) -> dict[str, Any]:
         )
     ]
     unknown_app_rate = round((unknown_app_count / normalized_logs) * 100, 2) if normalized_logs else 0.0
-    warnings = []
+    parser_quality = runtime_parser_quality_summary(
+        source.parser_quality_json if source is not None else {},
+        total_rows=normalized_logs,
+    )
+    warnings: list[str] = []
     if unknown_app_rate >= 25:
         warnings.append(
             "Data quality note: unknown/incomplete application values are "
@@ -356,6 +478,10 @@ def source_quality(db: Session, source_id: int) -> dict[str, Any]:
         )
     if parse_failure_examples:
         warnings.append("Parser failure examples are available for review.")
+    warnings.extend(
+        alert["message"]
+        for alert in parser_quality["operational_alerts"]
+    )
     return {
         "raw_logs": total_logs,
         "normalized_logs": normalized_logs,
@@ -364,7 +490,57 @@ def source_quality(db: Session, source_id: int) -> dict[str, Any]:
         "alert_count": alert_count,
         "parse_failure_examples": parse_failure_examples,
         "warnings": warnings,
+        "parser_quality": parser_quality,
+        "parser_quality_state": parser_quality["quality_state"],
+        "parser_contract_state": parser_quality["contract_state"],
+        "runtime_observed_rows": parser_quality["observed_rows"],
+        "legacy_contract_rows": parser_quality["legacy_contract_rows"],
+        "parser_error_count": parser_quality["parser_error_rows"],
+        "parser_error_rate": round(
+            parser_quality["parser_error_rate"] * 100,
+            2,
+        ),
+        "structural_warning_count": parser_quality[
+            "structural_warning_count"
+        ],
+        "compatible_layout_count": parser_quality[
+            "compatible_layout_rows"
+        ],
+        "extended_layout_count": parser_quality["extended_layout_rows"],
+        "partial_layout_count": parser_quality["partial_layout_rows"],
+        "unsupported_layout_count": parser_quality[
+            "unsupported_layout_rows"
+        ],
+        "unresolved_application_count": parser_quality[
+            "unresolved_application_rows"
+        ],
+        "unresolved_application_rate": round(
+            parser_quality["unresolved_application_rate"] * 100,
+            2,
+        ),
+        "absent_application_count": parser_quality[
+            "absent_application_rows"
+        ],
+        "not_applicable_application_count": parser_quality[
+            "not_applicable_application_rows"
+        ],
+        "generic_syslog_count": parser_quality["generic_syslog_rows"],
+        "raw_fallback_count": parser_quality["raw_fallback_rows"],
+        "operational_alerts": parser_quality["operational_alerts"],
     }
+
+
+def source_reparse_impact_preview(
+    db: Session,
+    source_id: int,
+    *,
+    scan_limit: int = 5000,
+) -> dict[str, Any]:
+    return historical_reparse_impact_preview(
+        db,
+        source_id=source_id,
+        scan_limit=scan_limit,
+    )
 
 
 def recent_source_ingestion_runs(db: Session, source_id: int, *, limit: int = 5) -> list[dict[str, Any]]:

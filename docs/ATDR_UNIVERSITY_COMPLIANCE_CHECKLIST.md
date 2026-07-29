@@ -412,3 +412,175 @@ For docs-only changes, at minimum verify the docs exist, links are correct, and 
 | Secret/repo hygiene | Satisfied locally | Status uses booleans/codes, backups are ignored, no `.env` value is copied or returned | Managed secret delivery remains deployment work; any administrator credential disclosed outside the approved channel must be revoked and rotated. |
 | AI/response safety | Unchanged | Detection/ML behavior is untouched; assistant is read-only; automation and real blocking remain disabled | No autonomous action authority is approved. |
 | Change workflow | Locally verified | v4.4 status, T1-T20, PRD, traceability, compliance, regenerated task board, `584 passed, 1 skipped`, React/external-shell checks, and release gate `ok: true` | Live provider acceptance must be recorded after MFU administrator configuration. |
+
+## v4.9 Detection and ML Reliability Compliance Status
+
+| Rule | Current Status | Evidence | Remaining Gap |
+| --- | --- | --- | --- |
+| No guessing / primary sources | Satisfied | Palo Alto, Sigma, MITRE, UNB, and scikit-learn primary references with access date and claim boundaries | Primary references do not certify ATDR thresholds or production accuracy. |
+| Rule and taxonomy governance | Satisfied | Versioned catalog, taxonomy, rule standard, source-scoped five-minute behavior, and 24/24 controlled scenarios | Real-device and prevalence-weighted behavior remain unvalidated. |
+| Label integrity | Satisfied for v4.9 | Original label source retained; assisted/provider/synthetic evidence cannot be called human-reviewed; zero labels authored | Existing assisted-source rows remain visible and must not be misrepresented. |
+| Leakage and evaluation discipline | Satisfied | Dedicated fit/calibration/threshold/final roles, duplicate-group containment, five passing leakage audits, locked external evidence | True device-disjoint holdout is unavailable because current evidence represents one firewall. |
+| Honest readiness | Satisfied | All split and calibration failures are reported; readiness remains `candidate_only` with 3/5 governance checks | No strategy passes every strict split or the external gate. |
+| AI/response safety | Satisfied | Database/artifact unchanged; zero label/model/response writes; automation and real blocking disabled | Independent evidence is required before activation can be reconsidered. |
+| Change workflow | Satisfied | v4.9 status, T1-T20, PRD, traceability, taskboard, tests, exact allowlist, and completed local verification | Future publication still requires a separately approved exact commit scope. |
+
+## v5.1 Governed Supervised Shadow Activation Compliance Status
+
+| Rule | Current Status | Evidence | Remaining Gap |
+| --- | --- | --- | --- |
+| Source evidence / no guessing | Satisfied | Runtime, registry, feature, label-provenance, v4.9 split, locked external, and private aggregate evidence are recorded in `docs/V5_1_SUPERVISED_SHADOW_ACTIVATION.md` | Private traffic has no independent ground truth and cannot support an accuracy claim. |
+| Label integrity | Satisfied | Latest eligible reviewed rows only; source provenance retained; weak/unreviewed rows excluded; zero labels created or overwritten | Assisted-source reviewed rows must continue to be distinguished from manually authored labels. |
+| Artifact governance | Satisfied for shadow | Versioned ignored artifact, metadata digest, binary checksum, dataset fingerprint, feature version, threshold, calibration, code revision, and registry lifecycle | Durable shared-host artifact custody, signing, retention, and monitoring remain future deployment work. |
+| Honest activation | Satisfied | 0/5 strict splits and failed external gate force `shadow_observation`; `decision_support` fails closed and production promotion is rejected | Temporal stability, suspicious recall, calibration, and schema transfer remain blockers. |
+| Response safety | Satisfied | Rules remain authoritative; shadow output cannot create/suppress alerts, change severity, or execute response; private validation created zero responses | Any future response integration requires a separate approved safety design. |
+| Privacy and repo hygiene | Satisfied | Private run returned safe aggregates only; configured DB and artifacts unchanged; private path/raw rows/identifiers/secrets absent; artifact/reports ignored | Independently reviewed real-source evidence must use an approved protected workflow. |
+| Change workflow | Satisfied locally | Status doc, T1-T20, PRD, traceability, runbook, taskboard, tests, and exact v5.1 allowlist | Commit/push require separate explicit approval. |
+
+## v5.2 Shadow Reliability And Layered Repair Compliance Status
+
+| Rule | Current Status | Evidence | Remaining Gap |
+| --- | --- | --- | --- |
+| No guessing / source evidence | Satisfied | Reproduced 21-row failure matrix, before/after layered reports, split/calibration/drift output, private aggregate evidence | Private traffic lacks ground truth; external/source-independent evidence remains insufficient. |
+| Detection authority and safety | Satisfied | Rules alone determine alert eligibility; anomaly/supervised/hybrid evidence is advisory; 288/288 controlled runs and zero responses | Real-device behavior is not established by synthetic scenarios. |
+| Evaluation discipline | Satisfied | Separate fit/calibration/threshold/final roles, duplicate-group containment, temporal/proxy/random views, source holdout fails closed | Fewer than two independent reviewed source devices prevents a true source holdout. |
+| Honest model governance | Satisfied | Leading comparator is explicitly not selected; 0/6 strict views; lifecycle remains shadow; external benchmark remains locked/failed | Temporal FPR, suspicious recall, calibration, and schema transfer fail. |
+| Privacy-safe monitoring | Satisfied locally | Existing model-run/audit tables store aggregate-only telemetry; raw/private evidence excluded | Scheduled shared-host snapshot retention and monitoring remain operational work. |
+| Label integrity | Satisfied | No labels created or overwritten; assisted provenance retained and not called human-authored | Independently reviewed multi-device evidence remains required. |
+| Change workflow | Satisfied locally | v5.2 status, T1-T20, PRD, traceability, taskboard, tests, and exact allowlist | Commit/push require separate explicit approval. |
+
+## v5.3 Temporal Generalization And OOD Compliance Status
+
+| Rule | Current Status | Evidence | Remaining Gap |
+| --- | --- | --- | --- |
+| No guessing / source evidence | Satisfied | Frozen fingerprint/state, measured chronological distributions, threshold behavior, rolling windows, and OOD diagnostics | Current evidence cannot prove behavior on a second real device or new time regime. |
+| Evaluation discipline | Satisfied | Dedicated fit/calibration/threshold/final roles, disjoint rolling futures, final/external labels excluded from tuning | Every strategy still fails at least one strict view; source holdout fails closed. |
+| Honest uncertainty | Satisfied | Fit-only OOD profile, `insufficient_model_evidence`, abstentions counted in analyst queue/FPR | Abstention cannot repair the dominant chronological target/provenance shift. |
+| Label integrity | Satisfied | Zero labels authored or overwritten; original manual/assisted provenance retained | New independently reviewed chronological evidence requires a governed human/provider process. |
+| AI/response safety | Satisfied | No activation, artifact, promotion, response, automation, or blocking; rules remain authoritative | No v5.3 result authorizes lifecycle advancement. |
+| Repo hygiene | Satisfied by scope | Generated reports remain ignored; exact v5.3 allowlist excludes private/protected artifacts | Future commit/push requires separate exact-scope approval and a fresh hygiene audit. |
+| Change workflow | Satisfied locally | v5.3 status, T1-T20, PRD, traceability, compliance, runbook, taskboard, tests, and allowlist | Final verification evidence must stay synchronized with the exact worktree. |
+
+## v5.4 Temporal Evidence And Shadow Drift Compliance Status
+
+| Rule | Current Status | Evidence | Remaining Gap |
+| --- | --- | --- | --- |
+| No guessing / source evidence | Satisfied | Tracked role/artifact fingerprints, measured chronological distributions, duplicate audit, private aggregate preflight | Current evidence still represents one real device and no new independent ground truth. |
+| Evaluation-role integrity | Satisfied | Final 532 and quarantine 236 rows are excluded; development/final overlap is zero; external evidence remains locked | Future evidence versions require explicit new locks and approval. |
+| Label provenance integrity | Satisfied | 918 genuinely human-reviewed and 549 assisted/weak development rows are distinguished; no label is authored | Assisted review-pack rows require human confirmation and remain non-import-ready. |
+| Privacy and private-data handling | Satisfied | CLI-only private path, disposable aggregate scanning, no path/raw/IP/secret output, no configured DB import | Approved storage/retention policy is still required for shared-host evidence collection. |
+| Honest model/drift governance | Satisfied | `OOD Warning`, insufficient independent evidence, no selected candidate, lifecycle `shadow_observation` | New multi-device chronological evidence and a new untouched benchmark are required. |
+| AI/response safety | Satisfied | No label/model/detection/response/artifact write; rules remain alert-authoritative; automation/blocking false | No v5.4 result authorizes lifecycle advancement. |
+| Change workflow | Satisfied locally | v5.4 status, T1-T20, PRD, traceability, compliance, runbook, taskboard, tests, and exact allowlist | Commit/push require separate explicit approval. |
+
+## v5.5 Development Model Repair And Anomaly Audit Compliance Status
+
+| Rule | Current Status | Evidence | Remaining Gap |
+| --- | --- | --- | --- |
+| No guessing / source evidence | Satisfied | Exact v5.4 role lock, measured nested development folds, frozen diagnostic fingerprint, one-shot locked regression, and IsolationForest aggregates | Current evidence still represents one real source and clustered review periods. |
+| Evaluation-role integrity | Satisfied | 1,467 development rows used for selection; 532 temporal-final and 236 quarantine rows excluded; locked result read only after freeze | New evidence versions require a new lock; rolling/external evidence remains unavailable for tuning. |
+| Label provenance integrity | Satisfied | Provenance-aware sample weighting changes no labels and never treats assisted evidence as new human review | Independent human-reviewed multi-device evidence remains required. |
+| Honest model governance | Satisfied | Best development leader passes 0/3 strict folds; locked recall/calibration failures remain visible; lifecycle stays `shadow_observation` | No supervised strategy currently meets all fixed gates. |
+| Anomaly reliability honesty | Satisfied | Development FPR/threat capture, controlled benign queue, and locked chronological rate are all reported separately | Existing IsolationForest is not reliable as a standalone detector across regimes. |
+| AI/response safety | Satisfied | Database/artifacts unchanged; zero labels/model runs/detection runs/responses; rules remain authoritative | No v5.5 result authorizes activation, promotion, automation, or blocking. |
+| Change workflow | Satisfied locally | v5.5 status, T1-T20, PRD, traceability, compliance, runbook, taskboard, tests, and exact allowlist | Commit/push require separate explicit approval. |
+
+## v5.6 Private PAN-OS Evidence And Assisted Repair Compliance Status
+
+| Rule | Current Status | Evidence | Remaining Gap |
+| --- | --- | --- | --- |
+| No guessing / source evidence | Satisfied | Complete measured private-file aggregates, exact v5.4 lock match, predeclared roles, candidate freeze, and before/after state | Assisted policy agreement is not independent analyst truth. |
+| Privacy and private-data handling | Satisfied | CLI-only path, bounded disposable SQLite, aggregate reports, redaction scan, no configured-DB import | Shared-host private-evidence custody and retention remain external. |
+| Chronological/evaluation integrity | Satisfied | Roles declared before labeling; zero exact/near cross-role families; future labels sealed until freeze; locked v5.3 roles excluded | One device and 19 short minute windows do not prove broad temporal/device generalization. |
+| Label provenance integrity | Satisfied | Every private decision has assisted provenance and `human_reviewed=false`; ambiguous rows excluded; no import-ready human file | Independently reviewed private labels remain unavailable. |
+| Honest model governance | Satisfied | Strong private future metrics are explicitly weak-policy agreement; max confidence gap and all independence blockers remain visible | No strategy passes all complete gates; no production accuracy claim is allowed. |
+| Anomaly reliability honesty | Satisfied | Four contamination options and per-regime rates reported; selected diagnostic still misses suspicious evidence | IsolationForest remains advisory and cannot create alerts. |
+| AI/response safety | Satisfied | Configured DB and active artifacts unchanged; zero label/model/detection/alert/response writes; rules authoritative | No v5.6 result authorizes activation, promotion, automation, or blocking. |
+| Change workflow | Satisfied locally | v5.6 status, T1-T20, PRD, traceability, compliance, runbook, taskboard, tests, and exact 20-path allowlist | Commit/push require separate explicit approval. |
+
+## v5.7 Independent Evidence And Blind Revalidation Compliance Status
+
+| University / ATDR rule | Status | Current evidence | Remaining gap / next action |
+| --- | --- | --- | --- |
+| No guessing / source evidence | Satisfied | v5.3-v5.6 role, manifest, code, and artifact fingerprints are audited; official dataset sources and limitations are recorded | No fresh native PAN-OS-compatible labeled corpus was found. |
+| Evidence-role integrity | Satisfied | Opened final/rolling/external/private-future evidence is explicitly non-independent and fails closed for fresh validation | Acquire independently governed source/time evidence. |
+| Label integrity | Satisfied | Only human, advisor-approved human, or provider ground truth can enter blind evaluation; assisted labels are rejected | Human/provider review has not been supplied. |
+| Prediction-before-label | Satisfied | Immutable prediction freeze, prediction-blind review pack, evidence-contract hash, and one-time sealed reveal | Advisor acknowledgement and reveal approval are external. |
+| Fixed readiness gate | Satisfied | Gates are declared before reveal and include quality, calibration, leakage, source/time, and no-guard-suppression checks | No blind evaluation can run without qualified evidence. |
+| Privacy / repo hygiene | Satisfied | Disposable storage and aggregate-only output omit private paths, raw logs, IPs, row values, and secrets; generated evidence remains ignored | Shared evidence storage/retention approval remains future work. |
+| AI/response safety | Satisfied | Frozen candidate is inactive, rules remain authoritative, IsolationForest is advisory, and response automation/blocking remain disabled | Any later lifecycle change requires separate review and approval. |
+| Change workflow | Satisfied locally | v5.7 status, T1-T20, acquisition protocol, PRD, traceability, compliance, runbook, taskboard, tests, and exact allowlist | Commit/push require separate explicit approval. |
+
+## v5.8 Governed Shadow Runtime Compliance Status
+
+| University / ATDR rule | Status | Evidence | Remaining gap |
+| --- | --- | --- | --- |
+| Source evidence and no guessing | Satisfied | Runtime validates the exact v5.7 artifact/code/feature/calibration/threshold contract and exposes individual check results | Independent provider/human evidence is still unavailable. |
+| Testing and release gate | Satisfied locally | Contract tamper, bounds, idempotency, redaction, endpoint auth, no-write, lifecycle, and UI tests plus complete release matrix | Approved-host scheduling/load evidence remains future work. |
+| AI safety | Satisfied | Disabled by default; no fallback; no labels/accuracy; lifecycle `shadow_observation`; rules authoritative | Candidate cannot advance until all independent fixed gates pass. |
+| Response safety | Satisfied | Zero response actions; automation and real blocking false | Real response integration remains separately governed future work. |
+| Privacy and repo hygiene | Satisfied | API/CLI/UI return no raw rows, IPs, paths, hashes, feature names, row fingerprints, or secrets; private/generated evidence stays ignored | Future evidence needs an approved protected transfer/review process. |
+| Evidence integrity | Satisfied | Reused v5.3-v5.7 evidence fails intake; no blind metrics without sealed independent labels | Two real devices, two new periods, labels, and advisor approval remain external. |
+| T1-T20 and taskboard | Satisfied locally | v5.8 status/change record, traceability, PRD, compliance, runbook, taskboard, and exact allowlist | Commit/push require separate explicit approval. |
+
+## v5.9 Longitudinal Shadow Observation Compliance Status
+
+| University / ATDR rule | Status | Evidence | Remaining gap |
+| --- | --- | --- | --- |
+| Source evidence and no guessing | Satisfied | Exact v5.8 candidate/runtime composition, additive aggregate schema, measured 773,551-row private pass, and official-source evidence review | No freshly acquired native PAN-OS independently labeled corpus exists. |
+| Testing and release gate | Satisfied locally | Disabled default, idempotency, bounds, redaction, RBAC, job retry/cancel, retention, no-mutation, `708 passed, 1 skipped`, Playwright `26 passed, 1 skipped`, controlled `24/24`, layered `288/288`, and release gate green | Approved-host worker scheduling and long-term operational history remain future evidence. |
+| Evaluation and label integrity | Satisfied | Reused private evidence is explicitly development-only; no accuracy is calculated; no labels are authored; no assisted pack is generated without new ambiguity | Two devices, two periods, hidden allowed labels, and advisor approval remain external. |
+| AI safety | Satisfied | Observations are aggregate/advisory, scoring and recording are disabled by default, lifecycle remains `shadow_observation`, and no model is activated/promoted | Independent fixed gates have not run. |
+| Response safety | Satisfied | Rules remain authoritative; zero alert/case/response authority is granted; automation and real blocking remain disabled | Any future ML authority or response connector needs a separate approved design. |
+| Privacy and repo hygiene | Satisfied | Private inspection uses disposable storage; API/CLI/job/UI omit paths, raw rows, IPs, fingerprints, labels, feature lists, and secrets | Approved external evidence transfer/custody remains required. |
+| Retention and audit | Satisfied for aggregate table | Retention is explicit, previewable, admin-only, table-scoped, and audited | Deployment scheduling/retention policy approval remains external. |
+| T1-T20 and taskboard | Satisfied locally | v5.9 status, change record, acquisition brief, PRD, traceability, compliance, runbook, taskboard, and exact allowlist | Commit/push require separate explicit approval. |
+
+## v5.10 Detection Operations And Shadow Acceptance Compliance Status
+
+| University / ATDR rule | Status | Evidence | Remaining gap |
+| --- | --- | --- | --- |
+| Source evidence and no guessing | Satisfied | Four existing configured-database source scopes and eight bounded chronological scopes were measured; results are explicitly reused development operational evidence | No new independent labels or devices were supplied. |
+| Evaluation integrity | Satisfied | No locked label is read, no accuracy is calculated, and every scope is marked non-independent | A preregistered independent multi-device blind evaluation remains external. |
+| Privacy and data minimization | Satisfied | API/CLI/UI omit source identity, logs, IPs, paths, fingerprints, labels, and secrets | Approved external evidence transfer/custody remains required. |
+| Operational reliability | Satisfied locally with warnings visible | Eight of eight scopes completed; rerun reused eight of eight idempotency keys; all eight operational gates passed | OOD and queue/disagreement variation remain active warnings. |
+| Performance gate | Satisfied locally | Cold Governance profiling improved from the roughly ten-second dataset profile bottleneck to `0.290613s`; smoke cold/warm were `0.2676s`/`0.2520s` with equivalent responses | Approved-host PostgreSQL performance remains environment-backed work. |
+| AI and response safety | Satisfied | Zero authoritative mutations, lifecycle `shadow_observation`, rules authoritative, IsolationForest advisory, no activation/promotion/automation/blocking | Any authority change requires independent evidence and a separate approved change. |
+| T1-T20 and taskboard | Satisfied locally | v5.10 status, change record, PRD, traceability, compliance, runbook, product status, taskboard, tests, and exact allowlist | Commit/push require separate explicit approval. |
+
+## v5.11 Operational Drift And Shadow Monitoring Compliance Status
+
+| University / ATDR rule | Status | Evidence | Remaining gap |
+| --- | --- | --- | --- |
+| Source evidence and no guessing | Satisfied | Eight measured aggregate observations are classified by explicit threshold/root-cause rules; no correctness assumption is made | Ground-truth labels and independent devices remain unavailable. |
+| Evaluation integrity | Satisfied | Accuracy is explicitly false, labels are not accessed, and warnings are described only as operational distribution/quality evidence | Independent blind validation remains external. |
+| Privacy and data minimization | Satisfied | Public v5.9 source ID removed; diagnostics/API/CLI/job/UI omit identity, logs, IPs, paths, fingerprints, labels, and secrets | Approved external evidence custody remains required. |
+| Monitoring reliability | Satisfied locally | Fixed thresholds, conservative hysteresis, bounded durable job, cadence idempotency, retry, cancellation, and duplicate suppression are tested | Approved external scheduler/worker deployment remains environment-backed. |
+| Retention and audit | Satisfied by disposable rehearsal | Preview deleted one expired aggregate row, preserved all authoritative entities, created one audit event, and never accessed the configured database | Any real retention application remains an explicit admin decision. |
+| AI and response safety | Satisfied | Rules authoritative, IsolationForest advisory, lifecycle `shadow_observation`, no activation/promotion/automation/blocking | Any authority change requires a separate approved evidence-backed change. |
+| T1-T20 and taskboard | Satisfied locally | v5.11 status, change record, PRD, traceability, compliance, runbook, taskboard, tests, and exact allowlist | Commit/push require separate explicit approval. |
+
+## v5.12 Parser-Profile Baseline Repair Compliance Status
+
+| University / ATDR rule | Status | Evidence | Remaining gap |
+| --- | --- | --- | --- |
+| Source evidence and no guessing | Satisfied | Official PAN-OS field contracts, complete 773,551-row aggregate audit, frozen v5.11 fingerprints, and source/tests are cited | No real SYSTEM row is available; that contract is official/synthetic only. |
+| Evaluation integrity | Satisfied | Baselines use governed development-fit aggregates only; labels, accuracy, and locked-final evidence are excluded | Independent labeled multi-device validation remains external. |
+| Privacy and data minimization | Satisfied | Private CLI returns no path, raw row, IP, source identity, row fingerprint, or secret | Approved shared evidence custody remains external. |
+| Parser truthfulness | Satisfied | Structural failures, unresolved applications, absent fields, unsupported profiles, and raw fallback are distinct | Historical rows retain legacy parser metadata by design. |
+| Controlled non-regression | Satisfied | Frozen v5.11 diagnostics and 96-run controlled projection match; configured-database deltas are zero | Controlled data does not replace real device diversity. |
+| AI and response safety | Satisfied | Rules authoritative, IsolationForest advisory, lifecycle `shadow_observation`, no activation/promotion/automation/blocking | Any authority change requires a separate approved change. |
+| T1-T20 and taskboard | Satisfied locally | v5.12 status, change record, PRD, traceability, compliance, runbook, taskboard, tests, and exact allowlist | Commit/push require separate explicit approval. |
+
+## v5.13 Runtime Parser Contract And Source Quality Compliance Status
+
+| University / ATDR rule | Status | Evidence | Remaining gap |
+| --- | --- | --- | --- |
+| Source evidence and no guessing | Satisfied | Shared runtime service, every ingestion path, additive migration, API/UI, tests, and frozen comparison evidence are cited | Real SYSTEM and multiple independent devices remain unavailable. |
+| Historical evidence integrity | Satisfied | Existing raw/normalized rows were neither updated nor reparsed; 11 source aggregates started empty | Any future reparse requires a separate reviewed and reversible change. |
+| Parser truthfulness | Satisfied | Structural errors, warnings, layout states, application resolution, generic syslog, and raw fallback are separately reported | Generic/raw comparable drift baselines remain unavailable. |
+| Privacy and data minimization | Satisfied | Alerts and preview omit raw logs, IPs, source identity, private paths, labels, fingerprints, and secrets | Approved external evidence custody remains external. |
+| Operational reliability | Satisfied locally | Fixed baseline/latest-window comparison, privacy-safe alerts, resumable aggregates, and source troubleshooting are tested | Long-duration real-device forwarding remains external validation. |
+| Controlled non-regression | Satisfied | Frozen v5.11 diagnostics and 96/96 controlled projection match with zero authoritative mutation | Controlled evidence does not replace independent blind labels. |
+| AI and response safety | Satisfied | Rules remain authoritative; ML advisory; no label/model/response authority change | Independent governed evidence remains required before lifecycle advancement. |
+| T1-T20 and taskboard | Satisfied locally | v5.13 status, change record, PRD, traceability, compliance, runbook, taskboard, tests, and exact allowlist | Commit/push require separate explicit approval. |

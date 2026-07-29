@@ -6,13 +6,24 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class ImportResult(BaseModel):
     source: str
+    source_label: str | None = None
+    requested_limit: int | None = None
+    available_lines: int | None = None
     imported: int
+    raw_logs_imported: int = 0
+    normalized_logs_created: int = 0
     parsed: int
+    parsed_successfully: int = 0
     failed: int
+    parse_failures: int = 0
     duplicate_raw_logs: int = 0
+    alerts_created: int = 0
+    alerts_deduplicated: int = 0
+    alerts_suppressed: int = 0
     run_id: int | None = None
     job_id: int | None = None
     source_id: int | None = None
+    parser_quality: dict[str, Any] = Field(default_factory=dict)
 
 
 class NormalizedLogRead(BaseModel):

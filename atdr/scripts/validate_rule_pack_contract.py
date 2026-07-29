@@ -7,6 +7,7 @@ from typing import Any
 
 from atdr.app.core.config import PROJECT_ROOT
 from atdr.app.detection.attack_mapping import ATTACK_TYPE_MAPPINGS
+from atdr.app.detection.rule_catalog import RULE_CATALOG, RULE_CATALOG_VERSION
 from atdr.scripts.run_source_scenario import SCENARIOS, SCENARIO_DIR
 
 
@@ -69,6 +70,19 @@ def validate_rule_pack_contract() -> dict[str, Any]:
     missing_rule_docs = sorted(implemented_rules - documented_rules)
     if missing_rule_docs:
         issues.append(f"Rule contract is missing implemented rule ids: {', '.join(missing_rule_docs)}")
+    missing_catalog_entries = sorted(implemented_rules - set(RULE_CATALOG))
+    orphan_catalog_entries = sorted(set(RULE_CATALOG) - implemented_rules)
+    if missing_catalog_entries:
+        issues.append(f"Rule catalog is missing implemented rule ids: {', '.join(missing_catalog_entries)}")
+    if orphan_catalog_entries:
+        issues.append(f"Rule catalog contains unimplemented rule ids: {', '.join(orphan_catalog_entries)}")
+    for code, spec in sorted(RULE_CATALOG.items()):
+        if not spec.rule_id or not spec.version or not spec.status:
+            issues.append(f"{code}: catalog identity/version/status is incomplete")
+        if not spec.log_sources or not spec.required_fields or not spec.condition:
+            issues.append(f"{code}: log source, required fields, and condition are required")
+        if not spec.false_positives or not spec.references or not spec.claim_boundary:
+            issues.append(f"{code}: false positives, references, and claim boundary are required")
 
     expectations = _load_expectations()
     scenario_names = set(SCENARIOS)
@@ -120,6 +134,8 @@ def validate_rule_pack_contract() -> dict[str, Any]:
         "ok": not issues,
         "implemented_rule_count": len(implemented_rules),
         "documented_rule_count": len(implemented_rules & documented_rules),
+        "catalog_rule_count": len(implemented_rules & set(RULE_CATALOG)),
+        "rule_catalog_version": RULE_CATALOG_VERSION,
         "scenario_count": len(scenario_names),
         "documented_scenario_count": len(scenario_names & documented_scenarios),
         "expectation_count": len(expectation_names),

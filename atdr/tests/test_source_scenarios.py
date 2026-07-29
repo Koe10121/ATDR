@@ -142,10 +142,21 @@ def test_generic_and_raw_fallback_scenarios_preserve_evidence():
     assert generic["ok"] is True
     assert generic["source_after"]["health"]["status"] == "warning"
     assert generic["expected_outcome"]["source_counts"]["raw_logs"] == 3
+    assert generic["import_results"][0]["parser_quality"][
+        "generic_syslog_rows"
+    ] == 3
     assert fallback["ok"] is True
-    assert fallback["source_after"]["health"]["status"] == "error"
+    assert fallback["source_after"]["health"]["status"] == "warning"
+    assert fallback["source_after"]["health"]["parser_quality_state"] == "warning"
+    assert fallback["source_after"]["health"]["raw_fallback_count"] == 3
     assert fallback["source_after"]["parse_failure_count"] == 3
     assert fallback["expected_outcome"]["source_counts"]["raw_logs"] == 3
+    assert fallback["import_results"][0]["parser_quality"][
+        "raw_fallback_rows"
+    ] == 3
+    assert fallback["expected_outcome"]["response_safety"][
+        "automatic_response_actions_created"
+    ] == 0
 
 
 def test_source_scenario_disable_preserves_existing_rows():

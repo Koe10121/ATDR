@@ -38,7 +38,18 @@ const statusClass: Record<string, string> = {
   trained: "border-success/30 bg-success/10 text-success",
   "needs labels": "border-amber/30 bg-amber/10 text-amber",
   "active artifact ready": "border-success/30 bg-success/10 text-success",
-  "no active artifact": "border-amber/30 bg-amber/10 text-amber"
+  "active decision-support artifact": "border-cyan/30 bg-cyan/10 text-cyan",
+  "active metadata unavailable": "border-amber/30 bg-amber/10 text-amber",
+  "no active artifact": "border-amber/30 bg-amber/10 text-amber",
+  "Frozen Diagnostic Candidate": "border-cyan/30 bg-cyan/10 text-cyan",
+  "Independent Evidence Available": "border-success/30 bg-success/10 text-success",
+  "Independent Evidence Pending": "border-amber/30 bg-amber/10 text-amber",
+  "Shadow Observation": "border-slate-400/30 bg-slate-400/10 text-slate-600",
+  "Rules Authoritative": "border-cyan/30 bg-cyan/10 text-cyan",
+  "Shadow Scoring Enabled": "border-success/30 bg-success/10 text-success",
+  "Shadow Scoring Disabled": "border-slate-400/30 bg-slate-400/10 text-slate-600",
+  "Candidate Contract Matched": "border-success/30 bg-success/10 text-success",
+  "Candidate Contract Mismatched": "border-danger/40 bg-danger/10 text-danger"
 };
 
 export function Badge({ value, kind = "status" }: { value?: string | null; kind?: "severity" | "status" }) {

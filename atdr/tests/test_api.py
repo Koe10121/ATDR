@@ -212,6 +212,42 @@ def test_mfu_iam_status_is_authenticated_disabled_by_default_and_hides_secrets(m
         get_settings.cache_clear()
 
 
+def test_governed_shadow_runtime_endpoint_requires_auth_and_hides_private_data(
+    monkeypatch,
+):
+    monkeypatch.setenv("GOVERNED_SHADOW_SCORING_ENABLED", "false")
+    get_settings.cache_clear()
+    client = _client()
+    try:
+        unauthorized = client.get(
+            "/api/ml/supervised/shadow-runtime"
+        )
+        assert unauthorized.status_code == 401
+
+        headers = _login(client, "analyst", "analyst123")
+        response = client.get(
+            "/api/ml/supervised/shadow-runtime",
+            headers=headers,
+        )
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["enabled"] is False
+        assert payload["status"] == "disabled_by_configuration"
+        assert payload["rules_alert_authoritative"] is True
+        assert payload["response_automation_allowed"] is False
+        serialized = json.dumps(payload)
+        assert "artifact_sha256" not in serialized
+        assert payload["candidate_contract"][
+            "artifact_path_returned"
+        ] is False
+        assert "C:\\" not in serialized
+        assert "/Users/" not in serialized
+        assert "raw_line" not in serialized
+    finally:
+        app.dependency_overrides.clear()
+        get_settings.cache_clear()
+
+
 def test_mfu_iam_status_accepts_supervisor_template_env_names_and_hides_secrets(monkeypatch):
     monkeypatch.setenv("MFU_IAM_ENABLED", "true")
     monkeypatch.setenv("IAM_SDK_BASE_URL", "https://iam.mfu.ac.th")
@@ -1414,17 +1450,17 @@ def test_list_filters_support_react_dashboard_tables(tmp_path):
         logs = client.get(
             "/api/logs",
             params={
-                "search": "Allow-Outside",
+                "search": "Synthetic-Allow-Test",
                 "protocol": "icmp",
-                "src_zone": "SG-Outside",
-                "dst_zone": "WLAN-Inside",
+                "src_zone": "Outside-Lab",
+                "dst_zone": "Inside-Lab",
                 "sort_by": "app_risk",
             },
             headers=analyst_headers,
         )
         assert logs.status_code == 200
         assert int(logs.headers["X-Total-Count"]) >= 1
-        assert logs.json()[0]["src_ip"] == "43.210.171.152"
+        assert logs.json()[0]["src_ip"] == "198.51.100.10"
         assert logs.json()[0]["protocol"] == "icmp"
         log_id = logs.json()[0]["id"]
         log_detail = client.get(f"/api/logs/{log_id}", headers=analyst_headers)
@@ -1530,6 +1566,7 @@ def test_source_management_and_import_fallback_source():
         )
         assert imported_with_source.status_code == 200
         assert imported_with_source.json()["source_id"] == source["source_id"]
+        assert imported_with_source.json()["parser_quality"]["observed_rows"] == 2
 
         source_logs = client.get("/api/logs", params={"source_id": source["source_id"]}, headers=analyst_headers)
         assert source_logs.status_code == 200
@@ -1574,6 +1611,20 @@ def test_source_management_and_import_fallback_source():
         assert source_detail.status_code == 200
         assert "quality" in source_detail.json()
         assert "recent_ingestion_runs" in source_detail.json()
+        assert source_detail.json()["health"]["parser_contract_state"] == "current_contract"
+        assert source_detail.json()["quality"]["runtime_observed_rows"] == 2
+        preview = client.get(
+            f"/api/sources/{fallback['source_id']}/reparse-impact-preview",
+            headers=analyst_headers,
+        )
+        assert preview.status_code == 200
+        preview_payload = preview.json()
+        assert preview_payload["preview_only"] is True
+        assert preview_payload["reparse_performed"] is False
+        assert preview_payload["database_mutated"] is False
+        assert preview_payload["raw_evidence_accessed"] is False
+        assert preview_payload["source_identity_included"] is False
+        assert "raw_line" not in str(preview_payload)
     finally:
         app.dependency_overrides.clear()
 
@@ -1792,6 +1843,148 @@ def test_ml_governance_endpoints_are_secured_and_record_runs():
         app.dependency_overrides.clear()
 
 
+def test_governed_supervised_lifecycle_api_is_readable_and_admin_controlled():
+    client = _client()
+    try:
+        unauthorized = client.get("/api/ml/supervised/lifecycle")
+        assert unauthorized.status_code == 401
+
+        analyst_headers = _login(client, "analyst", "analyst123")
+        lifecycle = client.get("/api/ml/supervised/lifecycle", headers=analyst_headers)
+        assert lifecycle.status_code == 200
+        payload = lifecycle.json()
+        assert payload["lifecycle_state"] == "inactive"
+        assert payload["rule_detection_authoritative"] is True
+        assert payload["production_promoted"] is False
+        assert payload["response_automation_allowed"] is False
+        encoded = lifecycle.text.lower()
+        assert "client_secret" not in encoded
+        assert "api_key" not in encoded
+
+        forbidden = client.post("/api/ml/supervised/models/disable", headers=analyst_headers)
+        assert forbidden.status_code == 403
+
+        admin_headers = _login(client, "admin", "admin123")
+        disabled = client.post("/api/ml/supervised/models/disable", headers=admin_headers)
+        assert disabled.status_code == 200
+        assert disabled.json()["lifecycle_state"] == "inactive"
+        assert disabled.json()["evidence_deleted"] is False
+        assert disabled.json()["labels_deleted"] is False
+        assert disabled.json()["response_automation_allowed"] is False
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_shadow_observation_api_is_authenticated_private_and_admin_retained():
+    client = _client()
+    try:
+        unauthorized = client.get(
+            "/api/ml/supervised/shadow-observations/summary"
+        )
+        assert unauthorized.status_code == 401
+        unauthorized_acceptance = client.get(
+            "/api/ml/supervised/shadow-operations/acceptance"
+        )
+        assert unauthorized_acceptance.status_code == 401
+
+        analyst_headers = _login(
+            client,
+            "analyst",
+            "analyst123",
+        )
+        summary = client.get(
+            "/api/ml/supervised/shadow-observations/summary",
+            headers=analyst_headers,
+        )
+        assert summary.status_code == 200
+        payload = summary.json()
+        assert payload["observation_count"] == 0
+        assert payload["rules_alert_authoritative"] is True
+        assert payload["model_activated"] is False
+        assert payload["production_promoted"] is False
+        assert payload["response_automation_allowed"] is False
+        assert payload["raw_logs_included"] is False
+        assert payload["private_paths_included"] is False
+        assert payload["fingerprints_included"] is False
+        assert payload["secrets_exposed"] is False
+
+        plan = client.get(
+            "/api/ml/supervised/shadow-operations/plan",
+            headers=analyst_headers,
+        )
+        assert plan.status_code == 200
+        assert plan.json()["independent_validation"] is False
+        assert plan.json()["source_identifiers_included"] is False
+        assert plan.json()["accuracy_metrics_calculated"] is False
+
+        acceptance = client.get(
+            "/api/ml/supervised/shadow-operations/acceptance",
+            headers=analyst_headers,
+        )
+        assert acceptance.status_code == 200
+        acceptance_payload = acceptance.json()
+        assert acceptance_payload["status"] == (
+            "insufficient_operational_evidence"
+        )
+        assert acceptance_payload["accuracy_metrics_calculated"] is False
+        assert acceptance_payload["rules_alert_authoritative"] is True
+        assert acceptance_payload["model_activated"] is False
+        assert acceptance_payload["source_identifiers_included"] is False
+
+        observations = client.get(
+            "/api/ml/supervised/shadow-observations",
+            headers=analyst_headers,
+        )
+        assert observations.status_code == 200
+        assert observations.json() == []
+
+        forbidden_retention = client.get(
+            (
+                "/api/ml/supervised/shadow-observations/"
+                "retention/preview"
+            ),
+            headers=analyst_headers,
+        )
+        assert forbidden_retention.status_code == 403
+
+        admin_headers = _login(client, "admin", "admin123")
+        retention = client.get(
+            (
+                "/api/ml/supervised/shadow-observations/"
+                "retention/preview"
+            ),
+            headers=admin_headers,
+        )
+        assert retention.status_code == 200
+        assert retention.json()["candidate_count"] == 0
+        assert retention.json()["raw_evidence_affected"] is False
+
+        disabled_job = client.post(
+            "/api/jobs/submit",
+            json={
+                "job_type": "shadow_observation",
+                "payload": {"limit": 20},
+            },
+            headers=admin_headers,
+        )
+        assert disabled_job.status_code == 400
+        assert "disabled by configuration" in disabled_job.json()["detail"]
+
+        encoded = (
+            summary.text
+            + observations.text
+            + retention.text
+            + plan.text
+            + acceptance.text
+        ).lower()
+        assert "client_secret" not in encoded
+        assert "api_key" not in encoded
+        assert "raw_line" not in encoded
+        assert "contract_fingerprint" not in encoded
+    finally:
+        app.dependency_overrides.clear()
+
+
 def test_admin_response_workflow_audit_attribution():
     client = _client()
     try:
@@ -1878,7 +2071,7 @@ def test_watchlist_api_is_admin_only_audited_and_used_by_detection(tmp_path):
             "/api/watchlists",
             json={
                 "indicator_type": "src_ip",
-                "indicator_value": "43.210.171.152",
+                "indicator_value": "198.51.100.10",
                 "description": "Known lab watchlist source.",
                 "severity_boost": 45,
             },
@@ -1899,7 +2092,7 @@ def test_watchlist_api_is_admin_only_audited_and_used_by_detection(tmp_path):
             "/api/watchlists",
             json={
                 "indicator_type": "src_ip",
-                "indicator_value": "43.210.171.152",
+                "indicator_value": "198.51.100.10",
                 "description": "Known lab watchlist source.",
                 "severity_boost": 45,
             },
@@ -2048,5 +2241,52 @@ def test_failed_login_is_audited_and_rate_limited():
         audit = client.get("/api/audit", headers=admin_headers)
         assert audit.status_code == 200
         assert any(row["action"] == "login_failed" and row["target_value"] == "missing-user" for row in audit.json())
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_shadow_monitoring_diagnostics_requires_auth_and_exposes_only_aggregates():
+    client = _client()
+    try:
+        path = "/api/ml/supervised/shadow-operations/diagnostics"
+        assert client.get(path).status_code == 401
+
+        analyst_headers = _login(client, "analyst", "analyst123")
+        response = client.get(path, headers=analyst_headers)
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["accuracy_metrics_calculated"] is False
+        assert payload["source_identifiers_included"] is False
+        assert payload["raw_logs_included"] is False
+        assert payload["labels_accessed"] is False
+        assert payload["model_activated"] is False
+        assert payload["response_automation_allowed"] is False
+        serialized = json.dumps(payload)
+        assert "\"source_id\"" not in serialized
+        assert "raw_line" not in serialized
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_parser_profile_diagnostics_requires_auth_and_hides_private_data():
+    client = _client()
+    try:
+        path = "/api/ml/supervised/shadow-operations/parser-quality"
+        assert client.get(path).status_code == 401
+
+        analyst_headers = _login(client, "analyst", "analyst123")
+        response = client.get(path, headers=analyst_headers)
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["accuracy_metrics_calculated"] is False
+        assert payload["source_identifiers_included"] is False
+        assert payload["raw_logs_included"] is False
+        assert payload["labels_accessed"] is False
+        assert payload["model_activated"] is False
+        assert payload["response_automation_allowed"] is False
+        serialized = json.dumps(payload)
+        assert "\"source_id\"" not in serialized
+        assert "raw_line" not in serialized
+        assert "global_baseline" not in serialized
     finally:
         app.dependency_overrides.clear()

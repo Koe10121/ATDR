@@ -25,6 +25,8 @@ JOB_TYPES = {
     "run_detection",
     "train_ml",
     "apply_ml_scoring",
+    "shadow_observation",
+    "shadow_monitoring_cycle",
     "export_report",
     "validation",
 }
@@ -34,7 +36,17 @@ STALE_JOB_STATUSES = {"queued", "running", "cancel_requested"}
 TERMINAL_JOB_STATUSES = {"completed", "failed", "cancelled"}
 CANCELLABLE_JOB_STATUSES = {"queued", "retry_wait"}
 RETRYABLE_JOB_STATUSES = {"failed", "cancelled"}
-AUTO_RETRY_SAFE_JOB_TYPES = {"export_report"}
+AUTO_RETRY_SAFE_JOB_TYPES = {
+    "export_report",
+    "shadow_observation",
+    "shadow_monitoring_cycle",
+}
+COOPERATIVE_CANCELLABLE_JOB_TYPES = {
+    "import_logs",
+    "replay_logs",
+    "shadow_observation",
+    "shadow_monitoring_cycle",
+}
 MAX_SUMMARY_LENGTH = 500
 MAX_DETAIL_ITEMS = 30
 SENSITIVE_DETAIL_TOKENS = {
@@ -185,6 +197,9 @@ def build_result_summary(job_type: str, result: dict[str, Any] | None) -> dict[s
             "source": result.get("source_label") or result.get("source"),
             "alerts_created": result.get("alerts_created"),
             "alerts_deduplicated": result.get("alerts_deduplicated"),
+            "parser_quality": public_job_details(
+                result.get("parser_quality")
+            ),
         }
     if job_type == "run_detection":
         return {
@@ -213,6 +228,58 @@ def build_result_summary(job_type: str, result: dict[str, Any] | None) -> dict[s
             "scored": result.get("scored"),
             "anomalies": result.get("anomalies"),
             "anomaly_rate": result.get("anomaly_rate"),
+        }
+    if job_type == "shadow_observation":
+        observation = (
+            result.get("observation")
+            if isinstance(result.get("observation"), dict)
+            else {}
+        )
+        return {
+            "status": result.get("status"),
+            "observation_id": observation.get("observation_id"),
+            "observation_created": result.get("observation_created"),
+            "rows_evaluated": observation.get("rows_evaluated"),
+            "queue_count": observation.get("queue_count"),
+            "queue_rate": observation.get("queue_rate"),
+            "drift_status": observation.get("drift_status"),
+            "disagreement_count": observation.get("disagreement_count"),
+            "rules_alert_authoritative": result.get(
+                "rules_alert_authoritative"
+            ),
+            "model_activated": result.get("model_activated"),
+            "response_automation_allowed": result.get(
+                "response_automation_allowed"
+            ),
+        }
+    if job_type == "shadow_monitoring_cycle":
+        acceptance = (
+            result.get("operational_acceptance")
+            if isinstance(result.get("operational_acceptance"), dict)
+            else {}
+        )
+        return {
+            "status": result.get("status"),
+            "planned_scope_count": result.get("planned_scope_count"),
+            "observations_executed": result.get("observations_executed"),
+            "successful_observation_count": result.get(
+                "successful_observation_count"
+            ),
+            "created_observation_count": result.get(
+                "created_observation_count"
+            ),
+            "idempotent_reuse_count": result.get(
+                "idempotent_reuse_count"
+            ),
+            "current_drift_state": (
+                (acceptance.get("drift") or {}).get("current_state")
+                if isinstance(acceptance.get("drift"), dict)
+                else None
+            ),
+            "accuracy_metrics_calculated": False,
+            "rules_alert_authoritative": True,
+            "model_activated": False,
+            "response_automation_allowed": False,
         }
     if job_type == "export_report":
         files = result.get("files")
@@ -679,16 +746,22 @@ def request_job_cancellation(db: Session, job: OperationJob, *, actor: str | Non
         job.cancellation_requested_by = request_actor
         action = "operation_job_cancelled"
         reason = "cancelled_before_worker_start"
-    elif job.status == "running" and job.job_type in {"import_logs", "replay_logs"}:
+    elif (
+        job.status == "running"
+        and job.job_type in COOPERATIVE_CANCELLABLE_JOB_TYPES
+    ):
         job.status = "cancel_requested"
         job.cancellation_requested_at = _now()
         job.cancellation_requested_by = request_actor
         action = "operation_job_cancellation_requested"
-        reason = "worker_will_stop_at_next_committed_chunk_boundary"
+        reason = "worker_will_stop_before_the_next_safe_persist_boundary"
     elif job.status == "cancel_requested":
         return job
     else:
-        raise ValueError("Only queued work or a running resumable import can accept a cancellation request.")
+        raise ValueError(
+            "Only queued work or a running cooperatively cancellable "
+            "operation can accept a cancellation request."
+        )
     _append_job_audit(db, actor=request_actor, action=action, job=job, details={"reason": reason})
     db.add(job)
     db.commit()
@@ -1199,7 +1272,8 @@ def job_to_dict(job: OperationJob) -> dict[str, Any]:
     percentage = round(min(100.0, (progress_current / progress_total) * 100.0), 1) if progress_total else 0.0
     can_retry = job.status in RETRYABLE_JOB_STATUSES and job.job_type not in {"import_logs", "replay_logs"}
     can_request_cancel = job.status in CANCELLABLE_JOB_STATUSES or (
-        job.status == "running" and job.job_type in {"import_logs", "replay_logs"}
+        job.status == "running"
+        and job.job_type in COOPERATIVE_CANCELLABLE_JOB_TYPES
     )
     progress_status = {
         "queued": "waiting_for_worker",

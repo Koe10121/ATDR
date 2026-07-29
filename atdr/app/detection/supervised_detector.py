@@ -1248,6 +1248,17 @@ def supervised_model_report(db: Session) -> dict:
     temporal_coverage = build_class_temporal_coverage(db)
     latest_report = _run_to_report(latest) if latest else None
     latest_metrics = (latest_report or {}).get("metrics") or {}
+    try:
+        from atdr.app.detection.v51_supervised_lifecycle import supervised_lifecycle_status
+
+        lifecycle = supervised_lifecycle_status(db)
+    except Exception:
+        lifecycle = {
+            "lifecycle_state": "inactive",
+            "production_promoted": False,
+            "response_automation_allowed": False,
+            "rule_detection_authoritative": True,
+        }
     return {
         "model_name": MODEL_NAME,
         "model_path": str(path),
@@ -1281,6 +1292,7 @@ def supervised_model_report(db: Session) -> dict:
             "review_profiles": _soc_review_profiles_from_metrics(latest_metrics),
         },
         "decision_support_only": True,
+        "governed_lifecycle": lifecycle,
     }
 
 
@@ -1362,6 +1374,15 @@ def _run_to_report(run: MLModelRun) -> dict:
         "training_dataset_diagnostics": metrics.get("training_dataset_diagnostics", {}),
         "sample_weighting": metrics.get("sample_weighting", {}),
         "threshold_profile": metrics.get("threshold_profile", "balanced"),
+        "target_mode": metrics.get("target_mode"),
+        "calibration_method": metrics.get("calibration_method"),
+        "threshold": metrics.get("threshold"),
+        "strict_gates": metrics.get("strict_gates", {}),
+        "shadow_safety_passed": metrics.get("shadow_safety_passed", False),
+        "runtime_checks": metrics.get("runtime_checks", {}),
+        "selected_strategy_summary": metrics.get("selected_strategy_summary", {}),
+        "external_benchmark": metrics.get("external_benchmark", {}),
+        "lifecycle_state": metrics.get("lifecycle_state", "inactive"),
         "top_features": metrics.get("top_features", []),
         "report_path": metrics.get("report_path"),
         "created_at": run.created_at,
@@ -1430,11 +1451,24 @@ def predict_supervised_log(db: Session, log_id: int, *, rule_score: int = 0, ass
     if imports is None:
         return {"predicted_label": None, "malicious_probability": 0.0, "confidence": 0.0, "top_contributing_features": []}
     _joblib, pd, *_ = imports
-    path = supervised_model_path()
-    if not path.exists():
-        return {"predicted_label": None, "malicious_probability": 0.0, "confidence": 0.0, "top_contributing_features": []}
     log = db.get(NormalizedLog, log_id)
     if log is None:
+        return {"predicted_label": None, "malicious_probability": 0.0, "confidence": 0.0, "top_contributing_features": []}
+    try:
+        from atdr.app.detection.v51_supervised_lifecycle import (
+            score_governed_supervised_log,
+            supervised_lifecycle_status,
+        )
+
+        lifecycle = supervised_lifecycle_status(db)
+        if lifecycle.get("lifecycle_state") in {"shadow_observation", "decision_support"}:
+            return score_governed_supervised_log(db, log)
+    except Exception:
+        # Governed inference is assistive. Legacy/rule behavior remains available
+        # when the lifecycle service itself is unavailable.
+        pass
+    path = supervised_model_path()
+    if not path.exists():
         return {"predicted_label": None, "malicious_probability": 0.0, "confidence": 0.0, "top_contributing_features": []}
     artifact = _load_supervised_artifact(str(path.resolve()), path.stat().st_mtime_ns)
     if artifact is None:

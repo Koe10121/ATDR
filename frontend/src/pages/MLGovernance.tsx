@@ -1,6 +1,17 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis
+} from "recharts";
 import { ChartCard } from "../components/ChartCard";
 import { EmptyState } from "../components/EmptyState";
 import { MetricCard } from "../components/MetricCard";
@@ -17,6 +28,11 @@ import {
   useMlEvidenceSnapshot,
   useMlReport,
   useMlReviewQueue,
+  useParserProfileOperationalDiagnostics,
+  useShadowMonitoringDiagnostics,
+  useShadowOperationalAcceptance,
+  useShadowObservationSummary,
+  useSources,
   useSupervisedModels,
   useSupervisedReport
 } from "../hooks/useApiQueries";
@@ -35,12 +51,23 @@ function metricText(value: unknown) {
   return value === null || value === undefined || value === "" ? "-" : String(value);
 }
 
+function rateText(value: unknown) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? `${(numeric * 100).toFixed(1)}%` : "-";
+}
+
 export function MLGovernance() {
   const report = useMlReport();
   const evidenceSnapshot = useMlEvidenceSnapshot();
   const supervised = useSupervisedReport();
   const productization = useDetectionMlProductization();
   const supervisedModels = useSupervisedModels();
+  const longitudinalShadow = useShadowObservationSummary();
+  const shadowOperations = useShadowOperationalAcceptance();
+  const shadowDiagnostics = useShadowMonitoringDiagnostics();
+  const parserProfileDiagnostics =
+    useParserProfileOperationalDiagnostics();
+  const runtimeSources = useSources({ limit: 100 });
   const temporalCoverage = useClassTemporalCoverage();
   const reviewQueue = useMlReviewQueue({ limit: 25 });
   const labelMutations = useMlLabelMutations();
@@ -98,23 +125,87 @@ export function MLGovernance() {
     return Number(row.train_count ?? 0) === 0 || Number(row.test_count ?? 0) === 0;
   });
   const registry = supervisedModels.data;
-  const activeRegistryModel = registry?.models.find((model) => model.is_active_path) ?? registry?.models[0];
+  const governedLifecycle = registry?.governed_lifecycle;
+  const governedShadowRuntime = governedLifecycle?.governed_shadow_runtime;
+  const governedShadowTelemetry = governedShadowRuntime?.telemetry;
+  const governedShadowDrift =
+    governedShadowTelemetry?.drift?.status ?? "Insufficient Evidence";
+  const longitudinal = longitudinalShadow.data;
+  const operational = shadowOperations.data;
+  const diagnostics = shadowDiagnostics.data;
+  const parserDiagnostics = parserProfileDiagnostics.data;
+  const runtimeParserAlertCount = (runtimeSources.data ?? []).reduce(
+    (total, source) => total + (source.health.operational_alerts?.length ?? 0),
+    0
+  );
+  const runtimeContractSourceCount = (runtimeSources.data ?? []).filter(
+    (source) => source.health.parser_contract_state === "current_contract"
+  ).length;
+  const legacyContractSourceCount = (runtimeSources.data ?? []).filter(
+    (source) =>
+      source.health.parser_contract_state === "legacy_contract" ||
+      source.health.parser_contract_state === "mixed_contract"
+  ).length;
+  const longitudinalTrend = (longitudinal?.trend ?? []).map(
+    (observation, index) => ({
+      name: observation.created_at
+        ? new Date(observation.created_at).toLocaleDateString()
+        : `Run ${index + 1}`,
+      queueRate: Number(observation.queue_rate ?? 0) * 100,
+      disagreementRate:
+        Number(observation.disagreement_rate ?? 0) * 100
+    })
+  );
+  const lifecycleState = governedLifecycle?.lifecycle_state ?? "inactive";
+  const reliabilityValidation = governedLifecycle?.reliability_validation;
+  const durableTelemetry = governedLifecycle?.durable_telemetry;
+  const shadowTelemetry = (durableTelemetry?.available
+    ? durableTelemetry.telemetry
+    : governedLifecycle?.telemetry) ?? {};
+  const shadowLatency = (shadowTelemetry.latency_ms ?? {}) as Record<string, unknown>;
+  const shadowScores = (shadowTelemetry.queue_score_distribution ?? {}) as Record<string, unknown>;
+  const layeredAfter = (reliabilityValidation?.layered_after ?? {}) as Record<string, unknown>;
+  const reliabilityBlockers = reliabilityValidation?.blockers ?? [];
+  const v55Blockers = reliabilityValidation?.v55_blockers ?? [];
+  const v56Blockers = reliabilityValidation?.v56_blockers ?? [];
+  const v57Blockers = reliabilityValidation?.v57_blockers ?? [];
+  const temporalFpr = Number(reliabilityValidation?.temporal_fpr ?? 0);
+  const temporalOodRate = Number(reliabilityValidation?.ood_rate ?? 0);
+  const abstentionMaximum = reliabilityValidation?.abstention_rate_range?.max;
+  const rollingTemporal = reliabilityValidation?.rolling_temporal;
+  const shadowDriftStatus = reliabilityValidation?.shadow_drift_status ?? "Insufficient Evidence";
+  const shadowDriftTone =
+    shadowDriftStatus === "OOD Warning"
+      ? "danger"
+      : shadowDriftStatus === "Drift Warning" || shadowDriftStatus === "Insufficient Evidence"
+        ? "amber"
+        : "teal";
+  const activeArtifactExists = Boolean(registry?.active_artifact_exists);
+  const activeRegistryModel = registry?.models.find((model) => model.is_active_path);
   const activeArtifactMetadataUnknown =
-    Boolean(registry?.active_artifact_metadata_unknown) ||
-    Boolean(activeRegistryModel?.active_artifact_metadata_unknown) ||
-    activeRegistryModel?.model_version === "active-unregistered" ||
-    activeRegistryModel?.model_type === "unknown";
-  const activeModelTypeDisplay = activeArtifactMetadataUnknown
-    ? "Metadata unknown"
-    : activeRegistryModel?.display_model_type ?? activeRegistryModel?.model_type ?? supervisedData?.latest_run?.model_type ?? "-";
-  const activeFeatureSetDisplay = activeArtifactMetadataUnknown
-    ? "Metadata unavailable"
-    : activeRegistryModel?.display_feature_set ?? activeRegistryModel?.feature_set_version ?? "-";
-  const registryBadge = activeArtifactMetadataUnknown
-    ? "artifact metadata unknown"
-    : registry?.active_artifact_exists
-      ? "active artifact ready"
-      : "no active artifact";
+    activeArtifactExists &&
+    (Boolean(registry?.active_artifact_metadata_unknown) ||
+      Boolean(activeRegistryModel?.active_artifact_metadata_unknown) ||
+      !activeRegistryModel ||
+      activeRegistryModel.model_version === "active-unregistered" ||
+      activeRegistryModel.model_type === "unknown");
+  const activeModelTypeDisplay = !activeArtifactExists
+    ? "None"
+    : activeArtifactMetadataUnknown
+      ? "Metadata unknown"
+      : activeRegistryModel?.display_model_type ?? activeRegistryModel?.model_type ?? "-";
+  const activeFeatureSetDisplay = !activeArtifactExists
+    ? "-"
+    : activeArtifactMetadataUnknown
+      ? "Metadata unavailable"
+      : activeRegistryModel?.display_feature_set ?? activeRegistryModel?.feature_set_version ?? "-";
+  const registryBadge = lifecycleState === "shadow_observation"
+    ? "shadow active"
+    : lifecycleState === "decision_support"
+      ? "decision support active"
+      : activeArtifactMetadataUnknown
+        ? "active metadata unavailable"
+        : "supervised inactive";
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<string | null>(null);
   const [benchmarkImportResult, setBenchmarkImportResult] = useState<string | null>(null);
@@ -305,6 +396,8 @@ export function MLGovernance() {
     void supervised.refetch();
     void productization.refetch();
     void supervisedModels.refetch();
+    void longitudinalShadow.refetch();
+    void shadowOperations.refetch();
     void temporalCoverage.refetch();
     void reviewQueue.refetch();
   }
@@ -448,7 +541,7 @@ export function MLGovernance() {
             </>
           )}
         </div>
-        <div className="mt-4 rounded-lg border border-line bg-panel2 p-4">
+        <div className="mt-4 rounded-lg border border-line bg-panel2 p-4" data-testid="supervised-model-registry">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div>
               <div className="text-xs font-extrabold uppercase tracking-wide text-muted">Supervised Model Registry</div>
@@ -458,11 +551,639 @@ export function MLGovernance() {
             </div>
             <Badge value={registryBadge} />
           </div>
-          <div className="grid gap-3 md:grid-cols-4">
-            <MetricCard label="Active Artifact" value={activeModelTypeDisplay} detail={activeArtifactMetadataUnknown ? "Legacy or unregistered artifact" : "Current classifier family"} tone="cyan" />
-            <MetricCard label="Feature Set" value={activeFeatureSetDisplay} detail="Versioned feature pipeline" tone="teal" />
-            <MetricCard label="Registry Entries" value={registry?.models.length ?? 0} detail="Recent train/activate/rollback runs" tone="amber" />
-            <MetricCard label="Auto Response" value={String(registry?.response_automation_allowed ?? false)} detail="Must remain disabled" tone="danger" />
+          <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+            <MetricCard
+              label="Lifecycle"
+              value={lifecycleState.replaceAll("_", " ")}
+              detail={governedLifecycle?.status_message ?? "Rules remain authoritative"}
+              tone="cyan"
+            />
+            <MetricCard
+              label="Model"
+              value={activeModelTypeDisplay}
+              detail={governedLifecycle?.model_version ?? (!activeArtifactExists ? "No governed artifact" : "Registered artifact")}
+              tone="teal"
+            />
+            <MetricCard label="Feature Set" value={activeFeatureSetDisplay} detail="Leakage-controlled causal features" tone="teal" />
+            <MetricCard
+              label="Calibration"
+              value={(governedLifecycle?.calibration_status ?? "not active").replaceAll("_", " ")}
+              detail={governedLifecycle?.calibration_method ?? "No active calibration"}
+              tone={governedLifecycle?.calibration_status === "passed_all_splits" ? "teal" : "amber"}
+            />
+            <MetricCard
+              label="Validation"
+              value={(governedLifecycle?.validation_status ?? "not active").replaceAll("_", " ")}
+              detail={governedLifecycle?.decision_support_eligible ? "Strict gates passed" : "Shadow evidence only"}
+              tone={governedLifecycle?.decision_support_eligible ? "teal" : "amber"}
+            />
+            <MetricCard label="Response Automation" value="Disabled" detail="No model may execute containment" tone="danger" />
+          </div>
+          <div className="mt-4 border-t border-line pt-4" data-testid="shadow-reliability-summary">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-xs font-extrabold uppercase tracking-wide text-muted">Shadow Reliability</div>
+                <div className="mt-1 text-sm text-muted">
+                  Aggregate monitoring and diagnostic validation. Rule detection remains alert-authoritative.
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Badge value="rules authoritative" />
+                <Badge value="diagnostic only" />
+              </div>
+            </div>
+            <div className="grid gap-3 md:grid-cols-3">
+              <MetricCard
+                label="Split Stability"
+                value={reliabilityValidation?.available
+                  ? `${reliabilityValidation.strict_passing_splits ?? 0}/${reliabilityValidation.required_splits ?? 0}`
+                  : "Not evaluated"}
+                detail={reliabilityValidation?.available
+                  ? `${reliabilityValidation.evaluated_splits ?? 0} evaluated; ${reliabilityValidation.failed_closed_splits?.length ?? 0} failed closed`
+                  : "Run the current reliability evaluation"}
+                tone="amber"
+              />
+              <MetricCard
+                label="Layered Validation"
+                value={reliabilityValidation?.available
+                  ? `${metricText(layeredAfter.passed_count)}/${metricText(layeredAfter.mode_run_count)}`
+                  : "Not loaded"}
+                detail={reliabilityValidation?.available
+                  ? `${metricText(layeredAfter.false_positive_count)} FP / ${metricText(layeredAfter.false_negative_count)} FN`
+                  : "Controlled rules, anomaly, supervised, hybrid matrix"}
+                tone={Number(layeredAfter.failed_count ?? 1) === 0 ? "teal" : "amber"}
+              />
+              <MetricCard
+                label="Shadow Inferences"
+                value={metricText(shadowTelemetry.inference_count)}
+                detail={durableTelemetry?.available ? "Latest durable aggregate snapshot" : "Current backend process"}
+                tone="cyan"
+              />
+              <MetricCard
+                label="Queue Rate"
+                value={rateText(shadowTelemetry.queue_rate)}
+                detail="Shadow review recommendations"
+                tone="cyan"
+              />
+              <MetricCard
+                label="P95 Latency"
+                value={shadowLatency.p95 === undefined ? "-" : `${metricText(shadowLatency.p95)} ms`}
+                detail="Per-row shadow inference"
+                tone="teal"
+              />
+              <MetricCard
+                label="Drift Warnings"
+                value={(durableTelemetry?.drift_warnings?.length ?? 0) + (reliabilityValidation?.drift_warning_splits ?? 0)}
+                detail={`${reliabilityValidation?.drift_warning_splits ?? 0} validation splits`}
+                tone={(durableTelemetry?.drift_warnings?.length ?? 0) + (reliabilityValidation?.drift_warning_splits ?? 0) ? "amber" : "teal"}
+              />
+              <MetricCard
+                label="Inference Failures"
+                value={metricText(shadowTelemetry.failure_count)}
+                detail="Rule processing continues on failure"
+                tone={Number(shadowTelemetry.failure_count ?? 0) ? "danger" : "teal"}
+              />
+              <MetricCard
+                label="Missing Features"
+                value={rateText(shadowTelemetry.missing_feature_rate)}
+                detail="Aggregate feature completeness"
+                tone={Number(shadowTelemetry.missing_feature_rate ?? 0) > 0.05 ? "amber" : "teal"}
+              />
+              <MetricCard
+                label="Queue Score P95"
+                value={metricText(shadowScores.p95)}
+                detail={`${metricText(shadowScores.count)} aggregate observations`}
+                tone="cyan"
+              />
+              <MetricCard
+                label="Temporal FPR"
+                value={reliabilityValidation?.temporal_fpr === undefined ? "-" : rateText(temporalFpr)}
+                detail="Frozen future holdout"
+                tone={temporalFpr > 0.10 ? "danger" : "teal"}
+              />
+              <MetricCard
+                label="OOD Rate"
+                value={reliabilityValidation?.ood_rate === undefined ? "-" : rateText(temporalOodRate)}
+                detail="Insufficient-distribution evidence"
+                tone={temporalOodRate > 0.10 ? "amber" : "teal"}
+              />
+              <MetricCard
+                label="Abstention Maximum"
+                value={abstentionMaximum === undefined || abstentionMaximum === null ? "-" : rateText(abstentionMaximum)}
+                detail={`${rollingTemporal?.evaluated ?? 0}/${rollingTemporal?.required ?? 0} rolling windows evaluated`}
+                tone={Number(abstentionMaximum ?? 0) > 0.20 ? "amber" : "cyan"}
+              />
+              <MetricCard
+                label="Evidence Drift"
+                value={shadowDriftStatus}
+                detail={`Lock: ${reliabilityValidation?.evidence_lock_status ?? "not run"}`}
+                tone={shadowDriftTone}
+              />
+              <MetricCard
+                label="Development Evidence"
+                value={metricText(reliabilityValidation?.development_evidence_rows)}
+                detail={`${metricText(reliabilityValidation?.excluded_evidence_rows)} locked or quarantined`}
+                tone="cyan"
+              />
+            </div>
+            <div
+              className="mt-3 rounded border border-line bg-surface px-3 py-3"
+              data-testid="governed-shadow-runtime"
+            >
+              <div className="flex flex-wrap gap-2">
+                <Badge value="Frozen Diagnostic Candidate" />
+                <Badge
+                  value={
+                    governedShadowRuntime?.enabled
+                      ? "Shadow Scoring Enabled"
+                      : "Shadow Scoring Disabled"
+                  }
+                />
+                <Badge
+                  value={
+                    governedShadowRuntime?.candidate_contract_matched
+                      ? "Candidate Contract Matched"
+                      : "Candidate Contract Mismatched"
+                  }
+                />
+                <Badge
+                  value={
+                    governedShadowRuntime?.independent_evidence?.qualified
+                      ? "Independent Evidence Available"
+                      : "Independent Evidence Pending"
+                  }
+                />
+                <Badge value="Rules Authoritative" />
+                <Badge value="Response Automation Disabled" />
+              </div>
+              <div className="mt-3 grid gap-3 md:grid-cols-4">
+                <MetricCard
+                  label="Shadow Rows"
+                  value={metricText(governedShadowTelemetry?.rows_evaluated)}
+                  detail={(governedShadowRuntime?.status ?? "not evaluated").replaceAll("_", " ")}
+                  tone="cyan"
+                />
+                <MetricCard
+                  label="Shadow Queue Rate"
+                  value={rateText(governedShadowTelemetry?.queue_rate)}
+                  detail="Advisory review queue only"
+                  tone="cyan"
+                />
+                <MetricCard
+                  label="Runtime Drift"
+                  value={governedShadowDrift}
+                  detail="Aggregate application, schema, and missingness"
+                  tone={
+                    governedShadowDrift === "Stable"
+                      ? "teal"
+                      : governedShadowDrift === "OOD Warning"
+                        ? "danger"
+                        : "amber"
+                  }
+                />
+                <MetricCard
+                  label="Rule / Shadow Disagreement"
+                  value={rateText(
+                    governedShadowTelemetry?.rule_shadow_agreement
+                      ?.disagreement_rate
+                  )}
+                  detail="Rules remain authoritative"
+                  tone="amber"
+                />
+              </div>
+            </div>
+            <div
+              className="mt-3 rounded border border-line bg-surface px-3 py-3"
+              data-testid="longitudinal-shadow-observation"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="text-xs font-extrabold uppercase tracking-wide text-muted">
+                    Longitudinal Shadow Observation
+                  </div>
+                  <div className="mt-1 text-sm text-muted">
+                    Aggregate advisory telemetry only
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge value="Rules Authoritative" />
+                  <Badge value="Shadow Observation" />
+                  <Badge value="No Model Activation" />
+                  <Badge value="Response Automation Disabled" />
+                  <Badge value="Raw Evidence Excluded" />
+                </div>
+              </div>
+              <div className="mt-3 grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+                <MetricCard
+                  label="Observations"
+                  value={metricText(operational?.observation_count ?? longitudinal?.observation_count)}
+                  detail={
+                    longitudinal?.observation_enabled
+                      ? "Collection enabled"
+                      : "Collection disabled"
+                  }
+                  tone="cyan"
+                />
+                <MetricCard
+                  label="Observed Scopes"
+                  value={
+                    operational
+                      ? `${operational.source_scope_count} / ${operational.time_scope_count}`
+                      : "-"
+                  }
+                  detail="Source / time scopes"
+                  tone="cyan"
+                />
+                <MetricCard
+                  label="Latest Observation"
+                  value={
+                    operational?.latest_observation_at
+                      ? new Date(operational.latest_observation_at).toLocaleDateString()
+                      : "None"
+                  }
+                  detail="Aggregate telemetry only"
+                  tone="teal"
+                />
+                <MetricCard
+                  label="Current Drift"
+                  value={operational?.drift.current_state ?? longitudinal?.latest?.drift_status ?? "No observations"}
+                  detail="Aggregate distribution status"
+                  tone={
+                    (operational?.drift.current_state ?? longitudinal?.latest?.drift_status) === "Stable"
+                      ? "teal"
+                      : (operational?.drift.current_state ?? longitudinal?.latest?.drift_status) === "OOD Warning"
+                        ? "danger"
+                        : "amber"
+                  }
+                />
+                <MetricCard
+                  label="Mean Queue Rate"
+                  value={rateText(longitudinal?.queue_rate.mean)}
+                  detail="Advisory review queue"
+                  tone="cyan"
+                />
+                <MetricCard
+                  label="Mean Rule Disagreement"
+                  value={rateText(
+                    longitudinal?.rule_disagreement_rate.mean
+                  )}
+                  detail="Rules remain authoritative"
+                  tone="amber"
+                />
+                <MetricCard
+                  label="Failed / Insufficient"
+                  value={
+                    operational
+                      ? `${operational.failed_observation_count} / ${operational.insufficient_evidence_count}`
+                      : "-"
+                  }
+                  detail="Operational observations"
+                  tone={
+                    Number(operational?.failed_observation_count ?? 0) > 0
+                      ? "danger"
+                      : Number(operational?.insufficient_evidence_count ?? 0) > 0
+                        ? "amber"
+                        : "teal"
+                  }
+                />
+              </div>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded border border-line bg-panel px-3 py-2 text-sm">
+                <div className="text-muted">
+                  Operational gates{" "}
+                  <span className="font-bold text-text">
+                    {operational ? `${operational.gates_passed}/${operational.gates_total}` : "not evaluated"}
+                  </span>
+                  . These gates measure monitoring reliability, not model accuracy.
+                </div>
+                <Badge
+                  value={
+                    operational?.operational_acceptance_passed
+                      ? "Operational Monitoring Accepted"
+                      : operational?.observation_count
+                        ? "Operational Warning"
+                        : "Insufficient Evidence"
+                  }
+                />
+              </div>
+              {shadowOperations.isError ? (
+                <div className="mt-3 rounded border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+                  Operational observation status could not be loaded.
+                </div>
+              ) : operational?.warnings.length ? (
+                <details className="mt-3 rounded border border-line bg-panel px-3 py-2 text-sm">
+                  <summary className="cursor-pointer font-bold text-text">
+                    View operational warnings ({operational.warnings.length})
+                  </summary>
+                  <ul className="mt-2 space-y-1 text-muted">
+                    {operational.warnings.map((warning) => (
+                      <li key={warning}>{warning}</li>
+                    ))}
+                  </ul>
+                </details>
+              ) : null}
+              <details
+                className="mt-3 rounded border border-line bg-panel px-3 py-2 text-sm"
+                data-testid="parser-profile-diagnostics"
+              >
+                <summary className="cursor-pointer font-bold text-text">
+                  Parser profile baseline ({parserDiagnostics?.observation_count ?? 0})
+                </summary>
+                {parserProfileDiagnostics.isError ? (
+                  <div className="mt-3 rounded border border-danger/30 bg-danger/10 px-3 py-2 text-danger">
+                    Parser profile diagnostics could not be loaded.
+                  </div>
+                ) : parserDiagnostics?.rows.length ? (
+                  <>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Badge value={parserDiagnostics.current_state} />
+                      <Badge value={parserDiagnostics.parser_contract_version} />
+                      <Badge
+                        value={`${parserDiagnostics.baseline_scope_counts.parser_profile_source_type ?? 0} Profile Baselines`}
+                      />
+                      <Badge
+                        value={`${parserDiagnostics.baseline_scope_counts.global_fallback ?? 0} Global Fallbacks`}
+                      />
+                      <Badge value="No Accuracy Metrics" />
+                      <Badge value={`${runtimeContractSourceCount} Runtime Contract Sources`} />
+                      <Badge value={`${legacyContractSourceCount} Legacy/Mixed Sources`} />
+                      <Badge value={`${runtimeParserAlertCount} Runtime Parser Alerts`} />
+                    </div>
+                    <div className="mt-2 text-xs text-muted">
+                      Unresolved application values are tracked as data quality, not parser failures.
+                      {" "}
+                      {parserDiagnostics.legacy_warning_windows_reclassified} legacy warning window(s)
+                      reclassified.
+                    </div>
+                    <div className="mt-2 text-xs text-muted">
+                      Future ingestion uses the v5.13 runtime contract. Historical rows remain unchanged and are shown as legacy or mixed coverage.
+                    </div>
+                    <div className="mt-3 max-w-full overflow-x-auto">
+                      <table className="w-full min-w-[860px] border-collapse text-left text-xs">
+                        <thead>
+                          <tr className="border-b border-line text-muted">
+                            <th className="px-2 py-2">Scope</th>
+                            <th className="px-2 py-2">Profile</th>
+                            <th className="px-2 py-2">Baseline</th>
+                            <th className="px-2 py-2">Parser Errors</th>
+                            <th className="px-2 py-2">Structural Warnings</th>
+                            <th className="px-2 py-2">Unresolved App</th>
+                            <th className="px-2 py-2">Drift</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {parserDiagnostics.rows.slice(-12).map((row) => (
+                            <tr
+                              className="border-b border-line/70 align-top last:border-b-0"
+                              key={`${row.source_scope}-${row.time_scope}`}
+                            >
+                              <td className="px-2 py-2 font-bold text-text">
+                                {row.source_scope}
+                                <div className="font-normal text-muted">{row.time_scope}</div>
+                              </td>
+                              <td className="px-2 py-2 text-text">
+                                {row.baseline_selection.parser_profile}
+                                <div className="text-muted">{row.baseline_selection.source_type}</div>
+                              </td>
+                              <td className="px-2 py-2 text-muted">
+                                {row.baseline_selection.scope.replaceAll("_", " ")}
+                                <div>{row.baseline_selection.support_rows.toLocaleString()} rows</div>
+                              </td>
+                              <td className="px-2 py-2 text-text">
+                                {rateText(row.quality.parser_error_rate)}
+                              </td>
+                              <td className="px-2 py-2 text-text">
+                                {rateText(row.quality.parser_structural_warning_per_row)}
+                              </td>
+                              <td className="px-2 py-2 text-text">
+                                {rateText(row.quality.unresolved_application_rate)}
+                              </td>
+                              <td className="px-2 py-2">
+                                <Badge value={row.drift_state} />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="mt-3 text-xs text-muted">
+                      Baselines use governed development-fit aggregates only. Labels, accuracy,
+                      source identity, raw logs, and locked final evidence are excluded.
+                    </div>
+                  </>
+                ) : (
+                  <div className="mt-3 rounded border border-dashed border-line px-3 py-4 text-muted">
+                    No comparable parser-profile observations are available.
+                  </div>
+                )}
+              </details>
+              <details
+                className="mt-3 rounded border border-line bg-panel px-3 py-2 text-sm"
+                data-testid="shadow-monitoring-diagnostics"
+              >
+                <summary className="cursor-pointer font-bold text-text">
+                  Operational drift diagnostics ({diagnostics?.observation_count ?? 0})
+                </summary>
+                {shadowDiagnostics.isError ? (
+                  <div className="mt-3 rounded border border-danger/30 bg-danger/10 px-3 py-2 text-danger">
+                    Aggregate drift diagnostics could not be loaded.
+                  </div>
+                ) : diagnostics?.rows.length ? (
+                  <>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Badge value={diagnostics.current_state} />
+                      <Badge
+                        value={
+                          diagnostics.cadence.enabled
+                            ? `Monitoring Every ${diagnostics.cadence.cadence_minutes} Minutes`
+                            : "Monitoring Cadence Disabled"
+                        }
+                      />
+                      <Badge value="No Accuracy Metrics" />
+                    </div>
+                    <div className="mt-3 max-w-full overflow-x-auto">
+                      <table className="w-full min-w-[920px] border-collapse text-left text-xs">
+                        <thead>
+                          <tr className="border-b border-line text-muted">
+                            <th className="px-2 py-2">Scope</th>
+                            <th className="px-2 py-2">Observed</th>
+                            <th className="px-2 py-2">Drift</th>
+                            <th className="px-2 py-2">Queue</th>
+                            <th className="px-2 py-2">Disagreement</th>
+                            <th className="px-2 py-2">Anomaly</th>
+                            <th className="px-2 py-2">Quality</th>
+                            <th className="px-2 py-2">Runtime</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {diagnostics.rows.map((row) => (
+                            <tr
+                              className="border-b border-line/70 align-top last:border-b-0"
+                              key={`${row.source_scope}-${row.time_scope}`}
+                            >
+                              <td className="px-2 py-2 font-bold text-text">
+                                {row.source_scope}
+                                <div className="font-normal text-muted">{row.time_scope}</div>
+                              </td>
+                              <td className="px-2 py-2 text-muted">
+                                {new Date(row.observation_time).toLocaleString()}
+                                <div>{row.rows_evaluated} rows</div>
+                              </td>
+                              <td className="px-2 py-2">
+                                <Badge value={row.drift_state} />
+                              </td>
+                              <td className="px-2 py-2 text-text">{rateText(row.queue_rate)}</td>
+                              <td className="px-2 py-2 text-text">{rateText(row.disagreement_rate)}</td>
+                              <td className="px-2 py-2 text-text">{rateText(row.isolation_anomaly_rate)}</td>
+                              <td className="max-w-[300px] px-2 py-2 text-muted">
+                                <div className="break-words">{row.quality_warning}</div>
+                                <div className="mt-1 break-words text-[11px]">
+                                  {row.root_cause_codes
+                                    .map((value) => value.replaceAll("_", " "))
+                                    .join(", ")}
+                                </div>
+                              </td>
+                              <td className="px-2 py-2 text-text">
+                                {row.runtime_seconds === null
+                                  ? "-"
+                                  : `${row.runtime_seconds.toFixed(2)} s`}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="mt-3 text-xs text-muted">
+                      Thresholds use aggregate distributions only. Hysteresis requires repeated
+                      evidence before warning recovery; insufficient windows never clear an
+                      existing warning.
+                    </div>
+                  </>
+                ) : (
+                  <div className="mt-3 rounded border border-dashed border-line px-3 py-4 text-muted">
+                    No aggregate operational diagnostics are available.
+                  </div>
+                )}
+              </details>
+              {longitudinalTrend.length > 1 ? (
+                <div className="mt-3 h-56 min-w-0 rounded border border-line bg-panel p-2">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={longitudinalTrend}
+                      margin={{ top: 8, right: 12, left: 0, bottom: 4 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" minTickGap={24} />
+                      <YAxis domain={[0, 100]} unit="%" width={46} />
+                      <Tooltip formatter={(value) => `${Number(value).toFixed(1)}%`} />
+                      <Legend />
+                      <Line
+                        type="monotone"
+                        dataKey="queueRate"
+                        name="Queue rate"
+                        stroke="#2563eb"
+                        strokeWidth={2}
+                        dot={false}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="disagreementRate"
+                        name="Rule disagreement"
+                        stroke="#b45309"
+                        strokeWidth={2}
+                        dot={false}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="mt-3 rounded border border-dashed border-line px-3 py-4 text-sm text-muted">
+                  At least two bounded observations are required for a trend.
+                </div>
+              )}
+              <div className="mt-3 text-xs text-muted">
+                Independent evidence:{" "}
+                <span className="font-bold text-text">
+                  {longitudinal?.independent_evidence.qualified
+                    ? "available"
+                    : "still required"}
+                </span>
+                . Retention is explicit and aggregate-only.
+              </div>
+            </div>
+            {reliabilityValidation?.available ? (
+              <details className="mt-3 rounded border border-line bg-panel px-3 py-2 text-sm">
+                <summary className="cursor-pointer font-bold text-text">View reliability blockers</summary>
+                <div className="mt-2 space-y-2 text-muted">
+                  <div>
+                    Leading comparator: <span className="font-bold text-text">{reliabilityValidation.selected_diagnostic_strategy ?? "none"}</span>.
+                    No supervised candidate was selected or made eligible for activation.
+                  </div>
+                  {reliabilityValidation.v55_available ? (
+                    <div>
+                      v5.5 development leader: <span className="font-bold text-text">{reliabilityValidation.v55_development_leader ?? "none"}</span>.
+                      Locked regression F1 {metricText(reliabilityValidation.v55_locked_queue_f1)}, benign FPR{" "}
+                      {rateText(reliabilityValidation.v55_locked_benign_fpr)}, calibration{" "}
+                      {reliabilityValidation.v55_locked_calibration_status ?? "not evaluated"}. Lifecycle remains shadow observation.
+                    </div>
+                  ) : null}
+                  {reliabilityValidation.v55_available ? (
+                    <div>
+                      IsolationForest development benign FPR {rateText(reliabilityValidation.v55_isolation_benign_fpr)} and threat capture{" "}
+                      {rateText(reliabilityValidation.v55_isolation_threat_detection_rate)}. This layer remains advisory.
+                    </div>
+                  ) : null}
+                  {reliabilityValidation.v56_available ? (
+                    <div>
+                      v5.6 private chronology: {metricText(reliabilityValidation.v56_private_rows_processed)} rows, drift{" "}
+                      <span className="font-bold text-text">{reliabilityValidation.v56_drift_status ?? "not evaluated"}</span>.
+                      Diagnostic candidate{" "}
+                      <span className="font-bold text-text">{reliabilityValidation.v56_diagnostic_candidate ?? "none"}</span>;
+                      untouched-future F1 {metricText(reliabilityValidation.v56_future_queue_f1)} and benign FPR{" "}
+                      {rateText(reliabilityValidation.v56_future_benign_fpr)}. Assisted evidence is non-human and the lifecycle remains shadow observation.
+                    </div>
+                  ) : null}
+                  {reliabilityValidation.v57_available ? (
+                    <div className="rounded border border-line bg-surface px-3 py-2">
+                      <div className="mb-2 flex flex-wrap gap-2">
+                        <Badge value="Frozen Diagnostic Candidate" />
+                        <Badge
+                          value={
+                            reliabilityValidation.v57_evidence_qualified
+                              ? "Independent Evidence Available"
+                              : "Independent Evidence Pending"
+                          }
+                        />
+                        <Badge value="Shadow Observation" />
+                        <Badge value="Rules Authoritative" />
+                        <Badge value="Response Automation Disabled" />
+                      </div>
+                      <div>
+                        Candidate <span className="font-bold text-text">
+                          {reliabilityValidation.v57_frozen_candidate ?? "not frozen"}
+                        </span>
+                        ; blind validation{" "}
+                        <span className="font-bold text-text">
+                          {(reliabilityValidation.v57_blind_validation_status ?? "pending").replaceAll("_", " ")}
+                        </span>.
+                        {reliabilityValidation.v57_blind_queue_f1 === undefined ||
+                        reliabilityValidation.v57_blind_queue_f1 === null
+                          ? " No independent metrics are shown until predictions are frozen and approved labels are revealed."
+                          : ` Blind F1 ${metricText(reliabilityValidation.v57_blind_queue_f1)}, benign FPR ${rateText(
+                              reliabilityValidation.v57_blind_benign_fpr
+                            )}.`}
+                      </div>
+                    </div>
+                  ) : null}
+                  {reliabilityBlockers.length ? reliabilityBlockers.map((blocker) => <div key={blocker}>{blocker}</div>) : <div>No recorded blockers.</div>}
+                  {v55Blockers.map((blocker) => <div key={`v55-${blocker}`}>v5.5: {blocker}.</div>)}
+                  {v56Blockers.map((blocker) => <div key={`v56-${blocker}`}>v5.6: {blocker}.</div>)}
+                  {v57Blockers.map((blocker) => <div key={`v57-${blocker}`}>v5.7: {blocker}.</div>)}
+                  {(reliabilityValidation.temporal_root_causes ?? []).map((cause) => <div key={cause}>Temporal drift: {cause}.</div>)}
+                  {(reliabilityValidation.shadow_drift_findings ?? []).map((finding) => <div key={finding}>Shadow evidence: {finding}.</div>)}
+                  {reliabilityValidation.source_holdout_limitation ? <div>{reliabilityValidation.source_holdout_limitation}</div> : null}
+                </div>
+              </details>
+            ) : null}
           </div>
           <details className="mt-3">
             <summary className="cursor-pointer text-sm font-bold text-text">View candidate model registry</summary>
@@ -489,7 +1210,9 @@ export function MLGovernance() {
                         <td>
                           {model.active_artifact_metadata_unknown
                             ? "unregistered active artifact"
-                            : model.readiness_decision ?? "candidate_only"}
+                            : model.lifecycle_state && model.lifecycle_state !== "inactive"
+                              ? model.lifecycle_state.replaceAll("_", " ")
+                              : model.readiness_decision ?? "candidate_only"}
                         </td>
                         <td>{String(metrics.f1 ?? "-")}</td>
                         <td>{model.created_at}</td>
@@ -506,7 +1229,8 @@ export function MLGovernance() {
             <summary className="cursor-pointer font-bold">Artifact Metadata</summary>
             <div className="mt-2">
               An active supervised artifact exists, but it is not linked to a registered training run. Treat it as a legacy
-              decision-support artifact. Recent v3.31-v3.33 candidates remain diagnostic-only and are not activated.
+              decision-support artifact with unknown classifier and feature metadata. The v4.9 reliability-lock candidates are
+              diagnostic only, remain candidate-only, and are not activated.
             </div>
           </details>
         ) : null}

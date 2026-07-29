@@ -9,7 +9,7 @@ from sqlalchemy import func, select
 from atdr.app.core.config import get_settings
 from atdr.app.db.database import SessionLocal
 from atdr.app.db.models import Alert, NormalizedLog, RawLog
-from atdr.app.ml.features import build_log_features
+from atdr.app.ml.features import build_feature_rows
 from atdr.app.services.alert_service import list_alerts
 from atdr.app.services.case_service import list_alert_cases
 from atdr.app.services.dashboard_service import build_dashboard_summary, build_dashboard_summary_cached, clear_dashboard_summary_cache
@@ -65,22 +65,23 @@ def run_performance_smoke(*, feature_limit: int = 20) -> dict[str, Any]:
         timings["alert_list_query_seconds"] = seconds
         _, cases, seconds = _timed("case_summary", lambda: list_alert_cases(db, limit=20))
         timings["case_summary_query_seconds"] = seconds
-        _, ml_report, seconds = _timed("ml_governance_summary", lambda: evaluation_report(db))
+        _, ml_report, seconds = _timed("ml_governance_summary_cold", lambda: evaluation_report(db))
         timings["ml_governance_lightweight_summary_seconds"] = seconds
         timings["ml_governance_summary_query_seconds"] = seconds
+        timings["ml_governance_cold_summary_seconds"] = seconds
+        _, ml_report_warm, seconds = _timed("ml_governance_summary_warm", lambda: evaluation_report(db))
+        timings["ml_governance_warm_summary_seconds"] = seconds
+        ml_governance_responses_equivalent = ml_report == ml_report_warm
         _, supervised_report, seconds = _timed("ml_supervised_report", lambda: supervised_model_report(db))
         timings["ml_heavy_supervised_report_seconds"] = seconds
 
         feature_errors: list[str] = []
         logs = list(db.scalars(select(NormalizedLog).order_by(NormalizedLog.id.desc()).limit(max(0, feature_limit))))
         started = time.perf_counter()
-        for log in logs:
-            try:
-                build_log_features(db, log)
-            except Exception as exc:  # pragma: no cover - surfaced in smoke output
-                feature_errors.append(f"log {log.id}: {exc.__class__.__name__}: {exc}")
-                if len(feature_errors) >= 5:
-                    break
+        try:
+            build_feature_rows(db, logs)
+        except Exception as exc:  # pragma: no cover - surfaced in smoke output
+            feature_errors.append(f"feature batch: {exc.__class__.__name__}: {exc}")
         timings["feature_generation_seconds"] = round(time.perf_counter() - started, 4)
 
         warnings: list[str] = []
@@ -89,6 +90,8 @@ def run_performance_smoke(*, feature_limit: int = 20) -> dict[str, Any]:
             "overview_summary_cached_first_seconds": 1.5,
             "overview_summary_cached_seconds": 0.5,
             "ml_governance_lightweight_summary_seconds": 2.0,
+            "ml_governance_cold_summary_seconds": 2.0,
+            "ml_governance_warm_summary_seconds": 1.5,
             "ml_heavy_supervised_report_seconds": 5.0,
             "ingestion_run_history_query_seconds": 1.0,
             "detection_run_history_query_seconds": 1.0,
@@ -102,9 +105,11 @@ def run_performance_smoke(*, feature_limit: int = 20) -> dict[str, Any]:
                 warnings.append(f"{key} took {value}s; budget is {budget}s for local lab use.")
         if feature_errors:
             warnings.append("Feature generation had errors; inspect feature_errors before relying on model scoring.")
+        if not ml_governance_responses_equivalent:
+            warnings.append("Cold and warm AI Governance responses were not behaviorally equivalent.")
 
         return {
-            "ok": not feature_errors,
+            "ok": not feature_errors and ml_governance_responses_equivalent,
             "read_only": True,
             "total_raw_logs": total_raw,
             "normalized_logs": total_normalized,
@@ -121,6 +126,7 @@ def run_performance_smoke(*, feature_limit: int = 20) -> dict[str, Any]:
                 "failed_count": job_summary.get("failed_count"),
             },
             "ml_anomaly_rate": ml_report.get("anomaly_rate"),
+            "ml_governance_responses_equivalent": ml_governance_responses_equivalent,
             "supervised_label_count": supervised_report.get("label_count"),
             "feature_rows_sampled": len(logs),
             "timings": timings,

@@ -40,6 +40,7 @@ This document maps major ATDR requirements to implementation evidence, tests, do
 | Lightweight cases | Implemented | `atdr/app/services/case_service.py`, `atdr/app/routers/alerts.py` | `atdr/tests/test_api.py`, `atdr/tests/test_e2e_workflow_validation.py` | `docs/V0_1_STATUS.md`, `docs/V0_2_PLAN.md` | Not a full incident-management system. |
 | React SOC dashboard | Implemented as the primary UI | `frontend/src/App.tsx`, `frontend/src/pages/ExecutiveOverview.tsx`, `frontend/src/pages/AlertsTriage.tsx`, `frontend/src/pages/LogExplorer.tsx`, `frontend/src/pages/MLGovernance.tsx`, `frontend/src/pages/ResponseCenter.tsx` | `frontend/tests/smoke.spec.ts`, `frontend/tests/e2e_workflow.spec.ts` | `README.md`, `docs/FINAL_DEMO_RUNBOOK.md` | Streamlit remains legacy continuity only; production UX/security hardening remains future work. |
 | AI Governance and ML reports | Implemented as SOC triage decision support | `atdr/app/routers/ml.py`, `atdr/app/services/ml_service.py`, `atdr/app/detection/supervised_detector.py`, `frontend/src/pages/MLGovernance.tsx` | `atdr/tests/test_supervised_ml.py`, `atdr/tests/test_ml_evidence_snapshot.py`, `frontend/tests/smoke.spec.ts` | `docs/CURRENT_AI_ML_PRODUCT_STATUS.md`, `docs/AI_TRAINING_RUNBOOK.md`, `docs/ML_BASELINE_TUNING.md` | Not production-promoted; schema transfer, calibration, and independent real-source evidence remain blockers. |
+| Governed supervised SOC queue lifecycle | Implemented in v5.1 as shadow observation | `atdr/app/detection/v51_supervised_lifecycle.py`, `atdr/app/detection/supervised_detector.py`, `atdr/app/detection/supervised_workflow.py`, `atdr/app/routers/ml.py`, `atdr/app/detection/explanations.py`, `atdr/app/services/assistant_service.py`, `frontend/src/pages/MLGovernance.tsx` | `atdr/tests/test_v51_supervised_lifecycle.py`, `atdr/tests/test_supervised_ml.py`, `atdr/tests/test_api.py`, `frontend/tests/smoke.spec.ts` | `docs/V5_1_SUPERVISED_SHADOW_ACTIVATION.md`, `docs/changes/T1_T20_V5_1_SUPERVISED_SHADOW_ACTIVATION.md`, `docs/AI_TRAINING_RUNBOOK.md` | Artifact/leakage/latency checks pass, but strict quality passes 0/5 and external transfer fails. Shadow scores cannot influence alerts or response; decision-support activation remains blocked. |
 | SOC review queue diagnostic visibility | Implemented as v3.56 dashboard/API evidence display | `atdr/app/routers/dashboard.py`, `frontend/src/pages/MLGovernance.tsx`, `frontend/src/types/api.ts`, `ml_baseline_reviews/v3_55_severity_target_policy_reframing_latest.json` | `atdr/tests/test_api.py`, `frontend/tests/smoke.spec.ts` | `docs/V3_55_SEVERITY_TARGET_POLICY_REFRAMING.md`, `docs/V3_56_SOC_QUEUE_DIAGNOSTIC_INTEGRATION.md`, `docs/tasks/tasklist-progress.md` | Binary SOC queue diagnostic is stable and candidate-only. Exact severity remains explanation/ranking only. No model activation, label writing, automatic response, or production promotion. |
 | Queue-vs-rule/hybrid agreement diagnostic | Implemented as v3.57 diagnostic-only evidence agreement analysis | `atdr/app/detection/v357_queue_rule_hybrid_agreement.py`, `atdr/scripts/run_v357_queue_rule_hybrid_agreement.py` | `atdr/tests/test_v357_queue_rule_hybrid_agreement.py` | `docs/V3_57_QUEUE_RULE_HYBRID_AGREEMENT.md`, `docs/changes/T1_T20_V3_57_QUEUE_RULE_HYBRID_AGREEMENT.md`, `docs/tasks/tasklist-progress.md` | Current result is diagnostic-only because one split has evidence-only review disagreement above budget. No model activation, label writing, raw-log sharing, automatic response, or production promotion. |
 | Queue/evidence agreement visibility | Implemented as v3.58 read-only ML Governance and SOC Assistant visibility | `atdr/app/routers/dashboard.py`, `atdr/app/services/assistant_service.py`, `frontend/src/pages/MLGovernance.tsx`, `frontend/src/types/api.ts` | `atdr/tests/test_api.py`, `atdr/tests/test_assistant.py`, `frontend/tests/smoke.spec.ts` | `docs/V3_58_QUEUE_EVIDENCE_VISIBILITY.md`, `docs/changes/T1_T20_V3_58_QUEUE_EVIDENCE_VISIBILITY.md`, `docs/tasks/tasklist-progress.md` | Visibility is aggregate and diagnostic-only. It does not activate models, write labels, expose raw logs, enable response automation, or claim production readiness. |
@@ -293,3 +294,161 @@ This document maps major ATDR requirements to implementation evidence, tests, do
 | Separate active ATDR runtime from university template reference | Implemented in proposed cleanup | zero runtime/test/script/CI path dependencies; selected reference archive under `docs/reference/NewSystem/`; versioned companion shell remains governed by `config/mfu-shell-contract.json` | full backend/frontend/release matrix plus path and link scans | `docs/reference/NewSystem/REFERENCE_SCOPE.md`, `docs/V4_8_1_REPOSITORY_CONSOLIDATION_REPORT.md`, v4.8.1 T1-T20 | Cleanup remains uncommitted until the exact allowlist receives explicit approval. |
 | Preserve protected/private and historical evidence | Satisfied by scope | `.gitignore`, status/ignored audit, 24 preserved/relocated reference files plus one new scope document (25 archive files total), existing ATDR T1-T20 and migrations retained | tracked hygiene, secret-pattern, diff, and exact-allowlist checks | v4.8.1 report and allowlist | Two local old-directory environment files remain untracked and untouched; local artifact cleanup is not authorized. |
 | Publish current AI/ML product truth | Implemented | assistant context/LLM services, rules, IsolationForest, supervised workflow/registry, v4.0/v4.1 evidence | assistant QA, secret-safe Gemini status/probe, supervised registry status, existing Detection/ML tests | `docs/CURRENT_AI_ML_PRODUCT_STATUS.md` | Real-source independence, stable calibration/schema transfer, complete active-artifact metadata, and provider governance remain open. |
+
+## v4.9 Detection and ML Reliability Traceability Addendum
+
+| Requirement | Status | Source Files / Routes | Tests | Docs | Remaining Gaps |
+| --- | --- | --- | --- | --- | --- |
+| Versioned rule and attack contracts | Implemented | `atdr/app/detection/rule_catalog.py`, `attack_mapping.py`, `rules.py`, `alert_service.py` | `test_rule_pack_contract.py`, `test_v49_detection_ml_reliability.py`, controlled quality validator | v4.9 taxonomy, rule standard, rule/scenario contracts | Real-source prevalence and device-specific tuning remain unmeasured. |
+| Parser field provenance and fallback | Implemented for current Palo Alto contract | `atdr/app/parsers/paloalto_parser.py` | v4.9 trailing-field/parser regressions and scenario matrix | v4.9 status and rule standard | Firmware/version drift and real-device forwarding remain external. |
+| Causal source-scoped ML features | Implemented | `atdr/app/ml/features.py`, `v398_independent_holdout_validation.py` | scalar/bulk equivalence, source isolation, future-safety tests | v4.9 status and labeling policy | Current evidence represents one physical firewall. |
+| Unified strict-gate model comparison | Implemented read-only | `atdr/app/detection/v49_detection_ml_reliability.py`, `atdr/scripts/run_v49_detection_ml_reliability.py` | `test_v49_detection_ml_reliability.py` | `docs/V4_9_DETECTION_ML_RELIABILITY_LOCK.md` | No strategy passes every split; calibration and external generalization fail. |
+| Label provenance integrity | Implemented in evaluation/reporting policy | v4.9 evaluator and existing `MLLabel.label_source` | no-label-write/no-human-review-authoring assertions | `docs/security/ATDR_DETECTION_LABELING_POLICY.md` | Assisted rows with reviewed flag still require provenance-aware interpretation. |
+| Honest explanation and registry state | Implemented | `atdr/app/detection/explanations.py`, `supervised_workflow.py`, `frontend/src/pages/MLGovernance.tsx` | explanation provenance tests, backend registry tests, Playwright smoke | current AI/ML status and v4.9 status | Legacy active artifact metadata remains unavailable. |
+| Detection/response safety | Satisfied | v4.9 before/after database/artifact checks | no activation, artifact, label, model-run, response tests | v4.9 status and T1-T20 | No future production/promotion decision is authorized by v4.9. |
+
+## v5.2 Shadow Reliability And Layered Repair Traceability Addendum
+
+| Requirement | Status | Source Files / Routes | Tests | Docs | Remaining Gaps |
+| --- | --- | --- | --- | --- | --- |
+| Deterministic rule authority | Implemented | `detection_service.py`, `attack_mapping.py`, `explanations.py` | grouping, rule, supervised-explanation, layered tests | v5.2 status and T1-T20 | Controlled evidence only; real-device prevalence remains unknown. |
+| Layered FP/FN repair | Implemented for controlled corpus | `generate_detection_variants.py`, `run_layered_detection_validation.py` | layered and scenario validation tests | v5.2 status | 288/288 is synthetic regression evidence, not field accuracy. |
+| Multi-view supervised reliability | Implemented read-only | `v49_detection_ml_reliability.py`, `v52_shadow_reliability.py`, v5.2 CLI | v49/v52 evaluator tests | v5.2 status | No candidate passes all views; source holdout lacks two independent devices; external transfer fails. |
+| Calibration/drift diagnostics | Implemented | v5.2 evaluator sigmoid/isotonic and drift reports | v52 strategy/calibrator/readiness tests | v5.2 status | Temporal and network-zone calibration remain weak and thresholds unstable. |
+| Aggregate shadow telemetry | Implemented without migration | `v51_supervised_lifecycle.py`, `POST /api/ml/supervised/telemetry/snapshot` | telemetry privacy, audit, authorization tests | v5.2 status | Snapshot is admin-triggered; shared-host scheduling/retention remains deployment work. |
+| Evidence-layer UI clarity | Implemented | `MLGovernance.tsx`, `AlertsTriage.tsx`, API types | Playwright smoke | v5.2 status | Real analyst usability validation remains future evidence. |
+| Safety and label integrity | Satisfied | read-only evaluator and governed lifecycle | unchanged-count/artifact, no-label, no-response assertions | v5.2 status/T1-T20 | Any lifecycle advancement requires independent evidence and approval. |
+
+## v5.3 Temporal Generalization And OOD Traceability Addendum
+
+| Requirement | Status | Source Files / Routes | Tests | Docs | Remaining Gaps |
+| --- | --- | --- | --- | --- | --- |
+| Frozen v5.2 baseline and state | Implemented read-only | `v53_temporal_generalization.py`, existing v5.2/lifecycle reports | v5.3 fingerprint and unchanged-state assertions | v5.3 status and T1-T20 | Frozen evidence represents one real device and clustered review periods. |
+| Temporal drift diagnosis | Implemented | v5.3 label/provenance/app/action/port/feature/threshold diagnostics | deterministic partition and final-label-isolation tests | v5.3 root-cause section | Diagnosis does not create the new independent evidence needed to repair transfer. |
+| Rolling future validation | Implemented leakage-safe | v5.3 three-window rolling evaluator | disjoint future-window and no-test-reuse tests | v5.3 protocol | All three windows fail strict FPR/calibration gates. |
+| Fit-only OOD and abstention | Implemented diagnostic-only | v5.3 OOD profile and `insufficient_model_evidence` routing | unseen/missing-schema and honest queue-FPR tests | v5.3 OOD section | OOD rate is too small to explain or repair the main chronological target shift. |
+| Multi-strategy temporal repair comparison | Completed; no candidate | v5.3 ExtraTrees weighting, Logistic, HistGradientBoosting, schema routing, abstention | strategy/readiness/no-artifact tests | v5.3 comparison | Zero strategy passes every required and rolling view; source split fails closed. |
+| Aggregate AI Governance telemetry | Implemented | `v51_supervised_lifecycle.py`, `MLGovernance.tsx`, API types | lifecycle and Playwright telemetry assertions | v5.3 dashboard section | Real analyst usability and shared-host monitoring remain external evidence. |
+| Safety and lifecycle lock | Satisfied | read-only evaluator and existing governed lifecycle | zero label/model-run/artifact/response assertions | v5.3 status/T1-T20 | Any lifecycle advancement requires new evidence and explicit approval. |
+
+## v5.4 Temporal Evidence And Shadow Drift Traceability Addendum
+
+| Requirement | Status | Source Files / Routes | Tests | Docs | Remaining Gaps |
+| --- | --- | --- | --- | --- | --- |
+| Permanent v5.3 evidence-role lock | Implemented | `atdr/app/detection/v54_temporal_evidence.py`, `data/samples/benchmarks/v53_temporal_evidence_lock.json` | exact-match and fail-closed mismatch tests | `docs/V5_4_TEMPORAL_EVIDENCE_AND_SHADOW_DRIFT.md` | A future approved evidence version needs a new lock, never silent replacement. |
+| Development-only temporal manifest | Implemented, generated/ignored | v5.4 evidence module and CLI | final exclusion, overlap, provenance, and duplicate-containment tests | v5.4 status/T1-T20 | Only 918 development rows are genuinely human-reviewed; one real device remains. |
+| Private PAN-OS temporal inspection | Implemented aggregate-only | `atdr/scripts/run_v54_temporal_evidence_preparation.py`, v5.4/v5.0 private scanners | redaction and no-write tests; disposable preflight | v5.4 status/runbook | The private file has no ground-truth labels and cannot support accuracy claims. |
+| Shadow drift monitoring | Implemented aggregate-only | v5.4 drift classifier, `v51_supervised_lifecycle.py`, `MLGovernance.tsx`, API types | drift-state, lifecycle, and Playwright assertions | v5.4 status | Scheduled multi-window/shared-host monitoring remains operational work. |
+| Assisted review pack integrity | Implemented as weak/non-import-ready output | v5.4 review-pack builder | assisted-not-human and non-import-ready tests | v5.4 status | Every suggestion still requires a human reviewer. |
+| Lifecycle and response safety | Satisfied | v5.4 before/after state checks and governed lifecycle | zero label/model/detection/response/artifact-write assertions | v5.4 status/T1-T20 | No lifecycle advancement is authorized. |
+
+## v5.5 Development Model Repair And Anomaly Audit Traceability Addendum
+
+| Requirement | Status | Source Files / Routes | Tests | Docs | Remaining Gaps |
+| --- | --- | --- | --- | --- | --- |
+| v5.4 lock and development-only selection | Implemented fail-closed | `atdr/app/detection/v55_development_model_repair.py`, tracked v5.3/v5.4 lock | locked/final exclusion and mismatch coverage in v5.4/v5.5 tests | v5.5 status/T1-T20 | A future evidence version requires a new governed lock. |
+| Nested temporal and duplicate-safe validation | Implemented | v5.5 chronological prefix folds and leakage-group partitioner | nested-fold duplicate isolation test; measured three clean folds | v5.5 status | Coarse review timestamps and one source constrain independence. |
+| Provenance-balanced model comparison | Implemented diagnostic-only | v5.5 calibrated ExtraTrees, HistGradientBoosting, Logistic, three-class, and hierarchical strategies | bounded-weight and no-side-effect tests | v5.5 status | Best strategy passes 0/3 strict development folds. |
+| Candidate freeze and locked-final regression | Implemented read-only | v5.5 freeze fingerprint and post-freeze one-shot evaluator | freeze-required test and state-preservation assertions | v5.5 status | Locked F1/recall/calibration fail; result cannot be fed back into tuning. |
+| IsolationForest reliability audit | Implemented read-only | v5.5 development/final scorer and disposable controlled scenarios | zero-write runner and full controlled regression evidence | v5.5 status/runbook | Development FPR `0.2773`, threat capture `0.0818`, and chronological rate instability prevent standalone trust. |
+| Aggregate AI Governance visibility | Implemented | `v51_supervised_lifecycle.py`, `MLGovernance.tsx`, API types | aggregate/privacy lifecycle test and frontend verification | v5.5 status | Real analyst and shared-host monitoring evidence remains open. |
+| Lifecycle/response safety | Satisfied | evaluator before/after DB/artifact checks and governed lifecycle | zero label/model/detection/response/artifact-write assertions | v5.5 status/T1-T20 | No lifecycle advancement is authorized. |
+
+## v5.6 Private PAN-OS Evidence And Assisted Repair Traceability Addendum
+
+| Requirement | Status | Source Files / Routes | Tests | Docs | Remaining Gaps |
+| --- | --- | --- | --- | --- | --- |
+| Complete bounded private-file processing | Implemented | `atdr/app/detection/v56_private_panos_model_repair.py`, `atdr/scripts/run_v56_private_panos_model_repair.py` | bounded streaming, redaction, and full governed run | v5.6 status/T1-T20/runbook | Approved shared-host storage and retention remain external work. |
+| Configured-DB overlap and duplicate containment | Implemented read-only | v5.6 disposable fingerprint index and chronological allocator | overlap/no-write and exact/near cross-role tests | v5.6 status | One source and a short private time range constrain independence. |
+| Non-human assisted evidence policy | Implemented diagnostic-only | v5.6 policy/grouping/sampling functions | conservative decision, provenance, ambiguity, and lower-weight tests | v5.6 status; labeling policy | No private assisted decision is independent human ground truth. |
+| Chronological supervised comparison and freeze | Implemented diagnostic-only | v5.6 six-strategy evaluator and ignored candidate serializer | role/future seal, no activation, sparse-class calibration, and state-preservation tests | v5.6 status/T1-T20 | Leader passes 0/3 complete calibration gates; cross-device validation is absent. |
+| IsolationForest private-regime audit | Implemented diagnostic-only | v5.6 benign-baseline contamination comparison | no active-artifact write and conservative readiness tests | v5.6 status/runbook | Future suspicious recall is `0.16`; anomaly output remains advisory. |
+| Aggregate AI Governance visibility | Implemented | `v51_supervised_lifecycle.py`, `MLGovernance.tsx`, API types | aggregate/privacy lifecycle tests and frontend verification | v5.6 status | Real analyst/shared-host monitoring evidence remains open. |
+| Database/artifact/response safety | Satisfied | before/after state hashes and counters | zero label/model/detection/alert/response write assertions | v5.6 status/T1-T20 | No lifecycle advancement is authorized. |
+
+## v5.7 Independent Evidence And Blind Revalidation Traceability Addendum
+
+| Requirement | Status | Source files/routes | Tests | Docs | Remaining gaps |
+| --- | --- | --- | --- | --- | --- |
+| v5.3-v5.6 evidence lock audit | Implemented | `atdr/app/detection/v57_independent_shadow_revalidation.py`, existing v5.3-v5.6 lock/report manifests | v5.7 lock-role/artifact integrity and ignored audit-record test | v5.7 status; acquisition protocol | Existing opened evidence remains development/regression evidence only. |
+| Immutable v5.6 diagnostic candidate freeze | Implemented diagnostic-only | v5.7 freezer, ignored candidate and lock-audit manifests | artifact hash/state, feature/preprocessing/calibration/threshold, and no-activation assertions | v5.7 status/T1-T20 | Candidate cannot advance without valid blind evidence. |
+| Independent evidence qualification | Implemented fail-closed | v5.7 manifest qualifier and `v57_independent_evidence_manifest.template.json` | reused-file/role, minimum-row/window, overlap-method, schema, device/time, DB-overlap tests | `docs/detection/V5_7_INDEPENDENT_EVIDENCE_ACQUISITION.md` | A second real device, independent periods, and advisor-confirmed provenance remain unavailable. |
+| Prediction-before-label and one-time reveal | Implemented | v5.7 prediction freezer, blind review pack, reveal validator | hidden predictions, immutable freeze, contract hash, provenance, one-shot reveal tests | acquisition protocol | Human/provider labels and advisor reveal approval are external requirements. |
+| Fixed blind readiness gates | Implemented conservatively | v5.7 readiness evaluator | no-guard, no-leakage, metric/calibration, state-preservation tests | v5.7 status/PRD | No blind metrics exist until independent labels are legitimately revealed. |
+| Independent IsolationForest audit | Pending evidence by design | v5.7 independent evaluator | advisory/no-artifact-write path covered by v5.7 protocol tests | v5.7 status/runbook | Cannot calculate ground-truth capture/FPR without valid independent labels. |
+| Aggregate AI Governance visibility | Implemented | `v51_supervised_lifecycle.py`, `MLGovernance.tsx`, API types | aggregate privacy backend test and Playwright status assertions | v5.7 status | No private row evidence is available in the dashboard. |
+| Database/model/label/response safety | Satisfied | v5.7 CLI and evaluator | unchanged database/artifact counters; zero label/model/detection/alert/response writes | v5.7 status/T1-T20 | No v5.7 operation authorizes activation, automation, or blocking. |
+
+## v5.8 Governed Shadow Runtime Traceability Addendum
+
+| Requirement | Status | Source files/routes | Tests | Docs | Remaining gaps |
+| --- | --- | --- | --- | --- | --- |
+| Frozen-candidate runtime contract | Implemented fail-closed | `atdr/app/services/v58_shadow_scoring_service.py`, v5.7 freeze-manifest reader | v5.8 full-match and tamper/fallback tests | v5.8 status/T1-T20 | Shared-host artifact custody/signing remains deployment work. |
+| Bounded read-only normalized-log scoring | Implemented, disabled by default | v5.8 service/CLI; `GET /api/ml/supervised/shadow-runtime` | bounds, idempotency, chronology, aggregate redaction, endpoint-auth tests | v5.8 status/runbook | Current 100-row run takes 8.2395s; scheduling/capacity needs shared-host validation. |
+| Aggregate shadow monitoring | Implemented | v5.8 score/confidence/drift/stability/rule-agreement telemetry; AI Governance | backend aggregate/no-write tests; Playwright status/metric assertions | v5.8 status | Monitoring has no independent ground-truth metrics. |
+| IsolationForest separation | Implemented | v5.8 persisted anomaly aggregate | no-new-scoring/advisory assertions | v5.8 status | Independent labeled anomaly FPR/capture remains unavailable. |
+| Governed evidence-intake preflight | Implemented fail-closed | v5.8 CLI/service composing v5.7 qualifier | evidence-reuse/no-metrics/no-write tests | v5.7 acquisition protocol; v5.8 status | Requires new approved two-device/two-period evidence and labels. |
+| Detection/response authority safety | Satisfied | v5.8 service, existing rules and lifecycle | unchanged table/artifact state and zero alert/label/run/response assertions | v5.8 status/T1-T20 | Any future ML influence requires a separate approved change. |
+
+## v5.9 Longitudinal Shadow Observation Traceability Addendum
+
+| Requirement | Status | Source files/routes | Tests | Docs | Remaining gaps |
+| --- | --- | --- | --- | --- | --- |
+| Append-only aggregate shadow observations | Implemented, disabled by default | `atdr/app/services/v59_shadow_observation_service.py`, `ml_shadow_observations`, additive migration | disabled-default, idempotency, scope, redaction, no-mutation tests | v5.9 status/T1-T20 | No independent labels exist; telemetry is not accuracy. |
+| Durable observation jobs | Implemented admin-only | job service/dispatcher/worker; existing jobs API | RBAC, bounds, retry, cancellation, aggregate-only result tests | v5.9 status/runbook | Shared-host worker scheduling remains environment-backed work. |
+| Longitudinal summary and retention | Implemented | observation list/summary and retention preview/apply API | summary bounds, retention isolation, and audit tests | v5.9 status | Retention is manual by design; deployment scheduling remains separate. |
+| AI Governance aggregate trend | Implemented | `MLGovernance.tsx`, API client/types/query | focused Playwright rendering/safety assertions | v5.9 status | Trend quality grows only after multiple governed observations. |
+| Complete private aggregate drift pass | Implemented read-only | v5.9 CLI/private inspector | aggregate redaction/no-configured-DB tests; full 773,551-row pass | v5.9 status | Reused private evidence has no independent ground truth. |
+| Independent evidence acquisition review | Documented; evidence pending | official-source review and v5.9 acquisition brief | protocol/qualification behavior covered by v5.7-v5.9 tests | v5.9 acquisition brief | Two devices, two new periods, native evidence, allowed labels, and advisor approval are external. |
+| Detection/model/response safety | Satisfied | v5.9 service/job/CLI and existing lifecycle | zero alert/case/label/model/detection/response mutation assertions | v5.9 status/T1-T20 | Any future ML authority requires a separate approved design. |
+
+## v5.10 Detection Operations And Shadow Acceptance Traceability Addendum
+
+| Requirement | Status | Source files/routes | Tests | Docs | Remaining gaps |
+| --- | --- | --- | --- | --- | --- |
+| Bounded historical operational scopes | Implemented | `atdr/app/services/v510_detection_operations_service.py`, v5.10 CLI | scope bounds/non-overlap, evidence-role, redaction tests | v5.10 status/T1-T20 | Existing scopes are reused development evidence, not independent validation. |
+| Operational aggregate acceptance | Implemented read-only | v5.10 service; `GET /api/ml/supervised/shadow-operations/acceptance` | queue/disagreement/drift/quality/anomaly/gate and no-accuracy tests | v5.10 status | OOD and queue/disagreement variation require continued observation. |
+| Idempotent governed execution | Implemented, explicitly enabled only | v5.10 CLI composing v5.8/v5.9 runtime | repeated execution, cancellation, contract-mismatch, zero-mutation tests | v5.10 status/runbook | Shared-host scheduling remains environment-backed evidence. |
+| Operational plan API | Implemented authenticated read-only | `GET /api/ml/supervised/shadow-operations/plan` | analyst/admin authentication and private-data exclusion | v5.10 status | Execution remains an admin job/CLI operation by design. |
+| AI Governance operational visibility | Implemented | `MLGovernance.tsx`, client/types/query hook | mocked metrics, warnings, safety badges, overflow | v5.10 status | Dashboard evidence is aggregate telemetry, not accuracy. |
+| Large-SQLite Governance performance | Implemented locally | `ml_service.py`, covering index migration, profiler, performance smoke | query equivalence and cold/warm regression | v5.10 status | Approved-host PostgreSQL capacity remains external. |
+| Detection/model/response safety | Satisfied | v5.10/v5.9 services and frozen lifecycle | zero alert/case/label/model/detection/response writes; no activation | v5.10 status/T1-T20 | Independent evidence is required before any model-authority proposal. |
+
+## v5.11 Operational Drift And Shadow Monitoring Traceability Addendum
+
+| Requirement | Status | Source files/routes | Tests | Docs | Remaining gaps |
+| --- | --- | --- | --- | --- | --- |
+| Aggregate operational root-cause diagnosis | Implemented read-only | `atdr/app/services/v511_shadow_monitoring_service.py`, v5.11 CLI | drift/cause/privacy/no-mutation tests | v5.11 status/T1-T20 | Unlabeled root causes explain operational variation, not prediction correctness. |
+| Fixed thresholds and hysteresis | Implemented | v5.11 classifier and hysteresis policy | boundary, escalation, recovery, sparse-evidence tests | v5.11 status | Thresholds need longitudinal shared-host observation, not model tuning. |
+| Disabled durable monitoring cadence | Implemented, disabled by default | v5.11 service, `shadow_monitoring_cycle`, existing worker/job API | dependency, RBAC, bounds, duplicate, retry, cancellation tests | v5.11 status/runbook | An approved external scheduler and worker deployment remain environment-backed work. |
+| Read-only diagnostic API | Implemented authenticated | `GET /api/ml/supervised/shadow-operations/diagnostics` | unauthenticated rejection, analyst access, source/private-data exclusion | v5.11 status | No execution endpoint is exposed to analysts by design. |
+| AI Governance operational drill-down | Implemented | `MLGovernance.tsx`, client/types/query hook | focused rendering, safety, and overflow regression | v5.11 status | Data remains aggregate operational telemetry without accuracy. |
+| Retention rehearsal | Implemented in disposable storage | `rehearse_shadow_retention`, v5.11 CLI | preview/delete/isolation/preservation/audit test | v5.11 status/runbook | Configured-database retention was intentionally not applied. |
+| Detection/model/response safety | Satisfied | v5.11/v5.9 services and existing lifecycle | no label/model/alert/detection/response mutation; no activation | v5.11 status/T1-T20 | Independent governed evidence remains required before any authority proposal. |
+
+## v5.12 Parser-Profile Baseline Repair Traceability Addendum
+
+| Requirement | Status | Source files/routes | Tests | Docs | Remaining gaps |
+| --- | --- | --- | --- | --- | --- |
+| Versioned parser/schema contract | Implemented for future imports | `atdr/app/parsers/paloalto_contract.py`, `paloalto_parser.py` | TRAFFIC/THREAT/SYSTEM, partial/extended, application-resolution tests | v5.12 status/T1-T20 | Existing normalized rows remain `legacy_contract` unless a separate safe reparse is approved. |
+| SYSTEM mapping isolation | Implemented | `_system_specific` in `paloalto_parser.py` | traffic-only field clearing and official-layout synthetic tests | v5.12 status | No real SYSTEM record exists in the available private file. |
+| Generic/raw fallback preservation | Implemented | `parse_log_line_for_profile` | fallback status/evidence preservation tests | v5.12 status/runbook | Governed comparable baselines for these profiles remain unavailable. |
+| Profile/source-type baseline selection | Implemented read-only | `v512_parser_baseline_service.py`, future v5.8 telemetry integration | exact/global/incompatible/sparse baseline tests | v5.12 status | Only Palo Alto firewall and comparable global fit baselines have sufficient governed support. |
+| Private bounded parser audit | Implemented aggregate-only | v5.12 service/CLI | path/raw/IP redaction and no-persistence tests; complete 773,551-row pass | v5.12 status/runbook | Private evidence remains one device/file and has no independent labels. |
+| Read-only diagnostics API | Implemented authenticated | `GET /api/ml/supervised/shadow-operations/parser-quality` | unauthenticated rejection, analyst access, privacy checks | v5.12 status | No analyst execution control is exposed by design. |
+| AI Governance parser provenance | Implemented | `MLGovernance.tsx`, client/types/query | rendering, safety wording, horizontal-overflow regression | v5.12 status | Existing observations remain legacy-contract evidence. |
+| Controlled non-regression and mutation proof | Satisfied | v5.11 lock, v5.12 CLI/comparison | 96/96 projection match; all authoritative entity deltas zero | v5.12 status/T1-T20 | Independent multi-device labels still block lifecycle advancement. |
+| Detection/model/response safety | Satisfied | parser/baseline services and governed lifecycle | no label/model/alert/detection/response writes | v5.12 status/T1-T20 | No authority change is authorized. |
+
+## v5.13 Runtime Parser Contract And Source Quality Traceability Addendum
+
+| Requirement | Status | Source files/routes | Tests | Docs | Remaining gaps |
+| --- | --- | --- | --- | --- | --- |
+| Runtime parser contract on all future ingestion paths | Implemented | `runtime_parser_quality_service.py`, `log_service.py`, `resumable_ingestion_service.py`, `syslog_service.py`, `replay_logs.py` | file/direct/syslog/durable/scenario aggregate tests | v5.13 status/T1-T20 | Historical evidence intentionally remains legacy-contract data. |
+| Source parser-quality aggregate | Implemented through additive migration | `LogSource.parser_quality_json`, migration `e7f8a9b0c1d2` | migration/no-backfill audit and Alembic no-drift check | v5.13 status | Existing sources begin with empty aggregates and gain data only from future ingestion. |
+| Classification and source-health semantics | Implemented | runtime parser-quality and source services | parser error, layout, application, generic, raw-fallback, and source-health tests | v5.13 status/runbook | Real SYSTEM and long-duration real-device behavior remain unvalidated. |
+| Privacy-safe parser operational alerts | Implemented | runtime parser-quality and source services | baseline increase, schema drift, fallback, unresolved-shift, and redaction tests | v5.13 status/T1-T20 | Generic/raw profiles lack governed comparable drift baselines. |
+| Historical reparse impact preview | Implemented authenticated and read-only | `GET /api/sources/{source_id}/reparse-impact-preview` | auth, privacy, bounded coverage, and zero-mutation tests | v5.13 status/runbook | No reparse or backfill is authorized. |
+| Source-quality dashboard | Implemented | `ExecutiveOverview.tsx`, `MLGovernance.tsx`, client/types | source drawer, alerts, governance summary, overflow regression | v5.13 status | External real-device operator feedback remains pending. |
+| Evidence preservation and privacy | Satisfied | ingestion services and public serializers | one raw row per accepted input; private path/raw/IP/source/secret exclusions | v5.13 status/T1-T20 | Approved custody for shared private evidence remains external. |
+| Detection/model/response safety | Satisfied | frozen v5.11/v5.12 locks and v5.13 services | 96/96 controlled projection; zero authoritative mutation | v5.13 status/T1-T20 | Independent labeled multi-device evidence still blocks lifecycle advancement. |

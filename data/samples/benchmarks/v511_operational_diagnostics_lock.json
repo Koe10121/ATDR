@@ -1,0 +1,19 @@
+{
+  "schema_version": "v5.12-v511-comparison-lock-v1",
+  "evidence_role": "frozen_aggregate_comparison_baseline",
+  "locked_on": "2026-07-28",
+  "diagnostics_fingerprint": "4057448c2c0aa6aec27c01e64bd708e0e811d8aa3da49a8d3d5497eb13612490",
+  "controlled_projection_fingerprint": "74a6f5ada3179585c6bfdf25663f0c64bc09b196066c3f38270442eca3bd2ce6",
+  "observation_count": 8,
+  "source_scope_count": 4,
+  "current_state": "OOD Warning",
+  "rules_alert_authoritative": true,
+  "isolation_forest_advisory_only": true,
+  "model_activated": false,
+  "response_automation_allowed": false,
+  "aggregate_only": true,
+  "raw_logs_included": false,
+  "source_identifiers_included": false,
+  "labels_accessed": false,
+  "private_paths_included": false
+}

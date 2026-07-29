@@ -17,11 +17,17 @@ from atdr.app.services.database_coordination_service import (
     acquire_worker_operation_lock,
     release_worker_operation_lock,
 )
-from atdr.app.services.job_dispatcher import cleanup_staged_payload, execute_operation_job, related_run_ids
+from atdr.app.services.job_dispatcher import (
+    CooperativeShadowObservationCancelled,
+    cleanup_staged_payload,
+    execute_operation_job,
+    related_run_ids,
+)
 from atdr.app.services.job_service import (
     LeaseOwnershipError,
     build_result_summary,
     claim_next_job,
+    complete_cooperative_cancellation,
     complete_queued_job,
     fail_queued_job,
     job_to_dict,
@@ -199,6 +205,31 @@ def _run_worker_once_locked(
         cancelled = db.get(type(job), job_id)
         if cancelled is None:
             raise ValueError("Cancelled operation job no longer exists.")
+        return {
+            "ok": True,
+            "worker_id": active_worker_id,
+            "processed": True,
+            "recovered_expired_jobs": len(recovered),
+            "job": job_to_dict(cancelled),
+        }
+    except CooperativeShadowObservationCancelled:
+        db.rollback()
+        pending = db.get(type(job), job_id)
+        if pending is None:
+            raise ValueError(
+                "Cancelled shadow observation job no longer exists."
+            )
+        cancelled = complete_cooperative_cancellation(
+            db,
+            pending,
+            worker_id=active_worker_id,
+            lease_token=lease_token,
+            details={
+                "safe_boundary": "before_aggregate_observation_persist"
+            },
+        )
+        db.commit()
+        db.refresh(cancelled)
         return {
             "ok": True,
             "worker_id": active_worker_id,

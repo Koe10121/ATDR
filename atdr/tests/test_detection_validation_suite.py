@@ -1,7 +1,10 @@
+import re
 import shutil
+from datetime import datetime
 from pathlib import Path
 
 from atdr.app.core.config import PROJECT_ROOT
+from atdr.scripts.generate_detection_variants import generate_variant_lines
 from atdr.scripts.run_detection_validation_suite import (
     _load_expectations,
     run_detection_validation_scenario,
@@ -50,6 +53,17 @@ def test_detection_validation_suite_writes_json_and_markdown_report():
     assert "port_scan_like_traffic" in risk_markdown
 
 
+def test_detection_variants_preserve_cadence_sensitive_beacon_window():
+    lines = generate_variant_lines("malicious_like_c2_beacon", variant_index=3)[:6]
+    timestamps = []
+    for line in lines:
+        match = re.match(r"(2026-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+07:00)", line)
+        assert match is not None
+        timestamps.append(datetime.fromisoformat(match.group(1)))
+
+    assert (max(timestamps) - min(timestamps)).total_seconds() == 300
+
+
 def test_validation_scenarios_cover_clean_and_malformed_inputs():
     normal = run_detection_validation_scenario(scenario="normal_allowed_traffic")
     malformed = run_detection_validation_scenario(scenario="malformed_raw_fallback")
@@ -67,7 +81,7 @@ def test_validation_scenarios_cover_clean_and_malformed_inputs():
     assert {"port_scan", "brute_force", "malware_c2"}.issubset({alert["attack_type"] for alert in mixed["alerts"]})
     assert policy["passed"] is True
     assert policy["alert_count"] == 1
-    assert {alert["attack_type"] for alert in policy["alerts"]} == {"malware_c2"}
+    assert {alert["attack_type"] for alert in policy["alerts"]} == {"policy_violation"}
     assert negative["passed"] is True
     assert negative["alert_count"] == 0
 

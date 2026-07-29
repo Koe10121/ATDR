@@ -123,7 +123,19 @@ def run_verify_release(
 
     required_commands: list[tuple[str, list[str]]] = [
         ("config_doctor", [python, "-m", "atdr.scripts.config_doctor"]),
-        ("compileall", [python, "-m", "compileall", "-q", "atdr", "migrations"]),
+        (
+            "compileall",
+            [
+                python,
+                "-m",
+                "compileall",
+                "-q",
+                "-x",
+                r"atdr[\\/]data[\\/]processed",
+                "atdr",
+                "migrations",
+            ],
+        ),
         (
             "pytest",
             [

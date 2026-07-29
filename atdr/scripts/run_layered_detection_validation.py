@@ -1,5 +1,6 @@
 import argparse
 import json
+import re
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -81,6 +82,38 @@ def _max_risk(alerts: list[dict[str, Any]]) -> int:
     return max((int(float(alert.get("risk_score") or 0)) for alert in alerts), default=0)
 
 
+def _anomaly_evidence_quality(log: NormalizedLog) -> dict[str, Any]:
+    parsed = log.parsed_json or {}
+    profile = str(parsed.get("parser_profile") or "palo_alto")
+    structured_values = (
+        log.src_ip,
+        log.dst_ip,
+        log.app,
+        log.action,
+        log.protocol,
+        log.dst_port,
+        log.src_zone,
+        log.dst_zone,
+    )
+    structured_field_count = sum(value not in {None, ""} for value in structured_values)
+    warnings = [str(item) for item in parsed.get("parser_warnings") or []]
+    parser_error = parsed.get("parser_error")
+    limited = bool(
+        profile in {"generic_syslog", "raw_fallback"}
+        or parser_error
+        or warnings
+        or structured_field_count < 4
+    )
+    return {
+        "status": "limited" if limited else "sufficient",
+        "parser_profile": profile,
+        "structured_field_count": structured_field_count,
+        "parser_warning_count": len(warnings),
+        "parser_error_present": bool(parser_error),
+        "alert_authority": False,
+    }
+
+
 def _is_false_positive(mode: str, expectation: dict[str, Any], alerts: list[dict[str, Any]]) -> bool:
     if expectation.get("expected_alert_present"):
         return False
@@ -120,6 +153,18 @@ def _alert_rows_from_db(db: Session, source_id: int) -> tuple[list[dict[str, Any
             "why_flagged": summary.get("why_flagged"),
             "detection_source": summary.get("detection_source"),
             "top_evidence_points": summary.get("top_evidence_points", []),
+            "rule_signals": [
+                str(rule.get("code"))
+                for rule in alert.matched_rules_json or []
+                if rule.get("code") and rule.get("code") != "group_metadata"
+            ],
+            "anomaly_scores": [
+                float(item.normalized_log.anomaly_score)
+                for item in alert.evidence
+                if item.normalized_log is not None and item.normalized_log.anomaly_score is not None
+            ],
+            "supervised_probability": float((summary.get("supervised") or {}).get("queue_probability") or 0.0),
+            "hybrid_components": (summary.get("hybrid_risk") or {}).get("components") or {},
             "layered_evidence": {
                 "rule": _rule_evidence(alert.matched_rules_json or []),
                 "anomaly": _anomaly_evidence(summary),
@@ -174,13 +219,18 @@ def _diagnostic_anomaly_alerts(db: Session, source_id: int) -> tuple[list[dict[s
     for log in logs:
         if not log.is_anomaly:
             continue
-        risk = int(round(isolation_score_to_risk(log.anomaly_score, is_anomaly=True)))
+        raw_risk = int(round(isolation_score_to_risk(log.anomaly_score, is_anomaly=True)))
+        evidence_quality = _anomaly_evidence_quality(log)
+        risk = min(raw_risk, 40) if evidence_quality["status"] == "limited" else raw_risk
         rows.append(
             {
                 "alert_id": None,
                 "alert_type": "diagnostic_anomaly",
                 "severity": severity_from_score(risk),
                 "risk_score": risk,
+                "raw_anomaly_risk_score": raw_risk,
+                "anomaly_score": float(log.anomaly_score) if log.anomaly_score is not None else None,
+                "evidence_quality": evidence_quality,
                 "title": f"Diagnostic anomaly signal for log {log.id}",
                 "evidence_count": 1,
                 "attack_type": "unknown_anomaly",
@@ -188,6 +238,11 @@ def _diagnostic_anomaly_alerts(db: Session, source_id: int) -> tuple[list[dict[s
                 "detection_source": ["anomaly"],
                 "top_evidence_points": [
                     f"Anomaly score={round(float(log.anomaly_score), 6) if log.anomaly_score is not None else 'not_available'}.",
+                    (
+                        "Limited parser/field evidence caps this advisory signal below High severity."
+                        if evidence_quality["status"] == "limited"
+                        else "Structured evidence is sufficient for normal advisory severity mapping."
+                    ),
                     "Diagnostic anomaly-only mode does not trigger response actions.",
                 ],
                 "layered_evidence": {
@@ -196,6 +251,10 @@ def _diagnostic_anomaly_alerts(db: Session, source_id: int) -> tuple[list[dict[s
                     "ml": "Not evaluated in anomaly-only mode.",
                     "hybrid": "Not evaluated in anomaly-only mode.",
                 },
+                "rule_signals": [],
+                "anomaly_scores": [float(log.anomaly_score)] if log.anomaly_score is not None else [],
+                "supervised_probability": 0.0,
+                "hybrid_components": {},
             }
         )
     return rows, {
@@ -246,6 +305,10 @@ def _diagnostic_supervised_alerts(db: Session, source_id: int) -> tuple[list[dic
                     "hybrid": "Hybrid score shown only as advisory probability/risk translation.",
                 },
                 "prediction": prediction,
+                "rule_signals": [],
+                "anomaly_scores": [],
+                "supervised_probability": malicious_probability,
+                "hybrid_components": hybrid.get("components") or {},
             }
         )
     return rows, {
@@ -481,6 +544,7 @@ def _run_variant_mode(
                 "false_positive": false_positive,
                 "false_negative": false_negative,
                 "expected_attack_types": sorted(_expected_attack_types(expectation)),
+                "expected_alert_present": bool(expectation.get("expected_alert_present")),
                 "actual_attack_types": sorted(_attack_types_from_alerts(alerts)),
                 "alerts_created": len(alerts),
                 "alerts_deduplicated": sum(int(item.get("deduplicated_alert_updates") or 0) for item in mode_artifacts),
@@ -561,6 +625,94 @@ def _scenario_summary(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "hybrid": mode_status.get("hybrid", "not_run"),
                 "best_mode": best_mode,
                 "notes": (items[0].get("layered_expectation") or {}).get("notes"),
+            }
+        )
+    return rows
+
+
+def _likely_failure_root_cause(item: dict[str, Any]) -> str:
+    scenario = str(item.get("scenario") or "")
+    mode = str(item.get("mode") or "")
+    if mode == "anomaly_only" and scenario in {
+        "generic_syslog_mixed",
+        "malformed_raw_fallback",
+        "malformed_vendor_mixed_fields",
+    }:
+        return "field-poor parser fallback was over-scored by a global anomaly baseline"
+    if mode == "hybrid" and scenario == "benign_high_volume_single_service":
+        return "advisory anomaly evidence was counted toward alert-authoritative score"
+    if mode == "hybrid" and scenario == "suspicious_rare_port_probe":
+        return "anomaly precedence masked the more specific deny/rare-port rule evidence"
+    if scenario == "malicious_like_c2_beacon" and mode in {"rules_only", "hybrid"}:
+        return "variant timestamp offsets stretched a cadence-sensitive sequence beyond its five-minute window"
+    return "requires targeted evidence review"
+
+
+def build_failure_matrix(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for item in results:
+        if item.get("passed"):
+            continue
+        alerts = item.get("alerts") or []
+        anomaly_scores = [
+            float(score)
+            for alert in alerts
+            for score in alert.get("anomaly_scores") or []
+        ]
+        if not anomaly_scores:
+            anomaly_scores = [
+                float(match.group(1))
+                for alert in alerts
+                for point in alert.get("top_evidence_points") or []
+                if (match := re.search(r"Anomaly score=(-?\d+(?:\.\d+)?)", str(point)))
+            ]
+        supervised_probabilities = [
+            float(alert.get("supervised_probability") or 0.0)
+            for alert in alerts
+            if alert.get("supervised_probability") is not None
+        ]
+        rows.append(
+            {
+                "scenario": item.get("scenario"),
+                "variant_id": item.get("variant_id"),
+                "detection_layer": item.get("mode"),
+                "classification": (
+                    "false_positive"
+                    if item.get("false_positive")
+                    else "false_negative"
+                    if item.get("false_negative")
+                    else "failed_check"
+                ),
+                "expected_behavior": {
+                    "attack_types": item.get("expected_attack_types") or [],
+                    "alert_present": bool(item.get("expected_alert_present")),
+                    "quiet": not bool(item.get("expected_alert_present")),
+                },
+                "actual_behavior": {
+                    "attack_types": item.get("actual_attack_types") or [],
+                    "alerts_or_signals": item.get("alerts_created"),
+                    "max_severity": item.get("max_severity"),
+                    "max_risk_score": item.get("max_risk_score"),
+                },
+                "rule_evidence_signals": sorted(
+                    {
+                        str(signal)
+                        for alert in alerts
+                        for signal in (
+                            alert.get("rule_signals")
+                            or ((alert.get("layered_evidence") or {}).get("rule") or [])
+                        )
+                    }
+                ),
+                "supervised_probability": max(supervised_probabilities, default=None),
+                "anomaly_score": min(anomaly_scores, default=None),
+                "hybrid_contribution": [
+                    alert.get("hybrid_components") or {}
+                    for alert in alerts
+                    if alert.get("hybrid_components")
+                ][:3],
+                "likely_root_cause": _likely_failure_root_cause(item),
+                "response_actions_created": (item.get("safety") or {}).get("response_actions_created", 0),
             }
         )
     return rows
@@ -676,6 +828,7 @@ def run_layered_detection_validation(
         "false_negative_count": sum(1 for item in results if item["false_negative"]),
         "mode_summary": _mode_summary(results),
         "scenario_summary": _scenario_summary(results),
+        "failure_matrix": build_failure_matrix(results),
         "results": results,
         "variant_manifest": {
             "manifest_path": manifest["manifest_path"],

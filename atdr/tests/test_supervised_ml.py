@@ -571,7 +571,10 @@ def test_attack_mapping_and_alert_explanation_summary():
 
     assert mapping["technique_id"] == "T1046"
     assert summary["attack_mapping"]["technique_id"] == "T1046"
-    assert "Flagged for analyst review" in summary["why_flagged"]
+    assert "Flagged by deterministic rule evidence" in summary["why_flagged"]
+    assert summary["alert_authority"]["layer"] == "deterministic_rules"
+    assert summary["alert_authority"]["authoritative_rule_count"] == 1
+    assert summary["anomaly_evidence"]["evidence_role"] == "advisory_only"
     assert "Source touched" in " ".join(summary["top_evidence_points"])
 
 
@@ -1053,7 +1056,7 @@ def test_supervised_dataset_snapshot_and_feature_metadata(tmp_path):
 
     assert result["status"] == "exported"
     assert result["contains_raw_payloads"] is False
-    assert result["feature_set_metadata"]["feature_set_version"] == "behavior_windows_v2"
+    assert result["feature_set_metadata"]["feature_set_version"] == "behavior_windows_v3_leakage_safe"
     assert Path(result["features_csv"]).exists()
     assert "raw_line" not in Path(result["features_csv"]).read_text(encoding="utf-8").splitlines()[0]
 
@@ -1456,7 +1459,7 @@ def test_rebuild_clean_registered_baseline_saves_candidate_only(tmp_path, monkey
     assert active_path.exists() is False
 
 
-def test_supervised_model_registry_activation_and_rollback(tmp_path, monkeypatch):
+def test_legacy_supervised_candidate_cannot_bypass_governed_activation(tmp_path, monkeypatch):
     active_path = tmp_path / "active-supervised.joblib"
     monkeypatch.setattr(
         supervised_detector,
@@ -1488,9 +1491,10 @@ def test_supervised_model_registry_activation_and_rollback(tmp_path, monkeypatch
     assert active["trained"] is True
     assert candidate["save_candidate"] is True
     assert registry["response_automation_allowed"] is False
-    assert activated["status"] == "activated"
+    assert activated["status"] == "failed_closed"
     assert activated["production_promoted"] is False
-    assert rolled_back["status"] == "rolled_back"
+    assert rolled_back["status"] == "inactive"
+    assert rolled_back["response_automation_allowed"] is False
 
 
 def test_supervised_model_registry_marks_unregistered_active_artifact(tmp_path, monkeypatch):
@@ -1501,12 +1505,15 @@ def test_supervised_model_registry_marks_unregistered_active_artifact(tmp_path, 
     with Session() as db:
         registry = list_supervised_models(db)
 
-    assert registry["active_artifact_exists"] is True
-    assert registry["active_artifact_metadata_unknown"] is True
-    assert registry["active_artifact_metadata_status"] == "metadata_unknown"
+    assert registry["active_artifact_exists"] is False
+    assert registry["active_artifact_metadata_unknown"] is False
+    assert registry["active_artifact_metadata_status"] == "inactive"
+    assert registry["legacy_artifact_exists"] is True
+    assert registry["legacy_artifact_selected"] is False
     active = registry["models"][0]
     assert active["model_version"] == "active-unregistered"
     assert active["active_artifact_metadata_unknown"] is True
+    assert active["is_active_path"] is False
     assert active["display_model_type"] == "Active artifact metadata unknown"
     assert active["production_promoted"] is False
     assert active["response_automation_allowed"] is False

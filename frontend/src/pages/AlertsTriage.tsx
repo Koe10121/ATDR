@@ -103,6 +103,8 @@ export function AlertsTriage() {
   const attackMapping = detectionSummary?.attack_mapping ?? attackMappingForType(inferAttackTypeFromAlertType(selected?.alert_type));
   const anomalySummary = detectionSummary?.anomaly;
   const supervisedSummary = detectionSummary?.supervised;
+  const hybridSummary = detectionSummary?.hybrid_risk;
+  const alertAuthority = detectionSummary?.alert_authority;
   const groupMetadata = selected?.matched_rules_json?.find((rule) => rule.code === "group_metadata") ?? null;
   const occurrenceCount = Number(groupMetadata?.occurrence_count ?? groupMetadata?.evidence_count ?? selected?.evidence_count ?? 0);
   const relatedLogCount = Number(groupMetadata?.related_log_count ?? groupMetadata?.evidence_count ?? selected?.evidence_count ?? 0);
@@ -385,22 +387,32 @@ export function AlertsTriage() {
                 </div>
                 <Badge value={detectionSummary?.attack_type ?? inferAttackTypeFromAlertType(selected.alert_type)} />
               </div>
-              <div className="grid gap-3 md:grid-cols-3">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                <div className="rounded border border-line bg-panel2 p-3">
+                  <div className="text-xs font-bold uppercase tracking-wide text-muted">Rule Authority</div>
+                  <div className="mt-1 font-bold text-text">{alertAuthority?.authoritative_rule_count ?? detectionSummary?.matched_rule_names?.length ?? 0} matched</div>
+                  <div className="text-sm text-muted">Created the alert</div>
+                </div>
                 <div className="rounded border border-line bg-panel2 p-3">
                   <div className="text-xs font-bold uppercase tracking-wide text-muted">ATT&CK-style Mapping</div>
                   <div className="mt-1 font-bold text-text">{attackMapping.tactic}</div>
                   <div className="text-sm text-muted">{attackMapping.technique} / {attackMapping.technique_id}</div>
                 </div>
                 <div className="rounded border border-line bg-panel2 p-3">
-                  <div className="text-xs font-bold uppercase tracking-wide text-muted">Anomaly</div>
+                  <div className="text-xs font-bold uppercase tracking-wide text-muted">Anomaly Advisory</div>
                   <div className="mt-1 font-bold text-text">{anomalySummary?.present === true ? "Present" : "Not present"}</div>
-                  <div className="text-sm text-muted">Score {String(anomalySummary?.min_score ?? "-")}</div>
+                  <div className="text-sm text-muted">Score {String(anomalySummary?.min_score ?? "-")} | No alert authority</div>
                 </div>
                 <div className="rounded border border-line bg-panel2 p-3">
-                  <div className="text-xs font-bold uppercase tracking-wide text-muted">Supervised Triage Signal</div>
+                  <div className="text-xs font-bold uppercase tracking-wide text-muted">Supervised Shadow</div>
                   <div className="mt-1 font-bold text-text">{String(supervisedSummary?.predicted_label ?? "not trained")}</div>
                   <div className="text-sm text-muted">Threat-positive score {String(supervisedSummary?.malicious_probability ?? 0)}</div>
                   <div className="mt-1 text-xs text-muted">Review priority only; not automatic truth.</div>
+                </div>
+                <div className="rounded border border-line bg-panel2 p-3">
+                  <div className="text-xs font-bold uppercase tracking-wide text-muted">Hybrid Interpretation</div>
+                  <div className="mt-1 font-bold text-text">{String(hybridSummary?.hybrid_risk_score ?? hybridSummary?.risk_score ?? "-")}</div>
+                  <div className="text-sm text-muted">Diagnostic only</div>
                 </div>
               </div>
               <div className="mt-3 rounded border border-amber/30 bg-amber/10 px-3 py-2 text-xs text-amber">

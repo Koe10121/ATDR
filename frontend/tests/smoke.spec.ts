@@ -590,7 +590,17 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
         last_log_received_at: "2026-05-22T00:00:01Z",
         latest_error: null,
         recommendation: "Healthy: logs recently received and parsed successfully.",
-        warnings: []
+        warnings: [],
+        parser_quality_state: "healthy",
+        parser_contract_state: "current_contract",
+        runtime_parser_error_count: 0,
+        runtime_parser_error_rate: 0,
+        structural_warning_count: 0,
+        unresolved_application_count: 0,
+        unresolved_application_rate: 0,
+        generic_syslog_count: 0,
+        raw_fallback_count: 0,
+        operational_alerts: []
       },
       quality: {
         raw_logs: 2,
@@ -599,7 +609,26 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
         unknown_app_rate: 0,
         alert_count: 1,
         parse_failure_examples: [],
-        warnings: []
+        warnings: [],
+        parser_quality: {},
+        parser_quality_state: "healthy",
+        parser_contract_state: "current_contract",
+        runtime_observed_rows: 2,
+        legacy_contract_rows: 0,
+        parser_error_count: 0,
+        parser_error_rate: 0,
+        structural_warning_count: 0,
+        compatible_layout_count: 2,
+        extended_layout_count: 0,
+        partial_layout_count: 0,
+        unsupported_layout_count: 0,
+        unresolved_application_count: 0,
+        unresolved_application_rate: 0,
+        absent_application_count: 0,
+        not_applicable_application_count: 0,
+        generic_syslog_count: 0,
+        raw_fallback_count: 0,
+        operational_alerts: []
       },
       recent_ingestion_runs: [
         {
@@ -651,12 +680,12 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
       logs_received_count: 3,
       parse_success_count: 0,
       parse_failure_count: 3,
-      latest_error: "raw_fallback parser profile preserved raw evidence with limited structured fields",
+      latest_error: null,
       created_at: "2026-05-22T00:02:00Z",
       updated_at: "2026-05-22T00:02:01Z",
       health: {
         source_id: 2,
-        status: "error",
+        status: "warning",
         enabled: true,
         logs_received_count: 3,
         parse_success_count: 0,
@@ -664,9 +693,25 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
         parse_success_rate: 0,
         last_seen: "2026-05-22T00:02:01Z",
         last_log_received_at: "2026-05-22T00:02:01Z",
-        latest_error: "raw_fallback parser profile preserved raw evidence with limited structured fields",
-        recommendation: "Error: repeated parser failures. Pause response decisions from this source until format is reviewed.",
-        warnings: ["Raw fallback preserves evidence but structured fields may be limited."]
+        latest_error: null,
+        recommendation: "Warning: review parser errors, structural layout alerts, or raw fallback usage. Unresolved applications alone are not failures.",
+        warnings: ["Raw fallback preserves evidence but structured fields may be limited."],
+        parser_quality_state: "warning",
+        parser_contract_state: "current_contract",
+        runtime_parser_error_count: 0,
+        runtime_parser_error_rate: 0,
+        structural_warning_count: 0,
+        unresolved_application_count: 0,
+        unresolved_application_rate: 0,
+        generic_syslog_count: 0,
+        raw_fallback_count: 3,
+        operational_alerts: [
+          {
+            code: "prolonged_raw_fallback",
+            severity: "warning",
+            message: "Raw fallback preserves evidence but structured fields may be limited."
+          }
+        ]
       },
       quality: {
         raw_logs: 3,
@@ -674,13 +719,67 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
         unknown_app_count: 3,
         unknown_app_rate: 100,
         alert_count: 0,
-        parse_failure_examples: [{ raw_log_id: 21, error: "raw fallback preserved evidence", raw_line_excerpt: "not-a-firewall-line" }],
-        warnings: ["Parser profile has limited structured fields."]
+        parse_failure_examples: [],
+        warnings: ["Parser profile has limited structured fields."],
+        parser_quality: {},
+        parser_quality_state: "warning",
+        parser_contract_state: "current_contract",
+        runtime_observed_rows: 3,
+        legacy_contract_rows: 0,
+        parser_error_count: 0,
+        parser_error_rate: 0,
+        structural_warning_count: 0,
+        compatible_layout_count: 0,
+        extended_layout_count: 0,
+        partial_layout_count: 0,
+        unsupported_layout_count: 0,
+        unresolved_application_count: 0,
+        unresolved_application_rate: 0,
+        absent_application_count: 0,
+        not_applicable_application_count: 3,
+        generic_syslog_count: 0,
+        raw_fallback_count: 3,
+        operational_alerts: [
+          {
+            code: "prolonged_raw_fallback",
+            severity: "warning",
+            message: "Raw fallback preserves evidence but structured fields may be limited."
+          }
+        ]
       },
       recent_ingestion_runs: [],
       recent_detection_runs: []
     };
     const url = route.request().url();
+    if (url.includes("/reparse-impact-preview")) {
+      return route.fulfill({
+        json: {
+          version: "v5.13-runtime-parser-quality-v1",
+          status: "preview_complete",
+          scope: "selected_source",
+          preview_only: true,
+          reparse_performed: false,
+          database_mutated: false,
+          total_rows: 2,
+          rows_scanned: 2,
+          coverage_complete: true,
+          current_contract_metadata_rows: 2,
+          legacy_contract_rows_scanned: 0,
+          parser_profiles: { palo_alto: 2 },
+          parser_contract_versions: { "palo_alto_syslog_v5.12": 2 },
+          compatibility_statuses: { supported_known_layout: 2 },
+          application_resolution_statuses: { identified: 2 },
+          raw_evidence_accessed: false,
+          raw_logs_returned: false,
+          private_paths_included: false,
+          ip_addresses_included: false,
+          source_identity_included: false,
+          labels_accessed: false,
+          alerts_created: 0,
+          response_actions_created: 0
+        }
+      });
+    }
     await route.fulfill({
       json: url.match(/\/api\/sources\/2(\?|$)/) ? rawFallbackSource : url.match(/\/api\/sources\/1(\?|$)/) ? source : [source, rawFallbackSource]
     });
@@ -1651,9 +1750,21 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
   await page.route("**/api/ml/supervised/models", async (route) =>
     route.fulfill({
       json: {
-        active_artifact_exists: false,
+        active_artifact_exists: true,
+        active_artifact_metadata_unknown: true,
         response_automation_allowed: false,
         models: [
+          {
+            model_id: 0,
+            model_type: "unknown",
+            model_version: "active-unregistered",
+            operation: "active_artifact",
+            readiness_decision: "unknown_active_artifact",
+            metrics: {},
+            created_at: null,
+            is_active_path: true,
+            active_artifact_metadata_unknown: true
+          },
           {
             model_id: 1,
             model_type: "random_forest",
@@ -1665,6 +1776,240 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
             is_active_path: false
           }
         ]
+      }
+    })
+  );
+  await page.route("**/api/ml/supervised/shadow-observations/summary", async (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        version: "v5.9-longitudinal-shadow-observation-v1",
+        status: "no_longitudinal_observations",
+        observation_enabled: false,
+        shadow_scoring_enabled: false,
+        observation_count: 0,
+        source_filter_applied: false,
+        since_filter_applied: false,
+        latest: null,
+        trend: [],
+        trend_count: 0,
+        drift_status_counts: {},
+        runtime_status_counts: {},
+        queue_rate: { minimum: null, mean: null, maximum: null },
+        rule_disagreement_rate: { minimum: null, mean: null, maximum: null },
+        independent_evidence: {
+          status: "independent_evidence_required",
+          qualified: false,
+          source_device_count: 0,
+          independent_time_window_count: 0,
+          blind_metrics_available: false
+        },
+        retention: {
+          retention_days: 90,
+          automatic_cleanup_enabled: false,
+          append_only_between_explicit_retention_runs: true
+        },
+        lifecycle_state: "shadow_observation",
+        rules_alert_authoritative: true,
+        model_activated: false,
+        production_promoted: false,
+        response_automation_allowed: false,
+        real_firewall_blocking_enabled: false,
+        raw_logs_included: false,
+        private_paths_included: false,
+        fingerprints_included: false,
+        secrets_exposed: false
+      }
+    })
+  );
+  await page.route("**/api/ml/supervised/shadow-operations/acceptance", async (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        version: "v5.10-detection-operations-shadow-acceptance-v1",
+        status: "insufficient_operational_evidence",
+        evidence_role: "reused_development_operational_evidence_only",
+        independent_validation: false,
+        observation_count: 0,
+        source_scope_count: 0,
+        time_scope_count: 0,
+        latest_observation_at: null,
+        queue_rate: { minimum: null, mean: null, maximum: null, range: null },
+        rule_shadow_disagreement_rate: { minimum: null, mean: null, maximum: null, range: null },
+        isolation_forest_anomaly_rate: { minimum: null, mean: null, maximum: null, range: null },
+        runtime_seconds: { minimum: null, mean: null, maximum: null, range: null },
+        quality: {},
+        drift: { current_state: "Insufficient Evidence", status_counts: {} },
+        failed_observation_count: 0,
+        insufficient_evidence_count: 0,
+        contract_mismatch_count: 0,
+        warnings: ["No governed historical observations have been recorded."],
+        gates: [],
+        gates_passed: 2,
+        gates_total: 8,
+        operational_acceptance_passed: false,
+        accuracy_metrics_calculated: false,
+        lifecycle_state: "shadow_observation",
+        rules_alert_authoritative: true,
+        isolation_forest_advisory_only: true,
+        model_activated: false,
+        production_promoted: false,
+        response_automation_allowed: false,
+        real_firewall_blocking_enabled: false,
+        source_identifiers_included: false,
+        raw_logs_included: false,
+        ip_addresses_included: false,
+        private_paths_included: false,
+        fingerprints_included: false,
+        labels_accessed: false,
+        secrets_exposed: false
+      }
+    })
+  );
+  await page.route("**/api/ml/supervised/shadow-operations/diagnostics", async (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        version: "v5.11-operational-drift-root-cause-v1",
+        status: "insufficient_operational_evidence",
+        observation_count: 0,
+        source_scope_count: 0,
+        current_state: "Insufficient Evidence",
+        rows: [],
+        root_cause_counts: {},
+        operational_metrics: {
+          queue_rate: { minimum: null, mean: null, maximum: null, range: null },
+          rule_shadow_disagreement_rate: { minimum: null, mean: null, maximum: null, range: null },
+          isolation_forest_anomaly_rate: { minimum: null, mean: null, maximum: null, range: null }
+        },
+        thresholds: { minimum_rows: 50, drift_total_variation: 0.25, ood_total_variation: 0.5 },
+        hysteresis: {
+          drift_escalation_observations: 2,
+          drift_recovery_stable_observations: 2,
+          ood_escalation_observations: 1,
+          ood_recovery_sufficient_observations: 3,
+          insufficient_evidence_clears_warning: false
+        },
+        cadence: {
+          enabled: false,
+          dependencies_ready: false,
+          scheduler_mode: "external_due_check_only",
+          always_on_scheduler_enabled: false,
+          cadence_minutes: 60,
+          active_job: false,
+          latest_status: "not_run",
+          last_completed_at: null,
+          next_due_at: null,
+          due: false,
+          bounded_source_count: 8,
+          bounded_windows_per_source: 3,
+          duplicate_suppression: true,
+          idempotent_retry: true,
+          cooperative_cancellation: true
+        },
+        accuracy_metrics_calculated: false,
+        lifecycle_state: "shadow_observation",
+        rules_alert_authoritative: true,
+        isolation_forest_advisory_only: true,
+        model_activated: false,
+        production_promoted: false,
+        response_automation_allowed: false,
+        real_firewall_blocking_enabled: false,
+        source_identifiers_included: false,
+        raw_logs_included: false,
+        ip_addresses_included: false,
+        private_paths_included: false,
+        fingerprints_included: false,
+        labels_accessed: false,
+        secrets_exposed: false
+      }
+    })
+  );
+  await page.route("**/api/ml/supervised/shadow-operations/parser-quality", async (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        version: "v5.12-parser-profile-baseline-repair-v1",
+        status: "parser_profile_diagnostics_available",
+        parser_contract_version: "palo_alto_syslog_v5.12",
+        observation_count: 1,
+        source_scope_count: 1,
+        current_state: "Stable",
+        old_state_counts: { "Drift Warning": 1 },
+        repaired_state_counts: { Stable: 1 },
+        baseline_scope_counts: {
+          parser_profile_source_type: 1,
+          global_fallback: 0
+        },
+        legacy_warning_windows_reclassified: 1,
+        baseline_catalog: {
+          status: "governed_parser_baseline_available",
+          available: true,
+          minimum_support: 200,
+          parser_contract_version: "palo_alto_syslog_v5.12",
+          provenance: {
+            evidence_role: "governed_development_fit_aggregate",
+            selection_labels_used: false,
+            accuracy_metrics_used: false,
+            source_identity_used: false,
+            locked_final_evidence_used: false,
+            baseline_report_committed: false
+          }
+        },
+        rows: [
+          {
+            source_scope: "source-scope-01",
+            time_scope: "time-scope-01",
+            rows_evaluated: 100,
+            old_drift_state: "Drift Warning",
+            raw_repaired_state: "Stable",
+            drift_state: "Stable",
+            queue_rate: 0.2,
+            disagreement_rate: 0.1,
+            isolation_anomaly_rate: 0,
+            baseline_selection: {
+              status: "profile_source_type_baseline_selected",
+              scope: "parser_profile_source_type",
+              comparable: true,
+              parser_profile: "palo_alto",
+              source_type: "firewall",
+              support_rows: 352312
+            },
+            application_total_variation: 0.1,
+            schema_total_variation: 0,
+            quality: {
+              rows: 100,
+              parser_error_rate: 0,
+              parser_structural_warning_per_row: 0,
+              required_missing_per_row: 0,
+              unresolved_application_rate: 0.08
+            },
+            quality_absolute_delta: {
+              parser_error_rate: 0,
+              parser_structural_warning_per_row: 0,
+              required_missing_per_row: 0,
+              unresolved_application_rate: 0.006
+            },
+            compatibility_status_counts: { known_layout: 100 },
+            application_resolution_counts: { identified: 92, unresolved: 8 },
+            root_cause_codes: ["no_material_aggregate_shift"],
+            accuracy_metrics_calculated: false
+          }
+        ],
+        lifecycle_state: "shadow_observation",
+        rules_alert_authoritative: true,
+        isolation_forest_advisory_only: true,
+        model_activated: false,
+        production_promoted: false,
+        response_automation_allowed: false,
+        real_firewall_blocking_enabled: false,
+        source_identifiers_included: false,
+        raw_logs_included: false,
+        ip_addresses_included: false,
+        private_paths_included: false,
+        labels_accessed: false,
+        accuracy_metrics_calculated: false,
+        secrets_exposed: false
       }
     })
   );
@@ -2044,12 +2389,20 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByText("Parser Profile", { exact: true })).toBeVisible();
   await expect(page.getByText("Troubleshooting Hints")).toBeVisible();
   await expect(page.getByText("Parser profile behavior")).toBeVisible();
+  await expect(page.getByText("Contract State")).toBeVisible();
+  await expect(page.getByText("Parser Quality", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("historical-contract-preview")).toContainText("No log is reparsed or changed.");
+  await page.getByRole("button", { name: "Preview impact" }).click();
+  await expect(page.getByTestId("historical-contract-preview")).toContainText("Database mutated: no.");
   await expect(page.getByText("Recent Detection Runs")).toBeVisible();
   await expect(page.getByText("Run attack types: port_scan (1)")).toBeVisible();
   await page.getByRole("button", { name: "Close details" }).click();
   await page.getByRole("button", { name: /scenario-raw-fallback/ }).click();
-  await expect(page.getByText("Raw fallback preserves evidence but structured fields may be limited.")).toBeVisible();
-  await expect(page.getByText("raw fallback preserved evidence")).toBeVisible();
+  await expect(page.getByTestId("source-parser-alerts")).toContainText("prolonged raw fallback");
+  await expect(page.getByText("Raw fallback preserves evidence but structured fields may be limited.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Fallback / Failed Rows", { exact: true })).toBeVisible();
+  await expect(page.getByText("Runtime Parser Errors", { exact: true })).toBeVisible();
+  await expect(page.getByText("Latest Errors", { exact: true })).not.toBeVisible();
   await page.getByRole("button", { name: "Close details" }).click();
   await expect(page.getByText("Latest Ingestion Run")).toBeVisible();
   await expect(page.getByText("Latest Detection Run")).toBeVisible();
@@ -2071,7 +2424,14 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByText("Evidence Provenance", { exact: true })).toBeVisible();
   await expect(page.getByText("CSE-CIC-IDS2018 development-only evidence", { exact: true })).toBeVisible();
   await expect(page.getByText("Supervised Artifact", { exact: true })).toBeVisible();
-  await expect(page.getByText("Metadata unknown", { exact: true })).toBeVisible();
+  const modelRegistry = page.getByTestId("supervised-model-registry");
+  await expect(modelRegistry.getByText("Metadata unknown", { exact: true })).toBeVisible();
+  await expect(modelRegistry.getByText("active metadata unavailable", { exact: true })).toBeVisible();
+  await expect(modelRegistry.getByText("Lifecycle", { exact: true })).toBeVisible();
+  await expect(modelRegistry.getByText("Response Automation", { exact: true })).toBeVisible();
+  await page.getByText("Artifact Metadata", { exact: true }).click();
+  await expect(page.getByText("The v4.9 reliability-lock candidates are", { exact: false })).toBeVisible();
+  await expect(page.getByText("active artifact ready", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Review focus: benign and suspicious separation need more analyst-verified examples.")).not.toBeVisible();
   await expect(page.getByTestId("detection-ml-productization-panel")).toContainText("Detection / ML Productization");
   await expect(page.getByTestId("detection-ml-productization-panel")).toContainText("diagnostic evaluation passed");
@@ -2108,13 +2468,612 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByText("Weak labels require analyst review before model claims.")).toBeVisible();
 });
 
+test("AI Governance shows governed supervised shadow status without selecting the legacy artifact", async ({ page }) => {
+  await mockApi(page);
+  await page.unroute("**/api/ml/supervised/shadow-observations/summary");
+  await page.route("**/api/ml/supervised/shadow-observations/summary", async (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        version: "v5.9-longitudinal-shadow-observation-v1",
+        status: "longitudinal_observations_available",
+        observation_enabled: true,
+        shadow_scoring_enabled: true,
+        observation_count: 2,
+        source_filter_applied: false,
+        since_filter_applied: false,
+        latest: {
+          observation_id: 2,
+          candidate_name: "calibrated_hist_gradient_boosting",
+          candidate_version: "v5.6-private-panos-model-repair-v1",
+          status: "evaluated_shadow_read_only",
+          contract_matched: true,
+          window_start: "2026-07-26T01:00:00Z",
+          window_end: "2026-07-26T02:00:00Z",
+          observed_start: "2026-07-26T01:00:00Z",
+          observed_end: "2026-07-26T02:00:00Z",
+          requested_limit: 100,
+          rows_evaluated: 100,
+          queue_count: 47,
+          queue_rate: 0.47,
+          score_mean: 0.42,
+          score_p95: 0.81,
+          confidence_mean: 0.76,
+          confidence_p95: 0.91,
+          drift_status: "Drift Warning",
+          application_total_variation: 0.262,
+          schema_total_variation: 0.06,
+          disagreement_count: 58,
+          disagreement_rate: 0.58,
+          isolation_anomaly_count: 9,
+          isolation_anomaly_rate: 0.09,
+          runtime_seconds: 0.7,
+          failure_code: null,
+          created_at: "2026-07-26T02:01:00Z",
+          raw_logs_included: false,
+          ip_addresses_included: false,
+          private_paths_included: false,
+          fingerprints_included: false,
+          secrets_exposed: false
+        },
+        trend: [
+          {
+            observation_id: 1,
+            created_at: "2026-07-25T02:01:00Z",
+            queue_rate: 0.41,
+            disagreement_rate: 0.49,
+            drift_status: "Stable"
+          },
+          {
+            observation_id: 2,
+            created_at: "2026-07-26T02:01:00Z",
+            queue_rate: 0.47,
+            disagreement_rate: 0.58,
+            drift_status: "Drift Warning"
+          }
+        ],
+        trend_count: 2,
+        drift_status_counts: { Stable: 1, "Drift Warning": 1 },
+        runtime_status_counts: { evaluated_shadow_read_only: 2 },
+        queue_rate: { minimum: 0.41, mean: 0.44, maximum: 0.47 },
+        rule_disagreement_rate: { minimum: 0.49, mean: 0.535, maximum: 0.58 },
+        independent_evidence: {
+          status: "independent_evidence_required",
+          qualified: false,
+          source_device_count: 0,
+          independent_time_window_count: 0,
+          blind_metrics_available: false
+        },
+        retention: {
+          retention_days: 90,
+          automatic_cleanup_enabled: false,
+          append_only_between_explicit_retention_runs: true
+        },
+        lifecycle_state: "shadow_observation",
+        rules_alert_authoritative: true,
+        model_activated: false,
+        production_promoted: false,
+        response_automation_allowed: false,
+        real_firewall_blocking_enabled: false,
+        raw_logs_included: false,
+        private_paths_included: false,
+        fingerprints_included: false,
+        secrets_exposed: false
+      }
+    })
+  );
+  await page.unroute("**/api/ml/supervised/shadow-operations/acceptance");
+  await page.route("**/api/ml/supervised/shadow-operations/acceptance", async (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        version: "v5.10-detection-operations-shadow-acceptance-v1",
+        status: "operational_shadow_acceptance_warning",
+        evidence_role: "reused_development_operational_evidence_only",
+        independent_validation: false,
+        observation_count: 2,
+        source_scope_count: 1,
+        time_scope_count: 2,
+        latest_observation_at: "2026-07-26T02:01:00Z",
+        queue_rate: { minimum: 0.41, mean: 0.44, maximum: 0.47, range: 0.06 },
+        rule_shadow_disagreement_rate: { minimum: 0.49, mean: 0.535, maximum: 0.58, range: 0.09 },
+        isolation_forest_anomaly_rate: { minimum: 0.07, mean: 0.08, maximum: 0.09, range: 0.02 },
+        runtime_seconds: { minimum: 0.6, mean: 0.65, maximum: 0.7, range: 0.1 },
+        quality: {},
+        drift: { current_state: "Drift Warning", status_counts: { Stable: 1, "Drift Warning": 1 } },
+        failed_observation_count: 0,
+        insufficient_evidence_count: 1,
+        contract_mismatch_count: 0,
+        warnings: ["1 scope has insufficient operational evidence."],
+        gates: [],
+        gates_passed: 7,
+        gates_total: 8,
+        operational_acceptance_passed: false,
+        accuracy_metrics_calculated: false,
+        lifecycle_state: "shadow_observation",
+        rules_alert_authoritative: true,
+        isolation_forest_advisory_only: true,
+        model_activated: false,
+        production_promoted: false,
+        response_automation_allowed: false,
+        real_firewall_blocking_enabled: false,
+        source_identifiers_included: false,
+        raw_logs_included: false,
+        ip_addresses_included: false,
+        private_paths_included: false,
+        fingerprints_included: false,
+        labels_accessed: false,
+        secrets_exposed: false
+      }
+    })
+  );
+  await page.unroute("**/api/ml/supervised/shadow-operations/diagnostics");
+  await page.route("**/api/ml/supervised/shadow-operations/diagnostics", async (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        version: "v5.11-operational-drift-root-cause-v1",
+        status: "operational_diagnostics_available",
+        observation_count: 2,
+        source_scope_count: 1,
+        current_state: "Drift Warning",
+        rows: [
+          {
+            source_scope: "source-scope-01",
+            time_scope: "time-scope-01",
+            observation_time: "2026-07-25T02:01:00Z",
+            rows_evaluated: 100,
+            raw_drift_state: "Stable",
+            drift_state: "Stable",
+            queue_rate: 0.41,
+            disagreement_rate: 0.49,
+            isolation_anomaly_rate: 0.07,
+            score_mean: 0.38,
+            score_p95: 0.79,
+            application_total_variation: 0.19,
+            schema_total_variation: 0.01,
+            unknown_app_rate: 0.02,
+            parser_warning_per_row: 0.01,
+            runtime_seconds: 0.6,
+            root_cause_codes: ["no_material_aggregate_shift"],
+            quality_warning: "No material aggregate quality shift detected.",
+            accuracy_metrics_calculated: false
+          },
+          {
+            source_scope: "source-scope-01",
+            time_scope: "time-scope-02",
+            observation_time: "2026-07-26T02:01:00Z",
+            rows_evaluated: 100,
+            raw_drift_state: "Drift Warning",
+            drift_state: "Drift Warning",
+            queue_rate: 0.47,
+            disagreement_rate: 0.58,
+            isolation_anomaly_rate: 0.09,
+            score_mean: 0.42,
+            score_p95: 0.81,
+            application_total_variation: 0.262,
+            schema_total_variation: 0.06,
+            unknown_app_rate: 0.04,
+            parser_warning_per_row: 0.02,
+            runtime_seconds: 0.7,
+            root_cause_codes: ["application_distribution_shift"],
+            quality_warning: "Application mix differs from the governed baseline.",
+            accuracy_metrics_calculated: false
+          }
+        ],
+        root_cause_counts: {
+          application_distribution_shift: 1,
+          no_material_aggregate_shift: 1
+        },
+        operational_metrics: {
+          queue_rate: { minimum: 0.41, mean: 0.44, maximum: 0.47, range: 0.06 },
+          rule_shadow_disagreement_rate: { minimum: 0.49, mean: 0.535, maximum: 0.58, range: 0.09 },
+          isolation_forest_anomaly_rate: { minimum: 0.07, mean: 0.08, maximum: 0.09, range: 0.02 }
+        },
+        thresholds: { minimum_rows: 50, drift_total_variation: 0.25, ood_total_variation: 0.5 },
+        hysteresis: {
+          drift_escalation_observations: 2,
+          drift_recovery_stable_observations: 2,
+          ood_escalation_observations: 1,
+          ood_recovery_sufficient_observations: 3,
+          insufficient_evidence_clears_warning: false
+        },
+        cadence: {
+          enabled: false,
+          dependencies_ready: true,
+          scheduler_mode: "external_due_check_only",
+          always_on_scheduler_enabled: false,
+          cadence_minutes: 60,
+          active_job: false,
+          latest_status: "not_run",
+          last_completed_at: null,
+          next_due_at: null,
+          due: false,
+          bounded_source_count: 8,
+          bounded_windows_per_source: 3,
+          duplicate_suppression: true,
+          idempotent_retry: true,
+          cooperative_cancellation: true
+        },
+        accuracy_metrics_calculated: false,
+        lifecycle_state: "shadow_observation",
+        rules_alert_authoritative: true,
+        isolation_forest_advisory_only: true,
+        model_activated: false,
+        production_promoted: false,
+        response_automation_allowed: false,
+        real_firewall_blocking_enabled: false,
+        source_identifiers_included: false,
+        raw_logs_included: false,
+        ip_addresses_included: false,
+        private_paths_included: false,
+        fingerprints_included: false,
+        labels_accessed: false,
+        secrets_exposed: false
+      }
+    })
+  );
+  await page.unroute("**/api/ml/supervised/models");
+  await page.route("**/api/ml/supervised/models", async (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        active_model_path: "supervised_candidates/v5.1-soc-queue-smoke.joblib",
+        active_artifact_exists: true,
+        active_artifact_metadata_status: "registered",
+        active_artifact_metadata_unknown: false,
+        lifecycle_state: "shadow_observation",
+        governed_lifecycle: {
+          lifecycle_state: "shadow_observation",
+          configured_lifecycle_state: "shadow_observation",
+          model_run_id: 42,
+          lifecycle_run_id: 43,
+          model_version: "v5.1-soc-queue-smoke",
+          model_type: "calibrated_extra_trees",
+          target_mode: "binary_soc_review_queue",
+          feature_set_version: "v5.1-causal-soc-queue-features-v1",
+          calibration_method: "sigmoid_on_dedicated_calibration_partition",
+          calibration_status: "weak_or_unstable",
+          validation_status: "shadow_only",
+          decision_support_eligible: false,
+          shadow_safety_passed: true,
+          threshold: 0.85,
+          status_message: "Supervised SOC queue is observing in shadow and cannot alter alerts.",
+          telemetry: {
+            inference_count: 4,
+            queue_rate: 0.25,
+            latency_ms: { p95: 12.4 },
+            missing_feature_rate: 0
+          },
+          durable_telemetry: {
+            available: true,
+            snapshot_id: 44,
+            telemetry: {
+              inference_count: 100,
+              queue_rate: 0.18,
+              latency_ms: { p95: 14.2 },
+              missing_feature_rate: 0.01
+            },
+            drift_warnings: [],
+            raw_logs_included: false,
+            private_identifiers_included: false,
+            response_actions_created: 0
+          },
+          reliability_validation: {
+            available: true,
+            lifecycle_decision: "shadow_observation",
+            strict_passing_splits: 0,
+            required_splits: 6,
+            evaluated_splits: 5,
+            failed_closed_splits: ["source_holdout"],
+            selected_diagnostic_strategy: "calibrated_binary_hist_gradient_boosting_sigmoid",
+            candidate_selected: false,
+            governance_outcome: "no_supervised_candidate_selected",
+            drift_warning_splits: 3,
+            temporal_fpr: 0.9976,
+            temporal_queue_rate: 0.998,
+            ood_rate: 0.0733,
+            confidence_instability_rate: 0.024,
+            abstention_rate_range: { min: 0.0197, max: 0.7513, mean: 0.2172, range: 0.7316 },
+            coverage_rate_range: { min: 0.2487, max: 0.9803, mean: 0.7828, range: 0.7316 },
+            rolling_temporal: { evaluated: 3, required: 3, failed_closed: [] },
+            evidence_lock_status: "locked_and_matched",
+            shadow_drift_status: "OOD Warning",
+            shadow_drift_findings: [
+              "application distribution shift=0.7428",
+              "schema distribution shift=0.5791"
+            ],
+            development_evidence_rows: 1467,
+            excluded_evidence_rows: 768,
+            locked_temporal_final_rows: 532,
+            quarantined_evidence_rows: 236,
+            independent_labeled_evidence_sufficient: false,
+            v56_available: true,
+            v56_status: "evaluated",
+            v56_lifecycle_state: "shadow_observation",
+            v56_private_rows_processed: 773551,
+            v56_overlap_rows_excluded: 120000,
+            v56_drift_status: "Stable",
+            v56_assisted_training_rows: 409741,
+            v56_assisted_human_reviewed_rows: 0,
+            v56_diagnostic_candidate: "calibrated_hist_gradient_boosting",
+            v56_future_queue_f1: 0.9889,
+            v56_future_benign_fpr: 0.0211,
+            v56_future_suspicious_recall: 1,
+            v56_future_malicious_recall: 1,
+            v56_future_calibration_status: "weak",
+            v56_future_calibration_ece: 0.0155,
+            v56_isolation_future_fpr: 0.0057,
+            v56_isolation_future_threat_capture: 0.4576,
+            v56_candidate_activated: false,
+            v56_response_automation_allowed: false,
+            v56_independent_validation_claimed: false,
+            v56_blockers: [
+              "independent multi device evidence",
+              "genuine human ground truth for private evidence"
+            ],
+            v57_available: true,
+            v57_status: "independent_evidence_required",
+            v57_lifecycle_state: "shadow_observation",
+            v57_frozen_candidate: "calibrated_hist_gradient_boosting",
+            v57_candidate_model_type: "HistGradientBoostingClassifier",
+            v57_candidate_calibration: "sigmoid",
+            v57_candidate_threshold: 0.3,
+            v57_evidence_status: "independent_evidence_required",
+            v57_evidence_qualified: false,
+            v57_source_device_count: 0,
+            v57_independent_time_windows: 0,
+            v57_prediction_freeze_status: "not_run",
+            v57_blind_validation_status: "not_run_independent_evidence_required",
+            v57_blind_queue_f1: null,
+            v57_blind_benign_fpr: null,
+            v57_isolation_status: "pending_independent_labels",
+            v57_candidate_activated: false,
+            v57_rules_alert_authoritative: true,
+            v57_response_automation_allowed: false,
+            v57_blockers: [
+              "independent source time evidence",
+              "blind validation completed"
+            ],
+            temporal_root_causes: [
+              "chronological label prevalence changed materially",
+              "application mix changed materially between fit and final windows"
+            ],
+            blockers: [
+              "No supervised strategy passes every required internal split",
+              "Locked external benchmark does not pass strict gates"
+            ],
+            source_holdout_limitation: "Source-disjoint validation failed closed because independent devices are limited.",
+            layered_after: {
+              passed_count: 288,
+              mode_run_count: 288,
+              failed_count: 0,
+              false_positive_count: 0,
+              false_negative_count: 0
+            },
+            rules_alert_authoritative: true,
+            eligible_for_activation: false,
+            production_promoted: false,
+            response_automation_allowed: false
+          },
+          governed_shadow_runtime: {
+            ok: true,
+            version: "v5.8-governed-shadow-runtime-v1",
+            status: "evaluated_shadow_read_only",
+            enabled: true,
+            lifecycle_state: "shadow_observation",
+            candidate_contract_matched: true,
+            candidate_contract: {
+              status: "candidate_contract_matched",
+              matched: true,
+              candidate_name: "calibrated_hist_gradient_boosting",
+              model_type: "HistGradientBoostingClassifier",
+              calibration_method: "sigmoid",
+              threshold: 0.3,
+              feature_count: 40,
+              active: false,
+              production_promoted: false,
+              response_automation_allowed: false,
+              rules_alert_authoritative: true,
+              fallback_model_used: false
+            },
+            independent_evidence: {
+              status: "independent_evidence_required",
+              qualified: false,
+              source_device_count: 0,
+              independent_time_window_count: 0,
+              blind_validation_status: "not_run_independent_evidence_required",
+              blind_metrics_available: false
+            },
+            telemetry: {
+              rows_evaluated: 100,
+              queue_count: 47,
+              queue_rate: 0.47,
+              drift: {
+                status: "Drift Warning",
+                rows_evaluated: 100,
+                application_total_variation: 0.262,
+                schema_total_variation: 0.06
+              },
+              rule_shadow_agreement: {
+                both_queue: 15,
+                rule_only: 26,
+                shadow_only: 32,
+                neither: 27,
+                disagreement_count: 58,
+                disagreement_rate: 0.58,
+                rules_alert_authoritative: true
+              },
+              isolation_forest: {
+                advisory_only: true,
+                persisted_anomaly_count: 9,
+                persisted_anomaly_rate: 0.09,
+                new_isolation_scoring_performed: false,
+                alert_authority: false
+              },
+              accuracy_metrics_calculated: false,
+              labels_accessed: false
+            },
+            safety: {
+              configured_database_unchanged: true,
+              active_model_artifacts_unchanged: true,
+              frozen_candidate_artifact_unchanged: true,
+              alerts_created: 0,
+              labels_created: 0,
+              model_runs_created: 0,
+              detection_runs_created: 0,
+              response_actions_created: 0
+            },
+            rules_alert_authoritative: true,
+            model_activated: false,
+            production_promoted: false,
+            response_automation_allowed: false,
+            fallback_model_used: false
+          },
+          production_promoted: false,
+          response_automation_allowed: false,
+          rule_detection_authoritative: true
+        },
+        legacy_artifact_exists: true,
+        legacy_artifact_selected: false,
+        models: [
+          {
+            model_id: 42,
+            model_name: "supervised_soc_queue",
+            model_version: "v5.1-soc-queue-smoke",
+            model_type: "calibrated_extra_trees",
+            display_model_type: "Calibrated ExtraTrees",
+            display_feature_set: "v5.1-causal-soc-queue-features-v1",
+            operation: "train_supervised",
+            status: "registered_candidate",
+            actor: "test",
+            model_path: "supervised_candidates/v5.1-soc-queue-smoke.joblib",
+            artifact_exists: true,
+            is_active_path: true,
+            lifecycle_state: "shadow_observation",
+            metrics: { f1: 0.2363 },
+            readiness_decision: "candidate_only",
+            analyst_review_eligible: true,
+            production_promoted: false,
+            response_automation_allowed: false
+          }
+        ],
+        production_promoted: false,
+        response_automation_allowed: false,
+        decision_support_only: true
+      }
+    })
+  );
+  await seedSession(page);
+
+  await page.goto("/ml");
+  const registry = page.getByTestId("supervised-model-registry");
+  await expect(registry.getByText("shadow active", { exact: true })).toBeVisible();
+  await expect(registry.getByText("shadow observation", { exact: true }).first()).toBeVisible();
+  await expect(registry.getByText("Calibrated ExtraTrees", { exact: true }).first()).toBeVisible();
+  await expect(registry.getByText("v5.1-causal-soc-queue-features-v1", { exact: true }).first()).toBeVisible();
+  await expect(registry.getByText("weak or unstable", { exact: true })).toBeVisible();
+  await expect(registry.getByText("shadow only", { exact: true })).toBeVisible();
+  await expect(registry.getByText("Response Automation", { exact: true })).toBeVisible();
+  const reliability = page.getByTestId("shadow-reliability-summary");
+  await expect(reliability).toContainText("0/6");
+  await expect(reliability).toContainText("288/288");
+  await expect(reliability).toContainText("100");
+  await expect(reliability).toContainText("18.0%");
+  await expect(reliability).toContainText("14.2 ms");
+  await expect(reliability).toContainText("99.8%");
+  await expect(reliability).toContainText("7.3%");
+  await expect(reliability).toContainText("75.1%");
+  await expect(reliability).toContainText("3/3 rolling windows evaluated");
+  await expect(reliability).toContainText("Evidence Drift");
+  await expect(reliability).toContainText("OOD Warning");
+  await expect(reliability).toContainText("Development Evidence");
+  await expect(reliability).toContainText("1467");
+  await expect(reliability).toContainText("768 locked or quarantined");
+  const governedShadow = page.getByTestId("governed-shadow-runtime");
+  await expect(governedShadow).toContainText("Frozen Diagnostic Candidate");
+  await expect(governedShadow).toContainText("Shadow Scoring Enabled");
+  await expect(governedShadow).toContainText("Candidate Contract Matched");
+  await expect(governedShadow).toContainText("Independent Evidence Pending");
+  await expect(governedShadow).toContainText("Rules Authoritative");
+  await expect(governedShadow).toContainText("Response Automation Disabled");
+  await expect(governedShadow).toContainText("100");
+  await expect(governedShadow).toContainText("47.0%");
+  await expect(governedShadow).toContainText("Drift Warning");
+  await expect(governedShadow).toContainText("58.0%");
+  const longitudinal = page.getByTestId("longitudinal-shadow-observation");
+  await expect(longitudinal).toContainText("Longitudinal Shadow Observation");
+  await expect(longitudinal).toContainText("2");
+  await expect(longitudinal).toContainText("1 / 2");
+  await expect(longitudinal).toContainText("Drift Warning");
+  await expect(longitudinal).toContainText("44.0%");
+  await expect(longitudinal).toContainText("53.5%");
+  await expect(longitudinal).toContainText("0 / 1");
+  await expect(longitudinal).toContainText("7/8");
+  await expect(longitudinal).toContainText("Operational Warning");
+  await expect(longitudinal).toContainText("View operational warnings (1)");
+  await expect(longitudinal).toContainText("Rules Authoritative");
+  await expect(longitudinal).toContainText("Shadow Observation");
+  await expect(longitudinal).toContainText("No Model Activation");
+  await expect(longitudinal).toContainText("Response Automation Disabled");
+  await expect(longitudinal).toContainText("Raw Evidence Excluded");
+  await expect(longitudinal).toContainText("still required");
+  const diagnostics = page.getByTestId("shadow-monitoring-diagnostics");
+  await diagnostics.getByText("Operational drift diagnostics (2)").click();
+  await expect(diagnostics).toContainText("source-scope-01");
+  await expect(diagnostics).toContainText("Application mix differs from the governed baseline.");
+  await expect(diagnostics).toContainText("Monitoring Cadence Disabled");
+  await expect(diagnostics).toContainText("No Accuracy Metrics");
+  const diagnosticsOverflow = await diagnostics.evaluate(
+    (element) => element.scrollWidth > element.clientWidth + 1
+  );
+  expect(diagnosticsOverflow).toBe(false);
+  const parserDiagnostics = page.getByTestId("parser-profile-diagnostics");
+  await parserDiagnostics.getByText("Parser profile baseline (1)").click();
+  await expect(parserDiagnostics).toContainText("palo alto syslog v5.12");
+  await expect(parserDiagnostics).toContainText(
+    "Unresolved application values are tracked as data quality, not parser failures."
+  );
+  await expect(parserDiagnostics).toContainText("parser profile source type");
+  await expect(parserDiagnostics).toContainText("No Accuracy Metrics");
+  const parserDiagnosticsOverflow = await parserDiagnostics.evaluate(
+    (element) => element.scrollWidth > element.clientWidth + 1
+  );
+  expect(parserDiagnosticsOverflow).toBe(false);
+  const longitudinalOverflow = await longitudinal.evaluate(
+    (element) => element.scrollWidth > element.clientWidth + 1
+  );
+  expect(longitudinalOverflow).toBe(false);
+  await reliability.getByText("View reliability blockers").click();
+  await expect(reliability).toContainText("No supervised strategy passes every required internal split");
+  await expect(reliability).toContainText("No supervised candidate was selected or made eligible for activation.");
+  await expect(reliability).toContainText("v5.6 private chronology: 773551 rows, drift Stable");
+  await expect(reliability).toContainText("calibrated_hist_gradient_boosting");
+  await expect(reliability).toContainText("Assisted evidence is non-human");
+  await expect(reliability).toContainText("v5.6: independent multi device evidence.");
+  await expect(reliability).toContainText("v5.6: genuine human ground truth for private evidence.");
+  await expect(reliability).toContainText("Frozen Diagnostic Candidate");
+  await expect(reliability).toContainText("Independent Evidence Pending");
+  await expect(reliability).toContainText("Rules Authoritative");
+  await expect(reliability).toContainText("Response Automation Disabled");
+  await expect(reliability).toContainText("No independent metrics are shown");
+  await expect(reliability).toContainText("v5.7: independent source time evidence.");
+  await expect(reliability).toContainText("Temporal drift: chronological label prevalence changed materially.");
+  await expect(reliability).toContainText("Shadow evidence: application distribution shift=0.7428.");
+  await expect(page.getByText("Artifact Metadata", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("active artifact ready", { exact: true })).toHaveCount(0);
+});
+
 test("deep-linked alert and log drawers render", async ({ page }) => {
   await mockApi(page);
   await seedSession(page);
   await page.goto("/alerts?alert=1");
   await expect(page.getByRole("heading", { name: "Critical: Smoke alert" })).toBeVisible();
   await expect(page.getByText("Why flagged?")).toBeVisible();
-  await expect(page.getByText("Supervised Triage Signal")).toBeVisible();
+  await expect(page.getByText("Rule Authority")).toBeVisible();
+  await expect(page.getByText("Anomaly Advisory")).toBeVisible();
+  await expect(page.getByText("Supervised Shadow")).toBeVisible();
+  await expect(page.getByText("Hybrid Interpretation")).toBeVisible();
   await expect(page.getByText("Review priority only; not automatic truth.")).toBeVisible();
   await expect(page.getByText("ML output is decision support.")).toBeVisible();
   await expect(page.getByText("Alert Occurrences")).toBeVisible();
@@ -3001,8 +3960,8 @@ test("demo import strips copy-as-path quotes before sending sample path", async 
     postedPath = body.sample_path ?? "";
     await route.fulfill({
       json: {
-        source: "paloalto-firewall(1).log",
-        source_label: "paloalto-firewall(1).log",
+        source: "synthetic-copy-path.log",
+        source_label: "synthetic-copy-path.log",
         requested_limit: 2000,
         available_lines: 2000,
         raw_logs_imported: 2000,

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from atdr.app.db.models import Alert, AlertEvidence, AlertNote, AuditLog, LogSource, NormalizedLog, RawLog, ResponseAction, User
 from atdr.app.detection.explanations import build_alert_detection_summary, compact_behavior_features
+from atdr.app.detection.rule_catalog import serialize_rule_match
 from atdr.app.detection.rules import DetectionResult
 from atdr.app.detection.scoring import recommended_response, severity_from_score
 
@@ -59,15 +60,7 @@ def alert_sla(alert: Alert, *, now: datetime | None = None) -> dict:
 
 
 def create_alert_from_detection(db: Session, log: NormalizedLog, result: DetectionResult) -> Alert:
-    matched_rules = [
-        {
-            "code": rule.code,
-            "title": rule.title,
-            "score": rule.score,
-            "explanation": rule.explanation,
-        }
-        for rule in result.matched_rules
-    ]
+    matched_rules = [serialize_rule_match(rule) for rule in result.matched_rules]
     top_rule = matched_rules[0]["title"] if matched_rules else "Suspicious activity"
     alert = Alert(
         title=f"{result.severity}: {top_rule}",
@@ -89,6 +82,8 @@ def create_grouped_alert_from_detections(
     db: Session,
     detections: list[tuple[NormalizedLog, DetectionResult]],
     primary_rule_code: str | None = None,
+    dedup_alerts: list[Alert] | None = None,
+    evidence_id_cache: dict[int, set[int]] | None = None,
 ) -> Alert:
     if not detections:
         raise ValueError("detections must not be empty")
@@ -108,12 +103,7 @@ def create_grouped_alert_from_detections(
             rule_counts[rule.code] += 1
             existing = rule_by_code.get(rule.code)
             if existing is None or rule.score > existing["score"]:
-                rule_by_code[rule.code] = {
-                    "code": rule.code,
-                    "title": rule.title,
-                    "score": rule.score,
-                    "explanation": rule.explanation,
-                }
+                rule_by_code[rule.code] = serialize_rule_match(rule)
 
     matched_rules = []
     for code, rule in sorted(rule_by_code.items(), key=lambda item: (-item[1]["score"], item[1]["code"])):
@@ -168,7 +158,12 @@ def create_grouped_alert_from_detections(
         explanation_parts.append(f"Destination ports observed: {', '.join(str(port) for port in dst_ports)}.")
     explanation_parts.append(primary_result.explanation)
 
-    duplicate_alert = _find_dedup_alert(db, alert_type=top_rule["code"], observations=observations)
+    duplicate_alert = _find_dedup_alert(
+        db,
+        alert_type=top_rule["code"],
+        observations=observations,
+        candidates=dedup_alerts,
+    )
     if duplicate_alert is not None:
         return _update_deduplicated_alert(
             db,
@@ -179,6 +174,7 @@ def create_grouped_alert_from_detections(
             max_score=max_score,
             severity=severity,
             top_rule=top_rule,
+            evidence_id_cache=evidence_id_cache,
         )
 
     alert = Alert(
@@ -213,6 +209,12 @@ def create_grouped_alert_from_detections(
     for log in logs:
         alert.evidence.append(AlertEvidence(normalized_log_id=log.id))
     db.add(alert)
+    if dedup_alerts is not None:
+        dedup_alerts.append(alert)
+    if evidence_id_cache is not None:
+        evidence_id_cache[id(alert)] = {
+            int(log.id) for log in logs if log.id is not None
+        }
     return alert
 
 
@@ -300,15 +302,33 @@ def _port_pattern_matches(existing: dict, incoming: dict) -> bool:
     return bool(existing_ports & incoming_ports)
 
 
-def _find_dedup_alert(db: Session, *, alert_type: str, observations: dict) -> Alert | None:
-    statement = (
-        select(Alert)
-        .options(joinedload(Alert.evidence))
-        .where(Alert.alert_type == alert_type, Alert.status.in_(ALERT_DEDUP_ACTIVE_STATUSES))
-        .order_by(Alert.updated_at.desc(), Alert.id.desc())
-        .limit(50)
-    )
-    for alert in db.scalars(statement).unique():
+def _find_dedup_alert(
+    db: Session,
+    *,
+    alert_type: str,
+    observations: dict,
+    candidates: list[Alert] | None = None,
+) -> Alert | None:
+    if candidates is None:
+        statement = (
+            select(Alert)
+            .options(joinedload(Alert.evidence))
+            .where(
+                Alert.alert_type == alert_type,
+                Alert.status.in_(ALERT_DEDUP_ACTIVE_STATUSES),
+            )
+            .order_by(Alert.updated_at.desc(), Alert.id.desc())
+            .limit(50)
+        )
+        alerts = list(db.scalars(statement).unique())
+    else:
+        alerts = [
+            alert
+            for alert in reversed(candidates)
+            if alert.alert_type == alert_type
+            and (alert.status or "open") in ALERT_DEDUP_ACTIVE_STATUSES
+        ][:50]
+    for alert in alerts:
         metadata = _group_metadata(alert)
         if not _alert_source_matches(alert, observations):
             continue
@@ -351,13 +371,26 @@ def _update_deduplicated_alert(
     max_score: int,
     severity: str,
     top_rule: dict,
+    evidence_id_cache: dict[int, set[int]] | None = None,
 ) -> Alert:
-    existing_log_ids = {evidence.normalized_log_id for evidence in alert.evidence}
+    cache_key = id(alert)
+    if evidence_id_cache is None:
+        existing_log_ids = {
+            int(evidence.normalized_log_id) for evidence in alert.evidence
+        }
+    else:
+        existing_log_ids = evidence_id_cache.get(cache_key)
+        if existing_log_ids is None:
+            existing_log_ids = {
+                int(evidence.normalized_log_id) for evidence in alert.evidence
+            }
+            evidence_id_cache[cache_key] = existing_log_ids
     added_log_ids: list[int] = []
     for log, _ in detections:
         if log.id not in existing_log_ids:
             alert.evidence.append(AlertEvidence(normalized_log_id=log.id))
-            added_log_ids.append(log.id)
+            existing_log_ids.add(int(log.id))
+            added_log_ids.append(int(log.id))
 
     existing_metadata = _group_metadata(alert)
     occurrence_count = int(existing_metadata.get("occurrence_count") or existing_metadata.get("evidence_count") or len(alert.evidence))
@@ -366,7 +399,7 @@ def _update_deduplicated_alert(
     last_candidates = [_parse_iso(existing_metadata.get("last_seen")), _parse_iso(observations.get("last_seen"))]
     first_seen = min((item for item in first_candidates if item is not None), default=None)
     last_seen = max((item for item in last_candidates if item is not None), default=None)
-    related_log_count = len({evidence.normalized_log_id for evidence in alert.evidence})
+    related_log_count = len(existing_log_ids)
     metadata = {
         "code": "group_metadata",
         "title": "Grouped alert metadata",

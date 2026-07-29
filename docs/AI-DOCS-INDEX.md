@@ -4,12 +4,18 @@ This index defines the active ATDR documentation set for AI/Codex-assisted work.
 
 ## Current Baseline
 
-- `docs/CURRENT_SYSTEM_STATE_LOCK.md`: current v4.8 source, behavior, safety, and external-gate anchor.
+- `docs/CURRENT_SYSTEM_STATE_LOCK.md`: current v5.13 source, behavior, safety, and external-gate anchor.
 - `docs/CURRENT_AI_ML_PRODUCT_STATUS.md`: current assistant, Gemini, rules, IsolationForest, supervised-candidate, and registry truth.
 - `docs/V4_7_LARGE_SQLITE_PERFORMANCE_STABILIZATION.md`: current Overview performance repair and measured budgets.
 - `docs/V4_8_END_TO_END_PRODUCT_ACCEPTANCE.md`: disposable 50,000-log integrated acceptance evidence.
 - `docs/V4_8_1_REPOSITORY_CONSOLIDATION_REPORT.md`: proposed uncommitted repository cleanup and protected-file boundary.
 - `docs/V4_8_1_COMMIT_ALLOWLIST.md`: exact cleanup review boundary; no commit/push is authorized by the document.
+- `docs/V4_9_DETECTION_ML_RELIABILITY_LOCK.md`: current parser/rule/feature/model reliability evidence and conservative `candidate_only` decision.
+- `docs/V5_1_SUPERVISED_SHADOW_ACTIVATION.md`: governed artifact, shadow lifecycle, private aggregate validation, strict-gate result, and rollback operations.
+- `docs/V5_2_SHADOW_RELIABILITY_AND_LAYERED_REPAIR.md`: current layered 288/288 repair, multi-view supervised reliability result, aggregate telemetry, and shadow-only decision.
+- `docs/V5_8_GOVERNED_SHADOW_SCORING_RUNTIME.md`: disabled-by-default frozen-candidate shadow runtime, aggregate monitoring, mutation-safety proof, and governed evidence intake.
+- `docs/V5_9_LONGITUDINAL_SHADOW_OBSERVATION.md` through `docs/V5_13_RUNTIME_PARSER_CONTRACT_AND_SOURCE_QUALITY.md`: governed aggregate observation, operational acceptance, drift monitoring, parser baselines, and shared runtime parser-quality contract.
+- `docs/V5_13_1_DETECTION_PARSER_PROGRAM_CONSOLIDATION.md`: cumulative v4.9-v5.13 repository reconciliation, path classification, safety state, verification, and next-phase decision.
 
 ## Active Control Documents
 
@@ -35,6 +41,20 @@ This index defines the active ATDR documentation set for AI/Codex-assisted work.
 | `docs/DETECTION_ML_PRODUCTIZATION_PLAN.md` | Source-backed plan for productizing rule detection, anomaly scoring, supervised SOC queue output, model registry, drift monitoring, and promotion gates without activating models or response automation. |
 | `docs/detection/ATDR_RULE_PACK_CONTRACT.md` | Versioned deterministic detection rule-pack contract aligned to implemented rule IDs and SOC analyst checks. |
 | `docs/detection/ATDR_SCENARIO_CORPUS_CONTRACT.md` | Controlled scenario-corpus contract for parser, detection, deduplication, explanation, and response-safety validation. |
+| `docs/detection/ATDR_DETECTION_TAXONOMY.md` | v4.9 controlled alert, review-label, evidence-layer, and claim-boundary vocabulary. |
+| `docs/security/ATDR_DETECTION_RULE_STANDARD.md` | Sigma-inspired ATDR rule metadata, runtime, evidence-language, and change-control standard. |
+| `docs/security/ATDR_DETECTION_LABELING_POLICY.md` | Human/assisted/provider/synthetic label provenance, review integrity, and leakage policy. |
+| `docs/V4_9_DETECTION_ML_RELIABILITY_LOCK.md` | Five-view strict-gate evaluation, controlled rule result, label provenance, leakage audit, calibration blockers, and no-write safety decision. |
+| `docs/changes/T1_T20_V4_9_DETECTION_ML_RELIABILITY_LOCK.md` | T1-T20 implementation and handoff evidence for v4.9. |
+| `docs/V5_1_SUPERVISED_SHADOW_ACTIVATION.md` | Fresh reproducible supervised queue artifact, shadow-only runtime contract, strict-gate failures, private operational evidence, and rollback commands. |
+| `docs/changes/T1_T20_V5_1_SUPERVISED_SHADOW_ACTIVATION.md` | T1-T20 implementation and handoff evidence for the v5.1 governed shadow lifecycle. |
+| `docs/V5_2_SHADOW_RELIABILITY_AND_LAYERED_REPAIR.md` | v5.2 controlled layered repairs, supervised split/calibration/drift evidence, telemetry contract, and conservative lifecycle decision. |
+| `docs/changes/T1_T20_V5_2_SHADOW_RELIABILITY_AND_LAYERED_REPAIR.md` | T1-T20 implementation and handoff evidence for v5.2. |
+| `docs/V5_2_COMMIT_ALLOWLIST.md` | Exact v5.2 path review boundary; it does not authorize staging, commit, or push. |
+| `docs/V5_13_RUNTIME_PARSER_CONTRACT_AND_SOURCE_QUALITY.md` | Shared future-ingestion parser-quality contract, source operations, historical preview, and v5.13 verification evidence. |
+| `docs/V5_13_1_DETECTION_PARSER_PROGRAM_CONSOLIDATION.md` | Master reconciliation of cumulative v4.9-v5.13 source, tests, migrations, docs, path scope, and remaining product gaps. |
+| `docs/changes/T1_T20_V5_13_1_DETECTION_PARSER_PROGRAM_CONSOLIDATION.md` | T1-T20 closure record for the cumulative repository review. |
+| `docs/V5_13_1_COMMIT_ALLOWLIST.md` | Exact cumulative review boundary; it authorizes no Git operation. |
 | `docs/V3_72_UNIFIED_DETECTION_ML_EVALUATION.md` | Read-only unified detection/ML productization evaluator covering rule/scenario contracts, optional temp-DB scenario quality, latest supervised policy artifacts, and safety invariants. |
 | `docs/V3_95_DEPLOYMENT_SECURITY_MONITORING_AND_RECOVERY.md` | Optional reverse-proxy, monitoring, scheduled maintenance, secret, read-only load, and isolated recovery operating guide. |
 | `docs/V3_96_PREPRODUCTION_DEPLOYMENT_REHEARSAL.md` | Canonical secret-safe preproduction preflight, local rehearsal evidence, environment availability, blockers, and acceptance decision. |
@@ -146,6 +166,25 @@ This index defines the active ATDR documentation set for AI/Codex-assisted work.
 | `docs/V3_76_REAL_LLM_ASSISTANT_FULL_CHAT_PROBE.md` | Safe full assistant chat provider probe using a synthetic temporary database to validate configured real LLM behavior without exposing secrets or mutating ATDR data. |
 | `docs/V3_87_REAL_LLM_SOC_ASSISTANT.md` | Completed optional real-provider SOC Assistant path with structured answers, bounded follow-up context, privacy filtering, reliability controls, deterministic fallback, and zero action capability. |
 | `docs/V4_2_PRESENTATION_READY_SOC_ASSISTANT.md` | Current assistant behavior: truthful grounding, safe Gemini labeling, session-scoped investigation continuity, concise answers, and MFU-aligned React UI. |
+| `docs/V5_3_TEMPORAL_GENERALIZATION_AND_OOD.md` | Current supervised reliability status: temporal root cause, rolling future validation, fit-only OOD/abstention, diagnostic strategy comparison, and shadow-only decision. |
+| `docs/V5_4_TEMPORAL_EVIDENCE_AND_SHADOW_DRIFT.md` | Current evidence-governance status: immutable v5.3 role locks, development-only manifest, chronological quality audit, private aggregate windows, shadow drift, and weak review-pack policy. |
+| `docs/V5_5_DEVELOPMENT_MODEL_REPAIR_AND_ANOMALY_AUDIT.md` | Current development-only repair status: nested temporal supervised comparison, frozen diagnostic leader, one-shot locked regression, IsolationForest reliability audit, and unchanged shadow-only lifecycle. |
+| `docs/V5_6_PRIVATE_PANOS_EVIDENCE_AND_ASSISTED_MODEL_REPAIR.md` | Complete private PAN-OS bounded processing, chronological role lock, non-human assisted evidence, diagnostic supervised/anomaly repair, one-shot private future evaluation, and unchanged shadow-only lifecycle. |
+| `docs/V5_7_INDEPENDENT_EVIDENCE_READINESS_AND_BLIND_REVALIDATION.md` | Frozen diagnostic-candidate protocol, v5.3-v5.6 evidence-lock audit, independent-evidence qualification, prediction-before-label enforcement, and current fail-closed shadow decision. |
+| `docs/V5_8_GOVERNED_SHADOW_SCORING_RUNTIME.md` | Frozen-candidate contract validation, bounded read-only scoring, aggregate drift/agreement telemetry, no-mutation proof, and governed evidence-intake preflight. |
+| `docs/changes/T1_T20_V5_8_GOVERNED_SHADOW_SCORING_RUNTIME.md` | T1-T20 implementation and safety handoff for the v5.8 governed shadow runtime. |
+| `docs/detection/V5_7_INDEPENDENT_EVIDENCE_ACQUISITION.md` | Required PAN-OS fields, source/time coverage, leakage controls, human-review procedure, fixed blind gates, and advisor sign-off checklist. |
+| `docs/V5_9_LONGITUDINAL_SHADOW_OBSERVATION.md` | Append-only aggregate shadow observation, durable jobs, retention, longitudinal AI Governance trend, complete private aggregate drift pass, and unchanged shadow-only lifecycle. |
+| `docs/changes/T1_T20_V5_9_LONGITUDINAL_SHADOW_OBSERVATION.md` | T1-T20 implementation and safety handoff for v5.9 longitudinal shadow observation. |
+| `docs/detection/V5_9_INDEPENDENT_EVIDENCE_ACQUISITION.md` | Official-source evidence review and exact advisor/provider request for new native multi-device blind validation evidence. |
+| `docs/V5_10_DETECTION_OPERATIONS_AND_SHADOW_ACCEPTANCE.md` | Governed historical operational scopes, aggregate shadow acceptance, idempotency and mutation proof, AI Governance diagnostics, and large-SQLite cold performance repair. |
+| `docs/changes/T1_T20_V5_10_DETECTION_OPERATIONS_AND_SHADOW_ACCEPTANCE.md` | T1-T20 implementation, privacy, performance, and safety handoff for v5.10. |
+| `docs/V5_11_OPERATIONAL_DRIFT_AND_SHADOW_MONITORING.md` | Aggregate warning root-cause diagnosis, fixed thresholds and hysteresis, disabled durable cadence, privacy-safe AI Governance drill-down, and disposable retention rehearsal. |
+| `docs/changes/T1_T20_V5_11_OPERATIONAL_DRIFT_AND_SHADOW_MONITORING.md` | T1-T20 implementation, privacy, retention, monitoring, and safety handoff for v5.11. |
+| `docs/V5_12_PARSER_PROFILE_BASELINE_REPAIR.md` | Versioned PAN-OS contract, application-resolution semantics, profile-aware baselines, complete private aggregate audit, controlled equivalence, and unchanged shadow lifecycle. |
+| `docs/changes/T1_T20_V5_12_PARSER_PROFILE_BASELINE_REPAIR.md` | T1-T20 parser, privacy, operational-baseline, non-regression, and safety handoff for v5.12. |
+| `docs/V5_13_RUNTIME_PARSER_CONTRACT_AND_SOURCE_QUALITY.md` | Future-ingestion parser contract, source-quality classification, privacy-safe operational alerts, additive migration, historical preview, and frozen non-regression evidence. |
+| `docs/changes/T1_T20_V5_13_RUNTIME_PARSER_CONTRACT_AND_SOURCE_QUALITY.md` | T1-T20 runtime ingestion, source operations, privacy, migration, testing, non-regression, and safety handoff for v5.13. |
 | `docs/V3_88_PRODUCT_BASELINE_CHECKPOINT.md` | Consolidated v3.78-v3.87 source/runtime/docs baseline, current safety posture, CI position, remaining risks, and next product phase. |
 | `docs/V3_88_CHANGESET_MANIFEST.md` | Exact intended commit allowlist, ignored/private exclusions, external template change, rollback notes, risks, and staging commands. |
 | `docs/V3_89_SHARED_LAB_PERSISTENCE_AND_BACKUP_RESTORE.md` | SQLite-preserving shared-lab persistence profile, safe backup/restore workflow, PostgreSQL CI validation design, and remaining operational limits. |

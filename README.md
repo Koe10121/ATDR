@@ -6,22 +6,29 @@ ATDR is lab-ready for controlled small-office validation. It is not certified pr
 
 ## Current Reproducible Baseline
 
-The published v4.8 baseline combines the v4.7 large-SQLite Overview repair with
-a disposable 50,000-log end-to-end acceptance gate. The approved commit is
-`15e43c8`; all GitHub Actions jobs passed. See:
+The published baseline is commit `e05032a`; its GitHub Actions run passed. It
+includes the v4.8.1 repository consolidation and the earlier v4.7
+large-SQLite/v4.8 disposable 50,000-log acceptance work. The cumulative
+v4.9-v5.13 Detection/ML/parser/source-quality program is locally implemented
+and verified but remains uncommitted pending the v5.13.1 exact closure review.
+See:
 
 - `docs/V4_7_LARGE_SQLITE_PERFORMANCE_STABILIZATION.md`
 - `docs/V4_8_END_TO_END_PRODUCT_ACCEPTANCE.md`
 - `docs/CURRENT_SYSTEM_STATE_LOCK.md`
 - `docs/CURRENT_AI_ML_PRODUCT_STATUS.md`
+- `docs/V4_9_DETECTION_ML_RELIABILITY_LOCK.md`
+- `docs/V5_1_SUPERVISED_SHADOW_ACTIVATION.md`
+- `docs/V5_13_RUNTIME_PARSER_CONTRACT_AND_SOURCE_QUALITY.md`
+- `docs/V5_13_1_DETECTION_PARSER_PROGRAM_CONSOLIDATION.md`
 
 Installation is locally reproducible. Real MFU/Google sign-in still requires an
 approved OAuth Web client and account/group assignment from the university
 provider owner; authentication intentionally fails closed until those external
-inputs are supplied. The uncommitted v4.8.1 cleanup archives selected university
-template references under `docs/reference/NewSystem/` and removes the unrelated
-tracked Node/Vue/Mongo runtime copy. It does not alter the separately distributed
-MFU companion shell.
+inputs are supplied. Selected university template references are archived under
+`docs/reference/NewSystem/`; ATDR does not use the archived Node/Vue/Mongo
+runtime. The separately distributed MFU companion shell remains the required
+outer authentication shell.
 
 ## Historical Academic Checkpoint
 
@@ -38,6 +45,18 @@ MFU companion shell.
 
 This checkpoint validates controlled lab SOC triage behavior. It does not claim
 production accuracy or deployment readiness.
+
+## Current Supervised Runtime
+
+A fresh calibrated ExtraTrees binary SOC review-queue model is registered and
+active in `shadow_observation`. It exposes bounded queue probability and model
+provenance in AI Governance, alert/log explanations, and the SOC Assistant, but
+it cannot create or suppress alerts, change severity, or execute response.
+Rules remain authoritative. The model passed artifact, leakage, checksum, and
+latency safety checks but passed 0/5 strict reliability splits, so
+`decision_support` influence is blocked, production promotion is false, and
+response automation remains disabled. See
+`docs/V5_1_SUPERVISED_SHADOW_ACTIVATION.md`.
 
 ## v3.0 Production-Readiness Track
 

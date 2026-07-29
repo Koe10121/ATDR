@@ -392,6 +392,14 @@ export interface DetectionSummary {
   attack_mapping: AttackMapping;
   normalized_fields_used?: Record<string, unknown>;
   rule_evidence?: string[];
+  alert_authority?: {
+    layer?: string;
+    authoritative_rule_count?: number;
+    authoritative_rule_names?: string[];
+    anomaly_advisory_only?: boolean;
+    supervised_decision_support_only?: boolean;
+    hybrid_diagnostic_only?: boolean;
+  };
   anomaly_evidence?: Record<string, unknown>;
   ml_evidence?: Record<string, unknown>;
   matched_rule_names: string[];
@@ -475,6 +483,22 @@ export interface SourceHealth {
   latest_error?: string | null;
   recommendation: string;
   warnings?: string[];
+  parser_quality_state: string;
+  parser_contract_state: string;
+  runtime_parser_error_count: number;
+  runtime_parser_error_rate: number;
+  structural_warning_count: number;
+  unresolved_application_count: number;
+  unresolved_application_rate: number;
+  generic_syslog_count: number;
+  raw_fallback_count: number;
+  operational_alerts: ParserOperationalAlert[];
+}
+
+export interface ParserOperationalAlert {
+  code: string;
+  severity: "info" | "warning" | "error" | string;
+  message: string;
 }
 
 export interface SourceQuality {
@@ -485,6 +509,51 @@ export interface SourceQuality {
   alert_count: number;
   parse_failure_examples: Array<Record<string, unknown>>;
   warnings?: string[];
+  parser_quality: Record<string, unknown>;
+  parser_quality_state: string;
+  parser_contract_state: string;
+  runtime_observed_rows: number;
+  legacy_contract_rows: number;
+  parser_error_count: number;
+  parser_error_rate: number;
+  structural_warning_count: number;
+  compatible_layout_count: number;
+  extended_layout_count: number;
+  partial_layout_count: number;
+  unsupported_layout_count: number;
+  unresolved_application_count: number;
+  unresolved_application_rate: number;
+  absent_application_count: number;
+  not_applicable_application_count: number;
+  generic_syslog_count: number;
+  raw_fallback_count: number;
+  operational_alerts: ParserOperationalAlert[];
+}
+
+export interface HistoricalReparseImpactPreview {
+  version: string;
+  status: "preview_complete" | "preview_sampled" | string;
+  scope: "selected_source";
+  preview_only: true;
+  reparse_performed: false;
+  database_mutated: false;
+  total_rows: number;
+  rows_scanned: number;
+  coverage_complete: boolean;
+  current_contract_metadata_rows: number;
+  legacy_contract_rows_scanned: number;
+  parser_profiles: Record<string, number>;
+  parser_contract_versions: Record<string, number>;
+  compatibility_statuses: Record<string, number>;
+  application_resolution_statuses: Record<string, number>;
+  raw_evidence_accessed: false;
+  raw_logs_returned: false;
+  private_paths_included: false;
+  ip_addresses_included: false;
+  source_identity_included: false;
+  labels_accessed: false;
+  alerts_created: 0;
+  response_actions_created: 0;
 }
 
 export interface LogSource {
@@ -1590,6 +1659,11 @@ export interface SupervisedModelRegistryItem {
   split_strategy?: string | null;
   metrics?: Record<string, unknown>;
   readiness_decision?: string | null;
+  lifecycle_state?: string | null;
+  target_mode?: string | null;
+  calibration_method?: string | null;
+  shadow_safety_passed?: boolean;
+  decision_support_eligible?: boolean;
   analyst_review_eligible: boolean;
   production_promoted: boolean;
   response_automation_allowed: boolean;
@@ -1604,6 +1678,232 @@ export interface SupervisedModelRegistry {
   active_artifact_sha256?: string | null;
   active_artifact_metadata_status?: string | null;
   active_artifact_metadata_unknown?: boolean;
+  lifecycle_state?: string;
+  governed_lifecycle?: {
+    lifecycle_state: string;
+    configured_lifecycle_state?: string;
+    model_run_id?: number | null;
+    lifecycle_run_id?: number | null;
+    model_version?: string | null;
+    model_type?: string | null;
+    target_mode?: string | null;
+    feature_set_version?: string | null;
+    dataset_fingerprint?: string | null;
+    calibration_method?: string | null;
+    calibration_status?: string;
+    validation_status?: string;
+    decision_support_eligible?: boolean;
+    shadow_safety_passed?: boolean;
+    threshold?: number | null;
+    status_message?: string;
+    telemetry?: Record<string, unknown>;
+    durable_telemetry?: {
+      available: boolean;
+      snapshot_id?: number;
+      recorded_at?: string;
+      model_version?: string | null;
+      telemetry?: Record<string, unknown>;
+      drift_warnings?: string[];
+      raw_logs_included?: boolean;
+      private_identifiers_included?: boolean;
+      response_actions_created?: number;
+    };
+    reliability_validation?: {
+      available: boolean;
+      version?: string;
+      generated_at?: string;
+      lifecycle_decision?: string;
+      checks_passed?: number;
+      checks_total?: number;
+      blockers?: string[];
+      selected_diagnostic_strategy?: string | null;
+      selection_role?: string;
+      candidate_selected?: boolean;
+      governance_outcome?: string;
+      eligible_for_activation?: boolean;
+      strict_passing_splits?: number;
+      required_splits?: number;
+      evaluated_splits?: number;
+      failed_closed_splits?: string[];
+      calibration_ranges?: Record<string, { min?: number | null; max?: number | null; mean?: number | null }>;
+      threshold_stability?: { minimum?: number | null; maximum?: number | null; range?: number | null };
+      drift_warning_splits?: number;
+      temporal_root_causes?: string[];
+      temporal_fpr?: number | null;
+      temporal_queue_rate?: number | null;
+      threshold_window_queue_prevalence?: number | null;
+      final_window_queue_prevalence?: number | null;
+      ood_rate?: number | null;
+      confidence_instability_rate?: number | null;
+      abstention_rate_range?: { min?: number | null; max?: number | null; mean?: number | null; range?: number | null };
+      coverage_rate_range?: { min?: number | null; max?: number | null; mean?: number | null; range?: number | null };
+      missingness?: { fit_rate?: number | null; final_rate?: number | null };
+      rolling_temporal?: { evaluated?: number; required?: number; failed_closed?: string[] };
+      source_holdout_limitation?: string;
+      layered_before?: Record<string, unknown>;
+      layered_after?: Record<string, unknown>;
+      external_benchmark_passed?: boolean;
+      evidence_lock_status?: string;
+      shadow_drift_status?: "Stable" | "Drift Warning" | "OOD Warning" | "Insufficient Evidence" | string;
+      shadow_drift_findings?: string[];
+      development_evidence_rows?: number;
+      excluded_evidence_rows?: number;
+      locked_temporal_final_rows?: number;
+      quarantined_evidence_rows?: number;
+      independent_labeled_evidence_sufficient?: boolean;
+      v55_available?: boolean;
+      v55_status?: string;
+      v55_generated_at?: string;
+      v55_lifecycle_state?: string;
+      v55_development_leader?: string | null;
+      v55_development_gates_passed?: boolean;
+      v55_candidate_selected?: boolean;
+      v55_model_activated?: boolean;
+      v55_locked_queue_f1?: number | null;
+      v55_locked_benign_fpr?: number | null;
+      v55_locked_suspicious_recall?: number | null;
+      v55_locked_malicious_recall?: number | null;
+      v55_locked_calibration_status?: string | null;
+      v55_isolation_benign_fpr?: number | null;
+      v55_isolation_threat_detection_rate?: number | null;
+      v55_blockers?: string[];
+      v56_available?: boolean;
+      v56_status?: string;
+      v56_generated_at?: string;
+      v56_lifecycle_state?: string;
+      v56_private_rows_processed?: number | null;
+      v56_overlap_rows_excluded?: number | null;
+      v56_drift_status?: string | null;
+      v56_assisted_training_rows?: number | null;
+      v56_assisted_human_reviewed_rows?: number | null;
+      v56_diagnostic_candidate?: string | null;
+      v56_future_queue_f1?: number | null;
+      v56_future_benign_fpr?: number | null;
+      v56_future_suspicious_recall?: number | null;
+      v56_future_malicious_recall?: number | null;
+      v56_future_calibration_status?: string | null;
+      v56_future_calibration_ece?: number | null;
+      v56_isolation_future_fpr?: number | null;
+      v56_isolation_future_threat_capture?: number | null;
+      v56_candidate_activated?: boolean;
+      v56_response_automation_allowed?: boolean;
+      v56_independent_validation_claimed?: boolean;
+      v56_blockers?: string[];
+      v57_available?: boolean;
+      v57_status?: string;
+      v57_generated_at?: string;
+      v57_lifecycle_state?: string;
+      v57_frozen_candidate?: string | null;
+      v57_candidate_model_type?: string | null;
+      v57_candidate_calibration?: string | null;
+      v57_candidate_threshold?: number | null;
+      v57_evidence_status?: string;
+      v57_evidence_qualified?: boolean;
+      v57_source_device_count?: number | null;
+      v57_independent_time_windows?: number | null;
+      v57_prediction_freeze_status?: string;
+      v57_blind_validation_status?: string;
+      v57_blind_queue_f1?: number | null;
+      v57_blind_benign_fpr?: number | null;
+      v57_blind_suspicious_recall?: number | null;
+      v57_blind_malicious_recall?: number | null;
+      v57_blind_calibration_ece?: number | null;
+      v57_blind_max_calibration_gap?: number | null;
+      v57_isolation_status?: string;
+      v57_isolation_benign_fpr?: number | null;
+      v57_isolation_threat_capture?: number | null;
+      v57_candidate_activated?: boolean;
+      v57_rules_alert_authoritative?: boolean;
+      v57_response_automation_allowed?: boolean;
+      v57_blockers?: string[];
+      rules_alert_authoritative?: boolean;
+      production_promoted?: boolean;
+      response_automation_allowed?: boolean;
+    };
+    governed_shadow_runtime?: {
+      ok: boolean;
+      version?: string;
+      status: string;
+      enabled: boolean;
+      lifecycle_state: string;
+      candidate_contract_matched: boolean;
+      candidate_contract?: {
+        status?: string;
+        matched?: boolean;
+        candidate_name?: string | null;
+        model_type?: string | null;
+        calibration_method?: string | null;
+        threshold?: number | null;
+        feature_count?: number | null;
+        active?: boolean;
+        production_promoted?: boolean;
+        response_automation_allowed?: boolean;
+        rules_alert_authoritative?: boolean;
+        fallback_model_used?: boolean;
+      };
+      independent_evidence?: {
+        status?: string;
+        qualified?: boolean;
+        source_device_count?: number | null;
+        independent_time_window_count?: number | null;
+        blind_validation_status?: string;
+        blind_metrics_available?: boolean;
+      };
+      telemetry?: {
+        rows_evaluated?: number;
+        queue_count?: number;
+        queue_rate?: number;
+        score_summary?: Record<string, number | null>;
+        confidence_summary?: Record<string, number | null>;
+        drift?: {
+          status?: string;
+          rows_evaluated?: number;
+          application_total_variation?: number | null;
+          schema_total_variation?: number | null;
+        };
+        source_stability?: Record<string, number | boolean | null>;
+        time_window_stability?: Record<string, number | boolean | null>;
+        rule_shadow_agreement?: {
+          both_queue?: number;
+          rule_only?: number;
+          shadow_only?: number;
+          neither?: number;
+          disagreement_count?: number;
+          disagreement_rate?: number;
+          rules_alert_authoritative?: boolean;
+        };
+        isolation_forest?: {
+          advisory_only?: boolean;
+          persisted_anomaly_count?: number;
+          persisted_anomaly_rate?: number;
+          new_isolation_scoring_performed?: boolean;
+          alert_authority?: boolean;
+        };
+        accuracy_metrics_calculated?: boolean;
+        labels_accessed?: boolean;
+      };
+      safety?: {
+        configured_database_unchanged?: boolean;
+        active_model_artifacts_unchanged?: boolean;
+        frozen_candidate_artifact_unchanged?: boolean;
+        alerts_created?: number;
+        labels_created?: number;
+        model_runs_created?: number;
+        detection_runs_created?: number;
+        response_actions_created?: number;
+      };
+      rules_alert_authoritative: boolean;
+      model_activated: boolean;
+      production_promoted: boolean;
+      response_automation_allowed: boolean;
+      fallback_model_used: boolean;
+    };
+    production_promoted: boolean;
+    response_automation_allowed: boolean;
+    rule_detection_authoritative: boolean;
+  };
+  legacy_artifact_exists?: boolean;
+  legacy_artifact_selected?: boolean;
   models: SupervisedModelRegistryItem[];
   production_promoted: boolean;
   response_automation_allowed: boolean;
@@ -1613,6 +1913,301 @@ export interface SupervisedModelRegistry {
 export interface MLEvidenceMetricRange {
   min: number | null;
   max: number | null;
+}
+
+export interface ShadowObservation {
+  observation_id: number;
+  candidate_name: string;
+  candidate_version: string;
+  status: string;
+  contract_matched: boolean;
+  window_start: string | null;
+  window_end: string | null;
+  observed_start: string | null;
+  observed_end: string | null;
+  requested_limit: number;
+  rows_evaluated: number;
+  queue_count: number;
+  queue_rate: number;
+  score_mean: number | null;
+  score_p95: number | null;
+  confidence_mean: number | null;
+  confidence_p95: number | null;
+  drift_status: string;
+  application_total_variation: number | null;
+  schema_total_variation: number | null;
+  disagreement_count: number;
+  disagreement_rate: number;
+  isolation_anomaly_count: number;
+  isolation_anomaly_rate: number;
+  runtime_seconds: number | null;
+  failure_code: string | null;
+  created_at: string;
+  raw_logs_included: false;
+  ip_addresses_included: false;
+  private_paths_included: false;
+  fingerprints_included: false;
+  source_identifiers_included: false;
+  secrets_exposed: false;
+}
+
+export interface ShadowObservationSummary {
+  ok: boolean;
+  version: string;
+  status: string;
+  observation_enabled: boolean;
+  shadow_scoring_enabled: boolean;
+  observation_count: number;
+  source_filter_applied: boolean;
+  since_filter_applied: boolean;
+  latest: ShadowObservation | null;
+  trend: ShadowObservation[];
+  trend_count: number;
+  drift_status_counts: Record<string, number>;
+  runtime_status_counts: Record<string, number>;
+  queue_rate: {
+    minimum: number | null;
+    mean: number | null;
+    maximum: number | null;
+  };
+  rule_disagreement_rate: {
+    minimum: number | null;
+    mean: number | null;
+    maximum: number | null;
+  };
+  independent_evidence: {
+    status: string;
+    qualified: boolean;
+    source_device_count: number | null;
+    independent_time_window_count: number | null;
+    blind_metrics_available: boolean;
+  };
+  retention: {
+    retention_days: number;
+    automatic_cleanup_enabled: false;
+    append_only_between_explicit_retention_runs: true;
+  };
+  lifecycle_state: "shadow_observation";
+  rules_alert_authoritative: true;
+  model_activated: false;
+  production_promoted: false;
+  response_automation_allowed: false;
+  real_firewall_blocking_enabled: false;
+  raw_logs_included: false;
+  private_paths_included: false;
+  fingerprints_included: false;
+  secrets_exposed: false;
+}
+
+export interface ShadowOperationalMetricRange {
+  minimum: number | null;
+  mean: number | null;
+  maximum: number | null;
+  range: number | null;
+}
+
+export interface ShadowOperationalGate {
+  name: string;
+  required: true;
+  passed: boolean;
+  evidence: string;
+}
+
+export interface ShadowOperationalAcceptance {
+  ok: boolean;
+  version: string;
+  status:
+    | "operational_shadow_acceptance_passed"
+    | "operational_shadow_acceptance_passed_with_warnings"
+    | "operational_shadow_acceptance_warning"
+    | "insufficient_operational_evidence";
+  evidence_role: "reused_development_operational_evidence_only";
+  independent_validation: false;
+  observation_count: number;
+  source_scope_count: number;
+  time_scope_count: number;
+  latest_observation_at: string | null;
+  queue_rate: ShadowOperationalMetricRange;
+  rule_shadow_disagreement_rate: ShadowOperationalMetricRange;
+  isolation_forest_anomaly_rate: ShadowOperationalMetricRange;
+  runtime_seconds: ShadowOperationalMetricRange;
+  quality: Record<string, ShadowOperationalMetricRange>;
+  drift: {
+    current_state: string;
+    status_counts: Record<string, number>;
+  };
+  failed_observation_count: number;
+  insufficient_evidence_count: number;
+  contract_mismatch_count: number;
+  warnings: string[];
+  gates: ShadowOperationalGate[];
+  gates_passed: number;
+  gates_total: number;
+  operational_acceptance_passed: boolean;
+  accuracy_metrics_calculated: false;
+  lifecycle_state: "shadow_observation";
+  rules_alert_authoritative: true;
+  isolation_forest_advisory_only: true;
+  model_activated: false;
+  production_promoted: false;
+  response_automation_allowed: false;
+  real_firewall_blocking_enabled: false;
+  source_identifiers_included: false;
+  raw_logs_included: false;
+  ip_addresses_included: false;
+  private_paths_included: false;
+  fingerprints_included: false;
+  labels_accessed: false;
+  secrets_exposed: false;
+}
+
+export interface ShadowMonitoringDiagnosticRow {
+  source_scope: string;
+  time_scope: string;
+  observation_time: string;
+  rows_evaluated: number;
+  raw_drift_state: string;
+  drift_state: string;
+  queue_rate: number;
+  disagreement_rate: number;
+  isolation_anomaly_rate: number;
+  score_mean: number | null;
+  score_p95: number | null;
+  application_total_variation: number | null;
+  schema_total_variation: number | null;
+  unknown_app_rate: number;
+  parser_warning_per_row: number;
+  runtime_seconds: number | null;
+  root_cause_codes: string[];
+  quality_warning: string;
+  accuracy_metrics_calculated: false;
+}
+
+export interface ShadowMonitoringDiagnostics {
+  ok: boolean;
+  version: string;
+  status: string;
+  observation_count: number;
+  source_scope_count: number;
+  current_state: string;
+  rows: ShadowMonitoringDiagnosticRow[];
+  root_cause_counts: Record<string, number>;
+  operational_metrics: {
+    queue_rate: ShadowOperationalMetricRange;
+    rule_shadow_disagreement_rate: ShadowOperationalMetricRange;
+    isolation_forest_anomaly_rate: ShadowOperationalMetricRange;
+  };
+  thresholds: Record<string, number>;
+  hysteresis: Record<string, number | boolean>;
+  cadence: {
+    enabled: boolean;
+    dependencies_ready: boolean;
+    scheduler_mode: "external_due_check_only";
+    always_on_scheduler_enabled: false;
+    cadence_minutes: number;
+    active_job: boolean;
+    latest_status: string;
+    last_completed_at: string | null;
+    next_due_at: string | null;
+    due: boolean;
+    bounded_source_count: number;
+    bounded_windows_per_source: number;
+    duplicate_suppression: true;
+    idempotent_retry: true;
+    cooperative_cancellation: true;
+  };
+  accuracy_metrics_calculated: false;
+  lifecycle_state: "shadow_observation";
+  rules_alert_authoritative: true;
+  isolation_forest_advisory_only: true;
+  model_activated: false;
+  production_promoted: false;
+  response_automation_allowed: false;
+  real_firewall_blocking_enabled: false;
+  source_identifiers_included: false;
+  raw_logs_included: false;
+  ip_addresses_included: false;
+  private_paths_included: false;
+  fingerprints_included: false;
+  labels_accessed: false;
+  secrets_exposed: false;
+}
+
+export interface ParserProfileDiagnosticRow {
+  source_scope: string;
+  time_scope: string;
+  rows_evaluated: number;
+  old_drift_state: string;
+  raw_repaired_state: string;
+  drift_state: string;
+  queue_rate: number;
+  disagreement_rate: number;
+  isolation_anomaly_rate: number;
+  baseline_selection: {
+    status: string;
+    scope: string;
+    comparable: boolean;
+    parser_profile: string;
+    source_type: string;
+    support_rows: number;
+  };
+  application_total_variation: number | null;
+  schema_total_variation: number | null;
+  quality: {
+    rows: number;
+    parser_error_rate: number;
+    parser_structural_warning_per_row: number;
+    required_missing_per_row: number;
+    unresolved_application_rate: number;
+  };
+  quality_absolute_delta: Record<string, number>;
+  compatibility_status_counts: Record<string, number>;
+  application_resolution_counts: Record<string, number>;
+  root_cause_codes: string[];
+  accuracy_metrics_calculated: false;
+}
+
+export interface ParserProfileOperationalDiagnostics {
+  ok: boolean;
+  version: string;
+  status: string;
+  parser_contract_version: string;
+  observation_count: number;
+  source_scope_count: number;
+  current_state: string;
+  old_state_counts: Record<string, number>;
+  repaired_state_counts: Record<string, number>;
+  baseline_scope_counts: Record<string, number>;
+  legacy_warning_windows_reclassified: number;
+  baseline_catalog: {
+    status: string;
+    available: boolean;
+    minimum_support: number;
+    parser_contract_version: string;
+    provenance: {
+      evidence_role: string;
+      selection_labels_used: false;
+      accuracy_metrics_used: false;
+      source_identity_used: false;
+      locked_final_evidence_used: false;
+      baseline_report_committed: false;
+    };
+  };
+  rows: ParserProfileDiagnosticRow[];
+  lifecycle_state: "shadow_observation";
+  rules_alert_authoritative: true;
+  isolation_forest_advisory_only: true;
+  model_activated: false;
+  production_promoted: false;
+  response_automation_allowed: false;
+  real_firewall_blocking_enabled: false;
+  source_identifiers_included: false;
+  raw_logs_included: false;
+  ip_addresses_included: false;
+  private_paths_included: false;
+  labels_accessed: false;
+  accuracy_metrics_calculated: false;
+  secrets_exposed: false;
 }
 
 export interface MLEvidenceSnapshot {

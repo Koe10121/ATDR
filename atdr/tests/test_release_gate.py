@@ -35,6 +35,9 @@ def test_verify_release_json_shape_and_skipped_smoke():
     assert checks["pytest"]["return_code"] == 0
     pytest_basetemp = next(item for item in checks["pytest"]["command"] if item.startswith("--basetemp="))
     assert pytest_basetemp.startswith("--basetemp=.tmp/pytest-release-tmp-")
+    compile_command = checks["compileall"]["command"]
+    assert "-x" in compile_command
+    assert r"atdr[\\/]data[\\/]processed" in compile_command
     assert "duration_seconds" in checks["compileall"]
     json.dumps(result)
 

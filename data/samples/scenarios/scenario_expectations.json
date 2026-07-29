@@ -197,8 +197,8 @@
   },
   "policy_violation_suspicious_app": {
     "expected_alert_present": true,
-    "expected_primary_attack_type": "malware_c2",
-    "expected_attack_type": "malware_c2",
+    "expected_primary_attack_type": "policy_violation",
+    "expected_attack_type": "policy_violation",
     "allowed_secondary_attack_types": [],
     "expected_alert_count_min": 1,
     "expected_alert_count_max": 1,

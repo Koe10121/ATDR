@@ -15,7 +15,16 @@ from sqlalchemy.pool import StaticPool
 
 from atdr.app.core.config import get_settings
 from atdr.app.db.database import Base, get_db
-from atdr.app.db.models import DetectionRun, MLLabel, MLModelRun, OperationJob, RawLog, ResponseAction
+from atdr.app.db.models import (
+    DetectionRun,
+    IngestionRun,
+    LogSource,
+    MLLabel,
+    MLModelRun,
+    OperationJob,
+    RawLog,
+    ResponseAction,
+)
 from atdr.app.services.job_service import (
     QueueBackpressureError,
     enforce_import_queue_backpressure,
@@ -124,6 +133,11 @@ def test_large_import_commits_multiple_chunks_and_updates_progress_lease_and_hea
         job = _enqueue_import(db, staged)
         result = run_worker_once(db, worker_id="v393-worker")
         persisted = db.get(OperationJob, job.id)
+        ingestion_run = db.get(
+            IngestionRun,
+            persisted.related_ingestion_run_id if persisted else None,
+        )
+        source = db.scalar(select(LogSource).limit(1))
 
         assert result["ok"] is True
         assert persisted is not None
@@ -134,6 +148,10 @@ def test_large_import_commits_multiple_chunks_and_updates_progress_lease_and_hea
         assert persisted.checkpoint_bytes == staged.byte_count
         assert persisted.chunk_commits == 3
         assert persisted.checkpoint_at is not None
+        assert ingestion_run is not None
+        assert ingestion_run.details_json["parser_quality"]["observed_rows"] == 5
+        assert source is not None
+        assert source.parser_quality_json["observed_rows"] == 5
         assert db.scalar(select(func.count(RawLog.id))) == 5
         assert not staged.path.exists()
 

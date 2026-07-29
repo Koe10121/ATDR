@@ -14,16 +14,15 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from atdr.app.core.log_fingerprint import raw_line_fingerprint
-from atdr.app.db.models import Alert, DetectionRun, MLLabel, MLModelRun, NormalizedLog, RawLog, ResponseAction
+from atdr.app.db.models import Alert, DetectionRun, LogSource, MLLabel, MLModelRun, NormalizedLog, RawLog, ResponseAction
 from atdr.app.detection.rules import build_detection_context, evaluate_rules
 from atdr.app.detection.supervised_detector import (
     TRAINABLE_LABELS,
     _latest_labels,
     _optional_imports,
     supervised_model_path,
-    training_dataset_diagnostics,
 )
-from atdr.app.detection.v330_detection_ml_quality import OUTPUT_DIR, _source_name
+from atdr.app.detection.v330_detection_ml_quality import OUTPUT_DIR
 from atdr.app.detection.v331_noise_reduction import (
     _build_pipeline_for_columns,
     _classes,
@@ -130,6 +129,21 @@ def _feature_fingerprint(frame: Any, index: int, columns: list[str]) -> str:
     return _stable_hash(values)
 
 
+def _feature_fingerprints(frame: Any, columns: list[str]) -> list[str]:
+    fingerprints: list[str] = []
+    for record in frame.loc[:, columns].to_dict(orient="records"):
+        values: dict[str, Any] = {}
+        for column, value in record.items():
+            if value is None or (isinstance(value, float) and math.isnan(value)):
+                values[column] = None
+            elif isinstance(value, float):
+                values[column] = round(value, 6)
+            else:
+                values[column] = str(value)
+        fingerprints.append(_stable_hash(values))
+    return fingerprints
+
+
 def _local_evidence_frame(frame: Any, logs: list[Any]) -> tuple[Any, dict[str, Any]]:
     """Build candidate evidence features without whole-dataset rule context.
 
@@ -194,10 +208,32 @@ def _original_queue_target(label: str) -> str:
     return "needs_review" if label in {"needs_context", "suspicious", "malicious"} else "non_threat"
 
 
-def _source_id(log: Any) -> int | None:
-    raw = getattr(log, "raw_log", None)
-    value = getattr(raw, "source_id", None)
-    return int(value) if value is not None else None
+def _raw_metadata(db: Session, logs: list[Any]) -> dict[int, dict[str, Any]]:
+    raw_ids = {int(log.raw_log_id) for log in logs if getattr(log, "raw_log_id", None) is not None}
+    if not raw_ids:
+        return {}
+    rows = db.execute(
+        select(
+            RawLog.id,
+            RawLog.source_id,
+            RawLog.raw_line_hash,
+            RawLog.raw_line,
+            LogSource.name,
+        )
+        .outerjoin(LogSource, RawLog.source_id == LogSource.id)
+        .where(RawLog.id.in_(raw_ids))
+    )
+    metadata: dict[int, dict[str, Any]] = {}
+    for raw_id, source_id, raw_hash, raw_line, source_name in rows:
+        fingerprint = str(raw_hash or "")
+        if len(fingerprint) != 64:
+            fingerprint = raw_line_fingerprint(str(raw_line or ""))
+        metadata[int(raw_id)] = {
+            "source_id": int(source_id) if source_id is not None else None,
+            "source_name": str(source_name or "unknown_source"),
+            "raw_fingerprint": fingerprint,
+        }
+    return metadata
 
 
 def _build_dataset(db: Session, *, min_samples: int) -> dict[str, Any]:
@@ -226,11 +262,13 @@ def _build_dataset(db: Session, *, min_samples: int) -> dict[str, Any]:
 
     pd = imports[1]
     logs = [label.log for label in labels]
+    raw_metadata = _raw_metadata(db, logs)
     started = time.perf_counter()
     base_frame = pd.DataFrame(build_feature_rows(db, logs))
     frame, feature_meta = _local_evidence_frame(base_frame, logs)
     feature_seconds = round(time.perf_counter() - started, 4)
     used_columns = [*feature_meta["numeric_features"], *feature_meta["categorical_features"]]
+    feature_fingerprints = _feature_fingerprints(frame, used_columns)
 
     safe_targets: list[str] = []
     target_reasons: Counter[str] = Counter()
@@ -239,6 +277,11 @@ def _build_dataset(db: Session, *, min_samples: int) -> dict[str, Any]:
         target, reason = _safe_queue_target(label.label, frame.iloc[index])
         safe_targets.append(target)
         target_reasons[reason] += 1
+        raw = raw_metadata.get(int(log.raw_log_id), {}) if log.raw_log_id is not None else {}
+        network_zone_group = "zone:{src}->{dst}".format(
+            src=str(log.src_zone or "unknown").strip().lower(),
+            dst=str(log.dst_zone or "unknown").strip().lower(),
+        )
         rows.append(
             {
                 "index": index,
@@ -249,20 +292,24 @@ def _build_dataset(db: Session, *, min_samples: int) -> dict[str, Any]:
                 "original_queue_target": _original_queue_target(label.label),
                 "reviewed": bool(label.reviewed),
                 "label_source": str(label.label_source or ""),
-                "source_id": _source_id(log),
-                "source_name": _source_name(log),
+                "source_id": raw.get("source_id"),
+                "source_name": raw.get("source_name", "unknown_source"),
+                "network_zone_group": network_zone_group,
                 "timestamp": _timestamp(log),
                 "app": str(log.app or "unknown"),
                 "action": str(log.action or "unknown"),
                 "dst_port": log.dst_port,
-                "exact_fingerprint": _raw_fingerprint(log),
+                "exact_fingerprint": raw.get("raw_fingerprint") or _raw_fingerprint(log),
                 "near_fingerprint": _near_fingerprint(log),
-                "feature_fingerprint": _feature_fingerprint(frame, index, used_columns),
+                "feature_fingerprint": feature_fingerprints[index],
                 "target_reason": reason,
             }
         )
 
-    diagnostics = training_dataset_diagnostics(db)
+    total_label_rows = int(db.scalar(select(func.count(MLLabel.id))) or 0)
+    trainable_label_rows = int(
+        db.scalar(select(func.count(MLLabel.id)).where(MLLabel.label.in_(TRAINABLE_LABELS))) or 0
+    )
     return {
         "ok": True,
         "imports": imports,
@@ -275,11 +322,11 @@ def _build_dataset(db: Session, *, min_samples: int) -> dict[str, Any]:
         "feature_meta": feature_meta,
         "feature_generation_seconds": feature_seconds,
         "label_provenance": {
-            "total_label_rows": diagnostics.get("total_label_rows"),
+            "total_label_rows": total_label_rows,
             "latest_trainable_rows": len(all_latest),
             "reviewed_latest_rows": len(labels),
             "weak_or_unreviewed_latest_rows_excluded": len(all_latest) - len(labels),
-            "superseded_label_rows_excluded": diagnostics.get("superseded_label_rows"),
+            "superseded_label_rows_excluded": max(0, trainable_label_rows - len(all_latest)),
             "duplicate_normalized_log_ids_in_evaluation": duplicate_latest_log_ids,
             "label_source_distribution": dict(Counter(str(label.label_source or "") for label in labels)),
             "target_distribution": dict(Counter(safe_targets)),
@@ -484,7 +531,8 @@ def build_frozen_partition(
         raise ValueError("final_test_size must be between 0 and 0.5")
     if calibration_size <= 0 or threshold_size <= 0 or final_test_size + calibration_size + threshold_size >= 0.8:
         raise ValueError("fit, calibration, threshold, and final-test partitions need nonzero capacity")
-    if split_mode not in V398_SPLITS:
+    supported_splits = {*V398_SPLITS, "network_zone_holdout"}
+    if split_mode not in supported_splits:
         raise ValueError(f"Unknown v3.98 split mode: {split_mode}")
 
     if split_mode == "temporal_holdout":
@@ -499,6 +547,9 @@ def build_frozen_partition(
         if split_mode == "source_holdout":
             final_group = "source_name"
             seed = 398
+        elif split_mode == "network_zone_holdout":
+            final_group = "network_zone_group"
+            seed = 499
         else:
             final_group = "leakage_group"
             seed = int(split_mode.rsplit("_", 1)[-1])
@@ -541,6 +592,8 @@ def build_frozen_partition(
             "partition_method": (
                 "source_disjoint_final_then_fingerprint_grouped_internal"
                 if split_mode == "source_holdout"
+                else "network_zone_disjoint_final_then_fingerprint_grouped_internal"
+                if split_mode == "network_zone_holdout"
                 else "fingerprint_component_grouped_random"
             ),
             "selection_metadata": {
@@ -636,10 +689,15 @@ def audit_partition_leakage(rows: list[dict[str, Any]], partition: dict[str, Any
             pairwise.append(row)
 
     source_overlap = 0
+    group_overlap = 0
     if partition["split_mode"] == "source_holdout":
         development = partition["fit_idx"] + partition["calibration_idx"] + partition["threshold_idx"]
         source_overlap = _overlap(rows, development, partition["final_test_idx"], "source_name")
         unacceptable += source_overlap
+    elif partition["split_mode"] == "network_zone_holdout":
+        development = partition["fit_idx"] + partition["calibration_idx"] + partition["threshold_idx"]
+        group_overlap = _overlap(rows, development, partition["final_test_idx"], "network_zone_group")
+        unacceptable += group_overlap
 
     temporal_overlap = False
     if partition["split_mode"] == "temporal_holdout":
@@ -668,6 +726,7 @@ def audit_partition_leakage(rows: list[dict[str, Any]], partition: dict[str, Any
             "chronological overlap is fatal in temporal holdout; random splits report both as diagnostics"
         ),
         "source_overlap_with_final_test": source_overlap,
+        "network_zone_group_overlap_with_final_test": group_overlap,
         "temporal_window_overlap": temporal_overlap,
         "missing_required_partition": missing_required_partition,
         "class_diversity_failure": class_diversity_failure,

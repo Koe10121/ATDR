@@ -93,6 +93,14 @@ def _build_pipeline_for_columns(
     categorical_features: list[str],
 ):
     _, _, ColumnTransformer, RandomForestClassifier, SimpleImputer, *_rest, Pipeline, OneHotEncoder = imports
+    encoder_kwargs: dict[str, Any] = {"handle_unknown": "ignore"}
+    if model_type == "hist_gradient_boosting":
+        try:
+            encoder = OneHotEncoder(**encoder_kwargs, sparse_output=False)
+        except TypeError:  # pragma: no cover - older supported sklearn
+            encoder = OneHotEncoder(**encoder_kwargs, sparse=False)
+    else:
+        encoder = OneHotEncoder(**encoder_kwargs)
     preprocessor = ColumnTransformer(
         transformers=[
             ("numeric", SimpleImputer(strategy="median"), numeric_features),
@@ -101,7 +109,7 @@ def _build_pipeline_for_columns(
                 Pipeline(
                     steps=[
                         ("imputer", SimpleImputer(strategy="most_frequent")),
-                        ("onehot", OneHotEncoder(handle_unknown="ignore")),
+                        ("onehot", encoder),
                     ]
                 ),
                 categorical_features,

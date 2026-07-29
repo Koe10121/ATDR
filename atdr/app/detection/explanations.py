@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from atdr.app.db.models import Alert, MLLabel, NormalizedLog
 from atdr.app.detection.attack_mapping import attack_mapping_for_type, infer_attack_type_from_rules
 from atdr.app.detection.hybrid_scoring import hybrid_risk_score
+from atdr.app.detection.rule_catalog import rule_spec
 from atdr.app.detection.supervised_detector import predict_supervised_log
 from atdr.app.ml.features import build_log_features
 
@@ -174,7 +175,10 @@ def alert_explanation_completeness(alert: Alert, summary: dict[str, Any] | None 
             or (summary.get("supervised") or {}).get("predicted_label")
             or (alert.matched_rules_json or [])
         ),
-        "evidence_count": bool(getattr(alert, "evidence", None)),
+        "evidence_count": bool(
+            summary.get("evidence_count")
+            or getattr(alert, "evidence", None)
+        ),
         "why_flagged": bool(summary.get("why_flagged") or alert.explanation),
         "recommended_analyst_action": bool(alert.recommended_response),
     }
@@ -221,6 +225,8 @@ def build_alert_detection_summary(db: Session, alert: Alert) -> dict[str, Any]:
     attack_type = _primary_attack_type(alert, labels)
     mapping = attack_mapping_for_type(attack_type)
     rule_matches = [rule for rule in (alert.matched_rules_json or []) if rule.get("code") != "group_metadata"]
+    authoritative_rule_matches = [rule for rule in rule_matches if rule.get("code") != "ml_anomaly_detected"]
+    advisory_anomaly_matches = [rule for rule in rule_matches if rule.get("code") == "ml_anomaly_detected"]
     anomaly_logs = [log for log in evidence_logs if log.is_anomaly]
     anomaly_scores = [float(log.anomaly_score) for log in evidence_logs if log.anomaly_score is not None]
     supervised: dict[str, Any] = {"predicted_label": None, "malicious_probability": 0.0, "confidence": 0.0}
@@ -257,20 +263,20 @@ def build_alert_detection_summary(db: Session, alert: Alert) -> dict[str, Any]:
     )
 
     detection_sources: list[str] = []
-    if any(rule.get("code") not in {"ml_anomaly_detected", "group_metadata"} for rule in rule_matches):
+    if authoritative_rule_matches:
         detection_sources.append("rule")
-    if anomaly_logs or any(rule.get("code") == "ml_anomaly_detected" for rule in rule_matches):
+    if anomaly_logs or advisory_anomaly_matches:
         detection_sources.append("anomaly")
-    if supervised.get("predicted_label"):
-        detection_sources.append("supervised")
-    detection_sources.append("hybrid")
+    if len(detection_sources) > 1:
+        detection_sources.append("hybrid")
     detection_sources = list(dict.fromkeys(detection_sources))
 
-    evidence_points: list[str] = []
-    for rule in rule_matches[:4]:
+    authoritative_evidence_points: list[str] = []
+    for rule in authoritative_rule_matches[:4]:
         title = rule.get("title") or rule.get("code")
         explanation = rule.get("explanation")
-        evidence_points.append(f"{title}: {explanation}" if explanation else str(title))
+        authoritative_evidence_points.append(f"{title}: {explanation}" if explanation else str(title))
+    evidence_points = list(authoritative_evidence_points)
     if behavior.get("src_ip_5min_deny_count"):
         evidence_points.append(f"Source had {behavior['src_ip_5min_deny_count']} deny/drop/reset events in 5 minutes.")
     if behavior.get("src_ip_5min_unique_dst_ports"):
@@ -292,17 +298,75 @@ def build_alert_detection_summary(db: Session, alert: Alert) -> dict[str, Any]:
     elif behavior.get("internal_to_external_flag"):
         evidence_points.append("Traffic direction is internal to external.")
     if anomaly_scores:
-        evidence_points.append(f"IsolationForest anomaly score range: {round(min(anomaly_scores), 6)} to {round(max(anomaly_scores), 6)}.")
-    if supervised.get("predicted_label"):
         evidence_points.append(
-            f"Supervised triage predicted {supervised.get('predicted_label')} with confidence {supervised.get('confidence', 0.0)}."
+            "Advisory IsolationForest anomaly score range: "
+            f"{round(min(anomaly_scores), 6)} to {round(max(anomaly_scores), 6)}."
         )
+    diagnostic_points: list[str] = []
+    if supervised.get("predicted_label"):
+        if supervised.get("queue_probability") is not None:
+            diagnostic_points.append(
+                "Governed supervised queue suggests "
+                f"{supervised.get('queue_decision')} at probability {supervised.get('queue_probability', 0.0)} "
+                f"against threshold {supervised.get('threshold', 0.5)}; it was not used to create this alert."
+            )
+        else:
+            diagnostic_points.append(
+                "Current supervised diagnostic predicts "
+                f"{supervised.get('predicted_label')} with confidence {supervised.get('confidence', 0.0)}; "
+                "it was not used to create this alert."
+            )
 
-    why = "Flagged for analyst review because "
-    if evidence_points:
-        why += "; ".join(evidence_points[:4])
+    observed_evidence = [
+        {
+            "field": key,
+            "value": value,
+        }
+        for key, value in normalized_fields_used.items()
+        if value is not None and str(value).strip() != ""
+    ]
+    rule_inferences = []
+    confidence_rank = {"unknown": 0, "low": 1, "medium": 2, "high": 3}
+    rule_confidences: list[str] = []
+    for rule in rule_matches:
+        spec = rule_spec(str(rule.get("code") or ""))
+        confidence = str(rule.get("confidence") or (spec.confidence if spec else "unknown"))
+        rule_confidences.append(confidence)
+        rule_inferences.append(
+            {
+                "rule_id": rule.get("rule_id") or (spec.rule_id if spec else None),
+                "code": rule.get("code"),
+                "title": rule.get("title"),
+                "confidence": confidence,
+                "claim_boundary": rule.get("claim_boundary") or (spec.claim_boundary if spec else None),
+                "observed_explanation": rule.get("explanation"),
+                "alert_authoritative": rule.get("code") != "ml_anomaly_detected",
+                "evidence_role": (
+                    "rule_alert_authority" if rule.get("code") != "ml_anomaly_detected" else "advisory_anomaly_only"
+                ),
+            }
+        )
+    strongest_rule_confidence = max(
+        rule_confidences,
+        key=lambda value: confidence_rank.get(value, 0),
+        default="unknown",
+    )
+    missing_context = []
+    if primary_log is not None:
+        if not primary_log.app or str(primary_log.app).lower() in {"unknown", "incomplete", "not-applicable"}:
+            missing_context.append("application identity")
+        if not primary_log.src_zone or not primary_log.dst_zone:
+            missing_context.append("complete zone direction")
+        if not labels:
+            missing_context.append("analyst-reviewed disposition")
+        parsed = primary_log.parsed_json if isinstance(primary_log.parsed_json, dict) else {}
+        if parsed.get("parser_warnings"):
+            missing_context.append("clean parser evidence")
+
+    if authoritative_evidence_points:
+        why = "Flagged by deterministic rule evidence because " + "; ".join(authoritative_evidence_points[:4])
     else:
-        why += alert.explanation
+        why = "Recorded for analyst review; authoritative rule metadata is unavailable. " + alert.explanation
     if not why.endswith("."):
         why += "."
 
@@ -312,17 +376,42 @@ def build_alert_detection_summary(db: Session, alert: Alert) -> dict[str, Any]:
         "attack_type": attack_type,
         "attack_mapping": mapping,
         "normalized_fields_used": normalized_fields_used,
-        "rule_evidence": evidence_points[:8],
+        "rule_evidence": authoritative_evidence_points[:8],
+        "alert_authority": {
+            "layer": "deterministic_rules",
+            "authoritative_rule_count": len(authoritative_rule_matches),
+            "authoritative_rule_names": [
+                str(rule.get("title") or rule.get("code")) for rule in authoritative_rule_matches
+            ],
+            "anomaly_advisory_only": True,
+            "supervised_decision_support_only": True,
+            "hybrid_diagnostic_only": True,
+        },
         "anomaly_evidence": {
             "present": bool(anomaly_logs),
             "count": len(anomaly_logs),
             "min_score": round(min(anomaly_scores), 6) if anomaly_scores else None,
             "max_score": round(max(anomaly_scores), 6) if anomaly_scores else None,
+            "used_for_alert_creation": False,
+            "evidence_role": "advisory_only",
         },
         "ml_evidence": {
             "predicted_label": supervised.get("predicted_label"),
+            "queue_decision": supervised.get("queue_decision"),
+            "queue_probability": supervised.get("queue_probability"),
+            "threshold": supervised.get("threshold"),
+            "calibration_method": supervised.get("calibration_method"),
+            "model_version": supervised.get("model_version"),
+            "feature_set_version": supervised.get("feature_set_version"),
+            "lifecycle_state": supervised.get("lifecycle_state", "inactive"),
             "malicious_probability": supervised.get("malicious_probability", 0.0),
             "confidence": supervised.get("confidence", 0.0),
+            "observed_signals": supervised.get("observed_signals", []),
+            "confidence_limitations": supervised.get("confidence_limitations", []),
+            "used_for_alert_creation": False,
+            "used_for_severity": False,
+            "used_for_suppression": False,
+            "evidence_role": "governed_shadow_or_decision_support_only",
             "decision_support_only": True,
         },
         "matched_rule_names": [str(rule.get("title") or rule.get("code")) for rule in rule_matches],
@@ -331,14 +420,34 @@ def build_alert_detection_summary(db: Session, alert: Alert) -> dict[str, Any]:
             "count": len(anomaly_logs),
             "min_score": round(min(anomaly_scores), 6) if anomaly_scores else None,
             "max_score": round(max(anomaly_scores), 6) if anomaly_scores else None,
+            "used_for_alert_creation": False,
+            "evidence_role": "advisory_only",
         },
         "supervised": {
             "predicted_label": supervised.get("predicted_label"),
+            "queue_decision": supervised.get("queue_decision"),
+            "queue_probability": supervised.get("queue_probability"),
+            "threshold": supervised.get("threshold"),
+            "calibration_method": supervised.get("calibration_method"),
+            "model_version": supervised.get("model_version"),
+            "feature_set_version": supervised.get("feature_set_version"),
+            "lifecycle_state": supervised.get("lifecycle_state", "inactive"),
             "malicious_probability": supervised.get("malicious_probability", 0.0),
             "confidence": supervised.get("confidence", 0.0),
+            "observed_signals": supervised.get("observed_signals", []),
+            "confidence_limitations": supervised.get("confidence_limitations", []),
+            "used_for_alert_creation": False,
+            "used_for_severity": False,
+            "used_for_suppression": False,
+            "evidence_role": "governed_shadow_or_decision_support_only",
             "decision_support_only": True,
         },
-        "hybrid_risk": hybrid,
+        "hybrid_risk": {**hybrid, "used_for_alert_creation": False, "evidence_role": "current_diagnostic_only"},
+        "observed_evidence": observed_evidence,
+        "rule_inferences": rule_inferences,
+        "diagnostic_evidence": diagnostic_points,
+        "missing_context": list(dict.fromkeys(missing_context)),
+        "evidence_confidence": strongest_rule_confidence,
         "behavior_window": behavior,
         "top_evidence_points": evidence_points[:8],
         "why_flagged": why,

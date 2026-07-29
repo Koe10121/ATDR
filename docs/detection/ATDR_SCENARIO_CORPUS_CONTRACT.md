@@ -2,7 +2,7 @@
 
 ## Status
 
-v3.71 controlled scenario-corpus contract. These samples are synthetic/safe and are intended for parser, detection, source-health, deduplication, explanation, and response-safety validation. They are not production accuracy claims and are not real private logs.
+v4.9 controlled scenario-corpus contract. These samples are synthetic/safe and are intended for parser, source-scoped detection, source health, deduplication, explanation, and response-safety regression. They are not production accuracy claims and are not real private logs.
 
 ## Source Evidence
 
@@ -12,6 +12,7 @@ v3.71 controlled scenario-corpus contract. These samples are synthetic/safe and 
 - Detection validation: `atdr/scripts/validate_detection_pipeline.py`
 - Detection quality validation: `atdr/scripts/validate_detection_quality.py`
 - Rule contract: `docs/detection/ATDR_RULE_PACK_CONTRACT.md`
+- Taxonomy: `docs/detection/ATDR_DETECTION_TAXONOMY.md`
 
 ## Safety Contract
 
@@ -21,6 +22,8 @@ v3.71 controlled scenario-corpus contract. These samples are synthetic/safe and 
 - Scenarios must preserve raw evidence.
 - Scenarios must require zero response actions.
 - Scenarios must not activate models or enable automatic response.
+- Expected labels are regression expectations, not human-reviewed training labels.
+- Alert-positive expectations must identify a claim boundary and analyst-verifiable evidence.
 
 ## Scenario Families
 
@@ -59,7 +62,7 @@ v3.71 controlled scenario-corpus contract. These samples are synthetic/safe and 
 | `generic_syslog_mixed` | `generic_syslog` | Raw evidence preserved, no alert | `unknown_anomaly` | true |
 | `malformed_raw_fallback` | `raw_fallback` | Parse failures counted, raw evidence preserved | `unknown_anomaly` | true |
 | `malformed_vendor_mixed_fields` | `palo_alto` | Parser warnings, raw evidence preserved | `unknown_anomaly` | true |
-| `policy_violation_suspicious_app` | `palo_alto` | One suspicious-app policy alert | `malware_c2` | true |
+| `policy_violation_suspicious_app` | `palo_alto` | One suspicious-app policy alert | `policy_violation` | true |
 
 ## Required Expectation Fields
 
@@ -105,3 +108,5 @@ Full controlled detection pipeline:
 ```powershell
 .\.venv\Scripts\python.exe -m atdr.scripts.validate_detection_pipeline --pretty
 ```
+
+The v4.9 controlled quality matrix passes 23 of 23 scenarios with zero scenario-level false positives, false negatives, unexpected attack types, or response actions. This result validates the controlled corpus only; it does not establish real-source accuracy or production readiness.

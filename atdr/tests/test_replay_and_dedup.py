@@ -5,7 +5,17 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from atdr.app.db.database import Base
-from atdr.app.db.models import Alert, AlertEvidence, AuditLog, DetectionRun, IngestionRun, LogSource, NormalizedLog, RawLog
+from atdr.app.db.models import (
+    Alert,
+    AlertEvidence,
+    AuditLog,
+    DetectionRun,
+    IngestionRun,
+    LogSource,
+    NormalizedLog,
+    RawLog,
+    ResponseAction,
+)
 from atdr.app.services.dashboard_service import build_dashboard_summary, build_dashboard_summary_cached, clear_dashboard_summary_cache
 from atdr.app.services.detection_service import run_detection
 from atdr.app.services.log_service import import_log_file, import_raw_log_line
@@ -59,6 +69,7 @@ def test_replay_logs_direct_import_preserves_raw_evidence():
         )
         raw_count = db.scalar(select(func.count(RawLog.id)))
         normalized_count = db.scalar(select(func.count(NormalizedLog.id)))
+        response_count = db.scalar(select(func.count(ResponseAction.id)))
         audit = db.scalar(select(AuditLog).where(AuditLog.action == "ingest_syslog"))
         run = db.scalar(select(IngestionRun))
         source = db.scalar(select(LogSource).where(LogSource.name == "lab-firewall-replay"))
@@ -66,8 +77,11 @@ def test_replay_logs_direct_import_preserves_raw_evidence():
     assert result["ok"] is True
     assert result["imported"] == 1
     assert result["run_id"] == run.id
+    assert result["parser_quality"]["observed_rows"] == 1
+    assert result["parser_quality"]["layout_statuses"]["compatible"] == 1
     assert raw_count == 1
     assert normalized_count == 1
+    assert response_count == 0
     assert audit is None
     assert run.source_type == "replay_direct"
     assert run.parsed_successfully == 1
@@ -77,6 +91,7 @@ def test_replay_logs_direct_import_preserves_raw_evidence():
     assert source.port == 514
     assert source.logs_received_count == 1
     assert source.parse_success_count == 1
+    assert source.parser_quality_json["observed_rows"] == 1
 
 
 def test_replay_logs_direct_detection_run_links_to_source():
@@ -126,6 +141,8 @@ def test_replay_logs_dry_run_accepts_source_metadata_without_writing():
     assert result["dry_run"] is True
     assert result["source"]["name"] == "dry-run-firewall"
     assert result["source"]["source_type"] == "firewall"
+    assert result["parser_quality"]["observed_rows"] == 1
+    assert result["parser_quality"]["layout_statuses"]["compatible"] == 1
     assert source_count == 0
 
 
@@ -334,6 +351,9 @@ def test_performance_smoke_runs_read_only(monkeypatch):
     assert after == before
     assert "overview_summary_seconds" in result["timings"]
     assert "ml_governance_lightweight_summary_seconds" in result["timings"]
+    assert "ml_governance_cold_summary_seconds" in result["timings"]
+    assert "ml_governance_warm_summary_seconds" in result["timings"]
+    assert result["ml_governance_responses_equivalent"] is True
     assert "ingestion_run_history_query_seconds" in result["timings"]
     assert "detection_run_history_query_seconds" in result["timings"]
     assert "alert_list_query_seconds" in result["timings"]

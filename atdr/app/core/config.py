@@ -38,6 +38,84 @@ class Settings(BaseSettings):
     min_alert_score: int = Field(default=30, alias="MIN_ALERT_SCORE")
     ml_model_path: str = Field(default="atdr/models/isolation_forest.joblib", alias="ML_MODEL_PATH")
     supervised_model_path: str = Field(default="atdr/models/supervised_classifier.joblib", alias="SUPERVISED_MODEL_PATH")
+    governed_shadow_scoring_enabled: bool = Field(
+        default=False,
+        alias="GOVERNED_SHADOW_SCORING_ENABLED",
+    )
+    governed_shadow_batch_size: int = Field(
+        default=250,
+        ge=1,
+        le=10_000,
+        alias="GOVERNED_SHADOW_BATCH_SIZE",
+    )
+    governed_shadow_max_batch_size: int = Field(
+        default=1000,
+        ge=1,
+        le=10_000,
+        alias="GOVERNED_SHADOW_MAX_BATCH_SIZE",
+    )
+    governed_shadow_timeout_seconds: float = Field(
+        default=30.0,
+        gt=0,
+        le=300,
+        alias="GOVERNED_SHADOW_TIMEOUT_SECONDS",
+    )
+    governed_shadow_cache_seconds: int = Field(
+        default=30,
+        ge=0,
+        le=3600,
+        alias="GOVERNED_SHADOW_CACHE_SECONDS",
+    )
+    governed_shadow_observation_enabled: bool = Field(
+        default=False,
+        alias="GOVERNED_SHADOW_OBSERVATION_ENABLED",
+    )
+    governed_shadow_observation_retention_days: int = Field(
+        default=90,
+        ge=1,
+        le=3650,
+        alias="GOVERNED_SHADOW_OBSERVATION_RETENTION_DAYS",
+    )
+    governed_shadow_observation_trend_limit: int = Field(
+        default=30,
+        ge=1,
+        le=365,
+        alias="GOVERNED_SHADOW_OBSERVATION_TREND_LIMIT",
+    )
+    governed_shadow_monitoring_enabled: bool = Field(
+        default=False,
+        alias="GOVERNED_SHADOW_MONITORING_ENABLED",
+    )
+    governed_shadow_monitoring_cadence_minutes: int = Field(
+        default=60,
+        ge=5,
+        le=10_080,
+        alias="GOVERNED_SHADOW_MONITORING_CADENCE_MINUTES",
+    )
+    governed_shadow_monitoring_max_sources: int = Field(
+        default=8,
+        ge=1,
+        le=32,
+        alias="GOVERNED_SHADOW_MONITORING_MAX_SOURCES",
+    )
+    governed_shadow_monitoring_max_windows_per_source: int = Field(
+        default=3,
+        ge=1,
+        le=12,
+        alias="GOVERNED_SHADOW_MONITORING_MAX_WINDOWS_PER_SOURCE",
+    )
+    governed_shadow_monitoring_min_rows: int = Field(
+        default=50,
+        ge=1,
+        le=10_000,
+        alias="GOVERNED_SHADOW_MONITORING_MIN_ROWS",
+    )
+    governed_shadow_monitoring_batch_limit: int = Field(
+        default=250,
+        ge=1,
+        le=10_000,
+        alias="GOVERNED_SHADOW_MONITORING_BATCH_LIMIT",
+    )
     ml_contamination: float = Field(default=0.03, alias="ML_CONTAMINATION")
     api_base_url: str = Field(default="http://127.0.0.1:8000", alias="API_BASE_URL")
     jwt_secret_key: str = Field(default="change-this-dev-secret", alias="JWT_SECRET_KEY")

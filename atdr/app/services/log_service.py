@@ -14,6 +14,11 @@ from atdr.app.services.operation_run_service import (
     safe_source_label,
     start_ingestion_run,
 )
+from atdr.app.services.runtime_parser_quality_service import (
+    empty_runtime_parser_quality,
+    finalize_runtime_parser_quality,
+    observe_parser_result,
+)
 from atdr.app.services.source_service import DEFAULT_SOURCE_NAME, get_or_create_source, record_source_ingestion
 
 logger = logging.getLogger(__name__)
@@ -56,6 +61,7 @@ def import_log_stream(
     parsed = 0
     failed = 0
     duplicate_raw_logs = 0
+    parser_quality = empty_runtime_parser_quality()
     source_label = safe_source_label(source_name) or DEFAULT_SOURCE_NAME
     source_record_name = DEFAULT_SOURCE_NAME if source_id is None and source_type == "file_import" else source_label
     source = get_or_create_source(
@@ -86,6 +92,7 @@ def import_log_stream(
             existing_raw = db.scalar(select(RawLog.id).where(RawLog.raw_line == line.rstrip("\r\n")).limit(1))
             duplicate_raw_logs += 1 if existing_raw is not None else 0
             parsed_log = parse_log_line_for_profile(line, source.parser_profile)
+            parser_quality = observe_parser_result(parser_quality, parsed_log)
             persist_parsed_log(db, parsed_log, source_id=source.id)
             imported += 1
             if parsed_log.error:
@@ -97,16 +104,23 @@ def import_log_stream(
             if imported % 500 == 0:
                 db.flush()
     except Exception as exc:
+        run_quality = finalize_runtime_parser_quality(parser_quality)
         if run is not None:
             fail_ingestion_run(
                 db,
                 run,
                 error=f"{exc.__class__.__name__}: {exc}",
-                details={"imported_before_failure": imported, "parsed_before_failure": parsed, "failed_before_failure": failed},
+                details={
+                    "imported_before_failure": imported,
+                    "parsed_before_failure": parsed,
+                    "failed_before_failure": failed,
+                    "parser_quality": run_quality,
+                },
             )
             db.commit()
         raise
 
+    run_quality = finalize_runtime_parser_quality(parser_quality)
     audit = AuditLog(
         actor=actor,
         action="import_logs",
@@ -120,6 +134,7 @@ def import_log_stream(
             "limit": limit,
             "available_lines": available_lines,
             "source_id": source.id,
+            "parser_quality": run_quality,
         },
     )
     db.add(audit)
@@ -129,6 +144,7 @@ def import_log_stream(
         parsed_successfully=parsed,
         parse_failures=failed,
         latest_error=latest_error,
+        parser_quality=run_quality,
     )
     if run is not None:
         complete_ingestion_run(
@@ -139,12 +155,17 @@ def import_log_stream(
             parsed_successfully=parsed,
             parse_failures=failed,
             duplicate_raw_logs=duplicate_raw_logs,
-            details={"actor": actor, "source_id": source.id, "available_lines": available_lines},
+            details={
+                "actor": actor,
+                "source_id": source.id,
+                "available_lines": available_lines,
+                "parser_quality": run_quality,
+            },
         )
     db.commit()
     return {
-        "source": source_name,
-        "source_label": safe_source_label(source_name) or source_name,
+        "source": safe_source_label(source_name) or source_label,
+        "source_label": safe_source_label(source_name) or source_label,
         "requested_limit": limit,
         "available_lines": available_lines,
         "imported": imported,
@@ -160,6 +181,7 @@ def import_log_stream(
         "alerts_suppressed": 0,
         "run_id": run.id if run is not None else None,
         "source_id": source.id,
+        "parser_quality": run_quality,
     }
 
 
@@ -186,6 +208,9 @@ def import_raw_log_line(
         port=port,
     )
     parsed_log = parse_log_line_for_profile(raw_line, source.parser_profile)
+    parser_quality = finalize_runtime_parser_quality(
+        observe_parser_result(empty_runtime_parser_quality(), parsed_log)
+    )
     duplicate_raw_log = db.scalar(select(RawLog.id).where(RawLog.raw_line == raw_line.rstrip("\r\n")).limit(1)) is not None
     normalized = persist_parsed_log(db, parsed_log, source_id=source.id)
     db.flush()
@@ -195,6 +220,7 @@ def import_raw_log_line(
         parsed_successfully=0 if parsed_log.error else 1,
         parse_failures=1 if parsed_log.error else 0,
         latest_error=parsed_log.error,
+        parser_quality=parser_quality,
     )
     if commit:
         db.add(
@@ -203,7 +229,12 @@ def import_raw_log_line(
                 action="ingest_syslog",
                 target_type="syslog",
                 target_value=source_name,
-                details={"parsed": not bool(parsed_log.error), "normalized_log_id": getattr(normalized, "id", None), "source_id": source.id},
+                details={
+                    "parsed": not bool(parsed_log.error),
+                    "normalized_log_id": getattr(normalized, "id", None),
+                    "source_id": source.id,
+                    "parser_quality": parser_quality,
+                },
             )
         )
         db.commit()
@@ -213,6 +244,7 @@ def import_raw_log_line(
         "normalized_log_id": getattr(normalized, "id", None),
         "duplicate_raw_log": duplicate_raw_log,
         "source_id": source.id,
+        "parser_quality": parser_quality,
     }
 
 

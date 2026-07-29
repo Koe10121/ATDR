@@ -28,18 +28,18 @@ def _safe_int(value: str, default: int = 0) -> int:
         return default
 
 
-def _shift_palo_time(match: re.Match[str], minutes: int) -> str:
+def _shift_palo_time(match: re.Match[str], *, minutes: int, seconds: int) -> str:
     value = match.group(0)
-    shifted = datetime.strptime(value, "%Y/%m/%d %H:%M:%S") + timedelta(minutes=minutes)
+    shifted = datetime.strptime(value, "%Y/%m/%d %H:%M:%S") + timedelta(minutes=minutes, seconds=seconds)
     return shifted.strftime("%Y/%m/%d %H:%M:%S")
 
 
-def _shift_iso_time(match: re.Match[str], minutes: int) -> str:
+def _shift_iso_time(match: re.Match[str], *, minutes: int, seconds: int) -> str:
     value = match.group(0)
     has_millis = "." in value
     clean = value.replace("+07:00", "")
     fmt = "%Y-%m-%dT%H:%M:%S.%f" if has_millis else "%Y-%m-%dT%H:%M:%S"
-    shifted = datetime.strptime(clean, fmt) + timedelta(minutes=minutes)
+    shifted = datetime.strptime(clean, fmt) + timedelta(minutes=minutes, seconds=seconds)
     if has_millis:
         return shifted.strftime("%Y-%m-%dT%H:%M:%S.%f")[:23] + "+07:00"
     return shifted.strftime("%Y-%m-%dT%H:%M:%S") + "+07:00"
@@ -47,12 +47,18 @@ def _shift_iso_time(match: re.Match[str], minutes: int) -> str:
 
 def _shift_timestamps(line: str, *, scenario: str, variant_index: int, line_index: int) -> str:
     minutes = variant_index * 37
-    if scenario != "repeated_dedup_traffic":
-        minutes += line_index
-    line = re.sub(r"2026/05/20 \d{2}:\d{2}:\d{2}", lambda match: _shift_palo_time(match, minutes), line)
+    # Shift the entire scenario as one unit. Per-line offsets subtly changed
+    # cadence-sensitive windows (for example a five-minute beacon sequence).
+    _ = (scenario, line_index)
+    seconds = 0
+    line = re.sub(
+        r"2026/05/20 \d{2}:\d{2}:\d{2}",
+        lambda match: _shift_palo_time(match, minutes=minutes, seconds=seconds),
+        line,
+    )
     return re.sub(
         r"2026-05-20T\d{2}:\d{2}:\d{2}(?:\.\d{3})?\+07:00",
-        lambda match: _shift_iso_time(match, minutes),
+        lambda match: _shift_iso_time(match, minutes=minutes, seconds=seconds),
         line,
     )
 

@@ -42,7 +42,12 @@ import type {
   OperationJobSubmit,
   OperationJobSummary,
   OidcStatus,
+  ParserProfileOperationalDiagnostics,
+  HistoricalReparseImpactPreview,
   ResponseAction,
+  ShadowMonitoringDiagnostics,
+  ShadowOperationalAcceptance,
+  ShadowObservationSummary,
   SupervisedModelReport,
   SupervisedModelRegistry,
   Suppression,
@@ -222,6 +227,11 @@ export const api = {
   sources: (params: Params = {}) => apiRequest<LogSource[]>("/api/sources", { params }),
   source: (id: number) => apiRequest<LogSource>(`/api/sources/${id}`),
   sourceHealth: (id: number) => apiRequest<LogSource["health"]>(`/api/sources/${id}/health`),
+  sourceReparseImpactPreview: (id: number, scanLimit = 5000) =>
+    apiRequest<HistoricalReparseImpactPreview>(
+      `/api/sources/${id}/reparse-impact-preview`,
+      { params: { scan_limit: scanLimit } }
+    ),
   alerts: (params: Params = {}) => apiRequest<Alert[]>("/api/alerts", { params }),
   alertsPage: (params: Params = {}) => apiListRequest<Alert>("/api/alerts", { params }),
   alert: (id: number) => apiRequest<Alert>(`/api/alerts/${id}`),
@@ -248,6 +258,16 @@ export const api = {
   mlEvidenceSnapshot: () => apiRequest<MLEvidenceSnapshot>("/api/ml/evidence-snapshot"),
   supervisedReport: () => apiRequest<SupervisedModelReport>("/api/ml/supervised/report"),
   supervisedModels: () => apiRequest<SupervisedModelRegistry>("/api/ml/supervised/models"),
+  shadowObservationSummary: () =>
+    apiRequest<ShadowObservationSummary>("/api/ml/supervised/shadow-observations/summary"),
+  shadowOperationalAcceptance: () =>
+    apiRequest<ShadowOperationalAcceptance>("/api/ml/supervised/shadow-operations/acceptance"),
+  shadowMonitoringDiagnostics: () =>
+    apiRequest<ShadowMonitoringDiagnostics>("/api/ml/supervised/shadow-operations/diagnostics"),
+  parserProfileOperationalDiagnostics: () =>
+    apiRequest<ParserProfileOperationalDiagnostics>(
+      "/api/ml/supervised/shadow-operations/parser-quality"
+    ),
   downloadSupervisedReport: () => apiDownload("/api/ml/supervised/report/export"),
   mlLabels: (params: Params = {}) => apiRequest<MLLabel[]>("/api/ml/labels", { params }),
   createMlLabel: (payload: MLLabelPayload) => apiRequest<MLLabel>("/api/ml/labels", { method: "POST", body: JSON.stringify(payload) }),
