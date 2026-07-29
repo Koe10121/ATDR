@@ -845,6 +845,37 @@ ATDR shall support an opt-in database-backed operation queue for selected long-r
   lifecycle remains `shadow_observation`, and activation, promotion,
   automatic response, and real blocking remain prohibited.
 
+## v5.14 Large-File Runtime Acceptance Addendum
+
+- **FR-ATDR-064:** ATDR shall provide a fail-closed, disposable acceptance
+  path for large private PAN-OS files that composes the production runtime
+  staging, durable job, transactional import, source, parser-quality,
+  detection, alert, case, and dashboard read services.
+- Runtime acceptance shall refuse configured-database processing and shall
+  preserve an unchanged configured SQLite marker when one is available.
+- Full-file preflight shall return aggregate record types, schema classes,
+  parser quality, application-resolution quality, chronological coverage, and
+  duplicate counts without returning paths, raw rows, IPs, row fingerprints,
+  source identities, or secrets.
+- One physical source may be partitioned into simulated logical windows for
+  source-scoped runtime checks only. Such windows shall never be represented
+  as independent physical devices.
+- Acceptance shall validate bounded chunks, monotonic committed progress,
+  checkpoint interruption/resume, cooperative cancellation, idempotent
+  enqueue, lock waiting, and staged-input cleanup.
+- Exact repeated log rows shall remain preserved evidence. Duplicate
+  accounting shall be distinct from checkpoint-resume idempotency.
+- Source counters, last-seen state, parser quality, ingestion/detection
+  history, alert evidence, and computed case grouping shall remain
+  traceable.
+- Detection totals shall be described as operational output, not labeled
+  accuracy. Rules remain alert-authoritative; supervised and anomaly ML
+  remain advisory/shadow.
+- Acceptance shall create no labels, model runs, activation, promotion,
+  response actions, automatic response, or real firewall blocking.
+- Local SQLite throughput and dashboard timings are measured evidence, not
+  an approved-host capacity SLA or production certification.
+
 ## v5.13 Runtime Parser Contract And Source Quality Addendum
 
 - **FR-ATDR-063:** ATDR shall apply the versioned parser-quality contract to

@@ -4,14 +4,13 @@ Date: 2026-07-28
 
 Purpose: this document is the current-state memory anchor before larger ATDR productization work. It captures what exists now, what must stay safe, and what must not be deleted or committed while ATDR moves from controlled academic/lab prototype toward a more serious SOC/SaaS-style product.
 
-Checkpoint: the published baseline is commit `e05032a` on `origin/main`; its
-GitHub Actions run passed. It includes the v4.8.1 repository consolidation,
-which archives selected NewSystem reference evidence and removes the unused
-tracked Node/Vue/Mongo runtime copy. The cumulative v4.9-v5.13
-Detection/ML/parser/source-quality program is implemented and locally verified
-but remains uncommitted pending the exact v5.13.1 closure review and separate
-owner approval. Existing ATDR data, MFU companion-shell distribution, and
-response safety remain unchanged. This is a source-backed state lock, not a
+Checkpoint: the published baseline is commit `04c14c5` on `origin/main`; its
+GitHub Actions run passed. It includes the consolidated v4.9-v5.13.1
+detection, ML, parser, source-quality, and repository-closure program. v5.14
+large-file runtime acceptance is implemented and locally verified but remains
+uncommitted pending exact-path review and separate owner approval. Existing
+ATDR data, MFU companion-shell distribution, model lifecycle, and response
+safety remain unchanged. This is a source-backed state lock, not a
 production-readiness claim.
 
 ## Source Evidence
@@ -33,6 +32,7 @@ production-readiness claim.
 | Detection/ML productization evidence | `atdr/app/detection/v372_unified_detection_ml_evaluation.py`, `atdr/scripts/evaluate_detection_ml_productization.py`, `frontend/src/pages/MLGovernance.tsx` |
 | Current detection/parser program closure | `docs/V4_9_DETECTION_ML_RELIABILITY_LOCK.md`, `docs/V5_1_SUPERVISED_SHADOW_ACTIVATION.md` through `docs/V5_13_RUNTIME_PARSER_CONTRACT_AND_SOURCE_QUALITY.md`, and `docs/V5_13_1_DETECTION_PARSER_PROGRAM_CONSOLIDATION.md` |
 | Runtime parser-quality contract | `atdr/app/parsers/paloalto_contract.py`, `atdr/app/services/runtime_parser_quality_service.py`, `atdr/app/services/source_service.py`, `atdr/tests/test_v513_runtime_parser_contract.py` |
+| Large-file private runtime acceptance | `atdr/app/services/v514_large_file_runtime_service.py`, `atdr/scripts/run_v514_large_file_runtime_acceptance.py`, `atdr/tests/test_v514_large_file_runtime_acceptance.py`, `docs/V5_14_LARGE_FILE_RUNTIME_ACCEPTANCE.md` |
 | Governed shadow operations | `atdr/app/services/v58_shadow_scoring_service.py`, `atdr/app/services/v59_shadow_observation_service.py`, `atdr/app/services/v510_detection_operations_service.py`, `atdr/app/services/v511_shadow_monitoring_service.py` |
 | Independent holdout evidence | `atdr/app/detection/v398_independent_holdout_validation.py`, `atdr/scripts/run_v398_independent_holdout_validation.py`, `atdr/tests/test_v398_independent_holdout_validation.py`, `docs/V3_98_INDEPENDENT_DETECTION_ML_HOLDOUT_VALIDATION.md` |
 | Synthetic multi-source frozen revalidation | `atdr/app/detection/v399_multisource_frozen_revalidation.py`, `atdr/scripts/run_v399_multisource_frozen_revalidation.py`, `atdr/tests/test_v399_multisource_frozen_revalidation.py`, `docs/V3_99_INDEPENDENT_MULTI_SOURCE_EVIDENCE_AND_FROZEN_REVALIDATION.md` |
@@ -158,6 +158,29 @@ ATDR can currently:
 - Preserve raw evidence independently from parsed/normalized fields.
 
 Known limitation: very large/shared-lab usage should move toward PostgreSQL or another production-grade database plan. SQLite remains appropriate for local development and controlled lab workflow.
+
+### v5.14 Runtime Acceptance Status
+
+- The complete private PAN-OS file was inspected as aggregate-only evidence:
+  773,551 nonblank rows, 771,932 TRAFFIC, 1,619 THREAT, zero parser errors,
+  zero structural warnings, and zero exact duplicate rows.
+- A disposable 100,000-row run used the real staging, job, worker,
+  transactional import, source-quality, detection, alert, case, and dashboard
+  services. It created exactly 100,000 raw and normalized rows with zero parse
+  failures.
+- A forced 1,000-row handoff resumed from the committed checkpoint with zero
+  extra rows. Cancellation, idempotent enqueue, staging cleanup, and a
+  temporary SQLite lock-wait probe passed.
+- One observed device stream was divided into two explicitly simulated
+  50,000-row logical windows. No second physical device is claimed.
+- Source-scoped rules evaluated 100,000 rows and every created alert retained
+  log/source traceability. These are detector outputs, not labeled accuracy.
+- The configured database marker remained unchanged. Temporary database and
+  raw/staged evidence were removed, and no path, raw row, IP, fingerprint, or
+  secret was returned.
+- Labels, model runs, activation, promotion, and response actions remained
+  zero. Rules remain authoritative and supervised lifecycle remains
+  `shadow_observation`.
 
 ## Parser And Normalization Status
 
@@ -288,9 +311,9 @@ Real firewall blocking must remain disabled unless explicitly approved later wit
 - Supervised ML still needs better stability, calibration, and real-source validation before stronger claims.
 - Case grouping is lightweight, not a full incident/ticketing platform.
 - Observability is still mostly app logs, health checks, scripts, and performance smoke; production metrics/alerting is future work.
-- The published v4.8.1 baseline is clean and CI-green at `e05032a`. The
-  cumulative v4.9-v5.13 worktree remains local and must not be staged or pushed
-  outside the exact v5.13.1 allowlist or without explicit owner approval.
+- The published v5.13.1 baseline is clean and CI-green at `04c14c5`. The
+  v5.14 worktree remains local and must not be staged or pushed outside its
+  exact allowlist or without explicit owner approval.
 
 ## Current Verification Commands
 

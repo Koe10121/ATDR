@@ -276,6 +276,52 @@ The validator creates synthetic generic syslog under ignored `.tmp` storage, for
 
 Expected v3.97 reference result: 100,000 raw and normalized rows, 0 parse failures, 200 chunk commits, 0 duplicate rows after resume, changed input rejected, cooperative cancellation passed, and no detection/model/label/response actions. Local runtime was about 138 seconds with an 8.71 MiB traced Python-memory peak; this is local synthetic evidence, not a capacity SLA.
 
+## v5.14 Private PAN-OS Large-File Runtime Acceptance
+
+Keep the private PAN-OS file outside Git. Run the complete aggregate preflight
+without creating database rows:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v514_large_file_runtime_acceptance `
+  --sample-path "<PRIVATE_PANOS_LOG>" `
+  --preflight-only `
+  --pretty
+```
+
+Run the bounded end-to-end acceptance only against disposable storage:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v514_large_file_runtime_acceptance `
+  --sample-path "<PRIVATE_PANOS_LOG>" `
+  --limit 100000 `
+  --chunk-size 1000 `
+  --use-temp-db `
+  --simulate-interruption `
+  --resume `
+  --run-detection `
+  --pretty
+```
+
+The command refuses runtime processing without `--use-temp-db`. It creates
+two simulated logical chronological windows from one observed physical-device
+stream; it does not claim two firewalls. Temporary raw rows, staging files,
+and the SQLite database are removed after the run. Output excludes the input
+path, raw rows, IPs, fingerprints, database location, and secrets.
+
+Current local reference result: full aggregate scan `773,551/773,551` with
+zero parser errors/structural warnings/exact duplicates; disposable processing
+`100,000/100,000` raw and normalized with zero parse failures; forced
+1,000-row checkpoint handoff/resume with zero extra rows; cooperative
+cancellation and SQLite lock-wait probes passed; rule detection evaluated
+100,000 rows and preserved alert/log/source traceability; response actions,
+labels, and model runs remained zero. See
+`docs/V5_14_LARGE_FILE_RUNTIME_ACCEPTANCE.md` for measured timings and
+limitations.
+
+Detection totals are operational outputs, not human-labeled accuracy. Rules
+remain alert-authoritative, supervised ML remains `shadow_observation`, and
+automatic response/real firewall blocking remain disabled.
+
 ## v3.99 Frozen Multi-Source Revalidation
 
 v3.99 must use a migrated disposable validation database, not the configured database. Set `DATABASE_URL` only in the current PowerShell process:
