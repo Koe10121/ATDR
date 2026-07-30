@@ -590,8 +590,18 @@ def _detection_summary(
         )
         or 0
     )
-    total_alerts = int(db.scalar(select(func.count(Alert.id))) or 0)
-    total_evidence = int(db.scalar(select(func.count(AlertEvidence.id))) or 0)
+    source_evidence = int(
+        db.scalar(
+            select(func.count(AlertEvidence.id))
+            .join(
+                NormalizedLog,
+                NormalizedLog.id == AlertEvidence.normalized_log_id,
+            )
+            .join(RawLog, RawLog.id == NormalizedLog.raw_log_id)
+            .where(RawLog.source_id.in_(source_ids))
+        )
+        or 0
+    )
     cases = list_alert_cases(
         db,
         active_only=True,
@@ -629,8 +639,8 @@ def _detection_summary(
             "alerts_with_source_traceability": linked_alerts,
             "logical_sources_with_alert_evidence": source_links,
             "alert_to_log_traceability": (
-                total_alerts == linked_alerts
-                and (linked_alerts == 0 or total_evidence > 0)
+                created + deduplicated == 0
+                or (linked_alerts > 0 and source_evidence > 0)
             ),
             "top_attack_types": [
                 {"name": name, "count": count}

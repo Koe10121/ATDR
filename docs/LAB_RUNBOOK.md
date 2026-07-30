@@ -322,6 +322,49 @@ Detection totals are operational outputs, not human-labeled accuracy. Rules
 remain alert-authoritative, supervised ML remains `shadow_observation`, and
 automatic response/real firewall blocking remain disabled.
 
+## v5.15 Long-Duration Runtime Soak
+
+Run aggregate parser/resource checks before creating disposable evidence:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v515_runtime_soak_acceptance `
+  --sample-path "<PRIVATE_PANOS_LOG>" `
+  --target-rows 773551 `
+  --preflight-only `
+  --pretty
+```
+
+Run the cumulative 250,000, 500,000, and complete-file acceptance only when
+the preflight passes:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v515_runtime_soak_acceptance `
+  --sample-path "<PRIVATE_PANOS_LOG>" `
+  --target-rows 773551 `
+  --chunk-size 1000 `
+  --use-temp-db `
+  --fault-plan combined `
+  --run-detection `
+  --pretty
+```
+
+Supported fault plans are `none`, `worker_handoff`,
+`repeated_interruption`, `cancellation_resume`, `stale_lease_recovery`,
+`sqlite_lock_wait`, and `combined`.
+
+The runner requires three times its estimated temporary-storage envelope and
+fails closed without `--use-temp-db`. It never targets the configured
+database. Output and docs must use `<PRIVATE_PANOS_LOG>` rather than a real
+path. One physical stream is divided into explicitly simulated chronological
+windows only.
+
+The local full-file reference passed 773,551 raw/normalized rows, zero parse
+failures, five handoffs, cancellation/resume, stale-lease recovery, SQLite
+integrity, source/alert/case traceability, zero unsafe writes, and complete
+cleanup. Peak traced Python memory was about 12 GiB, so this remains local
+acceptance rather than a deployment capacity SLA. See
+`docs/V5_15_LONG_DURATION_RUNTIME_SOAK.md`.
+
 ## v3.99 Frozen Multi-Source Revalidation
 
 v3.99 must use a migrated disposable validation database, not the configured database. Set `DATABASE_URL` only in the current PowerShell process:

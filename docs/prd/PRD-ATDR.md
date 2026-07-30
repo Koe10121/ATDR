@@ -876,6 +876,36 @@ ATDR shall support an opt-in database-backed operation queue for selected long-r
 - Local SQLite throughput and dashboard timings are measured evidence, not
   an approved-host capacity SLA or production certification.
 
+## v5.15 Long-Duration Runtime Soak Addendum
+
+- **FR-ATDR-065:** ATDR shall provide a fail-closed disposable runtime-soak
+  path that validates progressive 250,000-row, 500,000-row, and complete-file
+  checkpoints without writing to the configured database.
+- The soak shall measure aggregate input/resource state first and require at
+  least three times estimated temporary-storage headroom before processing.
+- Fault injection shall occur only after committed chunk boundaries and shall
+  cover repeated worker handoff, cancellation/resume, stale-lease
+  fail-closed recovery, explicit resume, and bounded database lock wait.
+- Progress, line checkpoints, byte checkpoints, source counters,
+  ingestion-run counters, raw/normalized counts, and staging retention shall
+  reconcile after every recovery.
+- Disposable SQLite integrity, foreign keys, normalized/raw/source links,
+  alert evidence, database growth, and cleanup shall be verified.
+- Source-scoped rule detection, alert evidence, and computed cases shall
+  remain traceable. Operational detector totals shall not be described as
+  labeled accuracy.
+- Runtime evidence shall include ingestion/parsing/detection throughput,
+  chunk/resume/cancellation/lock latency, traced memory, database growth,
+  dashboard read timings, and cleanup duration.
+- The soak shall return no private path, raw row, IP, fingerprint, source
+  identity, database, secret, or generated evidence file.
+- Rules remain alert-authoritative; ML remains advisory/shadow; labels, model
+  activation/promotion, automatic response, and real blocking remain
+  prohibited.
+- The measured 12 GiB traced-memory peak is a capacity warning. Approved-host
+  PostgreSQL/shared-staging and memory optimization remain required before
+  production-scale claims.
+
 ## v5.13 Runtime Parser Contract And Source Quality Addendum
 
 - **FR-ATDR-063:** ATDR shall apply the versioned parser-quality contract to

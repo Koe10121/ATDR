@@ -6,11 +6,10 @@ ATDR is lab-ready for controlled small-office validation. It is not certified pr
 
 ## Current Reproducible Baseline
 
-The published baseline is commit `04c14c5`; its GitHub Actions run passed. It
-includes the v5.13.1 consolidated detection, ML, parser, and source-quality
-program. v5.14 large-file runtime acceptance is locally implemented and
-verified in disposable storage; it is not published without a separate exact
-path approval. See:
+The published baseline is commit `3b483bf`; its GitHub Actions run passed. It
+includes v5.14 large-file runtime acceptance. v5.15 long-duration runtime soak
+and recovery acceptance is locally implemented and verified in disposable
+storage; it is not published without a separate exact-path approval. See:
 
 - `docs/V4_7_LARGE_SQLITE_PERFORMANCE_STABILIZATION.md`
 - `docs/V4_8_END_TO_END_PRODUCT_ACCEPTANCE.md`
@@ -21,6 +20,7 @@ path approval. See:
 - `docs/V5_13_RUNTIME_PARSER_CONTRACT_AND_SOURCE_QUALITY.md`
 - `docs/V5_13_1_DETECTION_PARSER_PROGRAM_CONSOLIDATION.md`
 - `docs/V5_14_LARGE_FILE_RUNTIME_ACCEPTANCE.md`
+- `docs/V5_15_LONG_DURATION_RUNTIME_SOAK.md`
 
 Installation is locally reproducible. Real MFU/Google sign-in still requires an
 approved OAuth Web client and account/group assignment from the university

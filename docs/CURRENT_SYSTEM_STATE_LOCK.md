@@ -4,11 +4,11 @@ Date: 2026-07-28
 
 Purpose: this document is the current-state memory anchor before larger ATDR productization work. It captures what exists now, what must stay safe, and what must not be deleted or committed while ATDR moves from controlled academic/lab prototype toward a more serious SOC/SaaS-style product.
 
-Checkpoint: the published baseline is commit `04c14c5` on `origin/main`; its
-GitHub Actions run passed. It includes the consolidated v4.9-v5.13.1
-detection, ML, parser, source-quality, and repository-closure program. v5.14
-large-file runtime acceptance is implemented and locally verified but remains
-uncommitted pending exact-path review and separate owner approval. Existing
+Checkpoint: the published baseline is commit `3b483bf` on `origin/main`; its
+GitHub Actions run passed and includes v5.14 large-file runtime acceptance.
+v5.15 long-duration runtime soak and recovery acceptance is implemented and
+locally verified but remains uncommitted pending exact-path review and
+separate owner approval. Existing
 ATDR data, MFU companion-shell distribution, model lifecycle, and response
 safety remain unchanged. This is a source-backed state lock, not a
 production-readiness claim.
@@ -33,6 +33,7 @@ production-readiness claim.
 | Current detection/parser program closure | `docs/V4_9_DETECTION_ML_RELIABILITY_LOCK.md`, `docs/V5_1_SUPERVISED_SHADOW_ACTIVATION.md` through `docs/V5_13_RUNTIME_PARSER_CONTRACT_AND_SOURCE_QUALITY.md`, and `docs/V5_13_1_DETECTION_PARSER_PROGRAM_CONSOLIDATION.md` |
 | Runtime parser-quality contract | `atdr/app/parsers/paloalto_contract.py`, `atdr/app/services/runtime_parser_quality_service.py`, `atdr/app/services/source_service.py`, `atdr/tests/test_v513_runtime_parser_contract.py` |
 | Large-file private runtime acceptance | `atdr/app/services/v514_large_file_runtime_service.py`, `atdr/scripts/run_v514_large_file_runtime_acceptance.py`, `atdr/tests/test_v514_large_file_runtime_acceptance.py`, `docs/V5_14_LARGE_FILE_RUNTIME_ACCEPTANCE.md` |
+| Long-duration runtime soak/recovery | `atdr/app/services/v515_runtime_soak_service.py`, `atdr/scripts/run_v515_runtime_soak_acceptance.py`, `atdr/tests/test_v515_runtime_soak_acceptance.py`, `docs/V5_15_LONG_DURATION_RUNTIME_SOAK.md` |
 | Governed shadow operations | `atdr/app/services/v58_shadow_scoring_service.py`, `atdr/app/services/v59_shadow_observation_service.py`, `atdr/app/services/v510_detection_operations_service.py`, `atdr/app/services/v511_shadow_monitoring_service.py` |
 | Independent holdout evidence | `atdr/app/detection/v398_independent_holdout_validation.py`, `atdr/scripts/run_v398_independent_holdout_validation.py`, `atdr/tests/test_v398_independent_holdout_validation.py`, `docs/V3_98_INDEPENDENT_DETECTION_ML_HOLDOUT_VALIDATION.md` |
 | Synthetic multi-source frozen revalidation | `atdr/app/detection/v399_multisource_frozen_revalidation.py`, `atdr/scripts/run_v399_multisource_frozen_revalidation.py`, `atdr/tests/test_v399_multisource_frozen_revalidation.py`, `docs/V3_99_INDEPENDENT_MULTI_SOURCE_EVIDENCE_AND_FROZEN_REVALIDATION.md` |
@@ -182,6 +183,30 @@ Known limitation: very large/shared-lab usage should move toward PostgreSQL or a
   zero. Rules remain authoritative and supervised lifecycle remains
   `shadow_observation`.
 
+### v5.15 Runtime Soak Status
+
+- The complete 773,551-row stream passed progressive Stage A (250,000),
+  Stage B (500,000 cumulative), and Stage C (complete file) in one disposable
+  database.
+- Raw, normalized, source, and ingestion-run counters reconciled exactly;
+  parse failures, foreign-key violations, orphan rows, and checkpoint replay
+  rows were all zero.
+- Five worker handoffs, cancellation/resume, simulated process loss,
+  fail-closed stale-lease recovery, explicit failed-job resume, and SQLite
+  lock wait/release all passed.
+- Rules evaluated all 773,551 rows. Alerts, dedup updates, cases, and evidence
+  links remained source-traceable; these are operational outputs, not
+  accuracy.
+- The final disposable database grew by 4,741,283,840 bytes and was removed
+  with all staging/journal evidence. The configured database marker remained
+  unchanged.
+- Peak traced Python memory was 12,029.34 MiB. This is a local capacity
+  warning and blocks larger/concurrent deployment claims without optimization
+  and approved-host validation.
+- Labels, model runs, response actions, activation, and promotion remained
+  zero. Rules remain authoritative and supervised lifecycle remains
+  `shadow_observation`.
+
 ## Parser And Normalization Status
 
 Current parser behavior supports:
@@ -311,8 +336,8 @@ Real firewall blocking must remain disabled unless explicitly approved later wit
 - Supervised ML still needs better stability, calibration, and real-source validation before stronger claims.
 - Case grouping is lightweight, not a full incident/ticketing platform.
 - Observability is still mostly app logs, health checks, scripts, and performance smoke; production metrics/alerting is future work.
-- The published v5.13.1 baseline is clean and CI-green at `04c14c5`. The
-  v5.14 worktree remains local and must not be staged or pushed outside its
+- The published v5.14 baseline is clean and CI-green at `3b483bf`. The v5.15
+  worktree remains local and must not be staged or pushed outside its
   exact allowlist or without explicit owner approval.
 
 ## Current Verification Commands
