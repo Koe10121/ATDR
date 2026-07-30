@@ -15,7 +15,9 @@ from atdr.app.services.detection_coordination_service import (
     acquire_detection_transaction_lock,
 )
 from atdr.app.services.job_service import enqueue_job
+from atdr.app.services import operation_worker as operation_worker_service
 from atdr.app.services.v517_postgres_multiworker_service import (
+    _has_distinct_job_claims,
     _safe_postgres_target,
     run_v517_postgres_multiworker_acceptance,
 )
@@ -179,6 +181,79 @@ def test_detection_coordination_timeout_fails_closed() -> None:
             timeout_seconds=0.02,
             poll_seconds=0.01,
         )
+
+
+def test_postgres_worker_releases_lock_through_owning_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class PostgresBind:
+        class Dialect:
+            name = "postgresql"
+
+        dialect = Dialect()
+
+    class WorkSession:
+        def get_bind(self):
+            return PostgresBind()
+
+    class CoordinationSession:
+        closed = False
+
+        def close(self) -> None:
+            self.closed = True
+
+    coordination = CoordinationSession()
+    acquired_with: list[object] = []
+    released_with: list[object] = []
+
+    monkeypatch.setattr(
+        operation_worker_service,
+        "Session",
+        lambda **_kwargs: coordination,
+    )
+    monkeypatch.setattr(
+        operation_worker_service,
+        "acquire_worker_operation_lock",
+        lambda session: not acquired_with.append(session),
+    )
+    monkeypatch.setattr(
+        operation_worker_service,
+        "release_worker_operation_lock",
+        lambda session: released_with.append(session),
+    )
+    monkeypatch.setattr(
+        operation_worker_service,
+        "_run_worker_once_locked",
+        lambda *_args, **_kwargs: {
+            "ok": True,
+            "processed": False,
+            "status": "test_complete",
+        },
+    )
+
+    result = operation_worker_service.run_worker_once(
+        WorkSession(),  # type: ignore[arg-type]
+        worker_id="v517-lock-owner",
+    )
+
+    assert result["ok"] is True
+    assert acquired_with == [coordination]
+    assert released_with == [coordination]
+    assert coordination.closed is True
+
+
+def test_v517_distinct_job_claims_uses_public_job_id_contract() -> None:
+    distinct = [
+        {"processed": True, "job": {"job_id": 101}},
+        {"processed": True, "job": {"job_id": 102}},
+    ]
+    repeated = [
+        {"processed": True, "job": {"job_id": 101}},
+        {"processed": True, "job": {"job_id": 101}},
+    ]
+
+    assert _has_distinct_job_claims(distinct, expected=2) is True
+    assert _has_distinct_job_claims(repeated, expected=2) is False
 
 
 def test_sequential_idempotency_reuses_one_job() -> None:

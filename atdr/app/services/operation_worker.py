@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 import os
 import socket
 from threading import Event
 import time
 from typing import Any
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -93,6 +94,21 @@ def _record_worker_stopped(worker_id: str, *, reason: str) -> None:
         return
 
 
+@contextmanager
+def _worker_operation_lock_session(db: Session) -> Iterator[Session]:
+    """Pin PostgreSQL advisory-lock ownership to one dedicated connection."""
+
+    if db.get_bind().dialect.name != "postgresql":
+        yield db
+        return
+
+    coordination_db = Session(bind=db.get_bind(), future=True)
+    try:
+        yield coordination_db
+    finally:
+        coordination_db.close()
+
+
 def run_worker_once(
     db: Session,
     *,
@@ -103,29 +119,33 @@ def run_worker_once(
     """Process one job while honoring the PostgreSQL backup coordination lock."""
 
     active_worker_id = (worker_id or default_worker_id()).strip()[:128]
-    if not acquire_worker_operation_lock(db):
-        record_worker_heartbeat(
-            db,
-            worker_id=active_worker_id,
-            status="paused",
-            details={"reason": "database_backup_in_progress", "external_services": "disabled"},
-        )
-        return {
-            "ok": True,
-            "worker_id": active_worker_id,
-            "processed": False,
-            "status": "backup_coordination_pause",
-            "job": None,
-        }
-    try:
-        return _run_worker_once_locked(
-            db,
-            worker_id=active_worker_id,
-            stop_event=stop_event,
-            after_chunk=after_chunk,
-        )
-    finally:
-        release_worker_operation_lock(db)
+    with _worker_operation_lock_session(db) as coordination_db:
+        if not acquire_worker_operation_lock(coordination_db):
+            record_worker_heartbeat(
+                db,
+                worker_id=active_worker_id,
+                status="paused",
+                details={
+                    "reason": "database_backup_in_progress",
+                    "external_services": "disabled",
+                },
+            )
+            return {
+                "ok": True,
+                "worker_id": active_worker_id,
+                "processed": False,
+                "status": "backup_coordination_pause",
+                "job": None,
+            }
+        try:
+            return _run_worker_once_locked(
+                db,
+                worker_id=active_worker_id,
+                stop_event=stop_event,
+                after_chunk=after_chunk,
+            )
+        finally:
+            release_worker_operation_lock(coordination_db)
 
 
 def _run_worker_once_locked(

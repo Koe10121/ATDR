@@ -455,6 +455,19 @@ def _worker_batch(
     return results, peak
 
 
+def _has_distinct_job_claims(
+    results: list[dict[str, Any]],
+    *,
+    expected: int,
+) -> bool:
+    claimed_job_ids = {
+        (item.get("job") or {}).get("job_id")
+        for item in results
+        if (item.get("job") or {}).get("job_id") is not None
+    }
+    return len(claimed_job_ids) == expected
+
+
 def _validate_lease_fencing(factory: sessionmaker[Session]) -> dict[str, Any]:
     with factory() as db:
         queued, _ = enqueue_job(
@@ -1123,6 +1136,7 @@ def run_v517_postgres_multiworker_acceptance(
                 completed_imports == 2
                 and raw_count == normalized_count == source_received == target_rows
                 and parse_successes + parse_failures == target_rows
+                and _has_distinct_job_claims(import_results, expected=2)
                 and all(item.get("ok") for item in import_results)
             )
 
@@ -1237,14 +1251,10 @@ def run_v517_postgres_multiworker_acceptance(
                         "workers_completed": sum(
                             1 for item in import_results if item.get("processed")
                         ),
-                        "distinct_job_claims": len(
-                            {
-                                (item.get("job") or {}).get("id")
-                                for item in import_results
-                                if (item.get("job") or {}).get("id") is not None
-                            }
-                        )
-                        == 2,
+                        "distinct_job_claims": _has_distinct_job_claims(
+                            import_results,
+                            expected=2,
+                        ),
                         "raw_logs": raw_count,
                         "normalized_logs": normalized_count,
                         "source_counter": source_received,
