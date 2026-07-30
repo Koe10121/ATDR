@@ -482,3 +482,30 @@ This document maps major ATDR requirements to implementation evidence, tests, do
 | Dashboard performance under soak | Measured locally | dashboard/alert/case/source services | stage-by-stage cold/cached and investigation query timings | v5.15 status | Full run peaked at 12,029 MiB traced memory; optimization is required. |
 | Disposable cleanup and privacy | Satisfied | staging cleanup, engine disposal, recursive output audit | full cleanup, zero path/raw/IP/fingerprint/secret findings | v5.15 status/T1-T20 | Private evidence still requires approved custody outside Git. |
 | Detection/model/response safety | Satisfied | v5.15 safety gates and current lifecycle | zero labels/model runs/response actions; unchanged configured DB | v5.15 status/T1-T20 | Independent labeled multi-device evidence still blocks lifecycle advancement. |
+
+## v5.16 Memory And Query Stabilization Traceability Addendum
+
+| Requirement | Status | Source files/routes | Tests/evidence | Docs | Remaining gaps |
+| --- | --- | --- | --- | --- | --- |
+| Bounded full-scale deterministic detection | Implemented and measured | `detection_service.py`, `rules.py`, `alert_service.py` | legacy/bounded equivalence tests; 100k/250k/773,551-row passes | v5.16 status/T1-T20 | Normal API path is intentionally unchanged; concurrent worker behavior remains external. |
+| Bounded alert-evidence persistence | Implemented and measured | `alert_service.py`, v5.16 orchestration | exact evidence-ID/count tests; 408,776 full-run links | v5.16 status | PostgreSQL bulk-insert concurrency remains unmeasured. |
+| Exact case reconciliation without ORM graph retention | Implemented and measured | `case_service.py`, v5.14/v5.15 services | scalar/list equivalence and full-run reconciliation | v5.16 status | Wall-clock case buckets can differ across separately timed runs. |
+| Whole-process memory acceptance | Implemented and measured | `v516_memory_query_service.py`, v5.16 CLI | 677.13/1,498.56/1,947.68 MiB peak RSS at 100k/250k/full | v5.16 status | Approved-host memory limits and concurrent-process capacity remain external. |
+| Overview/source query latency | Implemented and measured | dashboard/source services, v5.14 query profiler | full cold/cached/source 0.9467/0.0815/1.1927s; query counts 34/1/6 | v5.16 status | PostgreSQL/shared-host query plans and concurrent latency remain unmeasured. |
+| Query-plan privacy and portability | Implemented | source statement helpers, v5.14/v5.16 profilers | SQLite/PostgreSQL compile tests; plan steps only, no parameters | v5.16 status/T1-T20 | Actual PostgreSQL execution requires an approved host. |
+| Runtime semantic preservation | Satisfied with recorded timing nuance | ingestion/parser/detection/alert/case/source services | exact raw/normalized/evidence/suppressed/integrity/safety gates; total group operations conserved | v5.16 status | Created/dedup split moved by three and one wall-clock case bucket moved between fault/no-fault runs. |
+| Disposable privacy and safety | Satisfied | v5.16 service/CLI and v5.15 cleanup | configured DB unchanged; zero private findings and unsafe writes; cleanup complete | v5.16 status/T1-T20 | Private evidence still requires approved custody outside Git. |
+
+## v5.17 PostgreSQL Multi-Worker Traceability Addendum
+
+| Requirement | Status | Implementation evidence | Test evidence | Documentation | Remaining gap |
+| --- | --- | --- | --- | --- | --- |
+| Fail-closed disposable PostgreSQL target | Implemented; local environment blocked | `v517_postgres_multiworker_service.py`, v5.17 CLI | v5.17 unsafe-target/preflight tests | v5.17 status/T1-T20 | Actual execution requires PostgreSQL plus client tools. |
+| Distinct multi-worker claims and lease fencing | Implemented | `job_service.py`, `operation_worker.py` | v3.94 and v5.17 focused tests; bounded CI gate configured | v5.17 status | Multi-host service supervision remains external. |
+| Shared staging and exact source counters | Implemented | `staging_service.py`, `resumable_ingestion_service.py`, `source_service.py` | v3.94 regression plus v5.17 integrated gate | runbook, v5.17 status | Real shared mount permissions/failure behavior remain external. |
+| Cancellation/resume and stale recovery | Implemented | worker/job/resumable services | v3.94 regression and v5.17 integrated gate | v5.17 status/T1-T20 | Approved-host failure timing remains unmeasured. |
+| Concurrent idempotency containment | Implemented | `job_service.py` unique-conflict recovery | sequential unit regression; concurrent PostgreSQL gate configured | v5.17 status | Actual contention evidence awaits PostgreSQL execution. |
+| Concurrent detection/dedup consistency | Implemented | `detection_coordination_service.py`, `detection_service.py`, `alert_service.py` | lock unit tests, detection grouping regressions, PostgreSQL CI gate configured | v5.17 status | Local host cannot execute PostgreSQL gate. |
+| PostgreSQL capacity/query profile | Implemented; unmeasured locally | v5.17 service, dashboard/source query services | bounded CI gate configured | v5.17 status | 100k/250k and full private approved-host measurements remain open. |
+| PostgreSQL backup/restore | Implemented | `persistence_service.py`, v5.17 orchestration | existing persistence tests and bounded CI gate | runbook, v5.17 status | Environment-sized RPO/RTO remains external. |
+| Zero unsafe side effects and privacy | Satisfied locally; integrated gate pending | v5.17 result contract and cleanup | v5.17 safety/redaction tests | v5.17 status/T1-T20 | Independent security/deployment review remains open. |

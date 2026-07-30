@@ -1,11 +1,11 @@
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import desc, func, select
+from sqlalchemy import case, desc, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from atdr.app.db.models import Alert, AlertEvidence, DetectionRun, IngestionRun, LogSource, NormalizedLog, RawLog
+from atdr.app.db.models import AlertEvidence, DetectionRun, IngestionRun, LogSource, NormalizedLog, RawLog
 from atdr.app.services.operation_run_service import detection_run_to_dict, ingestion_run_to_dict
 from atdr.app.services.runtime_parser_quality_service import (
     historical_reparse_impact_preview,
@@ -411,28 +411,62 @@ def source_ids_for_filters(
     return [source.id for source in sources]
 
 
+def _source_normalized_quality_statement(source_id: int):
+    return (
+        select(
+            func.count(NormalizedLog.id).label("normalized_logs"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            func.lower(NormalizedLog.app).in_(
+                                [
+                                    "unknown",
+                                    "unknown-tcp",
+                                    "unknown-udp",
+                                    "incomplete",
+                                ]
+                            ),
+                            1,
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label("unknown_app_count"),
+        )
+        .join(RawLog, RawLog.id == NormalizedLog.raw_log_id)
+        .where(RawLog.source_id == source_id)
+    )
+
+
+def _source_alert_count_statement(source_id: int):
+    return (
+        select(func.count(func.distinct(AlertEvidence.alert_id)))
+        .join(
+            NormalizedLog,
+            NormalizedLog.id == AlertEvidence.normalized_log_id,
+        )
+        .join(RawLog, RawLog.id == NormalizedLog.raw_log_id)
+        .where(RawLog.source_id == source_id)
+    )
+
+
 def source_quality(db: Session, source_id: int) -> dict[str, Any]:
     source = db.get(LogSource, source_id)
-    total_logs = int(db.scalar(select(func.count(RawLog.id)).where(RawLog.source_id == source_id)) or 0)
-    normalized_logs = int(
-        db.scalar(select(func.count(NormalizedLog.id)).join(RawLog).where(RawLog.source_id == source_id)) or 0
-    )
-    unknown_app_count = int(
+    total_logs = int(
         db.scalar(
-            select(func.count(NormalizedLog.id))
-            .join(RawLog)
-            .where(RawLog.source_id == source_id, func.lower(NormalizedLog.app).in_(["unknown", "unknown-tcp", "unknown-udp", "incomplete"]))
+            select(func.count(RawLog.id)).where(RawLog.source_id == source_id)
         )
         or 0
     )
+    normalized_row = db.execute(
+        _source_normalized_quality_statement(source_id)
+    ).one()
+    normalized_logs = int(normalized_row.normalized_logs or 0)
+    unknown_app_count = int(normalized_row.unknown_app_count or 0)
     alert_count = int(
-        db.scalar(
-            select(func.count(func.distinct(Alert.id)))
-            .join(AlertEvidence, AlertEvidence.alert_id == Alert.id)
-            .join(NormalizedLog, NormalizedLog.id == AlertEvidence.normalized_log_id)
-            .join(RawLog, RawLog.id == NormalizedLog.raw_log_id)
-            .where(RawLog.source_id == source_id)
-        )
+        db.scalar(_source_alert_count_statement(source_id))
         or 0
     )
     parser_error_filter = (
@@ -445,29 +479,46 @@ def source_quality(db: Session, source_id: int) -> dict[str, Any]:
             != "raw_fallback"
         )
     )
-    parse_failure_examples = [
-        {
-            "raw_log_id": row.raw_log_id,
-            "normalized_log_id": row.id,
-            "parser_error": row.parsed_json.get("parser_error"),
-            "raw_line_excerpt": "<redacted; open authorized raw evidence by log ID>"
-            if row.raw_log
-            else None,
-            "raw_evidence_available": bool(row.raw_log),
-        }
-        for row in db.scalars(
-            select(NormalizedLog)
-            .join(RawLog)
-            .where(RawLog.source_id == source_id, parser_error_filter)
-            .order_by(NormalizedLog.id.desc())
-            .limit(5)
-        )
-    ]
     unknown_app_rate = round((unknown_app_count / normalized_logs) * 100, 2) if normalized_logs else 0.0
     parser_quality = runtime_parser_quality_summary(
         source.parser_quality_json if source is not None else {},
         total_rows=normalized_logs,
     )
+    aggregate_proves_no_errors = (
+        normalized_logs > 0
+        and int(parser_quality.get("observed_rows") or 0) >= normalized_logs
+        and int(parser_quality.get("parser_error_rows") or 0) == 0
+    )
+    parse_failure_examples: list[dict[str, Any]] = []
+    if not aggregate_proves_no_errors:
+        parse_failure_examples = [
+            {
+                "raw_log_id": row.raw_log_id,
+                "normalized_log_id": row.id,
+                "parser_error": (row.parsed_json or {}).get("parser_error"),
+                "raw_line_excerpt": (
+                    "<redacted; open authorized raw evidence by log ID>"
+                    if row.raw_evidence_id
+                    else None
+                ),
+                "raw_evidence_available": bool(row.raw_evidence_id),
+            }
+            for row in db.execute(
+                select(
+                    NormalizedLog.id,
+                    NormalizedLog.raw_log_id,
+                    NormalizedLog.parsed_json,
+                    RawLog.id.label("raw_evidence_id"),
+                )
+                .join(RawLog, RawLog.id == NormalizedLog.raw_log_id)
+                .where(
+                    RawLog.source_id == source_id,
+                    parser_error_filter,
+                )
+                .order_by(NormalizedLog.id.desc())
+                .limit(5)
+            )
+        ]
     warnings: list[str] = []
     if unknown_app_rate >= 25:
         warnings.append(

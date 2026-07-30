@@ -365,6 +365,90 @@ cleanup. Peak traced Python memory was about 12 GiB, so this remains local
 acceptance rather than a deployment capacity SLA. See
 `docs/V5_15_LONG_DURATION_RUNTIME_SOAK.md`.
 
+## v5.16 Full-Scale Memory And Query Stabilization
+
+Run the bounded acceptance only with disposable storage:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v516_memory_query_stabilization `
+  --sample-path "<PRIVATE_PANOS_LOG>" `
+  --target-rows 773551 `
+  --chunk-size 1000 `
+  --use-temp-db `
+  --run-detection `
+  --pretty
+```
+
+Use `--profile-only` for ingestion/query profiling without detection. The
+runner fails closed without `--use-temp-db`, never targets the configured
+database, and returns no private path, raw row, IP, fingerprint, SQL
+parameter, or secret.
+
+The local full-file reference stayed at 1,947.68 MiB whole-process peak RSS.
+It completed cold Overview in 0.9467 seconds, cached Overview in 0.0815
+seconds, source detail in 1.1927 seconds, ingestion at 753.85 rows/second, and
+deterministic detection at 2,937.96 rows/second. All 773,551 raw/normalized
+rows reconciled with zero parse failures, zero unsafe writes, database
+integrity, and complete cleanup.
+
+Process RSS is the memory acceptance basis. Detection-scoped `tracemalloc`
+output is diagnostic and must not be compared directly with the v5.15
+full-run tracing scope. The result remains local SQLite evidence, not an
+approved-host PostgreSQL capacity SLA. See
+`docs/V5_16_FULL_SCALE_MEMORY_QUERY_STABILIZATION.md`.
+
+## v5.17 PostgreSQL Multi-Worker Acceptance
+
+Normal local SQLite use does not require this gate. On an approved host,
+create two new empty disposable PostgreSQL databases whose names contain
+`v517`, `test`, `ci`, `disposable`, or `temp`. Neither may be the configured
+`DATABASE_URL`.
+
+Set the two private process variables without printing them:
+
+```powershell
+$env:ATDR_V517_POSTGRES_DATABASE_URL='<DISPOSABLE_POSTGRES_DATABASE>'
+$env:ATDR_V517_RESTORE_DATABASE_URL='<SECOND_EMPTY_DISPOSABLE_POSTGRES_DATABASE>'
+```
+
+Run preflight:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v517_postgres_multiworker_acceptance `
+  --preflight-only `
+  --target-rows 100000 `
+  --chunk-size 1000 `
+  --workers 2 `
+  --synthetic `
+  --pretty
+```
+
+Run the bounded synthetic gate:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v517_postgres_multiworker_acceptance `
+  --target-rows 100000 `
+  --chunk-size 1000 `
+  --workers 2 `
+  --synthetic `
+  --run-detection `
+  --test-recovery `
+  --pretty
+```
+
+The runner applies migrations only after validating target identities. It
+tests workers, staging, counters, recovery, detection/dedup contention,
+capacity aggregates, backup/restore, and cleanup. It removes both disposable
+databases. Never point either variable at a database that must be retained.
+
+If PostgreSQL or its client tools are unavailable, the expected status is
+`blocked_by_environment`. Do not replace that result with SQLite. Full private
+evidence additionally requires explicit approved-host authorization and must
+be supplied only with `--sample-path "<PRIVATE_PANOS_LOG>"`; the path and
+contents are never returned.
+
+See `docs/V5_17_POSTGRES_MULTIWORKER_CAPACITY_RECOVERY.md`.
+
 ## v3.99 Frozen Multi-Source Revalidation
 
 v3.99 must use a migrated disposable validation database, not the configured database. Set `DATABASE_URL` only in the current PowerShell process:

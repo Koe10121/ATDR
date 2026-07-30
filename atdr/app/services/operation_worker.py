@@ -6,6 +6,7 @@ import socket
 from threading import Event
 import time
 from typing import Any
+from collections.abc import Callable
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -97,6 +98,7 @@ def run_worker_once(
     *,
     worker_id: str | None = None,
     stop_event: Event | None = None,
+    after_chunk: Callable[[int, Any], None] | None = None,
 ) -> dict[str, Any]:
     """Process one job while honoring the PostgreSQL backup coordination lock."""
 
@@ -120,6 +122,7 @@ def run_worker_once(
             db,
             worker_id=active_worker_id,
             stop_event=stop_event,
+            after_chunk=after_chunk,
         )
     finally:
         release_worker_operation_lock(db)
@@ -130,6 +133,7 @@ def _run_worker_once_locked(
     *,
     worker_id: str,
     stop_event: Event | None,
+    after_chunk: Callable[[int, Any], None] | None,
 ) -> dict[str, Any]:
     """Claim and process at most one durable operation job using the caller's DB session."""
 
@@ -183,6 +187,7 @@ def _run_worker_once_locked(
             worker_id=active_worker_id,
             lease_token=lease_token,
             should_stop=stop_event.is_set if stop_event is not None else None,
+            after_chunk=after_chunk,
         )
         relation_ids = related_run_ids(result)
         completed = complete_queued_job(

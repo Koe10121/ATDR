@@ -4,6 +4,7 @@ from collections import Counter
 from contextlib import suppress
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+import gc
 import math
 import os
 from pathlib import Path
@@ -33,7 +34,7 @@ from atdr.app.db.models import (
     RawLog,
     ResponseAction,
 )
-from atdr.app.services.case_service import list_alert_cases
+from atdr.app.services.case_service import count_alert_cases
 from atdr.app.services.job_service import (
     build_result_summary,
     claim_next_job,
@@ -815,11 +816,10 @@ def _aggregate_detection(
         )
         or 0
     )
-    cases = list_alert_cases(
+    case_count = count_alert_cases(
         db,
         active_only=True,
         source_ids=source_ids,
-        limit=max(1, linked_alerts),
     )
     top_types: Counter[str] = Counter()
     for item in executed:
@@ -848,8 +848,8 @@ def _aggregate_detection(
         ),
         "alerts_with_source_traceability": linked_alerts,
         "alert_evidence_links": linked_evidence,
-        "cases_computed": len(cases),
-        "cases_reconcile_with_alert_groups": len(cases) <= linked_alerts,
+        "cases_computed": case_count,
+        "cases_reconcile_with_alert_groups": case_count <= linked_alerts,
         "alert_to_log_source_traceability": total_alerts == linked_alerts
         and (linked_alerts == 0 or linked_evidence > 0),
         "top_attack_types": [
@@ -919,6 +919,12 @@ def run_v515_runtime_soak_acceptance(
     fault_plan: str = "combined",
     run_detection_after: bool = False,
     preflight_only: bool = False,
+    bounded_detection_memory: bool = False,
+    collect_runtime_profile: bool = False,
+    collect_query_counts: bool = False,
+    collect_query_plans: bool = False,
+    release_stage_memory: bool = False,
+    trace_detection_only: bool = False,
 ) -> dict[str, Any]:
     evidence_path = Path(sample_path).expanduser()
     if not evidence_path.exists() or not evidence_path.is_file():
@@ -982,6 +988,7 @@ def run_v515_runtime_soak_acceptance(
     cleanup_started = 0.0
     cleanup_seconds = 0.0
     cleanup_complete = False
+    peak_memory = 0
     total_started = time.perf_counter()
     try:
         specs = _prepare_stage_files(
@@ -1020,7 +1027,8 @@ def run_v515_runtime_soak_acceptance(
             input_max_bytes=input_max_bytes,
             storage_id="v515-soak",
         ):
-            tracemalloc.start()
+            if not trace_detection_only:
+                tracemalloc.start()
             for stage_index, spec in enumerate(specs):
                 remaining_before = selected_rows - cumulative_rows
                 recheck = _stage_resource_recheck(
@@ -1045,12 +1053,13 @@ def run_v515_runtime_soak_acceptance(
                         source_type="sample",
                         parser_profile="palo_alto",
                     )
-                    source_ids.append(source.id)
+                    source_id_value = int(source.id)
+                    source_ids.append(source_id_value)
                     key = f"v515-{run_token}-{stage_index}"
                     job, reused = _enqueue_import(
                         db,
                         staged=staged,
-                        source_id=source.id,
+                        source_id=source_id_value,
                         rows=spec.row_count,
                         idempotency_key=key,
                         label=f"simulated-{spec.label}",
@@ -1058,7 +1067,7 @@ def run_v515_runtime_soak_acceptance(
                     duplicate, duplicate_reused = _enqueue_import(
                         db,
                         staged=staged,
-                        source_id=source.id,
+                        source_id=source_id_value,
                         rows=spec.row_count,
                         idempotency_key=key,
                         label=f"simulated-{spec.label}",
@@ -1073,7 +1082,7 @@ def run_v515_runtime_soak_acceptance(
                         db,
                         job=job,
                         staged=staged,
-                        source_id=source.id,
+                        source_id=source_id_value,
                         fault_sequence=_fault_sequence(
                             selected_fault_plan,
                             stage_index,
@@ -1102,20 +1111,37 @@ def run_v515_runtime_soak_acceptance(
                         "response_actions_created": 0,
                     }
                     if run_detection_after:
-                        detection, _elapsed = _detection_summary(
-                            db,
-                            source_ids=[source.id],
-                            source_rows=[spec.row_count],
-                        )
+                        stage_trace_started = False
+                        if trace_detection_only:
+                            gc.collect()
+                            tracemalloc.start()
+                            stage_trace_started = True
+                        try:
+                            detection, _elapsed = _detection_summary(
+                                db,
+                                source_ids=[source_id_value],
+                                source_rows=[spec.row_count],
+                                bounded_memory=bounded_detection_memory,
+                                collect_runtime_profile=collect_runtime_profile,
+                            )
+                        finally:
+                            if stage_trace_started:
+                                _current_memory, stage_peak = (
+                                    tracemalloc.get_traced_memory()
+                                )
+                                peak_memory = max(peak_memory, stage_peak)
+                                tracemalloc.stop()
                     stage_detection_results.append(detection)
                     source_detail_started = time.perf_counter()
-                    source_summary = _source_summary(db, source.id)
+                    source_summary = _source_summary(db, source_id_value)
                     source_detail_seconds = (
                         time.perf_counter() - source_detail_started
                     )
                     dashboard = _dashboard_timings(
                         db,
-                        source_id=source.id,
+                        source_id=source_id_value,
+                        include_query_counts=collect_query_counts,
+                        include_query_plans=collect_query_plans,
                     )
                     stage_counts_now = _count_rows(db)
                     stage_integrity = _integrity_summary(
@@ -1123,6 +1149,8 @@ def run_v515_runtime_soak_acceptance(
                         target_rows=cumulative_rows + spec.row_count,
                         source_ids=source_ids,
                     )
+                if release_stage_memory:
+                    gc.collect()
 
                 cumulative_rows += spec.row_count
                 current_db_bytes = (
@@ -1169,8 +1197,12 @@ def run_v515_runtime_soak_acceptance(
                     }
                 )
 
-            _current_memory, peak_memory = tracemalloc.get_traced_memory()
-            tracemalloc.stop()
+            if tracemalloc.is_tracing():
+                _current_memory, observed_peak = (
+                    tracemalloc.get_traced_memory()
+                )
+                peak_memory = max(peak_memory, observed_peak)
+                tracemalloc.stop()
             lock_probe = {
                 "ok": True,
                 "executed": False,
@@ -1324,6 +1356,11 @@ def run_v515_runtime_soak_acceptance(
                 "peak_traced_python_memory_mb": round(
                     peak_memory / (1024 * 1024),
                     2,
+                ),
+                "tracemalloc_scope": (
+                    "detection_only"
+                    if trace_detection_only and run_detection_after
+                    else "full_runtime"
                 ),
                 "chunk_latency": _latency_summary(all_chunk_latencies),
                 "resume_latency": _latency_summary(all_resume_latencies),

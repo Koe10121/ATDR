@@ -35,12 +35,29 @@ def _window_start(value: datetime, hours: int) -> datetime:
 
 
 def _case_key(alert: Alert, *, window_hours: int) -> tuple[str, str, str, datetime]:
-    attack_type = infer_attack_type_from_rules(alert.matched_rules_json or [])
+    return _case_key_values(
+        src_ip=alert.src_ip,
+        dst_ip=alert.dst_ip,
+        matched_rules=alert.matched_rules_json or [],
+        created_at=alert.created_at,
+        window_hours=window_hours,
+    )
+
+
+def _case_key_values(
+    *,
+    src_ip: str | None,
+    dst_ip: str | None,
+    matched_rules: list[dict[str, Any]],
+    created_at: datetime,
+    window_hours: int,
+) -> tuple[str, str, str, datetime]:
+    attack_type = infer_attack_type_from_rules(matched_rules)
     return (
-        alert.src_ip or "unknown-source",
-        alert.dst_ip or "any-destination",
+        src_ip or "unknown-source",
+        dst_ip or "any-destination",
         attack_type,
-        _window_start(alert.created_at, window_hours),
+        _window_start(created_at, window_hours),
     )
 
 
@@ -163,6 +180,64 @@ def list_alert_cases(
 
     cases.sort(key=lambda item: (SEVERITY_RANK.get(item["severity"], 0), item["related_alert_count"], item["last_seen"]), reverse=True)
     return cases[:limit]
+
+
+def count_alert_cases(
+    db: Session,
+    *,
+    active_only: bool = True,
+    source_id: int | None = None,
+    source_ids: list[int] | None = None,
+    source_name: str | None = None,
+    source_type: str | None = None,
+    window_hours: int = 24,
+    yield_per: int = 1_000,
+) -> int:
+    """Count computed case groups without loading alert evidence graphs."""
+
+    statement = select(
+        Alert.src_ip,
+        Alert.dst_ip,
+        Alert.matched_rules_json,
+        Alert.created_at,
+    ).order_by(Alert.id.asc())
+    if active_only:
+        statement = statement.where(Alert.status.in_(ACTIVE_CASE_STATUSES))
+    if source_id is not None:
+        statement = statement.where(
+            Alert.id.in_(_alert_ids_for_sources(source_id=source_id))
+        )
+    elif source_ids is not None:
+        if not source_ids:
+            return 0
+        statement = statement.where(
+            Alert.id.in_(_alert_ids_for_sources(source_ids=source_ids))
+        )
+    elif source_name or source_type:
+        statement = statement.where(
+            Alert.id.in_(
+                _alert_ids_for_sources(
+                    source_name=source_name,
+                    source_type=source_type,
+                )
+            )
+        )
+
+    keys: set[tuple[str, str, str, datetime]] = set()
+    rows = db.execute(
+        statement.execution_options(yield_per=max(1, yield_per))
+    )
+    for row in rows:
+        keys.add(
+            _case_key_values(
+                src_ip=row.src_ip,
+                dst_ip=row.dst_ip,
+                matched_rules=row.matched_rules_json or [],
+                created_at=row.created_at,
+                window_hours=window_hours,
+            )
+        )
+    return len(keys)
 
 
 def _alert_ids_for_sources(

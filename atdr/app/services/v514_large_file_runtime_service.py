@@ -16,7 +16,7 @@ from typing import Any, Iterator
 from unittest.mock import patch
 from uuid import uuid4
 
-from sqlalchemy import Engine, create_engine, func, select, text
+from sqlalchemy import Engine, create_engine, event, func, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
@@ -36,7 +36,7 @@ from atdr.app.db.models import (
     ResponseAction,
 )
 from atdr.app.services.alert_service import list_alerts
-from atdr.app.services.case_service import list_alert_cases
+from atdr.app.services.case_service import count_alert_cases, list_alert_cases
 from atdr.app.services.dashboard_service import (
     build_dashboard_summary,
     build_dashboard_summary_cached,
@@ -555,10 +555,18 @@ def _detection_summary(
     *,
     source_ids: list[int],
     source_rows: list[int],
+    bounded_memory: bool = False,
+    collect_runtime_profile: bool = False,
 ) -> tuple[dict[str, Any], float]:
     results: list[dict[str, Any]] = []
+    runtime_profiles: list[dict[str, Any]] = []
     started = time.perf_counter()
     for source_id, rows in zip(source_ids, source_rows, strict=True):
+        runtime_profile: dict[str, Any] | None = (
+            {"source_sequence": len(runtime_profiles) + 1}
+            if collect_runtime_profile
+            else None
+        )
         results.append(
             run_detection(
                 db,
@@ -568,8 +576,13 @@ def _detection_summary(
                 source_id=source_id,
                 source_name="simulated-logical-source",
                 source_type="sample",
+                bounded_memory=bounded_memory,
+                release_session_state=bounded_memory,
+                runtime_profile=runtime_profile,
             )
         )
+        if runtime_profile is not None:
+            runtime_profiles.append(runtime_profile)
     elapsed = time.perf_counter() - started
     evaluated = sum(int(item.get("evaluated") or 0) for item in results)
     created = sum(int(item.get("created_alerts") or 0) for item in results)
@@ -602,11 +615,10 @@ def _detection_summary(
         )
         or 0
     )
-    cases = list_alert_cases(
+    case_count = count_alert_cases(
         db,
         active_only=True,
         source_ids=source_ids,
-        limit=max(1, linked_alerts),
     )
     source_links = int(
         db.scalar(
@@ -635,7 +647,7 @@ def _detection_summary(
             "alerts_created": created,
             "alerts_deduplicated": deduplicated,
             "alerts_suppressed": suppressed,
-            "cases_computed": len(cases),
+            "cases_computed": case_count,
             "alerts_with_source_traceability": linked_alerts,
             "logical_sources_with_alert_evidence": source_links,
             "alert_to_log_traceability": (
@@ -651,41 +663,127 @@ def _detection_summary(
             ),
             "runtime_seconds": round(elapsed, 4),
             "rows_per_second": round(evaluated / elapsed, 2) if elapsed > 0 else None,
+            "runtime_profiles": runtime_profiles,
         },
         elapsed,
     )
 
 
-def _dashboard_timings(db: Session, *, source_id: int) -> dict[str, float]:
-    clear_dashboard_summary_cache()
-    started = time.perf_counter()
-    build_dashboard_summary(db)
-    overview_cold = time.perf_counter() - started
+def _dashboard_timings(
+    db: Session,
+    *,
+    source_id: int,
+    include_query_counts: bool = False,
+    include_query_plans: bool = False,
+) -> dict[str, Any]:
+    bind = db.get_bind()
+    query_count = 0
+    query_records: list[tuple[str, Any]] = []
 
-    clear_dashboard_summary_cache()
-    build_dashboard_summary_cached(db)
-    started = time.perf_counter()
-    build_dashboard_summary_cached(db)
-    overview_cached = time.perf_counter() - started
+    def count_query(
+        _connection,
+        _cursor,
+        statement,
+        parameters,
+        _context,
+        _executemany,
+    ) -> None:
+        nonlocal query_count
+        query_count += 1
+        if (
+            include_query_plans
+            and len(query_records) < 100
+            and str(statement).lstrip().upper().startswith("SELECT")
+        ):
+            query_records.append((str(statement), parameters))
 
-    started = time.perf_counter()
-    list_alerts(db, source_id=source_id, limit=20)
-    alert_list = time.perf_counter() - started
+    if include_query_counts or include_query_plans:
+        event.listen(bind, "before_cursor_execute", count_query)
 
-    started = time.perf_counter()
-    list_alert_cases(db, source_id=source_id, limit=20)
-    case_summary = time.perf_counter() - started
+    def timed(operation) -> tuple[float, int]:
+        nonlocal query_count
+        before = query_count
+        started = time.perf_counter()
+        operation()
+        return time.perf_counter() - started, query_count - before
 
-    started = time.perf_counter()
-    _source_summary(db, source_id)
-    source_detail = time.perf_counter() - started
-    return {
+    try:
+        clear_dashboard_summary_cache()
+        overview_cold, overview_cold_queries = timed(
+            lambda: build_dashboard_summary(db)
+        )
+
+        clear_dashboard_summary_cache()
+        build_dashboard_summary_cached(db)
+        overview_cached, overview_cached_queries = timed(
+            lambda: build_dashboard_summary_cached(db)
+        )
+
+        alert_list, alert_list_queries = timed(
+            lambda: list_alerts(db, source_id=source_id, limit=20)
+        )
+        case_summary, case_summary_queries = timed(
+            lambda: list_alert_cases(db, source_id=source_id, limit=20)
+        )
+        source_detail, source_detail_queries = timed(
+            lambda: _source_summary(db, source_id)
+        )
+    finally:
+        if include_query_counts or include_query_plans:
+            event.remove(bind, "before_cursor_execute", count_query)
+
+    result: dict[str, float | int] = {
         "overview_cold_seconds": round(overview_cold, 4),
         "overview_cached_seconds": round(overview_cached, 4),
         "alert_list_seconds": round(alert_list, 4),
         "case_summary_seconds": round(case_summary, 4),
         "source_detail_seconds": round(source_detail, 4),
     }
+    if include_query_counts:
+        result.update(
+            {
+                "overview_cold_query_count": overview_cold_queries,
+                "overview_cached_query_count": overview_cached_queries,
+                "alert_list_query_count": alert_list_queries,
+                "case_summary_query_count": case_summary_queries,
+                "source_detail_query_count": source_detail_queries,
+            }
+        )
+    if include_query_plans:
+        plans: list[list[str]] = []
+        if bind.dialect.name == "sqlite":
+            seen_statements: set[str] = set()
+            for statement, parameters in query_records:
+                if statement in seen_statements:
+                    continue
+                seen_statements.add(statement)
+                try:
+                    rows = db.connection().exec_driver_sql(
+                        f"EXPLAIN QUERY PLAN {statement}",
+                        parameters,
+                    ).all()
+                except Exception:
+                    continue
+                plans.append([str(row[3]) for row in rows])
+        flattened = [step for plan in plans for step in plan]
+        result["query_plan_summary"] = {
+            "dialect": bind.dialect.name,
+            "unique_select_plans": len(plans),
+            "full_scan_steps": sum(
+                1
+                for step in flattened
+                if "SCAN " in step.upper()
+                and "USING INDEX" not in step.upper()
+                and "USING COVERING INDEX" not in step.upper()
+            ),
+            "temporary_btree_steps": sum(
+                1 for step in flattened if "TEMP B-TREE" in step.upper()
+            ),
+            "plan_steps": sorted(set(flattened)),
+            "sql_text_returned": False,
+            "query_parameters_returned": False,
+        }
+    return result
 
 
 def _safe_preflight_summary(result: dict[str, Any], *, runtime_seconds: float) -> dict[str, Any]:

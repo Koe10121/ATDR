@@ -302,6 +302,7 @@ def execute_operation_job(
     worker_id: str | None = None,
     lease_token: str | None = None,
     should_stop: Callable[[], bool] | None = None,
+    after_chunk: Callable[[int, Any], None] | None = None,
 ) -> dict[str, Any]:
     """Run a whitelisted job. No response, account, model activation, or external-provider action is dispatchable."""
 
@@ -310,15 +311,17 @@ def execute_operation_job(
             raise ValueError("Queued resumable import requires an operation job and worker lease.")
         from atdr.app.services.resumable_ingestion_service import run_resumable_import
 
-        return run_resumable_import(
-            db,
-            job_id=job_id,
-            worker_id=worker_id,
-            lease_token=lease_token,
-            payload=payload,
-            actor=actor,
-            should_stop=should_stop,
-        )
+        import_options: dict[str, Any] = {
+            "job_id": job_id,
+            "worker_id": worker_id,
+            "lease_token": lease_token,
+            "payload": payload,
+            "actor": actor,
+            "should_stop": should_stop,
+        }
+        if after_chunk is not None:
+            import_options["after_chunk"] = after_chunk
+        return run_resumable_import(db, **import_options)
     if job_type == "run_detection":
         return run_detection(
             db,

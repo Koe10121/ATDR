@@ -6,10 +6,14 @@ ATDR is lab-ready for controlled small-office validation. It is not certified pr
 
 ## Current Reproducible Baseline
 
-The published baseline is commit `3b483bf`; its GitHub Actions run passed. It
-includes v5.14 large-file runtime acceptance. v5.15 long-duration runtime soak
-and recovery acceptance is locally implemented and verified in disposable
-storage; it is not published without a separate exact-path approval. See:
+The published baseline is commit `5dcf291`; its GitHub Actions run passed and
+includes v5.15 long-duration runtime soak and recovery acceptance. v5.16
+full-scale memory and query stabilization is locally implemented and verified
+against the complete 773,551-row disposable run; it is not published without
+a separate exact-path approval. v5.17 adds fail-closed PostgreSQL multi-worker,
+dedup-contention, recovery, capacity, and backup/restore acceptance. Its local
+preflight is honestly environment-blocked until PostgreSQL tools are available.
+See:
 
 - `docs/V4_7_LARGE_SQLITE_PERFORMANCE_STABILIZATION.md`
 - `docs/V4_8_END_TO_END_PRODUCT_ACCEPTANCE.md`
@@ -21,6 +25,8 @@ storage; it is not published without a separate exact-path approval. See:
 - `docs/V5_13_1_DETECTION_PARSER_PROGRAM_CONSOLIDATION.md`
 - `docs/V5_14_LARGE_FILE_RUNTIME_ACCEPTANCE.md`
 - `docs/V5_15_LONG_DURATION_RUNTIME_SOAK.md`
+- `docs/V5_16_FULL_SCALE_MEMORY_QUERY_STABILIZATION.md`
+- `docs/V5_17_POSTGRES_MULTIWORKER_CAPACITY_RECOVERY.md`
 
 Installation is locally reproducible. Real MFU/Google sign-in still requires an
 approved OAuth Web client and account/group assignment from the university

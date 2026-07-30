@@ -876,6 +876,64 @@ ATDR shall support an opt-in database-backed operation queue for selected long-r
 - Local SQLite throughput and dashboard timings are measured evidence, not
   an approved-host capacity SLA or production certification.
 
+## v5.16 Full-Scale Memory And Query Stabilization Addendum
+
+- **FR-ATDR-066:** ATDR shall provide a fail-closed, disposable full-scale
+  profiling path that measures process memory, ORM identity state, query
+  counts/plans, throughput, database growth, integrity, privacy, and cleanup
+  without targeting the configured database.
+- Full-scale acceptance shall keep whole-process peak memory below 8 GiB or
+  demonstrate at least 40 percent reduction from the governed baseline.
+- At 773,551 rows, cold Overview and source detail shall remain below three
+  seconds and cached Overview below 0.1 seconds in the measured local profile.
+- Ingestion and deterministic-detection throughput shall not regress by more
+  than ten percent from the corresponding governed baseline.
+- Bounded detection may use scalar projections, batched evidence persistence,
+  exact scalar case counting, and stage-local memory release only when
+  ingestion, parser, rule, alert, dedup, case, source, audit, and API semantics
+  remain unchanged.
+- Query changes shall be measurement-driven. A scan-based consolidation shall
+  not replace a faster indexed query, and schema/index changes require
+  independent evidence and Alembic.
+- Query profiling shall return aggregate counts and plan steps only; private
+  paths, raw rows, IPs, fingerprints, SQL parameters, and secrets are
+  prohibited.
+- Rules remain alert-authoritative; supervised ML remains
+  `shadow_observation`; no label/model/response/activation/promotion write is
+  permitted.
+- Local SQLite evidence is not an approved-host PostgreSQL concurrency or
+  production-capacity SLA.
+
+## v5.17 PostgreSQL Multi-Worker Capacity And Recovery Addendum
+
+- **FR-ATDR-067:** ATDR shall provide a fail-closed PostgreSQL acceptance path
+  that refuses SQLite, the configured database identity, unsafe database
+  names, unavailable targets, and missing backup/restore tools.
+- The gate shall use at least two workers and verify skip-locked distinct
+  claims, private lease fencing, committed checkpoints, evidence-mutating
+  stale recovery, cancellation/resume, shared staging identity, exact source
+  counters, and concurrent idempotency containment.
+- PostgreSQL detection alert/dedup writes shall be transactionally coordinated
+  so concurrent same-scope runs cannot commit duplicate alert evidence from
+  the same pre-commit view. Coordination shall be bounded and shall not change
+  rule meaning, thresholds, grouping, severity, or response policy.
+- Capacity evidence shall include aggregate throughput, process memory, pool
+  use, chunk commit interval percentiles, database growth, dashboard/query
+  latency, query counts, lock state, and privacy-safe plan node types.
+- Backup shall produce a checksum/count/revision manifest and restore only
+  into a second empty disposable PostgreSQL database. Both disposable
+  databases, staging, and backup artifacts shall be removed.
+- The gate shall return no database URL, credential, private path, raw row,
+  IP, fingerprint, or secret.
+- Missing PostgreSQL infrastructure shall return `blocked_by_environment`;
+  SQLite shall never be substituted as a passing result.
+- Rules remain alert-authoritative, supervised ML remains
+  `shadow_observation`, and no labels, model runs, activation, promotion,
+  automatic response, or real blocking may be created.
+- Ephemeral CI evidence is repository regression evidence. Multi-host storage,
+  approved-host capacity, real devices, and production SLA evidence remain
+  separate gates.
+
 ## v5.15 Long-Duration Runtime Soak Addendum
 
 - **FR-ATDR-065:** ATDR shall provide a fail-closed disposable runtime-soak

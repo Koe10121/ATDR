@@ -140,8 +140,10 @@ def _event_key(log: NormalizedLog) -> int:
 
 
 def _source_scope(log: NormalizedLog) -> str:
+    source_id = getattr(log, "source_id", None)
     raw_log = getattr(log, "raw_log", None)
-    source_id = getattr(raw_log, "source_id", None) if raw_log is not None else None
+    if source_id is None and raw_log is not None:
+        source_id = getattr(raw_log, "source_id", None)
     return f"source:{source_id}" if source_id is not None else "source:unscoped"
 
 
@@ -165,7 +167,7 @@ def _effective_event_count(log: NormalizedLog) -> int:
 
 
 def build_detection_context(logs: Iterable[NormalizedLog]) -> DetectionContext:
-    materialized_logs = list(logs)
+    materialized_logs = logs if isinstance(logs, list) else list(logs)
     source_counts: Counter[str] = Counter()
     source_deny_drop_counts: Counter[str] = Counter()
     source_distinct_ports: dict[str, set[int]] = defaultdict(set)

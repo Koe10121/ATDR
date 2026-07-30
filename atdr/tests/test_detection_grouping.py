@@ -4,7 +4,8 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
 from atdr.app.db.database import Base
-from atdr.app.db.models import Alert, NormalizedLog, RawLog
+from atdr.app.db.models import Alert, NormalizedLog, RawLog, ResponseAction
+from atdr.app.services.case_service import count_alert_cases, list_alert_cases
 from atdr.app.services import detection_service
 from atdr.app.services.detection_service import run_detection
 
@@ -168,3 +169,86 @@ def test_anomaly_signal_is_advisory_and_cannot_create_alert(monkeypatch):
     assert result["advisory_anomaly_signals"] == 1
     assert result["rule_detection_authoritative"] is True
     assert list(db.scalars(select(Alert))) == []
+
+
+def _grouped_detection_snapshot(db) -> dict:
+    alerts = list(db.scalars(select(Alert).order_by(Alert.id)))
+    return {
+        "alerts": [
+            {
+                "title": alert.title,
+                "alert_type": alert.alert_type,
+                "src_ip": alert.src_ip,
+                "dst_ip": alert.dst_ip,
+                "threat_score": alert.threat_score,
+                "severity": alert.severity,
+                "explanation": alert.explanation,
+                "matched_rules": alert.matched_rules_json,
+                "recommended_response": alert.recommended_response,
+                "evidence_ids": sorted(
+                    evidence.normalized_log_id for evidence in alert.evidence
+                ),
+            }
+            for alert in alerts
+        ],
+        "case_count": count_alert_cases(db),
+        "response_actions": len(list(db.scalars(select(ResponseAction.id)))),
+    }
+
+
+def test_bounded_rule_detection_matches_legacy_and_releases_session_state():
+    legacy_db = _session()
+    bounded_db = _session()
+    for index in range(30):
+        _add_scan_log(legacy_db, index)
+        _add_scan_log(bounded_db, index)
+    legacy_db.commit()
+    bounded_db.commit()
+
+    legacy_profile: dict = {}
+    bounded_profile: dict = {}
+    legacy_result = run_detection(
+        legacy_db,
+        limit=100,
+        use_ml=False,
+        actor="test",
+        runtime_profile=legacy_profile,
+    )
+    bounded_result = run_detection(
+        bounded_db,
+        limit=100,
+        use_ml=False,
+        actor="test",
+        bounded_memory=True,
+        release_session_state=True,
+        runtime_profile=bounded_profile,
+    )
+
+    comparable_fields = {
+        "evaluated",
+        "candidate_logs",
+        "created_alerts",
+        "deduplicated_alert_updates",
+        "suppressed_low_groups",
+        "suppressed_by_rules",
+        "watchlist_matches",
+        "advisory_anomaly_signals",
+        "advisory_only_logs",
+        "rule_detection_authoritative",
+        "top_attack_types",
+    }
+    assert {
+        key: legacy_result[key] for key in comparable_fields
+    } == {
+        key: bounded_result[key] for key in comparable_fields
+    }
+    assert len(bounded_db.identity_map) == 0
+    assert _grouped_detection_snapshot(legacy_db) == _grouped_detection_snapshot(
+        bounded_db
+    )
+    assert count_alert_cases(bounded_db) == len(
+        list_alert_cases(bounded_db, limit=100)
+    )
+    assert bounded_profile["peak_identity_map_size"] < legacy_profile[
+        "peak_identity_map_size"
+    ]

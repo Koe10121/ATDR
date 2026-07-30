@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from html import escape
 from io import StringIO
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, insert, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from atdr.app.db.models import Alert, AlertEvidence, AlertNote, AuditLog, LogSource, NormalizedLog, RawLog, ResponseAction, User
@@ -84,6 +84,8 @@ def create_grouped_alert_from_detections(
     primary_rule_code: str | None = None,
     dedup_alerts: list[Alert] | None = None,
     evidence_id_cache: dict[int, set[int]] | None = None,
+    bulk_evidence: bool = False,
+    pending_evidence: list[tuple[Alert, list[int]]] | None = None,
 ) -> Alert:
     if not detections:
         raise ValueError("detections must not be empty")
@@ -175,6 +177,8 @@ def create_grouped_alert_from_detections(
             severity=severity,
             top_rule=top_rule,
             evidence_id_cache=evidence_id_cache,
+            bulk_evidence=bulk_evidence,
+            pending_evidence=pending_evidence,
         )
 
     alert = Alert(
@@ -206,15 +210,20 @@ def create_grouped_alert_from_detections(
         ],
         recommended_response=recommended_response(severity, primary_log.src_ip),
     )
-    for log in logs:
-        alert.evidence.append(AlertEvidence(normalized_log_id=log.id))
     db.add(alert)
+    evidence_ids = [int(log.id) for log in logs if log.id is not None]
+    if bulk_evidence:
+        if pending_evidence is None:
+            _insert_alert_evidence_rows(db, alert, evidence_ids)
+        else:
+            pending_evidence.append((alert, evidence_ids))
+    else:
+        for log_id in evidence_ids:
+            alert.evidence.append(AlertEvidence(normalized_log_id=log_id))
     if dedup_alerts is not None:
         dedup_alerts.append(alert)
     if evidence_id_cache is not None:
-        evidence_id_cache[id(alert)] = {
-            int(log.id) for log in logs if log.id is not None
-        }
+        evidence_id_cache[id(alert)] = set(evidence_ids)
     return alert
 
 
@@ -312,7 +321,6 @@ def _find_dedup_alert(
     if candidates is None:
         statement = (
             select(Alert)
-            .options(joinedload(Alert.evidence))
             .where(
                 Alert.alert_type == alert_type,
                 Alert.status.in_(ALERT_DEDUP_ACTIVE_STATUSES),
@@ -372,9 +380,31 @@ def _update_deduplicated_alert(
     severity: str,
     top_rule: dict,
     evidence_id_cache: dict[int, set[int]] | None = None,
+    bulk_evidence: bool = False,
+    pending_evidence: list[tuple[Alert, list[int]]] | None = None,
 ) -> Alert:
     cache_key = id(alert)
-    if evidence_id_cache is None:
+    if bulk_evidence:
+        existing_log_ids = (
+            evidence_id_cache.get(cache_key)
+            if evidence_id_cache is not None
+            else None
+        )
+        if existing_log_ids is None:
+            existing_log_ids = (
+                set(
+                    db.scalars(
+                        select(AlertEvidence.normalized_log_id).where(
+                            AlertEvidence.alert_id == alert.id
+                        )
+                    )
+                )
+                if alert.id is not None
+                else set()
+            )
+            if evidence_id_cache is not None:
+                evidence_id_cache[cache_key] = existing_log_ids
+    elif evidence_id_cache is None:
         existing_log_ids = {
             int(evidence.normalized_log_id) for evidence in alert.evidence
         }
@@ -388,12 +418,23 @@ def _update_deduplicated_alert(
     added_log_ids: list[int] = []
     for log, _ in detections:
         if log.id not in existing_log_ids:
-            alert.evidence.append(AlertEvidence(normalized_log_id=log.id))
             existing_log_ids.add(int(log.id))
             added_log_ids.append(int(log.id))
+    if bulk_evidence:
+        if pending_evidence is None:
+            _insert_alert_evidence_rows(db, alert, added_log_ids)
+        elif added_log_ids:
+            pending_evidence.append((alert, added_log_ids))
+    else:
+        for log_id in added_log_ids:
+            alert.evidence.append(AlertEvidence(normalized_log_id=log_id))
 
     existing_metadata = _group_metadata(alert)
-    occurrence_count = int(existing_metadata.get("occurrence_count") or existing_metadata.get("evidence_count") or len(alert.evidence))
+    occurrence_count = int(
+        existing_metadata.get("occurrence_count")
+        or existing_metadata.get("evidence_count")
+        or len(existing_log_ids)
+    )
     occurrence_count += len(detections)
     first_candidates = [_parse_iso(existing_metadata.get("first_seen")), _parse_iso(observations.get("first_seen"))]
     last_candidates = [_parse_iso(existing_metadata.get("last_seen")), _parse_iso(observations.get("last_seen"))]
@@ -443,6 +484,68 @@ def _update_deduplicated_alert(
         )
     )
     return alert
+
+
+def _insert_alert_evidence_rows(
+    db: Session,
+    alert: Alert,
+    normalized_log_ids: list[int],
+    *,
+    chunk_size: int = 1_000,
+) -> None:
+    """Persist evidence in bounded batches without loading ORM collections."""
+
+    if not normalized_log_ids:
+        return
+    if alert.id is None:
+        db.flush()
+    alert_id = int(alert.id)
+    for offset in range(0, len(normalized_log_ids), chunk_size):
+        batch = normalized_log_ids[offset : offset + chunk_size]
+        db.execute(
+            insert(AlertEvidence),
+            [
+                {
+                    "alert_id": alert_id,
+                    "normalized_log_id": normalized_log_id,
+                }
+                for normalized_log_id in batch
+            ],
+        )
+    if alert in db:
+        db.expire(alert, ["evidence"])
+
+
+def insert_pending_alert_evidence_rows(
+    db: Session,
+    pending: list[tuple[Alert, list[int]]],
+    *,
+    chunk_size: int = 1_000,
+) -> int:
+    """Flush alert IDs once, then insert all evidence in bounded batches."""
+
+    if not pending:
+        return 0
+    db.flush()
+    batch: list[dict[str, int]] = []
+    inserted = 0
+    for alert, normalized_log_ids in pending:
+        alert_id = int(alert.id)
+        for normalized_log_id in normalized_log_ids:
+            batch.append(
+                {
+                    "alert_id": alert_id,
+                    "normalized_log_id": normalized_log_id,
+                }
+            )
+            if len(batch) >= chunk_size:
+                db.execute(insert(AlertEvidence), batch)
+                inserted += len(batch)
+                batch.clear()
+    if batch:
+        db.execute(insert(AlertEvidence), batch)
+        inserted += len(batch)
+    return inserted
 
 
 def list_alerts(
@@ -1098,8 +1201,22 @@ def _audit_summary(audit: AuditLog) -> str:
     return action
 
 
-def existing_evidence_log_ids(db: Session) -> set[int]:
-    return set(db.scalars(select(AlertEvidence.normalized_log_id)).all())
+def existing_evidence_log_ids(
+    db: Session,
+    *,
+    source_id: int | None = None,
+) -> set[int]:
+    statement = select(AlertEvidence.normalized_log_id)
+    if source_id is not None:
+        statement = (
+            statement.join(
+                NormalizedLog,
+                NormalizedLog.id == AlertEvidence.normalized_log_id,
+            )
+            .join(RawLog, RawLog.id == NormalizedLog.raw_log_id)
+            .where(RawLog.source_id == source_id)
+        )
+    return set(db.scalars(statement))
 
 
 def alert_counts_by_severity(db: Session) -> dict[str, int]:

@@ -1,5 +1,10 @@
+from __future__ import annotations
+
+import gc
+import tracemalloc
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
@@ -13,6 +18,10 @@ from atdr.app.services.alert_service import (
     ALERT_DEDUP_ACTIVE_STATUSES,
     create_grouped_alert_from_detections,
     existing_evidence_log_ids,
+    insert_pending_alert_evidence_rows,
+)
+from atdr.app.services.detection_coordination_service import (
+    acquire_detection_transaction_lock,
 )
 from atdr.app.services.operation_run_service import (
     attack_type_counts_for_alerts,
@@ -60,9 +69,139 @@ PRIMARY_RULE_PRIORITY = {
 
 @dataclass(slots=True)
 class DetectionCandidate:
-    log: NormalizedLog
+    log: NormalizedLog | "DetectionLogRecord"
     result: DetectionResult
     primary_rule: RuleMatch
+
+
+@dataclass(frozen=True, slots=True)
+class DetectionLogRecord:
+    """Lightweight read-only projection for bounded rule evaluation."""
+
+    id: int
+    source_id: int | None
+    generated_time: datetime | None
+    receive_time: datetime | None
+    high_res_timestamp: datetime | None
+    start_time: datetime | None
+    log_type: str | None
+    subtype: str | None
+    src_ip: str | None
+    dst_ip: str | None
+    src_zone: str | None
+    dst_zone: str | None
+    app: str | None
+    app_category: str | None
+    app_risk: int | None
+    app_characteristic: str | None
+    dst_port: int | None
+    action: str | None
+    protocol: str | None
+    bytes: int | None
+    packets: int | None
+    repeat_count: int | None
+    session_end_reason: str | None
+    action_source: str | None
+    is_anomaly: bool
+
+
+def _runtime_profile_sample(
+    db: Session,
+    profile: dict[str, Any] | None,
+    stage: str,
+) -> None:
+    if profile is None:
+        return
+    current_memory = peak_memory = 0
+    if tracemalloc.is_tracing():
+        current_memory, peak_memory = tracemalloc.get_traced_memory()
+    sample = {
+        "stage": stage,
+        "identity_map_size": len(db.identity_map),
+        "new_object_count": len(db.new),
+        "current_traced_memory_mb": round(
+            current_memory / (1024 * 1024),
+            2,
+        ),
+        "peak_traced_memory_mb": round(
+            peak_memory / (1024 * 1024),
+            2,
+        ),
+    }
+    profile.setdefault("samples", []).append(sample)
+    profile["peak_identity_map_size"] = max(
+        int(profile.get("peak_identity_map_size") or 0),
+        sample["identity_map_size"],
+    )
+    profile["peak_new_object_count"] = max(
+        int(profile.get("peak_new_object_count") or 0),
+        sample["new_object_count"],
+    )
+
+
+def _bounded_detection_records(
+    db: Session,
+    *,
+    limit: int | None,
+    source_id: int | None,
+    event_time_start: datetime | None,
+    event_time_end: datetime | None,
+    yield_per: int = 2_000,
+) -> list[DetectionLogRecord]:
+    event_time = func.coalesce(
+        NormalizedLog.generated_time,
+        NormalizedLog.receive_time,
+        NormalizedLog.high_res_timestamp,
+        NormalizedLog.start_time,
+    )
+    statement = (
+        select(
+            NormalizedLog.id,
+            RawLog.source_id,
+            NormalizedLog.generated_time,
+            NormalizedLog.receive_time,
+            NormalizedLog.high_res_timestamp,
+            NormalizedLog.start_time,
+            NormalizedLog.log_type,
+            NormalizedLog.subtype,
+            NormalizedLog.src_ip,
+            NormalizedLog.dst_ip,
+            NormalizedLog.src_zone,
+            NormalizedLog.dst_zone,
+            NormalizedLog.app,
+            NormalizedLog.app_category,
+            NormalizedLog.app_risk,
+            NormalizedLog.app_characteristic,
+            NormalizedLog.dst_port,
+            NormalizedLog.action,
+            NormalizedLog.protocol,
+            NormalizedLog.bytes,
+            NormalizedLog.packets,
+            NormalizedLog.repeat_count,
+            NormalizedLog.session_end_reason,
+            NormalizedLog.action_source,
+            NormalizedLog.is_anomaly,
+        )
+        .join(RawLog, RawLog.id == NormalizedLog.raw_log_id)
+        .order_by(NormalizedLog.id.desc())
+    )
+    if source_id is not None:
+        statement = statement.where(RawLog.source_id == source_id)
+    if event_time_start is not None:
+        statement = statement.where(event_time >= event_time_start)
+    if event_time_end is not None:
+        statement = statement.where(event_time < event_time_end)
+    if limit:
+        statement = statement.limit(limit)
+
+    records = [
+        DetectionLogRecord(*row)
+        for row in db.execute(
+            statement.execution_options(yield_per=max(1, yield_per))
+        )
+    ]
+    records.reverse()
+    return records
 
 
 def _alert_authoritative_matches(matches: list[RuleMatch]) -> list[RuleMatch]:
@@ -166,8 +305,12 @@ def run_detection(
     event_time_end: datetime | None = None,
     dedup_alert_cache: list[Alert] | None = None,
     dedup_evidence_id_cache: dict[int, set[int]] | None = None,
+    bounded_memory: bool = False,
+    release_session_state: bool = False,
+    runtime_profile: dict[str, Any] | None = None,
 ) -> dict:
     settings = get_settings()
+    coordination_wait_seconds = acquire_detection_transaction_lock(db)
     run = start_detection_run(
         db,
         detection_type="hybrid" if use_ml else "rule",
@@ -180,36 +323,59 @@ def run_detection(
             "source_type": source_type,
             "event_time_start": event_time_start.isoformat() if event_time_start else None,
             "event_time_end": event_time_end.isoformat() if event_time_end else None,
+            "postgres_detection_coordination": (
+                "transaction_scoped" if db.get_bind().dialect.name == "postgresql" else "not_required"
+            ),
         },
     )
-    statement = (
-        select(NormalizedLog)
-        .options(joinedload(NormalizedLog.raw_log))
-        .order_by(NormalizedLog.id.desc())
-    )
+    bounded_rule_mode = bool(bounded_memory and not use_ml)
     try:
-        if source_id is not None:
-            statement = statement.join(RawLog, NormalizedLog.raw_log_id == RawLog.id).where(RawLog.source_id == source_id)
-        event_time = func.coalesce(
-            NormalizedLog.generated_time,
-            NormalizedLog.receive_time,
-            NormalizedLog.high_res_timestamp,
-            NormalizedLog.start_time,
-        )
-        if event_time_start is not None:
-            statement = statement.where(event_time >= event_time_start)
-        if event_time_end is not None:
-            statement = statement.where(event_time < event_time_end)
-        if limit:
-            statement = statement.limit(limit)
-        logs = list(db.scalars(statement))
-        logs.reverse()
-
         if use_ml:
             apply_model_to_db(db, limit=limit)
 
+        if bounded_rule_mode:
+            logs: list[NormalizedLog | DetectionLogRecord] = (
+                _bounded_detection_records(
+                    db,
+                    limit=limit,
+                    source_id=source_id,
+                    event_time_start=event_time_start,
+                    event_time_end=event_time_end,
+                )
+            )
+        else:
+            statement = (
+                select(NormalizedLog)
+                .options(joinedload(NormalizedLog.raw_log))
+                .order_by(NormalizedLog.id.desc())
+            )
+            if source_id is not None:
+                statement = statement.join(
+                    RawLog,
+                    NormalizedLog.raw_log_id == RawLog.id,
+                ).where(RawLog.source_id == source_id)
+            event_time = func.coalesce(
+                NormalizedLog.generated_time,
+                NormalizedLog.receive_time,
+                NormalizedLog.high_res_timestamp,
+                NormalizedLog.start_time,
+            )
+            if event_time_start is not None:
+                statement = statement.where(event_time >= event_time_start)
+            if event_time_end is not None:
+                statement = statement.where(event_time < event_time_end)
+            if limit:
+                statement = statement.limit(limit)
+            logs = list(db.scalars(statement))
+            logs.reverse()
+        _runtime_profile_sample(db, runtime_profile, "logs_loaded")
+
         context = build_detection_context(logs)
-        already_alerted = existing_evidence_log_ids(db)
+        _runtime_profile_sample(db, runtime_profile, "context_built")
+        already_alerted = existing_evidence_log_ids(
+            db,
+            source_id=source_id,
+        )
         active_watchlist_items = list_watchlist_items(db, active_only=True)
         candidates: list[DetectionCandidate] = []
         evaluated = 0
@@ -264,16 +430,21 @@ def run_detection(
             if grouped_candidates
         }
         if dedup_alert_cache is None:
+            dedup_statement = select(Alert).where(
+                Alert.alert_type.in_(candidate_alert_types),
+                Alert.status.in_(ALERT_DEDUP_ACTIVE_STATUSES),
+            )
+            if not bounded_rule_mode:
+                dedup_statement = dedup_statement.options(
+                    joinedload(Alert.evidence)
+                )
             dedup_alerts = (
                 list(
                     db.scalars(
-                        select(Alert)
-                        .options(joinedload(Alert.evidence))
-                        .where(
-                            Alert.alert_type.in_(candidate_alert_types),
-                            Alert.status.in_(ALERT_DEDUP_ACTIVE_STATUSES),
+                        dedup_statement.order_by(
+                            Alert.updated_at.asc(),
+                            Alert.id.asc(),
                         )
-                        .order_by(Alert.updated_at.asc(), Alert.id.asc())
                     ).unique()
                 )
                 if candidate_alert_types
@@ -293,6 +464,9 @@ def run_detection(
         suppressed_groups = 0
         suppressed_by_rules = 0
         touched_alerts = []
+        pending_evidence: list[tuple[Alert, list[int]]] | None = (
+            [] if bounded_rule_mode else None
+        )
         for grouped_candidates in grouped.values():
             if not _should_create_group_alert(grouped_candidates):
                 suppressed_groups += 1
@@ -315,6 +489,8 @@ def run_detection(
                 primary_rule_code=grouped_candidates[0].primary_rule.code,
                 dedup_alerts=dedup_alerts,
                 evidence_id_cache=evidence_id_cache,
+                bulk_evidence=bounded_rule_mode,
+                pending_evidence=pending_evidence,
             )
             touched_alerts.append(alert)
             if id(alert) in known_alert_objects:
@@ -323,6 +499,9 @@ def run_detection(
                 created += 1
                 known_alert_objects.add(id(alert))
 
+        if pending_evidence is not None:
+            insert_pending_alert_evidence_rows(db, pending_evidence)
+        _runtime_profile_sample(db, runtime_profile, "alerts_built")
         run_attack_types = attack_type_counts_for_alerts(touched_alerts)
         run_details = {
             "evaluated": evaluated,
@@ -345,6 +524,7 @@ def run_detection(
             "group_bucket_minutes": GROUP_BUCKET_MINUTES,
             "low_severity_group_min_evidence": LOW_SEVERITY_GROUP_MIN_EVIDENCE,
             "top_attack_types": run_attack_types,
+            "coordination_wait_seconds": round(coordination_wait_seconds, 4),
         }
         complete_detection_run(
             db,
@@ -365,14 +545,37 @@ def run_detection(
                 details={**run_details, "detection_run_id": run.id},
             )
         )
+        detection_run_id = int(run.id)
+        if bounded_rule_mode:
+            grouped.clear()
+            candidates.clear()
+            logs.clear()
+            context.event_correlations.clear()
+            already_alerted.clear()
+            evidence_id_cache.clear()
+            pending_evidence.clear()
+            gc.collect()
+            _runtime_profile_sample(
+                db,
+                runtime_profile,
+                "buffers_released_before_commit",
+            )
         db.commit()
-        return {
+        _runtime_profile_sample(db, runtime_profile, "committed")
+        if release_session_state:
+            db.expunge_all()
+            gc.collect()
+            _runtime_profile_sample(db, runtime_profile, "session_released")
+        response = {
             **run_details,
             "use_ml": use_ml,
-            "detection_run_id": run.id,
+            "detection_run_id": detection_run_id,
             "group_bucket_minutes": GROUP_BUCKET_MINUTES,
             "low_severity_group_min_evidence": LOW_SEVERITY_GROUP_MIN_EVIDENCE,
         }
+        if runtime_profile is not None:
+            response["_runtime_profile"] = runtime_profile
+        return response
     except Exception as exc:
         fail_detection_run(db, run, error=f"{exc.__class__.__name__}: {exc}")
         db.commit()

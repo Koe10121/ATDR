@@ -137,6 +137,8 @@ jobs:
       ATDR_V394_POSTGRES_DATABASE_URL: postgresql+psycopg2://atdr_ci:atdr_ci_ephemeral@127.0.0.1:5432/atdr_v394_jobs
       ATDR_V394_BACKUP_SOURCE_DATABASE_URL: postgresql+psycopg2://atdr_ci:atdr_ci_ephemeral@127.0.0.1:5432/atdr_v394_backup_source
       ATDR_V394_BACKUP_RESTORE_DATABASE_URL: postgresql+psycopg2://atdr_ci:atdr_ci_ephemeral@127.0.0.1:5432/atdr_v394_backup_restore
+      ATDR_V517_POSTGRES_DATABASE_URL: postgresql+psycopg2://atdr_ci:atdr_ci_ephemeral@127.0.0.1:5432/atdr_v517_acceptance
+      ATDR_V517_RESTORE_DATABASE_URL: postgresql+psycopg2://atdr_ci:atdr_ci_ephemeral@127.0.0.1:5432/atdr_v517_restore
       AUTO_CREATE_TABLES: "false"
       ATDR_AUTH_MODE: local_recovery
       ENVIRONMENT: development
@@ -182,6 +184,8 @@ jobs:
           psql -h 127.0.0.1 -U atdr_ci -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE atdr_v394_jobs"
           psql -h 127.0.0.1 -U atdr_ci -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE atdr_v394_backup_source"
           psql -h 127.0.0.1 -U atdr_ci -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE atdr_v394_backup_restore"
+          psql -h 127.0.0.1 -U atdr_ci -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE atdr_v517_acceptance"
+          psql -h 127.0.0.1 -U atdr_ci -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE atdr_v517_restore"
 
       - name: Validate isolated PostgreSQL migration backup and restore
         run: >-
@@ -232,3 +236,14 @@ jobs:
         env:
           DATABASE_URL: ${{ env.ATDR_V394_POSTGRES_DATABASE_URL }}
         run: python -m atdr.scripts.validate_worker_deployment --require-shared --pretty
+
+      - name: Validate v5.17 PostgreSQL multi-worker acceptance
+        run: >-
+          python -m atdr.scripts.run_v517_postgres_multiworker_acceptance
+          --target-rows 2000
+          --chunk-size 100
+          --workers 2
+          --synthetic
+          --run-detection
+          --test-recovery
+          --pretty

@@ -6,6 +6,7 @@ from typing import Any
 from uuid import uuid4
 
 from sqlalchemy import desc, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from atdr.app.db.models import AuditLog, IngestionRun, OperationJob, OperationWorkerHeartbeat
@@ -383,7 +384,24 @@ def enqueue_job(
         details_json=public_job_details({"queued_via": "operation_queue", **(details or {})}),
     )
     db.add(job)
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        if not normalized_key:
+            raise
+        existing = db.scalar(
+            select(OperationJob).where(
+                OperationJob.idempotency_key == normalized_key
+            )
+        )
+        if existing is None:
+            raise
+        if existing.requested_by != requested_by:
+            raise ValueError(
+                "Idempotency key is already in use by another user."
+            )
+        return existing, True
     _append_job_audit(
         db,
         actor=requested_by,
