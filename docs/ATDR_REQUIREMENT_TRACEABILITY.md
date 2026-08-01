@@ -509,3 +509,16 @@ This document maps major ATDR requirements to implementation evidence, tests, do
 | PostgreSQL capacity/query profile | Implemented; unmeasured locally | v5.17 service, dashboard/source query services | bounded CI gate configured | v5.17 status | 100k/250k and full private approved-host measurements remain open. |
 | PostgreSQL backup/restore | Implemented | `persistence_service.py`, v5.17 orchestration | existing persistence tests and bounded CI gate | runbook, v5.17 status | Environment-sized RPO/RTO remains external. |
 | Zero unsafe side effects and privacy | Satisfied locally; integrated gate pending | v5.17 result contract and cleanup | v5.17 safety/redaction tests | v5.17 status/T1-T20 | Independent security/deployment review remains open. |
+
+## v5.18 Approved-Host PostgreSQL Scale Traceability Addendum
+
+| Requirement | Status | Source files / routes | Tests / evidence | Docs | Remaining gaps |
+| --- | --- | --- | --- | --- | --- |
+| Strict approved-host and disposable-target preflight | Implemented and measured | `v518_postgres_scale_service.py`, v5.18 CLI, database/persistence services | fail-closed preflight tests; measured PostgreSQL 16.14 pass | v5.18 status/T1-T20/runbook | Provider-approved preproduction host and multi-host identity remain external. |
+| Staged 100k-before-250k qualification | Implemented and measured | v5.18 service/CLI | 100k passed before 250k was attempted; both scales passed for 2/4 workers | v5.18 status | This is one host and one synthetic workload, not a production SLA. |
+| Exact ingestion and parser reconciliation | Implemented and measured | v5.17/v5.18 orchestration, resumable ingestion, source service | exact 100k/250k raw, normalized, source, and parse counters; zero parse failures | v5.18 status | Real multi-device and live-syslog behavior remain external. |
+| PostgreSQL detection/dedup contention | Implemented and measured | `detection_service.py`, `job_dispatcher.py`, `alert_service.py` | two completed source-scoped runs per profile; exact evidence; zero duplicate evidence | v5.18 status/T1-T20 | Synthetic results do not establish detection accuracy. |
+| Bounded alert/case investigation queries | Implemented and measured | `alert_service.py`, `case_service.py`, alert router/schema, React Alerts | bounded-summary regressions; all 100k/250k query SLOs passed | v5.18 status | Older alerts can use a bounded SQL fallback when aggregate metadata is absent. |
+| Worker, pool, memory, and lock SLO | Implemented and measured | v5.18 service plus queue/worker coordination | 13/13 SLO checks in all four profiles; zero pool timeout/lock waiter | v5.18 status | Four workers did not materially outperform two on this host. |
+| Recovery, backup, restore, and cleanup | Implemented and measured | job/worker/resumable/persistence services | fencing, stale recovery, cancel/resume, idempotency, backup, isolated restore, cleanup passed | runbook, v5.18 status | Multi-host shared storage and environment-sized RPO/RTO remain external. |
+| Configured-DB, privacy, ML, and response safety | Satisfied | v5.18 result/privacy contract and existing lifecycle | configured DB unchanged; no private outputs; zero labels/model runs/responses | v5.18 status/T1-T20 | Independent security and deployment acceptance remain open. |

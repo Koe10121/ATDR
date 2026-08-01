@@ -6,14 +6,15 @@ ATDR is lab-ready for controlled small-office validation. It is not certified pr
 
 ## Current Reproducible Baseline
 
-The published baseline is commit `5dcf291`; its GitHub Actions run passed and
-includes v5.15 long-duration runtime soak and recovery acceptance. v5.16
-full-scale memory and query stabilization is locally implemented and verified
-against the complete 773,551-row disposable run; it is not published without
-a separate exact-path approval. v5.17 adds fail-closed PostgreSQL multi-worker,
-dedup-contention, recovery, capacity, and backup/restore acceptance. Its local
-preflight is honestly environment-blocked until PostgreSQL tools are available.
-See:
+The published baseline is commit `c7ebd2d`; its GitHub Actions run passed and
+includes v5.16 bounded memory/query stabilization plus v5.17 PostgreSQL
+multi-worker, recovery, and lock-ownership acceptance. v5.18 has now passed a
+local approved-host qualification on disposable PostgreSQL 16.14 databases:
+the 100,000-row and conditional 250,000-row gates both passed with 2 and 4
+workers, all fixed SLO checks, exact counters, isolated backup/restore, and
+zero safety side effects. v5.18 remains uncommitted pending exact-path review
+and separate owner approval. This is a single-host qualification, not a
+production SLA. See:
 
 - `docs/V4_7_LARGE_SQLITE_PERFORMANCE_STABILIZATION.md`
 - `docs/V4_8_END_TO_END_PRODUCT_ACCEPTANCE.md`
@@ -27,6 +28,7 @@ See:
 - `docs/V5_15_LONG_DURATION_RUNTIME_SOAK.md`
 - `docs/V5_16_FULL_SCALE_MEMORY_QUERY_STABILIZATION.md`
 - `docs/V5_17_POSTGRES_MULTIWORKER_CAPACITY_RECOVERY.md`
+- `docs/V5_18_POSTGRES_SCALE_QUALIFICATION.md`
 
 Installation is locally reproducible. Real MFU/Google sign-in still requires an
 approved OAuth Web client and account/group assignment from the university

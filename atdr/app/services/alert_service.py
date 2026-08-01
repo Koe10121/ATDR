@@ -5,7 +5,7 @@ from html import escape
 from io import StringIO
 
 from sqlalchemy import func, insert, or_, select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, noload
 
 from atdr.app.db.models import Alert, AlertEvidence, AlertNote, AuditLog, LogSource, NormalizedLog, RawLog, ResponseAction, User
 from atdr.app.detection.explanations import build_alert_detection_summary, compact_behavior_features
@@ -123,6 +123,13 @@ def create_grouped_alert_from_detections(
     dst_ports = sorted({log.dst_port for log in logs if log.dst_port is not None})[:10]
     actions = sorted({log.action for log in logs if log.action})
     protocols = sorted({log.protocol for log in logs if log.protocol})
+    source_ids = sorted(
+        {
+            source_id
+            for log in logs
+            if (source_id := _log_source_id(log)) is not None
+        }
+    )
     observations = {
         "evidence_count": evidence_count,
         "first_seen": first_seen,
@@ -132,8 +139,13 @@ def create_grouped_alert_from_detections(
         "unique_dst_count": unique_dst_count,
         "sample_dst_ips": dst_ips,
         "sample_dst_ports": dst_ports,
+        "destination_port_counts": _count_values(
+            [log.dst_port for log in logs]
+        ),
         "actions": actions,
+        "action_counts": _count_values([log.action for log in logs]),
         "protocols": protocols,
+        "source_ids": source_ids,
     }
 
     top_rule = next((rule for rule in matched_rules if rule["code"] == primary_rule_code), None)
@@ -204,8 +216,13 @@ def create_grouped_alert_from_detections(
                 "unique_dst_count": unique_dst_count,
                 "sample_dst_ips": dst_ips,
                 "sample_dst_ports": dst_ports,
+                "destination_port_counts": observations[
+                    "destination_port_counts"
+                ],
                 "actions": actions,
+                "action_counts": observations["action_counts"],
                 "protocols": protocols,
+                "source_ids": source_ids,
             },
         ],
         recommended_response=recommended_response(severity, primary_log.src_ip),
@@ -250,6 +267,48 @@ def _merge_sorted(existing: list | None, incoming: list | None, *, limit: int = 
     return sorted(values, key=lambda item: str(item))[:limit]
 
 
+def _log_source_id(log: NormalizedLog) -> int | None:
+    source_id = getattr(log, "source_id", None)
+    raw_log = getattr(log, "raw_log", None)
+    if source_id is None and raw_log is not None:
+        source_id = getattr(raw_log, "source_id", None)
+    return int(source_id) if source_id is not None else None
+
+
+def _count_values(values: list) -> dict[str, int]:
+    return {
+        str(value): int(count)
+        for value, count in Counter(
+            value for value in values if value is not None
+        ).most_common(20)
+    }
+
+
+def _merge_count_maps(
+    existing: dict | None,
+    incoming: dict | None,
+    *,
+    limit: int = 20,
+) -> dict[str, int]:
+    counts: Counter[str] = Counter()
+    counts.update(
+        {
+            str(key): int(value or 0)
+            for key, value in (existing or {}).items()
+        }
+    )
+    counts.update(
+        {
+            str(key): int(value or 0)
+            for key, value in (incoming or {}).items()
+        }
+    )
+    return {
+        key: int(value)
+        for key, value in counts.most_common(limit)
+    }
+
+
 def _group_observations(logs: list[NormalizedLog]) -> dict:
     event_times = [item for item in (_event_time(log) for log in logs) if item is not None]
     src_ips = sorted({log.src_ip for log in logs if log.src_ip})
@@ -257,6 +316,13 @@ def _group_observations(logs: list[NormalizedLog]) -> dict:
     dst_ports = sorted({log.dst_port for log in logs if log.dst_port is not None})
     actions = sorted({log.action for log in logs if log.action})
     protocols = sorted({log.protocol for log in logs if log.protocol})
+    source_ids = sorted(
+        {
+            source_id
+            for log in logs
+            if (source_id := _log_source_id(log)) is not None
+        }
+    )
     return {
         "evidence_count": len(logs),
         "first_seen": _iso(min(event_times)) if event_times else None,
@@ -266,8 +332,13 @@ def _group_observations(logs: list[NormalizedLog]) -> dict:
         "unique_dst_count": len(dst_ips),
         "sample_dst_ips": dst_ips[:10],
         "sample_dst_ports": dst_ports[:10],
+        "destination_port_counts": _count_values(
+            [log.dst_port for log in logs]
+        ),
         "actions": actions,
+        "action_counts": _count_values([log.action for log in logs]),
         "protocols": protocols,
+        "source_ids": source_ids,
     }
 
 
@@ -456,8 +527,21 @@ def _update_deduplicated_alert(
         "unique_dst_count": len(_merge_sorted(existing_metadata.get("sample_dst_ips"), observations.get("sample_dst_ips"), limit=1000)),
         "sample_dst_ips": _merge_sorted(existing_metadata.get("sample_dst_ips"), observations.get("sample_dst_ips")),
         "sample_dst_ports": _merge_sorted(existing_metadata.get("sample_dst_ports"), observations.get("sample_dst_ports")),
+        "destination_port_counts": _merge_count_maps(
+            existing_metadata.get("destination_port_counts"),
+            observations.get("destination_port_counts"),
+        ),
         "actions": _merge_sorted(existing_metadata.get("actions"), observations.get("actions")),
+        "action_counts": _merge_count_maps(
+            existing_metadata.get("action_counts"),
+            observations.get("action_counts"),
+        ),
         "protocols": _merge_sorted(existing_metadata.get("protocols"), observations.get("protocols")),
+        "source_ids": _merge_sorted(
+            existing_metadata.get("source_ids"),
+            observations.get("source_ids"),
+            limit=100,
+        ),
         "deduplicated": True,
     }
     alert.threat_score = max(alert.threat_score, max_score)
@@ -566,6 +650,7 @@ def list_alerts(
     sort_by: str = "created",
     limit: int = 100,
     offset: int = 0,
+    load_evidence: bool = True,
 ) -> list[Alert]:
     statement = build_alert_query(
         search=search,
@@ -581,6 +666,7 @@ def list_alerts(
         source_name=source_name,
         source_type=source_type,
         sort_by=sort_by,
+        load_evidence=load_evidence,
     )
     return list(db.scalars(statement.limit(limit).offset(offset)).unique())
 
@@ -600,6 +686,7 @@ def build_alert_query(
     source_name: str | None = None,
     source_type: str | None = None,
     sort_by: str = "created",
+    load_evidence: bool = True,
 ):
     sort_columns = {
         "updated": Alert.updated_at,
@@ -608,11 +695,19 @@ def build_alert_query(
         "severity": Alert.severity,
     }
     order_column = sort_columns.get(sort_by, Alert.created_at)
-    statement = (
-        select(Alert)
-        .options(joinedload(Alert.evidence).joinedload(AlertEvidence.normalized_log).joinedload(NormalizedLog.raw_log).joinedload(RawLog.source))
-        .order_by(order_column.desc(), Alert.id.desc())
+    statement = select(Alert).order_by(
+        order_column.desc(),
+        Alert.id.desc(),
     )
+    if load_evidence:
+        statement = statement.options(
+            joinedload(Alert.evidence)
+            .joinedload(AlertEvidence.normalized_log)
+            .joinedload(NormalizedLog.raw_log)
+            .joinedload(RawLog.source)
+        )
+    else:
+        statement = statement.options(noload(Alert.evidence))
     if search:
         pattern = f"%{search}%"
         statement = statement.where(
@@ -651,8 +746,134 @@ def build_alert_query(
 
 
 def count_alerts(db: Session, **filters) -> int:
-    statement = build_alert_query(**filters).order_by(None)
+    statement = build_alert_query(
+        **filters,
+        load_evidence=False,
+    ).order_by(None)
     return int(db.scalar(select(func.count()).select_from(statement.subquery())) or 0)
+
+
+def alert_evidence_summaries(
+    db: Session,
+    alert_ids: list[int],
+    *,
+    evidence_id_limit: int = 100,
+    alerts: list[Alert] | None = None,
+) -> dict[int, dict]:
+    """Return bounded list metadata without hydrating alert evidence graphs."""
+
+    unique_ids = sorted({int(alert_id) for alert_id in alert_ids})
+    if not unique_ids:
+        return {}
+
+    summaries = {
+        alert_id: {
+            "evidence_count": 0,
+            "evidence_log_ids": [],
+            "evidence_log_ids_truncated": False,
+            "source_ids": [],
+            "source_names": [],
+        }
+        for alert_id in unique_ids
+    }
+    fallback_ids = set(unique_ids)
+    for alert in alerts or []:
+        alert_id = int(alert.id)
+        if alert_id not in summaries:
+            continue
+        metadata = _group_metadata(alert)
+        evidence_count = metadata.get(
+            "related_log_count",
+            metadata.get("evidence_count"),
+        )
+        if evidence_count is None or "source_ids" not in metadata:
+            continue
+        summaries[alert_id]["evidence_count"] = int(
+            evidence_count or 0
+        )
+        summaries[alert_id]["source_ids"] = [
+            int(source_id)
+            for source_id in metadata.get("source_ids") or []
+        ]
+        fallback_ids.discard(alert_id)
+
+    if fallback_ids:
+        aggregate_rows = db.execute(
+            select(
+                AlertEvidence.alert_id,
+                RawLog.source_id,
+                LogSource.name,
+                func.count(AlertEvidence.id),
+            )
+            .join(
+                NormalizedLog,
+                NormalizedLog.id == AlertEvidence.normalized_log_id,
+            )
+            .join(RawLog, RawLog.id == NormalizedLog.raw_log_id)
+            .outerjoin(LogSource, LogSource.id == RawLog.source_id)
+            .where(AlertEvidence.alert_id.in_(fallback_ids))
+            .group_by(
+                AlertEvidence.alert_id,
+                RawLog.source_id,
+                LogSource.name,
+            )
+        )
+        for (
+            alert_id,
+            source_id,
+            source_name,
+            evidence_count,
+        ) in aggregate_rows:
+            summary = summaries[int(alert_id)]
+            summary["evidence_count"] += int(evidence_count or 0)
+            if source_id is not None:
+                summary["source_ids"].append(int(source_id))
+            if source_name:
+                summary["source_names"].append(str(source_name))
+
+    source_ids = sorted(
+        {
+            int(source_id)
+            for summary in summaries.values()
+            for source_id in summary["source_ids"]
+        }
+    )
+    source_names = {
+        int(source_id): str(name)
+        for source_id, name in db.execute(
+            select(LogSource.id, LogSource.name).where(
+                LogSource.id.in_(source_ids)
+            )
+        )
+    } if source_ids else {}
+    for summary in summaries.values():
+        summary["source_names"].extend(
+            source_names[source_id]
+            for source_id in summary["source_ids"]
+            if source_id in source_names
+        )
+
+    capped_limit = max(0, int(evidence_id_limit))
+    if capped_limit:
+        for alert_id in unique_ids:
+            summaries[alert_id]["evidence_log_ids"] = [
+                int(normalized_log_id)
+                for normalized_log_id in db.scalars(
+                    select(AlertEvidence.normalized_log_id)
+                    .where(AlertEvidence.alert_id == alert_id)
+                    .order_by(AlertEvidence.id.asc())
+                    .limit(capped_limit)
+                )
+            ]
+
+    for summary in summaries.values():
+        summary["source_ids"] = sorted(set(summary["source_ids"]))
+        summary["source_names"] = sorted(set(summary["source_names"]))
+        summary["evidence_log_ids_truncated"] = (
+            int(summary["evidence_count"])
+            > len(summary["evidence_log_ids"])
+        )
+    return summaries
 
 
 def _alert_ids_for_sources(
@@ -664,6 +885,7 @@ def _alert_ids_for_sources(
 ):
     statement = (
         select(AlertEvidence.alert_id)
+        .distinct()
         .join(NormalizedLog, NormalizedLog.id == AlertEvidence.normalized_log_id)
         .join(RawLog, RawLog.id == NormalizedLog.raw_log_id)
     )
@@ -680,15 +902,24 @@ def _alert_ids_for_sources(
     return statement
 
 
-def get_alert(db: Session, alert_id: int) -> Alert | None:
-    statement = (
-        select(Alert)
-        .options(
-            joinedload(Alert.evidence).joinedload(AlertEvidence.normalized_log).joinedload(NormalizedLog.raw_log).joinedload(RawLog.source),
-            joinedload(Alert.notes),
-        )
-        .where(Alert.id == alert_id)
+def get_alert(
+    db: Session,
+    alert_id: int,
+    *,
+    load_evidence: bool = True,
+) -> Alert | None:
+    statement = select(Alert).options(joinedload(Alert.notes)).where(
+        Alert.id == alert_id
     )
+    if load_evidence:
+        statement = statement.options(
+            joinedload(Alert.evidence)
+            .joinedload(AlertEvidence.normalized_log)
+            .joinedload(NormalizedLog.raw_log)
+            .joinedload(RawLog.source)
+        )
+    else:
+        statement = statement.options(noload(Alert.evidence))
     return db.scalars(statement).unique().first()
 
 

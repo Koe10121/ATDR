@@ -308,9 +308,13 @@ def run_detection(
     bounded_memory: bool = False,
     release_session_state: bool = False,
     runtime_profile: dict[str, Any] | None = None,
+    coordination_timeout_seconds: float = 30.0,
 ) -> dict:
     settings = get_settings()
-    coordination_wait_seconds = acquire_detection_transaction_lock(db)
+    coordination_wait_seconds = acquire_detection_transaction_lock(
+        db,
+        timeout_seconds=coordination_timeout_seconds,
+    )
     run = start_detection_run(
         db,
         detection_type="hybrid" if use_ml else "rule",

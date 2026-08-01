@@ -30,8 +30,9 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
     recommended_response: "Investigate source IP.",
     created_at: "2026-05-22T00:00:00Z",
     updated_at: "2026-05-22T00:00:00Z",
-    evidence_count: 1,
+    evidence_count: 150,
     evidence_log_ids: [1],
+    evidence_log_ids_truncated: true,
     source_ids: [1],
     source_names: ["local_import"],
     sla: { label: "Immediate", state: "needs_owner" },
@@ -3078,6 +3079,7 @@ test("deep-linked alert and log drawers render", async ({ page }) => {
   await expect(page.getByText("ML output is decision support.")).toBeVisible();
   await expect(page.getByText("Alert Occurrences")).toBeVisible();
   await expect(page.getByText("Related Log Count")).toBeVisible();
+  await expect(page.getByText("Showing the first 1 of 150 linked logs.")).toBeVisible();
   await expect(page.getByText("Grouped alert metadata")).toBeVisible();
   await expect(page.getByText("Discovery / Network Service Discovery (T1046)")).toBeVisible();
   await page.getByRole("link", { name: "Ask Assistant", exact: true }).first().click();

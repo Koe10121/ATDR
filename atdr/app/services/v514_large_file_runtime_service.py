@@ -35,7 +35,10 @@ from atdr.app.db.models import (
     RawLog,
     ResponseAction,
 )
-from atdr.app.services.alert_service import list_alerts
+from atdr.app.services.alert_service import (
+    alert_evidence_summaries,
+    list_alerts,
+)
 from atdr.app.services.case_service import count_alert_cases, list_alert_cases
 from atdr.app.services.dashboard_service import (
     build_dashboard_summary,
@@ -719,9 +722,20 @@ def _dashboard_timings(
             lambda: build_dashboard_summary_cached(db)
         )
 
-        alert_list, alert_list_queries = timed(
-            lambda: list_alerts(db, source_id=source_id, limit=20)
-        )
+        def load_alert_list() -> None:
+            alerts = list_alerts(
+                db,
+                source_id=source_id,
+                limit=20,
+                load_evidence=False,
+            )
+            alert_evidence_summaries(
+                db,
+                [int(alert.id) for alert in alerts],
+                alerts=alerts,
+            )
+
+        alert_list, alert_list_queries = timed(load_alert_list)
         case_summary, case_summary_queries = timed(
             lambda: list_alert_cases(db, source_id=source_id, limit=20)
         )

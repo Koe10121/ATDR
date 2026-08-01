@@ -3,7 +3,7 @@ from typing import Any
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
-from atdr.app.db.models import Alert, MLLabel, NormalizedLog
+from atdr.app.db.models import Alert, AlertEvidence, MLLabel, NormalizedLog
 from atdr.app.detection.attack_mapping import attack_mapping_for_type, infer_attack_type_from_rules
 from atdr.app.detection.hybrid_scoring import hybrid_risk_score
 from atdr.app.detection.rule_catalog import rule_spec
@@ -214,11 +214,18 @@ def _primary_attack_type(alert: Alert, labels: dict[int, MLLabel]) -> str:
 
 
 def build_alert_detection_summary(db: Session, alert: Alert) -> dict[str, Any]:
-    evidence_logs = [item.normalized_log for item in alert.evidence if item.normalized_log is not None]
-    if not evidence_logs:
-        evidence_logs = [db.get(NormalizedLog, item.normalized_log_id) for item in alert.evidence]
-        evidence_logs = [item for item in evidence_logs if item is not None]
-    evidence_logs = evidence_logs[:25]
+    evidence_logs = list(
+        db.scalars(
+            select(NormalizedLog)
+            .join(
+                AlertEvidence,
+                AlertEvidence.normalized_log_id == NormalizedLog.id,
+            )
+            .where(AlertEvidence.alert_id == alert.id)
+            .order_by(AlertEvidence.id.asc())
+            .limit(25)
+        )
+    )
     primary_log = evidence_logs[0] if evidence_logs else None
     evidence_ids = [log.id for log in evidence_logs]
     labels = _latest_label_by_log(db, evidence_ids)

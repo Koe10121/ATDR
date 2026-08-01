@@ -38,6 +38,7 @@ class AlertRead(BaseModel):
     updated_at: datetime
     evidence_count: int = 0
     evidence_log_ids: list[int] = Field(default_factory=list)
+    evidence_log_ids_truncated: bool = False
     source_ids: list[int] = Field(default_factory=list)
     source_names: list[str] = Field(default_factory=list)
     sla: dict[str, Any] = Field(default_factory=dict)

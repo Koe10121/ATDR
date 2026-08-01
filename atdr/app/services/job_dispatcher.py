@@ -329,6 +329,10 @@ def execute_operation_job(
             use_ml=bool(payload.get("use_ml", True)),
             actor=actor,
             source_id=payload.get("source_id"),
+            bounded_memory=bool(payload.get("bounded_memory", False)),
+            coordination_timeout_seconds=float(
+                payload.get("coordination_timeout_seconds") or 30.0
+            ),
         )
     if job_type == "train_ml":
         operation = str(payload.get("operation") or "anomaly_train")

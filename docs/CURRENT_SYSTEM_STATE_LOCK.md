@@ -4,17 +4,16 @@ Date: 2026-07-30
 
 Purpose: this document is the current-state memory anchor before larger ATDR productization work. It captures what exists now, what must stay safe, and what must not be deleted or committed while ATDR moves from controlled academic/lab prototype toward a more serious SOC/SaaS-style product.
 
-Checkpoint: the published baseline is commit `5dcf291` on `origin/main`; its
-GitHub Actions run passed and includes v5.15 long-duration runtime soak and
-recovery acceptance. v5.16 full-scale memory and query stabilization is
-implemented and locally verified but remains uncommitted pending exact-path
-review and separate owner approval. v5.17 PostgreSQL multi-worker acceptance
-is implemented and fully verified locally with CI wiring, but its actual local
-PostgreSQL run is `blocked_by_environment` because this workstation has no
-PostgreSQL/Docker tools. Existing
-ATDR data, MFU companion-shell distribution, model lifecycle, and response
-safety remain unchanged. This is a source-backed state lock, not a
-production-readiness claim.
+Checkpoint: the published baseline is commit `c7ebd2d` on `origin/main`; its
+GitHub Actions run passed and includes v5.16 bounded memory/query
+stabilization plus v5.17 PostgreSQL multi-worker and lock-ownership
+acceptance. v5.18 is implemented and locally qualified on an owner-approved,
+disposable PostgreSQL 16.14 runtime. The 100,000-row and conditional
+250,000-row profiles passed with 2 and 4 workers, but the v5.18 worktree
+remains uncommitted pending exact-path review and separate owner approval.
+Existing ATDR data, normal SQLite startup, MFU companion-shell distribution,
+model lifecycle, and response safety remain unchanged. This is a
+source-backed state lock, not a production-readiness claim.
 
 ## Source Evidence
 
@@ -39,6 +38,7 @@ production-readiness claim.
 | Long-duration runtime soak/recovery | `atdr/app/services/v515_runtime_soak_service.py`, `atdr/scripts/run_v515_runtime_soak_acceptance.py`, `atdr/tests/test_v515_runtime_soak_acceptance.py`, `docs/V5_15_LONG_DURATION_RUNTIME_SOAK.md` |
 | Full-scale memory/query stabilization | `atdr/app/services/v516_memory_query_service.py`, `atdr/scripts/run_v516_memory_query_stabilization.py`, `atdr/tests/test_v516_memory_query_stabilization.py`, `docs/V5_16_FULL_SCALE_MEMORY_QUERY_STABILIZATION.md` |
 | PostgreSQL multi-worker capacity/recovery acceptance | `atdr/app/services/v517_postgres_multiworker_service.py`, `atdr/app/services/detection_coordination_service.py`, `atdr/scripts/run_v517_postgres_multiworker_acceptance.py`, `atdr/tests/test_v517_postgres_multiworker_acceptance.py`, `docs/V5_17_POSTGRES_MULTIWORKER_CAPACITY_RECOVERY.md` |
+| PostgreSQL 100k/250k scale and SLO qualification | `atdr/app/services/v518_postgres_scale_service.py`, `atdr/scripts/run_v518_postgres_scale_qualification.py`, `atdr/tests/test_v518_postgres_scale_qualification.py`, `docs/V5_18_POSTGRES_SCALE_QUALIFICATION.md` |
 | Governed shadow operations | `atdr/app/services/v58_shadow_scoring_service.py`, `atdr/app/services/v59_shadow_observation_service.py`, `atdr/app/services/v510_detection_operations_service.py`, `atdr/app/services/v511_shadow_monitoring_service.py` |
 | Independent holdout evidence | `atdr/app/detection/v398_independent_holdout_validation.py`, `atdr/scripts/run_v398_independent_holdout_validation.py`, `atdr/tests/test_v398_independent_holdout_validation.py`, `docs/V3_98_INDEPENDENT_DETECTION_ML_HOLDOUT_VALIDATION.md` |
 | Synthetic multi-source frozen revalidation | `atdr/app/detection/v399_multisource_frozen_revalidation.py`, `atdr/scripts/run_v399_multisource_frozen_revalidation.py`, `atdr/tests/test_v399_multisource_frozen_revalidation.py`, `docs/V3_99_INDEPENDENT_MULTI_SOURCE_EVIDENCE_AND_FROZEN_REVALIDATION.md` |
@@ -248,22 +248,36 @@ Known limitation: very large/shared-lab usage should move toward PostgreSQL or a
   single committed job.
 - A migration-failure edge now removes both approved disposable targets and
   rechecks configured-database preservation before returning.
-- The local preflight returned `blocked_by_environment`: PostgreSQL target
-  variables and client tools are absent. It did not fall back to SQLite or
-  modify the configured database.
-- The existing ephemeral PostgreSQL CI job is configured to run a bounded
-  synthetic gate after a separately approved publication.
-- Local closure passed focused `23`, final backend/release
-  `771 passed, 1 skipped`, Alembic SQLite/no-drift and PostgreSQL offline SQL,
-  React lint/build, Playwright `26 passed, 1 skipped`, controlled `24/24`,
-  layered `288/288`, Assistant `20/20`, replay, warning-free performance,
-  release, privacy, and hygiene checks.
-- No PostgreSQL throughput, lock, recovery, backup, or restore metric is
-  claimed until the disposable gate runs.
-- Four major product/external gates remain: actual PostgreSQL acceptance,
-  real multi-device evidence, independent labeled Detection/ML evidence, and
-  provider/deployment/security closure. The taskboard percentage is not a
-  production-readiness percentage.
+- The repository implementation and bounded PostgreSQL CI gate were published
+  at commit `c7ebd2d`; its GitHub Actions run passed.
+- v5.18 supersedes the earlier environment-blocked local result with a
+  measured disposable local-host qualification. v5.17 remains the underlying
+  concurrency/recovery contract.
+
+### v5.18 PostgreSQL Scale Qualification Status
+
+- Strict preflight accepted only two distinct empty disposable PostgreSQL
+  16.14 databases, compatible 16.14 client tools, explicit host approval,
+  sufficient memory/disk, and safe connection headroom.
+- The staged 100,000-row gate passed before 250,000 rows were permitted.
+- The 2-worker and 4-worker profiles passed 13/13 SLO checks at both scales.
+- Throughput ranged from 694.97 to 1,061.94 rows/second; full-stage peak RSS
+  ranged from 549.48 to 1,256.19 MiB.
+- All profiles produced exact raw/normalized/source/parse counters, two
+  completed source-scoped detection runs, seven alerts/cases, target-sized
+  evidence counts, and zero duplicate evidence.
+- Cold Overview remained at or below 0.5276 seconds; cached Overview at or
+  below 0.0592 seconds; alert list at or below 0.4285 seconds; case summary at
+  or below 0.3121 seconds; and source detail at or below 1.1486 seconds.
+- Pool timeouts and ungranted lock waiters were zero. Fencing, stale recovery,
+  cancellation/resume, idempotency, backup, isolated restore, configured-DB
+  preservation, and cleanup passed.
+- Labels, model runs, and response actions stayed at zero. No URL, credential,
+  private path, raw row, IP, fingerprint, SQL parameter, or secret was
+  returned.
+- The measured single-host PostgreSQL gate is closed. Multi-host deployment,
+  real multi-device evidence, independently labeled Detection/ML evidence,
+  and provider/deployment/security acceptance remain outside this result.
 
 ## Parser And Normalization Status
 
@@ -394,9 +408,9 @@ Real firewall blocking must remain disabled unless explicitly approved later wit
 - Supervised ML still needs better stability, calibration, and real-source validation before stronger claims.
 - Case grouping is lightweight, not a full incident/ticketing platform.
 - Observability is still mostly app logs, health checks, scripts, and performance smoke; production metrics/alerting is future work.
-- The published v5.15 baseline is clean and CI-green at `5dcf291`. The
-  v5.16-v5.17 worktree remains local and must not be staged or pushed outside
-  its exact allowlist or without explicit owner approval.
+- The published v5.17 baseline is clean and CI-green at `c7ebd2d`. The v5.18
+  worktree remains local and must not be staged or pushed outside its exact
+  allowlist or without explicit owner approval.
 
 ## Current Verification Commands
 

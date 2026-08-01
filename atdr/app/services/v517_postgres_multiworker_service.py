@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
@@ -62,7 +63,14 @@ from atdr.app.services.v516_memory_query_service import process_memory_snapshot
 
 
 _SAFE_DATABASE_NAME = re.compile(r"^[A-Za-z0-9_]+$")
-_SAFE_DATABASE_MARKERS = ("v517", "test", "ci", "disposable", "temp")
+_SAFE_DATABASE_MARKERS = (
+    "v517",
+    "v518",
+    "test",
+    "ci",
+    "disposable",
+    "temp",
+)
 _MIN_TARGET_ROWS = 100
 _MAX_TARGET_ROWS = 1_000_000
 _MAX_WORKERS = 8
@@ -468,6 +476,14 @@ def _has_distinct_job_claims(
     return len(claimed_job_ids) == expected
 
 
+def _partition_row_counts(*, total_rows: int, partitions: int) -> list[int]:
+    base, remainder = divmod(total_rows, partitions)
+    return [
+        base + (1 if index < remainder else 0)
+        for index in range(partitions)
+    ]
+
+
 def _validate_lease_fencing(factory: sessionmaker[Session]) -> dict[str, Any]:
     with factory() as db:
         queued, _ = enqueue_job(
@@ -696,6 +712,8 @@ def _detection_consistency(
                     "limit": None,
                     "use_ml": False,
                     "source_id": source_id,
+                    "bounded_memory": True,
+                    "coordination_timeout_seconds": 180.0,
                 },
             )
     started = time.perf_counter()
@@ -782,15 +800,38 @@ def _detection_consistency(
                 metadata_reconciled = False
                 break
     completed = len(run_rows) == 2 and all(run.status == "completed" for run in run_rows)
+    worker_results_ok = all(result.get("ok") for result in results)
+    worker_status_counts: Counter[str] = Counter()
+    worker_error_types: Counter[str] = Counter()
+    for result in results:
+        job = result.get("job") or {}
+        status = (
+            result.get("status")
+            or job.get("status")
+            or (
+                "idle"
+                if not result.get("processed")
+                else "processed_without_status"
+            )
+        )
+        worker_status_counts[str(status)] += 1
+        error_summary = str(job.get("error_summary") or "")
+        if error_summary:
+            worker_error_types[
+                error_summary.split(":", 1)[0][:128]
+            ] += 1
     return {
         "ok": bool(
             completed
             and duplicate_evidence_groups == 0
             and metadata_reconciled
             and after_responses == before_responses
-            and all(result.get("ok") for result in results)
+            and worker_results_ok
         ),
         "concurrent_runs_completed": completed,
+        "worker_results_ok": worker_results_ok,
+        "worker_status_counts": dict(worker_status_counts),
+        "worker_error_types": dict(worker_error_types),
         "alerts_created_delta": after_alerts - before_alerts,
         "evidence_rows": evidence_rows,
         "duplicate_evidence_groups": duplicate_evidence_groups,
@@ -1062,10 +1103,10 @@ def run_v517_postgres_multiworker_acceptance(
                     or 0
                 )
 
-            partition_counts = [
-                target_rows // 2,
-                target_rows - (target_rows // 2),
-            ]
+            partition_counts = _partition_row_counts(
+                total_rows=target_rows,
+                partitions=workers,
+            )
             for index, count in enumerate(partition_counts):
                 path = _STAGING_ROOT / f"v517-part-{index}.log"
                 _write_cycled_input(
@@ -1133,10 +1174,13 @@ def run_v517_postgres_multiworker_acceptance(
                     or 0
                 )
             ingestion_ok = bool(
-                completed_imports == 2
+                completed_imports == workers
                 and raw_count == normalized_count == source_received == target_rows
                 and parse_successes + parse_failures == target_rows
-                and _has_distinct_job_claims(import_results, expected=2)
+                and _has_distinct_job_claims(
+                    import_results,
+                    expected=workers,
+                )
                 and all(item.get("ok") for item in import_results)
             )
 
@@ -1253,7 +1297,7 @@ def run_v517_postgres_multiworker_acceptance(
                         ),
                         "distinct_job_claims": _has_distinct_job_claims(
                             import_results,
-                            expected=2,
+                            expected=workers,
                         ),
                         "raw_logs": raw_count,
                         "normalized_logs": normalized_count,

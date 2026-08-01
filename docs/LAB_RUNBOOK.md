@@ -449,6 +449,61 @@ contents are never returned.
 
 See `docs/V5_17_POSTGRES_MULTIWORKER_CAPACITY_RECOVERY.md`.
 
+## v5.18 Approved-Host PostgreSQL Scale Qualification
+
+Use this gate only after v5.17 behavior is available and only with two new
+empty disposable PostgreSQL databases. Normal local SQLite use does not
+require it.
+
+Set private process variables without printing their values:
+
+```powershell
+$env:ATDR_V518_POSTGRES_DATABASE_URL='<DISPOSABLE_POSTGRES_DATABASE>'
+$env:ATDR_V518_RESTORE_DATABASE_URL='<SECOND_EMPTY_DISPOSABLE_POSTGRES_DATABASE>'
+$env:ATDR_V518_APPROVED_HOST='true'
+```
+
+Run strict preflight first:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v518_postgres_scale_qualification --pretty
+```
+
+Preflight must confirm PostgreSQL 16 or newer, `plpgsql`, compatible client
+tools, empty distinct safe targets, configured-database refusal, host
+memory/disk, and worker connection headroom. It returns no URL or credential.
+
+Run 100k only when a shorter qualification is required:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v518_postgres_scale_qualification `
+  --execute `
+  --confirm APPROVED_DISPOSABLE_V518_SCALE_DATABASES `
+  --stop-after-100k `
+  --pretty
+```
+
+Run the full staged qualification:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v518_postgres_scale_qualification `
+  --execute `
+  --confirm APPROVED_DISPOSABLE_V518_SCALE_DATABASES `
+  --pretty
+```
+
+The full command runs 250k only if every 100k SLO passes. It tests both 2 and
+4 workers, exact counters, recovery/fencing/idempotency, concurrent
+source-scoped detection, bounded dashboard queries, backup, isolated restore,
+safety counts, and cleanup.
+
+The current measured reference passed all 13 checks in all four profiles.
+Two workers remain the conservative recommendation because four workers did
+not materially improve throughput on the measured host. This is a
+single-host disposable qualification, not a multi-host or production SLA.
+
+See `docs/V5_18_POSTGRES_SCALE_QUALIFICATION.md`.
+
 ## v3.99 Frozen Multi-Source Revalidation
 
 v3.99 must use a migrated disposable validation database, not the configured database. Set `DATABASE_URL` only in the current PowerShell process:

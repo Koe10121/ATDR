@@ -934,6 +934,34 @@ ATDR shall support an opt-in database-backed operation queue for selected long-r
   approved-host capacity, real devices, and production SLA evidence remain
   separate gates.
 
+## v5.18 Approved-Host PostgreSQL Scale Qualification Addendum
+
+- **FR-ATDR-068:** ATDR shall provide an explicit approved-host scale gate
+  that qualifies 100,000 rows before allowing a 250,000-row PostgreSQL run.
+- Preflight shall require two distinct empty disposable PostgreSQL databases,
+  PostgreSQL 16 or newer, `plpgsql`, compatible `psql`/`pg_dump`/`pg_restore`,
+  sufficient memory/disk, connection headroom for the requested workers, and
+  an exact execution confirmation.
+- The gate shall run 2-worker and 4-worker profiles and reconcile exact raw,
+  normalized, parser, source, detection, alert, evidence, and case counts.
+- Fixed SLOs shall cover throughput, ingestion runtime, chunk p99, full-stage
+  RSS, database growth, pool timeouts, lock waiters, and cold/cached Overview,
+  alert, case, and source-detail queries.
+- Alert list and case summary paths may use exact aggregate evidence counts
+  with bounded ID samples. When IDs are truncated, the API shall expose that
+  fact explicitly; count and source traceability must remain exact.
+- The gate shall validate lease fencing, stale recovery, committed-boundary
+  cancellation/resume, concurrent idempotency, source-scoped detection/dedup
+  consistency, checksum/revision/count backup, isolated restore, configured
+  database preservation, and disposable cleanup.
+- A passed single-host qualification closes only the measured PostgreSQL
+  capacity gate. It does not establish multi-host behavior, a production SLA,
+  real-device acceptance, independent Detection/ML accuracy, or provider and
+  deployment security readiness.
+- Rules remain alert-authoritative, supervised ML remains
+  `shadow_observation`, and no label, model activation/promotion, automatic
+  response, or real blocking write is permitted.
+
 ## v5.15 Long-Duration Runtime Soak Addendum
 
 - **FR-ATDR-065:** ATDR shall provide a fail-closed disposable runtime-soak

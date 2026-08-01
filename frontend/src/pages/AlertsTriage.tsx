@@ -108,6 +108,9 @@ export function AlertsTriage() {
   const groupMetadata = selected?.matched_rules_json?.find((rule) => rule.code === "group_metadata") ?? null;
   const occurrenceCount = Number(groupMetadata?.occurrence_count ?? groupMetadata?.evidence_count ?? selected?.evidence_count ?? 0);
   const relatedLogCount = Number(groupMetadata?.related_log_count ?? groupMetadata?.evidence_count ?? selected?.evidence_count ?? 0);
+  const evidenceLogLabel = selected?.evidence_log_ids.length
+    ? `${selected.evidence_log_ids.join(", ")}${selected.evidence_log_ids_truncated ? ` (first ${selected.evidence_log_ids.length} of ${selected.evidence_count})` : ""}`
+    : "-";
   const assistantPrompt = selected ? `Explain alert ${selected.id} and what an analyst should check next.` : "";
   const assistantHref = selected ? `/assistant?alert=${selected.id}&prompt=${encodeURIComponent(assistantPrompt)}` : "/assistant";
   const assistantLogHref = (logId: number) =>
@@ -370,7 +373,7 @@ export function AlertsTriage() {
                 { label: "Destination", value: selected.dst_ip },
                 { label: "Log Sources", value: selected.source_names?.join(", ") || "-" },
                 { label: "Owner", value: selected.assigned_to },
-                { label: "Evidence Logs", value: selected.evidence_log_ids.join(", ") || "-" },
+                { label: "Evidence Logs", value: evidenceLogLabel },
                 { label: "Alert Occurrences", value: occurrenceCount || "-" },
                 { label: "Related Log Count", value: relatedLogCount || "-" },
                 { label: "Deduplicated", value: groupMetadata?.deduplicated ? "yes" : "no" },
@@ -503,6 +506,11 @@ export function AlertsTriage() {
                       </span>
                     ))
                   : "-"}
+                {selected.evidence_log_ids_truncated ? (
+                  <span className="text-xs text-muted">
+                    Showing the first {selected.evidence_log_ids.length} of {selected.evidence_count} linked logs.
+                  </span>
+                ) : null}
               </div>
               <div className="mt-2 text-sm text-muted">
                 ML anomaly evidence: {(report.data?.evidence_logs ?? []).some((log) => log.is_anomaly) ? "Present in evidence logs" : "No anomaly flag in loaded report evidence"}

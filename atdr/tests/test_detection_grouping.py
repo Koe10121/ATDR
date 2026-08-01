@@ -4,7 +4,17 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
 from atdr.app.db.database import Base
-from atdr.app.db.models import Alert, NormalizedLog, RawLog, ResponseAction
+from atdr.app.db.models import (
+    Alert,
+    LogSource,
+    NormalizedLog,
+    RawLog,
+    ResponseAction,
+)
+from atdr.app.services.alert_service import (
+    alert_evidence_summaries,
+    get_alert,
+)
 from atdr.app.services.case_service import count_alert_cases, list_alert_cases
 from atdr.app.services import detection_service
 from atdr.app.services.detection_service import run_detection
@@ -252,3 +262,68 @@ def test_bounded_rule_detection_matches_legacy_and_releases_session_state():
     assert bounded_profile["peak_identity_map_size"] < legacy_profile[
         "peak_identity_map_size"
     ]
+
+
+def test_alert_and_case_summaries_use_bounded_group_metadata():
+    db = _session()
+    source = LogSource(
+        name="bounded-summary-source",
+        source_type="firewall",
+        parser_profile="palo_alto",
+    )
+    db.add(source)
+    db.flush()
+    for index in range(150):
+        raw = RawLog(
+            raw_line=f"bounded scan {index}",
+            source_id=source.id,
+        )
+        db.add(raw)
+        db.flush()
+        db.add(
+            NormalizedLog(
+                raw_log_id=raw.id,
+                generated_time=datetime(2026, 5, 20, 13, 36, 15),
+                log_type="TRAFFIC",
+                src_ip="203.0.113.20",
+                dst_ip=f"10.0.0.{index % 250}",
+                src_zone="SG-Outside",
+                dst_zone="LAN-Inside",
+                app="unknown",
+                app_category="unknown",
+                dst_port=10_000 + index,
+                action="allow",
+                protocol="tcp",
+                bytes=100,
+                packets=1,
+                parsed_json={},
+            )
+        )
+    db.commit()
+
+    result = run_detection(
+        db,
+        limit=200,
+        use_ml=False,
+        actor="test",
+        bounded_memory=True,
+    )
+    alert_id = int(db.scalar(select(Alert.id)))
+    alert = get_alert(db, alert_id, load_evidence=False)
+    assert alert is not None
+
+    summary = alert_evidence_summaries(
+        db,
+        [alert_id],
+        alerts=[alert],
+        evidence_id_limit=10,
+    )[alert_id]
+    cases = list_alert_cases(db, limit=20)
+
+    assert result["created_alerts"] == 1
+    assert summary["evidence_count"] == 150
+    assert len(summary["evidence_log_ids"]) == 10
+    assert summary["evidence_log_ids_truncated"] is True
+    assert summary["source_ids"] == [source.id]
+    assert summary["source_names"] == [source.name]
+    assert cases[0]["total_related_logs"] == 150

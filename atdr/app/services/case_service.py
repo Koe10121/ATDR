@@ -3,8 +3,8 @@ from datetime import datetime, timedelta, timezone
 from hashlib import sha1
 from typing import Any
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session, noload
 
 from atdr.app.db.models import Alert, AlertEvidence, LogSource, NormalizedLog, RawLog
 from atdr.app.detection.attack_mapping import infer_attack_type_from_rules
@@ -79,10 +79,31 @@ def _case_owner(alerts: list[Alert]) -> str | None:
     return None
 
 
-def _case_evidence_summary(alerts: list[Alert]) -> dict[str, Any]:
+def _case_evidence_summary(
+    alerts: list[Alert],
+    *,
+    evidence_by_alert: dict[int, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     dst_ports: Counter[str] = Counter()
     actions: Counter[str] = Counter()
     related_logs = 0
+    if evidence_by_alert is not None:
+        for alert in alerts:
+            summary = evidence_by_alert.get(int(alert.id), {})
+            related_logs += int(summary.get("total_related_logs") or 0)
+            dst_ports.update(summary.get("destination_ports") or {})
+            actions.update(summary.get("actions") or {})
+        return {
+            "total_related_logs": related_logs,
+            "top_destination_ports": [
+                {"name": name, "count": count}
+                for name, count in dst_ports.most_common(5)
+            ],
+            "top_actions": [
+                {"name": name, "count": count}
+                for name, count in actions.most_common(5)
+            ],
+        }
     for alert in alerts:
         for evidence in alert.evidence:
             related_logs += 1
@@ -98,6 +119,99 @@ def _case_evidence_summary(alerts: list[Alert]) -> dict[str, Any]:
         "top_destination_ports": [{"name": name, "count": count} for name, count in dst_ports.most_common(5)],
         "top_actions": [{"name": name, "count": count} for name, count in actions.most_common(5)],
     }
+
+
+def _alert_evidence_aggregates(
+    db: Session,
+    alert_ids: list[int],
+) -> dict[int, dict[str, Any]]:
+    """Aggregate case evidence in SQL instead of hydrating every log row."""
+
+    unique_ids = sorted({int(alert_id) for alert_id in alert_ids})
+    if not unique_ids:
+        return {}
+    summaries: dict[int, dict[str, Any]] = {
+        alert_id: {
+            "total_related_logs": 0,
+            "destination_ports": Counter(),
+            "actions": Counter(),
+        }
+        for alert_id in unique_ids
+    }
+    rows = db.execute(
+        select(
+            AlertEvidence.alert_id,
+            NormalizedLog.dst_port,
+            NormalizedLog.action,
+            func.count(AlertEvidence.id),
+        )
+        .join(
+            NormalizedLog,
+            NormalizedLog.id == AlertEvidence.normalized_log_id,
+        )
+        .where(AlertEvidence.alert_id.in_(unique_ids))
+        .group_by(
+            AlertEvidence.alert_id,
+            NormalizedLog.dst_port,
+            NormalizedLog.action,
+        )
+    )
+    for alert_id, dst_port, action, count in rows:
+        summary = summaries[int(alert_id)]
+        row_count = int(count or 0)
+        summary["total_related_logs"] += row_count
+        if dst_port is not None:
+            summary["destination_ports"][str(dst_port)] += row_count
+        if action:
+            summary["actions"][str(action)] += row_count
+    return summaries
+
+
+def _metadata_evidence_aggregates(
+    alerts: list[Alert],
+) -> tuple[dict[int, dict[str, Any]], list[int]]:
+    summaries: dict[int, dict[str, Any]] = {}
+    fallback_ids: list[int] = []
+    for alert in alerts:
+        metadata = next(
+            (
+                item
+                for item in alert.matched_rules_json or []
+                if item.get("code") == "group_metadata"
+            ),
+            {},
+        )
+        evidence_count = metadata.get(
+            "related_log_count",
+            metadata.get("evidence_count"),
+        )
+        if (
+            evidence_count is None
+            or "destination_port_counts" not in metadata
+            or "action_counts" not in metadata
+        ):
+            fallback_ids.append(int(alert.id))
+            continue
+        summaries[int(alert.id)] = {
+            "total_related_logs": int(evidence_count or 0),
+            "destination_ports": Counter(
+                {
+                    str(key): int(value or 0)
+                    for key, value in (
+                        metadata.get("destination_port_counts") or {}
+                    ).items()
+                }
+            ),
+            "actions": Counter(
+                {
+                    str(key): int(value or 0)
+                    for key, value in (
+                        metadata.get("action_counts") or {}
+                    ).items()
+                }
+            ),
+        }
+    return summaries, fallback_ids
 
 
 def _recommended_focus(alerts: list[Alert], attack_types: list[str], evidence: dict[str, Any]) -> str:
@@ -124,7 +238,7 @@ def list_alert_cases(
 ) -> list[dict[str, Any]]:
     statement = (
         select(Alert)
-        .options(selectinload(Alert.evidence).joinedload(AlertEvidence.normalized_log))
+        .options(noload(Alert.evidence))
         .order_by(Alert.updated_at.desc(), Alert.id.desc())
         .limit(max(limit * 4, limit))
     )
@@ -140,6 +254,12 @@ def list_alert_cases(
     elif source_name or source_type:
         statement = statement.where(Alert.id.in_(_alert_ids_for_sources(source_name=source_name, source_type=source_type)))
     alerts = list(db.scalars(statement))
+    evidence_by_alert, fallback_ids = _metadata_evidence_aggregates(
+        alerts
+    )
+    evidence_by_alert.update(
+        _alert_evidence_aggregates(db, fallback_ids)
+    )
 
     grouped: dict[tuple[str, str, str, datetime], list[Alert]] = defaultdict(list)
     for alert in alerts:
@@ -155,7 +275,10 @@ def list_alert_cases(
         last_seen = max(alert.updated_at for alert in group)
         source_label = src_ips[0] if len(src_ips) == 1 else f"{len(src_ips)} sources"
         attack_label = attack_types[0] if len(attack_types) == 1 else "multiple attack types"
-        evidence_summary = _case_evidence_summary(group)
+        evidence_summary = _case_evidence_summary(
+            group,
+            evidence_by_alert=evidence_by_alert,
+        )
         cases.append(
             {
                 "case_id": _case_id(key),
@@ -249,6 +372,7 @@ def _alert_ids_for_sources(
 ):
     statement = (
         select(AlertEvidence.alert_id)
+        .distinct()
         .join(NormalizedLog, NormalizedLog.id == AlertEvidence.normalized_log_id)
         .join(RawLog, RawLog.id == NormalizedLog.raw_log_id)
     )

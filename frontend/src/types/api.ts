@@ -352,6 +352,7 @@ export interface Alert {
   updated_at: string;
   evidence_count: number;
   evidence_log_ids: number[];
+  evidence_log_ids_truncated?: boolean;
   source_ids?: number[];
   source_names?: string[];
   sla: AlertSla;

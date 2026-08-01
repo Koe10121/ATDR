@@ -18,6 +18,7 @@ from atdr.app.services.job_service import enqueue_job
 from atdr.app.services import operation_worker as operation_worker_service
 from atdr.app.services.v517_postgres_multiworker_service import (
     _has_distinct_job_claims,
+    _partition_row_counts,
     _safe_postgres_target,
     run_v517_postgres_multiworker_acceptance,
 )
@@ -98,6 +99,16 @@ def test_v517_refuses_configured_database_identity() -> None:
 
     assert accepted is False
     assert reason == "configured_database_target_refused"
+
+
+def test_v517_accepts_v518_disposable_target_name() -> None:
+    accepted, reason = _safe_postgres_target(
+        "postgresql+psycopg2://user@localhost/atdr_v518_restore",
+        configured_url="sqlite:///./atdr.db",
+    )
+
+    assert accepted is True
+    assert reason == "accepted"
 
 
 def test_v517_requires_exactly_one_evidence_mode() -> None:
@@ -254,6 +265,14 @@ def test_v517_distinct_job_claims_uses_public_job_id_contract() -> None:
 
     assert _has_distinct_job_claims(distinct, expected=2) is True
     assert _has_distinct_job_claims(repeated, expected=2) is False
+
+
+def test_v517_partitions_rows_across_every_worker() -> None:
+    counts = _partition_row_counts(total_rows=103, partitions=4)
+
+    assert counts == [26, 26, 26, 25]
+    assert len(counts) == 4
+    assert sum(counts) == 103
 
 
 def test_sequential_idempotency_reuses_one_job() -> None:

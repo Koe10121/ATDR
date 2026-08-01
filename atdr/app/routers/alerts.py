@@ -20,6 +20,7 @@ from atdr.app.schemas.alerts import (
 from atdr.app.detection.explanations import build_alert_detection_summary
 from atdr.app.services.alert_service import (
     add_alert_note,
+    alert_evidence_summaries,
     alert_report,
     alert_sla,
     alert_timeline,
@@ -40,7 +41,48 @@ from atdr.app.services.source_service import source_ids_for_filters
 router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
 
-def _alert_to_dict(alert, db: Session | None = None, *, include_detection_summary: bool = False) -> dict:
+def _alert_to_dict(
+    alert,
+    db: Session | None = None,
+    *,
+    include_detection_summary: bool = False,
+    evidence_summary: dict | None = None,
+) -> dict:
+    if evidence_summary is None:
+        evidence_count = len(alert.evidence)
+        evidence_log_ids = [
+            item.normalized_log_id
+            for item in alert.evidence
+        ]
+        source_ids = sorted(
+            {
+                item.normalized_log.raw_log.source_id
+                for item in alert.evidence
+                if getattr(item, "normalized_log", None)
+                and getattr(item.normalized_log, "raw_log", None)
+                and item.normalized_log.raw_log.source_id is not None
+            }
+        )
+        source_names = sorted(
+            {
+                item.normalized_log.raw_log.source.name
+                for item in alert.evidence
+                if getattr(item, "normalized_log", None)
+                and getattr(item.normalized_log, "raw_log", None)
+                and getattr(item.normalized_log.raw_log, "source", None)
+            }
+        )
+        evidence_log_ids_truncated = False
+    else:
+        evidence_count = int(evidence_summary.get("evidence_count") or 0)
+        evidence_log_ids = list(
+            evidence_summary.get("evidence_log_ids") or []
+        )
+        source_ids = list(evidence_summary.get("source_ids") or [])
+        source_names = list(evidence_summary.get("source_names") or [])
+        evidence_log_ids_truncated = bool(
+            evidence_summary.get("evidence_log_ids_truncated")
+        )
     payload = {
         "id": alert.id,
         "title": alert.title,
@@ -61,26 +103,11 @@ def _alert_to_dict(alert, db: Session | None = None, *, include_detection_summar
         "recommended_response": alert.recommended_response,
         "created_at": alert.created_at,
         "updated_at": alert.updated_at,
-        "evidence_count": len(alert.evidence),
-        "evidence_log_ids": [item.normalized_log_id for item in alert.evidence],
-        "source_ids": sorted(
-            {
-                item.normalized_log.raw_log.source_id
-                for item in alert.evidence
-                if getattr(item, "normalized_log", None)
-                and getattr(item.normalized_log, "raw_log", None)
-                and item.normalized_log.raw_log.source_id is not None
-            }
-        ),
-        "source_names": sorted(
-            {
-                item.normalized_log.raw_log.source.name
-                for item in alert.evidence
-                if getattr(item, "normalized_log", None)
-                and getattr(item.normalized_log, "raw_log", None)
-                and getattr(item.normalized_log.raw_log, "source", None)
-            }
-        ),
+        "evidence_count": evidence_count,
+        "evidence_log_ids": evidence_log_ids,
+        "evidence_log_ids_truncated": evidence_log_ids_truncated,
+        "source_ids": source_ids,
+        "source_names": source_names,
         "sla": alert_sla(alert),
     }
     if include_detection_summary and db is not None:
@@ -133,14 +160,24 @@ def api_list_alerts(
         "sort_by": sort_by,
     }
     response.headers["X-Total-Count"] = str(count_alerts(db, **filters))
+    alert_rows = list_alerts(
+        db,
+        **filters,
+        limit=limit,
+        offset=offset,
+        load_evidence=False,
+    )
+    evidence_summaries = alert_evidence_summaries(
+        db,
+        [int(alert.id) for alert in alert_rows],
+        alerts=alert_rows,
+    )
     return [
-        _alert_to_dict(alert)
-        for alert in list_alerts(
-            db,
-            **filters,
-            limit=limit,
-            offset=offset,
+        _alert_to_dict(
+            alert,
+            evidence_summary=evidence_summaries.get(int(alert.id)),
         )
+        for alert in alert_rows
     ]
 
 
@@ -181,10 +218,20 @@ def api_get_alert(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_analyst_or_admin),
 ) -> dict:
-    alert = get_alert(db, alert_id)
+    alert = get_alert(db, alert_id, load_evidence=False)
     if alert is None:
         raise HTTPException(status_code=404, detail="Alert not found.")
-    return _alert_to_dict(alert, db, include_detection_summary=True)
+    evidence_summary = alert_evidence_summaries(
+        db,
+        [alert_id],
+        alerts=[alert],
+    ).get(alert_id)
+    return _alert_to_dict(
+        alert,
+        db,
+        include_detection_summary=True,
+        evidence_summary=evidence_summary,
+    )
 
 
 @router.post("/{alert_id}/assign", response_model=AlertRead)
