@@ -185,6 +185,16 @@ This index defines the active ATDR documentation set for AI/Codex-assisted work.
 | `docs/changes/T1_T20_V5_12_PARSER_PROFILE_BASELINE_REPAIR.md` | T1-T20 parser, privacy, operational-baseline, non-regression, and safety handoff for v5.12. |
 | `docs/V5_13_RUNTIME_PARSER_CONTRACT_AND_SOURCE_QUALITY.md` | Future-ingestion parser contract, source-quality classification, privacy-safe operational alerts, additive migration, historical preview, and frozen non-regression evidence. |
 | `docs/changes/T1_T20_V5_13_RUNTIME_PARSER_CONTRACT_AND_SOURCE_QUALITY.md` | T1-T20 runtime ingestion, source operations, privacy, migration, testing, non-regression, and safety handoff for v5.13. |
+| `docs/V5_19_INDEPENDENT_LABELED_BLIND_VALIDATION.md` | Authoritative CTU-13 selection, immutable private manifest, label-sealed prediction freeze, preserved adapter failure, non-blind recovery diagnostic, transfer metrics, and conservative lifecycle decision. |
+| `docs/changes/T1_T20_V5_19_INDEPENDENT_LABELED_BLIND_VALIDATION.md` | T1-T20 evidence, implementation, privacy, testing, safety, and handoff record for v5.19. |
+| `docs/V5_19_COMMIT_ALLOWLIST.md` | Exact approval-gated tracked path boundary for v5.19; excludes datasets, labels, predictions, reports, fingerprints, models, and private configuration. |
+| `docs/V5_20_SCHEMA_AWARE_ABSTENTION.md` | Pre-inference native PAN-OS compatibility gate, explicit abstention behavior, v5.19 terminal lock, UI evidence, safety state, verification, and remaining closure phases. |
+| `docs/changes/T1_T20_V5_20_SCHEMA_AWARE_ABSTENTION.md` | T1-T20 source, API, frontend, privacy, testing, rollback, and handoff record for v5.20. |
+| `docs/V5_20_COMMIT_ALLOWLIST.md` | Cumulative exact v5.19+v5.20 approval boundary required because v5.19 remains uncommitted; private evidence and generated lock records remain excluded. |
+| `docs/V5_21_NATIVE_PANOS_EVIDENCE_PROGRAM.md` | Native PAN-OS chronological role lock, duplicate containment, weak development pack, suggestion-free blind pack, measured evidence, safety state, and remaining ground-truth gate. |
+| `docs/detection/V5_21_PANOS_FIELD_CONTRACT.md` | Official-vendor-backed interpretation and label-integrity contract for PAN-OS TRAFFIC, THREAT, application risk, evidence roles, and blind validation. |
+| `docs/changes/T1_T20_V5_21_NATIVE_PANOS_EVIDENCE_PROGRAM.md` | T1-T20 implementation, privacy, defect correction, testing, evidence custody, rollback, and v5.22 handoff record. |
+| `docs/V5_21_COMMIT_ALLOWLIST.md` | Cumulative exact v5.19-v5.21 review boundary; it excludes private files, review packs, manifests, reports, fingerprints, and model artifacts. |
 | `docs/V3_88_PRODUCT_BASELINE_CHECKPOINT.md` | Consolidated v3.78-v3.87 source/runtime/docs baseline, current safety posture, CI position, remaining risks, and next product phase. |
 | `docs/V3_88_CHANGESET_MANIFEST.md` | Exact intended commit allowlist, ignored/private exclusions, external template change, rollback notes, risks, and staging commands. |
 | `docs/V3_89_SHARED_LAB_PERSISTENCE_AND_BACKUP_RESTORE.md` | SQLite-preserving shared-lab persistence profile, safe backup/restore workflow, PostgreSQL CI validation design, and remaining operational limits. |
@@ -224,3 +234,29 @@ tracked Node/Vue/Mongo runtime copy is no longer part of the proposed tree.
 - Use a T1-T20 change record for non-trivial work.
 - Update `docs/prd/PRD-ATDR.md` and `docs/ATDR_REQUIREMENT_TRACEABILITY.md` when behavior, API, UI, data model, permission, safety, ML, or release expectations change.
 - Do not claim production readiness, automatic response, real firewall blocking, or full external IAM unless future source evidence proves it.
+
+## v5.22 Detection Closure
+
+- `docs/V5_22_SUPERVISED_MODEL_REBUILD.md`: measured native development result
+  and conservative lifecycle decision.
+- `docs/detection/V5_22_FROZEN_SHADOW_CANDIDATE_CONTRACT.md`: frozen
+  configuration, feature, calibration, threshold, and gate contract.
+- `docs/changes/T1_T20_V5_22_SUPERVISED_MODEL_REBUILD.md`: university workflow
+  change record.
+- `docs/V5_23_LIVE_SOURCE_ACCEPTANCE.md`: consolidated file/API/resumable/UDP,
+  source, detection, investigation, audit, privacy, and external-gate evidence.
+- `docs/detection/V5_23_LIVE_SOURCE_ACCEPTANCE_CONTRACT.md`: claim classes and
+  minimum acceptance/safety contract for loopback, second-laptop, and device
+  transport.
+- `docs/changes/T1_T20_V5_23_LIVE_SOURCE_ACCEPTANCE.md`: v5.23 implementation,
+  verification, risk, rollback, and external handoff record.
+- `docs/V5_24_INVESTIGATION_AND_GEMINI_QUALITY_LOCK.md`: bounded live Gemini,
+  follow-up, grounding, citation, concision, fallback, privacy, and read-only
+  quality evidence plus investigation UI status.
+- `docs/changes/T1_T20_V5_24_INVESTIGATION_AND_GEMINI_QUALITY_LOCK.md`: v5.24
+  implementation, tests, limits, rollback, and v5.25 handoff record.
+- `docs/V5_25_INTEGRATED_ACCEPTANCE.md`: final local collection-to-audit
+  acceptance, locked Gemini evidence policy, lifecycle state, and external-gate
+  ledger.
+- `docs/changes/T1_T20_V5_25_INTEGRATED_ACCEPTANCE.md`: v5.25 source evidence,
+  implementation, tests, safety, rollback, and final handoff record.

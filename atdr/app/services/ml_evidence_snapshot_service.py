@@ -9,6 +9,9 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from atdr.app.detection.supervised_workflow import list_supervised_models
+from atdr.app.detection.v520_schema_aware_abstention import (
+    public_schema_abstention_policy,
+)
 from atdr.app.services.ml_service import model_status
 
 
@@ -167,10 +170,31 @@ def build_ml_evidence_snapshot(db: Session) -> dict[str, Any]:
     )
     latest_training = isolation.get("latest_training") or {}
     latest_scoring = isolation.get("latest_scoring") or {}
+    runtime_telemetry = (
+        (registry.get("governed_lifecycle") or {}).get("telemetry") or {}
+    )
 
     return {
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "canonical_evidence": _canonical_evidence(),
+        "schema_aware_abstention": {
+            **public_schema_abstention_policy(),
+            "runtime": {
+                "rows_checked": int(
+                    runtime_telemetry.get("schema_compatibility_checked") or 0
+                ),
+                "abstained_count": int(
+                    runtime_telemetry.get("schema_abstention_count") or 0
+                ),
+                "abstention_rate": float(
+                    runtime_telemetry.get("schema_abstention_rate") or 0.0
+                ),
+                "reason_counts": runtime_telemetry.get(
+                    "schema_abstention_reasons"
+                )
+                or {},
+            },
+        },
         "operational_models": {
             "isolation_forest": {
                 "role": "assistive_anomaly_signal",

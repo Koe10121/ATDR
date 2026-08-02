@@ -624,3 +624,136 @@ Playwright `26 passed, 1 skipped`, controlled `24/24`, layered `288/288`,
 assistant QA `20/20`, a warning-free performance smoke, and a passing release
 gate. The v5.13.1 consolidation reruns the full matrix and records its exact
 approval-gated path set in `docs/V5_13_1_COMMIT_ALLOWLIST.md`.
+
+## v5.19 Independent Evidence Update
+
+v5.19 selected official CTU-13 bidirectional NetFlow scenarios as evidence
+independent of ATDR development and froze a binary transfer contract before
+label access. A deterministic label-sealed sample selected 20,000 rows from
+676,631 flows and quarantined 157 near duplicates. The configured database and
+model artifacts were unchanged.
+
+The first one-shot reveal failed its adapter contract because provider labels
+contained an unexpected serialization wrapper. That failed blind record is
+preserved. A one-time wrapper-normalization diagnostic used the same frozen
+predictions and reported threat F1 `0.6504`, benign-like FPR `0.9978`, ECE
+`0.4244`, and review queue rate `0.9989` across 885 comparable rows. This is
+post-blind diagnostic evidence, not a fresh blind pass.
+
+CTU-13 is binary, flow-based, and out of distribution for the 40-feature PAN-OS
+candidate. The independent Detection/ML gate remains open, supervised lifecycle
+remains `shadow_observation`, rules remain alert-authoritative, and no model,
+response automation, or real blocking was enabled. See
+`docs/V5_19_INDEPENDENT_LABELED_BLIND_VALIDATION.md`.
+
+## v5.20 Schema-Aware Abstention Update
+
+Governed supervised scoring now enforces a native PAN-OS compatibility contract
+before inference. Generic syslog, provider flow, raw fallback, unknown schema,
+parser-failed, and incomplete native rows abstain and receive no model
+probability. Legacy normalized rows may use the established Palo Alto default
+only when all required native fields are present.
+
+The Alerts drawer exposes abstention instead of a zero threat score, and AI
+Governance exposes the fail-closed policy plus aggregate process telemetry.
+This does not change alert authority: deterministic rules continue, supervised
+ML stays `shadow_observation`, and no model or response authority was enabled.
+
+The completed v5.19 state/result are fingerprint-locked in ignored local output.
+The validator does not open its labels or frozen prediction rows. See
+`docs/V5_20_SCHEMA_AWARE_ABSTENTION.md`.
+
+## v5.21 Native PAN-OS Evidence Update
+
+- The complete 773,551-row private PAN-OS stream parsed successfully in an
+  isolated derived-feature index with zero parser failures.
+- Chronological role counts are 433,499 development fit, 116,422 calibration,
+  111,626 threshold, and 112,004 untouched future validation across 22 minute
+  windows.
+- Exact and near-duplicate families do not cross evidence roles.
+- The ignored development pack has 120 weak/assisted rows. The ignored blind
+  pack has 40 rows and no rule/model/AI suggestions. Neither is human-reviewed
+  or import-ready.
+- A first-run configured-database read-only overlap defect was found and
+  repaired. The corrected run uses an explicit in-memory overlap target,
+  reported zero overlap checks/quarantine, and preserved the configured
+  database marker exactly.
+- No label, model artifact, alert, detection run, response action, activation,
+  promotion, automatic response, or real blocking occurred.
+
+The native evidence foundation is ready for a diagnostic v5.22 supervised
+rebuild. Independent human labels and a second real device remain open external
+gates. See `docs/V5_21_NATIVE_PANOS_EVIDENCE_PROGRAM.md`.
+
+## v5.22 Supervised Rebuild Update
+
+- The exact v5.21 native role lock reproduces on the full private stream.
+- Fit, calibration, and threshold roles are used; the future role and blind
+  pack remain sealed.
+- Six strategies are compared across four development views, including a
+  114-row human-only provenance holdout.
+- The frozen shadow configuration is hierarchical two-stage ExtraTrees at
+  threshold `0.40`.
+- Worst-case F1/FPR/suspicious recall/malicious recall are
+  `0.8025/0.0476/0.5000/1.0000`; calibration remains weak.
+- No artifact, label, model run, detection run, alert, or response is written.
+
+Three closure phases remain: live-source acceptance, investigation/Gemini
+quality lock, and integrated acceptance. See
+`docs/V5_22_SUPERVISED_MODEL_REBUILD.md`.
+
+## v5.23 Local Live-Source Acceptance Update
+
+The new disposable v5.23 harness exercises direct file import, authenticated
+multipart API import, durable/resumable import, queue backpressure, graceful
+worker interruption/recovery, replay through an actual UDP socket, source
+health, parser quality, source-scoped rule detection, deduplication, cases,
+explanations, recommendations, and audit history together.
+
+The bounded private-input run passed all local checks with 53 raw/normalized
+rows, zero parse failures, four logical sources, two rule-authoritative
+detection runs, one source-linked port-scan alert/case deduplicated to 20
+occurrences and 20 related logs, required audits, zero response/label/model/user
+writes, an unchanged configured database marker, and complete cleanup.
+
+This is local-loopback transport evidence only. A non-loopback second-laptop or
+real firewall/router sender has not yet been observed, so v5.23 reports
+`phase_complete=false` and does not change the supervised or response lifecycle.
+
+## v5.24 Investigation And Gemini Quality Update
+
+Alert and log investigation now use one evidence-first contract: what happened,
+why flagged/not flagged, evidence strength, missing context, and recommended
+analyst checks. Technical detection-layer telemetry remains available through
+progressive disclosure.
+
+A disposable six-question Gemini suite passed 11/11 fixed quality and safety
+gates. All alert/log/source/case questions and alert follow-ups retained their
+record context and trusted citations, contained expected evidence, stayed
+within visible concision bounds, returned no unsupported record IDs or action
+claims, used no raw-log context, applied IP redaction, fell back safely when a
+provider endpoint was unavailable, and wrote no authoritative entities.
+Median/p95 latency were 3,125/3,731 ms and total usage was 18,675 tokens.
+
+This is bounded synthetic provider evidence, not universal accuracy or
+production readiness. Rules remain alert-authoritative, supervised ML remains
+`shadow_observation`, response automation and real blocking remain disabled,
+and the owner-deferred v5.23 non-loopback/real-device gates remain open.
+
+## v5.25 Integrated Acceptance Update
+
+The final local integrated runner passed `14/14` fixed gates over 5,000
+disposable rows. It reconciled exact collection/normalization, raw evidence,
+source linkage, interruption/cancellation/stale recovery, backpressure,
+file/API/local UDP ingestion, rule-authoritative detection, advisory ML,
+deduplication, cases, explanation, locked Gemini quality, analyst-approved
+simulated response, audit, startup/setup/RBAC/UI contracts, privacy, cleanup,
+and configured-database preservation.
+
+The run reused the passed v5.24 six-call Gemini lock after a fresh repeat was
+externally throttled; fallback output was not accepted as provider evidence.
+No model/label authority change, automatic response, real blocking, private
+output, or production-readiness claim occurred. The v5.20-v5.25 local roadmap
+is complete, while non-loopback transport, real device, independent human
+native labels, MFU preproduction, approved host, and Gemini deployment
+governance remain open external gates.

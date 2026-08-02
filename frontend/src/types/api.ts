@@ -407,6 +407,11 @@ export interface DetectionSummary {
   anomaly: Record<string, unknown>;
   supervised: Record<string, unknown>;
   hybrid_risk: Record<string, unknown>;
+  observed_evidence?: string[];
+  rule_inferences?: string[];
+  diagnostic_evidence?: string[];
+  missing_context?: string[];
+  evidence_confidence?: string;
   behavior_window: Record<string, unknown>;
   top_evidence_points: string[];
   why_flagged: string;
@@ -462,6 +467,8 @@ export interface NormalizedLog {
     risk_score?: number | null;
     severity?: string | null;
     attack_mapping?: AttackMapping | null;
+    evidence_strength?: string;
+    missing_context?: string[];
     parser_warnings: string[];
     alert_ids: number[];
     decision_support_only: boolean;
@@ -2213,6 +2220,24 @@ export interface ParserProfileOperationalDiagnostics {
 
 export interface MLEvidenceSnapshot {
   schema_version: string;
+  schema_aware_abstention?: {
+    contract_version: string;
+    expected_schema_id: string;
+    required_features: string[];
+    compatible_status: string;
+    fail_closed: boolean;
+    incompatible_evidence_scored: boolean;
+    rules_remain_authoritative: boolean;
+    decision_support_only: boolean;
+    production_promoted: boolean;
+    response_automation_allowed: boolean;
+    runtime?: {
+      rows_checked: number;
+      abstained_count: number;
+      abstention_rate: number;
+      reason_counts: Record<string, number>;
+    };
+  };
   canonical_evidence: {
     available: boolean;
     status: string;

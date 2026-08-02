@@ -13,6 +13,9 @@ from atdr.app.core.config import get_settings
 from atdr.app.db.models import AuditLog, MLLabel, MLModelRun, NormalizedLog
 from atdr.app.detection.cost_sensitive import cost_sensitive_report
 from atdr.app.detection.hybrid_scoring import hybrid_risk_score
+from atdr.app.detection.v520_schema_aware_abstention import (
+    assess_log_schema_compatibility,
+)
 from atdr.app.ml.features import (
     CATEGORICAL_FEATURES,
     FEATURE_COLUMNS,
@@ -1454,6 +1457,32 @@ def predict_supervised_log(db: Session, log_id: int, *, rule_score: int = 0, ass
     log = db.get(NormalizedLog, log_id)
     if log is None:
         return {"predicted_label": None, "malicious_probability": 0.0, "confidence": 0.0, "top_contributing_features": []}
+    schema_compatibility = assess_log_schema_compatibility(log)
+    if not schema_compatibility["scoring_allowed"]:
+        return {
+            "predicted_label": None,
+            "direct_predicted_label": None,
+            "queue_decision": None,
+            "queue_probability": None,
+            "malicious_probability": 0.0,
+            "confidence": 0.0,
+            "top_contributing_features": [],
+            "schema_compatibility": schema_compatibility,
+            "abstained": True,
+            "abstention_reason_codes": schema_compatibility["abstention_reason_codes"],
+            "missing_required_features": schema_compatibility["missing_required_features"],
+            "confidence_limitations": [
+                schema_compatibility["message"],
+                "No supervised probability was produced for this evidence.",
+                "Rules remain authoritative for alert creation.",
+            ],
+            "rule_detection_continues": True,
+            "decision_support_only": True,
+            "used_for_alert_creation": False,
+            "used_for_severity": False,
+            "used_for_suppression": False,
+            "response_automation_allowed": False,
+        }
     try:
         from atdr.app.detection.v51_supervised_lifecycle import (
             score_governed_supervised_log,
@@ -1498,5 +1527,9 @@ def predict_supervised_log(db: Session, log_id: int, *, rule_score: int = 0, ass
         "class_probabilities": class_probs,
         "threshold_profile": str(artifact.get("threshold_profile", "balanced")),
         "hybrid_risk": hybrid,
+        "schema_compatibility": schema_compatibility,
+        "abstained": False,
+        "abstention_reason_codes": [],
+        "missing_required_features": [],
         "decision_support_only": True,
     }

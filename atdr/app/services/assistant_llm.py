@@ -61,7 +61,9 @@ all other values are arrays of strings. Keep the summary to one or two short
 sentences, evidence to at most three bullets, analyst_checks to at most three
 bullets, and safety_notice to one concise line. Avoid repeating evidence across
 sections. Keep citation_references limited to the provided citation
-labels/reference IDs. Do not wrap the JSON in markdown.
+labels/reference IDs. For a record-specific alert, log, source, or case
+question, include the primary record citation. Never mention a record ID that
+is absent from the provided citations. Do not wrap the JSON in markdown.
 """
 
 
@@ -498,8 +500,11 @@ def _parse_structured_answer(value: str, *, citations: list[dict[str, Any]]) -> 
     missing = _safe_string_list(payload.get("missing_information"), limit=3, item_limit=400)
     followups = _safe_string_list(payload.get("suggested_followups"), limit=4, item_limit=220)
     requested_refs = _safe_string_list(payload.get("citation_references"), limit=8, item_limit=240)
-    allowed_refs = {_citation_token(item) for item in citations if _citation_token(item)}
+    allowed_ref_order = list(dict.fromkeys(_citation_token(item) for item in citations if _citation_token(item)))
+    allowed_refs = set(allowed_ref_order)
     citation_refs = [item for item in requested_refs if item in allowed_refs]
+    if allowed_ref_order and allowed_ref_order[0] not in citation_refs:
+        citation_refs.insert(0, allowed_ref_order[0])
 
     if not summary or not safety_notice or not evidence or not checks:
         return None

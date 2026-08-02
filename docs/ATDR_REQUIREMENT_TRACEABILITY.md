@@ -522,3 +522,83 @@ This document maps major ATDR requirements to implementation evidence, tests, do
 | Worker, pool, memory, and lock SLO | Implemented and measured | v5.18 service plus queue/worker coordination | 13/13 SLO checks in all four profiles; zero pool timeout/lock waiter | v5.18 status | Four workers did not materially outperform two on this host. |
 | Recovery, backup, restore, and cleanup | Implemented and measured | job/worker/resumable/persistence services | fencing, stale recovery, cancel/resume, idempotency, backup, isolated restore, cleanup passed | runbook, v5.18 status | Multi-host shared storage and environment-sized RPO/RTO remain external. |
 | Configured-DB, privacy, ML, and response safety | Satisfied | v5.18 result/privacy contract and existing lifecycle | configured DB unchanged; no private outputs; zero labels/model runs/responses | v5.18 status/T1-T20 | Independent security and deployment acceptance remain open. |
+
+## v5.19 Independent Labeled Validation Traceability Addendum
+
+| Requirement | Status | Implementation evidence | Test/evaluation evidence | Documentation | Remaining gap |
+| --- | --- | --- | --- | --- | --- |
+| Authoritative independent evidence selection | Implemented | `v519_independent_labeled_validation.py`; official CTU-13 source metadata | CTU-13 scenarios 5/7/11/12 acquired outside Git; previous v4.0/private evidence rejected | v5.19 status/T1-T20 | Native PAN-OS independent ground truth remains unavailable. |
+| Immutable private manifest | Implemented | manifest creation/identity verification | checksums and contract retained privately; public output redacted | v5.19 status/runbook | Evidence custody remains host-local. |
+| Prediction-before-label protocol | Implemented and executed once | label-sealed sampling, prediction freeze, one-time reveal state | 676,631 scanned, 20,000 sampled, 157 near duplicates quarantined, labels excluded before freeze | v5.19 status/tests | Initial provider serialization contract failed. |
+| Binary taxonomy and ambiguity control | Implemented | provider mapping and exclusion policy | 885 comparable; unsupported/background evidence excluded; no suspicious/malicious inference | v5.19 status/tests | CTU-13 taxonomy cannot validate ATDR five-class behavior. |
+| Independent transfer measurement | Failed fixed gates | frozen candidate and evaluator | post-blind diagnostic F1 `0.6504`, FPR `0.9978`, ECE `0.4244`; OOD warning | v5.19 status | Recovery is diagnostic, not fresh blind evidence; gate remains open. |
+| Deterministic rule comparison | Partial only | volume-rule baseline | action/application/THREAT/zone rule families unavailable in CTU flow schema | v5.19 status | Native PAN-OS evidence is needed for full rule accuracy. |
+| Lifecycle and response safety | Satisfied | readiness/safety contracts | zero DB, label, model, detection, alert, response, or artifact mutation | v5.19 status/tests | Any authority change requires separate independent evidence and approval. |
+| Repeat-execution and privacy protection | Implemented | one-shot state, recovery lock, public projections | repeat reveal/recovery tests; no path/raw/IP/hash/secret output | v5.19 status/tests | Preserve ignored evidence and do not publish it. |
+
+## v5.20 Schema-Aware Abstention Traceability Addendum
+
+| Requirement | Status | Implementation evidence | Test/evaluation evidence | Documentation | Remaining gap |
+| --- | --- | --- | --- | --- | --- |
+| Pre-inference schema compatibility | Implemented | `v520_schema_aware_abstention.py`, legacy and governed supervised scorers | native, legacy, generic, provider-flow, raw, unknown, and incomplete contract tests | v5.20 status/T1-T20 | Native contract compatibility does not itself prove model accuracy. |
+| Fail-closed supervised abstention | Implemented | `supervised_detector.py`, `v51_supervised_lifecycle.py`, `v58_shadow_scoring_service.py` | mixed batch scores only compatible rows; no probability for abstentions | v5.20 status/tests | A future native candidate still needs governed rebuild and blind validation. |
+| Rule authority preserved | Satisfied | alert explanation and scoring result contracts | zero alert/detection/response mutation; rule authority assertion | v5.20 status/tests | Real-device detection accuracy remains external. |
+| Analyst-visible abstention evidence | Implemented | alert detection summary, Alerts drawer, ML evidence snapshot, AI Governance panel | focused backend projections and Playwright checks pass | v5.20 status/tests | Longer-term operational telemetry requires real diverse sources. |
+| v5.19 terminal evidence lock | Implemented | read-only lock auditor and CLI | terminal checks pass; state/result unchanged; labels/predictions unopened | v5.20 status/runbook | Evidence custody remains ignored and host-local. |
+| Privacy and lifecycle safety | Satisfied | redacted runtime/public contracts | no raw/IP/path/hash/secret API output; no activation/promotion/automation | v5.20 status/T1-T20 | Human/advisor-verified native labels remain required. |
+
+## v5.21 Native PAN-OS Evidence Traceability Addendum
+
+| Requirement | Status | Implementation evidence | Test/evaluation evidence | Documentation | Remaining gap |
+| --- | --- | --- | --- | --- | --- |
+| Private native evidence remains outside configured DB | Implemented | `v521_native_panos_evidence.py`; explicit `sqlite:///:memory:` overlap target | regression guard plus unchanged configured-DB marker | v5.21 status/T1-T20 | Private file custody remains owner-controlled. |
+| Chronological role lock | Implemented | v5.6 disposable index/partition reused through v5.21 service | 433,499 fit; 116,422 calibration; 111,626 threshold; 112,004 untouched future | v5.21 status/field contract | One collection/device cannot prove source generalization. |
+| Duplicate containment | Satisfied | exact and propagation-family latest-role policy | zero exact or near families crossing roles | v5.21 status/tests | Broader semantic duplicate methods may be needed for other vendors. |
+| Label provenance integrity | Implemented | separate development and blind pack builders | development suggestions weak; blind suggestions suppressed; zero human labels created | field contract/T1-T20 | Qualified human/advisor confirmation remains required. |
+| Official PAN-OS semantics | Documented and implemented | versioned field contract and parser mapping | official-vendor URL/semantic tests | `docs/detection/V5_21_PANOS_FIELD_CONTRACT.md` | Device/version-specific fields still need real-device validation. |
+| Privacy and authority safety | Satisfied | aggregate public projection and disposable cleanup | no raw/IP/path/hash/secret output; zero label/model/alert/detection/response writes | v5.21 status/tests | Model activation remains prohibited. |
+
+## v5.22 Traceability Addition
+
+| Requirement | Status | Source / Route | Tests | Docs | Remaining gap |
+| --- | --- | --- | --- | --- | --- |
+| Reproduce native development roles | supported | `atdr/app/detection/v522_supervised_model_rebuild.py`, v5.21 manifest | `atdr/tests/test_v522_supervised_model_rebuild.py` | `docs/V5_22_SUPERVISED_MODEL_REBUILD.md` | Independent labels remain external |
+| Preserve honest label provenance | supported | v5.22 governed bundle adapter | provenance regression test | v5.22 status and contract | Advisor/provider confirmation still required |
+| Compare and freeze one shadow configuration | supported, diagnostic only | v5.22 service/CLI | actual six-model comparison and stability-ranking tests | `docs/detection/V5_22_FROZEN_SHADOW_CANDIDATE_CONTRACT.md` | Suspicious recall and calibration fail |
+| Keep blind/future evidence sealed | supported | development-only assisted policy | future-role and complete preflight tests | v5.22 status/T1-T20 | Blind labels not yet available |
+| Preserve rule/response authority | supported | v5.22 safety checks | no-write/no-activation tests | v5.22 status | ML remains shadow-only |
+
+## v5.23 Live-Source Acceptance Traceability Addendum
+
+| Requirement | Status | Source files/routes | Tests/evidence | Docs | Remaining gaps |
+| --- | --- | --- | --- | --- | --- |
+| Direct and authenticated file ingestion | Implemented and locally accepted | `log_service.py`, `/api/logs/import`, v5.23 service | exact 20-row direct and 5-row multipart imports | v5.23 status/contract | External sender does not exercise browser upload UX. |
+| Durable import, backpressure, and recovery | Implemented and locally accepted | `/api/jobs/import`, job/worker/resumable services | HTTP 429 pressure; committed-boundary release; 8/8 resume | v5.23 status/T1-T20 | Approved multi-host worker supervision remains separate. |
+| UDP replay/syslog transport | Local accepted; external pending | `syslog_service.py`, `replay_logs.py`, v5.23 CLI | 20/20 local datagrams parsed; focused socket tests | v5.23 status/runbook | A non-loopback second laptop or real device has not run. |
+| Source and parser operations | Implemented and locally accepted | source/runtime parser-quality services and APIs | four sources expose health/quality; generic profile correctly limited | v5.23 status | Real-device parser diversity remains external. |
+| Source-scoped rule detection and deduplication | Implemented and locally accepted | detection/alert services | two runs; one port-scan alert; second run deduplicated; 20 occurrences/logs | v5.23 status/contract | Controlled evidence does not establish field accuracy. |
+| Investigation traceability | Implemented and locally accepted | alert evidence, case, explanation services | source-linked case, why flagged, missing context, and next steps | v5.23 status | Dashboard/Gemini quality lock is v5.24. |
+| Audit, privacy, and safety | Satisfied locally | audit/job/import/detection services | required actions present; zero unsafe writes; configured DB unchanged; cleanup passes | v5.23 status/T1-T20 | Operator/device identity is attested, not cryptographically proven. |
+
+## v5.24 Investigation And Gemini Quality Traceability Addendum
+
+| Requirement | Status | Source files/routes | Tests/evidence | Docs | Remaining gaps |
+| --- | --- | --- | --- | --- | --- |
+| Evidence-first alert investigation | Implemented | `explanations.py`, `AlertsTriage.tsx`, alert API | Playwright drawer/viewport checks | v5.24 status/T1-T20 | Real analyst usability study remains external. |
+| Evidence-first log investigation | Implemented | `explanations.py`, `LogExplorer.tsx`, log API | backend Assistant/explanation and Playwright checks | v5.24 status | Asset/business context remains analyst-supplied. |
+| Bounded Gemini quality evaluation | Implemented and passed | v5.24 service/CLI, assistant service/LLM adapter | six live calls; 11/11 gates; 3,125 ms median; 18,675 tokens | v5.24 status | Provider behavior, quota, and latency can change. |
+| Follow-up context and citation integrity | Implemented and passed | conversation audit context, structured citation filter/completion | alert related-log and next-step follow-ups retain alert 1; no unsupported IDs | v5.24 status/tests | Broader real conversation corpus is still needed. |
+| Failure fallback and privacy | Satisfied | deterministic fallback, raw-key exclusion, IP redaction | unreachable-provider fallback; no raw/IP/secret exposure | v5.24 T1-T20 | Formal provider privacy approval remains external. |
+| Read-only authority boundary | Satisfied | Assistant service and response safety contracts | zero alert/log/detection/label/model/user/response mutations | v5.24 status/tests | Real response remains separately gated and disabled. |
+
+## v5.25 Integrated Acceptance Traceability Addendum
+
+| Requirement | Status | Source files/routes | Tests/evidence | Docs | Remaining gaps |
+| --- | --- | --- | --- | --- | --- |
+| Integrated disposable workflow | Implemented and passed locally | v5.25 service/CLI; v4.8, v5.23, v5.24, E2E services | 5,000-row run; 14/14 fixed gates | v5.25 status/T1-T20 | External environments remain separate. |
+| Collection, recovery, and transport | Passed locally | import/job/worker/syslog/source services | exact 5,000 raw/normalized; recovery/backpressure; file/API/local UDP | v5.25 status | Non-loopback and real device remain open. |
+| Detection and investigation | Passed controlled acceptance | rules, alerts, cases, explanations, ML advisory path | rule authority, dedup, source/case linkage, Why flagged and next steps | v5.25 status | Independent human native labels still block supervised promotion. |
+| Gemini evidence | Passed through locked v5.24 evidence | v5.24/v5.25 services and Assistant adapter | six real calls; 11/11 fixed gates; immutable lock validation | v5.24/v5.25 status | Fresh repeat was provider-throttled; privacy/quota/key governance remains open. |
+| Analyst response and audit | Passed in disposable storage | response/audit services and E2E validator | missing note/protected target denied; approved action simulated; three records audited | v5.25 status | Real enforcement stays disabled and separately governed. |
+| Startup, setup, RBAC, and UI | Source and regression contracts passed | lifecycle scripts, shell contract, React routes/tests, RBAC tests | full backend and Playwright matrix | v5.25 T1-T20/taskboard | MFU preproduction and second-machine clean-room evidence remain external. |
+| Privacy and lifecycle safety | Satisfied | aggregate projection and configured-DB markers | no path/raw/IP/secret; no model/label authority write; DB unchanged | v5.25 status | Independent security/privacy approval remains external. |

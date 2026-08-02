@@ -114,6 +114,20 @@ def explain_log_triage(log: NormalizedLog) -> dict[str, Any]:
         else:
             reasons.append("No obvious rule-level signal is visible in the normalized fields returned for this row.")
 
+    evidence_strength = (
+        "moderate"
+        if alert_ids and normalized_signals and not parser_warnings
+        else "limited"
+    )
+    missing_context = []
+    if parser_warnings:
+        missing_context.append("clean parser evidence")
+    if app in {"", "unknown", "incomplete", "not-applicable", "unknown-tcp"}:
+        missing_context.append("confirmed application identity")
+    if not alert_ids:
+        missing_context.append("authoritative alert linkage")
+    missing_context.append("asset ownership and expected traffic baseline")
+
     analyst_next_steps = [
         "Check nearby logs from the same source IP and time window.",
         "Review parser warnings before trusting missing fields.",
@@ -144,6 +158,8 @@ def explain_log_triage(log: NormalizedLog) -> dict[str, Any]:
         "risk_score": None,
         "severity": None,
         "attack_mapping": None,
+        "evidence_strength": evidence_strength,
+        "missing_context": list(dict.fromkeys(missing_context)),
         "parser_warnings": parser_warnings[:8],
         "alert_ids": alert_ids,
         "decision_support_only": True,
@@ -323,6 +339,12 @@ def build_alert_detection_summary(db: Session, alert: Alert) -> dict[str, Any]:
                 f"{supervised.get('predicted_label')} with confidence {supervised.get('confidence', 0.0)}; "
                 "it was not used to create this alert."
             )
+    elif supervised.get("abstained"):
+        compatibility = supervised.get("schema_compatibility") or {}
+        diagnostic_points.append(
+            "Supervised scoring abstained: "
+            f"{compatibility.get('message', 'evidence did not satisfy the governed model contract')}"
+        )
 
     observed_evidence = [
         {
@@ -369,6 +391,11 @@ def build_alert_detection_summary(db: Session, alert: Alert) -> dict[str, Any]:
         parsed = primary_log.parsed_json if isinstance(primary_log.parsed_json, dict) else {}
         if parsed.get("parser_warnings"):
             missing_context.append("clean parser evidence")
+        if supervised.get("abstained"):
+            missing_context.extend(
+                f"ML-required field: {field}"
+                for field in supervised.get("missing_required_features", [])
+            )
 
     if authoritative_evidence_points:
         why = "Flagged by deterministic rule evidence because " + "; ".join(authoritative_evidence_points[:4])
@@ -415,6 +442,10 @@ def build_alert_detection_summary(db: Session, alert: Alert) -> dict[str, Any]:
             "confidence": supervised.get("confidence", 0.0),
             "observed_signals": supervised.get("observed_signals", []),
             "confidence_limitations": supervised.get("confidence_limitations", []),
+            "schema_compatibility": supervised.get("schema_compatibility"),
+            "abstained": bool(supervised.get("abstained", False)),
+            "abstention_reason_codes": supervised.get("abstention_reason_codes", []),
+            "missing_required_features": supervised.get("missing_required_features", []),
             "used_for_alert_creation": False,
             "used_for_severity": False,
             "used_for_suppression": False,
@@ -443,6 +474,10 @@ def build_alert_detection_summary(db: Session, alert: Alert) -> dict[str, Any]:
             "confidence": supervised.get("confidence", 0.0),
             "observed_signals": supervised.get("observed_signals", []),
             "confidence_limitations": supervised.get("confidence_limitations", []),
+            "schema_compatibility": supervised.get("schema_compatibility"),
+            "abstained": bool(supervised.get("abstained", False)),
+            "abstention_reason_codes": supervised.get("abstention_reason_codes", []),
+            "missing_required_features": supervised.get("missing_required_features", []),
             "used_for_alert_creation": False,
             "used_for_severity": False,
             "used_for_suppression": False,

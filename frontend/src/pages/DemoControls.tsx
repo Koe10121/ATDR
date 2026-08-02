@@ -74,8 +74,8 @@ export function DemoControls() {
   return (
     <div className="space-y-5">
       <section className="hero-panel">
-        <div className="text-sm font-extrabold uppercase tracking-wide text-danger">Demo Controls</div>
-        <h1 className="mt-2 text-3xl font-black">Prepare safe demo data and evidence.</h1>
+        <div className="text-sm font-extrabold uppercase tracking-wide text-danger">Validation Controls</div>
+        <h1 className="mt-2 text-3xl font-black">Manage controlled data and evidence.</h1>
         <p className="mt-2 text-muted">Admin-only workflow with technical outputs collapsed.</p>
       </section>
 
@@ -89,7 +89,7 @@ export function DemoControls() {
       <section className="panel">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-sm font-extrabold uppercase tracking-wide text-muted">Guided Demo Workflow</div>
+            <div className="text-sm font-extrabold uppercase tracking-wide text-muted">Controlled Validation Workflow</div>
             <div className="mt-1 text-sm text-muted">Recommended order: import, detect, train/apply ML, export bundle.</div>
           </div>
           <Badge value="ready" />

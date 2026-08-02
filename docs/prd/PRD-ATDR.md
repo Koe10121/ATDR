@@ -845,6 +845,151 @@ ATDR shall support an opt-in database-backed operation queue for selected long-r
   lifecycle remains `shadow_observation`, and activation, promotion,
   automatic response, and real blocking remain prohibited.
 
+## v5.25 Integrated Acceptance Addendum
+
+- **FR-ATDR-071:** ATDR shall provide one disposable, aggregate-only acceptance
+  path across collection, normalization, recovery, local transport, rule
+  detection, advisory ML, investigation, Assistant evidence, simulated
+  analyst response, and audit.
+- Integrated acceptance shall require exact raw/normalized accounting,
+  source/evidence traceability, alert deduplication, case/explanation evidence,
+  missing-justification and protected-target denial, and configured-database
+  preservation.
+- Gemini acceptance may use a fresh bounded provider run or a validated
+  immutable v5.24 quality lock. Deterministic fallback shall not be counted as
+  provider quality evidence.
+- Startup, teammate setup, RBAC, responsive UI, privacy, performance, and
+  release gates remain independently verifiable; one aggregate result shall
+  not hide a failed subsystem.
+- Local product-closure status shall list non-loopback transport, real device,
+  independent human labels, MFU preproduction, approved host, and provider
+  governance as separate external gates.
+- Rules remain alert-authoritative; supervised ML remains
+  `shadow_observation`; Assistant remains read-only; response remains simulated
+  and analyst-approved; production readiness is not claimed.
+
+## v5.24 Investigation And Gemini Quality Addendum
+
+- **FR-ATDR-074:** Alert and log investigation shall present what happened,
+  why evidence was flagged or not flagged, evidence strength, missing context,
+  and bounded analyst checks before technical model telemetry.
+- Technical rule/anomaly/supervised/hybrid and raw diagnostic structures shall
+  remain available through progressive disclosure without horizontal overflow.
+- Runtime navigation and empty states shall use operational SOC terminology,
+  not classroom, advisor, presentation, or demo language.
+- External assistant answers shall use bounded structured output and only
+  citations supplied by the trusted ATDR context builder. A primary trusted
+  citation shall be attached to record-specific answers.
+- Assistant quality shall be measured across alert, log, source, case, and
+  follow-up workflows for context retention, grounding, citation correctness,
+  unsupported identifiers, concision, latency, token use, provider failure,
+  privacy, and authoritative side effects.
+- Raw logs shall remain excluded from external context and IP redaction shall
+  remain enabled. The assistant shall remain read-only and shall not mutate
+  alerts, detection, labels, models, users, sources, or responses.
+- Passing a bounded provider contract does not establish universal answer
+  correctness, production readiness, or authority to act.
+
+## v5.23 Live-Source Acceptance Addendum
+
+- **FR-ATDR-068:** ATDR shall provide a disposable acceptance path covering
+  direct file import, authenticated multipart API import, durable queued
+  import, backpressure, committed-chunk recovery, and replay through a real UDP
+  socket.
+- Acceptance shall verify source health, parser quality, source-scoped
+  detection history, alert deduplication, case/evidence linkage, why-flagged
+  explanations, analyst recommendations, and audit history.
+- Local-loopback, external second-laptop, and real firewall/router evidence
+  shall be reported as distinct classes. Loopback success shall not complete
+  the external transport gate or imply device validation.
+- Public results shall exclude private paths, raw rows, sender/source/destination
+  addresses, fingerprints, staging paths, database URLs, credentials, and
+  secrets.
+- The configured database shall never be an acceptance target; disposable
+  storage shall be removed after each run.
+- Rules shall remain alert-authoritative. No acceptance run may create labels,
+  model activations/promotions, response actions, automatic response, or real
+  firewall blocking.
+
+## v5.22 Supervised Model Rebuild Requirement Update
+
+ATDR shall select supervised review-queue candidates only from predeclared
+fit, calibration, threshold, and development-evaluation evidence. Human
+authorship must be determined from approved provenance, not a generic reviewed
+flag. Weak/rule/vendor-assisted labels shall remain lower-weight development
+evidence and shall never be presented as independent ground truth.
+
+The current frozen configuration is diagnostic-only hierarchical two-stage
+ExtraTrees at threshold `0.40`. It is not an active artifact. Suspicious recall,
+calibration, source independence, and blind human confirmation remain mandatory
+gates. Rules remain alert-authoritative and response automation remains
+disabled.
+
+## v5.20 Schema-Aware Abstention Addendum
+
+- **FR-ATDR-062:** Governed supervised inference shall validate evidence
+  compatibility before model execution.
+- The current supervised contract expects native `palo_alto` evidence with a
+  timestamp, source/destination IP presence, destination port, protocol,
+  action, and application.
+- Incompatible, unknown, parser-failed, or incomplete evidence shall abstain
+  and shall not return a supervised queue probability.
+- Historical rows without explicit parser-profile metadata may use ATDR's
+  established Palo Alto default only when every required field is present.
+- Abstention shall not create, suppress, reprioritize, or reduce a deterministic
+  rule alert. Rules remain alert-authoritative.
+- Alert explanations and AI Governance shall expose privacy-safe schema status,
+  reason codes, missing field names, and aggregate abstention counts.
+- v5.19 terminal evidence shall remain immutable and shall not be reopened for
+  tuning or a new blind claim.
+- The lifecycle remains `shadow_observation`; model activation/promotion,
+  automatic response, and real firewall blocking remain prohibited.
+
+## v5.21 Native PAN-OS Evidence Program Addendum
+
+- **FR-ATDR-069:** ATDR shall prepare private native PAN-OS evidence through an
+  explicit disposable-storage CLI without opening or writing the configured
+  database.
+- Evidence roles shall be assigned chronologically before any assisted
+  decision: development fit, calibration, threshold selection, and untouched
+  future validation.
+- Exact and near-duplicate families shall not cross evidence roles.
+- Development suggestions shall remain weak/assisted, require human
+  confirmation, and remain not import-ready.
+- Untouched-future evidence shall contain no rule, model, or AI suggestion and
+  shall stay sealed during model development.
+- Public output shall exclude raw rows, source/destination addresses, private
+  paths, reusable fingerprints, database details, and secrets.
+- Official PAN-OS field semantics shall guide evidence interpretation. TRAFFIC
+  action/application/port context, THREAT records, and application risk shall
+  not be converted automatically into human-reviewed labels.
+- The complete private source may support diagnostic native-schema rebuilding,
+  but one device and absent independent labels shall remain insufficient for
+  activation, production promotion, or source-generalization claims.
+- Rules remain alert-authoritative; model activation/promotion, automatic
+  response, and real firewall blocking remain prohibited.
+
+## v5.19 Independent Labeled Validation Addendum
+
+- **FR-ATDR-063:** ATDR shall support a one-shot, prediction-before-label
+  evaluation against authoritative independent network-security evidence.
+- Evidence selection shall use primary publisher/university sources and record
+  provenance, license, schema, label meaning, collection limitations, and
+  development-overlap decisions.
+- The private evidence manifest shall be immutable and remain outside Git.
+- Feature mapping, taxonomy, ambiguity handling, duplicate containment,
+  candidate identity, calibration, threshold, metrics, and gates shall be
+  frozen before final labels are read.
+- Sampling, features, and predictions shall not access provider labels.
+- Provider taxonomy shall not be expanded into unsupported ATDR classes.
+- Repeated final-label execution shall fail closed.
+- A post-blind adapter diagnostic shall preserve the original failed record,
+  retain frozen predictions, and remain ineligible for activation.
+- Public output shall exclude paths, checksums, raw rows, IPs, database URLs,
+  secrets, and private evidence identifiers.
+- Independent transfer failure shall retain `shadow_observation`; it shall not
+  trigger model tuning, alert authority, automatic response, or blocking.
+
 ## v5.14 Large-File Runtime Acceptance Addendum
 
 - **FR-ATDR-064:** ATDR shall provide a fail-closed, disposable acceptance

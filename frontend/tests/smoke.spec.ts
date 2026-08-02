@@ -961,7 +961,25 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
   await page.route("**/api/ml/evidence-snapshot", async (route) =>
     route.fulfill({
       json: {
-        schema_version: "1.0",
+        schema_version: "1.1",
+        schema_aware_abstention: {
+          contract_version: "v5.20-schema-aware-abstention-v1",
+          expected_schema_id: "palo_alto",
+          required_features: ["timestamp", "src_ip", "dst_ip", "dst_port", "protocol", "action", "app"],
+          compatible_status: "compatible",
+          fail_closed: true,
+          incompatible_evidence_scored: false,
+          rules_remain_authoritative: true,
+          decision_support_only: true,
+          production_promoted: false,
+          response_automation_allowed: false,
+          runtime: {
+            rows_checked: 4,
+            abstained_count: 1,
+            abstention_rate: 0.25,
+            reason_counts: { schema_profile_mismatch: 1 }
+          }
+        },
         canonical_evidence: {
           available: true,
           status: "completed_candidate_only",
@@ -2425,6 +2443,10 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByText("Evidence Provenance", { exact: true })).toBeVisible();
   await expect(page.getByText("CSE-CIC-IDS2018 development-only evidence", { exact: true })).toBeVisible();
   await expect(page.getByText("Supervised Artifact", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("schema-aware-abstention")).toContainText("Fail closed");
+  await expect(page.getByTestId("schema-aware-abstention")).toContainText("1 of 4 runtime rows abstained");
+  await page.getByText("Schema compatibility policy", { exact: true }).click();
+  await expect(page.getByText("Incompatible evidence scored: no", { exact: true })).toBeVisible();
   const modelRegistry = page.getByTestId("supervised-model-registry");
   await expect(modelRegistry.getByText("Metadata unknown", { exact: true })).toBeVisible();
   await expect(modelRegistry.getByText("active metadata unavailable", { exact: true })).toBeVisible();
@@ -3071,6 +3093,11 @@ test("deep-linked alert and log drawers render", async ({ page }) => {
   await page.goto("/alerts?alert=1");
   await expect(page.getByRole("heading", { name: "Critical: Smoke alert" })).toBeVisible();
   await expect(page.getByText("Why flagged?")).toBeVisible();
+  await expect(page.getByText("What happened", { exact: true })).toBeVisible();
+  await expect(page.getByText("Evidence strength", { exact: true })).toBeVisible();
+  await expect(page.getByText("Missing context", { exact: true })).toBeVisible();
+  await expect(page.getByText("Recommended checks", { exact: true })).toBeVisible();
+  await page.getByText("Detection layer detail", { exact: true }).click();
   await expect(page.getByText("Rule Authority")).toBeVisible();
   await expect(page.getByText("Anomaly Advisory")).toBeVisible();
   await expect(page.getByText("Supervised Shadow")).toBeVisible();
@@ -3108,6 +3135,69 @@ test("deep-linked alert and log drawers render", async ({ page }) => {
   await expect(page.getByText("Automation Disabled", { exact: true })).toBeVisible();
   await expect(page.getByText("Analyst ML Label")).toBeVisible();
   await expect(page.getByText("Raw Evidence", { exact: true })).toBeVisible();
+});
+
+test("alert detail shows supervised schema abstention without a false score", async ({ page }) => {
+  await mockApi(page);
+  await seedSession(page);
+  await page.route("**/api/alerts/1", (route) =>
+    route.fulfill({
+      json: {
+        id: 1,
+        title: "Critical: Schema-gated alert",
+        alert_type: "policy_deny",
+        src_ip: "203.0.113.10",
+        dst_ip: "10.0.0.5",
+        threat_score: 88,
+        severity: "Critical",
+        status: "open",
+        explanation: "Deterministic rule evidence created this alert.",
+        matched_rules_json: [{ code: "policy_deny", title: "Policy deny", explanation: "Denied traffic." }],
+        recommended_response: "Review related logs.",
+        created_at: "2026-08-01T00:00:00Z",
+        updated_at: "2026-08-01T00:00:00Z",
+        evidence_count: 1,
+        evidence_log_ids: [1],
+        source_ids: [1],
+        source_names: ["generic-source"],
+        detection_summary: {
+          detection_source: ["rule"],
+          attack_type: "policy_violation",
+          attack_mapping: {
+            attack_type: "policy_violation",
+            tactic: "Defense Evasion",
+            technique: "Policy violation",
+            technique_id: "ATDR-RULE",
+            description: "Deterministic policy evidence."
+          },
+          matched_rule_names: ["Policy deny"],
+          anomaly: { present: false },
+          supervised: {
+            predicted_label: null,
+            malicious_probability: 0,
+            confidence: 0,
+            abstained: true,
+            missing_required_features: ["app", "action"],
+            schema_compatibility: { status: "incompatible_schema" },
+            decision_support_only: true
+          },
+          hybrid_risk: {},
+          behavior_window: {},
+          top_evidence_points: ["Policy deny: Denied traffic."],
+          why_flagged: "Flagged by deterministic policy-deny evidence."
+        }
+      }
+    })
+  );
+
+  await page.goto("/alerts?alert=1");
+  await page.getByText("Detection layer detail", { exact: true }).click();
+  const shadow = page.getByText("Supervised Shadow").locator("..");
+  await expect(shadow).toContainText("Abstained");
+  await expect(shadow).toContainText("Schema incompatible_schema");
+  await expect(shadow).toContainText("Missing: app, action");
+  await expect(shadow).not.toContainText("Threat-positive score 0");
+  await expect(page.getByText("Rule Authority")).toBeVisible();
 });
 
 test("operations queue shows safe queued-job cancellation", async ({ page }) => {

@@ -31,6 +31,11 @@ from atdr.app.detection import v56_private_panos_model_repair as v56
 from atdr.app.detection import v57_independent_shadow_revalidation as v57
 from atdr.app.detection.rules import build_detection_context, evaluate_rules
 from atdr.app.detection.supervised_detector import _optional_imports
+from atdr.app.detection.v520_schema_aware_abstention import (
+    assess_log_schema_compatibility,
+    public_schema_abstention_policy,
+    summarize_schema_compatibility,
+)
 from atdr.app.ml.features import build_feature_rows
 
 
@@ -460,6 +465,7 @@ def _base_status(
         "lifecycle_state": "shadow_observation",
         "candidate_contract": _public_contract(contract),
         "candidate_contract_matched": bool(contract.get("matched")),
+        "schema_aware_abstention": public_schema_abstention_policy(),
         "independent_evidence": evidence,
         "blind_metrics_available": bool(
             evidence.get("blind_metrics_available")
@@ -677,19 +683,25 @@ def _aggregate_shadow_telemetry(
     if imports is None:
         raise RuntimeError("optional_dependencies_unavailable")
     pandas = imports[1]
+    compatibility = [assess_log_schema_compatibility(log) for log in logs]
+    compatibility_summary = summarize_schema_compatibility(compatibility)
+    compatible_positions = [
+        position
+        for position, assessment in enumerate(compatibility)
+        if assessment["scoring_allowed"]
+    ]
+    compatible_logs = [logs[position] for position in compatible_positions]
     base_features = build_feature_rows(db, logs)
+    compatible_base_features = [base_features[position] for position in compatible_positions]
     model_rows = [
         v56._human_feature_row(row, log)
-        for row, log in zip(base_features, logs, strict=True)
+        for row, log in zip(compatible_base_features, compatible_logs, strict=True)
     ]
     frame = pandas.DataFrame(model_rows).reindex(columns=feature_names)
-    probabilities = pipeline.predict_proba(frame)
     classes = [str(value) for value in pipeline.classes_]
     positive_index = classes.index("needs_review")
-    queue_scores = [
-        float(row[positive_index])
-        for row in probabilities
-    ]
+    probabilities = pipeline.predict_proba(frame) if compatible_logs else []
+    queue_scores = [float(row[positive_index]) for row in probabilities]
     queued = [score >= threshold for score in queue_scores]
     confidence = [max(score, 1.0 - score) for score in queue_scores]
 
@@ -701,7 +713,7 @@ def _aggregate_shadow_telemetry(
     anomaly_count = 0
     timestamps: list[datetime] = []
     for log, score, shadow_queue in zip(
-        logs,
+        compatible_logs,
         queue_scores,
         queued,
         strict=True,
@@ -736,13 +748,15 @@ def _aggregate_shadow_telemetry(
         if log.anomaly_score is not None:
             anomaly_scores.append(float(log.anomaly_score))
 
-    total = len(logs)
+    total = len(compatible_logs)
     disagreement_count = (
         agreement["rule_only"] + agreement["shadow_only"]
     )
     ordered = timestamps == sorted(timestamps)
     return {
+        "rows_checked": len(logs),
         "rows_evaluated": total,
+        "schema_compatibility": compatibility_summary,
         "queue_count": sum(int(value) for value in queued),
         "queue_rate": (
             round(sum(int(value) for value in queued) / total, 6)

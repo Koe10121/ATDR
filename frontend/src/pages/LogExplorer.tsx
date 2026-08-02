@@ -286,7 +286,7 @@ export function LogExplorer() {
             </tbody>
           </table>
         </div>
-        {!logs.isLoading && !logRows.length ? <EmptyState title="No logs match" body="Adjust filters or import sample logs from Demo Controls." /> : null}
+        {!logs.isLoading && !logRows.length ? <EmptyState title="No logs match" body="Adjust filters or import controlled logs from Validation Controls." /> : null}
       </section>
 
       <PaginationControls limit={limit} offset={offset} resultCount={logRows.length} totalCount={logs.data?.totalCount} onLimitChange={setLimit} onOffsetChange={setOffset} />
@@ -346,6 +346,20 @@ export function LogExplorer() {
                   {selected.triage_explanation.reasons.slice(0, 4).map((reason) => (
                     <div key={reason} className="rounded border border-line bg-shell p-3 text-sm text-muted">{reason}</div>
                   ))}
+                </div>
+                <div className="mt-3 grid gap-2 md:grid-cols-2">
+                  <div className="rounded border border-line bg-panel2 p-3">
+                    <div className="text-xs font-bold uppercase tracking-wide text-muted">Evidence strength</div>
+                    <div className="mt-1 text-sm font-bold text-text">{selected.triage_explanation.evidence_strength ?? "analyst review required"}</div>
+                  </div>
+                  <div className="rounded border border-line bg-panel2 p-3">
+                    <div className="text-xs font-bold uppercase tracking-wide text-muted">Missing context</div>
+                    <div className="mt-1 text-sm font-semibold text-text">
+                      {selected.triage_explanation.missing_context?.length
+                        ? selected.triage_explanation.missing_context.slice(0, 3).join("; ")
+                        : "No explicit gap recorded; verify environment context."}
+                    </div>
+                  </div>
                 </div>
                 {selected.triage_explanation.parser_warnings.length ? (
                   <details className="mt-3">

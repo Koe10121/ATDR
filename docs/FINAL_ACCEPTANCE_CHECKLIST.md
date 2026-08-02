@@ -4,6 +4,16 @@ Record the test date, tester, result, and evidence for each item.
 
 ## Startup
 
+- [ ] Integrated MFU-shell startup succeeds with:
+
+  ```powershell
+  .\scripts\start_system.cmd
+  .\scripts\check_system.cmd
+  ```
+
+- [ ] The shell login opens at `http://localhost:8080/#/pages/login` and a
+  successful handoff reaches the ATDR React dashboard.
+
 - [ ] Backend starts with:
 
   ```powershell
@@ -52,10 +62,11 @@ Record the test date, tester, result, and evidence for each item.
 
 ## AI Governance
 
-- [ ] Candidate is `independent_fpr_stabilized`.
-- [ ] Fresh blind holdout shows 700 rows, 7 sources, and 16 scenarios.
-- [ ] Readiness v8 shows 22/22.
-- [ ] Status shows `Final Controlled Validation Candidate`.
+- [ ] Supervised lifecycle shows `shadow_observation`.
+- [ ] Schema-incompatible evidence abstains before supervised inference.
+- [ ] v5.22 shadow candidate limitations remain visible: independent human
+  labels, suspicious recall, source diversity, and calibration are open.
+- [ ] No model is shown as activated or production-promoted.
 - [ ] `Decision Support Only` is visible.
 - [ ] `Not Production Promoted` is visible.
 - [ ] `Response Automation Disabled` is visible.
@@ -72,17 +83,19 @@ Record the test date, tester, result, and evidence for each item.
 - [ ] Approved response remains simulated.
 - [ ] Audit record includes actor, action, target, result, and time.
 - [ ] No ML output creates an automatic response.
-- [ ] Final scenario response actions remain 0 before/after.
+- [ ] Detection/scenario execution creates no automatic response action.
+- [ ] A response record appears only after explicit analyst confirmation and
+  remains simulated.
 - [ ] No real firewall change occurs.
 
 ## Performance And Quality
 
-- [ ] Overview summary is responsive for the local dataset.
-- [ ] AI Governance lightweight summary loads without blocking navigation.
-- [ ] Alerts and cases load within acceptable lab timing.
-- [ ] Dashboard has no horizontal overflow.
-- [ ] Loading, empty, and error states are readable.
-- [ ] Performance smoke reports no warning:
+- [x] Overview summary is responsive for the local dataset.
+- [x] AI Governance lightweight summary loads without blocking navigation.
+- [x] Alerts and cases load within acceptable lab timing.
+- [x] Dashboard has no horizontal overflow.
+- [x] Loading, empty, and error states are readable.
+- [x] Performance smoke reports no warning:
 
   ```powershell
   .\.venv\Scripts\python.exe -m atdr.scripts.performance_smoke
@@ -90,17 +103,18 @@ Record the test date, tester, result, and evidence for each item.
 
 ## Final Verification
 
-- [ ] Ruff passes.
-- [ ] Compileall passes.
-- [ ] Backend tests pass.
-- [ ] Alembic reports no drift.
-- [ ] React lint passes.
-- [ ] React build passes.
-- [ ] Playwright passes.
-- [ ] Replay dry-run passes.
-- [ ] Controlled source validation passes.
-- [ ] v2.0 fresh blind revalidation passes without tuning.
-- [ ] Release gate passes:
+- [x] Ruff passes.
+- [x] Compileall passes.
+- [x] Backend tests pass.
+- [x] Alembic reports no drift.
+- [x] React lint passes.
+- [x] React build passes.
+- [x] Playwright passes.
+- [x] Replay dry-run passes.
+- [x] Controlled source validation passes.
+- [x] v5.25 integrated acceptance passes `14/14` using disposable storage and
+  fresh or validated locked Gemini evidence.
+- [x] Release gate passes:
 
   ```powershell
   .\.venv\Scripts\python.exe -m atdr.scripts.verify_release
@@ -108,18 +122,21 @@ Record the test date, tester, result, and evidence for each item.
 
 ## Repository Hygiene
 
-- [ ] No real/private logs are staged or tracked.
-- [ ] No `.env` file is staged or tracked.
-- [ ] No SQLite/DB file is staged or tracked.
-- [ ] No model artifact is staged or tracked.
-- [ ] No generated CSV/report or benchmark snapshot is staged or tracked.
-- [ ] `ml_baseline_reviews/`, `demo_exports/`, and processed logs remain ignored.
+- [x] No real/private logs are staged or tracked.
+- [x] No `.env` file is staged or tracked.
+- [x] No SQLite/DB file is staged or tracked.
+- [x] No model artifact is staged or tracked.
+- [x] No generated CSV/report or benchmark snapshot is staged or tracked.
+- [x] `ml_baseline_reviews/`, `demo_exports/`, and processed logs remain ignored.
 
 ## Final Sign-Off
 
-- [ ] Validated scope is described as controlled lab decision support.
-- [ ] Production promotion remains false.
-- [ ] Model activation remains false.
-- [ ] Response automation remains disabled.
-- [ ] Real firewall blocking remains disabled.
-- [ ] Remaining limitations are disclosed.
+- [x] Validated scope is described as controlled lab decision support.
+- [x] Production promotion remains false.
+- [x] Model activation remains false.
+- [x] Response automation remains disabled.
+- [x] Real firewall blocking remains disabled.
+- [x] Remaining limitations are disclosed.
+- [x] Non-loopback transport, real firewall/router, independent native human
+  labels, MFU preproduction, approved host, and Gemini deployment governance
+  remain listed as external gates unless separately evidenced.

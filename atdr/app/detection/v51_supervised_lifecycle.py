@@ -20,6 +20,10 @@ from atdr.app.detection import v398_independent_holdout_validation as frozen
 from atdr.app.detection import v49_detection_ml_reliability as reliability
 from atdr.app.detection.supervised_detector import MODEL_NAME, _artifact_hash
 from atdr.app.detection.v331_noise_reduction import _classes
+from atdr.app.detection.v520_schema_aware_abstention import (
+    assess_log_schema_compatibility,
+    summarize_schema_compatibility,
+)
 from atdr.app.ml.features import build_feature_rows
 
 
@@ -53,6 +57,9 @@ _telemetry: dict[str, Any] = {
     "failure_count": 0,
     "missing_feature_values": 0,
     "feature_values_checked": 0,
+    "schema_compatibility_checked": 0,
+    "schema_abstention_count": 0,
+    "schema_abstention_reasons": Counter(),
     "latencies_ms": deque(maxlen=1000),
     "queue_scores": deque(maxlen=5000),
 }
@@ -593,6 +600,8 @@ def _telemetry_snapshot(model_version: str | None) -> dict[str, Any]:
         scores = list(_telemetry["queue_scores"])
         checked = int(_telemetry["feature_values_checked"])
         missing = int(_telemetry["missing_feature_values"])
+        compatibility_checked = int(_telemetry["schema_compatibility_checked"])
+        abstained = int(_telemetry["schema_abstention_count"])
         buckets = {
             "0.0-0.2": sum(1 for score in scores if 0.0 <= score < 0.2),
             "0.2-0.4": sum(1 for score in scores if 0.2 <= score < 0.4),
@@ -612,6 +621,14 @@ def _telemetry_snapshot(model_version: str | None) -> dict[str, Any]:
                 "maximum": round(max(latencies), 4) if latencies else 0.0,
             },
             "missing_feature_rate": round(missing / checked, 6) if checked else 0.0,
+            "schema_compatibility_checked": compatibility_checked,
+            "schema_abstention_count": abstained,
+            "schema_abstention_rate": round(abstained / compatibility_checked, 6)
+            if compatibility_checked
+            else 0.0,
+            "schema_abstention_reasons": dict(
+                sorted(_telemetry["schema_abstention_reasons"].items())
+            ),
             "queue_rate": round(sum(1 for score in scores if score >= 0.5) / len(scores), 6) if scores else 0.0,
             "queue_score_distribution": {
                 "count": len(scores),
@@ -1494,29 +1511,72 @@ def score_governed_supervised_logs(db: Session, logs: list[NormalizedLog]) -> di
         artifact = _load_governed_artifact(str(path.resolve()), path.stat().st_mtime_ns, str(model_run.artifact_sha256))
         import pandas as pd
 
-        base = pd.DataFrame(build_feature_rows(db, logs))
-        frame, _meta = frozen._local_evidence_frame(base, logs)
+        compatibility = [assess_log_schema_compatibility(log) for log in logs]
+        compatibility_summary = summarize_schema_compatibility(compatibility)
+        compatible_positions = [
+            position
+            for position, assessment in enumerate(compatibility)
+            if assessment["scoring_allowed"]
+        ]
+        compatible_logs = [logs[position] for position in compatible_positions]
         model = artifact["model"]
         classes = _classes(model)
         if "needs_review" not in classes:
             raise ValueError("Governed model is missing needs_review class probability.")
         positive_index = classes.index("needs_review")
-        probabilities = model.predict_proba(frame)
         threshold = float(artifact.get("threshold", 0.5))
         expected = [
             *artifact["feature_schema"]["numeric"],
             *artifact["feature_schema"]["categorical"],
         ]
+        frame = pd.DataFrame()
+        probabilities: Any = []
+        if compatible_logs:
+            base = pd.DataFrame(build_feature_rows(db, compatible_logs))
+            frame, _meta = frozen._local_evidence_frame(base, compatible_logs)
+            probabilities = model.predict_proba(frame)
         missing_values = 0
         for column in expected:
             if column not in frame.columns:
-                missing_values += len(frame)
+                missing_values += len(compatible_logs)
                 continue
             missing_values += int(frame[column].isna().sum())
         rows: list[dict[str, Any]] = []
         scores: list[float] = []
+        probability_position = 0
         for position, log in enumerate(logs):
-            score = float(probabilities[position][positive_index])
+            assessment = compatibility[position]
+            if not assessment["scoring_allowed"]:
+                rows.append(
+                    {
+                        "log_id": int(log.id),
+                        "queue_decision": None,
+                        "queue_probability": None,
+                        "threshold": threshold,
+                        "calibration_method": artifact.get("calibration_method"),
+                        "model_version": artifact.get("model_version"),
+                        "feature_set_version": artifact.get("feature_set_version"),
+                        "lifecycle_state": status["lifecycle_state"],
+                        "observed_signals": [],
+                        "schema_compatibility": assessment,
+                        "abstained": True,
+                        "abstention_reason_codes": assessment["abstention_reason_codes"],
+                        "missing_required_features": assessment["missing_required_features"],
+                        "confidence_limitations": [
+                            assessment["message"],
+                            "No supervised probability was produced for this evidence.",
+                            "Rules remain authoritative for alert creation.",
+                        ],
+                        "used_for_alert_creation": False,
+                        "used_for_severity": False,
+                        "used_for_suppression": False,
+                        "response_action_allowed": False,
+                    }
+                )
+                continue
+            score = float(probabilities[probability_position][positive_index])
+            frame_row = frame.iloc[probability_position]
+            probability_position += 1
             scores.append(score)
             rows.append(
                 {
@@ -1528,7 +1588,11 @@ def score_governed_supervised_logs(db: Session, logs: list[NormalizedLog]) -> di
                     "model_version": artifact.get("model_version"),
                     "feature_set_version": artifact.get("feature_set_version"),
                     "lifecycle_state": status["lifecycle_state"],
-                    "observed_signals": _observed_signals(frame.iloc[position]),
+                    "observed_signals": _observed_signals(frame_row),
+                    "schema_compatibility": assessment,
+                    "abstained": False,
+                    "abstention_reason_codes": [],
+                    "missing_required_features": [],
                     "confidence_limitations": [
                         "Queue probability is calibrated decision-support evidence, not proof of compromise.",
                         "Rules remain authoritative for alert creation.",
@@ -1548,22 +1612,38 @@ def score_governed_supervised_logs(db: Session, logs: list[NormalizedLog]) -> di
                 _telemetry["failure_count"] = 0
                 _telemetry["missing_feature_values"] = 0
                 _telemetry["feature_values_checked"] = 0
+                _telemetry["schema_compatibility_checked"] = 0
+                _telemetry["schema_abstention_count"] = 0
+                _telemetry["schema_abstention_reasons"].clear()
                 _telemetry["latencies_ms"].clear()
                 _telemetry["queue_scores"].clear()
-            _telemetry["inference_count"] += len(rows)
+            _telemetry["inference_count"] += len(compatible_logs)
             _telemetry["batch_count"] += 1
             _telemetry["missing_feature_values"] += missing_values
-            _telemetry["feature_values_checked"] += len(expected) * len(rows)
+            _telemetry["feature_values_checked"] += len(expected) * len(compatible_logs)
+            _telemetry["schema_compatibility_checked"] += len(logs)
+            _telemetry["schema_abstention_count"] += compatibility_summary["abstained_count"]
+            _telemetry["schema_abstention_reasons"].update(
+                compatibility_summary["reason_counts"]
+            )
             _telemetry["latencies_ms"].append(elapsed_ms / max(1, len(rows)))
             _telemetry["queue_scores"].extend(scores)
         return {
             "ok": True,
-            "status": "scored",
+            "status": "scored"
+            if not compatibility_summary["abstained_count"]
+            else "scored_with_schema_abstentions"
+            if compatible_logs
+            else "schema_abstained_no_model_inference",
             "lifecycle": status,
             "rows": rows,
             "batch_latency_ms": round(elapsed_ms, 4),
             "average_latency_ms_per_row": round(elapsed_ms / max(1, len(rows)), 4),
-            "missing_feature_rate": round(missing_values / max(1, len(expected) * len(rows)), 6),
+            "missing_feature_rate": round(
+                missing_values / max(1, len(expected) * len(compatible_logs)),
+                6,
+            ),
+            "schema_compatibility": compatibility_summary,
             "decision_support_only": True,
             "used_for_alert_creation": False,
             "response_automation_allowed": False,
@@ -1603,6 +1683,33 @@ def score_governed_supervised_log(db: Session, log: NormalizedLog) -> dict[str, 
             "used_for_alert_creation": False,
         }
     row = result["rows"][0]
+    if row.get("abstained"):
+        return {
+            "predicted_label": None,
+            "direct_predicted_label": None,
+            "queue_decision": None,
+            "queue_probability": None,
+            "malicious_probability": 0.0,
+            "confidence": 0.0,
+            "threshold": row["threshold"],
+            "calibration_method": row["calibration_method"],
+            "model_version": row["model_version"],
+            "feature_set_version": row["feature_set_version"],
+            "lifecycle_state": row["lifecycle_state"],
+            "top_contributing_features": [],
+            "observed_signals": [],
+            "schema_compatibility": row["schema_compatibility"],
+            "abstained": True,
+            "abstention_reason_codes": row["abstention_reason_codes"],
+            "missing_required_features": row["missing_required_features"],
+            "confidence_limitations": row["confidence_limitations"],
+            "rule_detection_continues": True,
+            "decision_support_only": True,
+            "used_for_alert_creation": False,
+            "used_for_severity": False,
+            "used_for_suppression": False,
+            "response_automation_allowed": False,
+        }
     return {
         "predicted_label": row["queue_decision"],
         "direct_predicted_label": row["queue_decision"],
@@ -1620,6 +1727,10 @@ def score_governed_supervised_log(db: Session, log: NormalizedLog) -> dict[str, 
         "top_contributing_features": row["observed_signals"],
         "observed_signals": row["observed_signals"],
         "confidence_limitations": row["confidence_limitations"],
+        "schema_compatibility": row["schema_compatibility"],
+        "abstained": False,
+        "abstention_reason_codes": [],
+        "missing_required_features": [],
         "rule_detection_continues": True,
         "decision_support_only": True,
         "used_for_alert_creation": False,

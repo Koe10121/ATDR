@@ -159,22 +159,24 @@ export function AssistantAnswerContent({ response }: { response: AssistantChatRe
   }
   return (
     <div className="space-y-3" data-testid="assistant-answer-sections">
-      <SectionCard title="Summary" items={sections.summary.slice(0, 2)} />
-      <SectionCard
-        title="Why flagged / evidence"
-        items={(sections.evidence.length ? sections.evidence : sections.why_flagged_or_not).slice(0, 3)}
-      />
-      <SectionCard
-        title="Analyst next steps"
-        items={(sections.what_to_check_next.length ? sections.what_to_check_next : sections.safe_next_steps).slice(0, 3)}
-      />
-      <SectionCard title="Safety" items={(sections.safety_note.length ? sections.safety_note : sections.safety_limitation).slice(0, 1)} />
+      <div className="grid gap-3 lg:grid-cols-2">
+        <SectionCard title="What happened" items={sections.summary.slice(0, 2)} />
+        <SectionCard
+          title="Why flagged / evidence"
+          items={(sections.evidence.length ? sections.evidence : sections.why_flagged_or_not).slice(0, 3)}
+        />
+        <SectionCard title="Evidence strength" items={sections.risk_interpretation.slice(0, 2)} />
+        <SectionCard title="Missing context" items={sections.limitations.slice(0, 2)} />
+        <SectionCard
+          title="Analyst next steps"
+          items={(sections.what_to_check_next.length ? sections.what_to_check_next : sections.safe_next_steps).slice(0, 3)}
+        />
+        <SectionCard title="Safety" items={(sections.safety_note.length ? sections.safety_note : sections.safety_limitation).slice(0, 1)} />
+      </div>
       <details className="rounded-lg border border-line bg-white p-3" data-testid="assistant-technical-detail">
         <summary className="cursor-pointer text-xs font-black uppercase tracking-wide text-muted">Technical Detail</summary>
         <div className="mt-3 space-y-3">
-          <SectionCard title="Risk interpretation" items={sections.risk_interpretation.slice(0, 5)} />
           <SectionCard title="Related context" items={sections.related_context.slice(0, 5)} />
-          <SectionCard title="Limitations" items={sections.limitations.slice(0, 5)} />
           <div className="max-h-72 overflow-auto rounded-lg border border-line bg-panel2 p-4 text-sm font-semibold leading-relaxed text-muted whitespace-pre-wrap break-words">
             {response.answer}
           </div>

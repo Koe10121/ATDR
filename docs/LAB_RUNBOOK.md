@@ -1840,3 +1840,200 @@ Expected high-level result:
 - `current_database_unchanged=true` and `temp_artifacts_removed=true`.
 
 The command refuses to run without `--use-temp-db`. It disables external IAM, SMTP, and LLM calls inside the acceptance runtime and does not change normal startup commands. The generic-router warning and raw-fallback error are expected data-quality evidence, not infrastructure failures. See `docs/V4_8_END_TO_END_PRODUCT_ACCEPTANCE.md`.
+
+## v5.19 Independent Labeled Validation
+
+Keep official CTU-13 bidirectional-flow files and the private immutable manifest
+under ignored storage. Never place them in `data/samples/`, tracked docs, or a
+configured database. Run label-sealed preflight first:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v519_independent_labeled_validation `
+  --dataset-path <IGNORED_CTU13_DIRECTORY> `
+  --manifest-path <IGNORED_PRIVATE_MANIFEST> `
+  --preflight-only `
+  --pretty
+```
+
+For a new untouched protocol state, execute exactly once with `--execute
+--confirm`. A completed state reports locked, and a repeated reveal fails
+closed. Do not remove that lock to obtain a more favorable result.
+
+The recorded v5.19 first reveal failed its provider-label adapter. The one-time
+normalization diagnostic is not fresh blind evidence and failed fixed transfer
+gates with FPR `0.9978` and weak calibration. CTU-13 is not native PAN-OS, so
+the result cannot establish full rule coverage or production accuracy. Keep
+the supervised lifecycle in `shadow_observation`; do not tune on the opened
+labels. See `docs/V5_19_INDEPENDENT_LABELED_BLIND_VALIDATION.md`.
+
+## v5.20 Schema-Aware Abstention
+
+Validate the pre-inference schema gate without touching the configured
+database:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v520_schema_aware_abstention --pretty
+```
+
+In the dashboard, open **AI Governance** and confirm **Schema Gate: Fail
+closed**. For an alert whose normalized evidence is incomplete or outside the
+native PAN-OS contract, open alert detail and confirm the supervised section
+shows **Abstained**, the schema status, and missing required field names rather
+than a zero or confident threat score.
+
+Abstention affects only supervised decision-support scoring. Rule detection
+continues, existing alerts are not suppressed, and no response is triggered.
+Use v5.21 to prepare native chronological PAN-OS evidence; do not reuse opened
+v5.19 labels for tuning.
+
+## v5.21 Native PAN-OS Evidence Preparation
+
+Use this only with a private file that remains outside Git:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v521_native_panos_evidence `
+  --sample-path "<private-panos-log>" `
+  --use-temp-db `
+  --review-limit 160 `
+  --pretty
+```
+
+Expected safe behavior:
+
+- the configured database is not opened or changed;
+- the source is streamed into disposable SQLite in bounded chunks;
+- chronological roles are assigned before assisted decisions;
+- exact and near-duplicate families do not cross role boundaries;
+- the development pack is weak/assisted, not human-reviewed, and not
+  import-ready;
+- the blind pack contains no rule/model/AI suggestions;
+- output JSON exposes no path, raw row, IP, reusable fingerprint, or secret;
+  and
+- no label, model artifact, alert, detection run, or response action is
+  created.
+
+The measured v5.21 run parsed 773,551/773,551 rows, created 22 chronological
+windows, retained 112,004 rows in untouched future validation, and reported
+zero cross-role duplicate families. These are evidence-quality and parser
+results, not malicious-detection accuracy.
+
+## v5.22 Supervised Shadow Rebuild Check
+
+After a complete v5.21 role lock, validate the native supervised development
+path with:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v522_supervised_model_rebuild `
+  --sample-path <private-panos-path> --use-temp-db --preflight-only --pretty
+```
+
+Remove `--preflight-only` only when running the bounded model comparison. A
+valid result reproduces the v5.21 lock, reports zero future/blind access and
+zero authoritative writes, and leaves lifecycle `shadow_observation`.
+
+## v5.23 Live-Source Acceptance
+
+Run the consolidated local acceptance in disposable storage:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v523_live_source_acceptance `
+  --sample-path "<PRIVATE_PANOS_PATH>" --use-temp-db `
+  --transport-mode local_loopback --message-count 20 --timeout 20 --pretty
+```
+
+Expected local result:
+
+- file, multipart API, queued/resumable, backpressure, and UDP checks pass;
+- the source-scoped port-scan alert is created once and deduplicated on the
+  second detection run;
+- source health, parser quality, case linkage, why-flagged evidence, analyst
+  next steps, and required audit actions are present;
+- response, label, model-run, and user writes remain zero;
+- the configured database marker is unchanged and temporary storage is
+  removed; and
+- status is `v5_23_local_acceptance_passed_external_sender_pending`, not a
+  real-device claim.
+
+To close the phase without firewall hardware, run the receiver on the ATDR
+laptop:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v523_live_source_acceptance `
+  --use-temp-db --transport-mode external_sender --bind-host 0.0.0.0 `
+  --port 5515 --message-count 5 --timeout 60 `
+  --external-sender-kind second_laptop --pretty
+```
+
+Then send from a second laptop:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.send_sample_syslog `
+  --host <ATDR_LAPTOP_LAN_IP> --port 5515 --count 5 --delay 0.1
+```
+
+Use `firewall` or `router` attestation only for the corresponding real device.
+Second-laptop evidence validates external UDP transport, not firewall parser
+behavior. See `docs/V5_23_LIVE_SOURCE_ACCEPTANCE.md`.
+
+## v5.24 Investigation And Gemini Quality Lock
+
+Run the deterministic/no-provider preflight first:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v524_investigation_gemini_quality_lock --no-write --pretty
+```
+
+When the private Gemini configuration is intentionally enabled, run the
+bounded six-question provider check:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v524_investigation_gemini_quality_lock --execute-provider --pretty
+```
+
+Expected result is `v5_24_quality_lock_passed`, six provider answers, 11/11
+quality/safety checks, safe deterministic fallback, raw context false,
+redaction true, and zero authoritative mutations. Generated reports stay under
+ignored `ml_baseline_reviews/` and must not be committed.
+
+In the dashboard verify:
+
+- Alerts leads with what happened, why flagged, evidence strength, missing
+  context, and recommended checks;
+- technical detection layers open only when `Detection layer detail` is
+  expanded;
+- Investigation shows evidence strength and missing context for a selected log;
+- Assistant shows concise evidence sections, trusted citations, and retained
+  context for `What logs are related?` and `What should an analyst verify
+  before response?`; and
+- no action execution control exists in Assistant.
+
+The quality lock is bounded synthetic evidence. It does not close provider
+privacy approval, real-traffic evaluation, quota/cost monitoring, or universal
+answer-accuracy requirements.
+
+## v5.25 Integrated Acceptance
+
+Preflight repository/provider/lock readiness without writing a report:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v525_integrated_acceptance --preflight-only --no-write --pretty
+```
+
+Run quota-independent local acceptance with the validated ignored v5.24
+Gemini lock:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v525_integrated_acceptance --use-temp-db --log-count 5000 --pretty
+```
+
+Request a fresh paced Gemini revalidation only when provider quota is
+available:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v525_integrated_acceptance --use-temp-db --execute-provider --log-count 5000 --pretty
+```
+
+The runner never targets the configured database. A passing local result keeps
+production readiness false and lists all external gates. If the validated
+v5.24 evidence is unavailable and no fresh provider run passes, v5.25 fails
+closed with `v5_25_gemini_quality_evidence_required`.

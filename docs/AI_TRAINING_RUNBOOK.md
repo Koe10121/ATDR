@@ -1603,3 +1603,109 @@ changes as context unless other evidence supports escalation.
 
 Parser quality never changes alert authority, labels, model lifecycle, or
 response behavior. Keep the supervised lifecycle in `shadow_observation`.
+
+## v5.19 Independent Labeled Validation
+
+Use only an officially acquired CTU-13 directory in ignored storage. Do not use
+the private PAN-OS development file as independent ground truth.
+
+Label-sealed preflight:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v519_independent_labeled_validation `
+  --dataset-path <IGNORED_CTU13_DIRECTORY> `
+  --manifest-path <IGNORED_PRIVATE_MANIFEST> `
+  --preflight-only `
+  --pretty
+```
+
+One-shot execution for a fresh manifest/output state only:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v519_independent_labeled_validation `
+  --dataset-path <IGNORED_CTU13_DIRECTORY> `
+  --manifest-path <IGNORED_PRIVATE_MANIFEST> `
+  --execute `
+  --confirm `
+  --pretty
+```
+
+The repository's completed v5.19 state is locked; a later preflight reports
+`blind_validation_locked_complete`, and repeated execution fails closed. The
+adapter-recovery mode exists only to preserve and diagnose the recorded
+provider serialization mismatch. It is one-shot, cannot change predictions,
+and must never be described as fresh blind evidence.
+
+Interpret CTU-13 only as independent binary schema-transfer evidence. Do not
+derive ATDR suspicious/malicious labels, train or tune against opened labels,
+or claim full deterministic-rule coverage when PAN-OS action/application/zone
+fields are absent. The measured v5.19 transfer failed; keep lifecycle
+`shadow_observation` and rules alert-authoritative.
+
+## v5.20 Schema-Aware Abstention Check
+
+Run the read-only contract and v5.19 terminal-lock check with:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v520_schema_aware_abstention --pretty
+```
+
+The command does not access the configured database, reopen provider labels,
+write a model artifact, or return private paths or fingerprints. A passing
+result means unsupported schemas fail closed before supervised inference. It
+does not mean the classifier is accurate or ready for activation.
+
+During runtime, only compatible native PAN-OS evidence may receive a governed
+supervised score. Treat `incompatible_schema`, `unknown_schema`,
+`parser_error`, and `insufficient_evidence` as abstentions. Continue to use
+deterministic rules as the authoritative alert path and keep lifecycle
+`shadow_observation` until independent native evidence passes the fixed gates.
+
+## v5.21 Native PAN-OS Evidence Program
+
+Run the native evidence program only with an external private file and explicit
+disposable-storage acknowledgement:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v521_native_panos_evidence `
+  --sample-path "<private-panos-log>" `
+  --use-temp-db `
+  --review-limit 160 `
+  --pretty
+```
+
+The command does not import the file into the configured database. It creates a
+temporary derived-feature index, assigns chronological
+`development_fit`/`calibration`/`threshold`/`untouched_future_validation`
+roles, contains exact and near-duplicate families, and deletes the temporary
+index on completion.
+
+Generated local material under `ml_baseline_reviews/` is ignored:
+
+- `v5_21_development_assisted_review_pack.csv` contains weak suggestions and
+  requires human confirmation;
+- `v5_21_blind_human_verification_pack.csv` contains no suggestions and must
+  remain sealed during model development; and
+- the manifest/report files contain private evidence locks and must not be
+  committed.
+
+Do not import either pack directly. Do not represent assisted suggestions as
+human review. v5.22 may use only the three development roles for model
+selection and must freeze its candidate before opening any human-confirmed
+blind decision.
+
+## v5.22 Native Supervised Rebuild
+
+Run v5.21 first so the native role manifest exists, then run the diagnostic
+rebuild with the private source supplied only as a CLI argument:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v522_supervised_model_rebuild `
+  --sample-path <private-panos-path> --use-temp-db --pretty
+```
+
+The command reads configured governed labels without modifying them, rebuilds
+the private source in disposable storage, and writes ignored aggregate reports
+under `ml_baseline_reviews/`. It does not open the blind pack, serialize or
+activate a model, create alerts, or change response authority. Treat private
+assisted labels as weak evidence and the frozen candidate as shadow-only.

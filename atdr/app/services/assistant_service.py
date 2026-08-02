@@ -1463,6 +1463,8 @@ def _ensure_answer_sections(result: AssistantResult) -> None:
                 "Read-only assistant response.",
                 "Response automation is disabled.",
             ]
+        if "limitations" not in sections:
+            sections["limitations"] = []
         return
     result.details["answer_sections"] = {
         "summary": _first_answer_lines(result.answer),
@@ -1475,6 +1477,7 @@ def _ensure_answer_sections(result: AssistantResult) -> None:
         ],
         "what_to_check_next": result.suggested_followups[:4] or ["Open the relevant dashboard page and review evidence before action."],
         "safe_next_steps": result.suggested_followups[:4] or ["Open the relevant dashboard page and review evidence before action."],
+        "limitations": [],
         "safety_note": [
             "Read-only assistant response.",
             "Response automation is disabled.",
@@ -1697,6 +1700,9 @@ References
                         *[f"Possible false-positive factor: {item}" for item in false_positive_notes[:4]],
                         *[f"Missing evidence note: {item}" for item in missing_evidence_notes[:4]],
                     ],
+                    "limitations": missing_evidence_notes[:3] or [
+                        "No additional missing-context item was recorded; analyst validation is still required."
+                    ],
                     "what_to_check_next": analyst_steps,
                     "safe_next_steps": analyst_steps,
                     "safety_note": [
@@ -1786,9 +1792,9 @@ def _answer_response_safety(*, redacted: bool) -> AssistantResult:
 - Protected/internal/management IP ranges are denied by safety controls.
 - Denied and simulated attempts are audited.
 
-Presentation wording
-- Say: response is simulated and analyst-approved.
-- Do not say: ATDR performs real automatic blocking.
+Operational boundary
+- Response is simulated and analyst-approved.
+- ATDR does not perform real automatic blocking.
 """
     citations = [
         Citation("Response safety service", "atdr/app/services/response_service.py"),
@@ -1913,6 +1919,9 @@ Safety note
                         *[str(item) for item in parser_warnings[:4]],
                     ],
                     "risk_interpretation": risk_interpretation,
+                    "limitations": parser_warnings[:3] or [
+                        "No parser warning is recorded; asset ownership and environment baseline remain analyst context."
+                    ],
                     "what_to_check_next": [
                         "Open linked alerts if they exist.",
                         "Review nearby logs from the same source and destination before changing labels.",
@@ -2083,6 +2092,10 @@ def _answer_source_question(db: Session, *, source_id: int | None, limit: int, r
                         ],
                     ],
                     "risk_interpretation": source_risk_lines,
+                    "limitations": [
+                        "Source health is based on received/parsed telemetry, not independent device attestation.",
+                        "Asset ownership and expected traffic baselines require analyst context.",
+                    ],
                     "what_to_check_next": source_next_steps,
                     "safe_next_steps": source_next_steps,
                     "safety_note": [
@@ -2213,6 +2226,10 @@ Safety note
                     ],
                     "evidence": evidence_points,
                     "risk_interpretation": risk_interpretation,
+                    "limitations": [
+                        "This is a computed alert group, not a persisted incident record.",
+                        "Asset ownership and business context are not established by log evidence alone.",
+                    ],
                     "what_to_check_next": case_next_steps,
                     "safe_next_steps": case_next_steps,
                     "safety_note": [

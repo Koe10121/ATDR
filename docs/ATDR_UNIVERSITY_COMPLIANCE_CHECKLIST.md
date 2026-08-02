@@ -584,3 +584,87 @@ For docs-only changes, at minimum verify the docs exist, links are correct, and 
 | Controlled non-regression | Satisfied | Frozen v5.11 diagnostics and 96/96 controlled projection match with zero authoritative mutation | Controlled evidence does not replace independent blind labels. |
 | AI and response safety | Satisfied | Rules remain authoritative; ML advisory; no label/model/response authority change | Independent governed evidence remains required before lifecycle advancement. |
 | T1-T20 and taskboard | Satisfied locally | v5.13 status, change record, PRD, traceability, compliance, runbook, taskboard, tests, and exact allowlist | Commit/push require separate explicit approval. |
+
+## v5.19 Independent Labeled Validation Compliance Status
+
+| University / ATDR rule | Status | Evidence | Remaining gap |
+| --- | --- | --- | --- |
+| No guessing / primary evidence | Satisfied | Official CTU-13 publisher/license pages and provider scenario files; alternative official datasets documented | Native PAN-OS independent labels remain unavailable. |
+| Development/blind separation | Satisfied | Existing private PAN-OS and prior external evidence rejected; sampling/features/predictions are label-sealed | Initial provider serialization adapter failed after reveal. |
+| Honest failure reporting | Satisfied | Original zero-comparable one-shot retained; recovery explicitly post-blind and non-activating | A new fresh claim requires newly governed untouched evidence, not a rerun. |
+| Label integrity | Satisfied | Provider labels stay external, binary-only, non-human-reviewed by ATDR, and are not imported | Suspicious/malicious metrics cannot be claimed from CTU labels. |
+| Privacy and repo hygiene | Satisfied | Dataset, paths, checksums, predictions, revealed labels, and reports remain ignored; public result is aggregate | Host-local evidence custody still requires owner controls. |
+| AI and response safety | Satisfied | Lifecycle `shadow_observation`, rules authoritative, zero model/label/alert/response writes | Schema-compatible independent gate remains open. |
+| T1-T20 and taskboard | Satisfied locally | v5.19 status, change record, traceability, runbooks, tests, taskboard, and exact allowlist | Commit/push require separate explicit approval. |
+
+## v5.20 Schema-Aware Abstention Compliance Status
+
+| University / ATDR rule | Status | Evidence | Remaining gap |
+| --- | --- | --- | --- |
+| No guessing / evidence compatibility | Satisfied | Model schema and required fields are checked before inference; incompatible evidence explicitly abstains | Compatible evidence still requires independent accuracy validation. |
+| Honest model output | Satisfied | Abstention returns no queue probability and is not presented as benign or threat | No native independently labeled final corpus exists yet. |
+| Blind-evidence integrity | Satisfied | v5.19 terminal state/result are fingerprinted locally without reopening labels or prediction rows | Host-local custody remains owner-controlled. |
+| Privacy and minimization | Satisfied | Runtime/public output contains status and field names only; no raw/IP/path/fingerprint/secret exposure | Real-source retention policy remains a later operational gate. |
+| AI and response safety | Satisfied | Rules remain authoritative; lifecycle `shadow_observation`; no activation, promotion, automatic response, or real blocking | Any authority change requires a separate evidence-backed approval. |
+| T1-T20 and taskboard | Satisfied locally | v5.20 status, change record, PRD, traceability, tests, taskboard, rendered HTML, and cumulative allowlist | Commit/push require separate exact-path approval. |
+
+## v5.21 Native PAN-OS Evidence Compliance Status
+
+| Rule | Status | Evidence | Remaining Gap |
+| --- | --- | --- | --- |
+| No guessing / primary field evidence | Satisfied | official Palo Alto Networks sources plus implemented parser/role tests | Vendor docs do not provide ground-truth labels for the private collection. |
+| Human-label integrity | Satisfied | assisted development rows are explicitly weak; blind rows have no suggestions; both are not import-ready | Human/advisor verification is still required. |
+| Blind-evaluation integrity | Satisfied locally | roles assigned before suggestions; untouched future role sealed; duplicate families contained | Human decisions have not been opened. |
+| Privacy and repo hygiene | Satisfied | no public path/raw/IP/fingerprint/secret; all private packs/manifests/reports ignored | Host-local custody remains owner-controlled. |
+| Configured-data preservation | Satisfied after repair | explicit in-memory overlap target and unchanged DB marker | The initial read-only configured-DB access is documented as a corrected defect. |
+| AI/response safety | Satisfied | zero label/model/alert/detection/response writes; lifecycle remains `shadow_observation` | Independent evidence still blocks advancement. |
+| T1-T20 and taskboard | Satisfied locally | v5.21 status, field contract, change record, traceability, tests, taskboard, rendered HTML, and cumulative allowlist | Commit/push require separate exact-path approval. |
+
+## v5.22 Compliance Update
+
+- Source evidence: the v5.21 manifest and private source identity are compared
+  internally; no path, row, address, or fingerprint is returned.
+- No guessing: a generic reviewed flag is no longer treated as proof of human
+  authorship; only approved manual/reviewed-import provenance qualifies.
+- Testing gate: role locks, leakage, feature contract, real model comparison,
+  stability ranking, redaction, and side effects are covered.
+- AI safety: the frozen configuration is diagnostic only, no artifact is
+  written, rules remain authoritative, and response automation stays disabled.
+- Open compliance evidence: independent human blind labels and a second real
+  source remain unavailable and are reported as blockers rather than inferred.
+
+## v5.23 Live-Source Acceptance Compliance Status
+
+| University / ATDR rule | Status | Evidence | Remaining gap |
+| --- | --- | --- | --- |
+| Source evidence and no guessing | Satisfied locally | one harness exercises real routes/services and records exact channel counts | External sender evidence is still absent. |
+| Honest claim classification | Satisfied | loopback, second-laptop, and firewall/router evidence are separate; local status keeps `phase_complete=false` | Operator attestation cannot prove hardware identity by itself. |
+| Privacy and minimization | Satisfied | aggregate output excludes raw rows, addresses, private paths, fingerprints, staging paths, database URLs, and secrets | Private source custody remains owner-controlled. |
+| Configured-data preservation | Satisfied | explicit `--use-temp-db`, unchanged configured marker, and verified cleanup | PostgreSQL target preservation relies on isolation rather than a file marker. |
+| Testing gate | Satisfied locally | focused service/UDP tests plus measured private-input disposable run | Full matrix is recorded after final worktree verification. |
+| AI and response safety | Satisfied | rules authoritative; ML shadow-only; zero labels/model runs/responses/users | Independent labels still block supervised advancement. |
+| T1-T20 and taskboard | Satisfied locally | v5.23 status, contract, change record, traceability, runbook, taskboard, and allowlist | Commit/push require separate exact-path approval. |
+
+## v5.24 Investigation And Gemini Quality Compliance Status
+
+| University / ATDR rule | Status | Evidence | Remaining gap |
+| --- | --- | --- | --- |
+| Source evidence / no guessing | Satisfied for bounded suite | every answer is checked against trusted ATDR citations, context ID, and expected synthetic evidence | This is not a universal semantic-accuracy proof. |
+| Testing gate | Satisfied | focused `46/46`, v5.24 `5/5`, backend/release `817 passed, 1 skipped`, Alembic no drift, React lint/build, Playwright `27 passed, 1 skipped`, controlled `24/24`, layered `288/288`, Assistant `20/20`, live Gemini `11/11`, replay/performance/release gates passed | The skipped live-sender test remains the explicitly deferred v5.23 external gate. |
+| Privacy and minimization | Satisfied | raw context false, IP redaction true, no secret/raw/private path in public output | Provider privacy approval and retention policy remain external. |
+| AI safety | Satisfied | Gemini is read-only decision support; unsupported IDs/action claims are gated; deterministic fallback is retained | Provider drift and real-traffic evaluation remain open. |
+| Response safety | Satisfied | zero response writes; automation and real blocking remain disabled | Any future real integration needs separate approval/design. |
+| Honest external gates | Satisfied | v5.23 second-laptop test remains owner-deferred, not passed | Non-loopback and real-device evidence remain open. |
+| T1-T20 and taskboard | Satisfied locally | v5.24 status/change record/traceability/taskboard/allowlist | Commit/push require separate exact-path approval. |
+
+## v5.25 Integrated Acceptance Compliance Status
+
+| University / ATDR rule | Status | Evidence | Remaining gap |
+| --- | --- | --- | --- |
+| Source evidence / no guessing | Satisfied locally | 14 fixed gates map to existing services, tests, and locked evidence rather than claimed behavior | External provider/device facts remain unclaimed. |
+| T1-T20 and traceability | Satisfied | v5.25 status, completed change record, PRD, traceability, taskboard, and allowlist | Commit/push require separate approval. |
+| Testing gate | Satisfied locally | focused v5.24/v5.25 `12/12`; backend/release `824 passed, 1 skipped`; Alembic no drift; React lint/build; Playwright `27 passed, 1 skipped`; controlled `24/24`; layered `288/288`; Assistant `20/20`; integrated 5,000-row `14/14`; replay/performance/release passed | The skipped non-loopback live-source test remains intentionally deferred. |
+| AI governance | Satisfied | rules authoritative; supervised shadow-only; locked Gemini quality verified; no model/label writes | Independent human labels and provider governance remain open. |
+| Response safety | Satisfied | missing note/protected target denied; approved response simulated/audited; automation and real blocking false | Any real enforcement needs a new approved design. |
+| Privacy and repo hygiene | Satisfied locally | aggregate-only output; configured DB preserved; generated reports ignored | External privacy/security review remains open. |
+| Honest closure statement | Satisfied | local roadmap complete; production readiness false; six external gates itemized | Those gates require owner/advisor/provider/device/host evidence. |

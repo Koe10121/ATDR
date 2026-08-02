@@ -25,6 +25,8 @@ export function MLEvidenceSnapshotPanel({ snapshot, loading, error }: MLEvidence
   const isolation = snapshot?.operational_models.isolation_forest;
   const supervised = snapshot?.operational_models.active_supervised_artifact;
   const candidates = snapshot?.operational_models.diagnostic_candidates;
+  const abstention = snapshot?.schema_aware_abstention;
+  const abstentionRuntime = abstention?.runtime;
 
   return (
     <section className="panel" data-testid="ml-evidence-snapshot">
@@ -91,7 +93,7 @@ export function MLEvidenceSnapshotPanel({ snapshot, loading, error }: MLEvidence
 
       <div className="mt-4 border-t border-line pt-4">
         <div className="mb-3 text-xs font-extrabold uppercase text-muted">Operational Model States</div>
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="IsolationForest"
             value={isolation?.artifact_exists ? "Assistive signal active" : "Artifact missing"}
@@ -110,8 +112,28 @@ export function MLEvidenceSnapshotPanel({ snapshot, loading, error }: MLEvidence
             detail="Not activated or production promoted"
             tone="cyan"
           />
+          <div data-testid="schema-aware-abstention">
+            <MetricCard
+              label="Schema Gate"
+              value={abstention?.fail_closed ? "Fail closed" : "Not available"}
+              detail={`${abstentionRuntime?.abstained_count ?? 0} of ${abstentionRuntime?.rows_checked ?? 0} runtime rows abstained`}
+              tone={Number(abstentionRuntime?.abstained_count ?? 0) ? "amber" : "teal"}
+            />
+          </div>
         </div>
       </div>
+
+      {abstention ? (
+        <details className="mt-4 rounded border border-line bg-panel2 p-3 text-sm">
+          <summary className="cursor-pointer font-bold text-text">Schema compatibility policy</summary>
+          <div className="mt-3 grid gap-2 text-muted md:grid-cols-2">
+            <div>Expected evidence: {abstention.expected_schema_id.replaceAll("_", " ")}</div>
+            <div>Incompatible evidence scored: {abstention.incompatible_evidence_scored ? "yes" : "no"}</div>
+            <div>Required fields: {abstention.required_features.join(", ")}</div>
+            <div>Rules remain authoritative: {abstention.rules_remain_authoritative ? "yes" : "no"}</div>
+          </div>
+        </details>
+      ) : null}
 
       {evidence?.limitations?.length || supervised?.message ? (
         <details className="mt-4 rounded border border-line bg-panel2 p-3 text-sm">

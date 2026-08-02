@@ -1,6 +1,5 @@
 import socket
 import threading
-import time
 
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
@@ -36,11 +35,9 @@ def test_udp_syslog_receiver_ingests_live_datagrams(monkeypatch):
     )
     Base.metadata.create_all(engine)
     TestingSession = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
-    monkeypatch.setattr(syslog_service, "SessionLocal", TestingSession)
-    monkeypatch.setattr(syslog_service, "init_db", lambda: None)
-
     port = _free_udp_port()
     result: dict = {}
+    ready = threading.Event()
 
     def receive() -> None:
         result.update(
@@ -50,12 +47,15 @@ def test_udp_syslog_receiver_ingests_live_datagrams(monkeypatch):
                 batch_size=2,
                 max_messages=2,
                 socket_timeout=5,
+                session_factory=TestingSession,
+                initialize_database=False,
+                on_ready=ready.set,
             )
         )
 
     thread = threading.Thread(target=receive)
     thread.start()
-    time.sleep(0.2)
+    assert ready.wait(2)
     sender = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         sender.sendto(TRAFFIC_LINE.encode("utf-8"), ("127.0.0.1", port))
@@ -67,6 +67,8 @@ def test_udp_syslog_receiver_ingests_live_datagrams(monkeypatch):
     assert thread.is_alive() is False
     assert result["received"] == 2
     assert result["parsed"] == 2
+    assert result["sender_count"] == 1
+    assert result["non_loopback_sender_observed"] is False
     assert result["parser_quality"]["observed_rows"] == 2
     with TestingSession() as db:
         assert db.scalar(select(func.count(RawLog.id))) == 2
@@ -76,6 +78,8 @@ def test_udp_syslog_receiver_ingests_live_datagrams(monkeypatch):
         source = db.scalar(select(LogSource).where(LogSource.source_type == "syslog_udp"))
         assert audit is not None
         assert audit.details["received"] == 2
+        assert audit.details["sender_count"] == 1
+        assert audit.details["non_loopback_sender_observed"] is False
         assert source is not None
         assert source.parser_profile == "palo_alto"
         assert source.logs_received_count == 2

@@ -271,4 +271,4 @@ def test_frontend_has_admin_route_guard_and_role_aware_navigation():
     assert "isAdmin" in admin_route
     assert "adminOnly" in app_shell
     assert "User Admin" in app_shell
-    assert "Demo Controls" in app_shell
+    assert "Validation Controls" in app_shell

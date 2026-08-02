@@ -103,8 +103,17 @@ export function AlertsTriage() {
   const attackMapping = detectionSummary?.attack_mapping ?? attackMappingForType(inferAttackTypeFromAlertType(selected?.alert_type));
   const anomalySummary = detectionSummary?.anomaly;
   const supervisedSummary = detectionSummary?.supervised;
+  const supervisedAbstained = supervisedSummary?.abstained === true;
+  const schemaCompatibility = (supervisedSummary?.schema_compatibility ?? {}) as Record<string, unknown>;
+  const missingModelFields = Array.isArray(supervisedSummary?.missing_required_features)
+    ? supervisedSummary.missing_required_features.map(String)
+    : [];
   const hybridSummary = detectionSummary?.hybrid_risk;
   const alertAuthority = detectionSummary?.alert_authority;
+  const missingContext = detectionSummary?.missing_context ?? [];
+  const evidenceConfidence = detectionSummary?.evidence_confidence ?? "analyst review required";
+  const analystNextSteps = detectionSummary?.analyst_next_steps ?? [];
+  const observedEvidence = detectionSummary?.observed_evidence ?? detectionSummary?.top_evidence_points ?? [];
   const groupMetadata = selected?.matched_rules_json?.find((rule) => rule.code === "group_metadata") ?? null;
   const occurrenceCount = Number(groupMetadata?.occurrence_count ?? groupMetadata?.evidence_count ?? selected?.evidence_count ?? 0);
   const relatedLogCount = Number(groupMetadata?.related_log_count ?? groupMetadata?.evidence_count ?? selected?.evidence_count ?? 0);
@@ -346,7 +355,7 @@ export function AlertsTriage() {
             </tbody>
           </table>
         </div>
-        {!alerts.isLoading && !alertRows.length ? <EmptyState title="No alerts found" body="Adjust filters or run detection from Demo Controls." /> : null}
+        {!alerts.isLoading && !alertRows.length ? <EmptyState title="No alerts found" body="Adjust filters or run detection from Validation Controls." /> : null}
       </section>
 
       <PaginationControls limit={limit} offset={offset} resultCount={alertRows.length} totalCount={alerts.data?.totalCount} onLimitChange={setLimit} onOffsetChange={setOffset} />
@@ -382,7 +391,7 @@ export function AlertsTriage() {
               ]}
             />
 
-            <section className="rounded-lg border border-cyan/25 bg-cyan/5 p-4">
+            <section className="rounded-lg border border-cyan/25 bg-cyan/5 p-4" data-testid="alert-investigation-summary">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <div className="text-sm font-extrabold uppercase tracking-wide text-cyan">Why flagged?</div>
@@ -390,47 +399,89 @@ export function AlertsTriage() {
                 </div>
                 <Badge value={detectionSummary?.attack_type ?? inferAttackTypeFromAlertType(selected.alert_type)} />
               </div>
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+              <div className="grid gap-3 md:grid-cols-2">
                 <div className="rounded border border-line bg-panel2 p-3">
-                  <div className="text-xs font-bold uppercase tracking-wide text-muted">Rule Authority</div>
-                  <div className="mt-1 font-bold text-text">{alertAuthority?.authoritative_rule_count ?? detectionSummary?.matched_rule_names?.length ?? 0} matched</div>
-                  <div className="text-sm text-muted">Created the alert</div>
+                  <div className="text-xs font-bold uppercase tracking-wide text-muted">What happened</div>
+                  <div className="mt-1 text-sm font-semibold text-text">
+                    {detectionSummary?.what_happened ?? selected.explanation}
+                  </div>
                 </div>
                 <div className="rounded border border-line bg-panel2 p-3">
-                  <div className="text-xs font-bold uppercase tracking-wide text-muted">ATT&CK-style Mapping</div>
-                  <div className="mt-1 font-bold text-text">{attackMapping.tactic}</div>
-                  <div className="text-sm text-muted">{attackMapping.technique} / {attackMapping.technique_id}</div>
+                  <div className="text-xs font-bold uppercase tracking-wide text-muted">Evidence strength</div>
+                  <div className="mt-1 font-bold text-text">{evidenceConfidence}</div>
+                  <div className="text-sm text-muted">
+                    {alertAuthority?.authoritative_rule_count ?? detectionSummary?.matched_rule_names?.length ?? 0} authoritative rule match(es), {relatedLogCount} related log(s)
+                  </div>
                 </div>
                 <div className="rounded border border-line bg-panel2 p-3">
-                  <div className="text-xs font-bold uppercase tracking-wide text-muted">Anomaly Advisory</div>
-                  <div className="mt-1 font-bold text-text">{anomalySummary?.present === true ? "Present" : "Not present"}</div>
-                  <div className="text-sm text-muted">Score {String(anomalySummary?.min_score ?? "-")} | No alert authority</div>
+                  <div className="text-xs font-bold uppercase tracking-wide text-muted">Missing context</div>
+                  <div className="mt-1 text-sm font-semibold text-text">
+                    {missingContext.length ? missingContext.slice(0, 3).join("; ") : "No explicit gap recorded; confirm asset ownership and expected traffic."}
+                  </div>
                 </div>
                 <div className="rounded border border-line bg-panel2 p-3">
-                  <div className="text-xs font-bold uppercase tracking-wide text-muted">Supervised Shadow</div>
-                  <div className="mt-1 font-bold text-text">{String(supervisedSummary?.predicted_label ?? "not trained")}</div>
-                  <div className="text-sm text-muted">Threat-positive score {String(supervisedSummary?.malicious_probability ?? 0)}</div>
-                  <div className="mt-1 text-xs text-muted">Review priority only; not automatic truth.</div>
-                </div>
-                <div className="rounded border border-line bg-panel2 p-3">
-                  <div className="text-xs font-bold uppercase tracking-wide text-muted">Hybrid Interpretation</div>
-                  <div className="mt-1 font-bold text-text">{String(hybridSummary?.hybrid_risk_score ?? hybridSummary?.risk_score ?? "-")}</div>
-                  <div className="text-sm text-muted">Diagnostic only</div>
+                  <div className="text-xs font-bold uppercase tracking-wide text-muted">Recommended checks</div>
+                  <ul className="mt-1 list-disc space-y-1 pl-4 text-sm font-semibold text-text">
+                    {(analystNextSteps.length ? analystNextSteps : [selected.recommended_response]).slice(0, 3).map((step) => (
+                      <li key={step}>{step}</li>
+                    ))}
+                  </ul>
                 </div>
               </div>
-              <div className="mt-3 rounded border border-amber/30 bg-amber/10 px-3 py-2 text-xs text-amber">
-                ML output is decision support. Verify rule evidence, anomaly context, and related logs before any simulated response.
-              </div>
-              <div className="mt-3 grid gap-2 md:grid-cols-2">
-                {(detectionSummary?.top_evidence_points ?? []).slice(0, 6).map((point) => (
+              {observedEvidence.length ? (
+                <div className="mt-3 grid gap-2 md:grid-cols-2">
+                  {observedEvidence.slice(0, 4).map((point) => (
                   <div key={point} className="rounded border border-line bg-shell p-3 text-sm text-muted">{point}</div>
-                ))}
-              </div>
-              <details className="mt-3">
-                <summary className="cursor-pointer text-sm font-bold text-text">Behavior-window evidence</summary>
-                <pre className="mt-3 max-h-64 overflow-auto rounded-lg border border-line bg-shell p-3 text-xs text-muted">
-                  {JSON.stringify(detectionSummary?.behavior_window ?? {}, null, 2)}
-                </pre>
+                  ))}
+                </div>
+              ) : null}
+              <details className="mt-3 rounded border border-line bg-panel2 p-3">
+                <summary className="cursor-pointer text-sm font-bold text-text">Detection layer detail</summary>
+                <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                  <div className="rounded border border-line bg-shell p-3">
+                    <div className="text-xs font-bold uppercase tracking-wide text-muted">Rule Authority</div>
+                    <div className="mt-1 font-bold text-text">{alertAuthority?.authoritative_rule_count ?? detectionSummary?.matched_rule_names?.length ?? 0} matched</div>
+                    <div className="text-sm text-muted">Created the alert</div>
+                  </div>
+                  <div className="rounded border border-line bg-shell p-3">
+                    <div className="text-xs font-bold uppercase tracking-wide text-muted">ATT&CK-style Mapping</div>
+                    <div className="mt-1 font-bold text-text">{attackMapping.tactic}</div>
+                    <div className="text-sm text-muted">{attackMapping.technique} / {attackMapping.technique_id}</div>
+                  </div>
+                  <div className="rounded border border-line bg-shell p-3">
+                    <div className="text-xs font-bold uppercase tracking-wide text-muted">Anomaly Advisory</div>
+                    <div className="mt-1 font-bold text-text">{anomalySummary?.present === true ? "Present" : "Not present"}</div>
+                    <div className="text-sm text-muted">Score {String(anomalySummary?.min_score ?? "-")} | No alert authority</div>
+                  </div>
+                  <div className="rounded border border-line bg-shell p-3">
+                    <div className="text-xs font-bold uppercase tracking-wide text-muted">Supervised Shadow</div>
+                    <div className="mt-1 font-bold text-text">{supervisedAbstained ? "Abstained" : String(supervisedSummary?.predicted_label ?? "not trained")}</div>
+                    <div className="text-sm text-muted">
+                      {supervisedAbstained
+                        ? `Schema ${String(schemaCompatibility.status ?? "incompatible")}`
+                        : `Threat-positive score ${String(supervisedSummary?.malicious_probability ?? 0)}`}
+                    </div>
+                    <div className="mt-1 text-xs text-muted">
+                      {supervisedAbstained
+                        ? missingModelFields.length ? `Missing: ${missingModelFields.join(", ")}` : "No model probability produced."
+                        : "Review priority only; not automatic truth."}
+                    </div>
+                  </div>
+                  <div className="rounded border border-line bg-shell p-3">
+                    <div className="text-xs font-bold uppercase tracking-wide text-muted">Hybrid Interpretation</div>
+                    <div className="mt-1 font-bold text-text">{String(hybridSummary?.hybrid_risk_score ?? hybridSummary?.risk_score ?? "-")}</div>
+                    <div className="text-sm text-muted">Diagnostic only</div>
+                  </div>
+                </div>
+                <div className="mt-3 rounded border border-amber/30 bg-amber/10 px-3 py-2 text-xs text-amber">
+                  ML output is decision support. Verify rule evidence, anomaly context, and related logs before any simulated response.
+                </div>
+                <details className="mt-3">
+                  <summary className="cursor-pointer text-sm font-bold text-text">Behavior-window evidence</summary>
+                  <pre className="mt-3 max-h-64 overflow-auto rounded-lg border border-line bg-shell p-3 text-xs text-muted">
+                    {JSON.stringify(detectionSummary?.behavior_window ?? {}, null, 2)}
+                  </pre>
+                </details>
               </details>
             </section>
 

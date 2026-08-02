@@ -499,3 +499,124 @@ independent labeled multi-device periods. See
 ATDR is a controlled productization candidate and AI-assisted SOC decision
 support system. This status is not a production-readiness or model-accuracy
 claim.
+
+## v5.19 Independent Binary Transfer Result
+
+ATDR's frozen v5.6 `calibrated_hist_gradient_boosting` candidate was evaluated
+against independently published CTU-13 bidirectional-flow evidence under a
+prediction-before-label protocol. The first label reveal exposed an adapter
+serialization mismatch and is retained as a failed one-shot blind record.
+
+A normalization-only diagnostic of the unchanged frozen predictions found:
+
+- 885 comparable rows from 20,000 sampled flows;
+- threat precision/recall/F1 `0.4819/1.0000/0.6504`;
+- benign-like FPR `0.9978`;
+- queue rate `0.9989`; and
+- weak calibration: Brier `0.4457`, ECE `0.4244`, max gap `0.6057`.
+
+The provider taxonomy supports binary botnet/normal transfer only. It does not
+justify ATDR suspicious or malicious recall claims. The 40-feature PAN-OS
+contract has 10 direct, 13 derived, and 17 unavailable fields in this flow
+schema, so the result is an OOD warning. It proves that the candidate should
+not be trusted on incompatible flow schemas; it does not justify tuning on the
+opened v5.19 labels.
+
+Lifecycle remains `shadow_observation`. No candidate is active or promoted,
+rules remain alert-authoritative, and response automation remains disabled.
+Native schema-compatible independent labels and a second real device remain
+required.
+
+## v5.20 Runtime Schema Gate
+
+v5.20 corrects the inference-order defect exposed by v5.19. Governed
+supervised scoring now checks parser profile and required PAN-OS fields before
+calling the classifier. Incompatible, unknown, parser-failed, and incomplete
+evidence receives an explicit abstention with no supervised probability.
+
+This change prevents unsupported confidence; it does not improve or validate
+model accuracy. Deterministic rules continue to evaluate the evidence and
+remain alert-authoritative. AI Governance and alert explanations expose the
+aggregate schema-gate state, abstention reason, and missing required field
+names without exposing raw logs, IP addresses, local paths, fingerprints, or
+secrets.
+
+The v5.19 result remains terminal and immutable. Lifecycle stays
+`shadow_observation`, no candidate is active or promoted, and response
+automation remains disabled. The next evidence gate is native chronological
+PAN-OS evidence with trustworthy human/advisor verification and, when
+available, a second real source.
+
+## v5.21 Native PAN-OS Evidence Foundation
+
+v5.21 parsed the complete 773,551-row private PAN-OS stream in disposable
+storage with zero parser failures. It created 22 chronological windows and
+locked 433,499 development-fit, 116,422 calibration, 111,626 threshold, and
+112,004 untouched-future rows. Exact and near-duplicate families do not cross
+roles.
+
+A 120-row development pack contains only weak assisted suggestions. A 40-row
+blind pack contains no rule, model, or AI suggestions. Neither pack is
+human-reviewed or import-ready. The configured database was not opened by the
+corrected run and its marker remained unchanged.
+
+This evidence is sufficient to attempt a diagnostic native-schema v5.22 model
+rebuild, but it is not ground truth and cannot justify activation. A qualified
+human/advisor must verify native labels, and a second real source remains
+required for source-generalization claims. Lifecycle remains
+`shadow_observation`, rules remain alert-authoritative, and automatic response
+and real blocking remain disabled.
+
+## v5.22 Native Supervised Rebuild
+
+v5.22 reproduces the exact v5.21 role lock and compares six supervised SOC
+queue strategies without opening the 112,004-row future role or the blind
+verification pack. It correctly classifies 918 governed rows as genuinely
+human-reviewed and 549 as assisted/weak; 500,770 private development events
+receive weak training decisions while 160,777 ambiguous events stay excluded.
+
+The frozen configuration is hierarchical two-stage ExtraTrees with dedicated
+sigmoid calibration and queue threshold `0.40`. Cross-view worst-case F1 is
+`0.8025`, FPR `0.0476`, suspicious recall `0.5000`, malicious recall `1.0000`,
+ECE `0.3741`, and confidence gap `0.7099`. Low noise and malicious recall have
+improved, but suspicious recall and calibration still fail.
+
+No executable artifact was written or activated. The lifecycle remains
+`shadow_observation`; rules remain alert-authoritative; blind human evidence,
+source-disjoint validation, automatic response, and real blocking remain
+unavailable or disabled. See `docs/V5_22_SUPERVISED_MODEL_REBUILD.md`.
+
+## v5.23 Collection-To-Investigation Evidence
+
+The v5.23 disposable local acceptance passed file, API, resumable, backpressure,
+UDP replay, source health, parser quality, source-scoped rule detection,
+deduplication, case linkage, why-flagged explanation, recommendations, and
+audit-history checks together. This strengthens runtime evidence but does not
+add supervised accuracy evidence or change model authority. A non-loopback
+second-laptop or real-device sender remains required to complete the phase.
+
+## v5.24 Gemini Investigation Quality
+
+The bounded live Gemini evaluation passed 11/11 fixed gates over six synthetic
+alert/log/source/case and follow-up questions. Record context, trusted
+citations, expected evidence, visible concision, unsupported-ID checks,
+provider-failure fallback, redaction, raw-context exclusion, and read-only
+side-effect checks all passed. Median/p95 latency was 3,125/3,731 ms and total
+usage was 18,675 tokens.
+
+This is Assistant quality evidence, not supervised detection accuracy. Gemini
+does not create or suppress alerts, change labels/models, execute response, or
+replace analyst judgment. Provider drift, real-traffic evaluation, privacy
+approval, quota/cost monitoring, and key rotation remain deployment work.
+
+## v5.25 Integrated Acceptance Status
+
+The integrated local workflow passes collection through audited simulated
+analyst response without granting ML or Gemini authority. Rules remain the
+only alert-authoritative layer. Supervised ML remains `shadow_observation`;
+IsolationForest and hybrid scores remain advisory. The validated v5.24 Gemini
+lock is evidence-grounded, read-only, redacted, raw-log-free, and mutation-free.
+
+This closes the local v5.20-v5.25 implementation roadmap, not the supervised
+accuracy gate. Independent human-reviewed native multi-device evidence is
+still required before any activation or promotion reconsideration.
