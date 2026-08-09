@@ -2037,3 +2037,71 @@ The runner never targets the configured database. A passing local result keeps
 production readiness false and lists all external gates. If the validated
 v5.24 evidence is unavailable and no fresh provider run passes, v5.25 fails
 closed with `v5_25_gemini_quality_evidence_required`.
+
+## v5.26 Native PAN-OS Blind Qualification
+
+The current blind pack has already completed its one-time prediction freeze.
+Run only the non-consuming preflight:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v526_native_blind_qualification `
+  --sample-path "<private-panos-log>" `
+  --use-temp-db --preflight-only --no-write --pretty
+```
+
+Expected preflight state is eligible locks with no prediction execution and no
+label access. A full repeat must fail closed because the private prediction
+lock already exists.
+
+The measured run parsed 773,551 rows with zero failures and scored 40 sealed
+rows. It found zero genuine human-reviewed blind decisions. Treat the reported
+rule, IsolationForest, supervised, and hybrid queue rates only as queue
+behavior. Do not present them as accuracy, false-positive rate, recall, or F1.
+
+All generated prediction locks and reports remain under ignored
+`ml_baseline_reviews/`. Do not commit them. A qualified reviewer must complete
+the sealed decisions without access to predictions before a future read-only
+metric calculation. Do not tune on this consumed blind pack.
+
+## v5.27 Blind Review And Assistant QA
+
+Blind-review validation:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v527_blind_review_evaluation --pretty
+```
+
+Expected before human review: 0 valid reviews, 40 excluded as not reviewed,
+all lock checks pass, metrics remain unavailable, and lifecycle remains
+`shadow_observation`.
+
+Gemini bounded real-record QA:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v527_gemini_real_alert_quality --execute-provider --provider-interval-seconds 1 --pretty
+```
+
+Expected safety state: raw-log context false, IP redaction true, provider key
+absent from output, configured database deltas zero, no response/model/label
+mutation, and deterministic fallback passes. A provider quota or availability
+failure is reported honestly and falls back locally; it is not a reason to
+disable safety checks.
+
+## v5.29 Manual Assistant Check
+
+Open `SOC Assistant` and verify this sequence against an existing alert:
+
+1. Ask `Why was alert <id> flagged?` and confirm a short verdict, key evidence,
+   and one next check.
+2. Ask `What logs are related?` and confirm the same alert remains active but
+   only a compact linked-log answer appears.
+3. Ask `What should I check next?` and confirm two to four prioritized checks
+   for the same alert without repeating the first explanation.
+4. Confirm evidence and provider/citation details are closed by default and
+   can be expanded.
+5. Confirm only `Read Only`, `Decision Support Only`, and
+   `Response Automation Disabled` appear beside the response.
+6. Navigate to another dashboard page and back; confirm the conversation is
+   preserved. Log out and confirm the stored conversation is cleared.
+
+Do not use Assistant output as an executed response or human-reviewed label.

@@ -198,9 +198,21 @@ export interface AssistantCitation {
   reference_id?: string | null;
 }
 
+export type AssistantResponseMode =
+  | "direct_fact"
+  | "alert_explanation"
+  | "safe_next_step"
+  | "related_logs"
+  | "source_health"
+  | "list_summary"
+  | "investigation_brief"
+  | "how_to"
+  | "governance";
+
 export interface AssistantChatResponse {
   answer: string;
   mode: string;
+  response_mode: AssistantResponseMode;
   external_provider_used: boolean;
   safety: string[];
   context_used: string[];
@@ -296,6 +308,27 @@ export interface AssistantStatusResponse {
   llm_timeout_seconds: number;
   llm_max_retries: number;
   llm_max_prompt_chars: number;
+  llm_max_output_tokens: number;
+  llm_max_visible_chars: number;
+  llm_circuit_breaker_failures: number;
+  llm_circuit_breaker_cooldown_seconds: number;
+  llm_operational: {
+    status?: string;
+    calls_attempted?: number;
+    calls_succeeded?: number;
+    calls_failed?: number;
+    fallbacks?: number;
+    guarded_fallbacks?: number;
+    circuit_open?: boolean;
+    circuit_open_count?: number;
+    cooldown_remaining_seconds?: number;
+    average_latency_ms?: number;
+    token_usage?: { input_tokens?: number; output_tokens?: number; total_tokens?: number };
+    estimated_cost_usd?: number;
+    cost_rates_configured?: boolean;
+    last_outcome?: string;
+    secrets_exposed?: boolean;
+  };
   conversation_history_turns: number;
   rate_limit_requests: number;
   rate_limit_window_seconds: number;

@@ -31,6 +31,17 @@ class AssistantCitation(BaseModel):
 class AssistantChatResponse(BaseModel):
     answer: str
     mode: str
+    response_mode: Literal[
+        "direct_fact",
+        "alert_explanation",
+        "safe_next_step",
+        "related_logs",
+        "source_health",
+        "list_summary",
+        "investigation_brief",
+        "how_to",
+        "governance",
+    ]
     external_provider_used: bool
     safety: list[str] = Field(default_factory=list)
     context_used: list[str] = Field(default_factory=list)
@@ -116,6 +127,11 @@ class AssistantStatusResponse(BaseModel):
     llm_timeout_seconds: float = 15.0
     llm_max_retries: int = 2
     llm_max_prompt_chars: int = 12000
+    llm_max_output_tokens: int = 800
+    llm_max_visible_chars: int = 4000
+    llm_circuit_breaker_failures: int = 3
+    llm_circuit_breaker_cooldown_seconds: int = 60
+    llm_operational: dict[str, Any] = Field(default_factory=dict)
     conversation_history_turns: int = 4
     rate_limit_requests: int = 30
     rate_limit_window_seconds: int = 60

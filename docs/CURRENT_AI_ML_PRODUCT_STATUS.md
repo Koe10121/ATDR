@@ -1,6 +1,6 @@
 # ATDR Current AI And ML Product Status
 
-Date: 2026-07-28
+Date: 2026-08-09
 
 ATDR uses several distinct AI/ML layers. They must not be presented as one
 autonomous model. Deterministic rules detect explainable patterns, an
@@ -14,7 +14,7 @@ an analyst. None of these layers may execute a response action.
 | --- | --- | --- | --- |
 | Deterministic detection rules | Primary explainable alert generation | v5.13 closure: 24/24 controlled scenarios and 72/72 layered rule runs | May create/deduplicate alerts; cannot execute response |
 | IsolationForest | Assistive unusual-behavior score | v5.5 audit and v5.13 regression: advisory only; controlled anomaly layer remains 72/72 | Decision support only; cannot create an alert by itself |
-| Supervised SOC queue | Rank/recommend review from labeled evidence | Governed artifact remains in `shadow_observation`; v5.3-v5.13 found no basis for lifecycle advancement | Evidence only; rules remain authoritative |
+| Supervised SOC queue | Rank/recommend review from labeled evidence | Registered calibrated ExtraTrees artifact remains in `shadow_observation`; v5.28 integrity/runtime audit passed but human blind review is 0/40 | Evidence only; rules remain authoritative |
 | Legacy supervised artifact | Unselected local reference | Artifact exists; model/feature metadata are unknown | Not selected by the governed lifecycle |
 | SOC Assistant deterministic layer | Retrieve and explain ATDR evidence | 20/20 controlled QA questions passed | Read-only |
 | Gemini provider layer | Rephrase/summarize bounded evidence | Private configuration and one bounded synthetic probe passed | Explanation only; no detector or action authority |
@@ -620,3 +620,91 @@ lock is evidence-grounded, read-only, redacted, raw-log-free, and mutation-free.
 This closes the local v5.20-v5.25 implementation roadmap, not the supervised
 accuracy gate. Independent human-reviewed native multi-device evidence is
 still required before any activation or promotion reconsideration.
+
+## v5.26 Native Blind Qualification Status
+
+The one-time native blind protocol scored 40 sealed PAN-OS rows after
+reconstructing the unchanged v5.22 candidate from development-only roles. The
+complete 773,551-row private stream parsed successfully in disposable storage.
+Blind evidence was excluded from fit, calibration, threshold selection, and
+candidate selection.
+
+Observed review-queue rates are rules `0.625`, IsolationForest `0.075`,
+supervised shadow `0.300`, and hybrid `0.100`. These are not accuracy rates.
+The blind pack contains zero genuine human-reviewed decisions, so confusion
+matrices, precision, recall, F1, false-positive rate, calibration, and FP/FN
+root-cause claims are unavailable.
+
+Readiness passes 6/8 protocol/safety checks and remains
+`shadow_observation`. The blockers are genuine blind labels and available blind
+metrics. No model artifact was written or activated; rules remain
+alert-authoritative; ML remains advisory; automatic response and real blocking
+remain disabled.
+
+## v5.27 Current Decision
+
+- Blind-review tooling: complete and fail-closed.
+- Valid independent blind decisions: `0/40`.
+- Locked supervised metrics: unavailable; no FP/FN or calibration claim.
+- Supervised lifecycle: `shadow_observation`.
+- Rules: alert-authoritative.
+- Configured Assistant provider: Gemini.
+- Bounded real-record Gemini result: six calls, `12/12` fixed gates passed.
+- Median/P95 provider latency: `3,521.5/3,878` ms.
+- Provider usage: `21,973` total tokens.
+- Configured database mutations: zero.
+- Raw Assistant context: disabled; IP redaction: enabled.
+- Model activation/promotion: none.
+- Automatic response and real blocking: disabled.
+
+The supervised path still needs genuine independent human review and second-
+source evidence. The Assistant path still needs human semantic/privacy review
+and approved-host provider governance. Automated labels cannot close the human
+evidence gate, and bounded Gemini checks do not prove universal correctness.
+
+## v5.28 Current Decision
+
+- Sealed blind pack: unchanged and not opened by the v5.28 workflow.
+- Independent human reviews: `0/40`; blind metrics remain withheld.
+- Supervised artifact: registered calibrated ExtraTrees; checksum and feature,
+  calibration, threshold, schema, and abstention contracts valid.
+- Registered inference latency: `14.7438 ms` p95 over 100 rows; fixed gate
+  passed.
+- Shadow drift: `Insufficient Evidence`; durable telemetry is not yet
+  available.
+- Lifecycle: `shadow_observation`; no selection, retraining, recalibration,
+  activation, or promotion occurred.
+- Gemini bounded result: six calls and `12/12` fixed checks passed.
+- Gemini latency: `3,494.5/3,795 ms` median/p95; usage `21,999` total tokens.
+- Provider timeout fallback, citation/context, visible-concision, privacy, and
+  unsupported-action/ID controls passed.
+- Raw logs, IPs, private paths, prompts, answers, and secrets are absent from
+  operational telemetry.
+- Authoritative mutations, automatic response, and real blocking: zero/false.
+
+The v5.28 review helper is ready for later qualified human use but was not run
+against the actual sealed evidence. Approximately three supervised evidence
+phases and two Assistant product-evidence phases remain. Their external inputs
+are human review, a second source/device, institutional/provider approval, and
+an approved deployment host.
+
+## v5.29 Assistant Response Quality Decision
+
+- Assistant response modes: nine explicit intent-specific contracts.
+- Deterministic QA: `20/20`; citations and all word budgets passed.
+- Average/max answer length: `73.1/184` words, reduced from `283.8/697`.
+- Follow-ups: active record retained; new question answered without repeating
+  the complete prior answer.
+- Gemini bounded result: six calls and `12/12` checks passed.
+- Gemini latency: `2,105/2,828 ms` median/p95; `20,570` total tokens.
+- Direct answer: visible first; detailed evidence and provider sources:
+  collapsed by default.
+- Raw logs: disabled; IP redaction: enabled; secrets exposed: false.
+- Assistant authority: none; zero response/detection/label/model/user/delete
+  effects.
+
+The Assistant is materially more concise and useful for routine SOC triage,
+but automated tests do not replace qualified human semantic/privacy review or
+approved-host provider operations. Rules remain alert-authoritative;
+supervised ML remains `shadow_observation`; automatic response and real
+blocking remain disabled.

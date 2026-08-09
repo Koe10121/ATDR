@@ -231,6 +231,20 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
         llm_timeout_seconds: 15,
         llm_max_retries: 2,
         llm_max_prompt_chars: 12000,
+        llm_max_output_tokens: 800,
+        llm_max_visible_chars: 4000,
+        llm_circuit_breaker_failures: 3,
+        llm_circuit_breaker_cooldown_seconds: 60,
+        llm_operational: {
+          status: "idle",
+          calls_attempted: 0,
+          calls_succeeded: 0,
+          calls_failed: 0,
+          fallbacks: 0,
+          circuit_open: false,
+          estimated_cost_usd: 0,
+          secrets_exposed: false
+        },
         conversation_history_turns: 4,
         rate_limit_requests: 30,
         rate_limit_window_seconds: 60,
@@ -353,8 +367,9 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
     route.fulfill({
       json: {
         answer:
-          "Summary\n- Alert #1: Critical policy_deny with risk score 88.\n\nEvidence / why flagged\nFlagged as suspicious because action=deny and source touched 32 unique destination ports in 5 minutes.\n\nRisk interpretation\n- Evidence strength: moderate confidence.\n- False-positive/noise review recommended when parser data is incomplete.\n\nWhat to check next\n- Review related logs before containment.\n- Use simulated response only after confirmation.\n\nSafety note\n- The assistant is read-only.\n- Response automation is disabled.\n- No raw log context was included.",
+          "Verdict: Alert #1 was flagged because denied traffic touched 32 destination ports in five minutes.\nKey evidence:\n- Policy deny and scanning-like behavior.\nNext check: Review the related logs.",
         mode: "deterministic_local",
+        response_mode: "alert_explanation",
         external_provider_used: false,
         safety: ["Read Only", "Decision Support Only", "Response Automation Disabled", "Simulation Mode"],
         context_used: ["alert_detail", "why_flagged"],
@@ -379,25 +394,27 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
             fallback_reason: null,
             raw_log_context_included: false,
             secrets_exposed: false,
-            prompt_contract: "soc_evidence_grounded_concise_v3",
+            prompt_contract: "soc_intent_aware_concise_v4",
             provider_called: false,
             answer_used: false,
             answer_guard_reason: null
           },
           alert: { id: 1, severity: "Critical" },
           answer_sections: {
+            response_mode: ["alert_explanation"],
+            direct_answer: ["Alert #1 was flagged because denied traffic touched 32 destination ports in five minutes."],
             summary: ["Alert #1: Critical policy_deny with risk score 88.", "Detection source: rule, anomaly, hybrid."],
-            what_happened: ["Alert #1 was generated from denied traffic and scanning-like behavior."],
-            why_flagged_or_not: ["Flagged as suspicious because action=deny and source touched 32 unique destination ports."],
-            evidence: ["Flagged as suspicious because action=deny.", "Policy deny: Denied traffic.", "ATT&CK mapping: Discovery / Network Service Discovery / T1046."],
-            risk_interpretation: ["Evidence strength: moderate confidence.", "False-positive/noise review recommended when parser data is incomplete."],
-            related_context: ["Brief context type: alert.", "Alert detail: /api/alerts/{alert_id} #1"],
-            what_to_check_next: ["Review related logs before containment.", "Use simulated response only after confirmation."],
-            safe_next_steps: ["Review related logs before containment.", "Use simulated response only after confirmation."],
-            limitations: ["Decision support only; analyst judgment is required.", "Response automation is disabled."],
-            safety_note: ["The assistant is read-only.", "Response automation is disabled."],
-            safety_limitation: ["The assistant is read-only.", "Response automation is disabled."],
+            key_evidence: ["Policy deny and scanning-like behavior."],
+            evidence: ["Policy deny and scanning-like behavior."],
+            next_steps: ["Review the related logs."],
+            what_to_check_next: ["Review the related logs."],
             citations: ["Alert detail: /api/alerts/{alert_id} #1", "Detection rule catalog: docs/DETECTION_RULE_CATALOG.md"]
+          },
+          evidence_detail: {
+            evidence: ["Flagged as suspicious because action=deny.", "ATT&CK mapping: Discovery / Network Service Discovery / T1046."],
+            risk_interpretation: ["Evidence strength: moderate confidence."],
+            limitations: ["Parser context may be incomplete."],
+            related_context: ["Alert detail: /api/alerts/{alert_id} #1"]
           }
         },
         conversation_id: "smoke-assistant-conversation",
@@ -3480,27 +3497,30 @@ test("SOC assistant page is read-only and contains long responses safely", async
   await expect(page.getByLabel("Analyst question")).toHaveValue("What are response safety rules?");
   await page.getByRole("button", { name: "Source Warnings", exact: true }).click();
   await expect(page.getByLabel("Analyst question")).toHaveValue("Which sources have warnings?");
-  await expect(page.getByTestId("assistant-response-panel")).toContainText("The assistant is read-only");
+  await expect(page.getByTestId("assistant-direct-answer")).toBeVisible();
 
   await page.getByLabel("Analyst question").fill("Why was alert 1 flagged?");
   await page.getByRole("button", { name: "Ask assistant" }).click();
   const panel = page.getByTestId("assistant-response-panel");
-  await expect(panel).toContainText("The assistant is read-only");
-  await expect(panel).toContainText("Evidence");
-  await expect(panel).toContainText("Risk interpretation");
-  await expect(panel).toContainText("False-positive/noise review");
-  await expect(panel).toContainText("ATT&CK mapping");
-  await expect(panel).toContainText("Related context");
-  await expect(panel).toContainText("Analyst next steps");
   await expect(panel.getByTestId("assistant-answer-sections")).toBeVisible();
+  await expect(panel.getByTestId("assistant-direct-answer")).toContainText("Alert explanation");
+  await expect(panel.getByTestId("assistant-direct-answer")).toContainText("Alert #1 was flagged");
+  await expect(panel.getByText("Read Only", { exact: true }).first()).toBeVisible();
+  await expect(panel.getByText("Decision Support Only", { exact: true })).toBeVisible();
+  await expect(panel.getByText("Response Automation Disabled", { exact: true })).toBeVisible();
+  await expect(panel.getByText("Simulation Mode", { exact: true })).toHaveCount(0);
+  const evidenceItem = panel.getByTestId("assistant-section-evidence").getByText("Flagged as suspicious because action=deny.");
+  await expect(evidenceItem).not.toBeVisible();
+  await panel.getByText("Evidence and reasoning").click();
+  await expect(evidenceItem).toBeVisible();
+  await expect(panel.getByTestId("assistant-provider-telemetry")).not.toBeVisible();
+  await panel.getByText("Sources and provider details").click();
   await expect(panel.getByTestId("assistant-provider-telemetry")).toContainText("Local Evidence Assistant");
   await expect(panel.getByTestId("assistant-provider-telemetry")).toContainText("Raw logs");
   await expect(panel.getByTestId("assistant-provider-telemetry")).toContainText("Not included");
   await expect(panel.getByTestId("assistant-provider-telemetry")).toContainText("Secrets");
   await expect(panel.getByTestId("assistant-provider-telemetry")).toContainText("Not exposed");
-  await expect(panel.getByTestId("assistant-provider-telemetry")).toContainText("soc_evidence_grounded_concise_v3");
-  await expect(panel).toContainText("Safety");
-  await expect(panel).toContainText("Alert detail");
+  await expect(panel.getByTestId("assistant-provider-telemetry")).toContainText("soc_intent_aware_concise_v4");
   await expect(panel.getByTestId("assistant-citations")).toContainText("Grounded In");
   await expect(panel.getByTestId("assistant-citations")).toContainText("/api/alerts/{alert_id}");
   await expect(panel.getByTestId("assistant-citation-open-alert-detail-1")).toHaveAttribute("href", "/alerts?alert=1");
@@ -3527,8 +3547,8 @@ test("SOC assistant page is read-only and contains long responses safely", async
   await page.getByRole("option", { name: "Incorrect" }).click();
   await feedbackReview.getByRole("button", { name: "Feedback context filter" }).click();
   await page.getByRole("option", { name: "Alert" }).click();
-  await panel.getByRole("button", { name: "Copy brief" }).click();
-  await expect(panel.getByText("Brief copied")).toBeVisible();
+  await panel.getByRole("button", { name: "Copy answer" }).click();
+  await expect(panel.getByText("Answer copied")).toBeVisible();
   await panel.getByRole("button", { name: "Summarize source health." }).click();
   await expect(page.getByLabel("Analyst question")).toHaveValue("Summarize source health.");
   await panel.getByText("Technical context").click();
@@ -3544,7 +3564,7 @@ test("SOC assistant page is read-only and contains long responses safely", async
   await page.getByRole("button", { name: "Generate Brief" }).click();
   await expect(page.getByLabel("Analyst question")).toHaveValue("Create investigation brief for source 1.");
   await page.getByTestId("assistant-presets").getByRole("button", { name: "Source Health" }).first().click();
-  await expect(page.getByTestId("assistant-response-panel")).toContainText("The assistant is read-only");
+  await expect(page.getByTestId("assistant-direct-answer")).toBeVisible();
 
   await page.goto("/assistant?log=1");
   await expect(page.getByText("Log context #1")).toBeVisible();
@@ -3556,6 +3576,7 @@ test("SOC assistant page is read-only and contains long responses safely", async
 
   await page.goto("/assistant");
   await page.getByRole("button", { name: "Latest Critical Alert", exact: true }).click();
+  await page.getByText("Sources and provider details").click();
   await page.getByTestId("assistant-citation-open-alert-detail-1").click();
   await expect(page).toHaveURL(/\/alerts\?alert=1/);
 });
@@ -3565,16 +3586,16 @@ test("SOC assistant provider telemetry shows guarded external LLM state", async 
   await page.route("**/api/assistant/chat", async (route) =>
     route.fulfill({
       json: {
-        answer:
-          "Summary\n- Alert #3225 remains evidence-grounded by ATDR local context.\n\nEvidence\n- Provider answer was guarded because it did not contain enough evidence detail.\n\nWhat to check next\n- Review linked logs and source health before response.",
+        answer: "Verdict: Alert #3225 remains supported by local ATDR evidence.\nNext check: Review linked logs before response.",
         mode: "deterministic_local_llm_guarded_gemini",
+        response_mode: "alert_explanation",
         external_provider_used: true,
         safety: ["Read Only", "Decision Support Only", "Response Automation Disabled", "Simulation Mode"],
         context_used: ["alert_detail", "alert_evidence"],
         citations: [{ label: "Alert detail", source: "/api/alerts/{alert_id}", reference_id: "3225" }],
         redaction_applied: true,
         raw_log_context_included: false,
-        suggested_followups: ["What logs are related?", "What should an analyst verify before response?"],
+        suggested_followups: ["What logs are related to alert 3225?", "What should an analyst verify for alert 3225 before response?"],
         details: {
           assistant_audit_id: 3225,
           llm: {
@@ -3585,17 +3606,22 @@ test("SOC assistant provider telemetry shows guarded external LLM state", async 
             raw_log_context_included: false,
             secrets_exposed: false,
             context_characters: 1400,
-            prompt_contract: "soc_evidence_grounded_concise_v3",
+            prompt_contract: "soc_intent_aware_concise_v4",
             provider_called: true,
             answer_used: false,
-            answer_guard_reason: "provider_answer_too_short_for_evidence_context"
+            answer_guard_reason: "provider_answer_contains_unsupported_alert_id",
+            latency_ms: 85,
+            attempts: 1,
+            usage: { input_tokens: 120, output_tokens: 45, total_tokens: 165 }
           },
           answer_sections: {
-            summary: ["Alert #3225 remains evidence-grounded by ATDR local context."],
-            evidence: ["Provider answer was guarded because it did not contain enough evidence detail."],
-            what_to_check_next: ["Review linked logs and source health before response."],
-            safety_note: ["The assistant is read-only."]
-          }
+            response_mode: ["alert_explanation"],
+            direct_answer: ["Alert #3225 remains supported by local ATDR evidence."],
+            key_evidence: ["Local alert evidence retained the requested record."],
+            next_steps: ["Review linked logs before response."],
+            citations: ["Alert detail: /api/alerts/{alert_id} #3225"]
+          },
+          evidence_detail: { evidence: ["Local alert evidence retained the requested record."] }
         },
         conversation_id: "guarded-assistant-conversation",
         active_context: { alert_id: 3225, log_id: null, source_id: null, case_id: null, primary: "alert" }
@@ -3607,15 +3633,17 @@ test("SOC assistant provider telemetry shows guarded external LLM state", async 
   await page.getByLabel("Analyst question").fill("Why was alert 3225 flagged?");
   await page.getByRole("button", { name: "Ask assistant" }).click();
 
+  await page.getByText("Sources and provider details").click();
   const telemetry = page.getByTestId("assistant-provider-telemetry");
   await expect(telemetry).toContainText("Gemini Fallback: Local Evidence Assistant");
   await expect(telemetry).toContainText("Gemini");
-  await expect(telemetry).toContainText("too short");
+  await expect(telemetry).toContainText("outside the supplied ATDR context");
   await expect(telemetry).toContainText("Raw logs");
   await expect(telemetry).toContainText("Not included");
   await expect(telemetry).toContainText("Secrets");
   await expect(telemetry).toContainText("Not exposed");
-  await expect(telemetry).toContainText("soc_evidence_grounded_concise_v3");
+  await expect(telemetry).toContainText("soc_intent_aware_concise_v4");
+  await expect(telemetry).toContainText("45");
   await expect(page.getByTestId("assistant-response-panel")).toContainText("Alert #3225");
   await expect(page.getByText("ASSISTANT_LLM_API_KEY")).not.toBeVisible();
   await expect(page.getByRole("button", { name: "Record simulated block" })).not.toBeVisible();
@@ -3642,6 +3670,20 @@ test("SOC assistant labels Gemini only after an answer uses the provider", async
         llm_timeout_seconds: 15,
         llm_max_retries: 2,
         llm_max_prompt_chars: 12000,
+        llm_max_output_tokens: 800,
+        llm_max_visible_chars: 4000,
+        llm_circuit_breaker_failures: 3,
+        llm_circuit_breaker_cooldown_seconds: 60,
+        llm_operational: {
+          status: "healthy",
+          calls_attempted: 3,
+          calls_succeeded: 3,
+          calls_failed: 0,
+          fallbacks: 0,
+          circuit_open: false,
+          estimated_cost_usd: 0.001,
+          secrets_exposed: false
+        },
         conversation_history_turns: 4,
         rate_limit_requests: 30,
         rate_limit_window_seconds: 60,
@@ -3658,6 +3700,7 @@ test("SOC assistant labels Gemini only after an answer uses the provider", async
       json: {
         answer: "Alert #77 is supported by bounded ATDR evidence.",
         mode: "external_llm_gemini",
+        response_mode: "alert_explanation",
         external_provider_used: true,
         safety: ["Read Only", "Decision Support Only", "Response Automation Disabled"],
         context_used: ["alert_detail", "external_llm:gemini"],
@@ -3667,11 +3710,13 @@ test("SOC assistant labels Gemini only after an answer uses the provider", async
         suggested_followups: ["What logs are related?"],
         details: {
           answer_sections: {
-            summary: ["Alert #77 is supported by bounded ATDR evidence."],
-            evidence: ["ATDR alert detail was supplied."],
-            what_to_check_next: ["Review linked evidence."],
-            safety_note: ["Read-only decision support; response automation remains disabled."]
+            response_mode: ["alert_explanation"],
+            direct_answer: ["Alert #77 is supported by bounded ATDR evidence."],
+            key_evidence: ["ATDR alert detail was supplied."],
+            next_steps: ["Review linked evidence."],
+            citations: ["Alert detail: /api/alerts/{alert_id} #77"]
           },
+          evidence_detail: { evidence: ["ATDR alert detail was supplied."] },
           llm: {
             used: true,
             provider: "gemini",
@@ -3680,7 +3725,7 @@ test("SOC assistant labels Gemini only after an answer uses the provider", async
             structured_output_valid: true,
             raw_log_context_included: false,
             secrets_exposed: false,
-            prompt_contract: "soc_evidence_grounded_concise_v3"
+            prompt_contract: "soc_intent_aware_concise_v4"
           }
         },
         conversation_id: "gemini-verified-conversation",
@@ -3691,10 +3736,12 @@ test("SOC assistant labels Gemini only after an answer uses the provider", async
   await seedSession(page);
   await page.goto("/assistant");
   await expect(page.getByText("Gemini Configured", { exact: true })).toBeVisible();
+  await expect(page.getByText("healthy", { exact: true })).toBeVisible();
   await expect(page.getByText("Gemini Assisted", { exact: true })).toHaveCount(0);
   await page.getByLabel("Analyst question").fill("Why was alert 77 flagged?");
   await page.getByRole("button", { name: "Ask assistant" }).click();
   await expect(page.getByText("Gemini Assisted", { exact: true }).first()).toBeVisible();
+  await page.getByText("Sources and provider details").click();
   await expect(page.getByTestId("assistant-citations")).toContainText("Alert detail");
   await expect(page.getByText("ASSISTANT_LLM_API_KEY")).toHaveCount(0);
 });
@@ -3709,13 +3756,32 @@ test("SOC assistant follow-up questions keep the previous alert context", async 
     const logId = Number(payload.log_id ?? 9001);
     const question = String(payload.question ?? "").toLowerCase();
     const isLogFollowUp = question.includes("that log") || (question.includes("log") && !question.includes("related"));
+    const isRelatedFollowUp = question.includes("related");
+    const isNextFollowUp = question.includes("next step") || question.includes("check next");
+    const isLatestCritical = question.includes("latest critical");
+    const responseMode = isLogFollowUp
+      ? "alert_explanation"
+      : isRelatedFollowUp
+        ? "related_logs"
+        : isNextFollowUp
+          ? "safe_next_step"
+          : isLatestCritical
+            ? "list_summary"
+            : "alert_explanation";
+    const answer = isLogFollowUp
+      ? `Verdict: Log #${logId} remains linked to alert #${alertId}.`
+      : isRelatedFollowUp
+        ? `Related logs for alert #${alertId}:\n- Log #9001 is linked evidence.`
+        : isNextFollowUp
+          ? `Prioritized checks for alert #${alertId}:\n1. Review log #9001.\n2. Confirm source context before response.`
+          : isLatestCritical
+            ? `Latest critical alert: Alert #${alertId}.`
+            : `Verdict: Alert #${alertId} context was retained.`;
     await route.fulfill({
       json: {
-        answer:
-          isLogFollowUp
-            ? "Summary\n- Log context was retained.\n\nEvidence\n- The log is linked to the previous alert.\n\nWhat to check next\n- Review nearby logs before containment."
-            : "Summary\n- Alert context was retained.\n\nEvidence\n- Related logs are available from the alert evidence list.\n\nWhat to check next\n- Review related logs before containment.",
+        answer,
         mode: "deterministic_local",
+        response_mode: responseMode,
         external_provider_used: false,
         safety: ["Read Only", "Decision Support Only", "Response Automation Disabled", "Simulation Mode"],
         context_used: isLogFollowUp ? ["log_detail", "why_flagged"] : ["alert_detail", "alert_evidence"],
@@ -3733,14 +3799,23 @@ test("SOC assistant follow-up questions keep the previous alert context", async 
         ],
         redaction_applied: true,
         raw_log_context_included: false,
-        suggested_followups: ["What logs are related?", "What is the recommended next step?"],
+        suggested_followups: [
+          `What logs are related to alert ${alertId}?`,
+          `What should an analyst check next for alert ${alertId}?`
+        ],
         details: {
           assistant_audit_id: 1717,
           answer_sections: {
-            summary: [isLogFollowUp ? `Log #${logId} context was retained.` : `Alert #${alertId} context was retained.`],
-            evidence: [isLogFollowUp ? `Linked alert #${alertId} is available.` : "Related log #9001 is linked as alert evidence."],
-            what_to_check_next: [isLogFollowUp ? "Review nearby logs before containment." : "Review related logs before containment."],
-            safety_note: ["The assistant is read-only."]
+            response_mode: [responseMode],
+            direct_answer: [answer.split("\n")[0]],
+            key_evidence: isLogFollowUp ? [`Linked alert #${alertId} is available.`] : [],
+            related_logs: isRelatedFollowUp ? ["Log #9001 is linked evidence."] : [],
+            next_steps: isNextFollowUp ? ["Review log #9001.", "Confirm source context before response."] : [],
+            list_items: isLatestCritical ? [`Alert #${alertId}`] : [],
+            citations: [`Alert detail: /api/alerts/{alert_id} #${alertId}`]
+          },
+          evidence_detail: {
+            evidence: [isLogFollowUp ? `Linked alert #${alertId} is available.` : "Related log #9001 is linked as alert evidence."]
           }
         },
         conversation_id: String(payload.conversation_id ?? "follow-up-conversation"),
@@ -3764,9 +3839,11 @@ test("SOC assistant follow-up questions keep the previous alert context", async 
   await expect(page.getByTestId("assistant-response-panel")).toContainText("Alert #1717 context was retained.");
   await expect(page.getByText("Using alert #1717")).toBeVisible();
   expect(assistantRequests).toHaveLength(requestCountBeforeNavigation);
-  await page.getByRole("button", { name: "What logs are related?" }).click();
-  await expect(page.getByLabel("Analyst question")).toHaveValue("What logs are related?");
+  await page.getByRole("button", { name: "What logs are related to alert 1717?" }).click();
+  await expect(page.getByLabel("Analyst question")).toHaveValue("What logs are related to alert 1717?");
   await expect(page.getByText("Using alert #1717")).toBeVisible();
+  await expect(page.getByTestId("assistant-response-panel")).toContainText("Related logs for alert #1717");
+  await expect(page.getByTestId("assistant-response-panel")).not.toContainText("Verdict: Alert #1717 context was retained.");
 
   expect(assistantRequests.length).toBeGreaterThanOrEqual(2);
   expect(assistantRequests[0].alert_id).toBe(1717);
@@ -3775,8 +3852,10 @@ test("SOC assistant follow-up questions keep the previous alert context", async 
   expect(assistantRequests[1].conversation_id).toBe(assistantRequests[0].conversation_id);
   expect(assistantRequests[1].log_id).toBeNull();
   expect(assistantRequests[1].source_id).toBeNull();
-  await page.getByRole("button", { name: "What is the recommended next step?" }).click();
-  await expect(page.getByLabel("Analyst question")).toHaveValue("What is the recommended next step?");
+  await page.getByRole("button", { name: "What should an analyst check next for alert 1717?" }).click();
+  await expect(page.getByLabel("Analyst question")).toHaveValue("What should an analyst check next for alert 1717?");
+  await expect(page.getByTestId("assistant-response-panel")).toContainText("Prioritized checks for alert #1717");
+  await expect(page.getByTestId("assistant-response-panel")).not.toContainText("Related logs for alert #1717");
   expect(assistantRequests.length).toBeGreaterThanOrEqual(3);
   expect(assistantRequests[2].alert_id).toBe(1717);
   expect(assistantRequests[2].log_id).toBeNull();

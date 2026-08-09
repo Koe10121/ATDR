@@ -1709,3 +1709,118 @@ the private source in disposable storage, and writes ignored aggregate reports
 under `ml_baseline_reviews/`. It does not open the blind pack, serialize or
 activate a model, create alerts, or change response authority. Treat private
 assisted labels as weak evidence and the frozen candidate as shadow-only.
+
+## v5.26 Native Blind Qualification
+
+The full one-time qualification has already been consumed on the current
+private evidence. Do not run it again. Use preflight only to verify that the
+locks remain intact:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v526_native_blind_qualification `
+  --sample-path "<private-panos-log>" `
+  --use-temp-db `
+  --preflight-only `
+  --no-write `
+  --pretty
+```
+
+The preflight returns aggregate eligibility only. It must not return the source
+path, rows, IPs, identities, fingerprints, labels, or secrets.
+
+The existing 40-row blind pack has zero genuine human decisions. Consequently,
+its rule, anomaly, supervised, and hybrid queue rates are not accuracy metrics.
+Do not calculate or present precision, recall, F1, false-positive rate,
+calibration, or false-negative patterns until a qualified independent reviewer
+completes the sealed decisions without seeing predictions.
+
+After review, join decisions read-only to the already frozen private prediction
+lock. Never rerun or tune against the consumed pack. Any repaired model must be
+tested against a new preregistered blind corpus. Keep lifecycle
+`shadow_observation`, rules alert-authoritative, and response automation and
+real blocking disabled.
+
+## v5.27 Independent Blind Review Intake
+
+The evidence custodian keeps the sealed CSV immutable and creates a separate
+ignored review copy with the v5.28 helper. Give the independent reviewer only
+that working copy and `docs/detection/V5_27_BLIND_REVIEWER_GUIDE.md`. Never
+provide the v5.26 prediction lock, per-row queue decisions, scores, or an
+assisted pack.
+
+After the human returns the completed working copy, run:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v527_blind_review_evaluation --review-file ".\ml_baseline_reviews\v5_28_blind_human_review_working.csv" --pretty
+```
+
+The runner validates provenance, completeness, confirmation, token and lock
+identity, blind-role integrity, and prediction exposure. It joins accepted
+human decisions to existing frozen predictions without rerunning any detector.
+It writes no labels or model artifacts. If support or class coverage is
+insufficient, metrics remain withheld.
+
+Never use the resulting blind errors for direct tuning. Any development-only
+repair requires a new untouched blind pack before another final evaluation.
+
+Run bounded real-record Gemini QA with:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v527_gemini_real_alert_quality --execute-provider --provider-interval-seconds 1 --pretty
+```
+
+This reads representative existing records, copies only bounded redacted
+fields into disposable storage, excludes raw logs and IPs, verifies citations,
+context, concision, fallback, latency/tokens, and authoritative immutability,
+then removes the disposable database.
+
+## v5.28 Deferred Human Review And Shadow Readiness
+
+Prepare, resume, and inspect review progress only when a qualified human is
+ready:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v528_blind_review_helper --prepare --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v528_blind_review_helper --interactive --reviewer "<institutional-id>" --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v528_blind_review_helper --status --pretty
+```
+
+The helper presents one structured row at a time, never displays detector or
+AI suggestions, saves atomically, preserves protected evidence, keeps
+`import_ready=false`, and never imports. Do not calculate or discuss blind
+quality metrics from its progress output.
+
+The label-independent readiness audit is safe while human review is deferred:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v528_supervised_readiness_audit --no-write --pretty
+```
+
+It checks the registered artifact, feature/calibration/schema contracts,
+abstention, latency, drift, registry metadata, and zero-mutation state without
+opening blind evidence or rerunning predictions. It cannot authorize model
+activation or promotion.
+
+## v5.29 Assistant Intent And Concision Validation
+
+Run deterministic response-quality validation with:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.evaluate_assistant_qa --pretty
+```
+
+Expected result: 20/20 cases, 100% required citations, every intent-specific
+word budget passed, raw-log context false, and no response/detection/model/
+label/log/feedback side effect other than Assistant question audits.
+
+When configured Gemini quota is available, run:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v527_gemini_real_alert_quality --execute-provider --provider-interval-seconds 1 --pretty
+```
+
+Provider answers must retain the requested record and citation, stay within
+the selected response contract, and never imply an executed action. An
+unsupported record, missing requested coverage, lost primary citation,
+secret-like content, or over-budget answer must fail closed to the concise
+deterministic answer.

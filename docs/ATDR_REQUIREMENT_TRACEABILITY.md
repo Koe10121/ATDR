@@ -602,3 +602,47 @@ This document maps major ATDR requirements to implementation evidence, tests, do
 | Analyst response and audit | Passed in disposable storage | response/audit services and E2E validator | missing note/protected target denied; approved action simulated; three records audited | v5.25 status | Real enforcement stays disabled and separately governed. |
 | Startup, setup, RBAC, and UI | Source and regression contracts passed | lifecycle scripts, shell contract, React routes/tests, RBAC tests | full backend and Playwright matrix | v5.25 T1-T20/taskboard | MFU preproduction and second-machine clean-room evidence remain external. |
 | Privacy and lifecycle safety | Satisfied | aggregate projection and configured-DB markers | no path/raw/IP/secret; no model/label authority write; DB unchanged | v5.25 status | Independent security/privacy approval remains external. |
+
+## v5.26 Native Blind Qualification Traceability Addendum
+
+| Requirement | Status | Implementation evidence | Test/evaluation evidence | Documentation | Remaining gap |
+| --- | --- | --- | --- | --- | --- |
+| Blind-role and candidate lock validation | Implemented and passed | `v526_native_blind_qualification.py`; v5.21 manifest/lock; v5.22 frozen contract | matching pack/role/candidate checks; mismatch regression | v5.26 status/T1-T20 | Private lock custody remains host-local. |
+| Prediction before label access | Implemented and executed once | v5.26 service and ignored prediction lock | 40 rows frozen; label fields absent during prediction; repeat full run fails closed | v5.26 status/tests | No human blind decisions exist yet. |
+| Label provenance integrity | Satisfied | strict genuine-human audit | 0 genuine, 40 not reviewed, 0 assisted counted, 0 fabricated/written | v5.26 status | Qualified independent review is external. |
+| Four-layer queue comparison | Measured without accuracy claim | deterministic rules, IsolationForest, v5.22 shadow candidate, hybrid projection | queue rates `0.625`, `0.075`, `0.300`, `0.100`; aggregate agreement only | v5.26 status | Precision/recall/FPR/FN/calibration unavailable without labels. |
+| Private full-stream handling | Implemented and passed | v5.26 CLI and disposable v5.21 reconstruction | 773,551 parsed, 0 failures, temporary storage disposed | v5.26 status/runbook | One collection cannot prove source generalization. |
+| Configured-data and authority safety | Satisfied | safety markers and write-count checks | zero labels/model runs/detection runs/alerts/responses; artifacts unchanged | v5.26 status/tests | Any lifecycle change requires separate approval and evidence. |
+| Protocol repair transparency | Satisfied | preserved ignored pre-lock record and bounded repair contract | correction allowed only with 0 human labels and no metrics; rates reproduced | v5.26 T1-T20 | The consumed blind pack cannot test a future repaired candidate. |
+| Privacy and repository hygiene | Satisfied locally | redacted public projection and exact allowlist | no path/raw/IP/source/fingerprint/secret returned or tracked | v5.26 allowlist | Independent evidence governance remains external. |
+
+## v5.27 Blind Review And Gemini Real-Record Traceability Addendum
+
+| Requirement | Status | Source files/routes | Tests/evidence | Docs | Remaining gaps |
+| --- | --- | --- | --- | --- | --- |
+| Strict independent blind-review intake | Implemented; human handoff open | `atdr/app/detection/v527_blind_review_evaluation.py`, `atdr/scripts/run_v527_blind_review_evaluation.py` | provenance, completeness, duplicate, exposure, and lock-integrity tests; measured 0 valid/40 unreviewed | v5.27 status, reviewer guide, T1-T20 | Qualified independent human decisions are absent. |
+| Existing-lock metric evaluation without prediction rerun | Implemented fail-closed | v5.27 blind evaluator and v5.26 private lock contract | valid synthetic reviews enable metrics; real pack withholds every metric and FP/FN claim | v5.27 status/T1-T20 | Real blind metrics require at least 20 legitimate rows and both queue classes. |
+| Aggregate FP/FN and calibration analysis | Implemented but gated | v5.27 layer evaluator | rule, IsolationForest, supervised, and hybrid metric/error paths covered | v5.27 status/reviewer guide | Unavailable until legitimate blind support exists; pack cannot be used for tuning afterward. |
+| Bounded Gemini evaluation on existing dashboard records | Implemented and passed | `v527_gemini_real_alert_quality_service.py`, v5.27 CLI, Assistant service/LLM adapter | six configured Gemini calls; 12/12 gates; 3,521.5 ms median; 21,973 tokens; zero configured DB mutations | v5.27 status/T1-T20 | Bounded automated evidence is not universal semantic proof. |
+| Assistant real-record privacy and fallback | Implemented and passed | disposable snapshot builder, Assistant redaction/raw-context policy, forced fallback | no raw values/IP/source names copied; fallback passed; no model/response writes | v5.27 status | Human privacy review, quota/cost/key rotation, and approved-host monitoring remain external. |
+
+## v5.28 Review Readiness And Gemini Productization Traceability Addendum
+
+| Requirement | Status | Source files/routes | Tests/evidence | Docs | Remaining gaps |
+| --- | --- | --- | --- | --- | --- |
+| Immutable blind-first human workflow | Implemented; human execution deferred | `v528_blind_review_helper.py`, v5.28 CLI, v5.27 locked evaluator | synthetic save/resume preserves sealed evidence/tokens; assisted or modified copies fail closed | v5.28 status, reviewer guide, T1-T20 | Qualified human review is still 0/40. |
+| Review progress without prediction leakage | Implemented | v5.28 helper status contract | total/reviewed/remaining/invalid and human class support only; no predictions or early metrics | v5.28 status/tests | Metrics require >=20 legitimate reviews and both queue classes. |
+| Label-independent supervised readiness | Implemented and passed | `v528_supervised_readiness.py`, read-only CLI | checksum/schema/calibration/abstention/latency audit; 14.7438 ms p95; zero state writes; blind pack unopened | v5.28 status/T1-T20 | Predictive quality and source generalization remain unproven. |
+| Provider output and failure governance | Implemented | `assistant_llm.py`, Assistant config/status | output budget, typed retry, timeout/rate-limit handling, circuit breaker, deterministic fallback tests | v5.28 status/tests | Host-level quota and multi-process telemetry remain deployment work. |
+| Content-free Assistant operations telemetry | Implemented | Assistant LLM/service/schema/status and React Assistant page | aggregate calls/failures/fallbacks/latency/tokens/cost only; no content/secrets | v5.28 status/tests | Institutional retention/privacy approval remains external. |
+| Bounded current-record Gemini quality | Passed | v5.27 evaluator using hardened adapter | six calls; 12/12; 3,494.5 ms median; 21,999 tokens; zero authoritative mutations | v5.28 status | Human semantic/usefulness review and provider governance remain open. |
+
+## v5.29 Intent-Aware Assistant Traceability Addendum
+
+| Requirement | Status | Source files/routes | Tests/evidence | Docs | Remaining gaps |
+| --- | --- | --- | --- | --- | --- |
+| Intent-specific response contracts | Implemented | `assistant_response_contracts.py`, `assistant_service.py`, `POST /api/assistant/chat` | distinct-mode and hard-budget backend tests; deterministic QA 20/20 | v5.29 status/T1-T20 | Human usefulness review remains external. |
+| Concise provider schema and guard | Implemented and bounded | `assistant_llm.py`, Assistant config/service | short grounded Gemini accepted; unsupported IDs/action claims/budget violations fail closed; Gemini 12/12 | v5.29 status/tests | Approved-host privacy, quota, cost, and key operations remain open. |
+| Context-bound non-repetitive follow-ups | Implemented | Assistant conversation context and React session state | alert explanation -> related logs -> prioritized checks retains the same alert with distinct answers | v5.29 tests | Broader human conversational evaluation remains open. |
+| Direct-answer-first dashboard | Implemented | `AssistantAnswerContent.tsx`, `AssistantPage.tsx`, `assistantSession.ts` | focused Playwright 6/6; evidence and provider details collapsed; no overflow | v5.29 status/tests | No notebook or automatic action workflow is planned. |
+| Assistant authority boundary | Preserved | Assistant router/service plus existing response/detection/ML services | zero response/detection/label/model/user/delete mutations; raw logs false; redaction true | v5.29 status/compliance | Any future authority change requires a separate approved design. |

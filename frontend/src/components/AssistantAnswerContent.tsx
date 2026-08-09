@@ -2,6 +2,16 @@ import { Link } from "react-router-dom";
 import type { AssistantChatResponse, AssistantCitation } from "../types/api";
 
 interface AssistantAnswerSections {
+  response_mode: string[];
+  direct_answer: string[];
+  key_evidence: string[];
+  next_steps: string[];
+  related_logs: string[];
+  list_items: string[];
+  steps: string[];
+  assessment: string[];
+  blockers: string[];
+  consequence: string[];
   summary: string[];
   what_happened: string[];
   why_flagged_or_not: string[];
@@ -27,6 +37,16 @@ function answerSections(response: AssistantChatResponse): AssistantAnswerSection
   }
   const sections = rawSections as Record<string, unknown>;
   return {
+    response_mode: stringList(sections.response_mode),
+    direct_answer: stringList(sections.direct_answer),
+    key_evidence: stringList(sections.key_evidence),
+    next_steps: stringList(sections.next_steps),
+    related_logs: stringList(sections.related_logs),
+    list_items: stringList(sections.list_items),
+    steps: stringList(sections.steps),
+    assessment: stringList(sections.assessment),
+    blockers: stringList(sections.blockers),
+    consequence: stringList(sections.consequence),
     summary: stringList(sections.summary),
     what_happened: stringList(sections.what_happened),
     why_flagged_or_not: stringList(sections.why_flagged_or_not),
@@ -40,6 +60,27 @@ function answerSections(response: AssistantChatResponse): AssistantAnswerSection
     safety_limitation: stringList(sections.safety_limitation),
     citations: stringList(sections.citations)
   };
+}
+
+function evidenceSections(response: AssistantChatResponse): AssistantAnswerSections | null {
+  const detail = response.details?.evidence_detail;
+  if (!detail || typeof detail !== "object" || Array.isArray(detail)) return null;
+  return answerSections({ ...response, details: { answer_sections: detail } });
+}
+
+function responseModeLabel(mode: AssistantChatResponse["response_mode"]): string {
+  const labels: Record<AssistantChatResponse["response_mode"], string> = {
+    direct_fact: "Direct answer",
+    alert_explanation: "Alert explanation",
+    safe_next_step: "Prioritized checks",
+    related_logs: "Related logs",
+    source_health: "Source health",
+    list_summary: "Summary",
+    investigation_brief: "Investigation brief",
+    how_to: "Procedure",
+    governance: "Governance"
+  };
+  return labels[mode] ?? "Direct answer";
 }
 
 function SectionCard({ title, items }: { title: string; items: string[] }) {
@@ -150,38 +191,32 @@ export function AssistantCitationList({ citations }: { citations: AssistantCitat
 
 export function AssistantAnswerContent({ response }: { response: AssistantChatResponse }) {
   const sections = answerSections(response);
-  if (!sections) {
-    return (
-      <div className="rounded-lg border border-cyan/30 bg-cyan/10 p-4 text-sm font-semibold leading-relaxed text-text whitespace-pre-wrap break-words">
-        {response.answer}
-      </div>
-    );
-  }
+  const detail = evidenceSections(response);
+  const detailEvidence = detail?.evidence.length ? detail.evidence : detail?.why_flagged_or_not ?? [];
+  const detailAssessment = detail?.risk_interpretation ?? [];
+  const detailLimitations = detail?.limitations ?? [];
+  const detailRelated = detail?.related_context ?? [];
   return (
     <div className="space-y-3" data-testid="assistant-answer-sections">
-      <div className="grid gap-3 lg:grid-cols-2">
-        <SectionCard title="What happened" items={sections.summary.slice(0, 2)} />
-        <SectionCard
-          title="Why flagged / evidence"
-          items={(sections.evidence.length ? sections.evidence : sections.why_flagged_or_not).slice(0, 3)}
-        />
-        <SectionCard title="Evidence strength" items={sections.risk_interpretation.slice(0, 2)} />
-        <SectionCard title="Missing context" items={sections.limitations.slice(0, 2)} />
-        <SectionCard
-          title="Analyst next steps"
-          items={(sections.what_to_check_next.length ? sections.what_to_check_next : sections.safe_next_steps).slice(0, 3)}
-        />
-        <SectionCard title="Safety" items={(sections.safety_note.length ? sections.safety_note : sections.safety_limitation).slice(0, 1)} />
-      </div>
-      <details className="rounded-lg border border-line bg-white p-3" data-testid="assistant-technical-detail">
-        <summary className="cursor-pointer text-xs font-black uppercase tracking-wide text-muted">Technical Detail</summary>
-        <div className="mt-3 space-y-3">
-          <SectionCard title="Related context" items={sections.related_context.slice(0, 5)} />
-          <div className="max-h-72 overflow-auto rounded-lg border border-line bg-panel2 p-4 text-sm font-semibold leading-relaxed text-muted whitespace-pre-wrap break-words">
-            {response.answer}
-          </div>
+      <div className="rounded-lg border border-cyan/30 bg-cyan/10 p-4" data-testid="assistant-direct-answer">
+        <div className="text-[11px] font-black uppercase tracking-wide text-cyan">
+          {responseModeLabel(response.response_mode)}
         </div>
-      </details>
+        <div className="mt-2 text-sm font-semibold leading-relaxed text-text whitespace-pre-wrap break-words">
+          {response.answer}
+        </div>
+      </div>
+      {detail || sections?.key_evidence.length || sections?.limitations.length ? (
+        <details className="rounded-lg border border-line bg-white p-3" data-testid="assistant-evidence-detail">
+          <summary className="cursor-pointer text-xs font-black uppercase tracking-wide text-muted">Evidence and reasoning</summary>
+          <div className="mt-3 grid gap-3 lg:grid-cols-2">
+            <SectionCard title="Evidence" items={(detailEvidence.length ? detailEvidence : sections?.key_evidence ?? []).slice(0, 6)} />
+            <SectionCard title="Assessment" items={(detailAssessment.length ? detailAssessment : sections?.assessment ?? []).slice(0, 4)} />
+            <SectionCard title="Related context" items={detailRelated.slice(0, 5)} />
+            <SectionCard title="Limitations" items={(detailLimitations.length ? detailLimitations : sections?.limitations ?? []).slice(0, 4)} />
+          </div>
+        </details>
+      ) : null}
     </div>
   );
 }

@@ -845,6 +845,63 @@ ATDR shall support an opt-in database-backed operation queue for selected long-r
   lifecycle remains `shadow_observation`, and activation, promotion,
   automatic response, and real blocking remain prohibited.
 
+## v5.27 Blind Review And Real-Record Assistant Quality Addendum
+
+- **FR-ATDR-075:** ATDR shall validate independent blind-review decisions
+  against the existing frozen prediction lock without rerunning prediction.
+- A valid blind review shall require a real reviewer identity, timezone-aware
+  timestamp, explicit reviewed/confirmed flags, allowed decision, confidence,
+  and meaningful notes.
+- Assisted, weak, AI-, rule-, heuristic-, model-generated, incomplete, token-
+  mismatched, or prediction-exposed reviews shall be rejected and shall never
+  count as human ground truth.
+- Blind metrics shall remain unavailable until at least 20 legitimate reviews
+  and both queue classes exist. A consumed blind pack shall never be used for
+  tuning or candidate selection.
+- Locked evaluation may report confusion counts, queue metrics, class recall,
+  macro/weighted F1, calibration, and aggregate error patterns without
+  returning row tokens, fingerprints, reviewer identity, paths, raw evidence,
+  IP addresses, or secrets.
+- **FR-ATDR-076:** ATDR shall support bounded Assistant quality evaluation over
+  representative existing dashboard records copied into disposable storage.
+- The bounded snapshot shall replace raw log values, IPs, source names, user
+  fields, and private metadata before provider execution.
+- Assistant acceptance shall check citations, active-record continuity,
+  evidence relevance, unsupported IDs, concision, safe recommendations,
+  latency/token use, deterministic fallback, privacy, and zero authoritative
+  side effects.
+- Automated Assistant checks shall not be represented as proof of universal
+  semantic accuracy. Human semantic/privacy acceptance and provider operations
+  governance remain required.
+- Rules remain alert-authoritative; supervised ML remains
+  `shadow_observation`; Gemini remains read-only; automatic response and real
+  firewall blocking remain disabled.
+
+## v5.26 Native Blind Qualification Addendum
+
+- **FR-ATDR-075:** ATDR shall support a one-time native PAN-OS blind
+  qualification that freezes unchanged rule, anomaly, supervised-shadow, and
+  hybrid predictions before accessing human-decision fields.
+- The qualification shall validate chronological role, duplicate-family,
+  blind-pack, source, and frozen-candidate locks and fail closed on mismatch.
+- Blind evidence shall not be used for fit, calibration, threshold selection,
+  candidate selection, or post-result tuning.
+- Only independently human-reviewed blind decisions with reviewer and review
+  evidence may count as ground truth. Assisted, weak, rule-derived, model, or
+  AI suggestions shall never be represented as human labels.
+- Precision, recall, F1, false-positive rate, calibration, and error-pattern
+  claims shall be withheld when legitimate support or class coverage is
+  insufficient. Queue rate shall remain explicitly distinct from accuracy.
+- The private source shall be accepted only by CLI argument, processed in
+  disposable storage, and excluded from the configured database and tracked
+  repository.
+- Public output shall exclude private paths, raw evidence, IP addresses,
+  source identities, fingerprints, labels, credentials, and secrets.
+- A successful protocol run shall not activate/promote a model, create an
+  artifact, alter authoritative alerts, or enable automatic/real response.
+- Full qualification shall be one-shot. Any future repaired candidate shall
+  use a new preregistered untouched blind corpus.
+
 ## v5.25 Integrated Acceptance Addendum
 
 - **FR-ATDR-071:** ATDR shall provide one disposable, aggregate-only acceptance
@@ -1217,3 +1274,52 @@ disabled.
 - Rules remain alert-authoritative, IsolationForest remains advisory, the
   lifecycle remains `shadow_observation`, and activation, promotion,
   automatic response, and real blocking remain prohibited.
+
+## v5.28 Blind Review And Assistant Operations Addendum
+
+- **FR-ATDR-077:** Independent blind review shall occur in a separate ignored
+  working copy while the sealed evidence pack, review tokens, protected
+  evidence, ordering, and frozen predictions remain immutable and separately
+  controlled.
+- The review workflow shall never reveal rule, IsolationForest, supervised,
+  hybrid, Codex, or Gemini suggestions and shall never classify assisted
+  decisions as human ground truth.
+- Review progress shall expose human completion and class support only. Blind
+  accuracy metrics shall remain unavailable until at least 20 legitimate
+  reviews and both ground-truth queue classes exist.
+- The locked evaluator shall use sealed evidence plus human fields from the
+  working copy, shall never rerun predictions, and shall never import labels
+  automatically.
+- **FR-ATDR-078:** External Assistant providers shall use configurable output
+  budgets, bounded retries/timeouts, typed failure handling, circuit breaking,
+  and deterministic fallback.
+- Assistant operational telemetry shall remain aggregate and content-free; it
+  may contain call/failure/fallback counts, latency, tokens, estimated cost,
+  and health state but no prompts, answers, raw logs, IPs, private paths, or
+  secrets.
+- Assistant provider output shall remain read-only decision support and shall
+  not create responses, detections, labels, models, users, or deletions.
+- Rules remain alert-authoritative, supervised ML remains
+  `shadow_observation`, and model promotion, automatic response, and real
+  firewall blocking remain prohibited without separate governed evidence and
+  approval.
+
+## v5.29 Intent-Aware Assistant Addendum
+
+- **FR-ATDR-079:** The SOC Assistant shall classify each question into an
+  explicit response mode and return only the content needed for that intent.
+- Routine facts, explanations, next steps, linked-log summaries, source
+  health, ranked lists, procedures, governance answers, and explicit
+  investigation briefs shall use separate response contracts and hard word
+  limits.
+- The provider guard shall validate entity scope, requested coverage,
+  citations, safety, secrets, and response budget. It shall not reject an
+  accurate short answer merely because deterministic context is long.
+- Follow-up questions shall retain the active alert, log, source, or case but
+  answer only the new question and shall not repeat the complete prior report.
+- Detailed evidence and provider/citation information shall remain available
+  behind collapsed dashboard controls; the direct answer shall be primary.
+- The visible response state shall retain `Read Only`, `Decision Support Only`,
+  and `Response Automation Disabled`.
+- The Assistant shall not create responses, detection runs, labels, model
+  runs, users, deletions, or any other authoritative state change.

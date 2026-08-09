@@ -2,15 +2,15 @@
 
 | Field | Value |
 | --- | --- |
-| Date | 2026-08-02 |
+| Date | 2026-08-09 |
 | Project | MFU AI-Driven Log-Based Threat Detection and Response System |
-| Module / Feature | v5.25 Integrated Acceptance |
-| Requirement | Validate the complete controlled workflow from collection through parsing, normalization, authoritative rule detection, governed ML shadow scoring, alert explanation, Gemini assistance, analyst-approved simulated response, and audit. |
-| Active Change Record | `docs/V5_25_INTEGRATED_ACCEPTANCE.md`, `docs/changes/T1_T20_V5_25_INTEGRATED_ACCEPTANCE.md` |
+| Module / Feature | v5.29 SOC Assistant Intent-Aware Concision And Response Quality Lock |
+| Requirement | Make each Assistant answer direct, brief, and specific to the requested intent while preserving evidence citations, record-bound follow-ups, deterministic fallback, privacy controls, and zero action authority. |
+| Active Change Record | `docs/V5_29_SOC_ASSISTANT_INTENT_AWARE_CONCISION.md`, `docs/changes/T1_T20_V5_29_SOC_ASSISTANT_INTENT_AWARE_CONCISION.md` |
 | Current Checkpoint Records | `docs/V4_1_SCHEMA_AWARE_SOC_QUEUE_MODEL_REDESIGN.md`, `docs/V4_2_PRESENTATION_READY_SOC_ASSISTANT.md`, `docs/V4_3_PORTABLE_MFU_SHELL_RUNTIME.md`, `docs/CURRENT_SYSTEM_STATE_LOCK.md` |
-| Overall Status | v5.25 local integrated acceptance, complete repository verification, exact 75-path boundary, and privacy/hygiene checks pass. The 5,000-row disposable workflow covers collection, normalization, recovery, deterministic detection, deduplication, investigation, locked Gemini quality evidence, analyst-approved simulated response, and audit without changing the configured database or granting ML/Assistant authority. v5.23 remains owner-deferred with its non-loopback transport and real-device gates open. |
-| Overall Progress | Detection-centered closure program: phases 1-3 complete; phase 4 locally accepted with an owner-deferred external gate; phases 5 and 6 complete for the controlled local scope. Six external gates remain openly deferred or unavailable. This is roadmap accounting, not product-readiness or model-accuracy percentage. |
-| Progress Type | v5.25 proves a controlled local integrated contract. It does not prove production readiness, real-device interoperability, independent supervised accuracy, universal Gemini correctness, provider approval, approved-host deployment, or response authority. |
+| Overall Status | v5.29 is locally complete: nine response modes replace the universal report, deterministic QA passes 20/20, configured Gemini passes 12/12, average/max answers fell from 283.8/697 to 73.1/184 words, follow-ups retain the active record without repeating the full prior answer, full backend passes 852/1, Playwright passes 27/1, performance has no warnings, release is green, and authority remains zero. |
+| Overall Progress | Every locally controllable intent, budget, guard, follow-up, compact-UI, fallback, and regression task is implemented. Assistant closure still requires qualified human semantic/privacy evaluation and approved-host provider operations. Human blind supervised review remains deferred. |
+| Progress Type | v5.29 proves bounded intent-aware concision, context retention, provider guard behavior, privacy, and zero side effects. It does not prove universal semantic usefulness, approve provider deployment, create human labels, authorize model promotion, or enable response authority. |
 | v3.98 Change Record | `docs/V3_98_INDEPENDENT_DETECTION_ML_HOLDOUT_VALIDATION.md`, `docs/changes/T1_T20_V3_98_INDEPENDENT_DETECTION_ML_HOLDOUT_VALIDATION.md`, `atdr/tests/test_v398_independent_holdout_validation.py`, `atdr/scripts/run_v398_independent_holdout_validation.py` |
 | v3.99 Change Record | `docs/V3_99_INDEPENDENT_MULTI_SOURCE_EVIDENCE_AND_FROZEN_REVALIDATION.md`, `docs/changes/T1_T20_V3_99_INDEPENDENT_MULTI_SOURCE_EVIDENCE.md`, `atdr/tests/test_v399_multisource_frozen_revalidation.py`, `atdr/scripts/run_v399_multisource_frozen_revalidation.py` |
 | v4.0 Change Record | `docs/V4_0_PROVIDER_BLINDED_EXTERNAL_EVIDENCE_AND_FROZEN_VALIDATION.md`, `docs/changes/T1_T20_V4_0_PROVIDER_BLINDED_EXTERNAL_EVIDENCE.md`, `atdr/tests/test_v400_provider_blinded_external_validation.py`, `atdr/scripts/run_v400_provider_blinded_external_validation.py` |
@@ -50,6 +50,10 @@
 | v5.23 Change Record | `docs/V5_23_LIVE_SOURCE_ACCEPTANCE.md`, `docs/detection/V5_23_LIVE_SOURCE_ACCEPTANCE_CONTRACT.md`, `docs/changes/T1_T20_V5_23_LIVE_SOURCE_ACCEPTANCE.md`, `atdr/app/services/v523_live_source_acceptance_service.py`, `atdr/scripts/run_v523_live_source_acceptance.py`, `atdr/tests/test_v523_live_source_acceptance.py` |
 | v5.24 Change Record | `docs/V5_24_INVESTIGATION_AND_GEMINI_QUALITY_LOCK.md`, `docs/changes/T1_T20_V5_24_INVESTIGATION_AND_GEMINI_QUALITY_LOCK.md`, `atdr/app/services/v524_investigation_gemini_quality_service.py`, `atdr/scripts/run_v524_investigation_gemini_quality_lock.py`, `atdr/tests/test_v524_investigation_gemini_quality.py` |
 | v5.25 Change Record | `docs/V5_25_INTEGRATED_ACCEPTANCE.md`, `docs/changes/T1_T20_V5_25_INTEGRATED_ACCEPTANCE.md`, `atdr/app/services/v525_integrated_acceptance_service.py`, `atdr/scripts/run_v525_integrated_acceptance.py`, `atdr/tests/test_v525_integrated_acceptance.py` |
+| v5.26 Change Record | `docs/V5_26_NATIVE_BLIND_DETECTION_QUALIFICATION.md`, `docs/changes/T1_T20_V5_26_NATIVE_BLIND_DETECTION_QUALIFICATION.md`, `atdr/app/detection/v526_native_blind_qualification.py`, `atdr/scripts/run_v526_native_blind_qualification.py`, `atdr/tests/test_v526_native_blind_qualification.py` |
+| v5.27 Change Record | `docs/V5_27_BLIND_REVIEW_AND_GEMINI_REAL_ALERT_QUALITY.md`, `docs/detection/V5_27_BLIND_REVIEWER_GUIDE.md`, `docs/changes/T1_T20_V5_27_BLIND_REVIEW_AND_GEMINI_REAL_ALERT_QUALITY.md`, v5.27 detection/Assistant services, CLIs, and tests |
+| v5.28 Change Record | `docs/V5_28_REVIEW_READINESS_AND_GEMINI_PRODUCTIZATION.md`, `docs/changes/T1_T20_V5_28_REVIEW_READINESS_AND_GEMINI_PRODUCTIZATION.md`, v5.28 blind helper/readiness services and CLIs, hardened Assistant provider/status/UI, tests, and reviewer-guide update |
+| v5.29 Change Record | `docs/V5_29_SOC_ASSISTANT_INTENT_AWARE_CONCISION.md`, `docs/changes/T1_T20_V5_29_SOC_ASSISTANT_INTENT_AWARE_CONCISION.md`, intent contracts, provider guard/prompt changes, direct-answer-first UI, QA/Playwright coverage, governance, and exact allowlist |
 
 ## T1. Source Evidence
 
@@ -243,6 +247,10 @@
 | v5.17 PostgreSQL multi-worker acceptance readiness | 0 | 0 | Repository implementation and fail-closed preflight do not add readiness points until disposable PostgreSQL execution passes. |
 | v5.18 approved-host PostgreSQL scale qualification | 0 | 0 | Measured 100k/250k single-host PostgreSQL acceptance closes the local capacity gate without adding process-board points. Multi-host deployment, real devices, independent labels, and provider/security acceptance remain external. |
 | v5.19 independent labeled blind validation | 0 | 0 | The protocol and failure evidence add scientific confidence without readiness points. The first adapter failed and the post-blind diagnostic failed transfer/calibration gates on a non-native schema, so independent schema-compatible evidence remains open. |
+| v5.26 native blind qualification | 0 | 0 | One-time native prediction locking and honest metric withholding add scientific integrity without readiness points. The blind pack has no genuine human decisions and only one real source is represented. |
+| v5.27 strict intake and bounded Gemini evidence | 0 | 0 | Review intake and configured-provider quality evidence improve process confidence but cannot substitute for human ground truth, source independence, or provider approval. |
+| v5.28 review readiness and Gemini productization | 0 | 0 | Immutable review preparation, shadow integrity checks, and provider resilience are complete, but the external human/source/provider gates remain open and therefore add no production-readiness points. |
+| v5.29 Assistant intent-aware concision | 0 | 0 | Intent contracts, measured concision, contextual follow-ups, provider guards, and compact UI improve product quality without changing readiness points; human usefulness/privacy and provider-host governance remain external. |
 | Safety and repo hygiene preserved | 10 | 10 | No database reset, destructive migration, historical reparse, IAM activation, response behavior change, production promotion, `.env`, DB, real logs, tracked model artifacts, review files, generated reports, or protected data were introduced. Active artifacts remain unchanged; v5.13 activates no candidate. |
 | Verification completed | 10 | 10 | Tasklist render/check, Ruff, compileall, assistant tests, Alembic check, frontend lint/build/e2e, replay dry-run, provider status/probe checks, performance smoke, and release gates are recorded below. |
 | **Total** | **560** | **557** | v3.78-v5.19 form a locally verified repository baseline with controlled layered detection, immutable evidence roles, governed read-only scoring, profile-aware source operations, full-file recovery, measured PostgreSQL scale, and an honestly failed independent cross-schema transfer. Three external points remain: real multi-device evidence, schema-compatible independent labeled Detection/ML evidence, and provider/deployment/security acceptance. |
@@ -251,6 +259,10 @@
 
 | Task ID | Task | Agent | Owner | Depends On | Status | Progress % | Progress Basis | Source Evidence | Tests Evidence | Blocker | Next Action | Output |
 | --- | --- | --- | --- | --- | --- | ---: | --- | --- | --- | --- | --- | --- |
+| ATDR-V528-001 | v5.28 Blind Review Readiness And Gemini Analyst-Quality Productization | Orchestrator / Detection / AI Governance / Data Custody / Assistant / Frontend / Security / QA / Docs | Codex plus deferred external human reviewer | v5.21 sealed pack; v5.26 prediction lock; v5.27 evaluator; registered shadow artifact; configured Gemini provider | local implementation done; external gates open | 90 | Separate ignored review copy, save/resume/progress validation, no-prediction workflow, read-only shadow audit, provider budgets/retry/circuit/fallback/aggregate telemetry, UI status, tests, governance, and full local verification are complete. The actual sealed pack was not opened. | v5.28 modules/CLIs/tests/status/T1-T20, updated reviewer guide and Assistant contracts | Focused `58 passed`; backend/release `848 passed, 1 skipped`; Playwright `27 passed, 1 skipped`; controlled `24/24`; layered `288/288`; Assistant `20/20`; readiness and Gemini 12/12 pass; replay/performance/release pass. | Human review remains 0/40; one source blocks generalization; human Assistant evaluation and approved-host provider governance are absent. | Keep review deferred until a qualified human is available; then use the helper and locked evaluator. Complete second-source evidence and provider-host governance separately. | Review helper/readiness audit, hardened provider/UI, tests, governance docs, rendered taskboard, and cumulative exact allowlist. |
+| ATDR-V529-001 | v5.29 SOC Assistant Intent-Aware Concision And Response Quality Lock | Orchestrator / Assistant / Frontend / Security / QA / Docs | Codex plus deferred human evaluator | v5.24-v5.28 Assistant evidence, configured Gemini, 20-question deterministic QA, existing context/session contract | locally done; external evidence gates open | 100 | Nine response modes, hard budgets, relevant-only sections, coverage/entity/citation/safety guard, context-bound follow-ups, concise Gemini schema, direct-answer-first UI, collapsed detail, tests, governance, full verification, and hygiene closure are complete. | response-contract module; Assistant service/LLM/schema/UI/session/evaluator/tests; v5.29 status/T1-T20/governance | Focused backend `59 passed`; deterministic QA `20/20`; configured Gemini `12/12`; backend `852 passed, 1 skipped`; React lint/build; Playwright `27 passed, 1 skipped`; performance and release pass; average/max words `73.1/184`. | Human semantic/privacy usefulness review and approved-host provider operations remain external; supervised human blind review remains deferred. | Retain the contract as an Assistant regression gate; complete human evaluation and provider-host governance when external owners are available. | v5.29 source, tests, status/change record, taskboard, governance, and cumulative exact allowlist. |
+| ATDR-V526-001 | v5.26 Native PAN-OS Blind Detection Qualification | Orchestrator / Detection / AI Governance / Data Custody / Security / QA / Docs | Codex | v5.21 native evidence lock; v5.22 frozen shadow candidate; v5.25 integrated baseline | done | 100 | One-time prediction-before-label protocol completed over 40 sealed rows; full private stream parsed in disposable storage; private lock persisted; repeat full run fails closed; 0 legitimate labels correctly yields no accuracy metrics. | v5.26 service/CLI/tests/status/T1-T20, ignored private lock, v5.21/v5.22 contracts | Focused `8 passed`; backend/release `832 passed, 1 skipped`; Playwright `27 passed, 1 skipped`; controlled 24 scenarios; layered `288/288`; Assistant `20/20`; preflight/replay/performance/release/hygiene pass. | Zero genuine blind human decisions and only one real source prevent FP/FN, calibration, accuracy, source-generalization, or promotion claims. | Obtain blinded independent review, evaluate against the existing lock read-only, acquire a second native source, and use a new blind corpus after any development-only repair. | Service, CLI, tests, ignored private lock/reports, status, T1-T20, governance, taskboard, and exact 15-path allowlist. |
+| ATDR-V527-001 | v5.27 Independent Blind Review Intake And Gemini Real-Alert Quality | Orchestrator / Detection / AI Governance / Data Custody / Assistant / Security / QA / Docs | Codex plus external human reviewer | v5.26 private prediction lock; v5.21 blind pack; configured Gemini provider; current dashboard records | implementation done; human handoff open | 90 | Validator, locked evaluator, reviewer guide, disposable real-record snapshot, six-question Gemini evaluator, privacy/citation/context/concision/fallback gates, tests, docs, and complete local verification are complete. | v5.27 services/CLIs/tests/status/guide/T1-T20 and ignored reports/seal | Focused `8 passed`; backend/release `840 passed, 1 skipped`; Playwright `27 passed, 1 skipped`; controlled `24/24`; layered `288/288`; Assistant `20/20`; blind lock checks pass with 0 valid reviews; Gemini 6/6 calls and 12/12 checks pass; replay/performance/release/hygiene pass. | Human blind labels remain unavailable; one source blocks holdout; automated Assistant checks are bounded rather than universal semantic proof. | Complete independent review, run the existing locked evaluator, then use development-only repair and a new blind pack if needed; conduct human Assistant privacy/semantic acceptance. | Strict review intake, frozen metric path, bounded real-record Gemini QA, governance records, and cumulative exact allowlist. |
 | ATDR-V525-001 | v5.25 Integrated Acceptance | Orchestrator / Backend / Frontend / Detection / AI Safety / Security / QA / Docs | Codex | Completed v5.20-v5.22; v5.23 local acceptance with owner-deferred external gate; completed v5.24 | done | 100 | The disposable integrated runner passes 14/14 fixed checks over 5,000 attempted rows; the complete repository matrix, exact 75-path boundary, privacy, staging, ignored-path, diff, and tracked-hygiene checks pass. | v5.25 service/CLI/tests/status/T1-T20 plus integrated existing runtime contracts | v5.25 `7 passed`; v5.24/v5.25 `12 passed`; backend/release `824 passed, 1 skipped`; Alembic no drift; React lint/build; Playwright `27 passed, 1 skipped`; controlled `24/24`; layered `288/288`; Assistant `20/20`; integrated `14/14`; replay/performance/release/hygiene pass. | Six external gates remain open: non-loopback sender, real device, independent human native labels, MFU preproduction, approved host, and Gemini privacy/quota/key governance. | Preserve the local locks and complete each external gate only when its owner/resource is available. | Integrated acceptance service/CLI/tests, ignored aggregate report, status/T1-T20/governance/taskboard, and exact allowlist. |
 | ATDR-V524-001 | v5.24 Investigation And Gemini Quality Lock | Orchestrator / Backend / Frontend / AI Safety / Security / QA / Docs | Codex | Completed v5.20-v5.22; owner-approved deferral of v5.23 external sender gate | done | 100 | Six-question/11-gate bounded evaluator, trusted citation completion, evidence-first Alerts/Investigation/Assistant UI, professional runtime labels, focused/live-provider measurement, full repository verification, and exact cumulative review boundary are complete. | v5.24 service/CLI/tests/status/T1-T20 and assistant/explanation/frontend source | Focused Assistant/v5.24 `46 passed`; v5.24 `5 passed`; backend/release `817 passed, 1 skipped`; Alembic no drift; React lint/build; Playwright `27 passed, 1 skipped`; controlled `24/24`; layered `288/288`; Assistant `20/20`; live Gemini six calls and `11/11` gates, median/p95 `3125/3731` ms, `18675` tokens; replay/performance/release pass; zero unsafe mutations. | Bounded synthetic evaluation cannot prove universal answer accuracy or provider approval. v5.23 non-loopback transport and real-device evidence remain deferred/open. | Preserve the quality lock and proceed to v5.25 Integrated Acceptance. | Evaluator/CLI/tests, ignored diagnostic report, evidence-first UI, status/T1-T20/governance/taskboard, and cumulative allowlist. |
 | ATDR-V523-001 | v5.23 Live-Source Acceptance | Orchestrator / Ingestion / API / Operations / Detection / Security / QA / Docs | Codex + operator for external sender | Completed v5.22 shadow rebuild and existing runtime reliability contracts | deferred external gate | 90 | Service/CLI/tests, safe/private preflight, file/API/queue/recovery/local-UDP acceptance, complete local verification, governance records, and privacy-safe reporting are implemented. Local acceptance is complete; external non-loopback transport remains unmeasured. The owner explicitly deferred that external gate on 2026-08-02 so v5.24 could proceed. | v5.23 source/docs listed in T1 | Focused `5 passed`; backend/release `812 passed, 1 skipped`; Playwright `27 passed, 1 skipped`; controlled `23/23`; layered `288/288`; Assistant `20/20`; Gemini safe probe; warning-free performance; local run `53/53`, queue 429, committed-boundary recovery, 20/20 UDP, source-scoped detection/dedup/case/audit, configured-DB preservation, cleanup, and zero response/label/model/user writes. | No second-laptop or real firewall/router sender has been observed; `phase_complete=false` and `real_device_validated=false` remain authoritative. | Resume the documented non-loopback sender test when suitable hardware/network access is available; do not claim real-device acceptance unless the sender is an actual firewall/router. | Runtime service/CLI/tests, privacy-safe ignored report, status/contract/T1-T20, governance updates, taskboard, and exact cumulative allowlist. |
@@ -373,6 +385,22 @@
 
 | Command / Check | Result | Evidence |
 | --- | --- | --- |
+| v5.26 eligibility and one-time native qualification | pass; metrics unavailable | 40 sealed rows passed role/duplicate/pack/candidate eligibility; 773,551 private rows parsed with 0 failures in disposable storage; predictions froze before label access; 0 genuine human labels correctly withheld all accuracy, calibration, and FP/FN metrics. |
+| v5.26 layer queue observations | measured; not accuracy | Rules queued 25/40, IsolationForest 3/40, supervised shadow 12/40, and hybrid 4/40. Zero labels mean none of these counts can be classified as correct, false positive, or false negative. |
+| v5.26 focused safety regression | pass | `8 passed`; no blind labels in tuning, no assisted-as-human labels, redacted preflight, lock mismatch failure, one-shot lock, configured-DB/model/response immutability, and pre-lock repair constraints pass. |
+| v5.26 complete closure matrix | pass; evidence gates open | Taskboard, Ruff, compileall, backend/release `832 passed, 1 skipped`, Alembic no drift, React lint/build, Playwright `27 passed, 1 skipped`, rule/scenario contract 18/24, layered `288/288`, Assistant `20/20`, non-consuming private preflight, replay dry-run, warning-free performance, official release `ok: true`, exact `15/15` path, diff, privacy, staging, ignored-evidence, and tracked-hygiene checks pass. The browser skip remains the external live-source gate. |
+| v5.27 blind review intake | pass; human evidence absent | All pack/manifest/token/prediction-lock checks pass; 0 valid reviews and 40 not-reviewed exclusions correctly withhold metrics, calibration, and FP/FN claims; predictions were not rerun. |
+| v5.27 bounded real-record Gemini QA | pass | Six Gemini calls over disposable snapshots of three alerts, derived cases, three sources, and 24 linked logs passed 12/12 checks. Median/P95 latency was 3,521.5/3,878 ms with 21,973 tokens; configured DB mutations and authoritative disposable mutations were zero. |
+| v5.27 focused regression | pass | `8 passed`; review provenance, lock integrity, malformed numeric context handling, metric withholding, no rerun, Assistant privacy, citations, context, fallback, no-alert fail-closed behavior, and no model/response mutations pass. |
+| v5.27 complete closure matrix | pass; human evidence gate open | Taskboard, Ruff, compileall, backend/release `840 passed, 1 skipped`, Alembic no drift, React lint/build, Playwright `27 passed, 1 skipped`, controlled `24/24`, layered `288/288`, Assistant `20/20`, Gemini `12/12`, replay dry-run, warning-free performance, release `ok: true`, exact 24-path boundary, privacy, staging, ignored-evidence, and tracked-hygiene checks pass. The browser skip remains the external live-source gate; blind metrics remain correctly withheld pending legitimate human review. |
+| v5.28 focused implementation regression | pass | `58 passed`; working-copy save/resume/integrity, no early metrics, separate human-field source, read-only shadow audit, provider budget/telemetry/retry/circuit/fallback, Assistant privacy, and no authority writes pass. |
+| v5.28 read-only supervised readiness | pass; human evidence absent | Registered calibrated ExtraTrees metadata/checksum/schema/calibration/threshold/abstention contracts pass; registered p95 is 14.7438 ms; database state is unchanged; the blind pack was not opened; review remains 0/40. |
+| v5.28 configured Gemini productization | pass for bounded suite | Six provider calls pass 12/12 context/citation/concision/privacy/safety checks; median/P95 3,494.5/3,795 ms; 21,999 tokens; forced timeout fallback passes; configured DB mutation deltas are zero. |
+| v5.28 complete closure matrix | pass; external evidence gates open | Taskboard, Ruff, compileall, backend/release `848 passed, 1 skipped`, Alembic no drift, React lint/build, Playwright `27 passed, 1 skipped`, controlled `24/24`, layered `288/288`, Assistant `20/20`, Gemini `12/12`, replay dry-run, warning-free performance, official release `ok: true`, exact `44/44` allowlist, empty staging, ignored private evidence, and sensitive-content hygiene pass. |
+| v5.29 focused Assistant regression | pass | Assistant backend `59 passed`; nine modes/budgets, short-answer guard, unsupported-ID rejection, contextual follow-ups, concise fallback, and zero side effects pass. React lint/build and focused Assistant Playwright `6/6` pass. |
+| v5.29 deterministic Assistant QA | pass | `20/20`, 100% required citations, all budgets passed, average/max answer length `73.1/184` words versus `283.8/697` baseline, zero authoritative mutations. |
+| v5.29 configured Gemini QA | pass for bounded suite | Six calls and 12/12 context/citation/concision/privacy/safety checks pass; median/p95 `2,105/2,828 ms`; 20,570 tokens; fallback passes; configured DB and authoritative-state mutations are zero. |
+| v5.29 complete closure matrix | pass; external evidence gates open | Taskboard, Ruff, compileall, backend/release `852 passed, 1 skipped`, Alembic no drift, React lint/build, Playwright `27 passed, 1 skipped`, Assistant `20/20`, Gemini `12/12`, replay dry-run with zero writes, warning-free performance, official release `ok: true`, approved ignored test-output containment, empty staging, and sensitive-content hygiene pass. The browser skip remains the external live-source gate. |
 | v5.24 bounded live Gemini quality lock | pass | Six provider calls across alert, related-log follow-up, analyst-next-step follow-up, log, source, and case pass 11/11 grounding/citation/concision/context/fallback/privacy/read-only gates; median/p95 latency `3125/3731` ms; `18675` tokens; no unsupported IDs, action claims, raw context, secrets, or authoritative mutations. |
 | v5.24 focused backend and frontend | pass | Assistant/v5.24 focused backend `46 passed`; v5.24 `5 passed`; Ruff, React lint/build, and Playwright `27 passed, 1 skipped` pass. Full closure matrix remains in progress. |
 | v5.25 focused implementation | pass | New v5.25 tests pass `7 passed`; combined v5.24/v5.25 tests pass `12 passed`; Ruff and compile checks for affected source pass. The runner requires disposable storage and rejects unsafe or privacy-sensitive inputs. |
@@ -1085,6 +1113,10 @@
 
 | ID | Type | Status | Evidence | Impact | Next Action |
 | --- | --- | --- | --- | --- | --- |
+| R-073 | native blind ground-truth and source-generalization blocker | open; protocol complete, metrics withheld | v5.26 froze four-layer predictions for 40 native rows, but all 40 lack genuine human decisions. One real collection/source identity remains. | Queue behavior is observable, but precision, recall, F1, FPR, FP/FN causes, calibration, and model promotion cannot be claimed. | Obtain independent blinded human/advisor decisions, evaluate only against the existing private lock, add a second real native source, and reserve a new blind set for any repaired candidate. |
+| R-074 | v5.27 human blind review and provider-governance blocker | open; tooling complete | Review validator reports 0 valid decisions. Gemini passed bounded automated checks, but human semantic/privacy review and approved-host quota/key/cost monitoring are absent. | Supervised accuracy remains unknown and Gemini evidence cannot be generalized to all records or deployment conditions. | Provide only the blind CSV and reviewer guide to a qualified independent human; keep predictions sealed; complete human Assistant acceptance and provider operations governance. |
+| R-075 | v5.28 external evidence and operations blocker | open; all local controls complete | Working-copy review helper and read-only readiness audit are complete, but review is 0/40, only one native source exists, and provider operations lack institutional/host approval. | Blind predictive quality, source generalization, universal Assistant usefulness, quota/cost operations, and deployment claims remain unavailable. | Qualified human uses the helper later; acquire a genuine second source/device; complete human Assistant evaluation and approved-host privacy/quota/key/monitoring acceptance. |
+| R-076 | v5.29 Assistant human-quality and provider-operations blocker | open; automated quality lock passed | Intent/budget/citation/follow-up/privacy regressions pass, but no qualified human panel has rated semantic correctness, usefulness, or privacy and no approved host has completed provider operations acceptance. | The Assistant is demonstrably concise and safe on bounded tests but cannot claim universal or deployment-approved quality. | Run a blinded human Assistant evaluation over approved representative records, then complete provider privacy, quota/cost, key rotation, monitoring, and failure-operation acceptance. |
 | R-072 | provider evidence freshness / deployment governance | open; immutable bounded lock valid | v5.25 accepts the verified ignored v5.24 lock containing six real Gemini calls and 11/11 fixed gates. Two immediate fresh reruns were provider-throttled and failed closed to deterministic answers; no unsafe output or mutation occurred. | The integrated workflow remains locally testable and safe, but fresh-provider repeatability, quota, cost, privacy/retention approval, key rotation, and deployment monitoring are not established. | Preserve the immutable lock, retry a bounded live suite only within an approved quota window, and obtain provider/privacy/operations approval before deployment claims. |
 | R-071 | external assistant generalization / provider governance | open; bounded lock passed | v5.24 passes six synthetic record/follow-up questions and 11/11 fixed quality/safety gates with measured latency/tokens and zero mutations. | A bounded suite cannot prove universal semantic accuracy, privacy approval, quota/cost behavior, or long-term provider stability. | Preserve the quality regression; add approved real-traffic evaluation, provider privacy/retention approval, quotas, cost alerts, and key rotation before deployment claims. |
 | R-070 | live-source transport/device gate | open; local acceptance passed | v5.23 validates all implemented paths in disposable local storage, including actual UDP sockets, but the sender is the same workstation. `phase_complete=false` and `real_device_validated=false` are preserved. | Local runtime behavior is credible, but non-loopback network transport and actual firewall/router interoperability remain unproven. | Run the documented receiver on the ATDR workstation and sender on a second laptop. Treat that as transport evidence only; repeat with a firewall/router before claiming real-device validation. |
@@ -1601,3 +1633,93 @@ closed to the deterministic assistant; the previously verified immutable
 v5.24 six-call quality lock remains the accepted provider evidence. Full
 repository verification and the exact `75/75` review boundary now pass, closing
 v5.25 for the controlled local scope while all six external gates remain open.
+
+### v5.26 Decision Update
+
+ATDR completed the one-time native PAN-OS prediction-before-label protocol over
+40 sealed rows. The complete 773,551-row private stream parsed with zero
+failures in disposable storage, role and duplicate locks held, and the v5.22
+candidate was reconstructed from development-only evidence. Rules queued
+25/40, IsolationForest 3/40, supervised shadow 12/40, and hybrid 4/40. These
+are queue observations, not accuracy results.
+
+All 40 rows remain without genuine human-reviewed decisions. Precision,
+recall, F1, false-positive rate, calibration, and FP/FN analysis are therefore
+withheld. The initial in-memory freeze lacked a persistent row lock; because no
+ground truth was observed and no metric was calculated, one documented
+deterministic correction persisted the lock and reproduced all queue rates.
+Full reruns now fail closed. Lifecycle remains `shadow_observation`, rules stay
+authoritative, and no database, label, model, alert, or response authority
+changed.
+
+### v5.27 Decision Update
+
+ATDR now has a provenance-strict review intake and read-only evaluator for the
+existing v5.26 prediction lock. All structural, token, pack, lock, ordering,
+and privacy checks pass, but the sealed pack still contains 0 valid human
+decisions and 40 unreviewed rows. The system therefore withholds every blind
+accuracy, calibration, and FP/FN claim and keeps lifecycle
+`shadow_observation`.
+
+The configured Gemini provider was also exercised over six bounded questions
+derived from current dashboard alerts, cases, sources, and linked logs after
+privacy-safe copying into disposable storage. All 12 fixed quality/safety
+checks passed, median/P95 latency was 3,521.5/3,878 ms, total usage was 21,973
+tokens, deterministic failure fallback passed, and the configured database had
+zero mutations. This is bounded automated evidence, not universal semantic
+proof or provider deployment approval.
+
+At least three supervised evidence phases and two Assistant product-evidence
+phases remain. Their key dependencies are independent human review, a second
+native source, a new blind pack after any repair, human Assistant evaluation,
+and approved-host provider governance. No AI-generated decision may substitute
+for the human blind-review gate.
+
+### v5.28 Decision Update
+
+ATDR now has an immutable blind-first review workflow ready for later qualified
+human use. It creates a separate ignored working copy, presents one structured
+row at a time without detector or AI suggestions, saves atomically, preserves
+tokens/evidence, keeps `import_ready=false`, never imports, and withholds all
+metrics until the fixed support/class gate. The actual sealed pack remained
+unopened during v5.28 and still has 0/40 human reviews.
+
+The registered calibrated ExtraTrees shadow artifact passed label-independent
+checksum, metadata, feature-schema, calibration, threshold, fail-closed schema
+abstention, latency, registry, and zero-mutation checks. Registered p95 latency
+is 14.7438 ms, while drift remains `Insufficient Evidence`. These checks prove
+runtime integrity, not accuracy, so lifecycle remains `shadow_observation`.
+
+Gemini now has configurable output budgets, bounded retry/typed failure
+handling, a circuit breaker, deterministic fallback, and content-free
+aggregate latency/token/failure/cost telemetry. The fresh bounded run passed
+12/12 checks over six calls at 3,494.5/3,795 ms median/p95 and 21,999 tokens,
+with no raw logs, IPs, secrets, private paths, or authoritative mutations.
+
+Approximately three supervised evidence phases and two Assistant product-
+evidence phases remain. Their external dependencies are a qualified human
+reviewer, a second native source/device, university/provider approval, and an
+approved deployment host. Rules remain alert-authoritative; ML/Gemini remain
+decision support; automatic response and real blocking remain disabled.
+
+### v5.29 Decision Update
+
+ATDR no longer forces routine Assistant questions through one universal report
+shape. Nine intent contracts now separate direct facts, alert explanations,
+prioritized checks, related logs, source health, ranked lists, investigation
+briefs, procedures, and governance. The provider guard validates requested
+coverage, record scope, citations, budget, secrets, and action safety rather
+than requiring a minimum answer length.
+
+The fixed deterministic suite passes 20/20 with average/max answer length
+73.1/184 words, reduced from 283.8/697. The configured Gemini suite passes
+12/12 over six calls with 2,105/2,828 ms median/p95 and 20,570 tokens. Raw
+logs, IPs, private paths, and secrets are absent and all configured-database
+and authoritative mutation deltas are zero.
+
+The direct answer is primary in React; evidence, citations, and provider detail
+are collapsed. Context-bound follow-ups retain the current record but answer
+only the new question. Human semantic/privacy review and approved-host
+provider operations remain the two Assistant evidence phases. Rules remain
+authoritative; supervised ML remains `shadow_observation`; automatic response
+and real blocking remain disabled.

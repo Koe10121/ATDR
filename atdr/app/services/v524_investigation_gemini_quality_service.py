@@ -446,7 +446,14 @@ def _run_failure_fallback(db: Session, settings: Settings) -> dict[str, Any]:
     passed = (
         str(response.get("mode", "")).startswith("deterministic_local_llm_fallback_")
         and not response.get("external_provider_used")
-        and llm.get("fallback_reason") == "provider_request_failed"
+        and llm.get("fallback_reason")
+        in {
+            "provider_request_failed",
+            "provider_network_error",
+            "provider_timeout",
+            "provider_service_unavailable",
+            "provider_rate_limited",
+        }
         and not response.get("raw_log_context_included")
         and bool(response.get("redaction_applied"))
         and RAW_SENTINEL not in serialized

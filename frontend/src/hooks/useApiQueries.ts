@@ -153,6 +153,7 @@ export function useAssistantMutation() {
     mutationFn: (payload: AssistantChatRequest) => api.assistantChat(payload),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.assistantHistory });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.assistantStatus });
     }
   });
 }

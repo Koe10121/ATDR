@@ -1,4 +1,4 @@
-import type { AssistantActiveContext, AssistantChatResponse, AssistantCitation } from "../types/api";
+import type { AssistantActiveContext, AssistantChatResponse, AssistantCitation, AssistantResponseMode } from "../types/api";
 
 const ASSISTANT_SESSION_KEY = "atdr.assistant.session.v1";
 const DEFAULT_QUESTION = "What is the latest critical alert?";
@@ -34,6 +34,21 @@ function positiveInteger(value: unknown): number | null {
 
 function safePrimary(value: unknown): AssistantSessionContext["primary"] {
   return value === "alert" || value === "log" || value === "source" || value === "case" ? value : null;
+}
+
+function safeResponseMode(value: unknown): AssistantResponseMode {
+  const modes: AssistantResponseMode[] = [
+    "direct_fact",
+    "alert_explanation",
+    "safe_next_step",
+    "related_logs",
+    "source_health",
+    "list_summary",
+    "investigation_brief",
+    "how_to",
+    "governance"
+  ];
+  return modes.includes(value as AssistantResponseMode) ? value as AssistantResponseMode : "direct_fact";
 }
 
 function safeContext(value: unknown): AssistantSessionContext {
@@ -77,6 +92,16 @@ function safeAnswerSections(value: unknown): Record<string, string[]> | null {
   const rows = value as Record<string, unknown>;
   const sections: Record<string, string[]> = {};
   for (const key of [
+    "response_mode",
+    "direct_answer",
+    "key_evidence",
+    "next_steps",
+    "related_logs",
+    "list_items",
+    "steps",
+    "assessment",
+    "blockers",
+    "consequence",
     "summary",
     "what_happened",
     "why_flagged_or_not",
@@ -98,6 +123,9 @@ function safeAnswerSections(value: unknown): Record<string, string[]> | null {
 function safeLlmDetails(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
+  const rawUsage = row.usage && typeof row.usage === "object" && !Array.isArray(row.usage)
+    ? row.usage as Record<string, unknown>
+    : {};
   return {
     used: row.used === true,
     provider: boundedString(row.provider, 40),
@@ -112,7 +140,12 @@ function safeLlmDetails(value: unknown): Record<string, unknown> | null {
     answer_guard_reason: boundedString(row.answer_guard_reason, 120) || null,
     structured_output_valid: row.structured_output_valid === true,
     latency_ms: typeof row.latency_ms === "number" ? row.latency_ms : null,
-    attempts: typeof row.attempts === "number" ? row.attempts : 0
+    attempts: typeof row.attempts === "number" ? row.attempts : 0,
+    usage: {
+      input_tokens: typeof rawUsage.input_tokens === "number" ? Math.max(0, rawUsage.input_tokens) : 0,
+      output_tokens: typeof rawUsage.output_tokens === "number" ? Math.max(0, rawUsage.output_tokens) : 0,
+      total_tokens: typeof rawUsage.total_tokens === "number" ? Math.max(0, rawUsage.total_tokens) : 0
+    }
   };
 }
 
@@ -146,15 +179,27 @@ function safeResponse(value: unknown): AssistantChatResponse | null {
   const sections = safeAnswerSections(rawDetails.answer_sections);
   const llm = safeLlmDetails(rawDetails.llm);
   const grounding = safeGrounding(rawDetails.grounding);
+  const evidenceDetail = safeAnswerSections(rawDetails.evidence_detail);
   if (sections) details.answer_sections = sections;
   if (llm) details.llm = llm;
   if (grounding) details.grounding = grounding;
+  if (evidenceDetail) details.evidence_detail = evidenceDetail;
+  if (rawDetails.response_contract && typeof rawDetails.response_contract === "object" && !Array.isArray(rawDetails.response_contract)) {
+    const contract = rawDetails.response_contract as Record<string, unknown>;
+    details.response_contract = {
+      mode: safeResponseMode(contract.mode),
+      word_limit: typeof contract.word_limit === "number" ? contract.word_limit : 80,
+      word_count: typeof contract.word_count === "number" ? contract.word_count : 0,
+      max_followups: typeof contract.max_followups === "number" ? contract.max_followups : 3
+    };
+  }
   if (typeof rawDetails.assistant_audit_id === "number" && rawDetails.assistant_audit_id > 0) {
     details.assistant_audit_id = rawDetails.assistant_audit_id;
   }
   return {
     answer,
     mode: boundedString(row.mode, 120) || "deterministic_local",
+    response_mode: safeResponseMode(row.response_mode),
     external_provider_used: row.external_provider_used === true,
     safety: boundedStrings(row.safety, 12, 120),
     context_used: boundedStrings(row.context_used, 20, 120),

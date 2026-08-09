@@ -315,6 +315,19 @@ function guardReasonLabel(reason?: string | null) {
       return "Provider answer was guarded because it implied action execution.";
     case "provider_answer_lost_alert_context":
       return "Provider answer was guarded because it did not preserve the alert context.";
+    case "provider_answer_contains_unsupported_alert_id":
+    case "provider_answer_contains_unsupported_log_id":
+    case "provider_answer_contains_unsupported_source_id":
+    case "provider_answer_contains_unsupported_case_id":
+      return "Provider answer referenced a record outside the supplied ATDR context.";
+    case "provider_answer_missing_requested_next_steps":
+      return "Provider answer omitted the requested next steps.";
+    case "provider_answer_missing_brief_coverage":
+      return "Provider answer omitted required investigation-brief evidence.";
+    case "provider_answer_exceeds_response_budget":
+      return "Provider answer exceeded the concise response limit.";
+    case "provider_answer_lost_primary_alert_citation":
+      return "Provider answer did not retain the primary alert citation.";
     case "empty_provider_answer":
       return "Provider answer was empty, so ATDR used the deterministic fallback.";
     case "malformed_provider_response":
@@ -379,6 +392,8 @@ function AssistantProviderTelemetry({ response }: { response: AssistantChatRespo
           <div><span className="uppercase tracking-wide">Contract:</span> <span className="break-words text-text">{promptContract ?? "Local deterministic"}</span></div>
           <div><span className="uppercase tracking-wide">Output:</span> <span className="text-text">{providerCalled ? boolLabel(llm?.structured_output_valid, "Validated", "Fallback") : "Local"}</span></div>
           <div><span className="uppercase tracking-wide">Latency:</span> <span className="text-text">{typeof llm?.latency_ms === "number" ? `${llm.latency_ms} ms` : "Not called"}</span></div>
+          <div><span className="uppercase tracking-wide">Attempts:</span> <span className="text-text">{llm?.attempts ?? 0}</span></div>
+          <div><span className="uppercase tracking-wide">Output tokens:</span> <span className="text-text">{llm?.usage?.output_tokens ?? 0}</span></div>
         </div>
       </details>
     </div>
@@ -649,7 +664,7 @@ export function AssistantPage() {
         return;
       }
       await navigator.clipboard.writeText(response.answer);
-      setCopyStatus("Brief copied");
+      setCopyStatus(response.response_mode === "investigation_brief" ? "Brief copied" : "Answer copied");
     } catch {
       setCopyStatus("Copy unavailable");
     }
@@ -752,9 +767,11 @@ export function AssistantPage() {
           <div className="metric-help">Gemini labels appear only on answers that used Gemini.</div>
         </div>
         <div className="metric-card">
-          <div className="metric-label">Grounding</div>
-          <div className="metric-value text-lg">ATDR Evidence</div>
-          <div className="metric-help">Structured records, services, and documentation.</div>
+          <div className="metric-label">Provider Health</div>
+          <div className="metric-value text-lg capitalize">{status.data?.llm_operational?.status?.replaceAll("_", " ") ?? "Idle"}</div>
+          <div className="metric-help">
+            {status.data?.llm_operational?.calls_failed ?? 0} failures / {status.data?.llm_operational?.fallbacks ?? 0} fallbacks
+          </div>
         </div>
         <div className="metric-card">
           <div className="metric-label">Raw Log Context</div>
@@ -856,7 +873,7 @@ export function AssistantPage() {
             <div className="flex flex-wrap items-center gap-2">
               {response ? (
                 <button className="btn-secondary text-xs" type="button" onClick={copyBrief}>
-                  Copy brief
+                  {response.response_mode === "investigation_brief" ? "Copy brief" : "Copy answer"}
                 </button>
               ) : null}
               {copyStatus ? <span className="text-xs font-bold text-success">{copyStatus}</span> : null}
@@ -873,13 +890,18 @@ export function AssistantPage() {
           {response ? (
             <div className="mt-4 space-y-4">
               <AssistantAnswerContent response={response} />
-              <AssistantProviderTelemetry response={response} />
               <div className="flex flex-wrap gap-2">
-                {response.safety.map((item) => (
+                {response.safety.filter((item) => ["Read Only", "Decision Support Only", "Response Automation Disabled"].includes(item)).map((item) => (
                   <Badge key={item} value={item} />
                 ))}
               </div>
-              <AssistantCitationList citations={response.citations} />
+              <details className="rounded-lg border border-line bg-panel2 p-4" data-testid="assistant-grounding-detail">
+                <summary className="cursor-pointer text-sm font-black uppercase tracking-wide text-muted">Sources and provider details</summary>
+                <div className="mt-4 space-y-4">
+                  <AssistantCitationList citations={response.citations} />
+                  <AssistantProviderTelemetry response={response} />
+                </div>
+              </details>
               <details className="rounded-lg border border-line bg-panel2 p-4" data-testid="assistant-feedback-controls">
                 <summary className="cursor-pointer text-sm font-black uppercase tracking-wide text-muted">Rate answer quality</summary>
                 <div className="mt-4">

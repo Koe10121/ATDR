@@ -260,3 +260,38 @@ tracked Node/Vue/Mongo runtime copy is no longer part of the proposed tree.
   ledger.
 - `docs/changes/T1_T20_V5_25_INTEGRATED_ACCEPTANCE.md`: v5.25 source evidence,
   implementation, tests, safety, rollback, and final handoff record.
+- `docs/V5_26_NATIVE_BLIND_DETECTION_QUALIFICATION.md`: one-time native PAN-OS
+  prediction-before-label protocol, privacy-safe four-layer queue observations,
+  withheld metrics, safety result, and remaining independent-evidence gates.
+- `docs/changes/T1_T20_V5_26_NATIVE_BLIND_DETECTION_QUALIFICATION.md`: v5.26
+  evidence, implementation, protocol correction, testing, safety, rollback,
+  and independent-review handoff record.
+- `docs/V5_26_COMMIT_ALLOWLIST.md`: exact tracked 15-path v5.26 review boundary;
+  private source, labels, predictions, fingerprints, reports, and artifacts are
+  excluded.
+- `docs/V5_27_BLIND_REVIEW_AND_GEMINI_REAL_ALERT_QUALITY.md`: strict blind
+  review intake, frozen-lock metric gating, measured bounded real-record Gemini
+  QA, safety state, and remaining supervised/Assistant evidence phases.
+- `docs/detection/V5_27_BLIND_REVIEWER_GUIDE.md`: prediction-blind human field,
+  decision-class, custody, validation, and consumed-pack procedure.
+- `docs/changes/T1_T20_V5_27_BLIND_REVIEW_AND_GEMINI_REAL_ALERT_QUALITY.md`:
+  v5.27 source, scope, implementation, tests, privacy, rollback, and handoff.
+- `docs/V5_27_COMMIT_ALLOWLIST.md`: cumulative exact 24-path v5.26-v5.27
+  review boundary; private labels, prediction locks, reports, fingerprints,
+  provider secrets, databases, and raw evidence remain excluded.
+- `docs/V5_28_REVIEW_READINESS_AND_GEMINI_PRODUCTIZATION.md`: immutable
+  working-copy review workflow, read-only supervised readiness evidence,
+  hardened Gemini operations, measured quality result, and remaining phases.
+- `docs/changes/T1_T20_V5_28_REVIEW_READINESS_AND_GEMINI_PRODUCTIZATION.md`:
+  v5.28 source evidence, scope, implementation, tests, safety, rollback, and
+  human/provider handoff.
+- `docs/V5_28_COMMIT_ALLOWLIST.md`: exact cumulative v5.26-v5.28 tracked
+  review boundary; private blind evidence, human decisions, reports, provider
+  content/secrets, databases, and raw evidence remain excluded.
+- `docs/V5_29_SOC_ASSISTANT_INTENT_AWARE_CONCISION.md`: intent-specific
+  Assistant contracts, measured before/after concision, follow-up behavior,
+  bounded Gemini evidence, UI behavior, safety, and remaining external gates.
+- `docs/changes/T1_T20_V5_29_SOC_ASSISTANT_INTENT_AWARE_CONCISION.md`: v5.29
+  source evidence, scope, implementation, tests, safety, rollback, and handoff.
+- `docs/V5_29_COMMIT_ALLOWLIST.md`: exact cumulative v5.26-v5.29 review
+  boundary; it does not authorize staging, commit, or push.

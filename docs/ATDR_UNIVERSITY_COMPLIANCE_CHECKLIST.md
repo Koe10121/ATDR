@@ -668,3 +668,49 @@ For docs-only changes, at minimum verify the docs exist, links are correct, and 
 | Response safety | Satisfied | missing note/protected target denied; approved response simulated/audited; automation and real blocking false | Any real enforcement needs a new approved design. |
 | Privacy and repo hygiene | Satisfied locally | aggregate-only output; configured DB preserved; generated reports ignored | External privacy/security review remains open. |
 | Honest closure statement | Satisfied | local roadmap complete; production readiness false; six external gates itemized | Those gates require owner/advisor/provider/device/host evidence. |
+
+## v5.26 Native Blind Qualification Compliance Status
+
+| University / ATDR rule | Status | Evidence | Remaining gap |
+| --- | --- | --- | --- |
+| No guessing / source evidence | Satisfied | v5.21/v5.22 locks are validated before scoring; mismatches fail closed | One source and no blind reviewer limit generalization. |
+| Prediction-before-label integrity | Satisfied | 40 predictions were frozen to an ignored private lock before decision fields opened | Human decisions remain absent. |
+| Human-label integrity | Satisfied | 0 assisted/weak values counted as human; 0 labels fabricated or written | A qualified independent human/advisor must review the sealed rows. |
+| Honest metrics | Satisfied | queue rates are reported as operations evidence; accuracy, FP/FN, F1, and calibration are withheld | Legitimate blind class support is required. |
+| Protocol defect transparency | Satisfied | original pre-lock aggregate result preserved; one correction occurred before any ground truth or metric | Future repaired candidates require a new blind pack. |
+| Privacy and minimization | Satisfied | no path/raw/IP/source identity/fingerprint/secret in tracked or public result | Ignored local evidence custody remains owner-controlled. |
+| AI and response safety | Satisfied | rules authoritative; ML shadow-only; zero authority writes; automation/blocking false | Activation remains prohibited. |
+| T1-T20, traceability, and taskboard | Satisfied locally | v5.26 status/change record/PRD/traceability/taskboard/allowlist | Commit/push require separate exact-path approval. |
+
+## v5.27 Blind Review And Assistant Quality Compliance Status
+
+| University / ATDR rule | Status | Evidence | Remaining action |
+| --- | --- | --- | --- |
+| Independent human ground truth | Enforced; not yet supplied | Strict validator rejects assisted, AI, weak, incomplete, prediction-exposed, and token-mismatched rows; current result is 0 valid and 40 not reviewed | Qualified human completes the sealed pack without prediction access. |
+| Prediction-before-label integrity | Satisfied | Existing v5.26 lock is joined read-only; no prediction code is rerun; private seal and identity checks fail closed | Preserve separate custody and never tune on the consumed pack. |
+| No-guessing metrics | Satisfied | Precision, recall, F1, FPR, calibration, and FP/FN findings are withheld without legitimate support | Calculate once only after fixed support/class gates pass. |
+| Assistant source evidence | Satisfied for bounded automated QA | Six Gemini answers retained requested alert/case/source context and trusted citations | Add human semantic assessment over approved representative records. |
+| Assistant privacy/safety | Satisfied for bounded QA | Raw values, IPs, source names, paths, and secrets excluded; deterministic fallback and zero authoritative mutations pass | Complete institutional privacy, key, quota, cost, and monitoring approval. |
+| Honest claims | Satisfied | Gemini result is called bounded automated evidence; supervised lifecycle remains `shadow_observation` | No universal accuracy, production, promotion, or response-authority claim. |
+
+## v5.28 Review Readiness And Gemini Productization Compliance Status
+
+| University / ATDR rule | Status | Evidence | Remaining action |
+| --- | --- | --- | --- |
+| Independent human-label integrity | Satisfied by design; review pending | Sealed pack is immutable; separate ignored working copy; no detector/AI suggestions; `import_ready=false`; no auto-import | Qualified human completes at least 20 rows with both queue classes. |
+| No guessing / no early metrics | Satisfied | Progress reports human completion only; actual review remains 0/40 and every blind metric is withheld | Run the locked evaluator once after the fixed gate. |
+| Source evidence and reproducibility | Satisfied locally | Artifact checksum, feature schema, calibration, threshold, abstention, latency, registry, and mutation checks are read-only and explicit | Second-source/device evidence remains external. |
+| Assistant privacy/minimization | Satisfied for bounded scope | No raw logs, IPs, private paths, prompts, answers, or secrets in provider context/telemetry; redaction and raw-context policy hold | Institutional provider/privacy approval remains external. |
+| Assistant resilience and safety | Satisfied locally | Bounded output/retries, typed failures, circuit breaker, deterministic fallback, 12/12 configured-Gemini gates, zero authority writes | Approved-host quota/cost monitoring, key rotation, and human evaluation remain open. |
+| AI and response authority | Satisfied | Rules remain authoritative; supervised/Gemini remain decision support; no model activation/promotion; automation/blocking false | Any future authority change requires separate evidence and approval. |
+| T1-T20, traceability, taskboard | Satisfied locally | v5.28 status/change record/PRD/runbook/traceability/compliance/taskboard/allowlist | Commit/push require separate exact-path approval. |
+
+## v5.29 Intent-Aware Assistant Compliance Status
+
+| University / ATDR rule | Status | Evidence | Remaining action |
+| --- | --- | --- | --- |
+| Source evidence / no guessing | Satisfied for bounded scope | Responses retain ATDR record citations and unsupported provider IDs fail closed | Qualified humans must still assess semantic usefulness on approved records. |
+| Testing gate | Satisfied for focused closure | backend 59/59, deterministic QA 20/20, configured Gemini 12/12, React lint/build, Assistant Playwright 6/6 | Complete matrix is recorded in the taskboard after final closure. |
+| Privacy and minimization | Satisfied | raw-log context false, IP redaction true, details collapsed, no secrets/private paths returned | Institutional provider/privacy approval remains external. |
+| AI and response safety | Satisfied | read-only contracts, zero authority writes, rules authoritative, supervised shadow-only, automation/blocking false | Any future action capability requires a separate safety design and approval. |
+| T1-T20 and traceability | Satisfied locally | v5.29 status, T1-T20, PRD, traceability, compliance, taskboard, and exact allowlist | Commit/push require separate exact-path approval. |

@@ -394,6 +394,30 @@ class Settings(BaseSettings):
     assistant_llm_timeout_seconds: float = Field(default=15.0, alias="ASSISTANT_LLM_TIMEOUT_SECONDS")
     assistant_llm_max_retries: int = Field(default=2, alias="ASSISTANT_LLM_MAX_RETRIES")
     assistant_llm_max_prompt_chars: int = Field(default=12000, alias="ASSISTANT_LLM_MAX_PROMPT_CHARS")
+    assistant_llm_max_output_tokens: int = Field(
+        default=800,
+        alias="ASSISTANT_LLM_MAX_OUTPUT_TOKENS",
+    )
+    assistant_llm_max_visible_chars: int = Field(
+        default=4000,
+        alias="ASSISTANT_LLM_MAX_VISIBLE_CHARS",
+    )
+    assistant_llm_circuit_breaker_failures: int = Field(
+        default=3,
+        alias="ASSISTANT_LLM_CIRCUIT_BREAKER_FAILURES",
+    )
+    assistant_llm_circuit_breaker_cooldown_seconds: int = Field(
+        default=60,
+        alias="ASSISTANT_LLM_CIRCUIT_BREAKER_COOLDOWN_SECONDS",
+    )
+    assistant_llm_input_cost_per_million: float = Field(
+        default=0.0,
+        alias="ASSISTANT_LLM_INPUT_COST_PER_MILLION",
+    )
+    assistant_llm_output_cost_per_million: float = Field(
+        default=0.0,
+        alias="ASSISTANT_LLM_OUTPUT_COST_PER_MILLION",
+    )
     assistant_conversation_history_turns: int = Field(default=4, alias="ASSISTANT_CONVERSATION_HISTORY_TURNS")
     assistant_rate_limit_requests: int = Field(default=30, alias="ASSISTANT_RATE_LIMIT_REQUESTS")
     assistant_rate_limit_window_seconds: int = Field(default=60, alias="ASSISTANT_RATE_LIMIT_WINDOW_SECONDS")
@@ -722,6 +746,18 @@ def validate_runtime_settings(settings: Settings) -> list[str]:
             issues.append("ASSISTANT_LLM_MAX_RETRIES must be between zero and five.")
         if not 2000 <= settings.assistant_llm_max_prompt_chars <= 50000:
             issues.append("ASSISTANT_LLM_MAX_PROMPT_CHARS must be between 2000 and 50000.")
+        if not 128 <= settings.assistant_llm_max_output_tokens <= 4096:
+            issues.append("ASSISTANT_LLM_MAX_OUTPUT_TOKENS must be between 128 and 4096.")
+        if not 1000 <= settings.assistant_llm_max_visible_chars <= 12000:
+            issues.append("ASSISTANT_LLM_MAX_VISIBLE_CHARS must be between 1000 and 12000.")
+        if not 1 <= settings.assistant_llm_circuit_breaker_failures <= 20:
+            issues.append("ASSISTANT_LLM_CIRCUIT_BREAKER_FAILURES must be between one and twenty.")
+        if not 5 <= settings.assistant_llm_circuit_breaker_cooldown_seconds <= 3600:
+            issues.append("ASSISTANT_LLM_CIRCUIT_BREAKER_COOLDOWN_SECONDS must be between 5 and 3600.")
+        if settings.assistant_llm_input_cost_per_million < 0:
+            issues.append("ASSISTANT_LLM_INPUT_COST_PER_MILLION must not be negative.")
+        if settings.assistant_llm_output_cost_per_million < 0:
+            issues.append("ASSISTANT_LLM_OUTPUT_COST_PER_MILLION must not be negative.")
         if settings.assistant_allow_raw_log_context:
             issues.append("ASSISTANT_ALLOW_RAW_LOG_CONTEXT must remain false for external LLM use by default.")
     if not 0 <= settings.assistant_conversation_history_turns <= 10:

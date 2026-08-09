@@ -17,11 +17,23 @@ from atdr.app.detection.supervised_detector import supervised_model_report
 from atdr.app.detection.explanations import build_alert_detection_summary, explain_log_triage
 from atdr.app.services.case_service import list_alert_cases
 from atdr.app.services.alert_service import get_alert, list_alerts
-from atdr.app.services.assistant_llm import AssistantLLMRequest, AssistantLLMResult, maybe_generate_external_answer
+from atdr.app.services.assistant_llm import (
+    AssistantLLMRequest,
+    AssistantLLMResult,
+    assistant_llm_operational_status,
+    maybe_generate_external_answer,
+    record_guarded_provider_fallback,
+)
 from atdr.app.services.job_service import build_job_summary, job_to_dict
 from atdr.app.services.log_service import get_log
 from atdr.app.services.ml_service import evaluation_report
 from atdr.app.services.operation_run_service import detection_run_to_dict
+from atdr.app.services.assistant_response_contracts import (
+    build_response_presentation,
+    contextual_followups,
+    infer_response_mode,
+    response_contract,
+)
 from atdr.app.services.source_service import get_source, list_sources, source_to_dict
 
 
@@ -398,9 +410,12 @@ def _llm_answer_guard_reason(
     deterministic_answer: str,
     provider_answer: str | None,
     context_used: list[str],
+    response_mode: str = "direct_fact",
+    citations: list[dict[str, Any]] | None = None,
+    structured_answer: dict[str, Any] | None = None,
     forbidden_values: list[str] | None = None,
 ) -> str | None:
-    """Reject external wording that drops too much ATDR evidence or implies action."""
+    """Reject unsupported record claims or implied actions without penalizing brevity."""
     answer = (provider_answer or "").strip()
     if not answer:
         return "empty_provider_answer"
@@ -426,12 +441,59 @@ def _llm_answer_guard_reason(
         if len(clean_secret) >= 8 and clean_secret in answer:
             return "provider_answer_contains_secret"
 
-    deterministic_length = len(deterministic_answer.strip())
-    if deterministic_length >= 400 and len(answer) < 180:
-        return "provider_answer_too_short_for_evidence_context"
+    allowed_by_type: dict[str, set[str]] = {"alert": set(), "log": set(), "source": set(), "case": set()}
+    source_to_type = {
+        "/api/alerts/{alert_id}": "alert",
+        "/api/logs/{log_id}": "log",
+        "/api/sources/{source_id}": "source",
+        "/api/alerts/cases": "case",
+    }
+    for citation in citations or []:
+        reference_type = source_to_type.get(str(citation.get("source") or ""))
+        reference_id = citation.get("reference_id")
+        if reference_type and reference_id not in {None, ""}:
+            allowed_by_type[reference_type].add(str(reference_id))
+    entity_patterns = {
+        "alert": re.compile(r"\balert\s*#?\s*(\d{1,10})\b", re.IGNORECASE),
+        "log": re.compile(r"\blog\s*#?\s*(\d{1,10})\b", re.IGNORECASE),
+        "source": re.compile(r"\bsource\s*#?\s*(\d{1,10})\b", re.IGNORECASE),
+        "case": re.compile(
+            r"\bcase\s*(?:#\s*)?([A-Fa-f0-9]{8,64}|[A-Za-z0-9_-]*\d[A-Za-z0-9_-]*)\b",
+            re.IGNORECASE,
+        ),
+    }
+    for reference_type, pattern in entity_patterns.items():
+        for match in pattern.finditer(answer):
+            if match.group(1) not in allowed_by_type[reference_type]:
+                return f"provider_answer_contains_unsupported_{reference_type}_id"
 
-    if "alert_detail" in context_used and not any(token in lowered for token in ["alert", "flagged", "evidence"]):
-        return "provider_answer_lost_alert_context"
+    structured = structured_answer or {}
+    provider_steps = structured.get("next_steps") or structured.get("analyst_checks") or []
+    provider_evidence = structured.get("key_evidence") or structured.get("evidence") or []
+    if response_mode in {"safe_next_step", "how_to"} and not provider_steps:
+        return "provider_answer_missing_requested_next_steps"
+    if response_mode == "investigation_brief" and (not provider_steps or not provider_evidence):
+        return "provider_answer_missing_brief_coverage"
+
+    try:
+        budget = response_contract(response_mode).word_limit
+    except KeyError:
+        budget = 300
+    if len(answer.split()) > budget:
+        return "provider_answer_exceeds_response_budget"
+
+    if "alert_detail" in context_used and allowed_by_type["alert"]:
+        reference_tokens = {
+            str(item)
+            for item in structured.get("citation_references", [])
+            if str(item).strip()
+        }
+        expected_alert_ids = allowed_by_type["alert"]
+        if reference_tokens and not any(
+            any(reference.endswith(f"#{alert_id}") or reference.endswith(f" {alert_id}") for alert_id in expected_alert_ids)
+            for reference in reference_tokens
+        ):
+            return "provider_answer_lost_primary_alert_citation"
 
     return None
 
@@ -471,6 +533,11 @@ def assistant_status(settings: Settings) -> dict[str, Any]:
         "llm_timeout_seconds": settings.assistant_llm_timeout_seconds,
         "llm_max_retries": settings.assistant_llm_max_retries,
         "llm_max_prompt_chars": settings.assistant_llm_max_prompt_chars,
+        "llm_max_output_tokens": settings.assistant_llm_max_output_tokens,
+        "llm_max_visible_chars": settings.assistant_llm_max_visible_chars,
+        "llm_circuit_breaker_failures": settings.assistant_llm_circuit_breaker_failures,
+        "llm_circuit_breaker_cooldown_seconds": settings.assistant_llm_circuit_breaker_cooldown_seconds,
+        "llm_operational": assistant_llm_operational_status(settings),
         "conversation_history_turns": settings.assistant_conversation_history_turns,
         "rate_limit_requests": settings.assistant_rate_limit_requests,
         "rate_limit_window_seconds": settings.assistant_rate_limit_window_seconds,
@@ -803,9 +870,17 @@ def answer_assistant_question(
         result = _answer_safe_next_steps(db, clean_question, alert_id=requested_alert_id, redacted=redacted)
     elif requested_log_id and ("log" in lowered or ("flagged" in lowered and requested_alert_id is None)):
         result = _answer_log_triage_question(db, clean_question, log_id=requested_log_id, redacted=redacted)
+    elif any(term in lowered for term in ["source", "sensor", "syslog", "parser", "health"]):
+        result = _answer_source_question(
+            db,
+            source_id=requested_source_id,
+            limit=context_limit,
+            redacted=redacted,
+            warnings_only="warning" in lowered or "error" in lowered,
+        )
     elif _is_alert_explanation_followup(lowered) or requested_alert_id:
         result = _answer_alert_question(db, clean_question, alert_id=requested_alert_id, redacted=redacted)
-    elif any(term in lowered for term in ["source", "sensor", "syslog", "parser", "health"]) or requested_source_id:
+    elif requested_source_id:
         result = _answer_source_question(db, source_id=requested_source_id, limit=context_limit, redacted=redacted, warnings_only="warning" in lowered or "error" in lowered)
     elif any(term in lowered for term in ["job", "operation", "detection run", "ingestion run", "stale"]):
         result = _answer_operations_question(db, settings=settings, redacted=redacted)
@@ -826,9 +901,34 @@ def answer_assistant_question(
         source_id=requested_source_id,
         case_id=requested_case_id,
     )
+    response_mode = infer_response_mode(clean_question, result.context_used)
+    citation_references = [_citation_reference(citation) for citation in result.citations[:8]]
+    presentation = build_response_presentation(
+        mode=response_mode,
+        question=clean_question,
+        original_answer=result.answer,
+        raw_sections=result.details.get("answer_sections", {}),
+        active_context=active_context,
+        citation_references=citation_references,
+    )
+    result.answer = presentation.answer
+    result.details["evidence_detail"] = presentation.evidence_detail
+    result.details["answer_sections"] = presentation.sections
+    result.details["response_contract"] = {
+        "mode": response_mode,
+        "word_limit": presentation.word_limit,
+        "word_count": presentation.word_count,
+        "max_followups": response_contract(response_mode).max_followups,
+    }
+    result.suggested_followups = contextual_followups(
+        mode=response_mode,
+        active_context=active_context,
+        existing=result.suggested_followups,
+    )
     response = {
         "answer": result.answer,
         "mode": "deterministic_local",
+        "response_mode": response_mode,
         "external_provider_used": False,
         "safety": _safety_notes(),
         "context_used": result.context_used,
@@ -859,6 +959,8 @@ def answer_assistant_question(
         safety=response["safety"],
         safe_context=_safe_llm_context(result.details, redacted=redacted),
         conversation_history=conversation_history,
+        response_mode=response_mode,
+        word_limit=presentation.word_limit,
     )
     llm_result = (
         AssistantLLMResult(
@@ -873,12 +975,31 @@ def answer_assistant_question(
         deterministic_answer=response["answer"],
         provider_answer=llm_result.answer,
         context_used=response["context_used"],
+        response_mode=response_mode,
+        citations=response["citations"],
+        structured_answer=llm_result.structured_answer,
         forbidden_values=[settings.assistant_llm_api_key, settings.assistant_api_key],
     ) if llm_result.used else None
     provider_called = bool(
-        llm_result.used
-        or llm_result.fallback_reason in {"provider_request_failed", "empty_provider_response", "malformed_provider_response"}
+        llm_result.provider_called
+        or llm_result.used
+        or llm_result.fallback_reason
+        in {
+            "provider_request_failed",
+            "provider_network_error",
+            "provider_timeout",
+            "provider_service_unavailable",
+            "provider_rate_limited",
+            "provider_request_rejected",
+            "empty_provider_response",
+            "malformed_provider_response",
+        }
     )
+    if llm_result.used and llm_guard_reason:
+        record_guarded_provider_fallback(
+            settings,
+            reason=llm_guard_reason,
+        )
     if settings.assistant_llm_enabled or settings.assistant_llm_provider.strip():
         response["details"]["llm"] = {
             **llm_result.safe_details(),
@@ -893,19 +1014,34 @@ def answer_assistant_question(
         response["raw_log_context_included"] = llm_result.raw_log_context_included
         response["context_used"] = [*response["context_used"], f"external_llm:{llm_result.provider}"]
         structured = llm_result.structured_answer or {}
-        response["details"]["answer_sections"] = {
-            "summary": [structured.get("summary", "")],
-            "evidence": structured.get("evidence", []),
-            "risk_interpretation": structured.get("risk_interpretation", []),
-            "what_to_check_next": structured.get("analyst_checks", []),
-            "safe_next_steps": structured.get("analyst_checks", []),
-            "limitations": structured.get("missing_information", []),
-            "safety_note": [structured.get("safety_notice", "")],
-            "safety_limitation": [structured.get("safety_notice", "")],
+        direct_answer = str(structured.get("direct_answer") or structured.get("summary") or "").strip()
+        key_evidence = structured.get("key_evidence") or structured.get("evidence") or []
+        next_steps = structured.get("next_steps") or structured.get("analyst_checks") or []
+        limitations = structured.get("limitations") or structured.get("missing_information") or []
+        provider_sections: dict[str, Any] = {
+            "response_mode": [response_mode],
+            "direct_answer": [direct_answer] if direct_answer else [],
+            "summary": [direct_answer] if direct_answer else [],
             "citations": structured.get("citation_references", []),
         }
+        if key_evidence:
+            provider_sections["key_evidence"] = key_evidence
+            provider_sections["evidence"] = key_evidence
+        if next_steps:
+            provider_sections["next_steps"] = next_steps
+            provider_sections["what_to_check_next"] = next_steps
+        if limitations:
+            provider_sections["limitations"] = limitations
+        if structured.get("safety_notice"):
+            provider_sections["safety_note"] = [structured["safety_notice"]]
+        response["details"]["answer_sections"] = provider_sections
+        response["details"]["response_contract"]["word_count"] = len(response["answer"].split())
         if structured.get("suggested_followups"):
-            response["suggested_followups"] = structured["suggested_followups"]
+            response["suggested_followups"] = contextual_followups(
+                mode=response_mode,
+                active_context=active_context,
+                existing=structured["suggested_followups"],
+            )
     elif llm_result.used:
         response["mode"] = f"deterministic_local_llm_guarded_{llm_result.provider}"
         response["external_provider_used"] = False
@@ -1454,40 +1590,14 @@ def _checklist_for_alert(*, parser_notes: list[str], related_log_rows: list[dict
 def _ensure_answer_sections(result: AssistantResult) -> None:
     if isinstance(result.details.get("answer_sections"), dict):
         sections = result.details["answer_sections"]
-        if "risk_interpretation" not in sections:
-            sections["risk_interpretation"] = sections.get("why_flagged_or_not") or sections.get("evidence") or []
-        if "what_to_check_next" not in sections:
-            sections["what_to_check_next"] = sections.get("safe_next_steps") or result.suggested_followups[:4]
-        if "safety_note" not in sections:
-            sections["safety_note"] = sections.get("safety_limitation") or [
-                "Read-only assistant response.",
-                "Response automation is disabled.",
-            ]
-        if "limitations" not in sections:
-            sections["limitations"] = []
+        sections.setdefault("summary", _first_answer_lines(result.answer))
+        sections.setdefault(
+            "citations",
+            [_citation_reference(citation) for citation in result.citations[:8]],
+        )
         return
     result.details["answer_sections"] = {
         "summary": _first_answer_lines(result.answer),
-        "evidence": [
-            f"Context used: {', '.join(result.context_used) or 'none'}",
-            *[_citation_reference(citation) for citation in result.citations[:6]],
-        ],
-        "risk_interpretation": [
-            "Evidence is limited to the available ATDR context; analyst review is required before response.",
-        ],
-        "what_to_check_next": result.suggested_followups[:4] or ["Open the relevant dashboard page and review evidence before action."],
-        "safe_next_steps": result.suggested_followups[:4] or ["Open the relevant dashboard page and review evidence before action."],
-        "limitations": [],
-        "safety_note": [
-            "Read-only assistant response.",
-            "Response automation is disabled.",
-            "No detection, label, model, data, email, or firewall action was executed.",
-        ],
-        "safety_limitation": [
-            "Read-only assistant response.",
-            "Response automation is disabled.",
-            "No detection, label, model, data, email, or firewall action was executed.",
-        ],
         "citations": [_citation_reference(citation) for citation in result.citations[:8]],
     }
 
@@ -1773,7 +1883,19 @@ Safe alternative
             Citation("Response API", "/api/response"),
             Citation("Assistant safety docs", "docs/V3_21_SOC_ASSISTANT_DEMO_QUALITY.md"),
         ],
-        details={"refused": True, "reason": "assistant_read_only"},
+        details={
+            "refused": True,
+            "reason": "assistant_read_only",
+            "answer_sections": {
+                "summary": ["I cannot execute that request because the SOC Assistant is read-only."],
+                "risk_interpretation": [
+                    "Detection, response, label, model, account, deletion, and firewall actions are outside the assistant boundary."
+                ],
+                "what_to_check_next": [
+                    "Ask for the evidence or recommended analyst checks, then use the authorized dashboard workflow if action is justified."
+                ],
+            },
+        },
         suggested_followups=[
             "Why was this alert flagged?",
             "What can I safely do next for this alert?",
@@ -2656,7 +2778,19 @@ def _answer_supervised_output_policy(*, redacted: bool) -> AssistantResult:
                     },
                 },
                 enabled=redacted,
-            )
+            ),
+            "answer_sections": {
+                "summary": [
+                    f"Supervised output policy: {contract.get('decision', 'decision_support_contract_ready')}.",
+                    f"Safe strategy: {contract.get('recommended_supervised_strategy', 'binary_soc_review_queue')}.",
+                ],
+                "evidence": [
+                    f"Queue status {queue.get('status', 'unknown')}; splits {queue.get('passing_splits', 0)}/{queue.get('evaluated_splits', 0)}; F1 minimum {queue.get('queue_f1_min')}.",
+                    f"Exact severity policy remains {exact.get('status', 'unstable')}.",
+                ],
+                "risk_interpretation": [f"Blocked uses: {blocked_text}."],
+                "what_to_check_next": ["Use supervised output only to rank the analyst review queue."],
+            },
         },
         suggested_followups=["Does ML agree with rule/hybrid evidence?", "Why is the model not production promoted?"],
     )
@@ -2729,7 +2863,19 @@ def _answer_queue_evidence_agreement(*, redacted: bool) -> AssistantResult:
                     },
                 },
                 enabled=redacted,
-            )
+            ),
+            "answer_sections": {
+                "summary": [
+                    f"Queue/evidence agreement: {readiness.get('decision', 'diagnostic_only')}.",
+                    f"Validated on {aggregate.get('passing_splits', 0)}/{aggregate.get('evaluated_splits', 0)} splits with minimum agreement {aggregate.get('agreement_rate_min')}.",
+                ],
+                "evidence": [
+                    f"Top evidence-only pattern: {evidence_only_text}.",
+                    f"Top queue-only pattern: {queue_only_text}.",
+                ],
+                "risk_interpretation": ["Evidence-only disagreements still require analyst review."],
+                "what_to_check_next": ["Keep deterministic rule/hybrid evidence primary when the queue disagrees."],
+            },
         },
         suggested_followups=["Explain current ML model status.", "What should I safely check next for this alert?"],
     )

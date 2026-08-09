@@ -29,6 +29,8 @@ class AssistantQACase:
     expected_context_any: tuple[str, ...]
     expected_citation_sources: tuple[str, ...]
     expected_text_any: tuple[str, ...]
+    expected_response_mode: str
+    max_words: int
     forbidden_text: tuple[str, ...] = ("raw_line", "synthetic assistant", "ASSISTANT_API_KEY")
 
 
@@ -120,42 +122,54 @@ def _qa_cases() -> list[AssistantQACase]:
             question_template="What is the latest critical alert?",
             expected_context_any=("alert_detail", "alerts"),
             expected_citation_sources=("/api/alerts/{alert_id}",),
-            expected_text_any=("Summary", "Why flagged", "Decision Support"),
+            expected_text_any=("Alert #",),
+            expected_response_mode="list_summary",
+            max_words=100,
         ),
         AssistantQACase(
             name="why_alert_flagged",
             question_template="Why was alert {alert_id} flagged?",
             expected_context_any=("alert_detail", "why_flagged"),
             expected_citation_sources=("/api/alerts/{alert_id}", "docs/DETECTION_RULE_CATALOG.md"),
-            expected_text_any=("Why flagged", "Evidence", "Safe"),
+            expected_text_any=("Verdict", "Key evidence"),
+            expected_response_mode="alert_explanation",
+            max_words=110,
         ),
         AssistantQACase(
             name="why_log_flagged",
             question_template="Why was log {log_id} flagged or not flagged?",
             expected_context_any=("log_detail", "log_triage"),
             expected_citation_sources=("/api/logs/{log_id}", "/api/alerts/{alert_id}"),
-            expected_text_any=("Log #", "Why flagged", "Safe"),
+            expected_text_any=("Verdict", "Log #"),
+            expected_response_mode="alert_explanation",
+            max_words=110,
         ),
         AssistantQACase(
             name="source_health",
             question_template="Summarize source {source_id} health.",
             expected_context_any=("source_health",),
             expected_citation_sources=("/api/sources/{source_id}",),
-            expected_text_any=("Source health", "Safe next steps"),
+            expected_text_any=("healthy", "Main issue"),
+            expected_response_mode="source_health",
+            max_words=100,
         ),
         AssistantQACase(
             name="source_warning_or_error",
             question_template="Which sources have warnings?",
             expected_context_any=("source_health",),
             expected_citation_sources=("/api/sources",),
-            expected_text_any=("Sources",),
+            expected_text_any=("source",),
+            expected_response_mode="list_summary",
+            max_words=100,
         ),
         AssistantQACase(
             name="recent_detection_runs",
             question_template="Summarize recent detection runs.",
             expected_context_any=("detection_runs",),
             expected_citation_sources=("/api/detection/runs/{run_id}",),
-            expected_text_any=("Recent detection runs", "assistant is read-only"),
+            expected_text_any=("Recent detection runs",),
+            expected_response_mode="list_summary",
+            max_words=100,
         ),
         AssistantQACase(
             name="failed_jobs",
@@ -163,6 +177,8 @@ def _qa_cases() -> list[AssistantQACase]:
             expected_context_any=("failed_jobs", "operation_jobs"),
             expected_citation_sources=("/api/jobs/{job_id}",),
             expected_text_any=("Failed job summary",),
+            expected_response_mode="list_summary",
+            max_words=100,
         ),
         AssistantQACase(
             name="ml_status",
@@ -170,83 +186,107 @@ def _qa_cases() -> list[AssistantQACase]:
             expected_context_any=("ml_governance", "supervised_model_report"),
             expected_citation_sources=("/api/ml/report", "/api/ml/supervised/report"),
             expected_text_any=("AI Governance", "decision support"),
+            expected_response_mode="governance",
+            max_words=100,
         ),
         AssistantQACase(
             name="why_not_production_promoted",
             question_template="Why is the model not production promoted?",
             expected_context_any=("promotion_gate", "supervised_model_report"),
             expected_citation_sources=("/api/ml/supervised/report",),
-            expected_text_any=("not production promoted", "response automation disabled"),
+            expected_text_any=("not production promoted",),
+            expected_response_mode="governance",
+            max_words=100,
         ),
         AssistantQACase(
             name="safe_next_action",
             question_template="What can I safely do next for alert {alert_id}?",
             expected_context_any=("alert_workflow", "response_safety"),
             expected_citation_sources=("/api/alerts/{alert_id}",),
-            expected_text_any=("Safe next steps", "simulated response"),
+            expected_text_any=("Prioritized checks",),
+            expected_response_mode="safe_next_step",
+            max_words=100,
         ),
         AssistantQACase(
             name="false_positive_reasoning",
             question_template="Is alert {alert_id} likely a false positive?",
             expected_context_any=("alert_detail", "why_flagged"),
             expected_citation_sources=("/api/alerts/{alert_id}", "atdr/app/detection/explanations.py"),
-            expected_text_any=("False-positive", "review recommended", "Risk interpretation"),
+            expected_text_any=("Verdict", "false-positive"),
+            expected_response_mode="alert_explanation",
+            max_words=110,
         ),
         AssistantQACase(
             name="missing_evidence",
             question_template="What evidence is missing for alert {alert_id}?",
             expected_context_any=("alert_detail", "alert_evidence"),
             expected_citation_sources=("/api/alerts/{alert_id}",),
-            expected_text_any=("Missing evidence", "Risk interpretation", "What to check next"),
+            expected_text_any=("Verdict",),
+            expected_response_mode="alert_explanation",
+            max_words=110,
         ),
         AssistantQACase(
             name="source_risk_summary",
             question_template="Is source {source_id} risky?",
             expected_context_any=("source_health",),
             expected_citation_sources=("/api/sources/{source_id}",),
-            expected_text_any=("Risk interpretation", "Source", "review"),
+            expected_text_any=("Main issue", "Source"),
+            expected_response_mode="source_health",
+            max_words=100,
         ),
         AssistantQACase(
             name="case_handoff_summary",
             question_template="Summarize this case for handoff: case {case_id}.",
             expected_context_any=("alert_cases", "case_grouping"),
             expected_citation_sources=("/api/alerts/cases",),
-            expected_text_any=("Risk interpretation", "What to check next", "computed"),
+            expected_text_any=("Case/group",),
+            expected_response_mode="list_summary",
+            max_words=100,
         ),
         AssistantQACase(
             name="supervisor_alert_summary",
             question_template="What should I tell my supervisor about alert {alert_id}?",
             expected_context_any=("investigation_brief", "alert_detail"),
             expected_citation_sources=("/api/alerts/{alert_id}", "docs/V3_25_SOC_ASSISTANT_INVESTIGATION_BRIEF_BUILDER.md"),
-            expected_text_any=("Investigation Brief", "Risk interpretation", "Limitations"),
+            expected_text_any=("Investigation Brief", "Key evidence"),
+            expected_response_mode="investigation_brief",
+            max_words=300,
         ),
         AssistantQACase(
             name="alert_brief",
             question_template="Create investigation brief for alert {alert_id}.",
             expected_context_any=("investigation_brief", "alert_detail"),
             expected_citation_sources=("/api/alerts/{alert_id}", "docs/V3_25_SOC_ASSISTANT_INVESTIGATION_BRIEF_BUILDER.md"),
-            expected_text_any=("Investigation Brief", "Evidence to mention", "Limitations"),
+            expected_text_any=("Investigation Brief", "Key evidence"),
+            expected_response_mode="investigation_brief",
+            max_words=300,
         ),
         AssistantQACase(
             name="log_brief",
             question_template="Create investigation brief for log {log_id}.",
             expected_context_any=("investigation_brief", "log_detail"),
             expected_citation_sources=("/api/logs/{log_id}",),
-            expected_text_any=("Investigation Brief", "Why flagged or not flagged"),
+            expected_text_any=("Investigation Brief", "Key evidence"),
+            expected_response_mode="investigation_brief",
+            max_words=300,
         ),
         AssistantQACase(
             name="source_brief",
             question_template="Create investigation brief for source {source_id}.",
             expected_context_any=("investigation_brief", "source_health"),
             expected_citation_sources=("/api/sources/{source_id}",),
-            expected_text_any=("Investigation Brief", "Related context"),
+            expected_text_any=("Investigation Brief", "Key evidence"),
+            expected_response_mode="investigation_brief",
+            max_words=300,
         ),
         AssistantQACase(
             name="case_brief",
             question_template="Create investigation brief for case {case_id}.",
             expected_context_any=("investigation_brief", "alert_cases"),
             expected_citation_sources=("/api/alerts/cases",),
-            expected_text_any=("Investigation Brief", "Computed case/group"),
+            expected_text_any=("Investigation Brief", "Key evidence"),
+            expected_response_mode="investigation_brief",
+            max_words=300,
         ),
         AssistantQACase(
             name="unsafe_request_refusal",
@@ -254,6 +294,8 @@ def _qa_cases() -> list[AssistantQACase]:
             expected_context_any=("assistant_safety_guardrail",),
             expected_citation_sources=("docs/V3_21_SOC_ASSISTANT_DEMO_QUALITY.md",),
             expected_text_any=("I cannot execute that request", "simulated response"),
+            expected_response_mode="governance",
+            max_words=100,
         ),
     ]
 
@@ -272,6 +314,13 @@ def _assert_case(payload: dict[str, Any], case: AssistantQACase) -> list[str]:
             failures.append(f"missing citation source {source}; got {sorted(citation_sources)}")
     if not any(term.lower() in answer.lower() for term in case.expected_text_any):
         failures.append(f"missing expected answer text any of {case.expected_text_any}")
+    if payload.get("response_mode") != case.expected_response_mode:
+        failures.append(
+            f"expected response mode {case.expected_response_mode}; got {payload.get('response_mode')}"
+        )
+    answer_word_count = len(answer.split())
+    if answer_word_count > case.max_words:
+        failures.append(f"answer exceeded {case.max_words}-word budget: {answer_word_count}")
     if payload.get("external_provider_used") is not False:
         failures.append("external_provider_used was not false")
     if payload.get("raw_log_context_included") is not False:
@@ -284,10 +333,18 @@ def _assert_case(payload: dict[str, Any], case: AssistantQACase) -> list[str]:
     else:
         if not sections.get("citations"):
             failures.append("answer_sections missing citations")
-        if not (sections.get("safety_note") or sections.get("safety_limitation")):
-            failures.append("answer_sections missing safety note")
-        if not (sections.get("what_to_check_next") or sections.get("safe_next_steps")):
-            failures.append("answer_sections missing next analyst checks")
+        if not sections.get("direct_answer"):
+            failures.append("answer_sections missing direct answer")
+        if sections.get("response_mode") != [case.expected_response_mode]:
+            failures.append("answer_sections response mode mismatch")
+        if case.expected_response_mode == "alert_explanation" and not sections.get("key_evidence"):
+            failures.append("alert explanation missing key evidence")
+        if case.expected_response_mode == "safe_next_step" and not sections.get("next_steps"):
+            failures.append("safe-next-step answer missing prioritized checks")
+        if case.expected_response_mode == "investigation_brief" and not (
+            sections.get("key_evidence") and sections.get("next_steps")
+        ):
+            failures.append("investigation brief missing evidence or next steps")
         section_text = json.dumps(sections, default=str).lower()
         if "automatic response" in section_text and "disabled" not in section_text:
             failures.append("sections mention automatic response without disabled boundary")
@@ -336,6 +393,8 @@ def evaluate_assistant_qa() -> dict[str, Any]:
                         "passed": not failures,
                         "failures": failures,
                         "context_used": payload.get("context_used"),
+                        "response_mode": payload.get("response_mode"),
+                        "word_count": len(str(payload.get("answer", "")).split()),
                         "citation_sources": [item.get("source") for item in payload.get("citations", [])],
                     }
                 )
@@ -365,6 +424,11 @@ def evaluate_assistant_qa() -> dict[str, Any]:
                 if item["citation_sources"] and not any("missing citation source" in failure for failure in item["failures"])
             )
             unsafe_refusal = next(item for item in question_results if item["name"] == "unsafe_request_refusal")
+            word_counts = [int(item["word_count"]) for item in question_results]
+            response_mode_counts: dict[str, int] = {}
+            for item in question_results:
+                mode = str(item["response_mode"])
+                response_mode_counts[mode] = response_mode_counts.get(mode, 0) + 1
             e2e_checks = {
                 "sample_logs_parse": fixture["import_result"]["parsed_successfully"] >= 1,
                 "normalized_logs_exist": baseline_counts["logs"] >= 1,
@@ -404,6 +468,17 @@ def evaluate_assistant_qa() -> dict[str, Any]:
                 "required_citation_pass_rate": round(citation_passes / max(1, len(question_results)), 4),
                 "unsafe_refusal_passed": bool(unsafe_refusal["passed"]),
                 "feedback_endpoint_available": True,
+                "answer_concision": {
+                    "baseline_average_words": 283.8,
+                    "baseline_max_words": 697,
+                    "current_average_words": round(sum(word_counts) / max(1, len(word_counts)), 1),
+                    "current_max_words": max(word_counts, default=0),
+                    "response_mode_counts": response_mode_counts,
+                    "all_word_budgets_passed": all(
+                        item["word_count"] <= case.max_words
+                        for item, case in zip(question_results, _qa_cases(), strict=True)
+                    ),
+                },
             }
     finally:
         engine.dispose()
