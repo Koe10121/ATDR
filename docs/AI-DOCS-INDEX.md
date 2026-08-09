@@ -295,3 +295,17 @@ tracked Node/Vue/Mongo runtime copy is no longer part of the proposed tree.
   source evidence, scope, implementation, tests, safety, rollback, and handoff.
 - `docs/V5_29_COMMIT_ALLOWLIST.md`: exact cumulative v5.26-v5.29 review
   boundary; it does not authorize staging, commit, or push.
+- `docs/V5_29_1_FRONTEND_SECURITY_CLOSURE.md`: React Router advisory
+  evidence, compatible 7.18.2 lock, safe login-return behavior, route
+  regressions, verification, and unchanged authority boundaries.
+- `docs/changes/T1_T20_V5_29_1_FRONTEND_SECURITY_CLOSURE.md`: v5.29.1 source
+  evidence, scope, implementation, tests, security, rollback, and handoff.
+- `docs/V5_29_1_COMMIT_ALLOWLIST.md`: exact v5.29.1 tracked review boundary;
+  it does not authorize staging, commit, or push.
+- `docs/V5_30_SUPERVISED_EVIDENCE_CLOSURE.md`: canonical v5.19-v5.29
+  evidence inventory, custody audit, registered-shadow diagnostics, fixed
+  promotion gates, conservative lifecycle decision, and remaining evidence.
+- `docs/changes/T1_T20_V5_30_SUPERVISED_EVIDENCE_CLOSURE.md`: v5.30 source
+  evidence, scope, implementation, testing, safety, rollback, and handoff.
+- `docs/V5_30_COMMIT_ALLOWLIST.md`: exact cumulative v5.29.1-v5.30 tracked
+  review boundary; it does not authorize staging, commit, or push.

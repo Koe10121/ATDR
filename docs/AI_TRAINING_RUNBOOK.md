@@ -1824,3 +1824,34 @@ the selected response contract, and never imply an executed action. An
 unsupported record, missing requested coverage, lost primary citation,
 secret-like content, or over-budget answer must fail closed to the concise
 deterministic answer.
+
+## v5.30 Supervised Evidence Closure
+
+Run the canonical read-only evidence audit with:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v530_supervised_evidence_closure --pretty
+```
+
+To include the private native PAN-OS aggregate preflight, pass the source path
+only at the CLI boundary and require disposable storage:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v530_supervised_evidence_closure `
+  --sample-path "C:\Path\Outside\Git\private-panos.log" `
+  --use-temp-db `
+  --pretty
+```
+
+The audit distinguishes manual/reviewed human provenance from assisted or weak
+labels even when an assisted row has `reviewed=true`. It validates existing
+role locks, evaluates only the registered shadow artifact, labels potentially
+overlapping configured-data results as diagnostic, and withholds promotion
+metrics when blind human support, source independence, or time independence is
+missing. It never trains, activates, promotes, imports labels, creates alerts,
+or executes responses.
+
+Current fixed decision: lifecycle remains `shadow_observation`. Do not use the
+configured-data diagnostics as blind accuracy, and do not create a replacement
+review pack while the sealed 40-row native pack still awaits qualified human
+review.

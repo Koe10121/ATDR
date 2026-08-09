@@ -708,3 +708,33 @@ but automated tests do not replace qualified human semantic/privacy review or
 approved-host provider operations. Rules remain alert-authoritative;
 supervised ML remains `shadow_observation`; automatic response and real
 blocking remain disabled.
+
+## v5.30 Supervised Evidence Closure
+
+v5.30 is the canonical promotion-readiness decision for the current supervised
+program. The configured database contains 2,672 latest trainable labels: 1,672
+meet the manual human-provenance contract and 1,000 remain assisted/weak. Of
+the assisted rows, 563 carry `reviewed=true`, but none are counted as human
+authorship. Every configured label comes from one source identity and one
+calendar day.
+
+The native PAN-OS evidence remains strong for schema and chronology but not
+ground truth: 773,551 rows parse successfully across 22 windows, with 433,499
+fit, 116,422 calibration, 111,626 threshold, and 112,004 locked-future rows.
+The sealed 40-row blind pack still has zero legitimate human decisions. All 15
+evidence-custody/leakage checks pass and the private disposable preflight
+changed no configured state.
+
+The registered v5.1 artifact remains valid for shadow scoring. Against current
+human-provenance rows it reports diagnostic F1 `0.6214`, FPR `0.1167`,
+suspicious recall `0.3537`, malicious recall `0.6452`, and ECE `0.2098`.
+Training overlap cannot be excluded, so these are not promotion metrics. The
+single-day temporal tail is weaker, and source holdout fails closed because a
+second source does not exist.
+
+The newer v5.22 configuration remains an artifact-free diagnostic candidate;
+it cannot be activated or rerun by the closure audit. Independent quality
+metrics remain withheld. Lifecycle stays `shadow_observation`, rules remain
+alert-authoritative, and model activation, production promotion, automatic
+response, and real blocking remain false. See
+`docs/V5_30_SUPERVISED_EVIDENCE_CLOSURE.md`.

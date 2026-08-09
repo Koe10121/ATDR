@@ -2379,6 +2379,83 @@ test("school handoff errors are actionable and do not expose credentials", async
   await expect(page.getByText(/token|secret/i)).toHaveCount(0);
 });
 
+test("protected login preserves a safe alert deep link", async ({ page }) => {
+  await mockApi(page);
+  await page.route("**/api/auth/me", (route) => {
+    const authorization = route.request().headers().authorization;
+    return authorization
+      ? route.fulfill({ json: { id: 1, username: "admin", full_name: "Smoke User", role: "admin", is_active: true } })
+      : route.fulfill({ status: 401, json: { detail: "Not authenticated" } });
+  });
+  await page.route("**/api/auth/login", (route) =>
+    route.fulfill({
+      json: {
+        access_token: "recovery-token",
+        token_type: "bearer",
+        expires_in_minutes: 30,
+        username: "admin",
+        role: "admin"
+      }
+    })
+  );
+
+  await page.goto("/alerts?alert=1#evidence");
+  await expect(page).toHaveURL(/\/login$/);
+  await page.getByLabel("Username or email").fill("admin");
+  await page.getByLabel("Password").fill("test-password");
+  await page.getByRole("button", { name: "Sign in for recovery" }).click();
+
+  await expect(page).toHaveURL(/\/alerts\?alert=1#evidence$/);
+  await expect(page.getByRole("heading", { name: "Critical: Smoke alert" })).toBeVisible();
+});
+
+test("login rejects malicious redirect state", async ({ page }) => {
+  await mockApi(page);
+  await page.route("**/api/auth/me", (route) => {
+    const authorization = route.request().headers().authorization;
+    return authorization
+      ? route.fulfill({ json: { id: 1, username: "admin", full_name: "Smoke User", role: "admin", is_active: true } })
+      : route.fulfill({ status: 401, json: { detail: "Not authenticated" } });
+  });
+  await page.route("**/api/auth/login", (route) =>
+    route.fulfill({
+      json: {
+        access_token: "recovery-token",
+        token_type: "bearer",
+        expires_in_minutes: 30,
+        username: "admin",
+        role: "admin"
+      }
+    })
+  );
+
+  await page.goto("/login");
+  await page.evaluate(() => {
+    window.history.replaceState(
+      { usr: { from: "/\\\\attacker.example/redirect" }, key: "unsafe-redirect", idx: 0 },
+      "",
+      "/login"
+    );
+  });
+  await page.reload();
+  await page.getByLabel("Username or email").fill("admin");
+  await page.getByLabel("Password").fill("test-password");
+  await page.getByRole("button", { name: "Sign in for recovery" }).click();
+
+  await expect(page).toHaveURL(/\/overview$/);
+  expect(new URL(page.url()).origin).toBe("http://127.0.0.1:4173");
+});
+
+test("unknown routes fail closed to the authenticated overview", async ({ page }) => {
+  await mockApi(page);
+  await seedSession(page);
+
+  await page.goto("/not-an-atdr-route?next=https://attacker.example");
+
+  await expect(page).toHaveURL(/\/overview$/);
+  await expect(page.getByText("MFU Security Operations")).toBeVisible();
+});
+
 test("core analyst routes render with mocked API", async ({ page }) => {
   await mockApi(page);
   await seedSession(page);
@@ -2387,6 +2464,25 @@ test("core analyst routes render with mocked API", async ({ page }) => {
     await expect(page.getByText("MFU Security Operations")).toBeVisible();
     await expect(page.getByText("API health check failed")).not.toBeVisible();
   }
+});
+
+test("browser history preserves the assistant investigation session", async ({ page }) => {
+  await mockApi(page);
+  await seedSession(page);
+
+  await page.goto("/assistant?alert=1");
+  await page.getByLabel("Analyst question").fill("Why was alert 1 flagged?");
+  await page.getByRole("button", { name: "Ask assistant" }).click();
+  await expect(page.getByTestId("assistant-response-panel")).toContainText("Alert #1 was flagged");
+
+  await page.getByRole("link", { name: "Alerts", exact: true }).first().click();
+  await expect(page).toHaveURL(/\/alerts$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/assistant\?alert=1$/);
+  await expect(page.getByTestId("assistant-response-panel")).toContainText("Alert #1 was flagged");
+
+  await page.goForward();
+  await expect(page).toHaveURL(/\/alerts$/);
 });
 
 test("overview system health panel and ML governance wording render", async ({ page }) => {

@@ -5,8 +5,24 @@ import { useAuth } from "../hooks/useAuth";
 import { api } from "../lib/api";
 import type { MfuIamPublicStatus } from "../types/api";
 
+function containsControlCharacter(value: string): boolean {
+  return Array.from(value).some((character) => {
+    const code = character.charCodeAt(0);
+    return code <= 0x1f || code === 0x7f;
+  });
+}
+
 function safeRedirectPath(value: string | null): string | null {
-  if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes(":")) return null;
+  if (
+    !value ||
+    !value.startsWith("/") ||
+    value.startsWith("//") ||
+    value.includes("\\") ||
+    value.includes(":") ||
+    containsControlCharacter(value)
+  ) {
+    return null;
+  }
   if (/^[a-z][a-z0-9+.-]*:/i.test(value)) return null;
   return value;
 }
