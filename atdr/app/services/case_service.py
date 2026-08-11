@@ -66,6 +66,35 @@ def _case_id(parts: tuple[str, str, str, datetime]) -> str:
     return sha1(seed.encode("utf-8")).hexdigest()[:12]
 
 
+def case_trace_for_alert(alert: Alert, *, window_hours: int = 24) -> dict[str, Any]:
+    """Return the deterministic computed-case identity for one alert."""
+
+    key = _case_key(alert, window_hours=window_hours)
+    metadata = next(
+        (
+            item
+            for item in alert.matched_rules_json or []
+            if isinstance(item, dict) and item.get("code") == "group_metadata"
+        ),
+        {},
+    )
+    return {
+        "case_id": _case_id(key),
+        "computed": True,
+        "window_hours": window_hours,
+        "window_start": key[3].isoformat(),
+        "attack_type": key[2],
+        "source_ids": sorted(
+            {
+                int(source_id)
+                for source_id in metadata.get("source_ids") or []
+                if source_id is not None
+            }
+        ),
+        "alert_id": int(alert.id) if alert.id is not None else None,
+    }
+
+
 def _case_status(alerts: list[Alert]) -> str:
     return max((alert.status for alert in alerts), key=lambda status: STATUS_RANK.get(status, 0))
 

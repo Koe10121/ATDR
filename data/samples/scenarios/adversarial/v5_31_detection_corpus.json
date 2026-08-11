@@ -1,0 +1,244 @@
+{
+  "version": "v5.31.0",
+  "description": "Synthetic, non-private adversarial cases for deterministic ATDR rule and alert-group validation.",
+  "cases": [
+    {
+      "id": "vertical_scan_positive",
+      "category": "positive",
+      "pattern": "vertical_scan",
+      "params": {"count": 10, "source_id": 1},
+      "expected_present": ["possible_port_scan"],
+      "expected_absent": ["possible_horizontal_scan"],
+      "expected_alert_count": 1
+    },
+    {
+      "id": "vertical_scan_near_miss",
+      "category": "near_miss",
+      "pattern": "vertical_scan",
+      "params": {"count": 9, "source_id": 1},
+      "expected_present": [],
+      "expected_absent": ["possible_port_scan"],
+      "expected_alert_count": 0
+    },
+    {
+      "id": "horizontal_scan_positive",
+      "category": "positive",
+      "pattern": "horizontal_scan",
+      "params": {"count": 10, "source_id": 1, "action": "deny"},
+      "expected_present": ["possible_horizontal_scan"],
+      "expected_absent": ["possible_port_scan"],
+      "expected_alert_count": 1
+    },
+    {
+      "id": "horizontal_scan_near_miss",
+      "category": "near_miss",
+      "pattern": "horizontal_scan",
+      "params": {"count": 9, "source_id": 1, "action": "allow"},
+      "expected_present": [],
+      "expected_absent": ["possible_horizontal_scan"],
+      "expected_alert_count": 0
+    },
+    {
+      "id": "normal_web_fanout",
+      "category": "negative",
+      "pattern": "web_fanout",
+      "params": {"count": 12, "source_id": 1},
+      "expected_present": [],
+      "expected_absent": ["possible_horizontal_scan", "connection_flood_suspicion"],
+      "expected_alert_count": 0
+    },
+    {
+      "id": "same_target_auth_denies",
+      "category": "positive",
+      "pattern": "auth_denies",
+      "params": {"count": 5, "source_id": 1, "vary_targets": false},
+      "expected_present": ["brute_force_like_attempts"],
+      "expected_absent": [],
+      "expected_alert_count": 1
+    },
+    {
+      "id": "distributed_target_auth_denies",
+      "category": "near_miss",
+      "pattern": "auth_denies",
+      "params": {"count": 6, "source_id": 1, "vary_targets": true},
+      "expected_present": [],
+      "expected_absent": ["brute_force_like_attempts"]
+    },
+    {
+      "id": "periodic_unknown_outbound",
+      "category": "positive",
+      "pattern": "beacon",
+      "params": {"source_id": 1, "offsets": [0, 30, 60, 90, 120, 150]},
+      "expected_present": ["beaconing_like_outbound"],
+      "expected_absent": [],
+      "expected_alert_count": 1
+    },
+    {
+      "id": "irregular_unknown_outbound",
+      "category": "near_miss",
+      "pattern": "beacon",
+      "params": {"source_id": 1, "offsets": [0, 7, 19, 54, 61, 140]},
+      "expected_present": [],
+      "expected_absent": ["beaconing_like_outbound"]
+    },
+    {
+      "id": "denied_connection_flood",
+      "category": "positive",
+      "pattern": "flood",
+      "params": {"count": 20, "source_id": 1, "action": "deny", "repeat_count": 1},
+      "expected_present": ["connection_flood_suspicion"],
+      "expected_absent": [],
+      "expected_alert_count": 1
+    },
+    {
+      "id": "allowed_connection_burst_below_volume",
+      "category": "negative",
+      "pattern": "flood",
+      "params": {"count": 20, "source_id": 1, "action": "allow", "repeat_count": 1},
+      "expected_present": [],
+      "expected_absent": ["connection_flood_suspicion"]
+    },
+    {
+      "id": "repeatcnt_connection_flood",
+      "category": "positive",
+      "pattern": "flood",
+      "params": {"count": 20, "source_id": 1, "action": "allow", "repeat_count": 5},
+      "expected_present": ["connection_flood_suspicion"],
+      "expected_absent": [],
+      "expected_alert_count": 1
+    },
+    {
+      "id": "normal_quic_443",
+      "category": "negative",
+      "pattern": "normal_repeated",
+      "params": {"count": 30, "source_id": 1, "app": "quic-base", "port": 443},
+      "expected_present": [],
+      "expected_absent": ["beaconing_like_outbound", "connection_flood_suspicion", "possible_port_scan"],
+      "expected_alert_count": 0
+    },
+    {
+      "id": "normal_ping_allow",
+      "category": "negative",
+      "pattern": "normal_repeated",
+      "params": {"count": 25, "source_id": 1, "app": "ping", "port": 0},
+      "expected_present": [],
+      "expected_absent": ["beaconing_like_outbound", "connection_flood_suspicion"],
+      "expected_alert_count": 0
+    },
+    {
+      "id": "vendor_high_threat",
+      "category": "positive",
+      "pattern": "threat",
+      "params": {"source_id": 1, "severity": "high", "threat_name": "Synthetic vulnerability signature"},
+      "expected_present": ["paloalto_threat_log"],
+      "expected_absent": [],
+      "expected_alert_count": 1
+    },
+    {
+      "id": "vendor_informational_threat",
+      "category": "near_miss",
+      "pattern": "threat",
+      "params": {"source_id": 1, "severity": "informational", "threat_name": "Synthetic informational signature"},
+      "expected_present": ["paloalto_threat_log"],
+      "expected_absent": [],
+      "expected_alert_count": 0
+    },
+    {
+      "id": "unknown_udp_horizontal_scan",
+      "category": "positive",
+      "pattern": "horizontal_scan",
+      "params": {"count": 10, "source_id": 1, "action": "allow", "protocol": "udp", "port": 161},
+      "expected_present": ["possible_horizontal_scan"],
+      "expected_absent": ["possible_port_scan"],
+      "expected_alert_count": 1
+    },
+    {
+      "id": "five_minute_boundary_scan",
+      "category": "boundary",
+      "pattern": "vertical_scan",
+      "params": {"count": 10, "source_id": 1, "offsets": [0, 30, 60, 90, 120, 150, 180, 210, 240, 300]},
+      "expected_present": ["possible_port_scan"],
+      "expected_absent": [],
+      "expected_alert_count": 1
+    },
+    {
+      "id": "outside_five_minute_scan",
+      "category": "boundary",
+      "pattern": "vertical_scan",
+      "params": {"count": 10, "source_id": 1, "offsets": [0, 10, 20, 30, 40, 301, 311, 321, 331, 341]},
+      "expected_present": [],
+      "expected_absent": ["possible_port_scan"],
+      "expected_alert_count": 0
+    },
+    {
+      "id": "separate_scan_windows_stay_separate",
+      "category": "boundary",
+      "pattern": "separate_vertical_scan_windows",
+      "params": {"count_per_window": 10, "source_id": 1, "separation_seconds": 3600},
+      "expected_present": ["possible_port_scan"],
+      "expected_absent": [],
+      "expected_alert_count": 2
+    },
+    {
+      "id": "multi_source_scan_isolation",
+      "category": "multi_source",
+      "pattern": "source_isolation",
+      "params": {"count_per_source": 5},
+      "expected_present": [],
+      "expected_absent": ["possible_port_scan", "possible_horizontal_scan"],
+      "expected_alert_count": 0
+    },
+    {
+      "id": "duplicate_same_port_not_scan",
+      "category": "duplicate",
+      "pattern": "duplicate_port",
+      "params": {"count": 10, "source_id": 1},
+      "expected_present": [],
+      "expected_absent": ["possible_port_scan", "possible_horizontal_scan"]
+    },
+    {
+      "id": "context_only_singleton",
+      "category": "negative",
+      "pattern": "context_singleton",
+      "params": {"source_id": 1},
+      "expected_present": ["outside_to_inside", "unusual_destination_port", "unknown_or_incomplete_app"],
+      "expected_absent": [],
+      "expected_alert_count": 0
+    },
+    {
+      "id": "high_outbound_bytes_sent",
+      "category": "positive",
+      "pattern": "exfil_volume",
+      "params": {"source_id": 1, "bytes_sent": 15000000, "bytes": 16000000},
+      "expected_present": ["high_outbound_bytes"],
+      "expected_absent": [],
+      "expected_alert_count": 1
+    },
+    {
+      "id": "inbound_bytes_not_exfil",
+      "category": "negative",
+      "pattern": "inbound_volume",
+      "params": {"source_id": 1, "bytes_sent": 0, "bytes": 16000000},
+      "expected_present": ["high_bytes_outlier"],
+      "expected_absent": ["high_outbound_bytes"]
+    },
+    {
+      "id": "degraded_missing_fields",
+      "category": "degraded_input",
+      "pattern": "degraded",
+      "params": {"source_id": 1},
+      "expected_present": ["unknown_or_incomplete_app"],
+      "expected_absent": ["possible_port_scan", "possible_horizontal_scan", "beaconing_like_outbound"],
+      "expected_alert_count": 0
+    },
+    {
+      "id": "missing_timestamps_do_not_correlate",
+      "category": "degraded_input",
+      "pattern": "missing_time_vertical_scan",
+      "params": {"count": 10, "source_id": 1},
+      "expected_present": [],
+      "expected_absent": ["possible_port_scan", "possible_horizontal_scan", "beaconing_like_outbound"],
+      "expected_alert_count": 0
+    }
+  ]
+}

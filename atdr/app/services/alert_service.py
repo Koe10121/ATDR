@@ -355,7 +355,10 @@ def _time_windows_match(existing: dict, incoming: dict) -> bool:
     incoming_first = _parse_iso(incoming.get("first_seen"))
     incoming_last = _parse_iso(incoming.get("last_seen"))
     if not all([existing_first, existing_last, incoming_first, incoming_last]):
-        return True
+        # Without complete event-time bounds, ATDR cannot establish that two
+        # findings belong to the same episode. Fail closed instead of merging
+        # unrelated evidence indefinitely.
+        return False
     if existing_first <= incoming_last and incoming_first <= existing_last:
         return True
     max_gap = timedelta(minutes=ALERT_DEDUP_WINDOW_MINUTES)
@@ -364,7 +367,28 @@ def _time_windows_match(existing: dict, incoming: dict) -> bool:
     ) <= max_gap.total_seconds()
 
 
-def _alert_source_matches(alert: Alert, observations: dict) -> bool:
+def _alert_source_matches(
+    alert: Alert,
+    observations: dict,
+    *,
+    existing_metadata: dict | None = None,
+) -> bool:
+    metadata = existing_metadata if existing_metadata is not None else _group_metadata(alert)
+    existing_source_ids = {
+        int(source_id)
+        for source_id in metadata.get("source_ids") or []
+        if source_id is not None
+    }
+    incoming_source_ids = {
+        int(source_id)
+        for source_id in observations.get("source_ids") or []
+        if source_id is not None
+    }
+    if existing_source_ids or incoming_source_ids:
+        if not existing_source_ids or not incoming_source_ids:
+            return False
+        if existing_source_ids.isdisjoint(incoming_source_ids):
+            return False
     src_ips = observations.get("sample_src_ips") or []
     dst_ips = observations.get("sample_dst_ips") or []
     if alert.src_ip and alert.src_ip not in src_ips:
@@ -409,7 +433,11 @@ def _find_dedup_alert(
         ][:50]
     for alert in alerts:
         metadata = _group_metadata(alert)
-        if not _alert_source_matches(alert, observations):
+        if not _alert_source_matches(
+            alert,
+            observations,
+            existing_metadata=metadata,
+        ):
             continue
         if not _time_windows_match(metadata, observations):
             continue

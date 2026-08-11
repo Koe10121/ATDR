@@ -9,6 +9,7 @@ from atdr.app.detection.hybrid_scoring import hybrid_risk_score
 from atdr.app.detection.rule_catalog import rule_spec
 from atdr.app.detection.supervised_detector import predict_supervised_log
 from atdr.app.ml.features import build_log_features
+from atdr.app.services.case_service import case_trace_for_alert
 
 
 BEHAVIOR_EXPLANATION_FEATURES = [
@@ -31,6 +32,110 @@ BEHAVIOR_EXPLANATION_FEATURES = [
     "repeated_connection_attempts",
     "scanning_like_behavior_score",
 ]
+
+HUMAN_LABEL_SOURCES = {"manual", "reviewed_import"}
+
+RULE_ANALYST_CHECKS: dict[str, tuple[str, ...]] = {
+    "paloalto_threat_log": (
+        "Verify the vendor threat subtype, severity, signature or threat name, and firewall action.",
+        "Correlate the THREAT row with its traffic session and endpoint or service telemetry.",
+    ),
+    "possible_port_scan": (
+        "Confirm whether the source is an authorized scanner or asset-discovery system.",
+        "Review the destination-port spread, deny rate, targets, and five-minute event window.",
+    ),
+    "possible_horizontal_scan": (
+        "Confirm whether same-service probing across destinations is authorized asset discovery.",
+        "Review destination ownership, service port, deny rate, and source-scoped five-minute window.",
+    ),
+    "brute_force_like_attempts": (
+        "Confirm repeated failures target the same destination and authentication service.",
+        "Check authentication or identity-provider logs before concluding password guessing.",
+    ),
+    "beaconing_like_outbound": (
+        "Inspect interval regularity, destination ownership, application identity, and endpoint process context.",
+        "Compare with approved telemetry, keepalive, monitoring, and software-update schedules.",
+    ),
+    "connection_flood_suspicion": (
+        "Verify connection volume, target service health, packet or bandwidth impact, and approved load tests.",
+        "Do not claim denial of service without independent availability telemetry.",
+    ),
+    "high_outbound_bytes": (
+        "Validate the outbound byte direction, destination, data owner, protocol, and approved transfer schedule.",
+        "Do not claim exfiltration without content, authorization, or endpoint evidence.",
+    ),
+    "multiple_denied_connections": (
+        "Check whether denies are expected policy enforcement, internet background noise, or a misconfigured client.",
+    ),
+    "deny_drop_action": (
+        "Verify the matched firewall policy and whether the denied session is expected.",
+    ),
+    "app_risk_4": (
+        "Confirm the application is approved and compare its destination and user context with local policy.",
+    ),
+    "app_risk_5": (
+        "Confirm the application is approved and compare its destination and user context with local policy.",
+    ),
+    "suspicious_app_characteristic": (
+        "Validate the broad vendor application characteristic against local business use and stronger evidence.",
+    ),
+    "unknown_or_incomplete_app": (
+        "Check parser/source quality and later session records before treating an unresolved app as malicious.",
+    ),
+    "unusual_destination_port": (
+        "Verify ownership and authorization for the non-standard service port.",
+    ),
+    "high_bytes_outlier": (
+        "Check direction, application, destination, and normal transfer baselines.",
+    ),
+    "high_packets_outlier": (
+        "Check traffic direction, service role, packet baseline, and availability telemetry.",
+    ),
+    "repeated_source_ip": (
+        "Check whether NAT, monitoring, or a busy approved client explains the repeated source activity.",
+    ),
+}
+
+
+def _rule_codes(rules: list[dict[str, Any]]) -> list[str]:
+    return [
+        str(rule.get("code") or "")
+        for rule in rules
+        if str(rule.get("code") or "") and rule.get("code") != "group_metadata"
+    ]
+
+
+def _rule_false_positive_considerations(rules: list[dict[str, Any]]) -> list[str]:
+    values: list[str] = []
+    for code in _rule_codes(rules):
+        spec = rule_spec(code)
+        if spec:
+            values.extend(spec.false_positives)
+    return list(dict.fromkeys(values))[:10]
+
+
+def _rule_evidence_limitations(rules: list[dict[str, Any]], missing_context: list[str]) -> list[str]:
+    values: list[str] = []
+    for code in _rule_codes(rules):
+        spec = rule_spec(code)
+        if spec and spec.claim_boundary:
+            values.append(spec.claim_boundary)
+    values.extend(f"Missing context: {item}." for item in missing_context)
+    return list(dict.fromkeys(values))[:10]
+
+
+def _rule_specific_analyst_checks(rules: list[dict[str, Any]]) -> list[str]:
+    values: list[str] = []
+    for code in _rule_codes(rules):
+        values.extend(RULE_ANALYST_CHECKS.get(code, ()))
+    values.extend(
+        [
+            "Confirm the source and destination pattern is expected for this environment.",
+            "Review linked logs and source health before approving any simulated response.",
+            "Keep response actions simulated, justified, and analyst-approved.",
+        ]
+    )
+    return list(dict.fromkeys(values))[:8]
 
 
 def compact_behavior_features(db: Session, log: NormalizedLog) -> dict[str, Any]:
@@ -181,7 +286,20 @@ def alert_explanation_completeness(alert: Alert, summary: dict[str, Any] | None 
         or group_metadata.get("sample_src_ips")
         or group_metadata.get("sample_dst_ips")
     )
+    exact_signals = summary.get("exact_evidence_signals") or []
+    has_exact_signal = any(
+        isinstance(signal, dict)
+        and bool(signal.get("code"))
+        and signal.get("score_contribution") is not None
+        and bool(signal.get("observed"))
+        for signal in exact_signals
+    )
+    evidence_limitations = summary.get("evidence_limitations") or []
+    false_positive_considerations = summary.get("false_positive_considerations") or []
+    traceability = summary.get("traceability") or {}
+    case_trace = traceability.get("case") or {}
     checks = {
+        "alert_title": bool(alert.title),
         "alert_type": bool(alert.alert_type),
         "severity": bool(alert.severity),
         "risk_score": alert.threat_score is not None,
@@ -197,6 +315,29 @@ def alert_explanation_completeness(alert: Alert, summary: dict[str, Any] | None 
         ),
         "why_flagged": bool(summary.get("why_flagged") or alert.explanation),
         "recommended_analyst_action": bool(alert.recommended_response),
+        "attack_type_and_mapping": bool(
+            summary.get("attack_type")
+            and (summary.get("attack_mapping") or {}).get("mapping_origin")
+        ),
+        "exact_evidence_signals": has_exact_signal,
+        "evidence_limitations": bool(evidence_limitations),
+        "false_positive_considerations": bool(false_positive_considerations),
+        "prioritized_analyst_checks": bool(
+            summary.get("prioritized_analyst_checks")
+        ),
+        "source_traceability_field": isinstance(
+            traceability.get("source_ids"),
+            list,
+        ),
+        "related_log_traceability": bool(
+            traceability.get("evidence_log_ids")
+            and int(traceability.get("related_log_count") or 0) >= 1
+        ),
+        "case_traceability": bool(case_trace.get("case_id")),
+        "decision_support_safety": bool(
+            summary.get("decision_support_only") is True
+            and summary.get("response_automation_allowed") is False
+        ),
     }
     missing = [name for name, passed in checks.items() if not passed]
     score = round(sum(1 for passed in checks.values() if passed) / max(len(checks), 1), 4)
@@ -222,11 +363,20 @@ def _latest_label_by_log(db: Session, log_ids: list[int]) -> dict[int, MLLabel]:
     return latest
 
 
-def _primary_attack_type(alert: Alert, labels: dict[int, MLLabel]) -> str:
+def _primary_attack_type(alert: Alert, labels: dict[int, MLLabel]) -> tuple[str, str]:
+    rule_attack_type = infer_attack_type_from_rules(alert.matched_rules_json or [])
+    if rule_attack_type != "unknown_anomaly":
+        return rule_attack_type, "deterministic_rule_mapping"
     for label in labels.values():
-        if label.attack_type and label.attack_type != "normal":
-            return label.attack_type
-    return infer_attack_type_from_rules(alert.matched_rules_json or [])
+        source = str(label.label_source or "manual")
+        if (
+            label.reviewed
+            and source in HUMAN_LABEL_SOURCES
+            and label.attack_type
+            and label.attack_type != "normal"
+        ):
+            return label.attack_type, "human_reviewed_disposition"
+    return rule_attack_type, "deterministic_rule_mapping"
 
 
 def build_alert_detection_summary(db: Session, alert: Alert) -> dict[str, Any]:
@@ -245,8 +395,10 @@ def build_alert_detection_summary(db: Session, alert: Alert) -> dict[str, Any]:
     primary_log = evidence_logs[0] if evidence_logs else None
     evidence_ids = [log.id for log in evidence_logs]
     labels = _latest_label_by_log(db, evidence_ids)
-    attack_type = _primary_attack_type(alert, labels)
+    attack_type, attack_mapping_origin = _primary_attack_type(alert, labels)
     mapping = attack_mapping_for_type(attack_type)
+    mapping["mapping_origin"] = attack_mapping_origin
+    mapping["mitre_supported"] = str(mapping.get("technique_id") or "").startswith("T")
     rule_matches = [rule for rule in (alert.matched_rules_json or []) if rule.get("code") != "group_metadata"]
     authoritative_rule_matches = [rule for rule in rule_matches if rule.get("code") != "ml_anomaly_detected"]
     advisory_anomaly_matches = [rule for rule in rule_matches if rule.get("code") == "ml_anomaly_detected"]
@@ -404,13 +556,77 @@ def build_alert_detection_summary(db: Session, alert: Alert) -> dict[str, Any]:
     if not why.endswith("."):
         why += "."
 
+    group_metadata = next(
+        (
+            rule
+            for rule in alert.matched_rules_json or []
+            if isinstance(rule, dict) and rule.get("code") == "group_metadata"
+        ),
+        {},
+    )
+    exact_evidence_signals = [
+        {
+            "rule_id": rule.get("rule_id") or (rule_spec(str(rule.get("code") or "")).rule_id if rule_spec(str(rule.get("code") or "")) else None),
+            "code": rule.get("code"),
+            "title": rule.get("title") or rule.get("code"),
+            "score_contribution": int(rule.get("score") or 0),
+            "observed": rule.get("explanation"),
+            "alert_authoritative": rule.get("code") != "ml_anomaly_detected",
+        }
+        for rule in rule_matches
+    ]
+    raw_score = sum(
+        int(rule.get("score") or 0)
+        for rule in authoritative_rule_matches
+    )
+    false_positive_considerations = _rule_false_positive_considerations(rule_matches)
+    evidence_limitations = _rule_evidence_limitations(rule_matches, list(dict.fromkeys(missing_context)))
+    prioritized_analyst_checks = _rule_specific_analyst_checks(authoritative_rule_matches)
+    traceability = {
+        "alert_id": int(alert.id) if alert.id is not None else None,
+        "source_ids": sorted(
+            {
+                int(source_id)
+                for source_id in group_metadata.get("source_ids") or []
+                if source_id is not None
+            }
+        ),
+        "evidence_log_ids": evidence_ids,
+        "evidence_log_ids_truncated": int(group_metadata.get("related_log_count") or len(evidence_ids)) > len(evidence_ids),
+        "related_log_count": int(group_metadata.get("related_log_count") or len(evidence_ids)),
+        "occurrence_count": int(group_metadata.get("occurrence_count") or len(evidence_ids)),
+        "case": case_trace_for_alert(alert),
+    }
+
     return {
+        "alert_identity": {
+            "id": int(alert.id) if alert.id is not None else None,
+            "title": alert.title,
+            "type": alert.alert_type,
+            "severity": alert.severity,
+            "risk_score": alert.threat_score,
+        },
         "what_happened": alert.explanation,
         "detection_source": detection_sources,
         "attack_type": attack_type,
         "attack_mapping": mapping,
         "normalized_fields_used": normalized_fields_used,
         "rule_evidence": authoritative_evidence_points[:8],
+        "risk_score_basis": {
+            "reported_score": alert.threat_score,
+            "raw_authoritative_rule_score": raw_score,
+            "score_clamped_to_100": raw_score > 100,
+            "components": [
+                {
+                    "code": item["code"],
+                    "title": item["title"],
+                    "score": item["score_contribution"],
+                }
+                for item in exact_evidence_signals
+                if item["alert_authoritative"]
+            ],
+        },
+        "exact_evidence_signals": exact_evidence_signals,
         "alert_authority": {
             "layer": "deterministic_rules",
             "authoritative_rule_count": len(authoritative_rule_matches),
@@ -489,16 +705,17 @@ def build_alert_detection_summary(db: Session, alert: Alert) -> dict[str, Any]:
         "rule_inferences": rule_inferences,
         "diagnostic_evidence": diagnostic_points,
         "missing_context": list(dict.fromkeys(missing_context)),
+        "evidence_limitations": evidence_limitations,
+        "false_positive_considerations": false_positive_considerations,
         "evidence_confidence": strongest_rule_confidence,
         "behavior_window": behavior,
         "top_evidence_points": evidence_points[:8],
         "why_flagged": why,
         "why_suspicious": why,
-        "analyst_next_steps": [
-            alert.recommended_response or "Review related logs before containment.",
-            "Confirm whether the source and destination pattern is expected for this environment.",
-            "Keep response actions simulated and analyst-approved.",
-        ],
+        "prioritized_analyst_checks": prioritized_analyst_checks,
+        "analyst_next_steps": prioritized_analyst_checks,
+        "traceability": traceability,
+        "evidence_count": int(group_metadata.get("related_log_count") or len(evidence_ids)),
         "decision_support_only": True,
         "response_automation_allowed": False,
         "safety_note": "Decision support only. Response automation remains disabled.",

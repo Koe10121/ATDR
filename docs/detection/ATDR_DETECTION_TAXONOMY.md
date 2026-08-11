@@ -1,6 +1,6 @@
 # ATDR Detection Taxonomy
 
-Version: `atdr_detection_taxonomy_v4.9.0`
+Version: `atdr_detection_taxonomy_v5.31.0`
 
 ## Purpose
 
@@ -11,7 +11,7 @@ This taxonomy keeps observed firewall evidence, rule inferences, ML diagnostics,
 | Attack type | Meaning in ATDR | ATT&CK context | Minimum supported evidence | Required claim boundary |
 | --- | --- | --- | --- | --- |
 | `normal` | No supported threat claim from evaluated evidence | none | no alert-producing evidence | Not proof that the activity is safe. |
-| `port_scan` | Service probing across diverse ports | T1046 | source-scoped port diversity within a bounded window | Intent and authorization are unknown. |
+| `port_scan` | Vertical service probing across ports or horizontal same-service probing across destinations | T1046 | source-scoped port or destination diversity plus supporting scan context within a bounded window | Intent and authorization are unknown. |
 | `brute_force` | Repeated access-like attempts to authentication/service ports | T1110 | repeated denied/reset attempts in a bounded window | Traffic logs do not prove password guessing or compromise. |
 | `dos_ddos` | Connection-flood-like volume | T1498 | repeated volume to a destination service | Service impact requires independent telemetry. |
 | `malware_c2` | Repeated outbound behavior resembling an application-layer channel | T1071 | repeated destination/port plus risky or uncommon context | C2-like does not prove malware or command-and-control. |
@@ -43,6 +43,7 @@ The binary SOC queue groups `needs_context`, `suspicious`, and `malicious` as `n
 ## Mapping Discipline
 
 - Generic Palo Alto `THREAT` events map to `unknown_anomaly` until subtype/signature evidence supports a narrower claim.
+- Vertical and horizontal scan rules both map to `port_scan` / T1046 because they observe network-service discovery behavior; neither establishes hostile intent.
 - App risk and app characteristics map to policy context, not C2.
 - Directionless byte/packet outliers remain `unknown_anomaly`.
 - ATT&CK mappings are behavioral context, not attribution.

@@ -848,7 +848,12 @@ def answer_assistant_question(
         result = _answer_detection_runs_question(db, redacted=redacted)
     elif any(term in lowered for term in ["open alerts", "latest critical alerts", "critical alerts", "show alerts"]):
         result = _answer_alert_list_question(db, question=clean_question, redacted=redacted)
-    elif any(term in lowered for term in ["case", "alert group", "related alert group"]) or requested_case_id:
+    elif any(term in lowered for term in ["case", "alert group", "related alert group"]) or (
+        requested_case_id
+        and requested_alert_id is None
+        and requested_log_id is None
+        and requested_source_id is None
+    ):
         result = _answer_case_question(
             db,
             case_id=requested_case_id,
@@ -1674,6 +1679,14 @@ def _answer_alert_question(db: Session, question: str, *, alert_id: int | None, 
         detection_summary=detection_summary,
         related_log_count=int(related_log_count or 0),
     )
+    false_positive_notes = list(
+        dict.fromkeys(
+            [
+                *[str(item) for item in detection_summary.get("false_positive_considerations") or []],
+                *false_positive_notes,
+            ]
+        )
+    )[:6]
     missing_evidence_notes = _alert_missing_evidence_notes(
         alert,
         source_rows=source_rows,
@@ -1691,9 +1704,25 @@ def _answer_alert_question(db: Session, question: str, *, alert_id: int | None, 
         risk_interpretation.append("False-positive/noise review recommended: " + " ".join(false_positive_notes[:3]))
     else:
         risk_interpretation.append("No obvious false-positive caveat was found in the compact context, but analyst validation is still required.")
-    missing_evidence_text = missing_evidence_notes[:]
+    evidence_limitations = list(
+        dict.fromkeys(
+            [
+                *[str(item) for item in detection_summary.get("evidence_limitations") or []],
+                *missing_evidence_notes,
+            ]
+        )
+    )[:6]
+    missing_evidence_text = evidence_limitations[:]
 
-    analyst_steps = _checklist_for_alert(parser_notes=parser_notes, related_log_rows=related_log_rows)
+    analyst_steps = [
+        str(item)
+        for item in detection_summary.get("prioritized_analyst_checks") or []
+        if str(item).strip()
+    ]
+    if not analyst_steps:
+        analyst_steps = _checklist_for_alert(parser_notes=parser_notes, related_log_rows=related_log_rows)
+    traceability = detection_summary.get("traceability") or {}
+    case_trace = traceability.get("case") or {}
 
     response_text = (
         "No response action is recorded for this alert."
@@ -1749,17 +1778,21 @@ References
 - Alert ID: {alert.id}
 - Related log IDs: {", ".join(str(item.normalized_log_id) for item in alert.evidence[:12]) or "-"}
 - Source IDs: {", ".join(str(row["source_id"]) for row in source_rows) or "-"}
+- Computed case ID: {case_trace.get("case_id") or "-"}
 """
+    citations = [
+        Citation("Alert detail", "/api/alerts/{alert_id}", str(alert.id)),
+        Citation("Alert explanation builder", "atdr/app/detection/explanations.py"),
+        Citation("Detection rule catalog", "docs/DETECTION_RULE_CATALOG.md"),
+        *[Citation("Related log", "/api/logs/{log_id}", str(row["id"])) for row in related_log_rows[:5]],
+        *[Citation("Source", "/api/sources/{source_id}", str(row["source_id"])) for row in source_rows],
+    ]
+    if case_trace.get("case_id"):
+        citations.append(Citation("Computed alert case", "/api/alerts/cases", str(case_trace["case_id"])))
     return AssistantResult(
         answer=_text(answer, redacted=redacted),
         context_used=["alert_detail", "why_flagged", "alert_evidence", "attack_mapping", "response_safety"],
-        citations=[
-            Citation("Alert detail", "/api/alerts/{alert_id}", str(alert.id)),
-            Citation("Alert explanation builder", "atdr/app/detection/explanations.py"),
-            Citation("Detection rule catalog", "docs/DETECTION_RULE_CATALOG.md"),
-            *[Citation("Related log", "/api/logs/{log_id}", str(row["id"])) for row in related_log_rows[:5]],
-            *[Citation("Source", "/api/sources/{source_id}", str(row["source_id"])) for row in source_rows],
-        ],
+        citations=citations,
         details={
             "alert": _redact(
                 {
@@ -1781,7 +1814,8 @@ References
                     "related_logs": related_log_rows,
                     "parser_notes": parser_notes,
                     "false_positive_notes": false_positive_notes,
-                    "missing_evidence_notes": missing_evidence_notes,
+                    "missing_evidence_notes": evidence_limitations,
+                    "traceability": traceability,
                     "response_history": response_history,
                 },
                 enabled=redacted,
@@ -1808,9 +1842,9 @@ References
                     "risk_interpretation": [
                         *risk_interpretation,
                         *[f"Possible false-positive factor: {item}" for item in false_positive_notes[:4]],
-                        *[f"Missing evidence note: {item}" for item in missing_evidence_notes[:4]],
+                        *[f"Evidence limitation: {item}" for item in evidence_limitations[:4]],
                     ],
-                    "limitations": missing_evidence_notes[:3] or [
+                    "limitations": evidence_limitations[:3] or [
                         "No additional missing-context item was recorded; analyst validation is still required."
                     ],
                     "what_to_check_next": analyst_steps,
@@ -1841,6 +1875,19 @@ References
                             _citation_reference(Citation("Source", "/api/sources/{source_id}", str(row["source_id"])))
                             for row in source_rows
                         ],
+                        *(
+                            [
+                                _citation_reference(
+                                    Citation(
+                                        "Computed alert case",
+                                        "/api/alerts/cases",
+                                        str(case_trace["case_id"]),
+                                    )
+                                )
+                            ]
+                            if case_trace.get("case_id")
+                            else []
+                        ),
                     ],
                 },
                 enabled=redacted,

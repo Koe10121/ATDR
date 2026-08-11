@@ -1,6 +1,6 @@
 # ATDR Current AI And ML Product Status
 
-Date: 2026-08-09
+Date: 2026-08-11
 
 ATDR uses several distinct AI/ML layers. They must not be presented as one
 autonomous model. Deterministic rules detect explainable patterns, an
@@ -12,7 +12,7 @@ an analyst. None of these layers may execute a response action.
 
 | Layer | Current role | Current status | Authority |
 | --- | --- | --- | --- |
-| Deterministic detection rules | Primary explainable alert generation | v5.13 closure: 24/24 controlled scenarios and 72/72 layered rule runs | May create/deduplicate alerts; cannot execute response |
+| Deterministic detection rules | Primary explainable alert generation | v5.31 adversarial lock: 27/27 synthetic cases; 19-rule catalog contract reconciled | May create/deduplicate alerts; cannot execute response |
 | IsolationForest | Assistive unusual-behavior score | v5.5 audit and v5.13 regression: advisory only; controlled anomaly layer remains 72/72 | Decision support only; cannot create an alert by itself |
 | Supervised SOC queue | Rank/recommend review from labeled evidence | Registered calibrated ExtraTrees artifact remains in `shadow_observation`; v5.28 integrity/runtime audit passed but human blind review is 0/40 | Evidence only; rules remain authoritative |
 | Legacy supervised artifact | Unselected local reference | Artifact exists; model/feature metadata are unknown | Not selected by the governed lifecycle |
@@ -97,6 +97,24 @@ Source evidence: `atdr/app/detection/rules.py`,
 `atdr/app/services/detection_service.py`,
 `atdr/app/detection/explanations.py`, `docs/DETECTION_RULE_CATALOG.md`, and
 `data/samples/scenarios/`.
+
+The v5.31 rule catalog distinguishes vertical port diversity from horizontal
+same-service destination diversity, scopes correlation and deduplication by
+registered source, requires same-target/service evidence for brute-force-like
+activity, measured cadence for beaconing, and corroborated or very-high
+effective volume for flood-like activity. PAN-OS `THREAT` severity/name and
+`repeatcnt` semantics are retained. Directionless byte/packet outliers and
+generic application-risk evidence are deliberately bounded so they do not
+become unsupported exfiltration, DoS, malware, or C2 claims.
+
+The controlled v5.31 corpus passes `27/27` with zero expected-rule
+false-positive or false-negative cases, near-miss/negative accuracy `1.0`,
+correct timing/source/duplicate behavior, and no label/model/response writes.
+Missing timestamps fail closed for cross-row correlation and deduplication,
+and independent behavior windows remain separate findings. This is synthetic
+regression evidence, not a measured real-world accuracy or generalization
+result. Exact rule assumptions, false-positive factors, and claim boundaries
+are in `docs/detection/ATDR_RULE_PACK_CONTRACT.md`.
 
 v4.9 makes correlation source-scoped and five-minute bounded, adds a versioned
 rule contract, and corrects low-specificity overclaims. Generic vendor THREAT,
@@ -738,3 +756,19 @@ metrics remain withheld. Lifecycle stays `shadow_observation`, rules remain
 alert-authoritative, and model activation, production promotion, automatic
 response, and real blocking remain false. See
 `docs/V5_30_SUPERVISED_EVIDENCE_CLOSURE.md`.
+
+## v5.31 Deterministic Reliability Decision
+
+The deterministic layer now has a source-backed 19-rule catalog and a 27-case
+adversarial lock covering correlation boundaries, common benign near-misses,
+degraded input, missing timestamps, independent episodes, duplicate behavior,
+and registered-source isolation. Alert
+explanations now expose exact score components, false-positive factors, claim
+boundaries, prioritized checks, related evidence, source identity, and case
+trace. Assistant follow-ups consume this bounded evidence without changing
+the selected alert context.
+
+This improves controlled reliability but does not close the independent
+supervised evidence gate. Supervised lifecycle remains `shadow_observation`,
+rules remain alert-authoritative, Gemini remains a read-only explanation
+layer, and automatic response and real blocking remain disabled.

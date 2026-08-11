@@ -12,7 +12,13 @@ from sqlalchemy.orm import Session, joinedload
 from atdr.app.core.config import get_settings
 from atdr.app.db.models import Alert, AuditLog, NormalizedLog, RawLog
 from atdr.app.detection.ml_detector import apply_model_to_db
-from atdr.app.detection.rules import DetectionResult, RuleMatch, build_detection_context, evaluate_rules
+from atdr.app.detection.rules import (
+    DetectionResult,
+    RuleMatch,
+    build_detection_context,
+    correlation_window_for_log,
+    evaluate_rules,
+)
 from atdr.app.detection.scoring import clamp_score, severity_from_score
 from atdr.app.services.alert_service import (
     ALERT_DEDUP_ACTIVE_STATUSES,
@@ -42,10 +48,23 @@ LOW_SEVERITY_GROUP_MIN_EVIDENCE = 5
 INTERNET_SWEEP_RULES = {"unusual_destination_port", "unknown_or_incomplete_app", "outside_to_inside"}
 APP_RISK_POLICY_RULES = {"app_risk_4", "app_risk_5", "suspicious_app_characteristic"}
 REPEATED_DESTINATION_RULES = {"beaconing_like_outbound", "connection_flood_suspicion"}
-MULTI_EVENT_PATTERN_RULES = {"beaconing_like_outbound", "connection_flood_suspicion", "possible_port_scan"}
+MULTI_EVENT_PATTERN_RULES = {
+    "beaconing_like_outbound",
+    "connection_flood_suspicion",
+    "possible_horizontal_scan",
+    "possible_port_scan",
+}
 ADVISORY_EVIDENCE_RULES = frozenset({"ml_anomaly_detected"})
+CONTEXT_ONLY_PRIMARY_RULES = frozenset(
+    {
+        "outside_to_inside",
+        "unusual_destination_port",
+        "unknown_or_incomplete_app",
+    }
+)
 PRIMARY_RULE_PRIORITY = {
     "possible_port_scan": 100,
+    "possible_horizontal_scan": 99,
     "connection_flood_suspicion": 98,
     "brute_force_like_attempts": 97,
     "beaconing_like_outbound": 96,
@@ -72,6 +91,7 @@ class DetectionCandidate:
     log: NormalizedLog | "DetectionLogRecord"
     result: DetectionResult
     primary_rule: RuleMatch
+    correlation_window: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,10 +118,13 @@ class DetectionLogRecord:
     action: str | None
     protocol: str | None
     bytes: int | None
+    bytes_sent: int | None
+    bytes_received: int | None
     packets: int | None
     repeat_count: int | None
     session_end_reason: str | None
     action_source: str | None
+    parsed_json: dict
     is_anomaly: bool
 
 
@@ -176,10 +199,13 @@ def _bounded_detection_records(
             NormalizedLog.action,
             NormalizedLog.protocol,
             NormalizedLog.bytes,
+            NormalizedLog.bytes_sent,
+            NormalizedLog.bytes_received,
             NormalizedLog.packets,
             NormalizedLog.repeat_count,
             NormalizedLog.session_end_reason,
             NormalizedLog.action_source,
+            NormalizedLog.parsed_json,
             NormalizedLog.is_anomaly,
         )
         .join(RawLog, RawLog.id == NormalizedLog.raw_log_id)
@@ -246,6 +272,14 @@ def _outside_to_inside(log: NormalizedLog) -> bool:
     return src_outside and dst_inside
 
 
+def _source_scope(log: NormalizedLog | DetectionLogRecord) -> str:
+    source_id = getattr(log, "source_id", None)
+    raw_log = getattr(log, "raw_log", None)
+    if source_id is None and raw_log is not None:
+        source_id = getattr(raw_log, "source_id", None)
+    return f"source:{source_id}" if source_id is not None else "source:unscoped"
+
+
 def _group_key(candidate: DetectionCandidate) -> tuple:
     log = candidate.log
     primary_code = candidate.primary_rule.code
@@ -257,13 +291,23 @@ def _group_key(candidate: DetectionCandidate) -> tuple:
     destination_group = log.dst_ip if primary_code in REPEATED_DESTINATION_RULES else None
     dst_port = (
         log.dst_port
-        if primary_code in {"deny_drop_action", "unusual_destination_port", "brute_force_like_attempts", *REPEATED_DESTINATION_RULES}
+        if primary_code
+        in {
+            "deny_drop_action",
+            "unusual_destination_port",
+            "brute_force_like_attempts",
+            "possible_horizontal_scan",
+            *REPEATED_DESTINATION_RULES,
+        }
         else None
     )
     app = log.app if primary_code in {"paloalto_threat_log", *APP_RISK_POLICY_RULES, "beaconing_like_outbound"} else None
-    time_bucket = "repeated-pattern-window" if primary_code in MULTI_EVENT_PATTERN_RULES else _time_bucket(log)
+    time_bucket = _time_bucket(log)
+    if primary_code in MULTI_EVENT_PATTERN_RULES:
+        time_bucket = candidate.correlation_window or time_bucket
     zone_path = f"{log.src_zone or 'unknown'}->{log.dst_zone or 'unknown'}"
     return (
+        _source_scope(log),
         primary_code,
         source_group,
         destination_group,
@@ -286,6 +330,8 @@ def group_detection_candidates(
 def _should_create_group_alert(candidates: list[DetectionCandidate]) -> bool:
     if any(candidate.primary_rule.code == "watchlist_match" for candidate in candidates):
         return True
+    if candidates[0].primary_rule.code in CONTEXT_ONLY_PRIMARY_RULES:
+        return len(candidates) >= LOW_SEVERITY_GROUP_MIN_EVIDENCE
     max_score = max(candidate.result.threat_score for candidate in candidates)
     if max_score <= 30:
         return len(candidates) >= LOW_SEVERITY_GROUP_MIN_EVIDENCE
@@ -424,6 +470,7 @@ def run_detection(
                         log=log,
                         result=result,
                         primary_rule=_primary_rule(authoritative_matches),
+                        correlation_window=correlation_window_for_log(log, context),
                     )
                 )
 

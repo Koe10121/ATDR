@@ -73,8 +73,8 @@ def _transient_log(*, source_id: int, index: int, generated: datetime) -> Normal
 
 
 def test_v49_rule_catalog_covers_runtime_rules_with_evidence_contracts():
-    assert RULE_CATALOG_VERSION == "atdr_rule_catalog_v4.9.0"
-    assert len(RULE_CATALOG) == 18
+    assert RULE_CATALOG_VERSION == "atdr_rule_catalog_v5.31.0"
+    assert len(RULE_CATALOG) == 19
     assert all(spec.required_fields for spec in RULE_CATALOG.values())
     assert all(spec.false_positives for spec in RULE_CATALOG.values())
     assert all(spec.references for spec in RULE_CATALOG.values())

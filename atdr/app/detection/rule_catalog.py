@@ -4,7 +4,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 
-RULE_CATALOG_VERSION = "atdr_rule_catalog_v4.9.0"
+RULE_CATALOG_VERSION = "atdr_rule_catalog_v5.31.0"
 
 PAN_TRAFFIC_FIELDS = (
     "https://docs.paloaltonetworks.com/ngfw/administration/monitoring/"
@@ -68,13 +68,14 @@ def _spec(
     false_positives: tuple[str, ...] = (),
     references: tuple[str, ...] = (PAN_TRAFFIC_FIELDS, SIGMA_RULE_SPEC),
     status: str = "test",
+    version: str = "1.0.0",
     claim_boundary: str = "A rule match is a triage signal, not proof of compromise.",
 ) -> DetectionRuleSpec:
     return DetectionRuleSpec(
         rule_id=rule_id,
         code=code,
         title=title,
-        version="1.0.0",
+        version=version,
         status=status,
         log_sources=("palo_alto",),
         required_fields=required_fields,
@@ -115,6 +116,7 @@ RULE_CATALOG: dict[str, DetectionRuleSpec] = {
             confidence="high",
             references=(PAN_THREAT_FIELDS, SIGMA_RULE_SPEC),
             false_positives=("Informational or low-severity vendor threat signatures",),
+            version="2.0.0",
             claim_boundary="The firewall reported a THREAT event; subtype, severity, signature, and action still require review.",
         ),
         _spec(
@@ -188,7 +190,10 @@ RULE_CATALOG: dict[str, DetectionRuleSpec] = {
             "brute_force_like_attempts",
             "Brute-force-like service attempts",
             required_fields=("src_ip", "dst_port", "action", "generated_time"),
-            condition="source produces at least 5 denied/reset attempts to authentication or service ports in five minutes",
+            condition=(
+                "source produces at least 5 denied/reset attempts to the same destination and "
+                "authentication/service port in five minutes"
+            ),
             level="high",
             confidence="medium",
             attack_type="brute_force",
@@ -196,6 +201,7 @@ RULE_CATALOG: dict[str, DetectionRuleSpec] = {
             window="5m",
             false_positives=("Password manager retries", "Service health checks", "Misconfigured credentials"),
             references=(PAN_TRAFFIC_FIELDS, MITRE_T1110, SIGMA_RULE_SPEC),
+            version="2.0.0",
             claim_boundary="Observed behavior resembles repeated access attempts; firewall traffic logs do not prove credential guessing.",
         ),
         _spec(
@@ -203,7 +209,10 @@ RULE_CATALOG: dict[str, DetectionRuleSpec] = {
             "possible_port_scan",
             "Possible port scanning behavior",
             required_fields=("src_ip", "dst_port", "generated_time"),
-            condition="source touches at least 10 distinct destination ports in five minutes",
+            condition=(
+                "source touches at least 10 distinct destination ports in five minutes with "
+                "deny/drop, inbound, unresolved-app, or vendor scan context"
+            ),
             level="high",
             confidence="medium",
             attack_type="port_scan",
@@ -211,6 +220,7 @@ RULE_CATALOG: dict[str, DetectionRuleSpec] = {
             window="5m",
             false_positives=("Vulnerability scanners", "Asset discovery", "Monitoring systems"),
             references=(PAN_TRAFFIC_FIELDS, MITRE_T1046, SIGMA_RULE_SPEC),
+            version="2.0.0",
             claim_boundary="Observed service probing is consistent with discovery; intent and authorization require analyst context.",
         ),
         _spec(
@@ -219,9 +229,9 @@ RULE_CATALOG: dict[str, DetectionRuleSpec] = {
             "Beaconing-like repeated outbound behavior",
             required_fields=("src_ip", "dst_ip", "dst_port", "src_zone", "dst_zone", "generated_time"),
             condition=(
-                "at least 6 repeated internal-to-external connections to one destination plus "
-                "an uncommon service, unidentified app, vendor THREAT event, or very-high-risk "
-                "high-signal application evidence"
+                "at least 6 periodic internal-to-external connections to one destination with "
+                "5-300 second mean intervals, jitter ratio at most 0.25, and an uncommon service, "
+                "unidentified app, vendor THREAT event, or very-high-risk application evidence"
             ),
             level="high",
             confidence="medium",
@@ -230,6 +240,7 @@ RULE_CATALOG: dict[str, DetectionRuleSpec] = {
             window="5m",
             false_positives=("Telemetry agents", "Keepalive traffic", "Software update polling"),
             references=(PAN_TRAFFIC_FIELDS, MITRE_T1071, SIGMA_RULE_SPEC),
+            version="2.0.0",
             claim_boundary="Periodic outbound behavior is C2-like, but ATDR cannot prove command-and-control from this evidence alone.",
         ),
         _spec(
@@ -239,7 +250,8 @@ RULE_CATALOG: dict[str, DetectionRuleSpec] = {
             required_fields=("src_ip", "dst_ip", "dst_port", "generated_time"),
             condition=(
                 "source makes at least 20 connections to one destination service in five minutes "
-                "with inbound, deny/reset, vendor THREAT, or at least 100-event volume context"
+                "with deny/reset or vendor flood/packet evidence, or reaches at least 100 repeated "
+                "session events regardless of action"
             ),
             level="high",
             confidence="medium",
@@ -248,6 +260,7 @@ RULE_CATALOG: dict[str, DetectionRuleSpec] = {
             window="5m",
             false_positives=("Load tests", "Health checks", "High-volume API clients"),
             references=(PAN_TRAFFIC_FIELDS, MITRE_T1498, SIGMA_RULE_SPEC),
+            version="2.0.0",
             claim_boundary="High connection volume may affect availability; impact is not established without service telemetry.",
         ),
         _spec(
@@ -264,14 +277,18 @@ RULE_CATALOG: dict[str, DetectionRuleSpec] = {
             "ATDR-NET-014",
             "high_outbound_bytes",
             "High outbound byte volume",
-            required_fields=("bytes", "src_zone", "dst_zone"),
-            condition="internal-to-external bytes exceed the versioned high-volume threshold",
+            required_fields=("bytes_sent", "bytes", "src_zone", "dst_zone"),
+            condition=(
+                "internal-to-external bytes_sent, or total bytes when bytes_sent is unavailable, "
+                "exceed the versioned high-volume threshold"
+            ),
             level="high",
             confidence="low",
             attack_type="data_exfiltration_suspicion",
             mitre=("T1048",),
             false_positives=("Backups", "Cloud synchronization", "Large approved uploads"),
             references=(PAN_TRAFFIC_FIELDS, MITRE_T1048, SIGMA_RULE_SPEC),
+            version="2.0.0",
             claim_boundary="Large outbound transfer is an exfiltration suspicion only; content, authorization, and baseline context are required.",
         ),
         _spec(
@@ -279,10 +296,14 @@ RULE_CATALOG: dict[str, DetectionRuleSpec] = {
             "unknown_or_incomplete_app",
             "Unknown or incomplete application",
             required_fields=("app",),
-            condition="application or application category is explicitly unknown, incomplete, or not applicable",
+            condition=(
+                "application or application category is explicitly unknown, incomplete, "
+                "unknown-tcp, or not applicable"
+            ),
             level="informational",
             confidence="high",
             false_positives=("Early session identification", "Unsupported protocol", "Encrypted or short-lived sessions"),
+            version="2.0.0",
         ),
         _spec(
             "ATDR-NET-016",
@@ -303,6 +324,27 @@ RULE_CATALOG: dict[str, DetectionRuleSpec] = {
             level="medium",
             confidence="low",
             false_positives=("High-throughput services", "Monitoring", "Bulk transfer"),
+        ),
+        _spec(
+            "ATDR-NET-018",
+            "possible_horizontal_scan",
+            "Possible horizontal service scanning behavior",
+            required_fields=("src_ip", "dst_ip", "dst_port", "generated_time"),
+            condition=(
+                "source reaches at least 10 distinct destinations on one service port in five "
+                "minutes with deny/drop, inbound, or unresolved-app context"
+            ),
+            level="high",
+            confidence="medium",
+            attack_type="port_scan",
+            mitre=("T1046",),
+            window="5m",
+            false_positives=("Authorized vulnerability scanners", "Asset discovery", "Service health sweeps"),
+            references=(PAN_TRAFFIC_FIELDS, MITRE_T1046, SIGMA_RULE_SPEC),
+            claim_boundary=(
+                "Same-service probing across hosts resembles network service discovery; intent "
+                "and scanner authorization require analyst context."
+            ),
         ),
         _spec(
             "ATDR-ML-001",

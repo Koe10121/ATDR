@@ -1153,12 +1153,30 @@ def _representative_log(row: dict[str, Any]) -> NormalizedLog:
 def _rule_evidence(row: dict[str, Any]) -> tuple[list[str], int]:
     log = _representative_log(row)
     unique_ports = max(0, _integer(row.get("source_unique_ports")))
+    unique_destinations = max(0, _integer(row.get("source_unique_destinations")))
+    source_auth_denies = _integer(row.get("source_auth_deny_count"))
+    source_denies = _integer(row.get("source_deny_count"))
+    destination_repeats = _integer(row.get("destination_repeat_count"))
+
+    # The historical disposable aggregate does not retain per-port cadence or
+    # target counters. Preserve evidence only when its one-target/one-port
+    # shape makes that attribution unambiguous; otherwise fail closed.
+    single_target_service = unique_destinations == 1 and unique_ports == 1
     correlation = CorrelationSnapshot(
         source_count=_integer(row.get("source_event_count")),
-        deny_drop_count=_integer(row.get("source_deny_count")),
+        deny_drop_count=source_denies,
         distinct_ports=frozenset(range(unique_ports)),
-        auth_deny_count=_integer(row.get("source_auth_deny_count")),
-        destination_repeat_count=_integer(row.get("destination_repeat_count")),
+        auth_deny_count=source_auth_denies,
+        auth_target_deny_count=(source_auth_denies if single_target_service else 0),
+        destination_repeat_count=destination_repeats,
+        destination_event_count=destination_repeats,
+        distinct_destinations_for_port=(
+            unique_destinations if unique_ports <= 1 else 0
+        ),
+        deny_drop_count_for_port=(source_denies if unique_ports <= 1 else 0),
+        cadence_interval_count=0,
+        cadence_mean_seconds=None,
+        cadence_jitter_ratio=None,
         source_scope="source:private-disposable",
         window_label=str(row.get("minute_bucket") or "missing"),
     )
@@ -1168,6 +1186,7 @@ def _rule_evidence(row: dict[str, Any]) -> tuple[list[str], int]:
         source_distinct_ports=defaultdict(set),
         source_auth_deny_counts=Counter(),
         source_destination_counts=Counter(),
+        source_auth_destination_counts=Counter(),
         byte_outlier_threshold=10_000_000,
         packet_outlier_threshold=50_000,
         event_correlations={int(log.id): correlation},

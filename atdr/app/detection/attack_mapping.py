@@ -70,6 +70,7 @@ ATTACK_TYPE_MAPPINGS: dict[str, dict[str, str]] = {
 
 RULE_ATTACK_HINTS = {
     "possible_port_scan": "port_scan",
+    "possible_horizontal_scan": "port_scan",
     "brute_force_like_attempts": "brute_force",
     "beaconing_like_outbound": "malware_c2",
     "connection_flood_suspicion": "dos_ddos",
@@ -86,6 +87,7 @@ RULE_ATTACK_HINTS = {
 
 RULE_ATTACK_PRIORITY = {
     "possible_port_scan": 100,
+    "possible_horizontal_scan": 99,
     "connection_flood_suspicion": 95,
     "brute_force_like_attempts": 92,
     "beaconing_like_outbound": 90,

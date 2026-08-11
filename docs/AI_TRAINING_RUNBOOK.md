@@ -1855,3 +1855,28 @@ Current fixed decision: lifecycle remains `shadow_observation`. Do not use the
 configured-data diagnostics as blind accuracy, and do not create a replacement
 review pack while the sealed 40-row native pack still awaits qualified human
 review.
+
+## v5.31 Deterministic Adversarial Reliability Lock
+
+Run the synthetic-only detection and explanation lock with:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v531_detection_explainability_adversarial_reliability --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.validate_rule_pack_contract --pretty
+```
+
+The first command evaluates 27 versioned positive, negative, near-miss,
+boundary, degraded-input, missing-time, independent-episode, duplicate, and
+multi-source cases without opening the configured database. It must report
+zero expected-rule false-positive cases, zero false-negative cases,
+near-miss/negative accuracy 1.0, correct timing/source/duplicate behavior, and
+zero label/model/response writes. The second command must reconcile all
+runtime rule codes with the machine-readable and documented contracts.
+
+The v5.31 lock verifies source-scoped correlation, target-aware authentication
+failures, vertical and horizontal scan diversity, cadence-aware beaconing,
+corroborated/effective flood volume, PAN-OS severity and `repeatcnt` semantics,
+directional-byte handling, singleton context suppression, and explanation
+traceability. It does not measure field accuracy or authorize supervised-model
+activation. Rules remain alert-authoritative; IsolationForest and supervised
+ML remain advisory; response automation and real blocking remain disabled.
