@@ -680,3 +680,24 @@ This document maps major ATDR requirements to implementation evidence, tests, do
 | Assistant context and concise follow-ups | Passed for bounded scope | `assistant_service.py`, response contracts, `assistantSession.ts`, `AssistantPage.tsx` | explicit replacement, latest-critical reset, navigation persistence, citations, budgets, and provider truth tests | v5.32 status/T1-T20 | Qualified human usefulness/privacy review remains external. |
 | Responsive and accessible dashboard behavior | Passed for tested viewports | React pages/components/styles and Playwright | projector/laptop/mobile overflow, dropdown, long-output, keyboard-reachable control regressions | dashboard product path | Formal assistive-technology audit remains future preproduction work. |
 | Authority and response safety | Preserved | Assistant, detection, ML lifecycle, response, and audit services | no model/label/detection/response mutation from aggregate or Assistant; simulated response remains confirmed/audited | v5.32 status/current AI status | Real response enforcement is a separate optional safety program. |
+
+## v5.33 Independent Detection And Assistant Acceptance Addendum
+
+| Requirement | Status | Implementation Evidence | Test Evidence | Documentation | Remaining Gap |
+| --- | --- | --- | --- | --- | --- |
+| Safe blind-review status and intake | Implemented; human work pending | `v528_blind_review_helper.py`, `v527_blind_review_evaluation.py`, v5.33 coordinator/CLI | v5.28 plus v5.33 missing-copy, integrity, and premature-metric tests | v5.33 status and T1-T20 | Legitimate independent human decisions remain `0/40`. |
+| Frozen supervised evidence gates | Implemented and failed closed | `v530_supervised_evidence_closure.py`, `v533_independent_acceptance_service.py` | evidence-lock and zero-overlap tests | v5.30/v5.33 status, AI runbook | One source identity, one labeled day, no second verified device, and no qualified blind labels. |
+| Assistant human acceptance worksheet | Implemented; human scoring pending | bounded v5.27 snapshot/evaluator plus v5.33 worksheet, manifest, and validator | blank/incomplete, protected tamper, AI reviewer, privacy, and zero-write tests | v5.33 status/T1-T20 | A genuine reviewer must score all required contexts. |
+| Gemini operational acceptance | Partially satisfied | Assistant status/LLM adapter, bounded v5.33 provider probe and fallback | provider/citation/context/concision/privacy/zero-write checks | v5.33 status, lab runbook | Institutional privacy/retention, account quota, cost rates, and key-rotation execution remain external. |
+| Detection/ML/Assistant authority boundary | Preserved | detection, lifecycle, Assistant, and response services | zero labels/models/alerts/detections/users/responses | v5.33 status/current AI status | Any authority change requires a separate evidence-backed approval. |
+
+## v5.34 Assistant Concision And Provider Reliability Addendum
+
+| Requirement | Status | Implementation Evidence | Test Evidence | Documentation | Remaining Gap |
+| --- | --- | --- | --- | --- | --- |
+| Shared local/provider response contracts | Implemented | `assistant_response_contracts.py`, `assistant_service.py`, `assistant_llm.py` | v5.34 budget, deduplication, provider-render, citation, and malformed-output tests | v5.34 status/T1-T20 | Human usefulness scoring remains `0/8`. |
+| Dedicated case handoff | Implemented | Assistant response mode/schema plus React type/session/answer label | backend mode tests and frontend lint/build/Playwright | v5.34 status | Case summaries remain computed read-only handoffs, not persisted incidents. |
+| Safe provider failure classification | Implemented | `classify_assistant_llm_failure`, HTTP status classification, aggregate operational status | timeout/quota/rate/malformed/citation/safety/grounding category tests | v5.34 status/T1-T20 | Provider account quota and institutional operations remain externally owned. |
+| Eight-case automated answer acceptance | Passed | v5.33 unchanged question set with v5.34 protected diagnostics | `8/8` content contracts; all mode budgets pass; zero authoritative mutations | v5.34 status | Provider contract was degraded by quota; human acceptance remains `0/8`. |
+| Context/session continuity | Preserved | conversation binding, explicit-ID replacement/reset, `assistantSession.ts` | full Assistant backend suite and navigation/follow-up Playwright regressions | v5.34 status | Multi-user human workflow acceptance remains external. |
+| Assistant authority/privacy boundary | Preserved | Assistant router/service/provider adapter | raw logs false, redaction true, secrets/payloads absent, zero detection/label/model/user/response writes | current AI status and v5.34 status | University/provider privacy, retention, quota, cost, and key-rotation approval remains open. |

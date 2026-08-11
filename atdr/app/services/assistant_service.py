@@ -21,6 +21,7 @@ from atdr.app.services.assistant_llm import (
     AssistantLLMRequest,
     AssistantLLMResult,
     assistant_llm_operational_status,
+    classify_assistant_llm_failure,
     maybe_generate_external_answer,
     record_guarded_provider_fallback,
 )
@@ -375,6 +376,7 @@ def _record_assistant_audit(
     provider: str,
     provider_called: bool,
     fallback_used: bool,
+    provider_outcome_category: str | None,
     latency_ms: int | None,
     answer_summary: str,
 ) -> int:
@@ -389,6 +391,7 @@ def _record_assistant_audit(
             "provider": provider,
             "provider_called": provider_called,
             "fallback_used": fallback_used,
+            "provider_outcome_category": provider_outcome_category,
             "redaction_applied": redaction_applied,
             "raw_log_context_included": False,
             "action_executed": False,
@@ -995,6 +998,8 @@ def answer_assistant_question(
             "provider_timeout",
             "provider_service_unavailable",
             "provider_rate_limited",
+            "provider_quota_exhausted",
+            "provider_authentication_failed",
             "provider_request_rejected",
             "empty_provider_response",
             "malformed_provider_response",
@@ -1005,12 +1010,15 @@ def answer_assistant_question(
             settings,
             reason=llm_guard_reason,
         )
+    provider_failure_reason = llm_guard_reason or llm_result.fallback_reason
+    provider_outcome_category = classify_assistant_llm_failure(provider_failure_reason)
     if settings.assistant_llm_enabled or settings.assistant_llm_provider.strip():
         response["details"]["llm"] = {
             **llm_result.safe_details(),
             "provider_called": provider_called,
             "answer_used": bool(llm_result.used and llm_result.answer and not llm_guard_reason),
             "answer_guard_reason": llm_guard_reason,
+            "failure_category": provider_outcome_category,
         }
     if llm_result.used and llm_result.answer and not llm_guard_reason:
         response["answer"] = llm_result.answer
@@ -1039,8 +1047,23 @@ def answer_assistant_question(
             provider_sections["limitations"] = limitations
         if structured.get("safety_notice"):
             provider_sections["safety_note"] = [structured["safety_notice"]]
-        response["details"]["answer_sections"] = provider_sections
-        response["details"]["response_contract"]["word_count"] = len(response["answer"].split())
+        provider_presentation = build_response_presentation(
+            mode=response_mode,
+            question=clean_question,
+            original_answer=llm_result.answer,
+            raw_sections=provider_sections,
+            active_context=active_context,
+            citation_references=list(structured.get("citation_references") or citation_references),
+        )
+        response["answer"] = provider_presentation.answer
+        response["details"]["answer_sections"] = provider_presentation.sections
+        response["details"]["evidence_detail"] = provider_presentation.evidence_detail
+        response["details"]["response_contract"] = {
+            "mode": response_mode,
+            "word_limit": provider_presentation.word_limit,
+            "word_count": provider_presentation.word_count,
+            "max_followups": response_contract(response_mode).max_followups,
+        }
         if structured.get("suggested_followups"):
             response["suggested_followups"] = contextual_followups(
                 mode=response_mode,
@@ -1078,6 +1101,7 @@ def answer_assistant_question(
         provider=llm_result.provider,
         provider_called=provider_called,
         fallback_used=bool(provider_called and not response["external_provider_used"]),
+        provider_outcome_category=provider_outcome_category,
         latency_ms=llm_result.latency_ms,
         answer_summary=response["answer"],
     )
@@ -2461,54 +2485,41 @@ def _answer_investigation_brief(
     summary = _as_list(sections.get("summary")) or _first_answer_lines(base.answer)
     evidence = _as_list(sections.get("evidence"))
     risk_interpretation = _as_list(sections.get("risk_interpretation")) or _as_list(sections.get("why_flagged_or_not"))
-    safe_next_steps = _as_list(sections.get("safe_next_steps")) or base.suggested_followups[:4]
-    limitations = [
-        "Decision support only; analyst judgment is required.",
-        "Response automation is disabled.",
-        "No real firewall blocking is implemented.",
-        "Raw log context is disabled by default.",
-        "This brief was generated from current ATDR context and does not mutate data.",
-    ]
+    safe_next_steps = _as_list(sections.get("safe_next_steps")) or base.suggested_followups[:3]
+    limitations = _as_list(sections.get("limitations"))[:2]
     if brief_kind == "case":
-        limitations.insert(0, "Computed case/group summary only; no persisted incident record was created.")
+        limitations.insert(0, "Computed case/group summary; no persisted incident record was created.")
+    if not evidence:
+        limitations.insert(0, "No compact record evidence was available; inspect the linked record before a decision.")
+    limitations = list(dict.fromkeys(limitations))[:2]
+
+    safety_notes: list[str] = []
+    if any(term in lowered for term in ["response", "contain", "block", "approve"]):
+        safety_notes.append("Any response remains simulated and requires analyst approval.")
 
     citation_lines = [_citation_reference(citation) for citation in base.citations[:10]]
-    related_context = [
-        f"Brief context type: {brief_kind}.",
-        f"Context used: {', '.join(base.context_used) or 'none'}.",
-        *citation_lines[:6],
-    ]
-    what_happened = summary[:4]
-    why_lines = evidence[:5] or ["No compact why-flagged/why-not-flagged evidence was available in this context."]
+    related_context = [f"Brief context type: {brief_kind}."]
+    why_lines = evidence[:4]
 
     answer = f"""Investigation Brief
 
 Summary
-{_markdown_list(summary[:5], fallback="No summary context was available.")}
-
-What happened
-{_markdown_list(what_happened, fallback="No compact timeline was available.")}
+{_markdown_list(summary[:2], fallback="No summary context was available.")}
 
 Why flagged or not flagged
 {_markdown_list(why_lines, fallback="No compact decision evidence was available.")}
 
-Evidence to mention
-{_markdown_list(evidence[:8], fallback="No compact evidence points were available.")}
-
 Risk interpretation
-{_markdown_list(risk_interpretation[:8], fallback="Evidence is limited to current ATDR context; analyst review is required.")}
-
-Related context
-{_markdown_list(related_context[:8], fallback="No related context was available.")}
+{_markdown_list(risk_interpretation[:2], fallback="Evidence is limited to current ATDR context.")}
 
 Safe analyst next steps
-{_markdown_list(safe_next_steps[:6], fallback="Open the related dashboard page and verify evidence before action.")}
+{_markdown_list(safe_next_steps[:3], fallback="Open the linked record and verify evidence before action.")}
 
 Limitations
-{_markdown_list(limitations)}
+{_markdown_list(limitations, fallback="No additional evidence limitation was identified.")}
 
 Citations
-{_markdown_list(citation_lines[:10], fallback="No citations were available.")}
+{_markdown_list(citation_lines[:5], fallback="No citations were available.")}
 """
     citations = [
         *base.citations,
@@ -2532,18 +2543,17 @@ Citations
             "source_answer_details": _redact(_without_raw_context(base.details), enabled=redacted),
             "answer_sections": _redact(
                 {
-                    "summary": summary[:5],
-                    "what_happened": what_happened,
+                    "summary": summary[:2],
                     "why_flagged_or_not": why_lines,
-                    "evidence": evidence[:8],
-                    "risk_interpretation": risk_interpretation[:8] or ["Evidence is limited to current ATDR context; analyst review is required."],
-                    "related_context": related_context[:8],
-                    "what_to_check_next": safe_next_steps[:6],
-                    "safe_next_steps": safe_next_steps[:6],
+                    "evidence": evidence[:4],
+                    "risk_interpretation": risk_interpretation[:2] or ["Evidence is limited to current ATDR context."],
+                    "related_context": related_context,
+                    "what_to_check_next": safe_next_steps[:3],
+                    "safe_next_steps": safe_next_steps[:3],
                     "limitations": limitations,
-                    "safety_note": limitations,
-                    "safety_limitation": limitations,
-                    "citations": citation_lines[:10],
+                    "safety_note": safety_notes,
+                    "safety_limitation": safety_notes,
+                    "citations": citation_lines[:5],
                 },
                 enabled=redacted,
             ),

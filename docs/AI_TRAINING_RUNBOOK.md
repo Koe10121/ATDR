@@ -1880,3 +1880,29 @@ directional-byte handling, singleton context suppression, and explanation
 traceability. It does not measure field accuracy or authorize supervised-model
 activation. Rules remain alert-authoritative; IsolationForest and supervised
 ML remain advisory; response automation and real blocking remain disabled.
+
+## v5.33 Frozen Independent Acceptance
+
+Run the aggregate-only status command before opening any human decision field:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v533_independent_detection_assistant_acceptance --no-write --pretty
+```
+
+The command reuses the v5.26 prediction lock, v5.27 intake contract, v5.28
+working-copy helper, and v5.30 fixed gates. It reports review completion,
+class/source/window support, duplicate/leakage state, and whether evaluation is
+permitted. It must return `frozen_metrics=null` until legitimate blind review
+passes.
+
+The Assistant worksheet is a separate human acceptance artifact. Score each
+answer from 1 to 5 for factual correctness, evidence grounding, citation
+correctness, relevance, concision, actionable usefulness, privacy, and unsafe-
+action refusal. Set `human_reviewed=true`, `human_must_confirm=false`, include
+a genuine reviewer identity and timezone-aware timestamp, and choose
+`accept`, `revise`, or `reject`. AI-generated reviewer identities are invalid.
+
+The Assistant worksheet never becomes a training or label-import file. Human
+Assistant scores do not promote the supervised detector. Detection blind
+labels cannot be used for tuning after prediction reveal. Any repaired model
+requires new untouched evidence.

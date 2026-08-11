@@ -94,6 +94,7 @@ class AssistantLLMResult:
             "provider": self.provider,
             "model_configured": bool(self.model),
             "fallback_reason": self.fallback_reason,
+            "failure_category": classify_assistant_llm_failure(self.fallback_reason),
             "raw_log_context_included": self.raw_log_context_included,
             "secrets_exposed": self.secrets_exposed,
             "context_characters": self.context_characters,
@@ -111,6 +112,56 @@ class AssistantLLMTransportError(RuntimeError):
     def __init__(self, reason: str) -> None:
         super().__init__(reason)
         self.reason = reason
+
+
+def classify_assistant_llm_failure(reason: str | None) -> str | None:
+    """Return a stable, payload-free provider/fallback category."""
+    if not reason:
+        return None
+    if reason == "provider_timeout":
+        return "timeout"
+    if reason == "provider_quota_exhausted":
+        return "quota"
+    if reason == "provider_rate_limited":
+        return "rate_limit"
+    if reason in {
+        "malformed_provider_response",
+        "empty_provider_response",
+        "empty_provider_answer",
+    }:
+        return "malformed_output"
+    if "citation" in reason:
+        return "citation_rejection"
+    if reason in {
+        "unsafe_request_local_only",
+        "provider_answer_implies_action_execution",
+        "provider_answer_contains_secret",
+        "raw_log_context_not_allowed_for_llm",
+    }:
+        return "safety_rejection"
+    if "unsupported_" in reason or "lost_alert_context" in reason:
+        return "grounding_rejection"
+    if reason.startswith("provider_answer_"):
+        return "quality_rejection"
+    if reason in {
+        "provider_authentication_failed",
+        "provider_not_configured",
+        "provider_not_supported",
+        "api_key_not_configured",
+    }:
+        return "configuration"
+    if reason == "provider_circuit_open":
+        return "circuit_breaker"
+    if reason == "external_llm_disabled":
+        return "disabled"
+    if reason in {
+        "provider_request_failed",
+        "provider_network_error",
+        "provider_service_unavailable",
+        "provider_request_rejected",
+    }:
+        return "provider_unavailable"
+    return "unknown"
 
 
 _operational_lock = threading.Lock()
@@ -142,6 +193,7 @@ def _new_operational_state() -> dict[str, Any]:
         "total_tokens": 0,
         "estimated_cost_usd": 0.0,
         "last_outcome": "not_called",
+        "failure_categories": {},
     }
 
 
@@ -206,6 +258,8 @@ def _record_failure(
         state["consecutive_failures"] += 1
         state["total_latency_ms"] += max(0, int(latency_ms))
         state["last_outcome"] = reason
+        category = classify_assistant_llm_failure(reason) or "unknown"
+        state["failure_categories"][category] = int(state["failure_categories"].get(category, 0)) + 1
         if (
             state["consecutive_failures"]
             >= settings.assistant_llm_circuit_breaker_failures
@@ -221,6 +275,9 @@ def _record_circuit_fallback(settings: Settings) -> None:
         state = _state_for(settings)
         state["fallbacks"] += 1
         state["last_outcome"] = "provider_circuit_open"
+        state["failure_categories"]["circuit_breaker"] = int(
+            state["failure_categories"].get("circuit_breaker", 0)
+        ) + 1
 
 
 def record_guarded_provider_fallback(
@@ -233,6 +290,8 @@ def record_guarded_provider_fallback(
         state["fallbacks"] += 1
         state["guarded_fallbacks"] += 1
         state["last_outcome"] = reason
+        category = classify_assistant_llm_failure(reason) or "unknown"
+        state["failure_categories"][category] = int(state["failure_categories"].get(category, 0)) + 1
 
 
 def _circuit_open(settings: Settings) -> bool:
@@ -287,6 +346,10 @@ def assistant_llm_operational_status(settings: Settings) -> dict[str, Any]:
             or settings.assistant_llm_output_cost_per_million
         ),
         "last_outcome": str(state["last_outcome"]),
+        "failure_categories": {
+            str(key): int(value)
+            for key, value in sorted(dict(state["failure_categories"]).items())
+        },
         "prompts_stored": False,
         "answers_stored": False,
         "raw_logs_stored": False,
@@ -315,7 +378,7 @@ class MockAssistantLLMProvider(AssistantLLMProvider):
         ]
         structured = {
             "direct_answer": request.deterministic_answer,
-            "key_evidence": deterministic_lines[1:3] if request.response_mode in {"alert_explanation", "related_logs", "list_summary", "investigation_brief"} else [],
+            "key_evidence": deterministic_lines[1:3] if request.response_mode in {"alert_explanation", "related_logs", "list_summary", "case_handoff", "investigation_brief"} else [],
             "next_steps": numbered_steps[:4],
             "limitations": [],
             "safety_notice": "Read-only decision support; response automation remains disabled.",
@@ -534,6 +597,8 @@ def maybe_generate_external_answer(
         reason = (
             exc.reason
             if isinstance(exc, AssistantLLMTransportError)
+            else "malformed_provider_response"
+            if isinstance(exc, (TypeError, ValueError, KeyError))
             else "provider_request_failed"
         )
         _record_failure(settings, reason=reason, latency_ms=latency_ms)
@@ -603,6 +668,7 @@ def build_safe_context_prompt(request: AssistantLLMRequest, settings: Settings) 
         "related_logs": "Summarize only the linked logs and their relevance in a compact list.",
         "source_health": "State health, the main issue, and one next check.",
         "list_summary": "Give a short ranked list with no repeated commentary.",
+        "case_handoff": "Give a concise case summary, key evidence, assessment, and one handoff action.",
         "investigation_brief": "Give a structured brief with evidence, assessment, checks, and limitations.",
         "how_to": "Give concise numbered steps and preserve safe commands exactly.",
         "governance": "State the current status, main blocker, and operational consequence.",
@@ -675,6 +741,22 @@ def _redact_if_needed(value: str, *, settings: Settings) -> str:
     return IP_PATTERN.sub("[redacted-ip]", value)
 
 
+def _http_failure_reason(response: requests.Response) -> str:
+    if response.status_code in {401, 403}:
+        return "provider_authentication_failed"
+    if response.status_code == 429:
+        try:
+            payload = response.json()
+        except (TypeError, ValueError):
+            payload = {}
+        error = payload.get("error") if isinstance(payload, dict) else None
+        status = str(error.get("status") or "").upper() if isinstance(error, dict) else ""
+        return "provider_quota_exhausted" if status == "RESOURCE_EXHAUSTED" else "provider_rate_limited"
+    if response.status_code >= 500:
+        return "provider_service_unavailable"
+    return "provider_request_rejected"
+
+
 def _post_json(
     url: str,
     *,
@@ -697,21 +779,17 @@ def _post_json(
                 json=payload,
                 timeout=max(1.0, min(timeout, 60.0)),
             )
-            if response.status_code == 429:
-                last_reason = "provider_rate_limited"
-                raise AssistantLLMTransportError(last_reason)
-            if response.status_code >= 500:
-                last_reason = "provider_service_unavailable"
-                raise AssistantLLMTransportError(last_reason)
             if response.status_code >= 400:
-                raise AssistantLLMTransportError("provider_request_rejected")
-            data = response.json()
+                last_reason = _http_failure_reason(response)
+                raise AssistantLLMTransportError(last_reason)
+            try:
+                data = response.json()
+            except ValueError as exc:
+                raise AssistantLLMTransportError("malformed_provider_response") from exc
             if not isinstance(data, dict):
-                raise ValueError("provider response was not an object")
+                raise AssistantLLMTransportError("malformed_provider_response")
             data["_atdr_transport"] = {"attempts": attempt}
             return data
-        except ValueError:
-            raise
         except requests.Timeout as exc:
             last_error = exc
             last_reason = "provider_timeout"
@@ -725,7 +803,10 @@ def _post_json(
                 break
             time.sleep(min(0.25 * attempt, 0.75))
         except AssistantLLMTransportError as exc:
-            if exc.reason == "provider_request_rejected":
+            if exc.reason in {
+                "provider_authentication_failed",
+                "provider_request_rejected",
+            }:
                 raise
             last_error = exc
             last_reason = exc.reason
@@ -912,6 +993,12 @@ def _render_structured_answer(
             rows.append(f"Next check: {steps[0]}")
     elif response_mode == "list_summary":
         rows.extend(f"- {item}" for item in evidence[:5])
+    elif response_mode == "case_handoff":
+        rows.extend(f"- {item}" for item in evidence[:3])
+        if steps:
+            rows.append(f"Next check: {steps[0]}")
+        if limitations:
+            rows.append(f"Limitation: {limitations[0]}")
     elif response_mode == "investigation_brief":
         if evidence:
             rows.extend(["Key evidence", *[f"- {item}" for item in evidence[:4]]])

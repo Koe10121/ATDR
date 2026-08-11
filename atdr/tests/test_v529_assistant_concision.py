@@ -36,7 +36,7 @@ def test_v529_intents_have_distinct_shapes_and_hard_word_budgets() -> None:
         ("Show latest critical alerts.", "list_summary", 100, "list_items"),
         ("How do I run a controlled validation scenario?", "how_to", 180, "steps"),
         ("Why is the model not production promoted?", "governance", 100, "blockers"),
-        ("Create investigation brief for alert 1.", "investigation_brief", 300, "key_evidence"),
+        ("Create investigation brief for alert 1.", "investigation_brief", 160, "key_evidence"),
     ]
     section_signatures: set[tuple[str, ...]] = set()
     for question, expected_mode, word_limit, required_section in checks:

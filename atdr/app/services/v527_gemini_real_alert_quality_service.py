@@ -409,6 +409,9 @@ def _run_failure_fallback(
             "provider_timeout",
             "provider_service_unavailable",
             "provider_rate_limited",
+            "provider_quota_exhausted",
+            "provider_authentication_failed",
+            "malformed_provider_response",
         }
         and not response.get("raw_log_context_included")
         and bool(response.get("redaction_applied"))
@@ -418,6 +421,7 @@ def _run_failure_fallback(
     return {
         "passed": passed,
         "fallback_reason": llm.get("fallback_reason"),
+        "failure_category": llm.get("failure_category"),
         "external_provider_used": bool(response.get("external_provider_used")),
         "raw_log_context_included": bool(response.get("raw_log_context_included")),
         "redaction_applied": bool(response.get("redaction_applied")),

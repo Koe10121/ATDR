@@ -41,6 +41,7 @@ interface AssistantLlmDetails {
   provider?: string;
   model_configured?: boolean;
   fallback_reason?: string | null;
+  failure_category?: string | null;
   raw_log_context_included?: boolean;
   secrets_exposed?: boolean;
   context_characters?: number;
@@ -337,6 +338,17 @@ function guardReasonLabel(reason?: string | null) {
     case "provider_call_failed":
     case "provider_request_failed":
       return "Provider call failed, so ATDR used the deterministic fallback.";
+    case "provider_timeout":
+      return "Provider timed out, so ATDR used the deterministic fallback.";
+    case "provider_quota_exhausted":
+      return "Provider quota was unavailable, so ATDR used the deterministic fallback.";
+    case "provider_rate_limited":
+      return "Provider rate limit was reached, so ATDR used the deterministic fallback.";
+    case "provider_network_error":
+    case "provider_service_unavailable":
+      return "Provider was unavailable, so ATDR used the deterministic fallback.";
+    case "provider_authentication_failed":
+      return "Provider authentication failed; ATDR kept the deterministic answer.";
     case "unsafe_request_local_only":
       return "ATDR handled this safety-sensitive request locally and did not send it to an external provider.";
     default:
@@ -389,6 +401,7 @@ function AssistantProviderTelemetry({ response }: { response: AssistantChatRespo
           <div><span className="uppercase tracking-wide">Raw logs:</span> <span className="text-text">{rawLogContextIncluded ? "Included" : "Not included"}</span></div>
           <div><span className="uppercase tracking-wide">Redaction:</span> <span className="text-text">{boolLabel(response.redaction_applied, "Applied", "Not applied")}</span></div>
           <div><span className="uppercase tracking-wide">Secrets:</span> <span className="text-text">{boolLabel(llm?.secrets_exposed, "Check required", "Not exposed", "Not exposed")}</span></div>
+          {llm?.failure_category ? <div><span className="uppercase tracking-wide">Fallback class:</span> <span className="text-text">{llm.failure_category.replaceAll("_", " ")}</span></div> : null}
           <div><span className="uppercase tracking-wide">Contract:</span> <span className="break-words text-text">{promptContract ?? "Local deterministic"}</span></div>
           <div><span className="uppercase tracking-wide">Output:</span> <span className="text-text">{providerCalled ? boolLabel(llm?.structured_output_valid, "Validated", "Fallback") : "Local"}</span></div>
           <div><span className="uppercase tracking-wide">Latency:</span> <span className="text-text">{typeof llm?.latency_ms === "number" ? `${llm.latency_ms} ms` : "Not called"}</span></div>

@@ -467,7 +467,7 @@ def test_assistant_guards_provider_answer_that_implies_action(monkeypatch):
         assert payload["details"]["llm"]["answer_guard_reason"] == "provider_answer_implies_action_execution"
         assert "I blocked" not in payload["answer"]
         assert "containment has been applied" not in payload["answer"]
-        assert "Response automation is disabled" in payload["answer"]
+        assert "Response Automation Disabled" in payload["safety"]
         assert "llm-secret-that-must-not-leak" not in str(payload)
 
         with testing_session() as db:
@@ -1005,7 +1005,7 @@ def test_assistant_triage_reasoning_false_positive_and_handoff_questions_are_saf
             "What should I check first for this alert?": "safe_next_step",
             "Is source 1 risky?": "source_health",
             "Why is this source noisy?": "source_health",
-            "Summarize this case for handoff.": "list_summary",
+            "Summarize this case for handoff.": "case_handoff",
             "What should I tell my supervisor about alert 1?": "investigation_brief",
         }
         for question, expected_mode in checks.items():
@@ -1876,11 +1876,11 @@ def test_assistant_case_context_summarizes_computed_group_read_only():
         assert response.status_code == 200
         payload = response.json()
         assert "Case/group" in payload["answer"]
-        assert payload["response_mode"] == "list_summary"
+        assert payload["response_mode"] == "case_handoff"
         assert "alert_cases" in payload["context_used"]
         assert any(citation["source"] == "/api/alerts/cases" for citation in payload["citations"])
         assert payload["details"]["case"]["related_alert_count"] >= 1
-        assert payload["details"]["response_contract"]["word_count"] <= 100
+        assert payload["details"]["response_contract"]["word_count"] <= 120
 
         with testing_session() as db:
             assert db.scalar(select(func.count(ResponseAction.id))) == 0
@@ -1905,7 +1905,7 @@ def test_assistant_alert_investigation_brief_is_evidence_grounded_and_non_mutati
         assert "Key evidence" in payload["answer"]
         assert "Limitations" in payload["answer"]
         assert payload["response_mode"] == "investigation_brief"
-        assert len(payload["answer"].split()) <= 300
+        assert len(payload["answer"].split()) <= 160
         assert "investigation_brief" in payload["context_used"]
         assert payload["details"]["brief"]["kind"] == "alert"
         assert payload["details"]["brief"]["non_mutating"] is True
@@ -1915,7 +1915,8 @@ def test_assistant_alert_investigation_brief_is_evidence_grounded_and_non_mutati
         assert sections["summary"]
         assert sections["key_evidence"]
         assert sections["next_steps"]
-        assert "Response automation is disabled." in sections["limitations"]
+        assert sections["limitations"]
+        assert "Response Automation Disabled" in payload["safety"]
         assert payload["details"]["evidence_detail"]["related_context"]
         assert any(citation["source"] == "/api/alerts/{alert_id}" and citation["reference_id"] == "1" for citation in payload["citations"])
         assert any(citation["source"] == "docs/V3_25_SOC_ASSISTANT_INVESTIGATION_BRIEF_BUILDER.md" for citation in payload["citations"])
@@ -1945,12 +1946,13 @@ def test_assistant_log_source_and_case_investigation_briefs_are_context_specific
             payload = response.json()
             assert "Investigation Brief" in payload["answer"], question
             assert payload["response_mode"] == "investigation_brief", question
-            assert len(payload["answer"].split()) <= 300, question
+            assert len(payload["answer"].split()) <= 160, question
             assert payload["details"]["brief"]["kind"] == expected_kind, question
             assert payload["external_provider_used"] is False
             assert payload["raw_log_context_included"] is False
             assert any(citation["source"] == expected_source for citation in payload["citations"]), question
-            assert "Decision support only; analyst judgment is required." in payload["details"]["answer_sections"]["limitations"]
+            assert payload["details"]["answer_sections"]["limitations"]
+            assert "Decision Support Only" in payload["safety"]
             assert "raw_line" not in str(payload)
             assert "synthetic assistant test log" not in str(payload)
 

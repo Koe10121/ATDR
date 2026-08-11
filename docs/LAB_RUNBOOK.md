@@ -2146,3 +2146,35 @@ Read-only Overview profiling:
 The current regression ceiling is at most 36 cold queries and exactly one warm
 cache query. Keep first-cold large-SQLite warnings visible; do not reset or
 delete evidence to improve a benchmark.
+
+## v5.33 Independent Review And Assistant Acceptance
+
+Check both evidence programs without writing reports or calling Gemini:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v533_independent_detection_assistant_acceptance --no-write --pretty
+```
+
+Expected current result: detection review `0/40`, frozen metrics withheld,
+Assistant human pack either absent or incomplete, lifecycle
+`shadow_observation`, and zero configured-database mutations.
+
+Prepare or resume the ignored human worksheets only when a genuine reviewer is
+available:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v533_independent_detection_assistant_acceptance `
+  --prepare-detection-review `
+  --prepare-assistant-review `
+  --pretty
+```
+
+To create a bounded Gemini-answer worksheet, add `--execute-provider` and
+`--provider-interval-seconds 1`. Raw-log context remains disabled and IP
+redaction remains enabled. The command refuses to refresh a worksheet after
+human fields are present.
+
+Do not enter AI/Codex/Gemini decisions as human review. Do not import either
+worksheet. A reviewer must not inspect the sealed prediction lock. Final
+detection metrics remain unavailable until the intake validator explicitly
+returns `frozen_evaluation_permitted=true`.

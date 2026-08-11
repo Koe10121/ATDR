@@ -212,6 +212,35 @@ def review_progress(
     pack_path: Path = DEFAULT_PACK_PATH,
     working_path: Path = DEFAULT_WORKING_PATH,
 ) -> dict[str, Any]:
+    if not working_path.is_file():
+        pack_rows, pack_columns = _read_rows(pack_path)
+        _assert_safe_blind_source(pack_rows, pack_columns)
+        return {
+            "ok": True,
+            "status": "working_copy_not_prepared",
+            "schema_version": V528_VERSION,
+            "total": len(pack_rows),
+            "reviewed": 0,
+            "remaining": len(pack_rows),
+            "invalid": 0,
+            "decision_class_counts": {},
+            "binary_queue_classes_present": 0,
+            "minimum_legitimate_reviews": v527.MIN_REVIEWED_ROWS,
+            "enough_for_locked_evaluation": False,
+            "invalid_reason_counts": {},
+            "working_copy_exists": False,
+            "metrics_calculated": False,
+            "prediction_counts_returned": False,
+            "predictions_displayed": False,
+            "ai_suggestions_displayed": False,
+            "review_tokens_returned": False,
+            "reviewer_identities_returned": False,
+            "raw_logs_returned": False,
+            "ip_addresses_returned": False,
+            "fingerprints_returned": False,
+            "import_ready": False,
+            "automatic_import_performed": False,
+        }
     validate_working_copy(pack_path=pack_path, working_path=working_path)
     rows, columns = _read_rows(working_path)
     known_tokens = {
@@ -263,6 +292,7 @@ def review_progress(
         "minimum_legitimate_reviews": v527.MIN_REVIEWED_ROWS,
         "enough_for_locked_evaluation": enough_for_locked_evaluation,
         "invalid_reason_counts": dict(sorted(invalid_reasons.items())),
+        "working_copy_exists": True,
         "metrics_calculated": False,
         "prediction_counts_returned": False,
         "predictions_displayed": False,

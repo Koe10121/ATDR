@@ -12,6 +12,7 @@ AssistantResponseMode = Literal[
     "related_logs",
     "source_health",
     "list_summary",
+    "case_handoff",
     "investigation_brief",
     "how_to",
     "governance",
@@ -41,7 +42,8 @@ RESPONSE_CONTRACTS: dict[AssistantResponseMode, ResponseContract] = {
     "related_logs": ResponseContract("related_logs", 120),
     "source_health": ResponseContract("source_health", 100),
     "list_summary": ResponseContract("list_summary", 100),
-    "investigation_brief": ResponseContract("investigation_brief", 300),
+    "case_handoff": ResponseContract("case_handoff", 120),
+    "investigation_brief": ResponseContract("investigation_brief", 160),
     "how_to": ResponseContract("how_to", 180),
     "governance": ResponseContract("governance", 100),
 }
@@ -123,7 +125,7 @@ def infer_response_mode(question: str, context_used: list[str]) -> AssistantResp
     ) or contexts.intersection({"ml_governance", "promotion_gate", "supervised_model_report", "assistant_safety_guardrail"}):
         return "governance"
     if "alert_cases" in contexts or "case_grouping" in contexts:
-        return "list_summary"
+        return "case_handoff"
     if contexts.intersection({"alert_detail", "why_flagged", "why_not_flagged", "alert_evidence", "log_detail"}):
         return "alert_explanation"
     return "direct_fact"
@@ -140,14 +142,47 @@ def _strings(value: Any, *, limit: int = 12) -> list[str]:
     return rows
 
 
+def _semantic_tokens(value: str) -> set[str]:
+    return {
+        token
+        for token in re.findall(r"[a-z0-9]+", value.lower())
+        if len(token) > 2
+        and token
+        not in {
+            "and",
+            "are",
+            "for",
+            "from",
+            "the",
+            "this",
+            "that",
+            "with",
+        }
+    }
+
+
+def _near_duplicate(left: str, right: str) -> bool:
+    left_key = re.sub(r"\W+", " ", left.lower()).strip()
+    right_key = re.sub(r"\W+", " ", right.lower()).strip()
+    if left_key == right_key:
+        return True
+    left_tokens = _semantic_tokens(left)
+    right_tokens = _semantic_tokens(right)
+    if min(len(left_tokens), len(right_tokens)) < 4:
+        return False
+    overlap = len(left_tokens & right_tokens)
+    containment = overlap / min(len(left_tokens), len(right_tokens))
+    union = len(left_tokens | right_tokens)
+    return containment >= 0.85 and bool(union) and overlap / union >= 0.65
+
+
 def _dedupe(values: list[str]) -> list[str]:
     rows: list[str] = []
-    seen: set[str] = set()
     for value in values:
-        key = re.sub(r"\W+", " ", value.lower()).strip()
-        if not key or key in seen:
+        if not re.sub(r"\W+", " ", value.lower()).strip():
             continue
-        seen.add(key)
+        if any(_near_duplicate(value, existing) for existing in rows):
+            continue
         rows.append(value)
     return rows
 
@@ -333,30 +368,55 @@ def build_response_presentation(
                 "evidence": items,
             }
         )
-    elif mode == "investigation_brief":
-        key_evidence = evidence[:4]
-        brief_steps = next_steps[:3]
-        answer_parts = ["Investigation Brief", *[f"- {item}" for item in summary[:2]]]
+    elif mode == "case_handoff":
+        key_evidence = _dedupe(evidence + related)[:3]
+        handoff_steps = next_steps[:2]
+        answer_parts = [summary[0]]
         if key_evidence:
-            answer_parts.extend(["Key evidence", *[f"- {item}" for item in key_evidence]])
-        if risk:
-            answer_parts.extend(["Assessment", *[f"- {item}" for item in risk[:2]]])
-        if brief_steps:
-            answer_parts.extend(["Next checks", *[f"- {item}" for item in brief_steps]])
+            answer_parts.extend(f"- {item}" for item in key_evidence)
+        if handoff_steps:
+            answer_parts.append(f"Next check: {handoff_steps[0]}")
         if limitations:
-            answer_parts.extend(["Limitations", *[f"- {item}" for item in limitations[:2]]])
+            answer_parts.append(f"Limitation: {limitations[0]}")
         answer = "\n".join(answer_parts)
         sections.update(
             {
-                "direct_answer": summary[:2],
-                "summary": summary[:2],
+                "direct_answer": summary[:1],
+                "summary": summary[:1],
                 "key_evidence": key_evidence,
                 "evidence": key_evidence,
-                "assessment": risk[:2],
-                "risk_interpretation": risk[:2],
+                "next_steps": handoff_steps,
+                "what_to_check_next": handoff_steps,
+                "limitations": limitations[:1],
+            }
+        )
+    elif mode == "investigation_brief":
+        brief_summary = [_shorten(item, 24) for item in summary[:1]]
+        key_evidence = [_shorten(item, 20) for item in evidence[:3]]
+        brief_risk = [_shorten(item, 18) for item in risk[:1]]
+        brief_steps = [_shorten(item, 16) for item in next_steps[:2]]
+        brief_limitations = [_shorten(item, 16) for item in limitations[:1]]
+        answer_parts = ["Investigation Brief", *[f"- {item}" for item in brief_summary]]
+        if key_evidence:
+            answer_parts.extend(["Key evidence", *[f"- {item}" for item in key_evidence]])
+        if brief_risk:
+            answer_parts.extend(["Assessment", *[f"- {item}" for item in brief_risk]])
+        if brief_steps:
+            answer_parts.extend(["Next checks", *[f"- {item}" for item in brief_steps]])
+        if brief_limitations:
+            answer_parts.extend(["Limitations", *[f"- {item}" for item in brief_limitations]])
+        answer = "\n".join(answer_parts)
+        sections.update(
+            {
+                "direct_answer": brief_summary,
+                "summary": brief_summary,
+                "key_evidence": key_evidence,
+                "evidence": key_evidence,
+                "assessment": brief_risk,
+                "risk_interpretation": brief_risk,
                 "next_steps": brief_steps,
                 "what_to_check_next": brief_steps,
-                "limitations": limitations[:2],
+                "limitations": brief_limitations,
             }
         )
     elif mode == "how_to":
@@ -441,6 +501,14 @@ def contextual_followups(
     elif primary == "source" and active_context.get("source_id"):
         source_id = active_context["source_id"]
         generated.extend([f"Which warnings affect source {source_id}?", f"What should an analyst check next for source {source_id}?"])
+    elif primary == "case" and active_context.get("case_id"):
+        case_id = active_context["case_id"]
+        generated.extend(
+            [
+                f"What evidence is strongest in case {case_id}?",
+                f"What should an analyst check next for case {case_id}?",
+            ]
+        )
 
     contract = response_contract(mode)
     return _dedupe(generated + existing)[: contract.max_followups]

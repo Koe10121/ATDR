@@ -76,6 +76,7 @@ function responseModeLabel(mode: AssistantChatResponse["response_mode"]): string
     related_logs: "Related logs",
     source_health: "Source health",
     list_summary: "Summary",
+    case_handoff: "Case handoff",
     investigation_brief: "Investigation brief",
     how_to: "Procedure",
     governance: "Governance"

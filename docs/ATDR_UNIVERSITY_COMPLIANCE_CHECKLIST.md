@@ -714,3 +714,28 @@ For docs-only changes, at minimum verify the docs exist, links are correct, and 
 | Privacy and minimization | Satisfied | raw-log context false, IP redaction true, details collapsed, no secrets/private paths returned | Institutional provider/privacy approval remains external. |
 | AI and response safety | Satisfied | read-only contracts, zero authority writes, rules authoritative, supervised shadow-only, automation/blocking false | Any future action capability requires a separate safety design and approval. |
 | T1-T20 and traceability | Satisfied locally | v5.29 status, T1-T20, PRD, traceability, compliance, taskboard, and exact allowlist | Commit/push require separate exact-path approval. |
+
+## v5.33 Independent Detection And Assistant Acceptance Compliance Status
+
+| University / ATDR rule | Status | Evidence | Remaining action |
+| --- | --- | --- | --- |
+| No guessing / source evidence | Satisfied | Existing sealed pack, frozen prediction lock, custody checks, and v5.30 inventory are reused; no source or label is fabricated | Obtain a second verified physical source and legitimate blind review. |
+| Prediction-before-label integrity | Satisfied | Unique tokens, immutable protected evidence, private seal, and prediction-before-label checks pass | Preserve reviewer isolation and never tune on the consumed blind set. |
+| No premature metrics | Satisfied | Current valid human decisions `0/40`; frozen metrics are `null` | Calculate once only when the intake validator permits it. |
+| Human-review provenance | Satisfied by design; incomplete | AI reviewer identities and partial/invalid input are rejected; both worksheets remain non-import-ready | A genuine qualified reviewer completes detection and Assistant worksheets. |
+| Assistant privacy and grounding | Satisfied for bounded automation | Eight redacted contexts, trusted citations, raw context false, IP/path/secret exclusion, protected worksheet integrity | Human semantic/privacy scoring remains `0/8`. |
+| Gemini operations | Partially satisfied | Seven provider answers, one safe fallback, bounded token/timeout/rate controls, zero configured mutations | Institutional privacy/retention/quota/key-rotation approval and configured cost rates remain external. |
+| AI and response authority | Satisfied | Rules authoritative; ML shadow/advisory; Gemini read-only; no activation/promotion/automation/blocking | Any authority change requires a separate approved design. |
+| T1-T20 and taskboard | Satisfied locally | v5.33 status, change record, PRD, traceability, runbooks, compliance, taskboard, and allowlist | Commit/push require separate exact-path approval. |
+
+## v5.34 Assistant Concision And Provider Reliability Compliance Status
+
+| University / ATDR rule | Status | Evidence | Remaining action |
+| --- | --- | --- | --- |
+| Source evidence / no guessing | Satisfied for bounded scope | Local and Gemini answers use supplied ATDR citations; unsupported IDs and lost citations fail closed | Genuine human semantic acceptance remains `0/8`. |
+| Concise analyst output | Satisfied automatically | Shared renderer, semantic deduplication, 80/120/160-word primary contracts, dedicated case handoff; eight-case pack `8/8` | Human usefulness/concision scoring remains external. |
+| Provider failure transparency | Satisfied locally | Timeout, quota, rate, malformed, citation, safety, grounding, availability, and circuit outcomes have payload-free categories | Provider owner must resolve quota and approve operations. |
+| Privacy and minimization | Satisfied | Raw logs false, IP redaction true, no prompts/answers/payloads/secrets in aggregate telemetry | Institutional privacy/retention approval remains external. |
+| AI and response authority | Satisfied | Zero alert/detection/label/model/user/response mutations; rules authoritative; automation/blocking false | Any authority change requires separate evidence and approval. |
+| Human versus automated acceptance | Satisfied by design; human gate open | Automated answer contract `8/8` is reported separately from provider contract and human acceptance `0/8` | Genuine reviewer completes the protected worksheet. |
+| T1-T20 and taskboard | Satisfied locally | v5.34 status, change record, PRD, traceability, compliance, taskboard, and exact allowlist | Commit/push require separate exact-path approval. |

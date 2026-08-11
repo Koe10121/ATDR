@@ -240,8 +240,8 @@ def _qa_cases() -> list[AssistantQACase]:
             expected_context_any=("alert_cases", "case_grouping"),
             expected_citation_sources=("/api/alerts/cases",),
             expected_text_any=("Case/group",),
-            expected_response_mode="list_summary",
-            max_words=100,
+            expected_response_mode="case_handoff",
+            max_words=120,
         ),
         AssistantQACase(
             name="supervisor_alert_summary",

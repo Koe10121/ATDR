@@ -1349,3 +1349,58 @@ disabled.
 - Rules remain alert-authoritative, supervised ML remains
   `shadow_observation`, and automatic response and real firewall blocking
   remain disabled.
+
+## v5.33 Independent Detection And Assistant Human Acceptance Addendum
+
+- **FR-ATDR-082:** ATDR shall validate the existing sealed native blind review
+  pack without rerunning predictions, exposing predictions to reviewers, or
+  calculating final metrics before fixed review and evidence gates pass.
+- Review status shall distinguish missing working copy, incomplete human
+  review, invalid human input, and evaluation-ready state without exposing
+  reviewer identities, private evidence, paths, IPs, or fingerprints.
+- Fixed supervised gates shall be recorded before blind labels are opened and
+  shall cover false-positive rate, queue precision/recall/F1, suspicious and
+  malicious recall, calibration, class support, source/time stability, and
+  zero development overlap.
+- **FR-ATDR-083:** ATDR shall support a separate integrity-protected human
+  acceptance worksheet for representative alert, log, source, case, ML-
+  governance, and safe-response Assistant questions.
+- Automated Assistant contract checks and human semantic acceptance shall be
+  reported separately. AI-generated reviewer identities shall not satisfy the
+  human gate, and the worksheet shall never be import-ready.
+- Gemini operations shall expose aggregate provider readiness, timeout,
+  fallback, bounded tokens, optional configured-rate cost, and local rate
+  limits without prompts, answers, secrets, raw logs, or IPs.
+- Provider account quota, key rotation, privacy, and retention approval remain
+  external institutional responsibilities.
+- Rules remain alert-authoritative; supervised ML remains
+  `shadow_observation`; Gemini remains read-only; model promotion, automatic
+  response, and real blocking remain disabled.
+
+## v5.34 Assistant Concision And Provider Reliability Addendum
+
+- **FR-ATDR-084:** Deterministic and external-provider Assistant answers shall
+  use the same mode-specific presentation contract before being returned to
+  the dashboard.
+- Direct answers shall not exceed 80 words, alert explanations shall not
+  exceed 120 words, and investigation briefs shall not exceed 160 words.
+- Evidence, assessment, recommendations, and limitations shall be compact and
+  semantically deduplicated. Citations shall remain visible and restricted to
+  supplied ATDR references.
+- Case handoff shall be a dedicated read-only response mode, not a generic
+  list or persisted incident operation.
+- **FR-ATDR-085:** Provider timeout, quota, rate limit, malformed output,
+  citation rejection, safety rejection, grounding/quality rejection,
+  availability, and circuit-breaker outcomes shall be classified without
+  returning provider payloads or secrets.
+- Provider availability and automated answer quality shall be reported as
+  separate contracts. A safe deterministic fallback may pass answer-quality
+  checks while provider operations remain degraded.
+- Conversation IDs and active alert/log/source/case context shall survive
+  supported React navigation; explicit new IDs and clear-context actions shall
+  replace stale context.
+- Human acceptance shall remain separate and incomplete until a genuine
+  reviewer scores the protected worksheet.
+- The Assistant remains read-only; raw logs remain excluded; redaction stays
+  enabled; no detection, label, model, user, deletion, response, or firewall
+  authority is added.

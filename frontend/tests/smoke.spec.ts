@@ -392,6 +392,7 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
             provider: "disabled",
             model_configured: false,
             fallback_reason: null,
+            failure_category: "grounding_rejection",
             raw_log_context_included: false,
             secrets_exposed: false,
             prompt_contract: "soc_intent_aware_concise_v4",
@@ -3739,6 +3740,7 @@ test("SOC assistant provider telemetry shows guarded external LLM state", async 
             provider_called: true,
             answer_used: false,
             answer_guard_reason: "provider_answer_contains_unsupported_alert_id",
+            failure_category: "grounding_rejection",
             latency_ms: 85,
             attempts: 1,
             usage: { input_tokens: 120, output_tokens: 45, total_tokens: 165 }
@@ -3771,6 +3773,7 @@ test("SOC assistant provider telemetry shows guarded external LLM state", async 
   await expect(telemetry).toContainText("Not included");
   await expect(telemetry).toContainText("Secrets");
   await expect(telemetry).toContainText("Not exposed");
+  await expect(telemetry).toContainText("grounding rejection");
   await expect(telemetry).toContainText("soc_intent_aware_concise_v4");
   await expect(telemetry).toContainText("45");
   await expect(page.getByTestId("assistant-response-panel")).toContainText("Alert #3225");

@@ -44,6 +44,7 @@ function safeResponseMode(value: unknown): AssistantResponseMode {
     "related_logs",
     "source_health",
     "list_summary",
+    "case_handoff",
     "investigation_brief",
     "how_to",
     "governance"
@@ -131,6 +132,7 @@ function safeLlmDetails(value: unknown): Record<string, unknown> | null {
     provider: boundedString(row.provider, 40),
     model_configured: row.model_configured === true,
     fallback_reason: boundedString(row.fallback_reason, 120) || null,
+    failure_category: boundedString(row.failure_category, 80) || null,
     raw_log_context_included: false,
     secrets_exposed: false,
     context_characters: typeof row.context_characters === "number" ? row.context_characters : 0,

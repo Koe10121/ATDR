@@ -205,6 +205,7 @@ export type AssistantResponseMode =
   | "related_logs"
   | "source_health"
   | "list_summary"
+  | "case_handoff"
   | "investigation_brief"
   | "how_to"
   | "governance";

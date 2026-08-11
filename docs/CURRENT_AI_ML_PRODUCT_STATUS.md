@@ -793,3 +793,56 @@ Gemini versus deterministic fallback labels, IP redaction, raw-log exclusion,
 and zero authoritative mutations. Gemini remains read-only decision support;
 rules remain alert-authoritative; automatic response and real blocking remain
 disabled.
+
+## v5.33 Independent Evidence And Human Acceptance
+
+The existing 40-row native PAN-OS blind pack remains sealed and prediction-
+blind. Prediction-before-label, unique-token, exact-overlap, near-overlap, and
+evidence-role checks pass. The larger private native corpus still provides
+773,551 parsed rows and 22 chronological windows, but it does not provide
+human ground truth or a second verified physical device. Legitimate blind
+human decisions remain `0/40`, so final detection metrics are withheld.
+
+The Assistant now has a separate eight-question human acceptance worksheet
+covering alert, log, source, case, investigation, ML governance, and safe-
+response contexts. A bounded Gemini run used seven provider answers and one
+safe deterministic fallback. One Gemini investigation brief exceeded the
+current concision acceptance rule; the ML-governance fallback passed its
+automated contract.
+Raw logs and IPs were excluded, protected worksheet content passed integrity,
+and configured authoritative mutation counts stayed at zero. Human Assistant
+acceptance remains `0/8`; automated checks are not human approval.
+
+Lifecycle remains `shadow_observation`. Rules remain alert-authoritative,
+IsolationForest and supervised ML remain advisory, Gemini remains read-only,
+and model promotion, automatic response, and real firewall blocking remain
+disabled. See `docs/V5_33_INDEPENDENT_DETECTION_AND_ASSISTANT_ACCEPTANCE.md`.
+
+## v5.34 Assistant Reliability Decision
+
+The provider/local response pipeline now shares one compact presentation
+contract. Alert explanations remain under 120 words, investigation briefs are
+limited to 160 words, case handoffs have a dedicated 120-word mode, duplicate
+evidence is removed, and citations survive final rendering. The refreshed
+eight-case pack passes `8/8` automated answer contracts; human acceptance is
+still `0/8`.
+
+Provider availability is now evaluated separately from answer quality. The
+latest bounded run accepted one Gemini answer, recorded three quota outcomes,
+and used the circuit breaker for four later questions. All fallback answers
+remained grounded and within contract. Safe telemetry records only category,
+latency, and token aggregates; it stores no prompt, answer, raw log, IP,
+provider payload, or secret.
+
+Final v5.34 verification passes the full backend and release suites at
+`890 passed, 1 skipped`, Playwright at `31 passed, 1 skipped`, controlled
+detection at `24/24`, layered detection at `288/288`, and deterministic
+Assistant QA at `20/20`. The existing cold large-SQLite Overview advisory
+remains open; the cached path measured `0.0197s`.
+
+Gemini quota is therefore an open provider-operations issue, not a reason to
+claim that the local fallback failed. Rules remain alert-authoritative,
+supervised lifecycle remains `shadow_observation`, the Assistant remains
+read-only, and model promotion, automatic response, and real blocking remain
+disabled. See
+`docs/V5_34_SOC_ASSISTANT_CONCISION_AND_PROVIDER_RELIABILITY.md`.
