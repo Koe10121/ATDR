@@ -27,6 +27,7 @@ from atdr.app.services.dashboard_service import (
     _quality_aggregate,
     _quality_app_counts_statement,
     _quality_missing_counts_statement,
+    _source_alert_volumes_statement,
     build_dashboard_summary,
     build_dashboard_summary_cached,
     clear_dashboard_summary_cache,
@@ -281,6 +282,7 @@ def test_dashboard_statements_compile_for_postgresql_without_sqlite_only_functio
         _quality_missing_counts_statement(),
         _quality_app_counts_statement(),
         _dashboard_cache_signature_statement(),
+        _source_alert_volumes_statement(),
     ]
     rendered = "\n".join(str(statement.compile(dialect=dialect)) for statement in statements).lower()
 

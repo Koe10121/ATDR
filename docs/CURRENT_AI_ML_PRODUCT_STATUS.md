@@ -772,3 +772,24 @@ This improves controlled reliability but does not close the independent
 supervised evidence gate. Supervised lifecycle remains `shadow_observation`,
 rules remain alert-authoritative, Gemini remains a read-only explanation
 layer, and automatic response and real blocking remain disabled.
+
+## v5.32 Analyst Workflow Projection
+
+The React Overview now presents governed operational counts for primary rule
+alerts, distinct source-linked alerts, analyst dispositions, grouped
+occurrences, deduplication updates, parser context, and recent detection runs.
+This projection changes no detector, score, threshold, feature, label, model,
+or lifecycle state.
+
+Operational counts are explicitly not accuracy. The panel reports
+`Insufficient Evidence` until independent labeled validation supports a
+quality claim. AI Governance remains the source of truth for supervised
+evidence and continues to report `shadow_observation` with no production
+promotion.
+
+Assistant acceptance confirms context replacement/reset, navigation
+persistence, concise intent-specific responses, trusted citations, truthful
+Gemini versus deterministic fallback labels, IP redaction, raw-log exclusion,
+and zero authoritative mutations. Gemini remains read-only decision support;
+rules remain alert-authoritative; automatic response and real blocking remain
+disabled.

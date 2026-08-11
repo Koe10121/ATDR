@@ -122,6 +122,10 @@ export function ExecutiveOverview() {
   const demoSource = (sources.data ?? []).find((source) => source.name.startsWith("scenario-")) ?? (sources.data ?? [])[0] ?? null;
   const validation = validationSummary.data;
   const canonicalEvidence = evidenceSnapshot.data?.canonical_evidence;
+  const detectionOperations = data?.detection_operations;
+  const dispositionRows = Object.entries(detectionOperations?.analyst_dispositions ?? {})
+    .map(([name, count]) => ({ name, count }))
+    .sort((left, right) => right.count - left.count);
 
   useEffect(() => {
     if (sourceParamId) {
@@ -203,6 +207,130 @@ export function ExecutiveOverview() {
                 <div className="mt-1 font-black text-text">{String(value ?? "-")}</div>
               </div>
             ))}
+          </div>
+        </details>
+      </section>
+
+      <section className="panel" data-testid="detection-operations-panel">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-sm font-extrabold uppercase tracking-wide text-muted">Detection Operations</div>
+            <p className="mt-1 text-sm text-muted">Current alert workload, evidence grouping, and source context.</p>
+          </div>
+          <Badge value="Insufficient Evidence" />
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            ["Unique Alerts", detectionOperations?.deduplication.unique_alerts ?? data?.total_alerts ?? "-"],
+            ["Alert Occurrences", detectionOperations?.deduplication.total_occurrences ?? ingestion?.alert_occurrence_count ?? "-"],
+            ["Dedup Updates", detectionOperations?.deduplication.deduplicated_updates ?? ingestion?.deduplicated_alert_updates ?? "-"],
+            ["Occurrences / Alert", detectionOperations?.deduplication.occurrences_per_alert ?? "-"],
+          ].map(([label, value]) => (
+            <div key={String(label)} className="rounded-lg border border-line bg-panel2 p-3 text-sm">
+              <div className="text-xs font-bold uppercase tracking-wide text-muted">{label}</div>
+              <div className="mt-1 font-black text-text">{String(value)}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 grid gap-4 lg:grid-cols-3">
+          <div data-testid="detection-rule-volume">
+            <div className="mb-2 text-xs font-extrabold uppercase tracking-wide text-muted">Primary Rule Volume</div>
+            <div className="space-y-2">
+              {(detectionOperations?.primary_rule_alert_volume ?? data?.top_alert_types ?? []).slice(0, 5).map((item) => (
+                <div key={item.name} className="flex min-w-0 items-center justify-between gap-3 border-b border-line py-2 text-sm last:border-b-0">
+                  <span className="min-w-0 truncate capitalize text-text" title={item.name.replaceAll("_", " ")}>{item.name.replaceAll("_", " ")}</span>
+                  <span className="shrink-0 font-black text-text">{item.count}</span>
+                </div>
+              ))}
+              {!(detectionOperations?.primary_rule_alert_volume ?? data?.top_alert_types ?? []).length ? (
+                <div className="py-3 text-sm text-muted">No governed rule alerts recorded.</div>
+              ) : null}
+            </div>
+          </div>
+
+          <div data-testid="detection-source-volume">
+            <div className="mb-2 text-xs font-extrabold uppercase tracking-wide text-muted">Source-Scoped Alert Volume</div>
+            <div className="space-y-2">
+              {(detectionOperations?.source_alert_volume ?? []).slice(0, 5).map((item) => (
+                <Link
+                  key={item.source_id}
+                  className="flex min-w-0 items-center justify-between gap-3 border-b border-line py-2 text-sm text-text transition hover:text-cyan last:border-b-0"
+                  to={`/overview?source=${item.source_id}`}
+                  title={`Open source ${item.name}`}
+                >
+                  <span className="min-w-0 truncate">{item.name}</span>
+                  <span className="shrink-0 font-black">{item.count}</span>
+                </Link>
+              ))}
+              {!detectionOperations?.source_alert_volume.length ? (
+                <div className="py-3 text-sm text-muted">No source-linked alerts recorded.</div>
+              ) : null}
+            </div>
+          </div>
+
+          <div data-testid="detection-dispositions">
+            <div className="mb-2 text-xs font-extrabold uppercase tracking-wide text-muted">Analyst Dispositions</div>
+            <div className="space-y-2">
+              {dispositionRows.slice(0, 5).map((item) => (
+                <div key={item.name} className="flex min-w-0 items-center justify-between gap-3 border-b border-line py-2 text-sm last:border-b-0">
+                  <Badge value={item.name} />
+                  <span className="shrink-0 font-black text-text">{item.count}</span>
+                </div>
+              ))}
+              {!dispositionRows.length ? <div className="py-3 text-sm text-muted">No analyst dispositions recorded.</div> : null}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+          <div className="rounded-lg border border-line bg-panel2 p-3" data-testid="detection-parser-context">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="text-xs font-extrabold uppercase tracking-wide text-muted">Parser Context</div>
+              <Badge value={detectionOperations?.parser_warning_context.status ?? "unavailable"} />
+            </div>
+            <p className="mt-2 text-sm text-muted">
+              {detectionOperations?.parser_warning_context.message ?? "Parser context is unavailable."}
+            </p>
+          </div>
+          <div className="rounded-lg border border-line bg-panel2 p-3" data-testid="detection-accuracy-state">
+            <div className="text-xs font-extrabold uppercase tracking-wide text-muted">Accuracy Evidence</div>
+            <p className="mt-2 text-sm text-muted">
+              {detectionOperations?.accuracy_evidence.message ??
+                "Operational alert volume is not an accuracy metric. Independent labeled validation is required."}
+            </p>
+          </div>
+        </div>
+
+        <details className="mt-4" data-testid="detection-run-trend">
+          <summary className="cursor-pointer text-sm font-extrabold uppercase tracking-wide text-muted">Recent Detection Trend</summary>
+          <div className="mt-3 overflow-x-auto">
+            <table className="min-w-[620px] text-sm">
+              <thead>
+                <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
+                  <th className="px-2 py-2">Run</th>
+                  <th className="px-2 py-2">Status</th>
+                  <th className="px-2 py-2">Evaluated</th>
+                  <th className="px-2 py-2">Created</th>
+                  <th className="px-2 py-2">Deduplicated</th>
+                  <th className="px-2 py-2">Suppressed</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(detectionRuns.data ?? []).slice(0, 5).map((run) => (
+                  <tr key={run.run_id} className="border-b border-line/70 text-text last:border-b-0">
+                    <td className="px-2 py-2 font-bold">#{run.run_id}</td>
+                    <td className="px-2 py-2"><Badge value={run.status} /></td>
+                    <td className="px-2 py-2">{run.logs_evaluated}</td>
+                    <td className="px-2 py-2">{run.alerts_created}</td>
+                    <td className="px-2 py-2">{run.alerts_deduplicated}</td>
+                    <td className="px-2 py-2">{run.alerts_suppressed}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {!(detectionRuns.data ?? []).length ? <div className="py-3 text-sm text-muted">No detection runs recorded.</div> : null}
           </div>
         </details>
       </section>

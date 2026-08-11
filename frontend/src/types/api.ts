@@ -826,6 +826,28 @@ export interface DashboardSummary {
   };
   latest_ingestion_run?: IngestionRun | null;
   latest_detection_run?: DetectionRun | null;
+  detection_operations?: {
+    primary_rule_alert_volume: CountRow[];
+    source_alert_volume: Array<CountRow & { source_id: number }>;
+    analyst_dispositions: Record<string, number>;
+    deduplication: {
+      unique_alerts: number;
+      total_occurrences: number;
+      deduplicated_updates: number;
+      occurrences_per_alert: number;
+    };
+    parser_warning_context: {
+      status: "clear" | "limited_fields" | "warning";
+      parse_failure_count: number;
+      unknown_application_rows: number;
+      message: string;
+    };
+    accuracy_evidence: {
+      status: "insufficient_evidence";
+      value: null;
+      message: string;
+    };
+  };
 }
 
 export interface DashboardValidationSummary {

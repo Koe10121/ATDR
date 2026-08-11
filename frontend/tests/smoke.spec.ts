@@ -447,6 +447,28 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
         protocol_distribution: [],
         app_risk_distribution: [],
         recent_alerts: [],
+        detection_operations: {
+          primary_rule_alert_volume: [{ name: "policy_deny", count: 4 }],
+          source_alert_volume: [{ source_id: 1, name: "local_import", count: 3 }],
+          analyst_dispositions: { open: 4, resolved: 8 },
+          deduplication: {
+            unique_alerts: 12,
+            total_occurrences: 18,
+            deduplicated_updates: 6,
+            occurrences_per_alert: 1.5
+          },
+          parser_warning_context: {
+            status: "limited_fields",
+            parse_failure_count: 0,
+            unknown_application_rows: 2,
+            message: "Unknown application values limit context but do not by themselves indicate a detection failure."
+          },
+          accuracy_evidence: {
+            status: "insufficient_evidence",
+            value: null,
+            message: "Operational alert volume and analyst dispositions are workload measures, not accuracy."
+          }
+        },
         latest_ingestion_run: {
           run_id: 7,
           started_at: "2026-05-22T00:00:00Z",
@@ -2491,6 +2513,17 @@ test("overview system health panel and ML governance wording render", async ({ p
 
   await page.goto("/overview");
   await expect(page.getByText("System Health")).toBeVisible();
+  const detectionOperations = page.getByTestId("detection-operations-panel");
+  await expect(detectionOperations).toContainText("Detection Operations");
+  await expect(detectionOperations).toContainText("Primary Rule Volume");
+  await expect(detectionOperations).toContainText("policy deny");
+  await expect(detectionOperations).toContainText("Source-Scoped Alert Volume");
+  await expect(detectionOperations.getByRole("link", { name: /local_import/ })).toHaveAttribute("href", "/overview?source=1");
+  await expect(detectionOperations).toContainText("Analyst Dispositions");
+  await expect(detectionOperations).toContainText("Occurrences / Alert");
+  await expect(page.getByTestId("detection-accuracy-state")).toContainText("not accuracy");
+  await expect(page.getByTestId("detection-parser-context")).toContainText("Unknown application values limit context");
+  await expect(page.getByTestId("detection-run-trend")).not.toHaveAttribute("open", "");
   await expect(page.getByText("Controlled Validation", { exact: true })).toBeVisible();
   await expect(page.getByText("Validation reports")).toBeVisible();
   await page.getByText("Validation reports").click();
@@ -2515,9 +2548,9 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByText("Operations Health")).toBeVisible();
   await expect(page.getByTestId("operational-warnings")).toContainText("Database migration revision is not at Alembic head.");
   await expect(page.getByText("Log Sources")).toBeVisible();
-  await expect(page.getByText("local_import")).toBeVisible();
+  await expect(page.getByRole("button", { name: /local_import file_import/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /scenario-raw-fallback/ })).toBeVisible();
-  await page.getByText("local_import").click();
+  await page.getByRole("button", { name: /local_import file_import/ }).click();
   await expect(page.getByText("Parser Profile", { exact: true })).toBeVisible();
   await expect(page.getByText("Troubleshooting Hints")).toBeVisible();
   await expect(page.getByText("Parser profile behavior")).toBeVisible();

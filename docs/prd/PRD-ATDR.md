@@ -1323,3 +1323,29 @@ disabled.
   and `Response Automation Disabled`.
 - The Assistant shall not create responses, detection runs, labels, model
   runs, users, deletions, or any other authoritative state change.
+
+## v5.32 Analyst Product Acceptance Addendum
+
+- **FR-ATDR-080:** The primary React Overview shall expose a compact detection
+  operations projection using existing governed records only.
+- The projection shall include primary-rule alert volume, distinct
+  source-linked alert volume, analyst dispositions, unique alerts, grouped
+  occurrences, deduplication updates, parser context, and recent detection-run
+  counts.
+- Repeated evidence rows shall not inflate source-linked alert counts.
+- Alert volume, occurrence counts, deduplication, parser quality, and analyst
+  dispositions shall be described as workload or operational evidence, not
+  model accuracy.
+- When independent labeled accuracy evidence is unavailable, the operational
+  view shall display `Insufficient Evidence` and direct quality claims to AI
+  Governance.
+- **FR-ATDR-081:** Safe SOC Assistant conversation and active entity context
+  shall persist across supported React navigation, explicit entity IDs shall
+  replace stale context, and broad/latest requests shall clear stale entity
+  context.
+- Assistant answers shall remain concise, citation-backed, provider-truthful,
+  redacted, read-only, and unable to mutate response, detection, label, model,
+  user, or data state.
+- Rules remain alert-authoritative, supervised ML remains
+  `shadow_observation`, and automatic response and real firewall blocking
+  remain disabled.

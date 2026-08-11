@@ -2105,3 +2105,44 @@ Open `SOC Assistant` and verify this sequence against an existing alert:
    preserved. Log out and confirm the stored conversation is cleared.
 
 Do not use Assistant output as an executed response or human-reviewed label.
+
+## v5.32 Analyst Workflow Acceptance
+
+Start and diagnose the supported four-service workflow:
+
+```powershell
+.\scripts\start_system.cmd
+.\scripts\check_system.cmd
+```
+
+Use the MFU-compatible shell URL printed by the launcher. On Overview, inspect
+`Detection Operations` and confirm:
+
+- primary rule and source-linked alert volumes are visible;
+- unique alerts, occurrences, and dedup updates are separate;
+- parser failures and unresolved applications are described as quality
+  context;
+- recent detection-run created/deduplicated/suppressed counts are available
+  behind the collapsed trend; and
+- accuracy is `Insufficient Evidence`, because operational volume is not an
+  accuracy measurement.
+
+Then trace one source to an alert, related log, case, `Why flagged?`, and SOC
+Assistant. Ask for related logs and the next analyst check, navigate away and
+back, and verify the same entity remains active. Ask for the latest critical
+alert and verify stale pinned context is cleared.
+
+Finally, inspect Response & Audit. Any response remains simulated, requires
+explicit confirmation and justification, and must create an audit record. The
+Assistant must expose no action control and must not create a detection run,
+label, model run, response, user change, or deletion.
+
+Read-only Overview profiling:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.profile_dashboard_summary --runs 3 --pretty
+```
+
+The current regression ceiling is at most 36 cold queries and exactly one warm
+cache query. Keep first-cold large-SQLite warnings visible; do not reset or
+delete evidence to improve a benchmark.

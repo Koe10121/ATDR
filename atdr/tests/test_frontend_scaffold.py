@@ -37,8 +37,10 @@ def test_react_frontend_docs_and_cors_are_wired():
     assert "http://127.0.0.1:5173" in readme
     assert "http://127.0.0.1:5173" in env_example
     assert "VITE_API_BASE_URL=http://127.0.0.1:8000" in frontend_env
-    assert "Streamlit remains" in dashboard_path
-    assert "npm run build" in dashboard_path
+    assert "React application" in dashboard_path
+    assert "primary analyst dashboard" in dashboard_path
+    assert "legacy continuity only" in dashboard_path
+    assert "npm.cmd run build" in dashboard_path
 
 
 def test_real_data_ai_demo_helper_is_documented_and_private_logs_are_ignored():

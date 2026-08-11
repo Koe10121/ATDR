@@ -1,3 +1,4 @@
+from collections import Counter
 from copy import deepcopy
 from time import monotonic
 
@@ -11,6 +12,7 @@ from atdr.app.db.models import (
     AuditLog,
     DetectionRun,
     IngestionRun,
+    LogSource,
     NormalizedLog,
     RawLog,
     SuppressionRule,
@@ -29,6 +31,35 @@ def _group_counts(db: Session, column, limit: int = 10) -> list[dict]:
         select(column, func.count()).where(column.is_not(None)).group_by(column).order_by(desc(func.count())).limit(limit)
     ).all()
     return [{"name": str(name), "count": int(count)} for name, count in rows]
+
+
+def _source_alert_volumes_statement(limit: int = 8):
+    alert_count = func.count(func.distinct(AlertEvidence.alert_id)).label("alert_count")
+    return (
+        select(
+            LogSource.id.label("source_id"),
+            LogSource.name.label("source_name"),
+            alert_count,
+        )
+        .select_from(LogSource)
+        .join(RawLog, RawLog.source_id == LogSource.id)
+        .join(NormalizedLog, NormalizedLog.raw_log_id == RawLog.id)
+        .join(AlertEvidence, AlertEvidence.normalized_log_id == NormalizedLog.id)
+        .group_by(LogSource.id, LogSource.name)
+        .order_by(alert_count.desc(), LogSource.name)
+        .limit(limit)
+    )
+
+
+def _source_alert_volumes(db: Session, limit: int = 8) -> list[dict]:
+    return [
+        {
+            "source_id": int(row.source_id),
+            "name": str(row.source_name),
+            "count": int(row.alert_count),
+        }
+        for row in db.execute(_source_alert_volumes_statement(limit)).all()
+    ]
 
 
 def _json_parser_error_filter():
@@ -111,15 +142,50 @@ def _parser_error_examples(db: Session, *, total_logs: int, limit: int = 3) -> l
     ]
 
 
-def _alert_occurrence_count(db: Session) -> int:
-    total = 0
-    for rules in db.scalars(select(Alert.matched_rules_json)):
-        metadata = next((rule for rule in (rules or []) if rule.get("code") == "group_metadata"), None)
+def _alert_operations_aggregate(db: Session) -> dict:
+    severity_counts: Counter[str] = Counter()
+    status_counts: Counter[str] = Counter()
+    alert_type_counts: Counter[str] = Counter()
+    occurrence_count = 0
+    rows = db.execute(
+        select(
+            Alert.severity,
+            Alert.status,
+            Alert.alert_type,
+            Alert.matched_rules_json,
+        )
+    )
+    for severity, status, alert_type, rules in rows:
+        severity_counts[str(severity)] += 1
+        status_counts[str(status)] += 1
+        alert_type_counts[str(alert_type)] += 1
+        metadata = next(
+            (
+                rule
+                for rule in (rules or [])
+                if isinstance(rule, dict) and rule.get("code") == "group_metadata"
+            ),
+            None,
+        )
         if metadata:
-            total += int(metadata.get("occurrence_count") or metadata.get("related_log_count") or metadata.get("evidence_count") or 1)
+            occurrence_count += int(
+                metadata.get("occurrence_count")
+                or metadata.get("related_log_count")
+                or metadata.get("evidence_count")
+                or 1
+            )
         else:
-            total += 1
-    return total
+            occurrence_count += 1
+    return {
+        "severity_counts": severity_counts,
+        "status_counts": status_counts,
+        "alert_type_counts": alert_type_counts,
+        "occurrence_count": occurrence_count,
+    }
+
+
+def _alert_occurrence_count(db: Session) -> int:
+    return int(_alert_operations_aggregate(db)["occurrence_count"])
 
 
 def _quality_aggregate(db: Session) -> dict:
@@ -141,6 +207,7 @@ def _ingestion_stats(
     *,
     parse_failures: int,
     total_raw_logs: int | None = None,
+    alert_occurrence_count: int | None = None,
 ) -> dict:
     total_raw = total_raw_logs if total_raw_logs is not None else int(db.scalar(select(func.count(RawLog.id))) or 0)
     duplicate_raw_logs = int(db.scalar(select(func.coalesce(func.sum(IngestionRun.duplicate_raw_logs), 0))) or 0)
@@ -158,7 +225,11 @@ def _ingestion_stats(
         "deduplicated_alert_updates": int(
             db.scalar(select(func.count(AuditLog.id)).where(AuditLog.action == "alert_deduplicated")) or 0
         ),
-        "alert_occurrence_count": _alert_occurrence_count(db),
+        "alert_occurrence_count": (
+            int(alert_occurrence_count)
+            if alert_occurrence_count is not None
+            else _alert_occurrence_count(db)
+        ),
     }
 
 
@@ -195,11 +266,13 @@ def build_dashboard_summary(db: Session) -> dict:
     active_watchlist_items = int(db.scalar(select(func.count(WatchlistItem.id)).where(WatchlistItem.active.is_(True))) or 0)
     watchlist_hits = int(db.scalar(select(func.coalesce(func.sum(WatchlistItem.match_count), 0))) or 0)
     anomaly_rate = round((anomaly_logs / total_logs) * 100, 2) if total_logs else 0.0
-    severity_rows = db.execute(select(Alert.severity, func.count(Alert.id)).group_by(Alert.severity)).all()
-    status_rows = db.execute(select(Alert.status, func.count(Alert.id)).group_by(Alert.status)).all()
-    alert_type_rows = db.execute(
-        select(Alert.alert_type, func.count(Alert.id)).group_by(Alert.alert_type).order_by(desc(func.count(Alert.id))).limit(10)
-    ).all()
+    alert_operations = _alert_operations_aggregate(db)
+    severity_rows = sorted(alert_operations["severity_counts"].items())
+    status_rows = sorted(alert_operations["status_counts"].items())
+    alert_type_rows = sorted(
+        alert_operations["alert_type_counts"].items(),
+        key=lambda item: (-item[1], item[0]),
+    )[:10]
     suspicious_rows = db.execute(
         select(Alert.src_ip, func.count(Alert.id))
         .where(Alert.src_ip.is_not(None))
@@ -227,8 +300,18 @@ def build_dashboard_summary(db: Session) -> dict:
         total_logs,
         parse_failures=parse_failures,
         total_raw_logs=total_raw_logs,
+        alert_occurrence_count=int(alert_operations["occurrence_count"]),
     )
     data_quality = _data_quality_stats(db, total_logs=total_logs)
+    occurrence_count = int(ingestion_stats["alert_occurrence_count"])
+    duplicate_factor = round(occurrence_count / total_alerts, 2) if total_alerts else 0.0
+    parser_warning_state = (
+        "warning"
+        if parse_failures
+        else "limited_fields"
+        if data_quality["unknown_app_count"]
+        else "clear"
+    )
 
     return {
         "total_logs": total_logs,
@@ -272,6 +355,43 @@ def build_dashboard_summary(db: Session) -> dict:
         "data_quality": data_quality,
         "latest_ingestion_run": ingestion_run_to_dict(latest_ingestion_run) if latest_ingestion_run else None,
         "latest_detection_run": detection_run_to_dict(latest_detection_run) if latest_detection_run else None,
+        "detection_operations": {
+            "primary_rule_alert_volume": [
+                {"name": str(alert_type), "count": int(count)}
+                for alert_type, count in alert_type_rows
+            ],
+            "source_alert_volume": _source_alert_volumes(db),
+            "analyst_dispositions": {
+                str(status): int(count)
+                for status, count in status_rows
+            },
+            "deduplication": {
+                "unique_alerts": total_alerts,
+                "total_occurrences": occurrence_count,
+                "deduplicated_updates": int(ingestion_stats["deduplicated_alert_updates"]),
+                "occurrences_per_alert": duplicate_factor,
+            },
+            "parser_warning_context": {
+                "status": parser_warning_state,
+                "parse_failure_count": parse_failures,
+                "unknown_application_rows": int(data_quality["unknown_app_count"]),
+                "message": (
+                    "Parser failures require source review."
+                    if parse_failures
+                    else "Unknown application values limit context but do not by themselves indicate a detection failure."
+                    if data_quality["unknown_app_count"]
+                    else "No parser warning is present in the current aggregate."
+                ),
+            },
+            "accuracy_evidence": {
+                "status": "insufficient_evidence",
+                "value": None,
+                "message": (
+                    "Operational alert volume and analyst dispositions are workload measures, not accuracy. "
+                    "Use independent labeled validation in AI Governance for quality claims."
+                ),
+            },
+        },
     }
 
 

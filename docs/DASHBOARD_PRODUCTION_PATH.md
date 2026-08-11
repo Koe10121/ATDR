@@ -1,51 +1,89 @@
-# Dashboard Production Path
+# Dashboard Product Path
 
-The current Streamlit dashboard is suitable for supervisor demo and lab-pilot validation. It has SOC-style navigation, triage queues, alert workflow, response simulation, ML governance, and detection tuning.
+## Current Dashboard
 
-It should not be described as the final enterprise frontend. Streamlit is excellent for fast Python-heavy security prototypes, but a long-term production SOC console usually needs a dedicated frontend.
+The React application in `frontend/` is ATDR's primary analyst dashboard.
+It uses Vite, React, TypeScript, TanStack Query, TanStack Table, Tailwind CSS,
+Recharts, and Playwright while FastAPI remains the API boundary. Streamlit is
+legacy continuity only and is not the normal analyst workflow.
 
-## What Is Production-Credible Now
+The supported team entry point remains the MFU-compatible outer shell:
 
-- Authenticated SOC workflow with admin/analyst roles.
-- Operational pages for overview, alerts, log evidence, response, audit, ML governance, threat controls, and detection tuning.
-- Evidence-first incident views with report export.
-- Presentation mode for supervisor review.
-- Plotly charts and compact SOC-style status panels.
-- Live API smoke checks and release verification.
+```powershell
+.\scripts\start_system.cmd
+```
 
-## What Still Limits Streamlit
+The shell authenticates the user and hands off to the React dashboard. Direct
+local recovery login is an explicit development/recovery profile, not the
+standard shared workflow.
 
-- Large-table performance and browser memory under very high event volume.
-- Fine-grained frontend state management.
-- Full accessibility testing and keyboard navigation control.
-- Real-time push updates through WebSockets or server-sent events.
-- Component-level frontend test coverage.
-- Complex multi-user UI interactions at enterprise scale.
+## Current Analyst Surfaces
 
-## Recommended End-Game Frontend
+- **Overview:** system/source health, truthful ingestion counters, controlled
+  validation status, detection operations, run history, and job health.
+- **Alerts:** triage queue, ownership/status workflow, exact `Why flagged?`
+  evidence, related logs, cases, and analyst notes.
+- **Investigation:** normalized evidence search, source filters, bounded raw
+  evidence detail, labels, and alert linkage.
+- **SOC Assistant:** concise, citation-backed, read-only guidance with active
+  alert/log/source/case context and deterministic fallback.
+- **AI Governance:** rule authority, IsolationForest and supervised shadow
+  state, evidence provenance, schema abstention, calibration, and promotion
+  blockers.
+- **Response & Audit:** analyst-confirmed simulated actions and immutable audit
+  visibility. Automatic response and real firewall blocking remain disabled.
+- **Admin:** users, source controls, configuration status, and safe lab
+  operations under backend-enforced RBAC.
 
-ATDR now includes the first React migration scaffold in `frontend/`. Keep FastAPI as the API layer and gradually move production workflows from Streamlit into this dedicated frontend:
+## v5.32 Detection Operations Contract
 
-- Vite + React + TypeScript.
-- TanStack Query for API state and caching.
-- TanStack Table for large alert/log tables.
-- Tailwind CSS for the SOC visual system.
-- Recharts for initial operational charts.
-- WebSocket or server-sent events for live alert updates.
-- Role-aware routing and guarded admin pages.
-- Playwright end-to-end tests in CI.
-- Accessibility checks for keyboard and screen-reader behavior.
+Overview exposes a compact operational projection derived from existing
+records:
 
-## Practical Timing
+- alert volume by primary governed rule;
+- distinct source-linked alert volume;
+- analyst disposition counts;
+- unique alerts, grouped occurrences, and deduplication updates;
+- recent detection-run created/deduplicated/suppressed counts; and
+- parser warning context.
 
-Do not cut over from Streamlit yet. Streamlit remains the supervisor-demo and admin prototype, and the current Streamlit dashboard remains the right tool for lab-pilot iteration. React should become the production dashboard only after it reaches feature parity for Overview, Alerts, Detection Tuning, ML Governance, Response Center, Audit, Threat Controls, User Admin, and Demo Controls.
+These are workload and data-quality measures. They are not model accuracy.
+When independent labeled evidence is unavailable, the dashboard displays
+`Insufficient Evidence` instead of inventing precision, recall, or accuracy.
 
-Node/npm are not available on the current Windows machine, so the first React sprint is scaffolded manually. Build verification should run after Node.js 20+ is installed:
+## Product Quality Contract
+
+- Main pages use concise operational language and keep technical detail
+  collapsed until requested.
+- Loading, empty, error, and unavailable states must remain explicit.
+- Long evidence, JSON, tables, and Assistant output must not create page-level
+  horizontal overflow.
+- Filters, deep links, and selected entities must survive supported navigation.
+- Controls must remain keyboard reachable with visible focus behavior.
+- Frontend role visibility is convenience only; FastAPI authorization remains
+  authoritative.
+- Gemini status is shown only when provider output was actually used. Safe
+  deterministic fallback remains available.
+
+## Verification
+
+Use Node.js 20.19 or newer:
 
 ```powershell
 cd frontend
-npm install
-npm run build
-npm run lint
-npm run test:e2e
+npm.cmd install
+npm.cmd run lint
+npm.cmd run build
+npm.cmd run test:e2e
 ```
+
+The release gate also verifies backend authorization, detection and Assistant
+safety, simulated response controls, and repository hygiene.
+
+## Remaining External Gates
+
+The React workflow is suitable for controlled lab use, but production claims
+remain blocked by independent real-device evidence, qualified human model and
+Assistant evaluation, MFU/provider preproduction acceptance, managed-host
+security/monitoring, and operational ownership. Real response enforcement is
+a separate future safety program.
