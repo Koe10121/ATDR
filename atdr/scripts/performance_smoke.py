@@ -87,8 +87,9 @@ def run_performance_smoke(*, feature_limit: int = 20) -> dict[str, Any]:
         warnings: list[str] = []
         budgets = {
             "overview_summary_seconds": 1.0,
-            "overview_summary_cached_first_seconds": 1.5,
-            "overview_summary_cached_seconds": 0.5,
+            "ingestion_summary_query_seconds": 2.0,
+            "overview_summary_cached_first_seconds": 1.0,
+            "overview_summary_cached_seconds": 0.05,
             "ml_governance_lightweight_summary_seconds": 2.0,
             "ml_governance_cold_summary_seconds": 2.0,
             "ml_governance_warm_summary_seconds": 1.5,
@@ -96,8 +97,8 @@ def run_performance_smoke(*, feature_limit: int = 20) -> dict[str, Any]:
             "ingestion_run_history_query_seconds": 1.0,
             "detection_run_history_query_seconds": 1.0,
             "operation_job_summary_query_seconds": 1.0,
-            "alert_list_query_seconds": 1.0,
-            "case_summary_query_seconds": 1.0,
+            "alert_list_query_seconds": 0.25,
+            "case_summary_query_seconds": 0.25,
         }
         for key, value in timings.items():
             budget = budgets.get(key, 2.0)
@@ -130,6 +131,7 @@ def run_performance_smoke(*, feature_limit: int = 20) -> dict[str, Any]:
             "supervised_label_count": supervised_report.get("label_count"),
             "feature_rows_sampled": len(logs),
             "timings": timings,
+            "budgets": budgets,
             "feature_errors": feature_errors,
             "warnings": warnings,
         }

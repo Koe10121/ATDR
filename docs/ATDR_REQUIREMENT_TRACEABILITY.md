@@ -701,3 +701,14 @@ This document maps major ATDR requirements to implementation evidence, tests, do
 | Eight-case automated answer acceptance | Passed | v5.33 unchanged question set with v5.34 protected diagnostics | `8/8` content contracts; all mode budgets pass; zero authoritative mutations | v5.34 status | Provider contract was degraded by quota; human acceptance remains `0/8`. |
 | Context/session continuity | Preserved | conversation binding, explicit-ID replacement/reset, `assistantSession.ts` | full Assistant backend suite and navigation/follow-up Playwright regressions | v5.34 status | Multi-user human workflow acceptance remains external. |
 | Assistant authority/privacy boundary | Preserved | Assistant router/service/provider adapter | raw logs false, redaction true, secrets/payloads absent, zero detection/label/model/user/response writes | current AI status and v5.34 status | University/provider privacy, retention, quota, cost, and key-rotation approval remains open. |
+
+## v5.35 Large-SQLite Overview Stabilization Addendum
+
+| Requirement | Status | Implementation Evidence | Test Evidence | Documentation | Remaining Gap |
+| --- | --- | --- | --- | --- | --- |
+| Exact Overview aggregates at 145k rows | Passed | unchanged dashboard summary contract plus covering lookup indexes in `models.py` | stable 29-field payload and aggregate counts match before/after migration | v5.35 status/T1-T20 | True OS cache flush remains environment-dependent. |
+| Source-scoped alert query plan | Passed locally | migration `f8a9b0c1d2e3`, `_source_alert_volumes_statement` | disposable-copy plan/timing and configured SQLite `EXPLAIN` use both covering hops | v5.35 status | Shared-host PostgreSQL remains separate v5.18 evidence. |
+| ML Governance performance preservation | Passed locally | migration `b9c0d1e2f3a4` and anomaly distribution covering indexes | disposable-copy payload equivalence; final three-run smoke `0.2619-0.2658s` with no warnings | v5.35 status/T1-T20 | Deployment-specific capacity remains an approved-host gate. |
+| Cache correctness and query ceiling | Passed | existing signature/invalidation service unchanged | cache miss `33 <= 35`, hit `1`, raw/alert/run invalidation and no-N+1 regressions | v5.35 status, lab runbook | None for controlled local scope. |
+| Additive migration safety | Passed | index-only Alembic revision with SQLite planner statistics | existing-row preservation and PostgreSQL offline SQL tests | v5.35 T1-T20 | Deployment owner must run migration before using the optimized plan. |
+| Detection/ML/response authority | Preserved | no changes to detection, parser, ML, Assistant, or response services | label/model/detection/response counts unchanged; full safety gates | v5.35 status | External evidence gates remain open. |

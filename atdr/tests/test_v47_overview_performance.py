@@ -239,7 +239,7 @@ def test_cache_uses_one_warm_query_and_invalidates_for_raw_alert_and_failed_run(
 
             cold_queries, first = _query_count(engine, lambda: build_dashboard_summary_cached(db))
             warm_queries, second = _query_count(engine, lambda: build_dashboard_summary_cached(db))
-            assert cold_queries <= 36
+            assert cold_queries <= 35
             assert warm_queries == 1
             assert first["performance"]["cached"] is False
             assert second["performance"]["cached"] is True
@@ -380,9 +380,10 @@ def test_profile_reports_repeatable_query_counts_and_does_not_mutate_data(monkey
         assert result["read_only"] is True
         assert result["measurement_runs"] == 3
         assert result["all_responses_equal"] is True
-        assert all(item["cold_query_count"] <= 36 for item in result["application_cache_runs"])
+        assert all(item["cold_query_count"] <= 35 for item in result["application_cache_runs"])
         assert all(item["warm_query_count"] == 1 for item in result["application_cache_runs"])
-        assert result["application_cache_distribution"]["cold_seconds"]["p95"] < 2.0
+        assert result["application_cache_distribution"]["cold_seconds"]["p95"] < 1.0
+        assert "source_alert_volumes" in result["query_plans"]
         assert before == after == 500
     finally:
         clear_dashboard_summary_cache()

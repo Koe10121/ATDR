@@ -1404,3 +1404,26 @@ disabled.
 - The Assistant remains read-only; raw logs remain excluded; redaction stays
   enabled; no detection, label, model, user, deletion, response, or firewall
   authority is added.
+
+## v5.35 Large-SQLite Overview Performance Requirements
+
+- **NFR-ATDR-035:** On the current supported local dataset, uncached Overview
+  shall complete within `1.0s`, cached Overview within `0.05s`, ingestion
+  summary within `2.0s`, alert and case summaries within `0.25s`, and
+  lightweight ML Governance within `2.0s` under the documented measurement
+  method.
+- Overview cache misses shall use no more than 35 SQL statements and valid
+  cache hits no more than one freshness statement.
+- Source-scoped alert volume shall remain an exact distinct-alert count and
+  shall use index-covered evidence-to-source lookup hops on large SQLite data.
+- ML Governance anomaly distributions by source IP, destination IP, and
+  protocol shall remain index-covered on the supported large local dataset.
+- Optimization shall preserve all API fields, counts, source/status/severity
+  semantics, cache invalidation, and empty-dataset behavior.
+- Any index migration shall be additive, preserve existing application rows,
+  and compile for both SQLite and PostgreSQL.
+- Performance work shall never change detection, parser, deduplication, ML,
+  IAM, Assistant, response, or audit authority and shall not hide a warning
+  unless its measured cause is repaired.
+- These are controlled local acceptance targets, not production or shared-host
+  SLAs. OS disk-cache state and deployment capacity must be reported honestly.

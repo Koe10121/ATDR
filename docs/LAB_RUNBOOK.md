@@ -2178,3 +2178,35 @@ Do not enter AI/Codex/Gemini decisions as human review. Do not import either
 worksheet. A reviewer must not inspect the sealed prediction lock. Final
 detection metrics remain unavailable until the intake validator explicitly
 returns `frozen_evaluation_permitted=true`.
+
+## v5.35 Overview Performance Check
+
+Apply the additive index migration once after pulling v5.35:
+
+```powershell
+.\.venv\Scripts\alembic.exe upgrade head
+```
+
+Run the read-only profiler and smoke check:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.profile_dashboard_summary --runs 5 --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.performance_smoke --pretty
+```
+
+Expected on the current 145k-row local database: Overview cache-miss p95 below
+`1.0s`, cached p95 below `0.05s`, at most 35/1 cold/cached queries, and a
+source-alert-volume plan containing both
+`ix_normalized_logs_id_raw_log_id_cover` and
+`ix_raw_logs_id_source_id_cover`. Counts must match the dashboard and warnings
+must remain visible if an environment misses a target.
+
+ML Governance should also remain below `2.0s`. Its anomaly source,
+destination, and protocol groupings should use
+`ix_normalized_anomaly_src_ip`, `ix_normalized_anomaly_dst_ip`, and
+`ix_normalized_anomaly_protocol` after migration.
+
+The migration creates indexes and refreshes SQLite planner statistics; it does
+not delete or update evidence rows. Do not reset, reimport, or remove data to
+improve a timing. A power-on disk-cold result can differ with storage and OS
+cache state and must not be presented as a production SLA.

@@ -739,3 +739,14 @@ For docs-only changes, at minimum verify the docs exist, links are correct, and 
 | AI and response authority | Satisfied | Zero alert/detection/label/model/user/response mutations; rules authoritative; automation/blocking false | Any authority change requires separate evidence and approval. |
 | Human versus automated acceptance | Satisfied by design; human gate open | Automated answer contract `8/8` is reported separately from provider contract and human acceptance `0/8` | Genuine reviewer completes the protected worksheet. |
 | T1-T20 and taskboard | Satisfied locally | v5.34 status, change record, PRD, traceability, compliance, taskboard, and exact allowlist | Commit/push require separate exact-path approval. |
+
+## v5.35 Large-SQLite Overview Stabilization Compliance Status
+
+| University / ATDR rule | Status | Evidence | Remaining action |
+| --- | --- | --- | --- |
+| Source evidence / no guessing | Satisfied | Read-only SQL timing, query counts, `EXPLAIN QUERY PLAN`, disposable-copy comparison, and configured-database payload equivalence identify the source-volume join as the regression | Retain the true OS-cold caveat; do not turn warm timings into a production SLA. |
+| Data preservation | Satisfied | Two additive index migrations only; existing raw/normalized/alert/label/model/detection/response counts remain unchanged | Apply migrations normally on each environment; never reset data for performance. |
+| Cross-database discipline | Satisfied | ORM query unchanged; PostgreSQL offline migration SQL passes and uses portable indexes | Approved-host PostgreSQL operations remain externally owned. |
+| Test and performance gate | Satisfied for local scope | fixed query ceilings, exact payload/cache tests, warning-free repeated smoke, backend/release `896 passed, 1 skipped`, Playwright `31 passed, 1 skipped`, and controlled/layered/Assistant gates | Environment-specific true disk-cold and shared-load evidence remain separate. |
+| AI and response safety | Satisfied | no parser, detection, ML, Assistant, IAM, response, or firewall behavior changed | Existing human/provider/device gates remain open. |
+| T1-T20 and taskboard | Satisfied locally | v5.35 status, change record, PRD, traceability, runbook, taskboard, and exact allowlist | Commit/push require separate exact-path approval. |

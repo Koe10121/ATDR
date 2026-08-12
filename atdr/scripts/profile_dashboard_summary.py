@@ -17,6 +17,8 @@ from atdr.app.services.dashboard_service import (
     _dashboard_cache_signature_statement,
     _quality_app_counts_statement,
     _quality_missing_counts_statement,
+    _source_alert_volumes,
+    _source_alert_volumes_statement,
     build_dashboard_summary,
     build_dashboard_summary_cached,
     clear_dashboard_summary_cache,
@@ -149,6 +151,7 @@ def _sqlite_query_plans() -> dict[str, list[str]]:
         statements = {
             "quality_missing_counts": _quality_missing_counts_statement(),
             "quality_app_counts": _quality_app_counts_statement(),
+            "source_alert_volumes": _source_alert_volumes_statement(),
             "cache_signature": _dashboard_cache_signature_statement(),
         }
         for name, statement in statements.items():
@@ -192,6 +195,7 @@ def profile_dashboard_summary(*, include_full_summary: bool = True, runs: int = 
                     ).all()
                 ],
             ),
+            _timed("source_alert_volumes", lambda: _source_alert_volumes(db)),
             _timed("quality_aggregate", lambda: dashboard_service._quality_aggregate(db)),
             _timed(
                 "parser_error_count",
@@ -243,8 +247,8 @@ def profile_dashboard_summary(*, include_full_summary: bool = True, runs: int = 
         for name, seconds in timings.items()
         if seconds > (2.0 if name.startswith("full_") or name.endswith("_first") else 1.0)
     ]
-    if cache_distribution["cold_seconds"]["p95"] > 3.0:
-        warnings.append("Cold application-cache Overview p95 exceeds the 3.0s v4.7 target.")
+    if cache_distribution["cold_seconds"]["p95"] > 1.0:
+        warnings.append("Cold application-cache Overview p95 exceeds the 1.0s v5.35 target.")
     if cache_distribution["warm_seconds"]["p95"] > 0.05:
         warnings.append("Warm cached Overview p95 exceeds the 0.05s v4.7 target.")
     return {
@@ -268,8 +272,9 @@ def profile_dashboard_summary(*, include_full_summary: bool = True, runs: int = 
         "query_plans": _sqlite_query_plans(),
         "warnings": warnings,
         "probable_cause": (
-            "Use the slowest-step timings, query counts, and query plans above. The v4.7 query shape avoids a wide "
-            "normalized_logs quality scan by using existing indexes and keeps cache freshness checks in one statement."
+            "Use the slowest-step timings, query counts, and query plans above. The v5.35 source-alert-volume plan "
+            "must keep the evidence-to-source normalized/raw lookup hops on covering indexes; the existing v4.7 "
+            "quality path must continue to avoid a wide normalized_logs table scan."
         ),
         "production_ready": False,
     }

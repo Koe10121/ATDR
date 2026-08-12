@@ -567,8 +567,13 @@ Index("ix_ml_model_runs_model_operation_created", MLModelRun.model_name, MLModel
 Index("ux_operation_jobs_idempotency_key", OperationJob.idempotency_key, unique=True)
 Index("ix_operation_jobs_queue_claim", OperationJob.status, OperationJob.next_attempt_at, OperationJob.created_at)
 Index("ix_operation_jobs_original_status", OperationJob.original_job_id, OperationJob.status)
+Index("ix_raw_logs_id_source_id_cover", RawLog.id, RawLog.source_id)
+Index("ix_normalized_logs_id_raw_log_id_cover", NormalizedLog.id, NormalizedLog.raw_log_id)
 Index("ix_normalized_anomaly_app", NormalizedLog.is_anomaly, NormalizedLog.app)
 Index("ix_normalized_anomaly_dst_port", NormalizedLog.is_anomaly, NormalizedLog.dst_port)
+Index("ix_normalized_anomaly_src_ip", NormalizedLog.is_anomaly, NormalizedLog.src_ip)
+Index("ix_normalized_anomaly_dst_ip", NormalizedLog.is_anomaly, NormalizedLog.dst_ip)
+Index("ix_normalized_anomaly_protocol", NormalizedLog.is_anomaly, NormalizedLog.protocol)
 Index(
     "ix_normalized_ml_profile_cover",
     NormalizedLog.is_anomaly,
