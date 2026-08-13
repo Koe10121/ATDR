@@ -1427,3 +1427,36 @@ disabled.
   unless its measured cause is repaired.
 - These are controlled local acceptance targets, not production or shared-host
   SLAs. OS disk-cache state and deployment capacity must be reported honestly.
+
+## v5.36 Independent Evidence And Activation Requirements
+
+- **FR-ATDR-086:** ATDR shall provide one canonical read-only supervised
+  activation-decision command that reuses the sealed prediction lock, strict
+  human-review validator, registered artifact audit, fixed quality gates, and
+  Assistant/provider acceptance records.
+- Blind prediction values and row-level errors shall remain hidden until the
+  prediction-before-label, seal, identity, duplicate, provenance, schema,
+  minimum-human-support, and binary-class contracts pass.
+- Frozen rule, IsolationForest, supervised, and hybrid metrics shall be
+  reported only after strict intake permits them and shall never be used to
+  select a threshold or tune the candidate against the consumed blind pack.
+- Configured-data shadow diagnostics shall remain visibly separate from
+  independent evidence and shall disclose source/time/training-overlap limits.
+- Eligibility shall require every predeclared evidence and quality gate. An
+  eligible result shall permit only a separate explicit manual activation
+  review; the audit shall never write or activate an artifact.
+- **FR-ATDR-087:** Assistant automated contracts, human semantic acceptance,
+  provider availability, and institutional provider governance shall be
+  reported as separate states.
+- Gemini telemetry shall contain only bounded aggregate call, latency, token,
+  cost-status, timeout, retry, rate, and fallback information. It shall expose
+  no prompt, answer, provider payload, secret, raw log, IP, or private path.
+- The Assistant shall remain read-only and shall execute no detection, label,
+  model, user, data, response, or firewall action.
+- **NFR-ATDR-036:** The activation audit shall prove configured raw,
+  normalized, alert, detection, label, model, response, user, and audit counts
+  unchanged and shall fail closed when any required external evidence is
+  absent.
+- Rules remain alert-authoritative, supervised lifecycle remains
+  `shadow_observation` until separately approved, and automatic response and
+  real firewall blocking remain disabled.

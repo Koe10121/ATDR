@@ -846,3 +846,28 @@ supervised lifecycle remains `shadow_observation`, the Assistant remains
 read-only, and model promotion, automatic response, and real blocking remain
 disabled. See
 `docs/V5_34_SOC_ASSISTANT_CONCISION_AND_PROVIDER_RELIABILITY.md`.
+
+## v5.36 Independent Evidence And Activation Decision
+
+v5.36 provides the canonical current lifecycle decision. The sealed native
+pack passes custody, checksum, identity, duplicate, provenance, schema, and
+prediction-before-label checks, but legitimate human review remains `0/40`.
+Frozen rule, IsolationForest, supervised, and hybrid quality metrics are
+therefore withheld.
+
+The registered calibrated ExtraTrees artifact remains available for read-only
+shadow scoring. Its configured-data diagnostic reports queue F1 `0.6203`, FPR
+`0.1167`, suspicious recall `0.3511`, malicious recall `0.6452`, and ECE
+`0.2101`. These rows represent one source/day and training overlap cannot be
+excluded, so the values are not activation evidence.
+
+Only `3/9` evidence gates pass and `0/7` blind quality gates are evaluable.
+Lifecycle remains `shadow_observation`; no model is activated or promoted and
+rules remain alert-authoritative. Automatic response and real blocking remain
+disabled.
+
+The bounded live Gemini audit passes `12/12` automated contracts across six
+redacted calls with no raw logs, IPs, secrets, or configured mutations. Human
+Assistant acceptance remains `0/8`. Provider quota introspection, cost rates,
+key rotation, privacy, and retention approval remain external. See
+`docs/V5_36_INDEPENDENT_EVIDENCE_ACTIVATION_DECISION.md`.

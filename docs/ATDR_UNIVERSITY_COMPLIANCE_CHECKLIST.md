@@ -750,3 +750,16 @@ For docs-only changes, at minimum verify the docs exist, links are correct, and 
 | Test and performance gate | Satisfied for local scope | fixed query ceilings, exact payload/cache tests, warning-free repeated smoke, backend/release `896 passed, 1 skipped`, Playwright `31 passed, 1 skipped`, and controlled/layered/Assistant gates | Environment-specific true disk-cold and shared-load evidence remain separate. |
 | AI and response safety | Satisfied | no parser, detection, ML, Assistant, IAM, response, or firewall behavior changed | Existing human/provider/device gates remain open. |
 | T1-T20 and taskboard | Satisfied locally | v5.35 status, change record, PRD, traceability, runbook, taskboard, and exact allowlist | Commit/push require separate exact-path approval. |
+
+## v5.36 Independent Evidence And Activation Compliance Status
+
+| University / ATDR rule | Status | Evidence | Remaining action |
+| --- | --- | --- | --- |
+| No guessing / source evidence | Satisfied | v5.36 composes existing sealed evidence, strict validators, registered artifact audit, and fixed gates; it creates no substitute evidence | External humans/devices/provider owners supply the missing facts. |
+| Human-label integrity | Enforced; incomplete | 0/40 valid decisions, AI reviewer markers rejected, predictions hidden, metrics withheld | A genuine qualified reviewer completes the sealed working copy. |
+| Fixed decision gate | Satisfied and failed closed | 3/9 evidence gates pass; 0/7 blind quality gates are evaluable; lifecycle remains `shadow_observation` | Meet every fixed evidence/quality gate before a separate activation review. |
+| Diagnostic claim honesty | Satisfied | registered-shadow results are marked one-source/one-day/non-independent and `promotion_evidence=false` | Acquire independent labeled source/time evidence. |
+| Assistant acceptance separation | Satisfied; human incomplete | bounded automated contracts pass while human acceptance remains 0/8 | Genuine reviewer scores the eight protected cases. |
+| Gemini privacy and operations | Partially satisfied | six redacted calls, 12/12 automated checks, bounded token/latency telemetry, zero secrets/raw/IP/action/mutations | MFU/provider approval, quota, pricing, key rotation, privacy, and retention remain external. |
+| AI/response safety | Satisfied | rules authoritative; no model/artifact/label/alert/detection/user/response write; automation/blocking false | Any authority change requires a separate approved design. |
+| T1-T20, traceability, and taskboard | Satisfied locally | v5.36 status, completed change record, PRD, runbooks, traceability, compliance, taskboard, and exact allowlist | Commit/push require separate exact-path approval. |

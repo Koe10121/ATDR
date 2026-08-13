@@ -712,3 +712,15 @@ This document maps major ATDR requirements to implementation evidence, tests, do
 | Cache correctness and query ceiling | Passed | existing signature/invalidation service unchanged | cache miss `33 <= 35`, hit `1`, raw/alert/run invalidation and no-N+1 regressions | v5.35 status, lab runbook | None for controlled local scope. |
 | Additive migration safety | Passed | index-only Alembic revision with SQLite planner statistics | existing-row preservation and PostgreSQL offline SQL tests | v5.35 T1-T20 | Deployment owner must run migration before using the optimized plan. |
 | Detection/ML/response authority | Preserved | no changes to detection, parser, ML, Assistant, or response services | label/model/detection/response counts unchanged; full safety gates | v5.35 status | External evidence gates remain open. |
+
+## v5.36 Independent Evidence And Activation Decision Addendum
+
+| Requirement | Status | Implementation Evidence | Test Evidence | Documentation | Remaining Gap |
+| --- | --- | --- | --- | --- | --- |
+| Canonical frozen activation decision | Implemented and failed closed | `v536_independent_evidence_activation_service.py`, v5.36 CLI, reused v5.27/v5.30/v5.33 contracts | focused v5.36 gate/projection/no-write tests; real no-write audit | v5.36 status/T1-T20 | Human blind labels, independent rows/classes/sources/windows, and overlap exclusion are missing. |
+| Blind prediction non-disclosure | Passed | v5.26 lock, v5.27 intake, v5.36 aggregate projection | early-metric and private-detail stripping tests | reviewer guide and v5.36 status | Genuine reviewer still must complete the working copy. |
+| Layered frozen comparison | Implemented conditionally | frozen rule/IsolationForest/supervised/hybrid predictions through v5.27 | synthetic post-gate projection test; real result withheld at 0/40 | AI runbook and v5.36 status | No quality metric may be claimed until strict intake passes. |
+| Registered shadow diagnostic separation | Implemented | v5.30 scorer reused read-only; v5.36 diagnostic projection | diagnostic-only and no-row-detail tests | current AI status | One source/day and non-excludable overlap prevent promotion use. |
+| Assistant human and automated acceptance separation | Implemented; human pending | v5.33 protected worksheet plus v5.36 coordinator | automated contracts pass; human status remains 0/8 | v5.36 status/lab runbook | Genuine human semantic/usefulness/privacy scoring is required. |
+| Gemini operational audit | Passed for bounded local run | configured adapter/status, timeout/rate/token telemetry, v5.36 provider option | 12/12 over six redacted calls; zero configured mutation | v5.36 status | Account quota, cost rates, key rotation, privacy, and retention approval remain external. |
+| AI and response authority | Preserved | v5.36 fixed decision and existing detector/Assistant/response contracts | zero labels/models/alerts/detections/users/responses; no artifact writes | current AI status | Any model activation requires a new explicit reviewed change. |

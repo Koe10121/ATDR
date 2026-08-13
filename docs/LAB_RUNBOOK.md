@@ -2210,3 +2210,37 @@ The migration creates indexes and refreshes SQLite planner statistics; it does
 not delete or update evidence rows. Do not reset, reimport, or remove data to
 improve a timing. A power-on disk-cold result can differ with storage and OS
 cache state and must not be presented as a production SLA.
+
+## v5.36 Independent Evidence And Gemini Operations Check
+
+Run the current fail-closed lifecycle audit without writing a generated report:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v536_independent_evidence_activation_decision --no-write --pretty
+```
+
+Expected current state: sealed integrity passes, detection human review is
+`0/40`, blind metrics are withheld, evidence gates are `3/9`, blind quality
+gates evaluated are `0/7`, lifecycle is `shadow_observation`, and every
+configured mutation delta is zero.
+
+When the private Gemini key and quota are available, run only the bounded,
+redacted operational probe:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v536_independent_evidence_activation_decision `
+  --execute-provider `
+  --provider-interval-seconds 1 `
+  --no-write `
+  --pretty
+```
+
+Confirm provider readiness and automated contracts separately from human
+acceptance. Raw-log context must remain false, redaction true, secrets absent,
+and action/mutation counts zero. The current human Assistant worksheet remains
+`0/8`; a successful API call does not satisfy that human gate.
+
+Follow the exact detection and Assistant worksheet handoff in
+`docs/V5_36_INDEPENDENT_EVIDENCE_ACTIVATION_DECISION.md`. Never import either
+worksheet, expose the frozen predictions to the reviewer, or use blind results
+to retune the evaluated candidate.

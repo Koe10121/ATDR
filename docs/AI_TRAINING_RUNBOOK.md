@@ -1906,3 +1906,36 @@ The Assistant worksheet never becomes a training or label-import file. Human
 Assistant scores do not promote the supervised detector. Detection blind
 labels cannot be used for tuning after prediction reveal. Any repaired model
 requires new untouched evidence.
+
+## v5.36 Canonical Activation Decision
+
+Run the complete read-only evidence decision with:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v536_independent_evidence_activation_decision --no-write --pretty
+```
+
+This command reuses the existing sealed prediction lock and strict human
+intake. It does not train, tune, reconstruct, write, activate, or promote a
+model. With the current `0/40` legitimate review state, it must return no blind
+layer metrics, `3/9` evidence gates, `0/7` evaluable quality gates, and
+`shadow_observation`.
+
+The registered artifact diagnostic is shown separately and must never be used
+as blind promotion evidence because configured rows are one-source,
+single-day, and have non-excludable training overlap. A future valid blind
+review exposes aggregate frozen metrics exactly once; it does not authorize
+threshold selection against the consumed blind pack.
+
+Prepare and complete human review only through the unchanged helper:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v528_blind_review_helper --prepare --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v528_blind_review_helper --interactive --reviewer "<institutional-id>" --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v528_blind_review_helper --status --pretty
+```
+
+Never enter an AI, rule, assisted, weak, Codex, Gemini, or synthetic decision
+as human review. Even if every fixed gate later passes, v5.36 only permits a
+separate explicit manual activation review. Rules stay alert-authoritative
+until that independently approved change exists.
