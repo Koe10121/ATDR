@@ -2,7 +2,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import type { Params } from "../lib/api";
-import type { AlertStatus, AssistantChatRequest, AssistantFeedbackRequest, MLLabelPayload, OperationImportSubmit } from "../types/api";
+import type {
+  AlertStatus,
+  AssistantChatRequest,
+  AssistantFeedbackRequest,
+  AssistantReviewSaveRequest,
+  DetectionReviewSaveRequest,
+  EvidenceReviewWorkspace,
+  MLLabelPayload,
+  OperationImportSubmit
+} from "../types/api";
 
 export const queryKeys = {
   health: ["health"],
@@ -15,6 +24,9 @@ export const queryKeys = {
   assistantHistory: ["assistant-history"],
   assistantFeedbackSummary: (params?: Record<string, unknown>) => ["assistant-feedback-summary", params ?? {}],
   assistantFeedbackRecent: (params?: Record<string, unknown>) => ["assistant-feedback-recent", params ?? {}],
+  evidenceReviewStatus: ["evidence-review-status"],
+  detectionReviewItem: (rowIndex?: number | null) => ["evidence-review-detection-item", rowIndex],
+  assistantReviewItem: (rowIndex?: number | null) => ["evidence-review-assistant-item", rowIndex],
   summary: ["dashboard-summary"],
   validationSummary: ["dashboard-validation-summary"],
   detectionMlProductization: ["dashboard-detection-ml-productization"],
@@ -167,6 +179,75 @@ export function useAssistantFeedbackMutation() {
       void queryClient.invalidateQueries({ queryKey: ["assistant-feedback-recent"] });
       invalidateAudit(queryClient);
     }
+  });
+}
+
+function invalidateEvidenceReview(queryClient: QueryClient) {
+  void queryClient.invalidateQueries({ queryKey: queryKeys.evidenceReviewStatus });
+  void queryClient.invalidateQueries({ queryKey: ["evidence-review-detection-item"] });
+  void queryClient.invalidateQueries({ queryKey: ["evidence-review-assistant-item"] });
+  invalidateAudit(queryClient);
+}
+
+export function useEvidenceReviewStatus() {
+  return useQuery({
+    queryKey: queryKeys.evidenceReviewStatus,
+    queryFn: api.evidenceReviewStatus,
+    retry: false,
+    staleTime: 10_000
+  });
+}
+
+export function useDetectionReviewItem(rowIndex?: number | null, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.detectionReviewItem(rowIndex),
+    queryFn: () => api.detectionReviewItem(rowIndex as number),
+    enabled: enabled && rowIndex !== null && rowIndex !== undefined,
+    retry: false
+  });
+}
+
+export function useAssistantReviewItem(rowIndex?: number | null, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.assistantReviewItem(rowIndex),
+    queryFn: () => api.assistantReviewItem(rowIndex as number),
+    enabled: enabled && rowIndex !== null && rowIndex !== undefined,
+    retry: false
+  });
+}
+
+export function useStartEvidenceReviewMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (workspace: EvidenceReviewWorkspace) => api.startEvidenceReview(workspace),
+    onSuccess: () => invalidateEvidenceReview(queryClient)
+  });
+}
+
+export function useSaveDetectionReviewMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ rowIndex, payload }: { rowIndex: number; payload: DetectionReviewSaveRequest }) =>
+      api.saveDetectionReviewItem(rowIndex, payload),
+    onSuccess: () => invalidateEvidenceReview(queryClient)
+  });
+}
+
+export function useSaveAssistantReviewMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ rowIndex, payload }: { rowIndex: number; payload: AssistantReviewSaveRequest }) =>
+      api.saveAssistantReviewItem(rowIndex, payload),
+    onSuccess: () => invalidateEvidenceReview(queryClient)
+  });
+}
+
+export function useCompleteEvidenceReviewMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ workspace, revision }: { workspace: EvidenceReviewWorkspace; revision: number }) =>
+      api.completeEvidenceReview(workspace, revision),
+    onSuccess: () => invalidateEvidenceReview(queryClient)
   });
 }
 

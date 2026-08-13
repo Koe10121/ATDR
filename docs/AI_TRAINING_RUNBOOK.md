@@ -1939,3 +1939,26 @@ Never enter an AI, rule, assisted, weak, Codex, Gemini, or synthetic decision
 as human review. Even if every fixed gate later passes, v5.36 only permits a
 separate explicit manual activation review. Rules stay alert-authoritative
 until that independently approved change exists.
+
+## v5.37 Dashboard Blind Review
+
+Authenticated analysts can now complete the same sealed contract at
+`/evidence-review`. Use **Detection Blind Review** for the 40 protected rows
+and **Assistant Acceptance** for the eight protected answers. The dashboard
+does not create a new evidence copy, show predictions, or call Gemini.
+
+For detection, choose the broad review category first, then an allowed final
+decision, confidence from `1-100`, an attack type for threat decisions, and a
+short rationale. Explicit human confirmation is required. Saved decisions are
+immutable in the API and remain non-import-ready in the ignored v5.28 working
+copy.
+
+The Assistant tab records eight scores from `1-5` and an accept/revise/reject
+decision in the ignored v5.33 worksheet. Revise/reject requires a note. This
+is semantic human acceptance only; it never tunes prompts or sends feedback
+to Gemini.
+
+After every item is complete, close the workspace and rerun v5.36 read-only.
+Do not import, train, activate, or change thresholds from the dashboard.
+Details and exposed/withheld fields are in
+`docs/V5_37_BLIND_EVIDENCE_REVIEW_WORKSPACE.md`.

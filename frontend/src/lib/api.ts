@@ -20,10 +20,14 @@ import type {
   DashboardValidationSummary,
   DemoActionResult,
   DetectionMlProductizationEvaluation,
+  DetectionReviewItem,
+  DetectionReviewSaveRequest,
   DevEmailOutboxItem,
   DetectionTuningReport,
   EmailVerificationRequestResult,
   EmailVerificationStatus,
+  EvidenceReviewOperation,
+  EvidenceReviewStatus,
   HealthResponse,
   DetectionRun,
   IngestionRun,
@@ -44,6 +48,8 @@ import type {
   OidcStatus,
   ParserProfileOperationalDiagnostics,
   HistoricalReparseImpactPreview,
+  AssistantReviewItem,
+  AssistantReviewSaveRequest,
   ResponseAction,
   ShadowMonitoringDiagnostics,
   ShadowOperationalAcceptance,
@@ -198,6 +204,28 @@ export const api = {
     apiRequest<AssistantFeedbackItem>("/api/assistant/feedback", { method: "POST", body: JSON.stringify(payload) }),
   assistantFeedbackSummary: (params: Params = {}) => apiRequest<AssistantFeedbackSummary>("/api/assistant/feedback/summary", { params }),
   assistantFeedbackRecent: (params: Params = {}) => apiRequest<AssistantFeedbackItem[]>("/api/assistant/feedback/recent", { params }),
+  evidenceReviewStatus: () => apiRequest<EvidenceReviewStatus>("/api/evidence-review/status"),
+  startEvidenceReview: (workspace: "detection" | "assistant") =>
+    apiRequest<EvidenceReviewOperation>(`/api/evidence-review/${workspace}/start`, { method: "POST" }),
+  detectionReviewItem: (rowIndex: number) =>
+    apiRequest<DetectionReviewItem>(`/api/evidence-review/detection/items/${rowIndex}`),
+  saveDetectionReviewItem: (rowIndex: number, payload: DetectionReviewSaveRequest) =>
+    apiRequest<EvidenceReviewOperation>(`/api/evidence-review/detection/items/${rowIndex}`, {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }),
+  assistantReviewItem: (rowIndex: number) =>
+    apiRequest<AssistantReviewItem>(`/api/evidence-review/assistant/items/${rowIndex}`),
+  saveAssistantReviewItem: (rowIndex: number, payload: AssistantReviewSaveRequest) =>
+    apiRequest<EvidenceReviewOperation>(`/api/evidence-review/assistant/items/${rowIndex}`, {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }),
+  completeEvidenceReview: (workspace: "detection" | "assistant", expectedRevision: number) =>
+    apiRequest<EvidenceReviewOperation>(`/api/evidence-review/${workspace}/complete`, {
+      method: "POST",
+      body: JSON.stringify({ expected_revision: expectedRevision, human_confirmed: true })
+    }),
   dashboardSummary: () => apiRequest<DashboardSummary>("/api/dashboard/summary"),
   dashboardValidationSummary: () => apiRequest<DashboardValidationSummary>("/api/dashboard/validation-summary"),
   dashboardDetectionMlProductization: (params: Params = {}) =>

@@ -2594,3 +2594,134 @@ export interface OperationImportSubmit {
   source_id?: number | null;
   idempotency_key?: string | null;
 }
+
+export type EvidenceReviewWorkspace = "detection" | "assistant";
+
+export interface EvidenceReviewProgress {
+  workspace: EvidenceReviewWorkspace;
+  available: boolean;
+  prepared: boolean;
+  integrity_status: "valid" | "not_prepared" | "unavailable";
+  total: number;
+  reviewed: number;
+  remaining: number;
+  invalid: number;
+  progress_percent: number;
+  owner_assigned: boolean;
+  owned_by_current_user: boolean;
+  can_review: boolean;
+  completed: boolean;
+  next_pending_index?: number | null;
+  evaluation_ready: boolean;
+  human_acceptance_passed?: boolean | null;
+  message: string;
+  predictions_exposed: false;
+  model_scores_exposed: false;
+  raw_logs_exposed: false;
+  private_paths_exposed: false;
+  import_ready: false;
+}
+
+export interface EvidenceReviewStatus {
+  version: string;
+  detection: EvidenceReviewProgress;
+  assistant: EvidenceReviewProgress;
+  safeguards: string[];
+  aggregate_only_for_non_owner: boolean;
+  secrets_exposed: false;
+}
+
+export type DetectionReviewDecisionGroup = "benign_like" | "needs_context" | "threat_positive";
+export type DetectionReviewDecision = "benign" | "benign_unusual" | "needs_context" | "suspicious" | "malicious";
+
+export interface DetectionReviewInput {
+  decision_group: DetectionReviewDecisionGroup;
+  decision: DetectionReviewDecision;
+  attack_type: string;
+  confidence: number;
+  rationale: string;
+}
+
+export interface DetectionReviewItem {
+  workspace: "detection";
+  row_index: number;
+  display_position: number;
+  total: number;
+  revision: number;
+  reviewed: boolean;
+  evidence: Record<string, string>;
+  existing_review?: DetectionReviewInput | null;
+  next_pending_index?: number | null;
+  predictions_exposed: false;
+  model_scores_exposed: false;
+  raw_logs_exposed: false;
+  ip_addresses_exposed: false;
+  fingerprints_exposed: false;
+  import_ready: false;
+}
+
+export interface AssistantReviewScores {
+  factual_correctness: number;
+  evidence_grounding: number;
+  citation_correctness: number;
+  relevance: number;
+  concision: number;
+  actionable_usefulness: number;
+  privacy: number;
+  unsafe_action_refusal: number;
+}
+
+export interface AssistantReviewInput {
+  scores: AssistantReviewScores;
+  overall_decision: "accept" | "revise" | "reject";
+  notes: string;
+}
+
+export interface AssistantReviewItem {
+  workspace: "assistant";
+  row_index: number;
+  display_position: number;
+  total: number;
+  revision: number;
+  reviewed: boolean;
+  context_type: string;
+  question: string;
+  answer: string;
+  citations: string;
+  existing_review?: AssistantReviewInput | null;
+  next_pending_index?: number | null;
+  raw_log_context_included: false;
+  action_executed: false;
+  secrets_exposed: false;
+  import_ready: false;
+}
+
+export interface DetectionReviewSaveRequest extends DetectionReviewInput {
+  expected_revision: number;
+  human_confirmed: true;
+}
+
+export interface AssistantReviewSaveRequest extends AssistantReviewInput {
+  expected_revision: number;
+  human_confirmed: true;
+}
+
+export interface EvidenceReviewOperation {
+  ok: boolean;
+  workspace: EvidenceReviewWorkspace;
+  status: string;
+  revision: number;
+  progress: EvidenceReviewProgress;
+  next_item?: DetectionReviewItem | AssistantReviewItem | null;
+  authoritative_mutations: {
+    labels: number;
+    model_runs: number;
+    detection_runs: number;
+    alerts: number;
+    response_actions: number;
+  };
+  import_performed: false;
+  model_activation_performed: false;
+  response_action_performed: false;
+  details: Record<string, unknown>;
+}

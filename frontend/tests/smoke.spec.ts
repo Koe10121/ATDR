@@ -12,6 +12,10 @@ async function seedSession(page: Page, role: "admin" | "analyst" = "admin") {
 
 async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
   let deniedResponseAttempt = false;
+  let detectionReviewRevision = 0;
+  let detectionReviewReviewed = 0;
+  let assistantReviewRevision = 0;
+  let assistantReviewReviewed = 0;
   const smokeAlert = {
     id: 1,
     title: "Critical: Smoke alert",
@@ -212,6 +216,138 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
       }
     })
   );
+  const reviewProgress = (workspace: "detection" | "assistant") => {
+    const total = workspace === "detection" ? 40 : 8;
+    const reviewed = workspace === "detection" ? detectionReviewReviewed : assistantReviewReviewed;
+    return {
+      workspace,
+      available: true,
+      prepared: true,
+      integrity_status: "valid",
+      total,
+      reviewed,
+      remaining: total - reviewed,
+      invalid: 0,
+      progress_percent: (reviewed / total) * 100,
+      owner_assigned: true,
+      owned_by_current_user: true,
+      can_review: true,
+      completed: reviewed === total,
+      next_pending_index: reviewed < total ? reviewed : null,
+      evaluation_ready: reviewed === total,
+      human_acceptance_passed: workspace === "assistant" && reviewed === total ? true : null,
+      message: workspace === "detection" ? "Predictions remain withheld while the reviewer records independent decisions." : "Review protected answers without sending content back to the provider.",
+      predictions_exposed: false,
+      model_scores_exposed: false,
+      raw_logs_exposed: false,
+      private_paths_exposed: false,
+      import_ready: false
+    };
+  };
+  const detectionItem = (rowIndex: number) => ({
+    workspace: "detection",
+    row_index: rowIndex,
+    display_position: rowIndex + 1,
+    total: 40,
+    revision: detectionReviewRevision,
+    reviewed: rowIndex < detectionReviewReviewed,
+    evidence: {
+      evidence_role: "untouched_future_validation",
+      pattern: rowIndex % 2 ? "scan_like" : "routine_web",
+      review_priority: "high",
+      event_time_utc: "2026-05-20T10:00:00+00:00",
+      log_type: "TRAFFIC",
+      application: rowIndex % 2 ? "unknown" : "ssl",
+      action: rowIndex % 2 ? "deny" : "allow",
+      protocol: "tcp",
+      destination_port: rowIndex % 2 ? "22" : "443",
+      source_zone: "untrust",
+      destination_zone: "trust",
+      source_event_count: rowIndex % 2 ? "20" : "2",
+      source_unique_destinations: rowIndex % 2 ? "10" : "1"
+    },
+    existing_review: rowIndex < detectionReviewReviewed ? {
+      decision_group: "benign_like",
+      decision: "benign",
+      attack_type: "none",
+      confidence: 92,
+      rationale: "Independent human review found routine allowed web traffic."
+    } : null,
+    next_pending_index: detectionReviewReviewed < 40 ? detectionReviewReviewed : null,
+    predictions_exposed: false,
+    model_scores_exposed: false,
+    raw_logs_exposed: false,
+    ip_addresses_exposed: false,
+    fingerprints_exposed: false,
+    import_ready: false
+  });
+  const assistantItem = (rowIndex: number) => ({
+    workspace: "assistant",
+    row_index: rowIndex,
+    display_position: rowIndex + 1,
+    total: 8,
+    revision: assistantReviewRevision,
+    reviewed: rowIndex < assistantReviewReviewed,
+    context_type: rowIndex % 2 ? "case" : "alert",
+    question: "What evidence supports this triage result?",
+    answer: "The bounded ATDR evidence supports analyst review. No action was executed.",
+    citations: "/api/alerts/{alert_id}#sanitized",
+    existing_review: null,
+    next_pending_index: assistantReviewReviewed < 8 ? assistantReviewReviewed : null,
+    raw_log_context_included: false,
+    action_executed: false,
+    secrets_exposed: false,
+    import_ready: false
+  });
+  const operation = (workspace: "detection" | "assistant", nextItem: ReturnType<typeof detectionItem> | ReturnType<typeof assistantItem> | null) => ({
+    ok: true,
+    workspace,
+    status: `${workspace}_review_saved`,
+    revision: workspace === "detection" ? detectionReviewRevision : assistantReviewRevision,
+    progress: reviewProgress(workspace),
+    next_item: nextItem,
+    authoritative_mutations: { labels: 0, model_runs: 0, detection_runs: 0, alerts: 0, response_actions: 0 },
+    import_performed: false,
+    model_activation_performed: false,
+    response_action_performed: false,
+    details: {}
+  });
+  await page.route("**/api/evidence-review/status", async (route) =>
+    route.fulfill({
+      json: {
+        version: "v5.37.0",
+        detection: reviewProgress("detection"),
+        assistant: reviewProgress("assistant"),
+        safeguards: ["Human Decisions Only", "Predictions Withheld", "No Auto Import", "No Model Activation", "No Response Actions"],
+        aggregate_only_for_non_owner: true,
+        secrets_exposed: false
+      }
+    })
+  );
+  await page.route("**/api/evidence-review/detection/start", async (route) => route.fulfill({ json: operation("detection", detectionItem(detectionReviewReviewed)) }));
+  await page.route("**/api/evidence-review/assistant/start", async (route) => route.fulfill({ json: operation("assistant", assistantItem(assistantReviewReviewed)) }));
+  await page.route("**/api/evidence-review/detection/items/*", async (route) => {
+    const rowIndex = Number(new URL(route.request().url()).pathname.split("/").at(-1));
+    if (route.request().method() === "POST") {
+      detectionReviewReviewed = Math.max(detectionReviewReviewed, rowIndex + 1);
+      detectionReviewRevision += 1;
+      return route.fulfill({ json: operation("detection", detectionReviewReviewed < 40 ? detectionItem(detectionReviewReviewed) : null) });
+    }
+    return route.fulfill({ json: detectionItem(rowIndex) });
+  });
+  await page.route("**/api/evidence-review/assistant/items/*", async (route) => {
+    const rowIndex = Number(new URL(route.request().url()).pathname.split("/").at(-1));
+    if (route.request().method() === "POST") {
+      assistantReviewReviewed = Math.max(assistantReviewReviewed, rowIndex + 1);
+      assistantReviewRevision += 1;
+      return route.fulfill({ json: operation("assistant", assistantReviewReviewed < 8 ? assistantItem(assistantReviewReviewed) : null) });
+    }
+    return route.fulfill({ json: assistantItem(rowIndex) });
+  });
+  await page.route("**/api/evidence-review/*/complete", async (route) => {
+    const workspace = new URL(route.request().url()).pathname.includes("/assistant/") ? "assistant" : "detection";
+    return route.fulfill({ json: operation(workspace, null) });
+  });
   await page.route("**/api/assistant/status", async (route) =>
     route.fulfill({
       json: {
@@ -3711,6 +3847,88 @@ test("SOC assistant page is read-only and contains long responses safely", async
   await expect(page).toHaveURL(/\/alerts\?alert=1/);
 });
 
+test("evidence review workspace saves blind decisions without exposing hidden data", async ({ page }) => {
+  await mockApi(page);
+  await seedSession(page);
+  await page.goto("/evidence-review");
+
+  await expect(page.getByRole("heading", { name: "Evidence Review" })).toBeVisible();
+  await expect(page.getByText("Human Decisions Only", { exact: true })).toBeVisible();
+  await expect(page.getByText("Predictions Withheld", { exact: true }).first()).toBeVisible();
+  await expect(page.getByTestId("detection-review-metrics")).toContainText("0/40");
+  const evidence = page.getByTestId("detection-approved-evidence");
+  await expect(evidence).toContainText("routine_web");
+  await expect(page.getByTestId("detection-evidence-fields")).not.toContainText(/prediction|model score|rule score|review token|fingerprint/i);
+
+  await chooseSafeSelect(page, "Detection review category", "Benign-like");
+  await chooseSafeSelect(page, "Detection final decision", "Benign");
+  await page.getByLabel("Attack type optional").fill("none");
+  await page.getByLabel("Confidence (1-100)").fill("92");
+  await page.getByLabel("Rationale").fill("Independent human review found routine allowed web traffic.");
+  await page.getByText("I confirm this is my independent human decision based only on the evidence shown.").click();
+  await page.getByRole("button", { name: "Save decision" }).click();
+  await expect(page.getByTestId("detection-review-metrics")).toContainText("1/40");
+
+  await page.getByRole("tab", { name: "Assistant Acceptance" }).click();
+  await expect(page.getByTestId("assistant-review-metrics")).toContainText("0/8");
+  await expect(page.getByTestId("assistant-protected-answer")).toContainText("No action was executed");
+  await expect(page.getByTestId("assistant-protected-answer")).not.toContainText(/raw log|api key|private path/i);
+  for (const label of ["Correctness", "Evidence grounding", "Citation accuracy", "Relevance", "Concision", "Usefulness", "Privacy", "Safety"]) {
+    await chooseSafeSelect(page, `${label} score`, "5 / 5");
+  }
+  await chooseSafeSelect(page, "Assistant overall decision", "Accept");
+  await page.getByText("I confirm these scores and this decision are my independent human assessment.").click();
+  await page.getByRole("button", { name: "Save assessment" }).click();
+  await expect(page.getByTestId("assistant-review-metrics")).toContainText("1/8");
+
+  const horizontalScroll = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(horizontalScroll).toBeLessThanOrEqual(1);
+  await expect(page.getByRole("button", { name: /run detection|activate model|response action/i })).toHaveCount(0);
+});
+
+test("evidence review workspace explains unavailable private packs without leaking details", async ({ page }) => {
+  await mockApi(page);
+  await page.unroute("**/api/evidence-review/status");
+  await page.route("**/api/evidence-review/status", async (route) =>
+    route.fulfill({
+      json: {
+        version: "v5.37.0",
+        detection: {
+          workspace: "detection",
+          available: false,
+          prepared: false,
+          integrity_status: "unavailable",
+          owner_assigned: false,
+          owned_by_current_user: false,
+          can_review: true,
+          message: "The private sealed detection pack is not available on this machine."
+        },
+        assistant: {
+          workspace: "assistant",
+          available: false,
+          prepared: false,
+          integrity_status: "not_prepared",
+          owner_assigned: false,
+          owned_by_current_user: false,
+          can_review: true,
+          message: "The protected Assistant acceptance pack has not been prepared yet."
+        },
+        safeguards: ["Human Decisions Only", "Predictions Withheld", "No Auto Import", "No Model Activation", "No Response Actions"],
+        aggregate_only_for_non_owner: true,
+        secrets_exposed: false
+      }
+    })
+  );
+  await seedSession(page);
+  await page.goto("/evidence-review");
+
+  await expect(page.getByTestId("detection-review-empty-state")).toContainText("Private pack unavailable");
+  await expect(page.getByTestId("detection-review-empty-state")).not.toContainText(/\\|ml_baseline_reviews|\.csv/i);
+  await page.getByRole("tab", { name: "Assistant Acceptance" }).click();
+  await expect(page.getByTestId("assistant-review-empty-state")).toContainText("Workspace ready");
+  await expect(page.getByRole("button", { name: "Start review" })).toBeVisible();
+});
+
 test("SOC assistant provider telemetry shows guarded external LLM state", async ({ page }) => {
   await mockApi(page);
   await page.route("**/api/assistant/chat", async (route) =>
@@ -4295,13 +4513,14 @@ test("core SOC pages fit projector, laptop, and mobile viewports", async ({ page
     { name: "laptop", width: 1366, height: 768 },
     { name: "mobile", width: 390, height: 844 }
   ];
-  const routes = ["overview", "alerts", "logs", "assistant", "ml"];
+  const routes = ["overview", "alerts", "logs", "assistant", "ml", "evidence-review"];
   const routeHeadings: Record<string, RegExp> = {
     overview: /ATDR lab SOC status/i,
     alerts: /Prioritize, investigate, contain, and document alerts/i,
     logs: /Search raw evidence and normalized firewall events/i,
     assistant: /Evidence-grounded analyst guidance/i,
-    ml: /Model status and review operations/i
+    ml: /Model status and review operations/i,
+    "evidence-review": /Evidence Review/i
   };
 
   for (const viewport of viewports) {

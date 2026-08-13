@@ -724,3 +724,14 @@ This document maps major ATDR requirements to implementation evidence, tests, do
 | Assistant human and automated acceptance separation | Implemented; human pending | v5.33 protected worksheet plus v5.36 coordinator | automated contracts pass; human status remains 0/8 | v5.36 status/lab runbook | Genuine human semantic/usefulness/privacy scoring is required. |
 | Gemini operational audit | Passed for bounded local run | configured adapter/status, timeout/rate/token telemetry, v5.36 provider option | 12/12 over six redacted calls; zero configured mutation | v5.36 status | Account quota, cost rates, key rotation, privacy, and retention approval remain external. |
 | AI and response authority | Preserved | v5.36 fixed decision and existing detector/Assistant/response contracts | zero labels/models/alerts/detections/users/responses; no artifact writes | current AI status | Any model activation requires a new explicit reviewed change. |
+
+## v5.37 Blind Evidence Review Workspace Addendum
+
+| Requirement | Status | Implementation Evidence | Test Evidence | Documentation | Remaining Gap |
+| --- | --- | --- | --- | --- | --- |
+| Authenticated dashboard review | Implemented | `evidence_review.py` router/schema/service; `/evidence-review` React page and navigation | unauthenticated denial and browser workflow tests | v5.37 status/T1-T20 | Private packs must be provisioned through approved custody. |
+| Detection blindness | Enforced | exact v5.28 display-field projection and server-held token/digest | forbidden-field projection, tamper, immutable-save, and responsive browser tests | v5.37 status and AI runbook | Genuine reviewer must complete 40 rows. |
+| Assistant human acceptance | Implemented; completion external | protected v5.33 question/answer/citation adapter and eight-dimension form | protected digest, save/complete, no-provider/no-action tests | v5.37 status and lab runbook | Genuine reviewer must complete eight cases. |
+| Reviewer RBAC and ownership | Implemented | analyst/admin auth, one owner per private workspace, aggregate-only non-owner status | analyst ownership and admin aggregate-only tests | v5.37 T1-T20 | Distributed multi-reviewer operation is future work. |
+| Audit and privacy | Implemented | bounded start/save/complete/reject/integrity events | audit content and secret/evidence non-disclosure tests | v5.37 status | Operational audit retention remains environment policy. |
+| No authority mutation | Passed | ignored file persistence and explicit zero-mutation response contract | labels/models/detections/alerts/responses unchanged | v5.37 status | Post-review evaluation and any activation remain separate explicit changes. |

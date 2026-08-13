@@ -1,4 +1,4 @@
-import { Activity, BarChart3, Bot, Brain, ClipboardList, Database, Gauge, LogOut, RadioTower, Settings2, ShieldAlert, SlidersHorizontal, Users } from "lucide-react";
+import { Activity, BarChart3, Bot, Brain, ClipboardCheck, ClipboardList, Database, Gauge, LogOut, RadioTower, Settings2, ShieldAlert, SlidersHorizontal, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
 import clsx from "clsx";
@@ -28,7 +28,8 @@ const fullNavGroups: Array<{ label: string; items: NavItem[] }> = [
     label: "AI Governance",
     items: [
       { to: "/ml", label: "AI Governance", icon: Brain },
-      { to: "/tuning", label: "Detection Tuning", icon: BarChart3 }
+      { to: "/tuning", label: "Detection Tuning", icon: BarChart3 },
+      { to: "/evidence-review", label: "Evidence Review", icon: ClipboardCheck }
     ]
   },
   {
@@ -57,6 +58,7 @@ const presentationNavGroups: Array<{ label: string; items: NavItem[] }> = [
       { to: "/logs", label: "Investigation", icon: Database },
       { to: "/assistant", label: "SOC Assistant", icon: Bot },
       { to: "/ml", label: "AI Governance", icon: Brain },
+      { to: "/evidence-review", label: "Evidence Review", icon: ClipboardCheck },
       { to: "/response", label: "Response & Audit", icon: RadioTower }
     ]
   },

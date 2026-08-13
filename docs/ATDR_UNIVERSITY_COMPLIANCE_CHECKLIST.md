@@ -763,3 +763,14 @@ For docs-only changes, at minimum verify the docs exist, links are correct, and 
 | Gemini privacy and operations | Partially satisfied | six redacted calls, 12/12 automated checks, bounded token/latency telemetry, zero secrets/raw/IP/action/mutations | MFU/provider approval, quota, pricing, key rotation, privacy, and retention remain external. |
 | AI/response safety | Satisfied | rules authoritative; no model/artifact/label/alert/detection/user/response write; automation/blocking false | Any authority change requires a separate approved design. |
 | T1-T20, traceability, and taskboard | Satisfied locally | v5.36 status, completed change record, PRD, runbooks, traceability, compliance, taskboard, and exact allowlist | Commit/push require separate exact-path approval. |
+
+## v5.37 Blind Evidence Review Compliance Status
+
+| University / ATDR rule | Status | Evidence | Remaining action |
+| --- | --- | --- | --- |
+| No guessing / source evidence | Satisfied by design | dashboard adapts sealed v5.28 and protected v5.33 contracts; no alternate evidence or label source is created | Genuine reviewers supply decisions from displayed evidence only. |
+| Human provenance | Enforced | authenticated identity, automated-reviewer denial, server timestamp, explicit confirmation, immutable completion | Complete 40 detection and eight Assistant items manually. |
+| Blindness and integrity | Enforced | predictions, scores, tokens, fingerprints, private paths, IPs, raw logs, and hidden truth remain server-side; changed packs fail closed | Preserve private custody and do not share worksheets through Git. |
+| RBAC and audit | Satisfied | analyst/admin access, owner isolation, aggregate-only non-owner status, bounded audit lifecycle | Review operational retention before shared deployment. |
+| AI and response safety | Satisfied | no Gemini review call, import, tuning, model activation, detection, alert, response, or real blocking | Any future authority change requires separate approval. |
+| T1-T20 and taskboard | Satisfied locally | v5.37 status/change record, runbooks, PRD, traceability, checklist, taskboard, and exact allowlist | Commit/push require separate exact-path approval. |

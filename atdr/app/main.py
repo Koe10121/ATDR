@@ -22,6 +22,7 @@ from atdr.app.routers import (
     dashboard,
     demo,
     detection,
+    evidence_review,
     ingestion,
     jobs,
     logs,
@@ -217,6 +218,7 @@ app.include_router(ingestion.router)
 app.include_router(observability.router)
 app.include_router(jobs.router)
 app.include_router(detection.router)
+app.include_router(evidence_review.router)
 app.include_router(ml.router)
 app.include_router(response.router)
 app.include_router(assistant.router)

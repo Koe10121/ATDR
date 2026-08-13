@@ -2244,3 +2244,29 @@ Follow the exact detection and Assistant worksheet handoff in
 `docs/V5_36_INDEPENDENT_EVIDENCE_ACTIVATION_DECISION.md`. Never import either
 worksheet, expose the frozen predictions to the reviewer, or use blind results
 to retune the evaluated candidate.
+
+## v5.37 Evidence Review Workspace
+
+Start ATDR with the supported commands, authenticate as an analyst or admin,
+and open `/evidence-review`. The page has **Detection Blind Review** and
+**Assistant Acceptance** tabs.
+
+Expected safety state:
+
+- only the assigned reviewer can open private items;
+- other analysts and admins see aggregate progress only;
+- predictions, scores, tokens, fingerprints, paths, IPs, raw logs, and hidden
+  labels are absent;
+- every save requires explicit human confirmation;
+- completed decisions cannot be overwritten from the page; and
+- label/model/detection/alert/response mutations remain zero.
+
+If the detection pack is absent, the page reports **Private pack
+unavailable**. Copying private evidence through Git is not a remedy. Provision
+the ignored sealed pack through the approved evidence-custody process. The
+Assistant pack may be prepared from bounded current ATDR records, with
+external-provider execution disabled.
+
+Close a workspace only when all rows validate. Closing does not import labels
+or authorize model activation. Rerun the v5.36 no-write decision separately
+after genuine review is complete.

@@ -1460,3 +1460,33 @@ disabled.
 - Rules remain alert-authoritative, supervised lifecycle remains
   `shadow_observation` until separately approved, and automatic response and
   real firewall blocking remain disabled.
+
+## v5.37 Blind Evidence Review Requirements
+
+- **FR-ATDR-088:** ATDR shall provide an authenticated `/evidence-review`
+  workspace for the existing sealed detection and protected Assistant human
+  acceptance contracts.
+- Review evidence shall be available only to the assigned analyst/admin
+  reviewer. Non-owner admins and analysts may view aggregate progress only.
+- Detection review shall expose only the v5.28 approved structured fields and
+  shall withhold predictions, model/rule scores, expected labels, review
+  tokens, fingerprints, private paths, IPs, raw logs, and hidden truth.
+- Detection decisions shall map `benign_like`, `needs_context`, and
+  `threat_positive` to the existing valid five-class contract, require
+  confidence `1-100`, rationale, attack type where applicable, authenticated
+  reviewer provenance, timezone-aware timestamp, and explicit confirmation.
+- **FR-ATDR-089:** Assistant acceptance shall expose only protected v5.33
+  questions, answers, citations, and context type; require eight `1-5` scores
+  and accept/revise/reject; and make no external provider call during review.
+- Completed decisions shall be immutable through the API. Pack and protected
+  content changes, stale revisions, malformed rows, and automated reviewer
+  identities shall fail closed.
+- Review persistence shall remain isolated from trainable labels and model
+  state. No save or completion shall import, train, tune, activate, run
+  detection, create alerts, or execute responses.
+- **NFR-ATDR-037:** Review lifecycle audit records shall exclude evidence,
+  questions, answers, notes, tokens, predictions, raw logs, paths,
+  fingerprints, IPs, and secrets.
+- File-backed reviewer ownership is accepted for this controlled private-pack
+  workflow; distributed multi-reviewer production operation remains future
+  work.
