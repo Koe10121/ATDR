@@ -735,3 +735,15 @@ This document maps major ATDR requirements to implementation evidence, tests, do
 | Reviewer RBAC and ownership | Implemented | analyst/admin auth, one owner per private workspace, aggregate-only non-owner status | analyst ownership and admin aggregate-only tests | v5.37 T1-T20 | Distributed multi-reviewer operation is future work. |
 | Audit and privacy | Implemented | bounded start/save/complete/reject/integrity events | audit content and secret/evidence non-disclosure tests | v5.37 status | Operational audit retention remains environment policy. |
 | No authority mutation | Passed | ignored file persistence and explicit zero-mutation response contract | labels/models/detections/alerts/responses unchanged | v5.37 status | Post-review evaluation and any activation remain separate explicit changes. |
+
+## v5.38 Product Reliability And Failure-Mode Lock Addendum
+
+| Requirement | Status | Implementation Evidence | Test Evidence | Documentation | Remaining Gap |
+| --- | --- | --- | --- | --- | --- |
+| Canonical disposable product acceptance | Implemented; `11/11` passed | `v538_product_reliability_service.py` and CLI compose v4.8 workflow plus bounded reliability gates | v5.38 full-gate, configured-DB preservation, redaction, and report tests | v5.38 status/T1-T20 and lab runbook | Approved-host and real-device acceptance remain external. |
+| Startup process identity | Hardened | `Test-TrackedProcessRecordActive` compares PID and recorded process start time | v5.38 PowerShell source regression plus existing portable-shell lifecycle suite | v5.38 status and Quickstart | A separate physical clean-machine exercise remains useful. |
+| Critical API failure UX | Implemented | page-level `ErrorBanner` on Overview, AI Governance, and Response & Audit | concise-failure Playwright regression | v5.38 status | Environment-specific outages still require operator diagnosis. |
+| Responsive primary workflow | Passed locally | eight routed React workspaces | projector/laptop/mobile overflow test across Overview, Alerts, Logs, Assistant, AI Governance, Evidence Review, Response, and Users | v5.38 status | Browser/device accessibility certification is not claimed. |
+| Detection and explanation consistency | Passed for controlled scenario | reused ingestion/detection/case/Why Flagged services | one port-scan alert, one dedup update, 20 occurrence/related logs, source/case traceability | v5.38 status | Independent real-source labeled accuracy remains external. |
+| Assistant and response authority | Preserved | deterministic acceptance settings and existing response simulation service | missing references/provider fallback safe; zero Assistant mutation; justification/protected-target denial; simulated block/unblock audit | v5.38 status/T1-T20 | Human Assistant acceptance and institutional provider approval remain open. |
+| Privacy and configured-data preservation | Passed | temp/in-memory storage, bounded report writer, no configured engine mutation | DB unchanged, temp cleanup, no raw/path/IP/secret output | v5.38 status | Shared-host privacy and retention acceptance remain external. |

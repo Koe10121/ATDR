@@ -119,6 +119,17 @@ Safe CLI validation:
 
 No log is written during this dry run.
 
+Run the bounded end-to-end reliability lock only against disposable storage:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v538_product_reliability_acceptance --use-temp-db --pretty
+```
+
+Expected result is `11/11` gates, `configured_database_unchanged: true`, zero
+real response actions, and no model activation. The command refuses to run
+without `--use-temp-db` and does not return raw evidence, private paths, IPs,
+or secrets.
+
 Preview the idempotent bundled dashboard scenario:
 
 ```powershell
@@ -182,3 +193,4 @@ Do not migrate ATDR to MongoDB as part of teammate setup; the shell and ATDR int
 - v4.4 authentication stabilization: `docs/V4_4_MFU_AUTH_STABILIZATION.md`
 - v4.5 reproducible baseline: `docs/V4_5_REPRODUCIBLE_PRODUCT_BASELINE.md`
 - IAM acceptance boundary: `docs/security/ATDR_MFU_IAM_PREPROD_VALIDATION.md`
+- v5.38 reliability lock: `docs/V5_38_PRODUCT_RELIABILITY_AND_FAILURE_MODE_LOCK.md`

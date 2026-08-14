@@ -77,7 +77,7 @@ try {
     $metadataPath = Join-Path $runtime "system-processes.json"
     if (Test-Path -LiteralPath $metadataPath) {
         $metadata = Get-Content -LiteralPath $metadataPath -Raw | ConvertFrom-Json
-        $active = @($metadata.processes | Where-Object { Get-Process -Id $_.pid -ErrorAction SilentlyContinue })
+        $active = @($metadata.processes | Where-Object { Test-TrackedProcessRecordActive $_ })
         if ($active.Count) { throw "ATDR system processes are already running. Use .\scripts\check_system.ps1 or .\scripts\stop_system.ps1." }
         Remove-Item -LiteralPath $metadataPath -Force
     }

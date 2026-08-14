@@ -5,6 +5,7 @@ import { Play, RotateCcw, X } from "lucide-react";
 import { ChartCard } from "../components/ChartCard";
 import { DetailDrawer } from "../components/DetailDrawer";
 import { EmptyState } from "../components/EmptyState";
+import { ErrorBanner } from "../components/ErrorBanner";
 import { MetaGrid } from "../components/MetaGrid";
 import { MetricCard } from "../components/MetricCard";
 import { Badge } from "../components/Badge";
@@ -154,6 +155,13 @@ export function ExecutiveOverview() {
   return (
     <div className="space-y-5">
       <SocPageHeader eyebrow="Overview" title="ATDR lab SOC status." />
+
+      {summary.isError || health.isError ? (
+        <ErrorBanner
+          error={summary.error ?? health.error}
+          fallback="Overview data is temporarily unavailable. Check system health and retry."
+        />
+      ) : null}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Logs Ingested" value={data?.total_logs ?? "-"} detail="Normalized firewall events" tone="teal" />

@@ -254,6 +254,26 @@ function Test-PythonPip {
     }
 }
 
+function Test-TrackedProcessRecordActive {
+    param(
+        [Parameter(Mandatory = $true)]$Record,
+        [int]$StartToleranceSeconds = 5
+    )
+
+    try {
+        $process = Get-Process -Id ([int]$Record.pid) -ErrorAction SilentlyContinue
+        if ($null -eq $process -or [string]::IsNullOrWhiteSpace([string]$Record.started_at)) {
+            return $false
+        }
+        $recorded = [datetime]::Parse([string]$Record.started_at).ToUniversalTime()
+        $actual = $process.StartTime.ToUniversalTime()
+        return [math]::Abs(($actual - $recorded).TotalSeconds) -le $StartToleranceSeconds
+    }
+    catch {
+        return $false
+    }
+}
+
 function Get-CommandPathSafe {
     param([Parameter(Mandatory = $true)][string]$Name)
     $command = Get-Command $Name -ErrorAction SilentlyContinue

@@ -2270,3 +2270,37 @@ external-provider execution disabled.
 Close a workspace only when all rows validate. Closing does not import labels
 or authorize model activation. Rerun the v5.36 no-write decision separately
 after genuine review is complete.
+
+## v5.38 Product Reliability And Failure-Mode Check
+
+Run the canonical local acceptance only with disposable storage:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v538_product_reliability_acceptance --use-temp-db --pretty
+```
+
+The reference result passes `11/11` gates. It imports and normalizes 64
+synthetic rows, preserves three intentional malformed records, exercises
+duplicate/interruption/cancellation/stale-worker recovery, creates one
+source-traceable port-scan alert and case, verifies Why Flagged and Assistant
+context/citations/fallback, and records only simulated response decisions.
+
+Confirm these final fields:
+
+- `configured_database_unchanged: true`;
+- `temporary_artifacts_removed: true`;
+- `real_response_actions: 0`;
+- `model_activation_performed: false`;
+- `response_automation_allowed: false`;
+- `real_firewall_blocking_enabled: false`; and
+- `secrets_exposed`, `private_paths_returned`, and `raw_evidence_returned` are
+  all false.
+
+If startup reports an existing ATDR process, use `check_system.cmd`. v5.38
+requires the stored PID and process start time to match before treating a
+launcher record as active. Overview, AI Governance, and Response & Audit now
+show concise primary-query failures instead of leaving ambiguous page state.
+
+This is synthetic local SQLite acceptance plus tested startup contracts. It
+does not replace a clean teammate-machine run, approved MFU preproduction,
+real-device forwarding, institutional Gemini approval, or deployment SLOs.

@@ -427,6 +427,13 @@ export function MLGovernance() {
         }
       />
 
+      {report.isError || supervised.isError ? (
+        <ErrorBanner
+          error={report.error ?? supervised.error}
+          fallback="AI Governance data is temporarily unavailable. No model state changed."
+        />
+      ) : null}
+
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="IsolationForest" value={data?.model_status.artifact_exists ? "Ready" : "Missing"} detail="Assistive anomaly pipeline" tone="teal" />
         <MetricCard label="Scored Logs" value={data?.scored_log_count ?? "-"} detail="Latest scored population" tone="cyan" />

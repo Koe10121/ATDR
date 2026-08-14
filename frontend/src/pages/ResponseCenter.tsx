@@ -1,6 +1,7 @@
 import { FormEvent, useState } from "react";
 import { Badge } from "../components/Badge";
 import { EmptyState } from "../components/EmptyState";
+import { ErrorBanner } from "../components/ErrorBanner";
 import { MetricCard } from "../components/MetricCard";
 import { useAuth } from "../hooks/useAuth";
 import { useBlockedIps, useHealth, useResponseMutations } from "../hooks/useApiQueries";
@@ -35,6 +36,13 @@ export function ResponseCenter() {
         <h1 className="mt-2 text-3xl font-black">Containment actions stay simulated by default.</h1>
         <p className="mt-2 text-muted">Record analyst-approved simulated actions and audit evidence.</p>
       </section>
+
+      {health.isError || blocked.isError ? (
+        <ErrorBanner
+          error={health.error ?? blocked.error}
+          fallback="Response status is temporarily unavailable. No action was executed."
+        />
+      ) : null}
 
       <div className="grid gap-4 md:grid-cols-3">
         <MetricCard label="Response Mode" value={responseMode} detail="Real enforcement remains unsupported" tone={responseMode === "simulation" ? "success" : "danger"} />

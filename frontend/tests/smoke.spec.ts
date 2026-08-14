@@ -2625,6 +2625,32 @@ test("core analyst routes render with mocked API", async ({ page }) => {
   }
 });
 
+test("critical pages show concise API failure states", async ({ page }) => {
+  await mockApi(page);
+  await seedSession(page);
+
+  await page.unroute("**/api/dashboard/summary");
+  await page.route("**/api/dashboard/summary", (route) =>
+    route.fulfill({ status: 503, json: { detail: "Overview service is temporarily unavailable." } })
+  );
+  await page.goto("/overview");
+  await expect(page.getByRole("alert")).toContainText("Overview service is temporarily unavailable.");
+
+  await page.unroute("**/api/response/blocked-ips");
+  await page.route("**/api/response/blocked-ips", (route) =>
+    route.fulfill({ status: 503, json: { detail: "Response status is temporarily unavailable." } })
+  );
+  await page.goto("/response");
+  await expect(page.getByRole("alert")).toContainText("Response status is temporarily unavailable.");
+
+  await page.unroute("**/api/ml/report");
+  await page.route("**/api/ml/report", (route) =>
+    route.fulfill({ status: 503, json: { detail: "AI Governance data is temporarily unavailable." } })
+  );
+  await page.goto("/ml");
+  await expect(page.getByRole("alert")).toContainText("AI Governance data is temporarily unavailable.");
+});
+
 test("browser history preserves the assistant investigation session", async ({ page }) => {
   await mockApi(page);
   await seedSession(page);
@@ -4513,14 +4539,16 @@ test("core SOC pages fit projector, laptop, and mobile viewports", async ({ page
     { name: "laptop", width: 1366, height: 768 },
     { name: "mobile", width: 390, height: 844 }
   ];
-  const routes = ["overview", "alerts", "logs", "assistant", "ml", "evidence-review"];
+  const routes = ["overview", "alerts", "logs", "assistant", "ml", "evidence-review", "response", "users"];
   const routeHeadings: Record<string, RegExp> = {
     overview: /ATDR lab SOC status/i,
     alerts: /Prioritize, investigate, contain, and document alerts/i,
     logs: /Search raw evidence and normalized firewall events/i,
     assistant: /Evidence-grounded analyst guidance/i,
     ml: /Model status and review operations/i,
-    "evidence-review": /Evidence Review/i
+    "evidence-review": /Evidence Review/i,
+    response: /Containment actions stay simulated by default/i,
+    users: /Manage analyst and admin access/i
   };
 
   for (const viewport of viewports) {

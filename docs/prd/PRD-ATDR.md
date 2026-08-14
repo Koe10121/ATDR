@@ -1490,3 +1490,33 @@ disabled.
 - File-backed reviewer ownership is accepted for this controlled private-pack
   workflow; distributed multi-reviewer production operation remains future
   work.
+
+## v5.38 Product Reliability And Failure-Mode Requirements
+
+- **FR-ATDR-090:** ATDR shall provide one canonical disposable acceptance
+  command for the supported ingest, normalize, source, detection, deduplication,
+  case, Why Flagged, Assistant, evidence-review, simulated-response, audit, and
+  recovery workflow.
+- The command shall refuse configured-database execution, preserve the
+  configured database, remove temporary artifacts, and return concise gate
+  results without raw evidence, private paths, IPs, provider payloads, or
+  secrets.
+- **FR-ATDR-091:** Critical failure behavior shall cover malformed and
+  duplicate input, interrupted/cancelled resume, stale workers, malformed
+  review evidence, provider failure, missing references, database
+  unavailability, frontend query failure, RBAC denial, and supported
+  navigation continuity.
+- Launcher metadata shall identify a tracked process using both PID and
+  recorded start time so that PID reuse cannot falsely block startup.
+- Overview, AI Governance, and Response & Audit shall expose concise
+  page-level primary-query failure state without implying that a response or
+  model operation occurred.
+- **NFR-ATDR-038:** The eight primary React routes shall fit supported
+  projector, laptop, and mobile viewports without incoherent horizontal
+  overflow.
+- Product acceptance shall prove zero label/model activation, zero real
+  response action, read-only Assistant behavior, response simulation, and
+  deterministic-rule authority.
+- Passing local synthetic acceptance is not production readiness and shall
+  not replace genuine human, real-device, MFU-provider, shared-host, privacy,
+  or disaster-recovery evidence.

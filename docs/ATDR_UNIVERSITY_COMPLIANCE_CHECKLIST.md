@@ -774,3 +774,15 @@ For docs-only changes, at minimum verify the docs exist, links are correct, and 
 | RBAC and audit | Satisfied | analyst/admin access, owner isolation, aggregate-only non-owner status, bounded audit lifecycle | Review operational retention before shared deployment. |
 | AI and response safety | Satisfied | no Gemini review call, import, tuning, model activation, detection, alert, response, or real blocking | Any future authority change requires separate approval. |
 | T1-T20 and taskboard | Satisfied locally | v5.37 status/change record, runbooks, PRD, traceability, checklist, taskboard, and exact allowlist | Commit/push require separate exact-path approval. |
+
+## v5.38 Product Reliability And Failure-Mode Compliance Status
+
+| University / ATDR rule | Status | Evidence | Remaining action |
+| --- | --- | --- | --- |
+| Source evidence / no guessing | Satisfied for controlled local scope | v4.8 measured workflow, isolated failure probes, source-backed launcher/UI contracts, and focused regression tests produce an `11/11` gate result | Run separate approved-host, MFU-provider, and real-device acceptance. |
+| Data preservation | Satisfied | explicit `--use-temp-db`, configured-database fingerprint comparison, temporary cleanup, and no schema change | Continue prohibiting configured-data resets in acceptance work. |
+| Failure transparency | Satisfied locally | malformed/duplicate/interrupted/stale/provider/reference/RBAC/database/UI/navigation failures are bounded and fail closed | Operational monitoring and incident exercises remain environment-owned. |
+| Test and UI gate | Satisfied for changed scope | focused backend `19/19`, broader reliability `29/29`, React lint, and new/expanded Playwright `2/2`; complete matrix is recorded on the taskboard | Accessibility certification and clean physical teammate-device testing remain external. |
+| AI and response safety | Satisfied | rules authoritative, supervised shadow-only, Assistant read-only, raw context false, no activation/promotion, denied unsafe response and simulated approved response | Genuine human evidence and any future authority change require separate approval. |
+| Privacy and repo hygiene | Satisfied by design | concise reports exclude raw evidence, private paths, IPs, provider payloads, and secrets; outputs remain ignored | Commit only the exact allowlist after separate approval. |
+| T1-T20 and taskboard | Satisfied locally | v5.38 status, change record, PRD, traceability, checklist, taskboard, runbooks, and exact allowlist | Commit/push are not authorized by this phase. |
