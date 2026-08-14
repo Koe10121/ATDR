@@ -2003,3 +2003,45 @@ The frozen supervised candidate reports queue precision/recall/F1
 source/time-window coverage, training-overlap exclusion, queue quality, FPR,
 and calibration gates do not all pass. Use separate development evidence for
 repair and reserve a new untouched set for any future decision.
+
+## v5.40 Development-Only Repair
+
+The v5.39 evaluation is consumed and must never be rerun or reused for model
+repair. v5.40 enforces this boundary before preparing any modeling role.
+
+Run a safe boundary and evidence preflight:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v540_development_supervised_repair `
+  --preflight-only `
+  --no-report `
+  --pretty
+```
+
+Run the development-only six-strategy diagnostic:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v540_development_supervised_repair --pretty
+```
+
+The command verifies the v5.39 freeze, reads exclusion tokens only, removes
+any match before fit/calibration/threshold/model-selection roles, builds a
+canonical development pool, rebuilds duplicate groups after feature repair,
+and evaluates nested temporal folds. It tests calibrated ExtraTrees,
+HistGradientBoosting, Logistic Regression, binary and three-class SOC queues,
+and a hierarchical two-stage strategy. Threshold profiles are fixed before
+evaluation at `0.50`, `0.70`, `0.85`, and `0.92`.
+
+Current result: 1,467 development rows, one source identity, 549 assisted/weak
+rows, and 421 rows in multirow duplicate groups. The hierarchical two-stage
+strategy ranks first but passes `0/3` complete gates; queue F1 ranges
+`0.1786-0.7068`, FPR `0.0120-0.1176`, suspicious recall `0.0719-0.5164`, and
+malicious recall `0.0000-0.9259`. Calibration is weak. No diagnostic
+configuration is frozen and no active artifact is written.
+
+Generated Markdown/JSON reports remain ignored under `ml_baseline_reviews/`.
+Do not import them, call them independent accuracy, or commit them. Before any
+future activation decision, collect a new pack under
+`docs/detection/V5_40_NEW_BLIND_EVIDENCE_PROTOCOL.md`: future-only evidence,
+at least two real sources, three windows, hidden predictions, genuine human
+review, and one fixed evaluation.

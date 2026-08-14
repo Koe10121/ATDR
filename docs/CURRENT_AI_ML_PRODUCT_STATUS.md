@@ -902,3 +902,33 @@ supervised and IsolationForest outputs remain advisory, Gemini remains
 read-only, and model promotion, response automation, and real blocking remain
 disabled. See
 `docs/V5_39_INDEPENDENT_EVIDENCE_AND_ACTIVATION_DECISION.md`.
+
+## v5.40 Development-Only Supervised Repair
+
+v5.40 permanently separates the consumed v5.39 decision from new development
+work. The evaluator validates the private freeze and sealed pack, reads only
+the 40 review tokens needed for exclusion, and reports that protected labels,
+predictions, and errors were not opened. No v5.39 result is used for fit,
+calibration, threshold selection, model selection, or error analysis.
+
+The canonical development pool contains 1,467 rows: 918 manual and 549
+assisted/weak. It has one source identity, 155 multirow duplicate groups with
+421 affected rows, and a short concentrated time range. Duplicate families
+are isolated between nested temporal roles and assisted provenance is
+down-weighted without being relabeled as human evidence.
+
+Six strategies were compared with dedicated calibration and fixed threshold
+profiles. Hierarchical two-stage ranks first diagnostically, with queue F1
+`0.1786-0.7068`, benign-like FPR `0.0120-0.1176`, suspicious recall
+`0.0719-0.5164`, and malicious recall `0.0000-0.9259` across three nested
+folds. It passes `0/3` complete development gates. Sigmoid calibration remains
+weak: ECE `0.1862-0.5054` and maximum confidence/accuracy gap
+`0.3454-0.9015`.
+
+No candidate configuration is frozen, no model artifact is written, and no
+model is activated or promoted. A new blind protocol is designed but not
+collected; it requires future evidence from at least two independent real
+sources and three windows, hidden predictions, genuine human review, and one
+fixed evaluation. Lifecycle remains `shadow_observation`, rules remain
+alert-authoritative, and response automation and real blocking remain
+disabled. See `docs/V5_40_DEVELOPMENT_ONLY_SUPERVISED_MODEL_REPAIR.md`.
