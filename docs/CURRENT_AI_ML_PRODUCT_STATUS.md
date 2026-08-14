@@ -1,6 +1,6 @@
 # ATDR Current AI And ML Product Status
 
-Date: 2026-08-11
+Date: 2026-08-14
 
 ATDR uses several distinct AI/ML layers. They must not be presented as one
 autonomous model. Deterministic rules detect explainable patterns, an
@@ -14,7 +14,7 @@ an analyst. None of these layers may execute a response action.
 | --- | --- | --- | --- |
 | Deterministic detection rules | Primary explainable alert generation | v5.31 adversarial lock: 27/27 synthetic cases; 19-rule catalog contract reconciled | May create/deduplicate alerts; cannot execute response |
 | IsolationForest | Assistive unusual-behavior score | v5.5 audit and v5.13 regression: advisory only; controlled anomaly layer remains 72/72 | Decision support only; cannot create an alert by itself |
-| Supervised SOC queue | Rank/recommend review from labeled evidence | Registered calibrated ExtraTrees artifact remains in `shadow_observation`; v5.28 integrity/runtime audit passed but human blind review is 0/40 | Evidence only; rules remain authoritative |
+| Supervised SOC queue | Rank/recommend review from labeled evidence | v5.39 genuine review is closed at `40/40`; the one frozen evaluation rejected activation (queue F1 `0.5625`, benign-like FPR `0.1500`, ECE `0.3220`); lifecycle remains `shadow_observation` | Evidence only; rules remain authoritative |
 | Legacy supervised artifact | Unselected local reference | Artifact exists; model/feature metadata are unknown | Not selected by the governed lifecycle |
 | SOC Assistant deterministic layer | Retrieve and explain ATDR evidence | 20/20 controlled QA questions passed | Read-only |
 | Gemini provider layer | Rephrase/summarize bounded evidence | Private configuration and one bounded synthetic probe passed | Explanation only; no detector or action authority |
@@ -871,3 +871,34 @@ redacted calls with no raw logs, IPs, secrets, or configured mutations. Human
 Assistant acceptance remains `0/8`. Provider quota introspection, cost rates,
 key rotation, privacy, and retention approval remain external. See
 `docs/V5_36_INDEPENDENT_EVIDENCE_ACTIVATION_DECISION.md`.
+
+## v5.39 Frozen Evidence Decision
+
+v5.39 makes the evidence-to-decision handoff explicit and at-most-once. The
+dashboard and authenticated status API now distinguish rows completed from
+workspaces formally closed. After both protected reviews close, the evaluator
+stores private pack/decision digests, claims one attempt, and calls the fixed
+v5.36 audit without provider execution or authoritative writes. Completed
+results are reused; interrupted, failed, or tampered evidence fails closed.
+
+The genuine protected reviews are complete and closed at detection `40/40`
+and Assistant `8/8`. The frozen evaluator ran exactly once, persisted only
+private digests and a sanitized result, and now reuses that result without
+recalculation. No reviewer decision was generated automatically. The retired
+v5.36 CLI reports readiness only; v5.39 remains the sole operator evaluation
+path.
+
+Assistant human acceptance passes at `0.875` (`7` accept, `1` revise, no
+reject), with all eight fixed dimension averages at least `4.0`. The frozen
+supervised candidate reaches queue precision `0.7500`, recall `0.4500`, F1
+`0.5625`, benign-like FPR `0.1500`, suspicious recall `1.0000`, malicious
+recall `1.0000`, and weak calibration with ECE `0.3220`. It fails the fixed
+activation decision because comparable-row/class support, independent source
+and time-window evidence, independently excluded training overlap, queue F1,
+threat recall, FPR, and calibration requirements are not all satisfied.
+
+Lifecycle remains `shadow_observation`. Rules remain alert-authoritative,
+supervised and IsolationForest outputs remain advisory, Gemini remains
+read-only, and model promotion, response automation, and real blocking remain
+disabled. See
+`docs/V5_39_INDEPENDENT_EVIDENCE_AND_ACTIVATION_DECISION.md`.

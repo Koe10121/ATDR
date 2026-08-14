@@ -1907,18 +1907,20 @@ Assistant scores do not promote the supervised detector. Detection blind
 labels cannot be used for tuning after prediction reveal. Any repaired model
 requires new untouched evidence.
 
-## v5.36 Canonical Activation Decision
+## v5.36 Activation Audit Foundation
 
-Run the complete read-only evidence decision with:
+The v5.36 service remains the fixed read-only audit foundation used internally
+by the governed v5.39 evaluator. Its old CLI is now a readiness-only alias and
+must not be used to open frozen metrics:
 
 ```powershell
-.\.venv\Scripts\python.exe -m atdr.scripts.run_v536_independent_evidence_activation_decision --no-write --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v536_independent_evidence_activation_decision --pretty
 ```
 
-This command reuses the existing sealed prediction lock and strict human
-intake. It does not train, tune, reconstruct, write, activate, or promote a
-model. With the current `0/40` legitimate review state, it must return no blind
-layer metrics, `3/9` evidence gates, `0/7` evaluable quality gates, and
+The alias reports only aggregate v5.39 readiness. It does not train, tune,
+reconstruct, write, call a provider, open frozen metrics, activate, or promote
+a model. At the initial v5.36 checkpoint, the `0/40` detection and `0/8`
+Assistant review state correctly returned `human_review_required` and
 `shadow_observation`.
 
 The registered artifact diagnostic is shown separately and must never be used
@@ -1958,7 +1960,46 @@ decision in the ignored v5.33 worksheet. Revise/reject requires a note. This
 is semantic human acceptance only; it never tunes prompts or sends feedback
 to Gemini.
 
-After every item is complete, close the workspace and rerun v5.36 read-only.
-Do not import, train, activate, or change thresholds from the dashboard.
-Details and exposed/withheld fields are in
+After every item is complete, close both workspaces and run the v5.39
+preflight. Do not import, train, activate, or change thresholds from the
+dashboard. Details and exposed/withheld fields are in
 `docs/V5_37_BLIND_EVIDENCE_REVIEW_WORKSPACE.md`.
+
+## v5.39 Frozen Evidence Decision
+
+Check readiness without writing state or opening metrics:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v539_independent_evidence_decision --preflight-only --pretty
+```
+
+Only after detection reports `40/40`, Assistant reports `8/8`, both workspaces
+are formally closed, and both owner contracts are valid, execute the one
+governed evaluation:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v539_independent_evidence_decision `
+  --execute `
+  --confirm FROZEN_V539_EVALUATION `
+  --pretty
+```
+
+The attempt is claimed before metrics are opened. A completed result is reused
+without recalculation; an interrupted or failed claim cannot retry
+automatically. Digests and protected evidence remain private and ignored. The
+command cannot train, activate, promote, import labels, call an external LLM,
+or create response actions. See
+`docs/V5_39_INDEPENDENT_EVIDENCE_AND_ACTIVATION_DECISION.md`.
+
+The local v5.39 evaluation is now consumed. Do **not** run the execute command
+again or tune against its 40 sealed rows. Preflight returns the stored
+sanitized result with execution count `1`. Detection review is `40/40` closed;
+Assistant review is `8/8` closed and passes human acceptance at `0.875`.
+
+The frozen supervised candidate reports queue precision/recall/F1
+`0.7500/0.4500/0.5625`, benign-like FPR `0.1500`, suspicious/malicious recall
+`1.0000/1.0000`, ECE `0.3220`, and weak calibration. Lifecycle remains
+`shadow_observation` because evidence volume/class balance, independent
+source/time-window coverage, training-overlap exclusion, queue quality, FPR,
+and calibration gates do not all pass. Use separate development evidence for
+repair and reserve a new untouched set for any future decision.

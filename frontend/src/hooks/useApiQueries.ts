@@ -25,6 +25,7 @@ export const queryKeys = {
   assistantFeedbackSummary: (params?: Record<string, unknown>) => ["assistant-feedback-summary", params ?? {}],
   assistantFeedbackRecent: (params?: Record<string, unknown>) => ["assistant-feedback-recent", params ?? {}],
   evidenceReviewStatus: ["evidence-review-status"],
+  frozenEvaluationStatus: ["evidence-review-evaluation-status"],
   detectionReviewItem: (rowIndex?: number | null) => ["evidence-review-detection-item", rowIndex],
   assistantReviewItem: (rowIndex?: number | null) => ["evidence-review-assistant-item", rowIndex],
   summary: ["dashboard-summary"],
@@ -184,6 +185,7 @@ export function useAssistantFeedbackMutation() {
 
 function invalidateEvidenceReview(queryClient: QueryClient) {
   void queryClient.invalidateQueries({ queryKey: queryKeys.evidenceReviewStatus });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.frozenEvaluationStatus });
   void queryClient.invalidateQueries({ queryKey: ["evidence-review-detection-item"] });
   void queryClient.invalidateQueries({ queryKey: ["evidence-review-assistant-item"] });
   invalidateAudit(queryClient);
@@ -193,6 +195,15 @@ export function useEvidenceReviewStatus() {
   return useQuery({
     queryKey: queryKeys.evidenceReviewStatus,
     queryFn: api.evidenceReviewStatus,
+    retry: false,
+    staleTime: 10_000
+  });
+}
+
+export function useFrozenEvaluationStatus() {
+  return useQuery({
+    queryKey: queryKeys.frozenEvaluationStatus,
+    queryFn: api.frozenEvaluationStatus,
     retry: false,
     staleTime: 10_000
   });

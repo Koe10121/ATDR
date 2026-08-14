@@ -233,6 +233,7 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
       owned_by_current_user: true,
       can_review: true,
       completed: reviewed === total,
+      closed: false,
       next_pending_index: reviewed < total ? reviewed : null,
       evaluation_ready: reviewed === total,
       human_acceptance_passed: workspace === "assistant" && reviewed === total ? true : null,
@@ -321,6 +322,69 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
         safeguards: ["Human Decisions Only", "Predictions Withheld", "No Auto Import", "No Model Activation", "No Response Actions"],
         aggregate_only_for_non_owner: true,
         secrets_exposed: false
+      }
+    })
+  );
+  await page.route("**/api/evidence-review/evaluation-status", async (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        version: "v5.39.0",
+        status: "human_review_required",
+        detection: {
+          available: true,
+          total: 40,
+          reviewed: detectionReviewReviewed,
+          remaining: 40 - detectionReviewReviewed,
+          invalid: 0,
+          completed: detectionReviewReviewed === 40,
+          closed: false,
+          evaluation_ready: detectionReviewReviewed === 40,
+          owner_contract_valid: true
+        },
+        assistant: {
+          available: true,
+          total: 8,
+          reviewed: assistantReviewReviewed,
+          remaining: 8 - assistantReviewReviewed,
+          invalid: 0,
+          completed: assistantReviewReviewed === 8,
+          closed: false,
+          evaluation_ready: assistantReviewReviewed === 8,
+          owner_contract_valid: true,
+          human_acceptance_passed: null
+        },
+        reviews_complete: false,
+        reviews_closed: false,
+        freeze_ready: false,
+        evidence_frozen: false,
+        evaluation_attempted: false,
+        evaluation_completed: false,
+        evaluation_execution_count: 0,
+        executed_now: false,
+        metrics_available: false,
+        blind_metrics: {},
+        assistant_metrics: {},
+        activation_decision: {
+          lifecycle: "shadow_observation",
+          activate_candidate: false,
+          eligible_for_manual_activation_review: false,
+          production_promoted: false,
+          model_activated: false,
+          model_promoted: false,
+          response_automation_allowed: false,
+          rules_remain_alert_authoritative: true,
+          blockers: []
+        },
+        message: "Complete and close all 40 detection decisions and eight Assistant assessments before the frozen evaluation.",
+        safety: {
+          predictions_exposed_before_completion: false,
+          digests_exposed: false,
+          reviewer_identities_exposed: false,
+          external_provider_called: false,
+          model_activated: false,
+          automatic_response_enabled: false
+        }
       }
     })
   );
@@ -3881,6 +3945,8 @@ test("evidence review workspace saves blind decisions without exposing hidden da
   await expect(page.getByRole("heading", { name: "Evidence Review" })).toBeVisible();
   await expect(page.getByText("Human Decisions Only", { exact: true })).toBeVisible();
   await expect(page.getByText("Predictions Withheld", { exact: true }).first()).toBeVisible();
+  await expect(page.getByTestId("frozen-evaluation-status")).toContainText("Human Review Required");
+  await expect(page.getByTestId("frozen-evaluation-status")).toContainText("Shadow Observation");
   await expect(page.getByTestId("detection-review-metrics")).toContainText("0/40");
   const evidence = page.getByTestId("detection-approved-evidence");
   await expect(evidence).toContainText("routine_web");
@@ -3907,9 +3973,96 @@ test("evidence review workspace saves blind decisions without exposing hidden da
   await page.getByRole("button", { name: "Save assessment" }).click();
   await expect(page.getByTestId("assistant-review-metrics")).toContainText("1/8");
 
+  await page.evaluate(async () => {
+    for (let rowIndex = 1; rowIndex < 8; rowIndex += 1) {
+      await fetch(`/api/evidence-review/assistant/items/${rowIndex}`, { method: "POST", body: "{}" });
+    }
+  });
+  await page.reload();
+  await page.getByRole("tab", { name: /Assistant Acceptance/ }).click();
+  await expect(page.getByTestId("assistant-review-metrics")).toContainText("8/8");
+  await expect(page.getByTestId("evidence-review-workflow-notice")).toContainText("Select Close review");
+  await expect(page.getByTestId("assistant-review-complete")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Close review" })).toBeVisible();
+  const closePanelBox = await page.getByTestId("assistant-review-complete").boundingBox();
+  const protectedAnswerBox = await page.getByTestId("assistant-protected-answer").boundingBox();
+  expect(closePanelBox?.y).toBeLessThan(protectedAnswerBox?.y ?? 0);
+
   const horizontalScroll = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(horizontalScroll).toBeLessThanOrEqual(1);
   await expect(page.getByRole("button", { name: /run detection|activate model|response action/i })).toHaveCount(0);
+});
+
+test("evidence review advances to Assistant acceptance after detection closes", async ({ page }) => {
+  await mockApi(page);
+  await page.unroute("**/api/evidence-review/status");
+  await page.route("**/api/evidence-review/status", async (route) =>
+    route.fulfill({
+      json: {
+        version: "v5.37.0",
+        detection: {
+          workspace: "detection",
+          available: true,
+          prepared: true,
+          integrity_status: "valid",
+          total: 40,
+          reviewed: 40,
+          remaining: 0,
+          invalid: 0,
+          progress_percent: 100,
+          owner_assigned: true,
+          owned_by_current_user: true,
+          can_review: true,
+          completed: true,
+          closed: true,
+          next_pending_index: null,
+          evaluation_ready: true,
+          message: "Detection review is complete and closed.",
+          predictions_exposed: false,
+          model_scores_exposed: false,
+          raw_logs_exposed: false,
+          private_paths_exposed: false,
+          import_ready: false
+        },
+        assistant: {
+          workspace: "assistant",
+          available: true,
+          prepared: false,
+          integrity_status: "valid",
+          total: 8,
+          reviewed: 0,
+          remaining: 8,
+          invalid: 0,
+          progress_percent: 0,
+          owner_assigned: false,
+          owned_by_current_user: false,
+          can_review: true,
+          completed: false,
+          closed: false,
+          next_pending_index: 0,
+          evaluation_ready: false,
+          human_acceptance_passed: null,
+          message: "Review protected answers without sending content back to the provider.",
+          predictions_exposed: false,
+          model_scores_exposed: false,
+          raw_logs_exposed: false,
+          private_paths_exposed: false,
+          import_ready: false
+        },
+        safeguards: ["Human Decisions Only", "Predictions Withheld", "No Auto Import", "No Model Activation", "No Response Actions"],
+        aggregate_only_for_non_owner: true,
+        secrets_exposed: false
+      }
+    })
+  );
+  await seedSession(page);
+  await page.goto("/evidence-review");
+
+  await expect(page.getByRole("tab", { name: /Assistant Acceptance/ })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("detection-tab-progress")).toHaveText("40/40 Closed");
+  await expect(page.getByTestId("assistant-tab-progress")).toHaveText("0/8");
+  await expect(page.getByTestId("evidence-review-workflow-notice")).toContainText("Complete Assistant Acceptance");
+  await expect(page.getByTestId("assistant-review-empty-state")).toContainText("Workspace ready");
 });
 
 test("evidence review workspace explains unavailable private packs without leaking details", async ({ page }) => {

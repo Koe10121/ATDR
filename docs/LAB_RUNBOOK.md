@@ -2155,9 +2155,10 @@ Check both evidence programs without writing reports or calling Gemini:
 .\.venv\Scripts\python.exe -m atdr.scripts.run_v533_independent_detection_assistant_acceptance --no-write --pretty
 ```
 
-Expected current result: detection review `0/40`, frozen metrics withheld,
-Assistant human pack either absent or incomplete, lifecycle
-`shadow_observation`, and zero configured-database mutations.
+Historical v5.33 checkpoint result: detection review `0/40`, frozen metrics
+withheld, Assistant human pack absent or incomplete, lifecycle
+`shadow_observation`, and zero configured-database mutations. The current
+completed v5.39 result is recorded in the v5.39 section below.
 
 Prepare or resume the ignored human worksheets only when a genuine reviewer is
 available:
@@ -2211,34 +2212,19 @@ not delete or update evidence rows. Do not reset, reimport, or remove data to
 improve a timing. A power-on disk-cold result can differ with storage and OS
 cache state and must not be presented as a production SLA.
 
-## v5.36 Independent Evidence And Gemini Operations Check
+## v5.36 Independent Evidence Audit Foundation
 
-Run the current fail-closed lifecycle audit without writing a generated report:
-
-```powershell
-.\.venv\Scripts\python.exe -m atdr.scripts.run_v536_independent_evidence_activation_decision --no-write --pretty
-```
-
-Expected current state: sealed integrity passes, detection human review is
-`0/40`, blind metrics are withheld, evidence gates are `3/9`, blind quality
-gates evaluated are `0/7`, lifecycle is `shadow_observation`, and every
-configured mutation delta is zero.
-
-When the private Gemini key and quota are available, run only the bounded,
-redacted operational probe:
+The old v5.36 CLI is retained only as a v5.39 aggregate readiness alias:
 
 ```powershell
-.\.venv\Scripts\python.exe -m atdr.scripts.run_v536_independent_evidence_activation_decision `
-  --execute-provider `
-  --provider-interval-seconds 1 `
-  --no-write `
-  --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v536_independent_evidence_activation_decision --pretty
 ```
 
-Confirm provider readiness and automated contracts separately from human
-acceptance. Raw-log context must remain false, redaction true, secrets absent,
-and action/mutation counts zero. The current human Assistant worksheet remains
-`0/8`; a successful API call does not satisfy that human gate.
+The historical v5.36 checkpoint was detection `0/40`, Assistant `0/8`, and
+metrics withheld. After v5.39 completion, this alias reports the stored
+aggregate completed state and still cannot execute a provider probe or a new
+frozen activation audit. Provider operations remain a separate bounded,
+redacted acceptance activity and never satisfy human review.
 
 Follow the exact detection and Assistant worksheet handoff in
 `docs/V5_36_INDEPENDENT_EVIDENCE_ACTIVATION_DECISION.md`. Never import either
@@ -2268,8 +2254,46 @@ Assistant pack may be prepared from bounded current ATDR records, with
 external-provider execution disabled.
 
 Close a workspace only when all rows validate. Closing does not import labels
-or authorize model activation. Rerun the v5.36 no-write decision separately
-after genuine review is complete.
+or authorize model activation. Use the v5.39 preflight after genuine review is
+complete.
+
+## v5.39 Frozen Evidence Evaluation
+
+Check aggregate readiness at any time:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v539_independent_evidence_decision --preflight-only --pretty
+```
+
+For a fresh protected evidence cycle, do not execute the frozen evaluation
+until the dashboard reports detection `40/40`, Assistant `8/8`, both
+workspaces closed, and the status is ready. The local v5.39 cycle described by
+this repository has already consumed its single execution, so the following
+command is retained as an operator record and must not be run again locally:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v539_independent_evidence_decision `
+  --execute `
+  --confirm FROZEN_V539_EVALUATION `
+  --pretty
+```
+
+The evaluator freezes private decision digests, claims one attempt, and calls
+the v5.36 audit without provider execution or report writes. It fails closed
+on evidence changes, interruption, or any authoritative database mutation.
+Repeated completed invocations return the stored sanitized result rather than
+recalculating metrics. See
+`docs/V5_39_INDEPENDENT_EVIDENCE_AND_ACTIVATION_DECISION.md`.
+
+Current local result: execution count `1`, detection `40/40` closed,
+Assistant `8/8` closed, Assistant acceptance passed at `0.875`, and lifecycle
+`shadow_observation`. The frozen supervised candidate reports queue F1
+`0.5625`, threat recall `0.4500`, benign-like FPR `0.1500`, suspicious and
+malicious recall `1.0000`, and weak calibration with ECE `0.3220`. It is not
+eligible for manual activation review because evidence volume/class balance,
+independent source/time-window coverage, training-overlap exclusion, queue
+quality, FPR, and calibration gates remain open. There were zero label,
+model-run, detection-run, alert, response, or provider writes.
 
 ## v5.38 Product Reliability And Failure-Mode Check
 

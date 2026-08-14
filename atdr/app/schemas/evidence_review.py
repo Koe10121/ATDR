@@ -20,6 +20,7 @@ class EvidenceReviewProgress(BaseModel):
     owned_by_current_user: bool = False
     can_review: bool = False
     completed: bool = False
+    closed: bool = False
     next_pending_index: int | None = None
     evaluation_ready: bool = False
     human_acceptance_passed: bool | None = None
@@ -38,6 +39,53 @@ class EvidenceReviewStatusResponse(BaseModel):
     safeguards: list[str] = Field(default_factory=list)
     aggregate_only_for_non_owner: bool = True
     secrets_exposed: bool = False
+
+
+class FrozenEvidenceReviewSummary(BaseModel):
+    available: bool
+    total: int
+    reviewed: int
+    remaining: int
+    invalid: int
+    completed: bool
+    closed: bool
+    evaluation_ready: bool
+    owner_contract_valid: bool
+    human_acceptance_passed: bool | None = None
+
+
+class FrozenActivationDecisionSummary(BaseModel):
+    lifecycle: str
+    activate_candidate: bool = False
+    eligible_for_manual_activation_review: bool = False
+    production_promoted: bool = False
+    model_activated: bool = False
+    model_promoted: bool = False
+    response_automation_allowed: bool = False
+    rules_remain_alert_authoritative: bool = True
+    blockers: list[str] = Field(default_factory=list)
+
+
+class FrozenEvaluationStatusResponse(BaseModel):
+    ok: bool
+    version: str
+    status: str
+    detection: FrozenEvidenceReviewSummary
+    assistant: FrozenEvidenceReviewSummary
+    reviews_complete: bool
+    reviews_closed: bool
+    freeze_ready: bool
+    evidence_frozen: bool
+    evaluation_attempted: bool
+    evaluation_completed: bool
+    evaluation_execution_count: int
+    executed_now: bool = False
+    metrics_available: bool
+    blind_metrics: dict[str, Any] = Field(default_factory=dict)
+    assistant_metrics: dict[str, Any] = Field(default_factory=dict)
+    activation_decision: FrozenActivationDecisionSummary
+    message: str
+    safety: dict[str, Any] = Field(default_factory=dict)
 
 
 class DetectionReviewExistingInput(BaseModel):

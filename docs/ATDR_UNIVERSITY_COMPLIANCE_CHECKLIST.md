@@ -786,3 +786,15 @@ For docs-only changes, at minimum verify the docs exist, links are correct, and 
 | AI and response safety | Satisfied | rules authoritative, supervised shadow-only, Assistant read-only, raw context false, no activation/promotion, denied unsafe response and simulated approved response | Genuine human evidence and any future authority change require separate approval. |
 | Privacy and repo hygiene | Satisfied by design | concise reports exclude raw evidence, private paths, IPs, provider payloads, and secrets; outputs remain ignored | Commit only the exact allowlist after separate approval. |
 | T1-T20 and taskboard | Satisfied locally | v5.38 status, change record, PRD, traceability, checklist, taskboard, runbooks, and exact allowlist | Commit/push are not authorized by this phase. |
+
+## v5.39 Independent Evidence And Frozen Decision Compliance Status
+
+| University / ATDR rule | Status | Evidence | Remaining action |
+| --- | --- | --- | --- |
+| No guessing / human provenance | Satisfied | genuine authenticated review completed at detection `40/40` and Assistant `8/8`; no AI-generated decision was accepted as human review | Preserve reviewer evidence privately and do not reinterpret automated checks as human evidence. |
+| Blindness and source evidence | Satisfied for the frozen cycle | predictions, scores, tokens, fingerprints, paths, IPs, raw logs, reviewer identities, and private digests remained outside API/CLI/UI output | Preserve ignored evidence custody; do not tune against the consumed rows. |
+| Frozen decision discipline | Complete | private digest freeze, exact confirmation, one atomic cross-process claim, execution count `1`, stored-result reuse, tamper rejection, and failed/orphaned-claim lockout | Any future decision requires separate development evidence and a new untouched validation set. |
+| Legacy path closure | Satisfied | v5.36 CLI is a readiness-only v5.39 alias and cannot run provider/frozen evaluation options | Keep v5.36 service internal to the governed evaluator. |
+| Test and UI gate | Satisfied for the frozen implementation baseline | focused `17/17`; backend/release `927 passed, 1 skipped`; React lint/build; Playwright implementation baseline `34 passed, 1 skipped`; controlled/layered/Assistant/reliability/performance gates | Final post-result regression is recorded in the v5.39 status; external device/provider/IAM/host gates remain separate. |
+| AI and response safety | Satisfied | lifecycle `shadow_observation`; activation rejected with `4/9` evidence and `2/7` quality gates passing; rules authoritative; no model/provider/label/detection/alert/response write; automation and blocking false | Repair only on separate development evidence; any activation or authority change remains separately approved. |
+| T1-T20 and taskboard | Satisfied locally | v5.39 status/change record, runbooks, status, traceability, compliance, rendered taskboard, and exact allowlist | Commit/push require separate exact-path approval. |

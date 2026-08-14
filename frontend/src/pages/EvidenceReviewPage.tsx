@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, CheckCircle2, ClipboardCheck, LockKeyhole, Save } from "lucide-react";
 import { Badge } from "../components/Badge";
 import { EmptyState } from "../components/EmptyState";
@@ -12,6 +12,7 @@ import {
   useCompleteEvidenceReviewMutation,
   useDetectionReviewItem,
   useEvidenceReviewStatus,
+  useFrozenEvaluationStatus,
   useSaveAssistantReviewMutation,
   useSaveDetectionReviewMutation,
   useStartEvidenceReviewMutation
@@ -24,7 +25,8 @@ import type {
   DetectionReviewItem,
   EvidenceReviewOperation,
   EvidenceReviewProgress,
-  EvidenceReviewWorkspace
+  EvidenceReviewWorkspace,
+  FrozenEvaluationStatus
 } from "../types/api";
 
 const decisionGroups = [
@@ -102,6 +104,38 @@ function ProgressPanel({ progress }: { progress: EvidenceReviewProgress }) {
         </div>
       </section>
     </>
+  );
+}
+
+function FrozenEvaluationPanel({ evaluation }: { evaluation: FrozenEvaluationStatus }) {
+  const statusLabel = formatFieldName(evaluation.status);
+  return (
+    <section className="panel" data-testid="frozen-evaluation-status">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-sm font-black uppercase tracking-wide text-muted">Frozen evaluation</div>
+          <div className="mt-1 text-sm text-muted">{evaluation.message}</div>
+        </div>
+        <Badge value={statusLabel} />
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-lg border border-line bg-panel2 p-3">
+          <div className="text-xs font-black uppercase tracking-wide text-muted">Detection review</div>
+          <div className="mt-1 text-lg font-black">{evaluation.detection.reviewed}/{evaluation.detection.total}</div>
+          <div className="mt-1 text-xs text-muted">{evaluation.detection.closed ? "Closed" : "Human review open"}</div>
+        </div>
+        <div className="rounded-lg border border-line bg-panel2 p-3">
+          <div className="text-xs font-black uppercase tracking-wide text-muted">Assistant review</div>
+          <div className="mt-1 text-lg font-black">{evaluation.assistant.reviewed}/{evaluation.assistant.total}</div>
+          <div className="mt-1 text-xs text-muted">{evaluation.assistant.closed ? "Closed" : "Human review open"}</div>
+        </div>
+        <div className="rounded-lg border border-line bg-panel2 p-3">
+          <div className="text-xs font-black uppercase tracking-wide text-muted">Lifecycle</div>
+          <div className="mt-1 text-sm font-black">{formatFieldName(evaluation.activation_decision.lifecycle)}</div>
+          <div className="mt-1 text-xs text-muted">No automatic activation</div>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -436,7 +470,10 @@ function AssistantWorkspace({
 export function EvidenceReviewPage() {
   const [activeWorkspace, setActiveWorkspace] = useState<EvidenceReviewWorkspace>("detection");
   const [rowIndexes, setRowIndexes] = useState<Record<EvidenceReviewWorkspace, number | null>>({ detection: null, assistant: null });
+  const [workflowNotice, setWorkflowNotice] = useState("");
+  const workflowDefaultApplied = useRef(false);
   const status = useEvidenceReviewStatus();
+  const evaluation = useFrozenEvaluationStatus();
   const start = useStartEvidenceReviewMutation();
   const complete = useCompleteEvidenceReviewMutation();
   const progress = status.data?.[activeWorkspace];
@@ -451,6 +488,21 @@ export function EvidenceReviewPage() {
       return { ...current, [activeWorkspace]: progress.next_pending_index ?? 0 };
     });
   }, [activeWorkspace, progress]);
+
+  useEffect(() => {
+    if (workflowDefaultApplied.current || !status.data) return;
+    workflowDefaultApplied.current = true;
+    if (status.data.detection.closed && !status.data.assistant.closed) {
+      setActiveWorkspace("assistant");
+      setWorkflowNotice("Detection review is closed. Complete Assistant Acceptance to unlock the frozen evaluation.");
+    }
+  }, [status.data]);
+
+  useEffect(() => {
+    if (!progress?.completed || progress.closed) return;
+    const label = activeWorkspace === "detection" ? "Detection review" : "Assistant Acceptance";
+    setWorkflowNotice(`${label} is saved and valid. Select Close review to seal this workspace.`);
+  }, [activeWorkspace, progress?.closed, progress?.completed]);
 
   async function startWorkspace() {
     const result = await start.mutateAsync(activeWorkspace);
@@ -468,7 +520,14 @@ export function EvidenceReviewPage() {
   async function completeWorkspace() {
     const item = itemQuery.data;
     if (!item || !window.confirm("Close this completed human review workspace?")) return;
-    await complete.mutateAsync({ workspace: activeWorkspace, revision: item.revision });
+    const completedWorkspace = activeWorkspace;
+    const result = await complete.mutateAsync({ workspace: completedWorkspace, revision: item.revision });
+    if (completedWorkspace === "detection" && result.progress.closed) {
+      setActiveWorkspace("assistant");
+      setWorkflowNotice("Detection review is closed. Complete Assistant Acceptance to unlock the frozen evaluation.");
+    } else if (completedWorkspace === "assistant" && result.progress.closed) {
+      setWorkflowNotice("Both evidence workspaces are closed. Run the frozen evaluation preflight before the one-time evaluation.");
+    }
   }
 
   const canStart = Boolean(progress?.can_review && (activeWorkspace === "assistant" || progress.available));
@@ -486,23 +545,52 @@ export function EvidenceReviewPage() {
       />
 
       <div className="flex gap-2 overflow-x-auto border-b border-line" role="tablist" aria-label="Evidence review workspace">
-        {(["detection", "assistant"] as EvidenceReviewWorkspace[]).map((workspace) => (
-          <button
-            key={workspace}
-            type="button"
-            role="tab"
-            aria-selected={activeWorkspace === workspace}
-            className={`whitespace-nowrap border-b-2 px-4 py-3 text-sm font-black ${activeWorkspace === workspace ? "border-danger text-danger" : "border-transparent text-muted hover:text-text"}`}
-            onClick={() => setActiveWorkspace(workspace)}
-          >
-            {workspace === "detection" ? "Detection Blind Review" : "Assistant Acceptance"}
-          </button>
-        ))}
+        {(["detection", "assistant"] as EvidenceReviewWorkspace[]).map((workspace) => {
+          const workspaceProgress = status.data?.[workspace];
+          return (
+            <button
+              key={workspace}
+              type="button"
+              role="tab"
+              aria-selected={activeWorkspace === workspace}
+              className={`inline-flex items-center gap-2 whitespace-nowrap border-b-2 px-4 py-3 text-sm font-black ${activeWorkspace === workspace ? "border-danger text-danger" : "border-transparent text-muted hover:text-text"}`}
+              onClick={() => {
+                setActiveWorkspace(workspace);
+                setWorkflowNotice("");
+              }}
+            >
+              <span>{workspace === "detection" ? "Detection Blind Review" : "Assistant Acceptance"}</span>
+              {workspaceProgress ? (
+                <span className="text-xs font-bold" data-testid={`${workspace}-tab-progress`}>
+                  {workspaceProgress.reviewed}/{workspaceProgress.total}{workspaceProgress.closed ? " Closed" : ""}
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
       </div>
+
+      {workflowNotice ? <div className="panel py-3 text-sm font-semibold" role="status" data-testid="evidence-review-workflow-notice">{workflowNotice}</div> : null}
 
       {status.isLoading ? <LoadingPanel label="Loading evidence review status" /> : null}
       {status.isError ? <ErrorBanner error={status.error} fallback="Unable to load the protected review status." /> : null}
+      {evaluation.isError ? <ErrorBanner error={evaluation.error} fallback="Unable to load frozen evaluation status." /> : null}
+      {evaluation.data ? <FrozenEvaluationPanel evaluation={evaluation.data} /> : null}
       {progress ? <ProgressPanel progress={progress} /> : null}
+
+      {progress?.completed && !progress.closed && currentItem ? (
+        <section className="panel flex flex-wrap items-center justify-between gap-4" data-testid={`${activeWorkspace}-review-complete`}>
+          <div className="flex items-start gap-3">
+            <CheckCircle2 className="mt-0.5 text-success" size={20} />
+            <div>
+              <div className="font-black">All review items are valid</div>
+              <div className="mt-1 text-sm text-muted">Close the workspace to make this review eligible for the separate one-time evaluation. No labels, models, or responses are changed.</div>
+            </div>
+          </div>
+          <button className="btn-secondary" type="button" disabled={complete.isPending} onClick={completeWorkspace}>{complete.isPending ? "Closing" : "Close review"}</button>
+          {complete.isError ? <ErrorBanner error={complete.error} fallback="Unable to close this review workspace." /> : null}
+        </section>
+      ) : null}
 
       {progress && (!progress.prepared || !progress.owned_by_current_user) ? (
         <section className="panel" data-testid={`${activeWorkspace}-review-empty-state`}>
@@ -539,20 +627,6 @@ export function EvidenceReviewPage() {
           onNavigate={(rowIndex) => setRowIndexes((current) => ({ ...current, assistant: rowIndex }))}
           onSaved={handleSaved}
         />
-      ) : null}
-
-      {progress?.completed && currentItem ? (
-        <section className="panel flex flex-wrap items-center justify-between gap-4" data-testid={`${activeWorkspace}-review-complete`}>
-          <div className="flex items-start gap-3">
-            <CheckCircle2 className="mt-0.5 text-success" size={20} />
-            <div>
-              <div className="font-black">All review items are valid</div>
-              <div className="mt-1 text-sm text-muted">Closing records completion only. It does not import labels, tune a model, or execute a response.</div>
-            </div>
-          </div>
-          <button className="btn-secondary" type="button" disabled={complete.isPending} onClick={completeWorkspace}>{complete.isPending ? "Closing" : "Close review"}</button>
-          {complete.isError ? <ErrorBanner error={complete.error} fallback="Unable to close this review workspace." /> : null}
-        </section>
       ) : null}
     </div>
   );

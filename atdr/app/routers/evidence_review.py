@@ -17,6 +17,7 @@ from atdr.app.schemas.evidence_review import (
     EvidenceReviewCompleteRequest,
     EvidenceReviewOperationResponse,
     EvidenceReviewStatusResponse,
+    FrozenEvaluationStatusResponse,
 )
 from atdr.app.services.evidence_review_service import (
     EvidenceReviewError,
@@ -29,6 +30,9 @@ from atdr.app.services.evidence_review_service import (
     save_detection_review_item,
     start_assistant_review,
     start_detection_review,
+)
+from atdr.app.services.v539_independent_evidence_decision_service import (
+    get_v539_evaluation_status,
 )
 
 
@@ -108,6 +112,21 @@ def evidence_review_status(
         return get_evidence_review_status(current_user, settings=settings)
     except EvidenceReviewError as exc:
         _raise_review_error(db, current_user, exc, workspace="aggregate")
+
+
+@router.get(
+    "/evaluation-status",
+    response_model=FrozenEvaluationStatusResponse,
+)
+def frozen_evaluation_status(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+    settings: Settings = Depends(get_settings),
+) -> dict:
+    try:
+        return get_v539_evaluation_status(settings=settings)
+    except EvidenceReviewError as exc:
+        _raise_review_error(db, current_user, exc, workspace="evaluation")
 
 
 @router.post(

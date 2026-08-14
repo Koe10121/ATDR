@@ -2611,6 +2611,7 @@ export interface EvidenceReviewProgress {
   owned_by_current_user: boolean;
   can_review: boolean;
   completed: boolean;
+  closed: boolean;
   next_pending_index?: number | null;
   evaluation_ready: boolean;
   human_acceptance_passed?: boolean | null;
@@ -2629,6 +2630,51 @@ export interface EvidenceReviewStatus {
   safeguards: string[];
   aggregate_only_for_non_owner: boolean;
   secrets_exposed: false;
+}
+
+export interface FrozenEvidenceReviewSummary {
+  available: boolean;
+  total: number;
+  reviewed: number;
+  remaining: number;
+  invalid: number;
+  completed: boolean;
+  closed: boolean;
+  evaluation_ready: boolean;
+  owner_contract_valid: boolean;
+  human_acceptance_passed?: boolean | null;
+}
+
+export interface FrozenEvaluationStatus {
+  ok: boolean;
+  version: string;
+  status: string;
+  detection: FrozenEvidenceReviewSummary;
+  assistant: FrozenEvidenceReviewSummary;
+  reviews_complete: boolean;
+  reviews_closed: boolean;
+  freeze_ready: boolean;
+  evidence_frozen: boolean;
+  evaluation_attempted: boolean;
+  evaluation_completed: boolean;
+  evaluation_execution_count: number;
+  executed_now: boolean;
+  metrics_available: boolean;
+  blind_metrics: Record<string, unknown>;
+  assistant_metrics: Record<string, unknown>;
+  activation_decision: {
+    lifecycle: string;
+    activate_candidate: boolean;
+    eligible_for_manual_activation_review: boolean;
+    production_promoted: false;
+    model_activated: false;
+    model_promoted: false;
+    response_automation_allowed: false;
+    rules_remain_alert_authoritative: true;
+    blockers: string[];
+  };
+  message: string;
+  safety: Record<string, unknown>;
 }
 
 export type DetectionReviewDecisionGroup = "benign_like" | "needs_context" | "threat_positive";

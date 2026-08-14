@@ -296,9 +296,28 @@ def _assistant_payload(revision: int, *, decision: str = "accept") -> dict[str, 
 def test_evidence_review_requires_authentication(workspace_client) -> None:
     client, _, _ = workspace_client
     assert client.get("/api/evidence-review/status").status_code == 401
+    assert client.get("/api/evidence-review/evaluation-status").status_code == 401
     assert client.post("/api/evidence-review/detection/start").status_code == 401
     assert client.get("/api/evidence-review/detection/items/0").status_code == 401
     assert client.post("/api/evidence-review/assistant/start").status_code == 401
+
+
+def test_frozen_evaluation_status_is_safe_and_aggregate_only(workspace_client) -> None:
+    client, _, _ = workspace_client
+    headers = _login(client, "reviewer-one")
+
+    response = client.get("/api/evidence-review/evaluation-status", headers=headers)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "human_review_required"
+    assert payload["evaluation_execution_count"] == 0
+    assert payload["safety"]["digests_exposed"] is False
+    assert payload["safety"]["reviewer_identities_exposed"] is False
+    assert payload["activation_decision"]["model_activated"] is False
+    serialized = response.text.lower()
+    assert "private-test-secret" not in serialized
+    assert "private-token" not in serialized
 
 
 def test_detection_review_is_blind_resumable_and_read_only(workspace_client) -> None:

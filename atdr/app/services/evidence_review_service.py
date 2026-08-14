@@ -354,6 +354,12 @@ def _detection_progress(
         "invalid": invalid,
         "progress_percent": _progress_percent(reviewed, total),
         "completed": bool(total and reviewed == total and invalid == 0),
+        "closed": bool(
+            total
+            and reviewed == total
+            and invalid == 0
+            and workspace.get("completed_at")
+        ),
         "next_pending_index": _next_pending_index(rows),
         "evaluation_ready": bool(progress.get("enough_for_locked_evaluation")),
         "message": (
@@ -418,6 +424,12 @@ def _assistant_progress(
         "invalid": invalid,
         "progress_percent": _progress_percent(reviewed, total),
         "completed": bool(total and reviewed == total and invalid == 0),
+        "closed": bool(
+            total
+            and reviewed == total
+            and invalid == 0
+            and workspace.get("completed_at")
+        ),
         "next_pending_index": _next_pending_index(rows),
         "evaluation_ready": bool(validation.get("human_acceptance_permitted")),
         "human_acceptance_passed": (
@@ -983,6 +995,16 @@ def complete_evidence_review(
             )
         workspace["completed_at"] = workspace.get("completed_at") or _now()
         _atomic_write_json(paths.state, state)
+        progress = (
+            _detection_progress(paths, state, current_user)
+            if workspace_name == "detection"
+            else _assistant_progress(
+                paths,
+                state,
+                current_user,
+                secret=settings.assistant_llm_api_key,
+            )
+        )
         return _operation_response(
             workspace=workspace_name,
             status=f"{workspace_name}_review_completed",

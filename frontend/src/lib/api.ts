@@ -28,6 +28,7 @@ import type {
   EmailVerificationStatus,
   EvidenceReviewOperation,
   EvidenceReviewStatus,
+  FrozenEvaluationStatus,
   HealthResponse,
   DetectionRun,
   IngestionRun,
@@ -205,6 +206,8 @@ export const api = {
   assistantFeedbackSummary: (params: Params = {}) => apiRequest<AssistantFeedbackSummary>("/api/assistant/feedback/summary", { params }),
   assistantFeedbackRecent: (params: Params = {}) => apiRequest<AssistantFeedbackItem[]>("/api/assistant/feedback/recent", { params }),
   evidenceReviewStatus: () => apiRequest<EvidenceReviewStatus>("/api/evidence-review/status"),
+  frozenEvaluationStatus: () =>
+    apiRequest<FrozenEvaluationStatus>("/api/evidence-review/evaluation-status"),
   startEvidenceReview: (workspace: "detection" | "assistant") =>
     apiRequest<EvidenceReviewOperation>(`/api/evidence-review/${workspace}/start`, { method: "POST" }),
   detectionReviewItem: (rowIndex: number) =>
