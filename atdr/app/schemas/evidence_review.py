@@ -88,6 +88,65 @@ class FrozenEvaluationStatusResponse(BaseModel):
     safety: dict[str, Any] = Field(default_factory=dict)
 
 
+class BlindEvidenceStatusResponse(BaseModel):
+    version: str
+    status: Literal[
+        "Designed",
+        "Collecting",
+        "Insufficient Sources",
+        "Ready For Human Review",
+        "Review Complete",
+        "Ready For Frozen Evaluation",
+    ]
+    qualifying_collection_count: int = 0
+    independent_source_count: int = 0
+    required_source_count: int = 2
+    collection_window_count: int = 0
+    required_window_count: int = 3
+    candidate_rows: int = 0
+    target_review_rows: int = 240
+    review_pack_available: bool = False
+    human_reviewed_rows: int = 0
+    human_review_complete: bool = False
+    class_support: dict[str, int] = Field(default_factory=dict)
+    prediction_sealed_separately: bool = False
+    metrics_available: bool = False
+    lifecycle_state: Literal["shadow_observation"] = "shadow_observation"
+    rules_alert_authoritative: Literal[True] = True
+    model_activated: Literal[False] = False
+    model_promoted: Literal[False] = False
+    response_automation_allowed: Literal[False] = False
+    raw_logs_exposed: Literal[False] = False
+    ip_addresses_exposed: Literal[False] = False
+    private_paths_exposed: Literal[False] = False
+    source_identities_exposed: Literal[False] = False
+    fingerprints_exposed: Literal[False] = False
+    secrets_exposed: Literal[False] = False
+    message: str
+
+
+class CandidateFreezeStatusResponse(BaseModel):
+    version: str
+    status: str
+    best_candidate: str | None = None
+    passing_folds: int = 0
+    required_folds: int = 3
+    candidate_frozen: bool = False
+    calibration_status: Literal["not_evaluated", "weak", "passed"]
+    blind_evidence_status: str
+    supervised_phases_remaining: int
+    blockers: list[str] = Field(default_factory=list)
+    lifecycle_state: Literal["shadow_observation"] = "shadow_observation"
+    rules_alert_authoritative: Literal[True] = True
+    model_activated: Literal[False] = False
+    model_promoted: Literal[False] = False
+    response_automation_allowed: Literal[False] = False
+    private_paths_exposed: Literal[False] = False
+    digests_exposed: Literal[False] = False
+    blind_predictions_exposed: Literal[False] = False
+    secrets_exposed: Literal[False] = False
+
+
 class DetectionReviewExistingInput(BaseModel):
     decision_group: Literal["benign_like", "needs_context", "threat_positive"]
     decision: Literal[

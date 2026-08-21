@@ -8,13 +8,27 @@ IsolationForest can add anomaly evidence, supervised models remain governed
 decision-support candidates, and Gemini may summarize bounded ATDR evidence for
 an analyst. None of these layers may execute a response action.
 
+## v5.42 Candidate Freeze Decision
+
+The latest development-only comparison used 1,467 rows, exactly five
+predeclared strategies, three duplicate-isolated nested temporal folds, fixed
+threshold profiles, and dedicated calibration/threshold roles. Hierarchical
+two-stage is the best diagnostic ranking, not an accepted candidate: it passes
+`0/3` folds, has threat recall `0.1000-0.5828`, suspicious recall
+`0.0719-0.5164`, malicious recall `0.0000-0.9259`, ECE `0.1862-0.5054`, and
+queue-rate spread `0.3702`. No artifact was frozen, activated, or promoted.
+
+The authenticated aggregate status is
+`GET /api/evidence-review/candidate-freeze/status`. See
+`docs/V5_42_DEVELOPMENT_CANDIDATE_FREEZE_READINESS.md`.
+
 ## Status At A Glance
 
 | Layer | Current role | Current status | Authority |
 | --- | --- | --- | --- |
 | Deterministic detection rules | Primary explainable alert generation | v5.31 adversarial lock: 27/27 synthetic cases; 19-rule catalog contract reconciled | May create/deduplicate alerts; cannot execute response |
 | IsolationForest | Assistive unusual-behavior score | v5.5 audit and v5.13 regression: advisory only; controlled anomaly layer remains 72/72 | Decision support only; cannot create an alert by itself |
-| Supervised SOC queue | Rank/recommend review from labeled evidence | v5.39 genuine review is closed at `40/40`; the one frozen evaluation rejected activation (queue F1 `0.5625`, benign-like FPR `0.1500`, ECE `0.3220`); lifecycle remains `shadow_observation` | Evidence only; rules remain authoritative |
+| Supervised SOC queue | Rank/recommend review from labeled evidence | v5.42 revalidated protected custody and compared five fixed development candidates. Hierarchical two-stage ranked best but passed `0/3` folds, so no diagnostic candidate was frozen. v5.41 blind readiness remains `Designed` with `0/2` sources and `0/3` windows. | Evidence only; rules remain authoritative |
 | Legacy supervised artifact | Unselected local reference | Artifact exists; model/feature metadata are unknown | Not selected by the governed lifecycle |
 | SOC Assistant deterministic layer | Retrieve and explain ATDR evidence | 20/20 controlled QA questions passed | Read-only |
 | Gemini provider layer | Rephrase/summarize bounded evidence | Private configuration and one bounded synthetic probe passed | Explanation only; no detector or action authority |
@@ -932,3 +946,32 @@ sources and three windows, hidden predictions, genuine human review, and one
 fixed evaluation. Lifecycle remains `shadow_observation`, rules remain
 alert-authoritative, and response automation and real blocking remain
 disabled. See `docs/V5_40_DEVELOPMENT_ONLY_SUPERVISED_MODEL_REPAIR.md`.
+
+## v5.41 Governed Blind Evidence Acquisition
+
+v5.41 turns the future evidence protocol into a fail-closed operator workflow.
+It revalidates the consumed v5.39 pack and v5.40 development cutoff, processes
+candidate files only in disposable storage, requires genuine human physical-
+source attestation, contains exact/near duplicate families, and exposes only
+aggregate readiness through the authenticated evidence-review API and AI
+Governance page.
+
+The existing private PAN-OS file parsed 773,551/773,551 rows with no parser
+failure and complete TRAFFIC/THREAT schemas. It also overlapped 120,000
+configured rows, 1,273 v5.40 exact rows, and 1,619 v5.40 near families. It is
+therefore rehearsal-only and cannot be relabeled as fresh blind evidence. The
+configured database, labels, model runs, detection runs, alerts, response
+actions, and model artifacts remained unchanged.
+
+Current status is `Designed`: `0/2` qualifying independent sources, `0/3`
+qualifying windows, and `0/240` qualifying review rows. No prediction seal or
+review CSV was created because the evidence gate is incomplete and v5.40
+froze no candidate. The implemented future pack contains no predictions,
+scores, suggestions, fingerprints, raw logs, or IP columns; protected content
+is custody-bound and genuine human confirmation is mandatory.
+
+Four phases remain before supervised shadow activation can be considered:
+future evidence acquisition, human blind review, one frozen one-shot
+evaluation, and a separate governance/shadow-observation decision. The first
+two require real devices and humans. See
+`docs/V5_41_GOVERNED_BLIND_EVIDENCE_ACQUISITION.md`.

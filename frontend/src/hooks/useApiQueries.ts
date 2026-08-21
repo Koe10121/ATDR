@@ -25,6 +25,8 @@ export const queryKeys = {
   assistantFeedbackSummary: (params?: Record<string, unknown>) => ["assistant-feedback-summary", params ?? {}],
   assistantFeedbackRecent: (params?: Record<string, unknown>) => ["assistant-feedback-recent", params ?? {}],
   evidenceReviewStatus: ["evidence-review-status"],
+  blindEvidenceStatus: ["blind-evidence-status"],
+  candidateFreezeStatus: ["candidate-freeze-status"],
   frozenEvaluationStatus: ["evidence-review-evaluation-status"],
   detectionReviewItem: (rowIndex?: number | null) => ["evidence-review-detection-item", rowIndex],
   assistantReviewItem: (rowIndex?: number | null) => ["evidence-review-assistant-item", rowIndex],
@@ -197,6 +199,24 @@ export function useEvidenceReviewStatus() {
     queryFn: api.evidenceReviewStatus,
     retry: false,
     staleTime: 10_000
+  });
+}
+
+export function useBlindEvidenceStatus() {
+  return useQuery({
+    queryKey: queryKeys.blindEvidenceStatus,
+    queryFn: api.blindEvidenceStatus,
+    retry: false,
+    staleTime: 30_000
+  });
+}
+
+export function useCandidateFreezeStatus() {
+  return useQuery({
+    queryKey: queryKeys.candidateFreezeStatus,
+    queryFn: api.candidateFreezeStatus,
+    retry: false,
+    staleTime: 30_000
   });
 }
 

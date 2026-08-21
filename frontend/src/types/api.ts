@@ -2632,6 +2632,64 @@ export interface EvidenceReviewStatus {
   secrets_exposed: false;
 }
 
+export interface BlindEvidenceStatus {
+  version: string;
+  status:
+    | "Designed"
+    | "Collecting"
+    | "Insufficient Sources"
+    | "Ready For Human Review"
+    | "Review Complete"
+    | "Ready For Frozen Evaluation";
+  qualifying_collection_count: number;
+  independent_source_count: number;
+  required_source_count: number;
+  collection_window_count: number;
+  required_window_count: number;
+  candidate_rows: number;
+  target_review_rows: number;
+  review_pack_available: boolean;
+  human_reviewed_rows: number;
+  human_review_complete: boolean;
+  class_support: Record<string, number>;
+  prediction_sealed_separately: boolean;
+  metrics_available: false;
+  lifecycle_state: "shadow_observation";
+  rules_alert_authoritative: true;
+  model_activated: false;
+  model_promoted: false;
+  response_automation_allowed: false;
+  raw_logs_exposed: false;
+  ip_addresses_exposed: false;
+  private_paths_exposed: false;
+  source_identities_exposed: false;
+  fingerprints_exposed: false;
+  secrets_exposed: false;
+  message: string;
+}
+
+export interface CandidateFreezeStatus {
+  version: string;
+  status: string;
+  best_candidate?: string | null;
+  passing_folds: number;
+  required_folds: number;
+  candidate_frozen: boolean;
+  calibration_status: "not_evaluated" | "weak" | "passed";
+  blind_evidence_status: string;
+  supervised_phases_remaining: number;
+  blockers: string[];
+  lifecycle_state: "shadow_observation";
+  rules_alert_authoritative: true;
+  model_activated: false;
+  model_promoted: false;
+  response_automation_allowed: false;
+  private_paths_exposed: false;
+  digests_exposed: false;
+  blind_predictions_exposed: false;
+  secrets_exposed: false;
+}
+
 export interface FrozenEvidenceReviewSummary {
   available: boolean;
   total: number;

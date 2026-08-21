@@ -388,6 +388,64 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
       }
     })
   );
+  await page.route("**/api/evidence-review/blind-evidence/status", async (route) =>
+    route.fulfill({
+      json: {
+        version: "v5.41-governed-blind-evidence-v1",
+        status: "Insufficient Sources",
+        qualifying_collection_count: 1,
+        independent_source_count: 1,
+        required_source_count: 2,
+        collection_window_count: 1,
+        required_window_count: 3,
+        candidate_rows: 40,
+        target_review_rows: 240,
+        review_pack_available: false,
+        human_reviewed_rows: 0,
+        human_review_complete: false,
+        class_support: { benign_like: 0, suspicious: 0, malicious: 0 },
+        prediction_sealed_separately: false,
+        metrics_available: false,
+        lifecycle_state: "shadow_observation",
+        rules_alert_authoritative: true,
+        model_activated: false,
+        model_promoted: false,
+        response_automation_allowed: false,
+        raw_logs_exposed: false,
+        ip_addresses_exposed: false,
+        private_paths_exposed: false,
+        source_identities_exposed: false,
+        fingerprints_exposed: false,
+        secrets_exposed: false,
+        message: "Additional independently verified sources or collection windows are required."
+      }
+    })
+  );
+  await page.route("**/api/evidence-review/candidate-freeze/status", async (route) =>
+    route.fulfill({
+      json: {
+        version: "v5.42-development-candidate-freeze-v1",
+        status: "No Candidate Frozen",
+        best_candidate: "hierarchical_two_stage",
+        passing_folds: 0,
+        required_folds: 3,
+        candidate_frozen: false,
+        calibration_status: "weak",
+        blind_evidence_status: "Insufficient Sources",
+        supervised_phases_remaining: 5,
+        blockers: ["Temporal stability gate failed."],
+        lifecycle_state: "shadow_observation",
+        rules_alert_authoritative: true,
+        model_activated: false,
+        model_promoted: false,
+        response_automation_allowed: false,
+        private_paths_exposed: false,
+        digests_exposed: false,
+        blind_predictions_exposed: false,
+        secrets_exposed: false
+      }
+    })
+  );
   await page.route("**/api/evidence-review/detection/start", async (route) => route.fulfill({ json: operation("detection", detectionItem(detectionReviewReviewed)) }));
   await page.route("**/api/evidence-review/assistant/start", async (route) => route.fulfill({ json: operation("assistant", assistantItem(assistantReviewReviewed)) }));
   await page.route("**/api/evidence-review/detection/items/*", async (route) => {
@@ -3363,6 +3421,29 @@ test("AI Governance shows governed supervised shadow status without selecting th
   await seedSession(page);
 
   await page.goto("/ml");
+  const candidateFreeze = page.getByTestId("candidate-freeze-readiness");
+  await expect(candidateFreeze).toContainText("No Candidate Frozen");
+  await expect(candidateFreeze).toContainText("hierarchical two stage");
+  await expect(candidateFreeze).toContainText("0/3");
+  await expect(candidateFreeze).toContainText("weak");
+  await expect(candidateFreeze).toContainText("Rules Authoritative");
+  await expect(candidateFreeze).toContainText("No Model Activation");
+  const candidateFreezeOverflow = await candidateFreeze.evaluate(
+    (element) => element.scrollWidth > element.clientWidth + 1
+  );
+  expect(candidateFreezeOverflow).toBe(false);
+  const blindEvidence = page.getByTestId("blind-evidence-readiness");
+  await expect(blindEvidence).toContainText("Insufficient Sources");
+  await expect(blindEvidence).toContainText("1/2");
+  await expect(blindEvidence).toContainText("1/3");
+  await expect(blindEvidence).toContainText("40/240");
+  await expect(blindEvidence).toContainText("Predictions Withheld");
+  await expect(blindEvidence).toContainText("Rules Authoritative");
+  await expect(blindEvidence).toContainText("No Model Activation");
+  const blindEvidenceOverflow = await blindEvidence.evaluate(
+    (element) => element.scrollWidth > element.clientWidth + 1
+  );
+  expect(blindEvidenceOverflow).toBe(false);
   const registry = page.getByTestId("supervised-model-registry");
   await expect(registry.getByText("shadow active", { exact: true })).toBeVisible();
   await expect(registry.getByText("shadow observation", { exact: true }).first()).toBeVisible();

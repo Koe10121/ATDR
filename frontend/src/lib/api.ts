@@ -15,6 +15,8 @@ import type {
   AuditLog,
   BlockedIP,
   BenchmarkReviewImportResult,
+  BlindEvidenceStatus,
+  CandidateFreezeStatus,
   ClassTemporalCoverageReport,
   DashboardSummary,
   DashboardValidationSummary,
@@ -206,6 +208,10 @@ export const api = {
   assistantFeedbackSummary: (params: Params = {}) => apiRequest<AssistantFeedbackSummary>("/api/assistant/feedback/summary", { params }),
   assistantFeedbackRecent: (params: Params = {}) => apiRequest<AssistantFeedbackItem[]>("/api/assistant/feedback/recent", { params }),
   evidenceReviewStatus: () => apiRequest<EvidenceReviewStatus>("/api/evidence-review/status"),
+  blindEvidenceStatus: () =>
+    apiRequest<BlindEvidenceStatus>("/api/evidence-review/blind-evidence/status"),
+  candidateFreezeStatus: () =>
+    apiRequest<CandidateFreezeStatus>("/api/evidence-review/candidate-freeze/status"),
   frozenEvaluationStatus: () =>
     apiRequest<FrozenEvaluationStatus>("/api/evidence-review/evaluation-status"),
   startEvidenceReview: (workspace: "detection" | "assistant") =>

@@ -798,3 +798,28 @@ For docs-only changes, at minimum verify the docs exist, links are correct, and 
 | Test and UI gate | Satisfied for the frozen implementation baseline | focused `17/17`; backend/release `927 passed, 1 skipped`; React lint/build; Playwright implementation baseline `34 passed, 1 skipped`; controlled/layered/Assistant/reliability/performance gates | Final post-result regression is recorded in the v5.39 status; external device/provider/IAM/host gates remain separate. |
 | AI and response safety | Satisfied | lifecycle `shadow_observation`; activation rejected with `4/9` evidence and `2/7` quality gates passing; rules authoritative; no model/provider/label/detection/alert/response write; automation and blocking false | Repair only on separate development evidence; any activation or authority change remains separately approved. |
 | T1-T20 and taskboard | Satisfied locally | v5.39 status/change record, runbooks, status, traceability, compliance, rendered taskboard, and exact allowlist | Commit/push require separate exact-path approval. |
+
+## v5.41 Governed Blind Evidence Compliance Status
+
+| University / ATDR rule | Status | v5.41 evidence | Remaining action |
+| --- | --- | --- | --- |
+| No guessing / source evidence | Satisfied | v5.39/v5.40 boundaries are revalidated; private-file claims use measured aggregate rehearsal output only | Obtain independently attested future device evidence. |
+| Human decision integrity | Satisfied by workflow; review pending | AI/rule/Codex identities are rejected; no suggested label or prediction appears in the review pack | Genuine analysts must complete future review. |
+| Testing gate | Satisfied locally | cutoff, source independence, duplicate containment, custody, API privacy, no-authority-write, UI, and repository verification evidence | External device and human acceptance remain outside local automation. |
+| Privacy / repo hygiene | Satisfied | raw logs, IPs, paths, identities, fingerprints, custody state, predictions, reviews, DBs, artifacts, and reports remain ignored/private | Re-run exact allowlist and hygiene checks before any commit. |
+| AI safety | Satisfied | no model tuning, freezing, activation, promotion, or authoritative alert change; metrics stay closed | One-shot evaluation is future and separately governed. |
+| Response safety | Satisfied | zero response actions; automation and real blocking remain disabled | Real enforcement remains a separately approved future design. |
+| T1-T20 / taskboard / traceability | Satisfied locally | v5.41 status, completed change record, PRD, traceability, compliance, taskboard, and exact allowlist | Commit/push require separate explicit approval. |
+| External evidence readiness | Not yet satisfied | existing 773,551-row file is rehearsal-only and overlaps prior/configured evidence | Two real sources, three future windows, 240 rows, class support, human review, and advisor approval are required. |
+
+## v5.42 Candidate Freeze Readiness Compliance Status
+
+| University / ATDR rule | Status | v5.42 evidence | Remaining action |
+| --- | --- | --- | --- |
+| No guessing / source evidence | Satisfied | measured 1,467-row development contract and eight protected-boundary checks; no protected/blind label or prediction access | Preserve custody and report only aggregate measured results. |
+| Predeclared acceptance criteria | Satisfied | exact five-candidate set and fixed fold, calibration, class-recall, FPR, and queue-stability gates | Do not weaken gates after observing failures. |
+| Fail-closed AI governance | Satisfied | best diagnostic passes `0/3`; no candidate artifact is frozen, activated, or promoted | Repair only with development evidence or wait for genuine new evidence. |
+| Test and UI gate | Satisfied for changed scope | immutable/tamper/no-write/API tests plus typed compact AI Governance status | Complete verification matrix is recorded on the taskboard. |
+| Privacy / repo hygiene | Satisfied by design | generated report/artifact area ignored; API excludes paths, digests, predictions, identities, fingerprints, rows, and secrets | Recheck exact allowlist before any separately approved commit. |
+| Response safety | Satisfied | rules remain authoritative; zero alerts/responses created; automation and real blocking false | Any authority change remains a separate approved phase. |
+| T1-T20 / traceability / taskboard | Satisfied locally | v5.42 status, change record, PRD, traceability, checklist, runbook, taskboard, and exact allowlist | Commit/push are not authorized by v5.42. |

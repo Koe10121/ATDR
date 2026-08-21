@@ -2045,3 +2045,81 @@ future activation decision, collect a new pack under
 `docs/detection/V5_40_NEW_BLIND_EVIDENCE_PROTOCOL.md`: future-only evidence,
 at least two real sources, three windows, hidden predictions, genuine human
 review, and one fixed evaluation.
+
+## v5.41 Governed Blind Evidence Acquisition
+
+Check the consumed evidence boundary and current collection readiness:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v541_blind_evidence_acquisition `
+  --preflight-only `
+  --pretty
+```
+
+Rehearse an existing private file only with disposable storage and the explicit
+rehearsal flag:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v541_blind_evidence_acquisition `
+  --sample-path "C:\Path\Outside\Git\private-panos.log" `
+  --source-name historical-rehearsal `
+  --source-type firewall `
+  --collection-window prior-evidence-rehearsal `
+  --parser-profile palo_alto `
+  --use-temp-db `
+  --rehearsal-only `
+  --pretty
+```
+
+Rehearsal output never qualifies. A future qualifying collection additionally
+requires a private `--source-attestation` JSON from a genuine human operator,
+strictly post-cutoff events, a source independent of development evidence, and
+zero configured/prior/duplicate overlap. The complete gate requires two
+physical sources, three windows, and 240 isolated rows.
+
+Predictions must be produced by one already-frozen diagnostic configuration
+and sealed separately before the human pack opens. The human CSV contains no
+prediction, score, suggestion, answer key, fingerprint, raw log, or IP column.
+Do not rename AI/rule/Codex decisions as human review. Do not calculate metrics
+until all rows are genuinely reviewed and the support targets reach 100
+benign-like, 50 suspicious, and 50 malicious.
+
+Current readiness is `Designed`; the historical private file is rehearsal-only
+because it overlaps configured/development evidence. No candidate was frozen
+in v5.40, so review and evaluation remain closed. Full rules and measured safe
+aggregates are in
+`docs/V5_41_GOVERNED_BLIND_EVIDENCE_ACQUISITION.md`.
+
+## v5.42 Development Candidate Freeze Readiness
+
+Validate custody without fitting models:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v542_candidate_freeze_readiness `
+  --preflight-only `
+  --no-report `
+  --pretty
+```
+
+Run the one fixed five-strategy development comparison:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v542_candidate_freeze_readiness --pretty
+```
+
+The command revalidates v5.39-v5.41 boundaries, uses only the 1,467-row
+development population, and compares calibrated ExtraTrees,
+HistGradientBoosting, regularized Logistic Regression, three-class SOC queue,
+and hierarchical two-stage models. Every strategy must pass all quality and
+calibration gates on all three duplicate-isolated temporal folds, plus the
+queue-rate stability gate. Gates are fixed before execution.
+
+Current result: hierarchical two-stage ranks first but passes `0/3` folds.
+Threat recall ranges `0.1000-0.5828`, suspicious recall `0.0719-0.5164`,
+malicious recall `0.0000-0.9259`, FPR reaches `0.1176`, ECE reaches `0.5054`,
+and queue-rate spread is `0.3702`. No diagnostic artifact is frozen. Keep the
+lifecycle at `shadow_observation`; do not activate an older candidate or weaken
+the gates. Generated output remains ignored under `ml_baseline_reviews/`.
+
+See `docs/V5_42_DEVELOPMENT_CANDIDATE_FREEZE_READINESS.md` for the fixed gates,
+root-cause analysis, safety result, and remaining five supervised phases.

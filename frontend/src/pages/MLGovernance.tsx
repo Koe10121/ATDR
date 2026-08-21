@@ -23,6 +23,8 @@ import { SocPageHeader } from "../components/SocPageHeader";
 import { api } from "../lib/api";
 import {
   useClassTemporalCoverage,
+  useBlindEvidenceStatus,
+  useCandidateFreezeStatus,
   useDetectionMlProductization,
   useMlLabelMutations,
   useMlEvidenceSnapshot,
@@ -59,6 +61,8 @@ function rateText(value: unknown) {
 export function MLGovernance() {
   const report = useMlReport();
   const evidenceSnapshot = useMlEvidenceSnapshot();
+  const blindEvidence = useBlindEvidenceStatus();
+  const candidateFreeze = useCandidateFreezeStatus();
   const supervised = useSupervisedReport();
   const productization = useDetectionMlProductization();
   const supervisedModels = useSupervisedModels();
@@ -134,6 +138,8 @@ export function MLGovernance() {
   const operational = shadowOperations.data;
   const diagnostics = shadowDiagnostics.data;
   const parserDiagnostics = parserProfileDiagnostics.data;
+  const blindEvidenceData = blindEvidence.data;
+  const candidateFreezeData = candidateFreeze.data;
   const runtimeParserAlertCount = (runtimeSources.data ?? []).reduce(
     (total, source) => total + (source.health.operational_alerts?.length ?? 0),
     0
@@ -393,6 +399,7 @@ export function MLGovernance() {
   function refreshGovernance() {
     void report.refetch();
     void evidenceSnapshot.refetch();
+    void blindEvidence.refetch();
     void supervised.refetch();
     void productization.refetch();
     void supervisedModels.refetch();
@@ -442,6 +449,113 @@ export function MLGovernance() {
       </div>
 
       <MLEvidenceSnapshotPanel snapshot={evidenceSnapshot.data} loading={evidenceSnapshot.isLoading} error={evidenceSnapshot.isError} />
+
+      <section className="panel overflow-hidden" data-testid="candidate-freeze-readiness">
+        <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="text-xs font-extrabold uppercase tracking-wide text-muted">
+              Supervised Candidate Readiness
+            </div>
+            <div className="mt-1 text-sm text-muted">
+              Fixed development gates; diagnostic only.
+            </div>
+          </div>
+          <div className="flex min-w-0 max-w-full flex-wrap gap-2">
+            <Badge value={candidateFreezeData?.status ?? "Designed"} />
+            <Badge value="Rules Authoritative" />
+            <Badge value="No Model Activation" />
+          </div>
+        </div>
+        {candidateFreeze.isError ? (
+          <div className="mt-3 rounded border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+            Candidate readiness is unavailable. Model lifecycle remains unchanged.
+          </div>
+        ) : (
+          <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <MetricCard
+              label="Best Candidate"
+              value={candidateFreezeData?.best_candidate?.replaceAll("_", " ") ?? "Not evaluated"}
+              detail="Development-only comparison"
+              tone="cyan"
+            />
+            <MetricCard
+              label="Passing Folds"
+              value={`${candidateFreezeData?.passing_folds ?? 0}/${candidateFreezeData?.required_folds ?? 3}`}
+              detail="Every fixed gate required"
+              tone={(candidateFreezeData?.passing_folds ?? 0) === (candidateFreezeData?.required_folds ?? 3) ? "teal" : "amber"}
+            />
+            <MetricCard
+              label="Calibration"
+              value={(candidateFreezeData?.calibration_status ?? "not_evaluated").replaceAll("_", " ")}
+              detail="ECE and confidence gap"
+              tone={candidateFreezeData?.calibration_status === "passed" ? "teal" : "amber"}
+            />
+            <MetricCard
+              label="Remaining Phases"
+              value={candidateFreezeData?.supervised_phases_remaining ?? 5}
+              detail="Before a governance decision"
+              tone="cyan"
+            />
+          </div>
+        )}
+      </section>
+
+      <section className="panel overflow-hidden" data-testid="blind-evidence-readiness">
+        <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="text-xs font-extrabold uppercase tracking-wide text-muted">
+              Independent Evidence Readiness
+            </div>
+            <div className="mt-1 text-sm text-muted">
+              Governed prediction-blind collection and human-review custody.
+            </div>
+          </div>
+          <div className="flex min-w-0 max-w-full flex-wrap gap-2">
+            <Badge value={blindEvidenceData?.status ?? "Designed"} />
+            <Badge value="Predictions Withheld" />
+            <Badge value="Rules Authoritative" />
+            <Badge value="No Model Activation" />
+          </div>
+        </div>
+        {blindEvidence.isError ? (
+          <div className="mt-3 rounded border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+            Independent evidence status is unavailable. Model lifecycle remains unchanged.
+          </div>
+        ) : (
+          <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+            <MetricCard
+              label="Sources"
+              value={`${blindEvidenceData?.independent_source_count ?? 0}/${blindEvidenceData?.required_source_count ?? 2}`}
+              detail="Independently attested devices"
+              tone={(blindEvidenceData?.independent_source_count ?? 0) >= (blindEvidenceData?.required_source_count ?? 2) ? "teal" : "amber"}
+            />
+            <MetricCard
+              label="Windows"
+              value={`${blindEvidenceData?.collection_window_count ?? 0}/${blindEvidenceData?.required_window_count ?? 3}`}
+              detail="Disjoint collection periods"
+              tone={(blindEvidenceData?.collection_window_count ?? 0) >= (blindEvidenceData?.required_window_count ?? 3) ? "teal" : "amber"}
+            />
+            <MetricCard
+              label="Candidate Rows"
+              value={`${blindEvidenceData?.candidate_rows ?? 0}/${blindEvidenceData?.target_review_rows ?? 240}`}
+              detail="Prediction-blind evidence target"
+              tone={(blindEvidenceData?.candidate_rows ?? 0) >= (blindEvidenceData?.target_review_rows ?? 240) ? "teal" : "cyan"}
+            />
+            <MetricCard
+              label="Human Review"
+              value={blindEvidenceData?.human_review_complete ? "Complete" : `${blindEvidenceData?.human_reviewed_rows ?? 0} reviewed`}
+              detail="No assisted labels accepted"
+              tone={blindEvidenceData?.human_review_complete ? "teal" : "amber"}
+            />
+            <MetricCard
+              label="Lifecycle"
+              value={(blindEvidenceData?.lifecycle_state ?? "shadow_observation").replaceAll("_", " ")}
+              detail="No activation or promotion"
+              tone="cyan"
+            />
+          </div>
+        )}
+      </section>
 
       <section className="panel">
         <div className="mt-4 grid gap-4 md:grid-cols-3">

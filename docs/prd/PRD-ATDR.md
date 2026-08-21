@@ -1520,3 +1520,54 @@ disabled.
 - Passing local synthetic acceptance is not production readiness and shall
   not replace genuine human, real-device, MFU-provider, shared-host, privacy,
   or disaster-recovery evidence.
+
+## v5.41 Governed Blind Evidence Requirements
+
+- **FR-ATDR-092:** ATDR shall revalidate the consumed v5.39 evidence boundary
+  and v5.40 development cutoff before accepting future supervised evidence.
+- Private candidate logs shall be parsed only in disposable storage and shall
+  never be imported into the configured database by the v5.41 workflow.
+- Qualification shall require events strictly after the cutoff, a genuine
+  human physical-source attestation, source independence, and zero configured,
+  consumed, exact, near, temporal, or custody overlap.
+- Human review shall remain closed until at least two independently verified
+  physical sources, three disjoint windows, and 240 isolated rows exist.
+- Frozen predictions shall be stored in a separate ignored seal. Reviewer-
+  visible evidence shall contain no prediction, score, suggestion, answer key,
+  fingerprint, raw-log, or IP column.
+- Protected collection, candidate, prediction, and review content shall be
+  integrity-bound and fail closed on alteration or partial state.
+- AI Governance shall expose aggregate readiness only: Designed, Collecting,
+  Insufficient Sources, Ready For Human Review, Review Complete, or Ready For
+  Frozen Evaluation.
+- Frozen metrics shall remain unavailable until genuine human review and fixed
+  support targets pass. The review pack shall never become import-ready
+  automatically.
+- Rules remain alert-authoritative; supervised lifecycle remains
+  `shadow_observation`; no model/label/detection/alert/response write, automatic
+  response, or real firewall action is permitted.
+
+## v5.42 Development Candidate Freeze Requirements
+
+- **FR-ATDR-093:** ATDR shall revalidate the v5.39 consumed-evidence boundary,
+  v5.40 development population, and v5.41 custody state before any candidate
+  freeze evaluation.
+- Candidate selection shall use exactly the predeclared five-strategy set and
+  development-only fit, calibration, threshold, and nested temporal evaluation
+  roles with duplicate-group isolation.
+- Every fold shall satisfy fixed precision, recall, F1, benign-FPR,
+  suspicious-recall, malicious-recall, ECE, confidence-gap, and no-leakage
+  gates; review-queue spread shall also satisfy a fixed stability ceiling.
+- No gate may be weakened after results are observed to force a candidate.
+- At most one diagnostic artifact may be frozen. Its contract and artifact
+  shall be immutable, private, ignored, inactive, not production-promoted, and
+  unable to create or suppress authoritative alerts.
+- Conflicting, partial, or tampered freeze state shall fail closed.
+- v5.39 labels/predictions and v5.41 blind evidence shall not be used for
+  training, thresholding, calibration, ranking, or diagnosis.
+- AI Governance shall expose aggregate candidate readiness only and shall not
+  expose paths, digests, row identifiers, fingerprints, source identities,
+  blind predictions, raw logs, or secrets.
+- Failure to satisfy every gate shall preserve `shadow_observation`,
+  deterministic-rule authority, disabled response automation, and disabled
+  real blocking.

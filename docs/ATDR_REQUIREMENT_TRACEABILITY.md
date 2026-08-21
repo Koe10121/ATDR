@@ -771,3 +771,26 @@ This document maps major ATDR requirements to implementation evidence, tests, do
 | Diagnostic candidate freeze | Correctly withheld | metadata-only freeze requires all development gates | fail/pass freeze-gate test; no artifact assertion | v5.40 T1-T20 | No candidate qualifies; activation remains prohibited. |
 | New blind evidence protocol | Designed, not collected | future-only two-source/three-window 240-row contract | no prediction/automatic-label/import-ready test | `docs/detection/V5_40_NEW_BLIND_EVIDENCE_PROTOCOL.md` | Requires real collection, genuine human review, one-shot evaluation, and separate approval. |
 | Authority and privacy | Preserved | before/after database, artifact, v5.39 state, and pack checks | zero label/model/detection/alert/response write tests | current AI status | Lifecycle remains `shadow_observation`; rules remain authoritative. |
+
+## v5.41 Governed Blind Evidence Acquisition Addendum
+
+| Requirement | Status | Source files / routes | Tests / evidence | Docs | Remaining gaps |
+| --- | --- | --- | --- | --- | --- |
+| Consumed/development boundary lock | Implemented fail-closed | `atdr/app/detection/v541_governed_blind_evidence.py`, v5.39 private boundary, v5.40 development partition | boundary preflight, strict-cutoff, tamper, and no-modeling assertions | v5.41 status/T1-T20 | Boundaries must remain private and unchanged. |
+| Disposable private collection | Implemented | v5.41 service/CLI plus v5.6 streaming parser/index | 773,551 rows parsed, zero parser failures, disposable cleanup and no-authority-write tests | v5.41 status and AI runbook | Existing file overlaps prior evidence and cannot qualify. |
+| Source/window independence | Implemented as a gate; evidence absent | private human attestation validator and tokenized manifest | attestation identity, source count, window count, and rehearsal classification tests | v5.41 collection contract | Requires two real physical devices and three future windows. |
+| Exact/near/prior isolation | Implemented fail-closed | configured hash comparison, v5.39 token exclusion, v5.40 exact/near/propagation boundary, candidate-family containment | cutoff/duplicate/cross-boundary aggregate evidence | v5.41 status | New evidence must pass with zero overlap. |
+| Prediction-blind human pack | Implemented but gate-closed | separate prediction seal and review-pack generator | forbidden-column, source/window gate, custody, human identity, and non-import-ready tests | v5.41 status/runbook | Requires a frozen candidate, 240 rows, and genuine human review. |
+| Aggregate governance status | Implemented | `GET /api/evidence-review/blind-evidence/status`, schema/API hooks, `MLGovernance.tsx` | auth, redaction, status, safeguard, and overflow tests | v5.41 status | Current status is Designed; no qualifying collection exists. |
+| Authority and privacy | Preserved | configured counts/artifact checks and fixed public projection | zero label/model/detection/alert/response writes; no raw/IP/path/fingerprint/secret output | current AI/ML status | Lifecycle remains `shadow_observation`; rules remain authoritative. |
+
+## v5.42 Development Candidate Freeze Readiness Addendum
+
+| Requirement | Status | Source files / routes | Tests / evidence | Docs | Remaining gaps |
+| --- | --- | --- | --- | --- | --- |
+| Protected boundary revalidation | Passed | `atdr/app/detection/v542_development_candidate_freeze.py`, v5.39-v5.41 custody helpers | all eight boundary checks pass; 1,467-row contract matches; zero protected/blind rows modeled | v5.42 status/T1-T20 | Boundaries must remain unchanged on every run. |
+| Fixed five-strategy comparison | Complete; gates failed | v5.42 evaluator/CLI and existing v5.40/v5.5 model/partition helpers | exactly five strategies, three duplicate-isolated nested temporal folds | v5.42 status/runbook | Best diagnostic passes `0/3`; no freeze. |
+| Fixed quality and calibration gates | Enforced | `FIXED_FREEZE_GATES`, dedicated calibration and threshold roles | precision/recall/F1/FPR/class recall/ECE/gap/queue-spread/no-guard tests | v5.42 status | Recall, calibration, FPR in one fold, and queue stability fail. |
+| Immutable diagnostic freeze | Implemented; correctly unused | private ignored joblib/manifest seal under `ml_baseline_reviews/` | identical reuse, conflicting candidate rejection, tamper fail-closed | v5.42 tests/T1-T20 | No current strategy qualifies. |
+| Aggregate governance status | Implemented | `GET /api/evidence-review/candidate-freeze/status`, typed client/query, `MLGovernance.tsx` | auth, redaction, status, safety badge, and no-overflow tests | v5.42 status | Private details remain unavailable by design. |
+| Authority and privacy | Preserved | before/after DB/artifact/custody states and safe public serializer | zero label/model/detection/alert/response writes; no path/digest/prediction/secret output | current AI/ML status | Lifecycle remains `shadow_observation`; rules remain authoritative. |

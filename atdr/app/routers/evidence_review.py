@@ -12,12 +12,22 @@ from atdr.app.db.models import AuditLog, User
 from atdr.app.schemas.evidence_review import (
     AssistantReviewItemResponse,
     AssistantReviewSaveRequest,
+    BlindEvidenceStatusResponse,
+    CandidateFreezeStatusResponse,
     DetectionReviewItemResponse,
     DetectionReviewSaveRequest,
     EvidenceReviewCompleteRequest,
     EvidenceReviewOperationResponse,
     EvidenceReviewStatusResponse,
     FrozenEvaluationStatusResponse,
+)
+from atdr.app.detection.v541_governed_blind_evidence import (
+    V541EvidenceError,
+    get_public_blind_evidence_status,
+)
+from atdr.app.detection.v542_development_candidate_freeze import (
+    V542FreezeError,
+    get_public_candidate_freeze_status,
 )
 from atdr.app.services.evidence_review_service import (
     EvidenceReviewError,
@@ -127,6 +137,40 @@ def frozen_evaluation_status(
         return get_v539_evaluation_status(settings=settings)
     except EvidenceReviewError as exc:
         _raise_review_error(db, current_user, exc, workspace="evaluation")
+
+
+@router.get(
+    "/blind-evidence/status",
+    response_model=BlindEvidenceStatusResponse,
+)
+def blind_evidence_status(
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    del current_user
+    try:
+        return get_public_blind_evidence_status()
+    except V541EvidenceError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="The private blind-evidence workspace failed integrity validation.",
+        ) from exc
+
+
+@router.get(
+    "/candidate-freeze/status",
+    response_model=CandidateFreezeStatusResponse,
+)
+def candidate_freeze_status(
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    del current_user
+    try:
+        return get_public_candidate_freeze_status()
+    except V542FreezeError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="The private candidate-freeze workspace failed integrity validation.",
+        ) from exc
 
 
 @router.post(

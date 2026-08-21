@@ -22,6 +22,7 @@ from atdr.app.db.models import (
     ResponseAction,
 )
 from atdr.app.main import app
+from atdr.app.routers import evidence_review as evidence_review_router
 from atdr.app.services import evidence_review_service as service
 from atdr.app.services.user_service import create_user
 from atdr.app.services.v533_independent_acceptance_service import (
@@ -297,9 +298,110 @@ def test_evidence_review_requires_authentication(workspace_client) -> None:
     client, _, _ = workspace_client
     assert client.get("/api/evidence-review/status").status_code == 401
     assert client.get("/api/evidence-review/evaluation-status").status_code == 401
+    assert client.get("/api/evidence-review/blind-evidence/status").status_code == 401
+    assert client.get("/api/evidence-review/candidate-freeze/status").status_code == 401
     assert client.post("/api/evidence-review/detection/start").status_code == 401
     assert client.get("/api/evidence-review/detection/items/0").status_code == 401
     assert client.post("/api/evidence-review/assistant/start").status_code == 401
+
+
+def test_blind_evidence_status_is_safe_and_aggregate_only(
+    workspace_client,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, _, _ = workspace_client
+    headers = _login(client, "reviewer-one")
+    monkeypatch.setattr(
+        evidence_review_router,
+        "get_public_blind_evidence_status",
+        lambda: {
+            "version": "v5.41-governed-blind-evidence-v1",
+            "status": "Insufficient Sources",
+            "qualifying_collection_count": 1,
+            "independent_source_count": 1,
+            "required_source_count": 2,
+            "collection_window_count": 1,
+            "required_window_count": 3,
+            "candidate_rows": 40,
+            "target_review_rows": 240,
+            "review_pack_available": False,
+            "human_reviewed_rows": 0,
+            "human_review_complete": False,
+            "class_support": {"benign_like": 0, "suspicious": 0, "malicious": 0},
+            "prediction_sealed_separately": False,
+            "metrics_available": False,
+            "lifecycle_state": "shadow_observation",
+            "rules_alert_authoritative": True,
+            "model_activated": False,
+            "model_promoted": False,
+            "response_automation_allowed": False,
+            "raw_logs_exposed": False,
+            "ip_addresses_exposed": False,
+            "private_paths_exposed": False,
+            "source_identities_exposed": False,
+            "fingerprints_exposed": False,
+            "secrets_exposed": False,
+            "message": "Additional independently verified sources are required.",
+        },
+    )
+
+    response = client.get(
+        "/api/evidence-review/blind-evidence/status",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "Insufficient Sources"
+    assert payload["source_identities_exposed"] is False
+    assert payload["fingerprints_exposed"] is False
+    assert payload["secrets_exposed"] is False
+
+
+def test_candidate_freeze_status_is_safe_and_aggregate_only(
+    workspace_client,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, _, _ = workspace_client
+    headers = _login(client, "reviewer-one")
+    monkeypatch.setattr(
+        evidence_review_router,
+        "get_public_candidate_freeze_status",
+        lambda: {
+            "version": "v5.42-development-candidate-freeze-v1",
+            "status": "No Candidate Frozen",
+            "best_candidate": "hierarchical_two_stage",
+            "passing_folds": 0,
+            "required_folds": 3,
+            "candidate_frozen": False,
+            "calibration_status": "weak",
+            "blind_evidence_status": "Insufficient Sources",
+            "supervised_phases_remaining": 5,
+            "blockers": ["Temporal stability gate failed."],
+            "lifecycle_state": "shadow_observation",
+            "rules_alert_authoritative": True,
+            "model_activated": False,
+            "model_promoted": False,
+            "response_automation_allowed": False,
+            "private_paths_exposed": False,
+            "digests_exposed": False,
+            "blind_predictions_exposed": False,
+            "secrets_exposed": False,
+        },
+    )
+
+    response = client.get(
+        "/api/evidence-review/candidate-freeze/status",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["best_candidate"] == "hierarchical_two_stage"
+    assert payload["candidate_frozen"] is False
+    assert payload["model_activated"] is False
+    assert payload["blind_predictions_exposed"] is False
+    assert payload["secrets_exposed"] is False
 
 
 def test_frozen_evaluation_status_is_safe_and_aggregate_only(workspace_client) -> None:
