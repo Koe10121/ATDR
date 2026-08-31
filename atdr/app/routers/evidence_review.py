@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import NoReturn
+from typing import Literal, NoReturn
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from atdr.app.core.config import Settings, get_settings
@@ -14,12 +14,29 @@ from atdr.app.schemas.evidence_review import (
     AssistantReviewSaveRequest,
     BlindEvidenceStatusResponse,
     CandidateFreezeStatusResponse,
+    CombinedFixedRevalidationStatusResponse,
+    DevelopmentModelRepairStatusResponse,
     DetectionReviewItemResponse,
     DetectionReviewSaveRequest,
     EvidenceReviewCompleteRequest,
     EvidenceReviewOperationResponse,
     EvidenceReviewStatusResponse,
     FrozenEvaluationStatusResponse,
+    ManualAnchorAcquisitionStatusResponse,
+    ManualAnchorReviewCloseRequest,
+    ManualAnchorReviewItemResponse,
+    ManualAnchorReviewOperationResponse,
+    ManualAnchorReviewPageResponse,
+    ManualAnchorReviewProgress,
+    ManualAnchorReviewSaveRequest,
+    ManualAnchorReviewStatusResponse,
+    ManualAnchorTransferStatusResponse,
+    SupplementalThreatAnchorReviewItemResponse,
+    SupplementalThreatAnchorReviewOperationResponse,
+    SupplementalThreatAnchorReviewPageResponse,
+    SupplementalThreatAnchorReviewProgress,
+    SupplementalThreatAnchorStatusResponse,
+    TemporalStabilityStatusResponse,
 )
 from atdr.app.detection.v541_governed_blind_evidence import (
     V541EvidenceError,
@@ -28,6 +45,34 @@ from atdr.app.detection.v541_governed_blind_evidence import (
 from atdr.app.detection.v542_development_candidate_freeze import (
     V542FreezeError,
     get_public_candidate_freeze_status,
+)
+from atdr.app.detection.v543_temporal_stability_repair import (
+    V543RepairError,
+    get_public_temporal_stability_status,
+)
+from atdr.app.detection.v545_development_model_repair import (
+    V545RepairError,
+    get_public_v545_status,
+)
+from atdr.app.detection.v546_manual_anchor_transfer_repair import (
+    V546TransferRepairError,
+    get_public_v546_status,
+)
+from atdr.app.detection.v547_manual_anchor_acquisition import (
+    V547AcquisitionError,
+    get_public_v547_status,
+)
+from atdr.app.detection.v548_manual_anchor_fixed_revalidation import (
+    V548RevalidationError,
+    get_public_v548_status,
+)
+from atdr.app.detection.v549a_supplemental_threat_anchor_acquisition import (
+    V549ASupplementalAcquisitionError,
+    get_public_v549a_status,
+)
+from atdr.app.detection.v549b_combined_fixed_revalidation import (
+    V549BRevalidationError,
+    get_public_v549b_status,
 )
 from atdr.app.services.evidence_review_service import (
     EvidenceReviewError,
@@ -43,6 +88,22 @@ from atdr.app.services.evidence_review_service import (
 )
 from atdr.app.services.v539_independent_evidence_decision_service import (
     get_v539_evaluation_status,
+)
+from atdr.app.services.v548_manual_anchor_review_service import (
+    close_manual_anchor_review,
+    get_manual_anchor_review_item,
+    get_manual_anchor_review_status,
+    list_manual_anchor_review_items,
+    save_manual_anchor_review_item,
+    start_manual_anchor_review,
+)
+from atdr.app.services.v549a_supplemental_threat_anchor_review_service import (
+    close_supplemental_review,
+    get_supplemental_review_item,
+    get_supplemental_review_status,
+    list_supplemental_review_items,
+    save_supplemental_review_item,
+    start_supplemental_review,
 )
 
 
@@ -171,6 +232,476 @@ def candidate_freeze_status(
             status_code=409,
             detail="The private candidate-freeze workspace failed integrity validation.",
         ) from exc
+
+
+@router.get(
+    "/temporal-stability/status",
+    response_model=TemporalStabilityStatusResponse,
+)
+def temporal_stability_status(
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    del current_user
+    try:
+        return get_public_temporal_stability_status()
+    except V543RepairError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="The private temporal-stability workspace failed integrity validation.",
+        ) from exc
+
+
+@router.get(
+    "/development-model-repair/status",
+    response_model=DevelopmentModelRepairStatusResponse,
+)
+def development_model_repair_status(
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    del current_user
+    try:
+        return get_public_v545_status()
+    except V545RepairError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="The private development-repair workspace failed integrity validation.",
+        ) from exc
+
+
+@router.get(
+    "/manual-anchor-transfer/status",
+    response_model=ManualAnchorTransferStatusResponse,
+)
+def manual_anchor_transfer_status(
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    del current_user
+    try:
+        return get_public_v546_status()
+    except V546TransferRepairError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="The private transfer-repair workspace failed integrity validation.",
+        ) from exc
+
+
+@router.get(
+    "/manual-anchor-acquisition/status",
+    response_model=ManualAnchorAcquisitionStatusResponse,
+)
+def manual_anchor_acquisition_status(
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    del current_user
+    try:
+        return get_public_v547_status()
+    except V547AcquisitionError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="The private manual-anchor workspace failed integrity validation.",
+        ) from exc
+
+
+@router.get(
+    "/manual-anchors/revalidation-status",
+    response_model=ManualAnchorReviewStatusResponse,
+)
+def manual_anchor_revalidation_status(
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    del current_user
+    try:
+        return get_public_v548_status()
+    except (V547AcquisitionError, V548RevalidationError) as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="The fixed manual-anchor protocol failed integrity validation.",
+        ) from exc
+
+
+@router.get(
+    "/combined-manual-anchors/revalidation-status",
+    response_model=CombinedFixedRevalidationStatusResponse,
+)
+def combined_manual_anchor_revalidation_status(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    try:
+        result = get_public_v549b_status()
+    except V549BRevalidationError as exc:
+        _audit(
+            db,
+            current_user,
+            action="evidence_review_integrity_failed",
+            workspace="combined_manual_anchor_revalidation",
+            reason_code="combined_fixed_revalidation_status_invalid",
+        )
+        raise HTTPException(
+            status_code=409,
+            detail="The combined fixed-revalidation status failed integrity validation.",
+        ) from exc
+    _audit(
+        db,
+        current_user,
+        action="combined_fixed_revalidation_status_viewed",
+        workspace="combined_manual_anchor_revalidation",
+    )
+    return result
+
+
+@router.get(
+    "/manual-anchors/status",
+    response_model=ManualAnchorReviewProgress,
+)
+def manual_anchor_review_status(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    try:
+        return get_manual_anchor_review_status(current_user)
+    except EvidenceReviewError as exc:
+        _raise_review_error(db, current_user, exc, workspace="manual_anchors")
+
+
+@router.post(
+    "/manual-anchors/start",
+    response_model=ManualAnchorReviewOperationResponse,
+)
+def start_manual_anchor_workspace(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    try:
+        result = start_manual_anchor_review(current_user)
+    except EvidenceReviewError as exc:
+        _raise_review_error(db, current_user, exc, workspace="manual_anchors")
+    _audit(
+        db,
+        current_user,
+        action="manual_anchor_review_started",
+        workspace="manual_anchors",
+        revision=int(result["revision"]),
+    )
+    return result
+
+
+@router.get(
+    "/manual-anchors/items",
+    response_model=ManualAnchorReviewPageResponse,
+)
+def manual_anchor_review_items(
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=20, ge=1, le=100),
+    coverage_stratum: str | None = Query(default=None, max_length=120),
+    review_state: Literal["all", "pending", "reviewed"] = "all",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    try:
+        return list_manual_anchor_review_items(
+            current_user,
+            offset=offset,
+            limit=limit,
+            coverage_stratum=coverage_stratum,
+            review_state=review_state,
+        )
+    except EvidenceReviewError as exc:
+        _raise_review_error(db, current_user, exc, workspace="manual_anchors")
+
+
+@router.get(
+    "/manual-anchors/items/{row_index}",
+    response_model=ManualAnchorReviewItemResponse,
+)
+def manual_anchor_review_item(
+    row_index: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    try:
+        return get_manual_anchor_review_item(
+            current_user,
+            row_index=row_index,
+        )
+    except EvidenceReviewError as exc:
+        _raise_review_error(
+            db,
+            current_user,
+            exc,
+            workspace="manual_anchors",
+            row_index=row_index,
+        )
+
+
+@router.post(
+    "/manual-anchors/items/{row_index}",
+    response_model=ManualAnchorReviewOperationResponse,
+)
+def save_manual_anchor_workspace_item(
+    row_index: int,
+    request: ManualAnchorReviewSaveRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    try:
+        result = save_manual_anchor_review_item(
+            current_user,
+            row_index=row_index,
+            expected_revision=request.expected_revision,
+            decision=request.decision,
+            attack_type=request.attack_type,
+            confidence=request.confidence,
+            rationale=request.rationale,
+        )
+    except EvidenceReviewError as exc:
+        _raise_review_error(
+            db,
+            current_user,
+            exc,
+            workspace="manual_anchors",
+            row_index=row_index,
+        )
+    _audit(
+        db,
+        current_user,
+        action="manual_anchor_review_saved",
+        workspace="manual_anchors",
+        row_index=row_index,
+        revision=int(result["revision"]),
+    )
+    return result
+
+
+@router.post(
+    "/manual-anchors/close",
+    response_model=ManualAnchorReviewOperationResponse,
+)
+def close_manual_anchor_workspace(
+    request: ManualAnchorReviewCloseRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    try:
+        result = close_manual_anchor_review(
+            current_user,
+            expected_revision=request.expected_revision,
+        )
+    except EvidenceReviewError as exc:
+        _raise_review_error(db, current_user, exc, workspace="manual_anchors")
+    _audit(
+        db,
+        current_user,
+        action="manual_anchor_review_closed",
+        workspace="manual_anchors",
+        revision=int(result["revision"]),
+    )
+    return result
+
+
+@router.get(
+    "/supplemental-threat-anchors/acquisition-status",
+    response_model=SupplementalThreatAnchorStatusResponse,
+)
+def supplemental_threat_anchor_acquisition_status(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    try:
+        result = get_public_v549a_status()
+    except V549ASupplementalAcquisitionError as exc:
+        _audit(
+            db,
+            current_user,
+            action="evidence_review_integrity_failed",
+            workspace="supplemental_threat_anchors",
+            reason_code="supplemental_anchor_status_invalid",
+        )
+        raise HTTPException(
+            status_code=409,
+            detail="The supplemental threat-anchor workspace failed integrity validation.",
+        ) from exc
+    _audit(
+        db,
+        current_user,
+        action="supplemental_anchor_status_viewed",
+        workspace="supplemental_threat_anchors",
+    )
+    return result
+
+
+@router.get(
+    "/supplemental-threat-anchors/status",
+    response_model=SupplementalThreatAnchorReviewProgress,
+)
+def supplemental_threat_anchor_review_status(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    try:
+        result = get_supplemental_review_status(current_user)
+    except EvidenceReviewError as exc:
+        _raise_review_error(
+            db,
+            current_user,
+            exc,
+            workspace="supplemental_threat_anchors",
+        )
+    _audit(
+        db,
+        current_user,
+        action="supplemental_anchor_review_status_viewed",
+        workspace="supplemental_threat_anchors",
+        revision=int(result["revision"]),
+    )
+    return result
+
+
+@router.post(
+    "/supplemental-threat-anchors/start",
+    response_model=SupplementalThreatAnchorReviewOperationResponse,
+)
+def start_supplemental_threat_anchor_workspace(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    try:
+        result = start_supplemental_review(current_user)
+    except EvidenceReviewError as exc:
+        _raise_review_error(
+            db,
+            current_user,
+            exc,
+            workspace="supplemental_threat_anchors",
+        )
+    _audit(
+        db,
+        current_user,
+        action="supplemental_anchor_review_started",
+        workspace="supplemental_threat_anchors",
+        revision=int(result["revision"]),
+    )
+    return result
+
+
+@router.get(
+    "/supplemental-threat-anchors/items",
+    response_model=SupplementalThreatAnchorReviewPageResponse,
+)
+def supplemental_threat_anchor_review_items(
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=20, ge=1, le=100),
+    coverage_stratum: str | None = Query(default=None, max_length=120),
+    review_state: Literal["all", "pending", "reviewed"] = "all",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    try:
+        return list_supplemental_review_items(
+            current_user,
+            offset=offset,
+            limit=limit,
+            coverage_stratum=coverage_stratum,
+            review_state=review_state,
+        )
+    except EvidenceReviewError as exc:
+        _raise_review_error(
+            db,
+            current_user,
+            exc,
+            workspace="supplemental_threat_anchors",
+        )
+
+
+@router.get(
+    "/supplemental-threat-anchors/items/{row_index}",
+    response_model=SupplementalThreatAnchorReviewItemResponse,
+)
+def supplemental_threat_anchor_review_item(
+    row_index: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    try:
+        return get_supplemental_review_item(current_user, row_index=row_index)
+    except EvidenceReviewError as exc:
+        _raise_review_error(
+            db,
+            current_user,
+            exc,
+            workspace="supplemental_threat_anchors",
+            row_index=row_index,
+        )
+
+
+@router.post(
+    "/supplemental-threat-anchors/items/{row_index}",
+    response_model=SupplementalThreatAnchorReviewOperationResponse,
+)
+def save_supplemental_threat_anchor_workspace_item(
+    row_index: int,
+    request: ManualAnchorReviewSaveRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    try:
+        result = save_supplemental_review_item(
+            current_user,
+            row_index=row_index,
+            expected_revision=request.expected_revision,
+            decision=request.decision,
+            attack_type=request.attack_type,
+            confidence=request.confidence,
+            rationale=request.rationale,
+        )
+    except EvidenceReviewError as exc:
+        _raise_review_error(
+            db,
+            current_user,
+            exc,
+            workspace="supplemental_threat_anchors",
+            row_index=row_index,
+        )
+    _audit(
+        db,
+        current_user,
+        action="supplemental_anchor_review_saved",
+        workspace="supplemental_threat_anchors",
+        row_index=row_index,
+        revision=int(result["revision"]),
+    )
+    return result
+
+
+@router.post(
+    "/supplemental-threat-anchors/close",
+    response_model=SupplementalThreatAnchorReviewOperationResponse,
+)
+def close_supplemental_threat_anchor_workspace(
+    request: ManualAnchorReviewCloseRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    try:
+        result = close_supplemental_review(
+            current_user,
+            expected_revision=request.expected_revision,
+        )
+    except EvidenceReviewError as exc:
+        _raise_review_error(
+            db,
+            current_user,
+            exc,
+            workspace="supplemental_threat_anchors",
+        )
+    _audit(
+        db,
+        current_user,
+        action="supplemental_anchor_review_closed",
+        workspace="supplemental_threat_anchors",
+        revision=int(result["revision"]),
+    )
+    return result
 
 
 @router.post(

@@ -300,6 +300,17 @@ def test_evidence_review_requires_authentication(workspace_client) -> None:
     assert client.get("/api/evidence-review/evaluation-status").status_code == 401
     assert client.get("/api/evidence-review/blind-evidence/status").status_code == 401
     assert client.get("/api/evidence-review/candidate-freeze/status").status_code == 401
+    assert client.get("/api/evidence-review/temporal-stability/status").status_code == 401
+    assert (
+        client.get("/api/evidence-review/manual-anchor-transfer/status").status_code
+        == 401
+    )
+    assert (
+        client.get(
+            "/api/evidence-review/manual-anchor-acquisition/status"
+        ).status_code
+        == 401
+    )
     assert client.post("/api/evidence-review/detection/start").status_code == 401
     assert client.get("/api/evidence-review/detection/items/0").status_code == 401
     assert client.post("/api/evidence-review/assistant/start").status_code == 401
@@ -402,6 +413,222 @@ def test_candidate_freeze_status_is_safe_and_aggregate_only(
     assert payload["model_activated"] is False
     assert payload["blind_predictions_exposed"] is False
     assert payload["secrets_exposed"] is False
+
+
+def test_temporal_stability_status_is_safe_and_aggregate_only(
+    workspace_client,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, _, _ = workspace_client
+    headers = _login(client, "reviewer-one")
+    monkeypatch.setattr(
+        evidence_review_router,
+        "get_public_temporal_stability_status",
+        lambda: {
+            "version": "v5.43-development-temporal-stability-repair-v1",
+            "status": "No Candidate Frozen",
+            "best_variant": "temporal_provenance_balanced_weighting",
+            "passing_folds": 0,
+            "required_folds": 3,
+            "candidate_frozen": False,
+            "calibration_status": "weak",
+            "queue_stability_status": "unstable",
+            "feature_ablation_status": "complete",
+            "supervised_phases_remaining": 5,
+            "blockers": ["Temporal stability gate failed."],
+            "lifecycle_state": "shadow_observation",
+            "rules_alert_authoritative": True,
+            "model_activated": False,
+            "model_promoted": False,
+            "response_automation_allowed": False,
+            "private_paths_exposed": False,
+            "digests_exposed": False,
+            "blind_predictions_exposed": False,
+            "secrets_exposed": False,
+        },
+    )
+
+    response = client.get(
+        "/api/evidence-review/temporal-stability/status",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["best_variant"] == "temporal_provenance_balanced_weighting"
+    assert payload["passing_folds"] == 0
+    assert payload["candidate_frozen"] is False
+    assert payload["model_activated"] is False
+    assert payload["blind_predictions_exposed"] is False
+    assert payload["secrets_exposed"] is False
+
+
+def test_development_model_repair_status_is_safe_and_aggregate_only(
+    workspace_client,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, _, _ = workspace_client
+    headers = _login(client, "reviewer-one")
+    monkeypatch.setattr(
+        evidence_review_router,
+        "get_public_v545_status",
+        lambda: {
+            "version": "v5.45-development-only-supervised-repair-v1",
+            "status": "development_repair_incomplete",
+            "generated_at": "2026-08-21T00:00:00+00:00",
+            "diagnostic_leader": "calibrated_extra_trees_flat_5class",
+            "passing_views": 0,
+            "required_views": 3,
+            "candidate_freeze_ready": False,
+            "candidate_frozen": False,
+            "isolation_forest_reliable": False,
+            "supervised_phases_remaining": 5,
+            "blockers": ["Manual-anchor stability gate failed."],
+            "lifecycle_state": "shadow_observation",
+            "model_activated": False,
+            "model_promoted": False,
+            "response_automation_allowed": False,
+            "future_labels_opened": False,
+            "private_paths_returned": False,
+            "fingerprints_returned": False,
+            "secrets_exposed": False,
+        },
+    )
+
+    response = client.get(
+        "/api/evidence-review/development-model-repair/status",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["diagnostic_leader"] == "calibrated_extra_trees_flat_5class"
+    assert payload["passing_views"] == 0
+    assert payload["candidate_freeze_ready"] is False
+    assert payload["model_activated"] is False
+    assert payload["future_labels_opened"] is False
+    assert payload["private_paths_returned"] is False
+    assert payload["fingerprints_returned"] is False
+    assert payload["secrets_exposed"] is False
+
+
+def test_manual_anchor_transfer_status_is_safe_and_aggregate_only(
+    workspace_client,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, _, _ = workspace_client
+    headers = _login(client, "reviewer-one")
+    monkeypatch.setattr(
+        evidence_review_router,
+        "get_public_v546_status",
+        lambda: {
+            "version": "v5.46-manual-anchor-transfer-repair-v1",
+            "status": "manual_anchor_transfer_incomplete",
+            "generated_at": "2026-08-21T00:00:00+00:00",
+            "diagnostic_leader": "manual_anchor_prioritized_extra_trees",
+            "passing_views": 1,
+            "required_views": 3,
+            "manual_anchor_transfer_status": "improved",
+            "calibration_status": "weak",
+            "manual_anchor_queue_f1": 0.79,
+            "manual_anchor_fpr": 0.12,
+            "manual_anchor_suspicious_recall": 0.71,
+            "manual_anchor_malicious_recall": 0.84,
+            "queue_f1_transfer_gap": 0.18,
+            "candidate_freeze_ready": False,
+            "candidate_frozen": False,
+            "isolation_forest_reliable": False,
+            "supervised_phases_remaining": 5,
+            "blockers": ["Manual-anchor gate failed."],
+            "lifecycle_state": "shadow_observation",
+            "rules_alert_authoritative": True,
+            "model_activated": False,
+            "model_promoted": False,
+            "response_automation_allowed": False,
+            "future_labels_opened": False,
+            "private_paths_returned": False,
+            "fingerprints_returned": False,
+            "secrets_exposed": False,
+        },
+    )
+
+    response = client.get(
+        "/api/evidence-review/manual-anchor-transfer/status",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["manual_anchor_transfer_status"] == "improved"
+    assert payload["rules_alert_authoritative"] is True
+    assert payload["model_activated"] is False
+    assert payload["response_automation_allowed"] is False
+    assert payload["private_paths_returned"] is False
+    assert payload["fingerprints_returned"] is False
+    assert payload["secrets_exposed"] is False
+
+
+def test_manual_anchor_acquisition_status_is_safe_and_aggregate_only(
+    workspace_client,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, _, _ = workspace_client
+    headers = _login(client, "reviewer-one")
+    monkeypatch.setattr(
+        evidence_review_router,
+        "get_public_v547_status",
+        lambda: {
+            "version": "v5.47-prediction-blind-manual-anchor-acquisition-v1",
+            "status": "ready_for_human_review",
+            "generated_at": "2026-08-21T00:00:00+00:00",
+            "selected_rows": 120,
+            "target_rows": 120,
+            "represented_strata": 8,
+            "coverage_counts": {"unknown_transport": 20},
+            "coverage_gate_passed": True,
+            "review_status": "ready_for_human_review",
+            "reviewed_rows": 0,
+            "total_review_rows": 120,
+            "invalid_review_rows": 0,
+            "class_support": {
+                "benign_like": 0,
+                "suspicious": 0,
+                "malicious": 0,
+            },
+            "ready_for_fixed_revalidation": False,
+            "independent_source_count": 1,
+            "second_real_source_present": False,
+            "development_evidence_only": True,
+            "workspace_created": True,
+            "lifecycle_state": "shadow_observation",
+            "rules_alert_authoritative": True,
+            "model_activated": False,
+            "model_promoted": False,
+            "response_automation_allowed": False,
+            "future_labels_opened": False,
+            "predictions_exposed": False,
+            "assisted_labels_exposed": False,
+            "private_paths_returned": False,
+            "fingerprints_returned": False,
+            "secrets_exposed": False,
+        },
+    )
+
+    response = client.get(
+        "/api/evidence-review/manual-anchor-acquisition/status",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["selected_rows"] == 120
+    assert payload["reviewed_rows"] == 0
+    assert payload["development_evidence_only"] is True
+    assert payload["predictions_exposed"] is False
+    assert payload["model_activated"] is False
+    assert payload["response_automation_allowed"] is False
+    assert payload["private_paths_returned"] is False
+    assert "review_token" not in response.text
 
 
 def test_frozen_evaluation_status_is_safe_and_aggregate_only(workspace_client) -> None:

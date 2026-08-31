@@ -592,22 +592,7 @@ def _candidate_projection(
     window_token: str,
 ) -> dict[str, Any]:
     pattern = v521._pattern(row)
-    near_hash = frozen._stable_hash(
-        {
-            "log_type": row.get("log_type"),
-            "subtype": row.get("subtype"),
-            "app": str(row.get("app") or "").lower(),
-            "action": str(row.get("action") or "").lower(),
-            "protocol": str(row.get("protocol") or "").lower(),
-            "src_port": row.get("src_port"),
-            "dst_port": row.get("dst_port"),
-            "src_zone": str(row.get("src_zone") or "").lower(),
-            "dst_zone": str(row.get("dst_zone") or "").lower(),
-            "app_risk": row.get("app_risk"),
-            "bytes_bucket": frozen._magnitude_bucket(row.get("bytes")),
-            "packets_bucket": frozen._magnitude_bucket(row.get("packets")),
-        }
-    )
+    near_hash = v56._candidate_near_fingerprint(row)
     feature_hash = _stable_hash(
         {
             key: row.get(key)

@@ -823,3 +823,120 @@ For docs-only changes, at minimum verify the docs exist, links are correct, and 
 | Privacy / repo hygiene | Satisfied by design | generated report/artifact area ignored; API excludes paths, digests, predictions, identities, fingerprints, rows, and secrets | Recheck exact allowlist before any separately approved commit. |
 | Response safety | Satisfied | rules remain authoritative; zero alerts/responses created; automation and real blocking false | Any authority change remains a separate approved phase. |
 | T1-T20 / traceability / taskboard | Satisfied locally | v5.42 status, change record, PRD, traceability, checklist, runbook, taskboard, and exact allowlist | Commit/push are not authorized by v5.42. |
+
+## v5.43 Temporal Stability Repair Compliance Status
+
+| University / ATDR rule | Status | v5.43 evidence | Remaining action |
+| --- | --- | --- | --- |
+| No guessing / source evidence | Satisfied | measured 1,467-row development contract, custody revalidation, and aggregate feature/error audit | Preserve protected evidence and report failed gates honestly. |
+| Predeclared acceptance criteria | Satisfied | exactly five repair variants and unchanged v5.42 fold/calibration/queue gates | Do not add post-result variants or weaken gates in this phase. |
+| Fail-closed AI governance | Satisfied | best repair passes `0/3`; no artifact frozen, activated, or promoted | Broaden development evidence or collect genuine future evidence. |
+| Test and UI gate | Satisfied for changed scope | focused evaluator/API tests and compact authenticated status panel | Complete closure matrix is recorded on the taskboard. |
+| Privacy and hygiene | Satisfied by design | reports/artifacts ignored; API excludes paths, digests, identities, rows, predictions, raw evidence, and secrets | Recheck exact allowlist before any separately approved commit. |
+| Response safety | Satisfied | zero alerts/responses; rules authoritative; automation and real blocking false | Any authority change remains separately approved. |
+| T1-T20 / taskboard / traceability | Satisfied locally | v5.43 status, change record, PRD, traceability, runbook, taskboard, and allowlist | Commit/push are not authorized by v5.43. |
+
+## v5.44 Chronological Evidence Expansion Compliance Status
+
+| University / ATDR rule | Status | v5.44 evidence | Remaining action |
+| --- | --- | --- | --- |
+| No guessing / source evidence | Satisfied | measured full-source aggregates and revalidated v5.39-v5.43 custody; no protected labels or predictions opened | Preserve the private custody lock and report only measured aggregates. |
+| Human-label integrity | Satisfied | zero human labels created; all suggestions remain assisted, `human_must_confirm=true`, and non-import-ready | Obtain genuine review before treating any new decision as ground truth. |
+| Privacy / repo hygiene | Satisfied by design | path accepted only by CLI; no raw/IP/identity/fingerprint/secret output; generated evidence ignored | Recheck exact changed paths before any separately approved commit. |
+| Chronological/duplicate isolation | Partially satisfied and corrected by v5.45 | three disjoint roles and zero exact/propagation-family crossings; v5.45 found broader candidate-near overlap | Include the broader containment contract in any future persisted lock. |
+| Conservative AI governance | Satisfied | development repair ready, candidate/independent validation not ready, lifecycle `shadow_observation` | Do not freeze or activate unless unchanged gates pass. |
+| Response safety | Satisfied | rules authoritative; zero alert/response writes; automation and real blocking false | Any authority change remains separately approved. |
+| T1-T20 / taskboard / traceability | Satisfied locally | v5.44 status, change record, PRD, traceability, runbook, taskboard, and allowlist | Commit/push are not authorized by v5.44. |
+
+## v5.45 Development-Only Supervised Repair Compliance Status
+
+| University / ATDR rule | Status | v5.45 evidence | Remaining action |
+| --- | --- | --- | --- |
+| No guessing / source evidence | Satisfied | measured eight-strategy run over three eligible locked roles; exact gate failures reported | Keep future and independent labels sealed. |
+| Human-label integrity | Satisfied | manual/reviewed provenance is explicit; assisted weights are capped and no human label is created | Genuine prediction-blind human evidence remains required. |
+| Leakage prevention | Satisfied for the measured disposable views | broader label-blind candidate-near containment plus zero cross-view family overlap | Carry the corrected family contract into future evidence locks. |
+| Predeclared criteria | Satisfied | unchanged v5.42 quality, calibration, class-recall, FPR, and queue-stability gates | Do not weaken gates after observing `0/3`. |
+| Fail-closed AI governance | Satisfied | no candidate recipe/artifact frozen, activated, or promoted; IsolationForest advisory only | Repair transfer/calibration or collect better development evidence. |
+| Privacy / repo hygiene | Satisfied by design | CLI-only private path; no raw/IP/identity/fingerprint/prediction/secret output; reports ignored | Recheck exact allowlist before a separately approved commit. |
+| Response safety | Satisfied | rules authoritative; zero alerts/responses; automation and real blocking false | Any authority change remains separately approved. |
+| T1-T20 / taskboard / traceability | Satisfied locally | v5.45 status, change record, PRD, traceability, runbook, taskboard, and allowlist | Commit/push are not authorized by v5.45. |
+
+## v5.46 Manual-Anchor Transfer Compliance Status
+
+| University / ATDR rule | Status | v5.46 evidence | Remaining action |
+| --- | --- | --- | --- |
+| No guessing / source evidence | Satisfied | measured nine-strategy run and aggregate manual/assisted shift diagnosis | Preserve the failed result and do not infer field accuracy. |
+| Human-label integrity | Satisfied | 918 existing human anchors remain distinct; assisted weight is capped; zero labels created or rewritten | Obtain new genuine prediction-blind review for failing boundaries. |
+| Leakage and future-evidence control | Satisfied | only development roles used; evaluation labels excluded from calibration/threshold selection; future labels sealed | Keep the same custody checks on every future run. |
+| Predeclared criteria | Satisfied | unchanged v5.42 gates across three mandatory views | Do not weaken gates after observing `0/3`. |
+| Fail-closed AI governance | Satisfied | transfer worsened; no recipe/artifact frozen, activated, or promoted; IsolationForest advisory | Broaden evidence before another candidate cycle. |
+| Privacy / repo hygiene | Satisfied by design | private path accepted only by CLI; no raw/IP/identity/prediction/fingerprint/secret output; reports ignored | Recheck exact allowlist before any separately approved commit. |
+| Response safety | Satisfied | rules authoritative; zero alert/response writes; automation and real blocking false | Any authority change remains separately approved. |
+| T1-T20 / taskboard / traceability | Satisfied locally | v5.46 status, change record, PRD, traceability, runbook, taskboard, and allowlist | Commit/push are not authorized by v5.46. |
+
+## v5.47 Prediction-Blind Manual-Anchor Acquisition Compliance Status
+
+| University / ATDR rule | Status | v5.47 evidence | Remaining action |
+| --- | --- | --- | --- |
+| No guessing / source evidence | Satisfied | measured disposable run selected `120/120` across seven declared strata | Preserve aggregate evidence and do not infer field accuracy. |
+| Human-label integrity | Satisfied by design; work pending | predictions/assisted labels withheld; automated reviewers rejected; zero labels created | A genuine human must review all selected rows. |
+| Leakage and future-evidence control | Satisfied | development roles only; duplicate/manual families excluded; future labels sealed | Keep later independent evidence untouched. |
+| Privacy / least disclosure | Satisfied | pack/API omit raw logs, IPs, identities, paths, fingerprints, predictions, and secrets | Keep all generated review artifacts ignored and access-controlled. |
+| Fail-closed AI governance | Satisfied | workspace not import-ready; fixed revalidation blocked at `0/120`; no candidate/model action | Revalidate only after complete valid review and class support. |
+| Source-evidence honesty | Satisfied | one source reported; no second device fabricated | Obtain a second genuine source for generalization evidence. |
+| Response safety | Satisfied | zero alert/response writes; rules authoritative; automation and real blocking false | Any authority change remains separately approved. |
+| T1-T20 / taskboard / traceability | Satisfied locally | v5.47 status, change record, PRD, traceability, runbook, taskboard, and allowlist | Commit/push are not authorized by v5.47. |
+
+## v5.48 Protected Manual-Anchor Review Compliance Status
+
+| University / ATDR rule | Status | v5.48 evidence | Remaining action |
+| --- | --- | --- | --- |
+| No guessing / human provenance | Satisfied by workflow; review pending | only an authenticated genuine human may submit confirmed decisions; automated identities are rejected | Complete `120/120` genuine reviews; do not substitute AI suggestions. |
+| Predeclared evaluation protocol | Satisfied | roles, partitions, features, 8 strategies, and unchanged gates were locked at `0/120` | Preserve the immutable lock through formal closure. |
+| Access control / audit | Satisfied locally | owner-isolated routes, revision checks, start/save/close/rejection audits | Operationally protect the private filesystem workspace. |
+| Privacy / least disclosure | Satisfied | approved aggregate evidence only; no predictions, raw logs, IPs, identities, paths, fingerprints, or secrets | Keep generated review and evaluation files ignored. |
+| Fail-closed AI governance | Satisfied | revalidation execution count `0`; incomplete review and tamper are rejected | Execute once only after closure and class support; do not activate automatically. |
+| Response safety | Satisfied | zero response actions; rules authoritative; automation and real blocking false | Any authority change remains separately approved. |
+| T1-T20 / taskboard / traceability | Satisfied locally | v5.48 status, change record, PRD, traceability, checklist, runbook, taskboard, and allowlist | Commit/push require separate explicit approval. |
+| Independent evidence | Not satisfied | one real source; development-only review | Obtain a second source and later untouched independent validation. |
+
+## v5.49 Fixed Revalidation And Candidate Decision Compliance Status
+
+| University / ATDR rule | Status | v5.49 evidence | Remaining action |
+| --- | --- | --- | --- |
+| No guessing / source evidence | Satisfied; honest support rejected safely | protected working copy is `120/120`, invalid `0`, closed, with support `92/9/0` | Use separate v5.49a evidence; do not relabel closed rows. |
+| Immutable evaluation protocol | Satisfied | v5.48 roles, partitions, features, eight strategies, thresholds, calibration, and gates remain unchanged | Preserve the lock through the one permitted execution. |
+| At-most-once execution | Implemented; unconsumed | atomic private claim occurs before evaluation-label access | Do not delete or bypass a failed/interrupted claim. |
+| Aggregate decision integrity | Implemented; fixed run blocked | exact strategy order, fixed gates, leader, metrics, safety, and redaction validator | Relock a new versioned protocol only if supplemental combined support passes. |
+| AI/response safety | Satisfied | lifecycle shadow; rules authoritative; zero activation/import/alert/response controls | Any later activation requires separate approval and independent evidence. |
+| Privacy / repo hygiene | Satisfied by design | private claim/result ignored; no rows, paths, fingerprints, identities, or secrets returned | Complete full hygiene after the measured run. |
+| T1-T20 / taskboard / traceability | Satisfied for blocked state | v5.49 records document the honest support failure and unconsumed evaluation | Continue through v5.49a without executing v5.49. |
+
+The original fixed evaluation remains claim-free, result-free, and unexecuted.
+Current verification evidence is recorded by the v5.49a section below and its
+status/change documents.
+
+## v5.49a Supplemental Threat Anchor Compliance Status
+
+| University / ATDR rule | v5.49a evidence | Current status / next action |
+| --- | --- | --- |
+| No guessing and source evidence | Supplemental rows were selected only by recorded deterministic parser/rule/correlation evidence; they were not assumed malicious | Satisfied; genuine review closed `60/60`. |
+| Human-label provenance | Predictions, assisted labels, and targets were withheld; explicit independent-human confirmation was required | Satisfied; invalid `0`, closed and immutable. |
+| Immutable evaluation evidence | Closed v5.48 review and fixed protocol are unchanged; v5.49 claim/result remain absent | Satisfied; execution count `0`. |
+| Privacy and repository hygiene | Raw logs, IPs, identities, paths, fingerprints, reviews, and generated packs remain private and ignored | Satisfied by contracts; recheck before any commit. |
+| RBAC and audit | Analyst/admin authentication, owner isolation, revision checks, and status/start/save/close/denied audit events | Implemented and tested. |
+| AI and response safety | No label import, training, activation, alert change, automatic response, or real blocking | Satisfied; lifecycle `shadow_observation`. |
+| Testing and change traceability | Focused backend/UI tests, v5.49a status, T1-T20 record, taskboard, and exact allowlist | Complete v5.49a verification is recorded; v5.49b is separate. |
+
+## v5.49b Immutable Combined Revalidation Compliance Status
+
+| University / ATDR rule | v5.49b evidence | Current status / next action |
+| --- | --- | --- |
+| No guessing / genuine provenance | Two independently reviewed immutable workspaces total `180/180`, invalid `0`, support `95/39/27` | Satisfied for bounded development evidence; no field-prevalence claim. |
+| Predeclared immutable protocol | v5.48 features, eight strategies, partitions, calibration, thresholds, duplicate isolation, and gates were bound before evaluation | Satisfied; protocol locked and valid. |
+| At-most-once evaluation | Atomic claim precedes label access; interruption, tamper, or retry fails closed | Satisfied; execution count exactly `1`. |
+| Honest decision | All `8/8` strategies ran; suspicious evaluation support is `0`, calibration gaps fail, and no candidate qualifies | Satisfied through a negative decision; do not weaken gates or rerun. |
+| Privacy and repository hygiene | Status/API omit rows, paths, IPs, identities, fingerprints, predictions, digests, and secrets; private outputs ignored | Satisfied by contract; final hygiene must remain clean. |
+| AI and response safety | Database counts unchanged; no artifact, activation, promotion, label, alert, run, response, or blocking write | Satisfied; rules authoritative and lifecycle `shadow_observation`. |
+| Traceability | v5.49b status, T1-T20, PRD, traceability, runbook, taskboard, tests, and exact allowlist | Satisfied locally; commit/push require separate approval. |
+| Independent activation evidence | One source and no untouched future validation | Not satisfied; acquire fresh development evidence, then a second source and new blind future window. |

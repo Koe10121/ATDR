@@ -794,3 +794,104 @@ This document maps major ATDR requirements to implementation evidence, tests, do
 | Immutable diagnostic freeze | Implemented; correctly unused | private ignored joblib/manifest seal under `ml_baseline_reviews/` | identical reuse, conflicting candidate rejection, tamper fail-closed | v5.42 tests/T1-T20 | No current strategy qualifies. |
 | Aggregate governance status | Implemented | `GET /api/evidence-review/candidate-freeze/status`, typed client/query, `MLGovernance.tsx` | auth, redaction, status, safety badge, and no-overflow tests | v5.42 status | Private details remain unavailable by design. |
 | Authority and privacy | Preserved | before/after DB/artifact/custody states and safe public serializer | zero label/model/detection/alert/response writes; no path/digest/prediction/secret output | current AI/ML status | Lifecycle remains `shadow_observation`; rules remain authoritative. |
+
+## v5.43 Temporal Stability And Calibration Repair Addendum
+
+| Requirement | Status | Source files / routes | Tests / evidence | Docs | Remaining gaps |
+| --- | --- | --- | --- | --- | --- |
+| v5.39-v5.42 custody revalidation | Passed | `v543_temporal_stability_repair.py` and existing custody helpers | all boundary checks pass; zero protected/blind/locked rows modeled | v5.43 status/T1-T20 | Revalidate on every run. |
+| Fixed five-variant repair | Complete; gates failed | v5.43 evaluator/CLI, weighting and compact-feature contracts | exact variant/gate tests and measured three-fold run | v5.43 status/runbook | Best variant passes `0/3`; no freeze. |
+| Feature and drift ablation | Complete aggregate-only | v5.43 numeric/categorical/redundancy/leakage audit | 111 full and 49 compact features audited across three folds | v5.43 status | One source and short chronology prevent reliable stability claims. |
+| Immutable diagnostic freeze | Implemented; correctly unused | private ignored v5.43 artifact/manifest contract | no qualifying candidate; active artifact state unchanged | v5.43 T1-T20 | Every fixed gate must pass before a freeze. |
+| Aggregate governance status | Implemented | `GET /api/evidence-review/temporal-stability/status`, typed React query/panel | auth, privacy, rendering, safety, and overflow coverage | v5.43 status | Private evidence remains unavailable by design. |
+| Authority and response safety | Preserved | before/after counts and fixed safe projection | zero labels/runs/alerts/responses; no activation or promotion | current AI/ML status | Rules remain authoritative; response automation remains disabled. |
+
+## v5.44 Chronological Evidence Expansion Addendum
+
+| Requirement | Status | Source files / routes | Tests / evidence | Docs | Remaining gaps |
+| --- | --- | --- | --- | --- | --- |
+| v5.39-v5.43 custody revalidation | Passed | `v544_chronological_evidence.py` plus existing v5.39-v5.43 validators | every protected boundary passes; protected labels/predictions unopened | v5.44 status/T1-T20 | Revalidate before every reuse. |
+| Disposable full-source inspection | Complete aggregate-only | v5.44 CLI and extended v5.6 streaming index | 773,551 rows, 100% parse success, bounded chunks, zero configured writes | v5.44 status/runbook | One device and short chronology limit independence. |
+| Prior-evidence quarantine | Complete for exact/propagation families; broader overlap found later | configured hash, v5.39 token, v5.40 exact/near/cutoff, v5.41 candidate boundaries | 120,626 exclusions; exact/propagation-family cross-role count zero | v5.44 focused tests and v5.45 addendum | v5.45 found broader candidate-near role overlap; future locks must include that containment. |
+| Development chronological cohorts | Implemented and locked | fit/calibration/threshold/future role contract | 540,921 usable development rows; 112,004 future rows sealed | v5.44 status | Future labels must remain unopened until a candidate is frozen. |
+| Assisted label coverage | Complete; non-human | conservative v5.6 policy and v5.44 pattern taxonomy | 360,886 training groups; 200-row non-import-ready preview; zero human labels | v5.44 status | Genuine human ground truth remains required. |
+| IsolationForest reliability audit | Complete; advisory only | unchanged active artifact sampled over development roles | FPR 0.0056, recall 0.0056, malicious recall 0.0; no artifact write | current AI/ML status | Under-sensitivity prevents reliability claim. |
+| Readiness decision | Development-only repair ready | fixed v5.44 sufficiency checks | all development checks pass; independent/candidate gates false | v5.44 status | Second genuine source, human labels, stable candidate, frozen evaluation, governance. |
+| Authority/privacy | Preserved | aggregate serializer and before/after state proof | no path/raw/IP/identity/fingerprint/secret; zero label/model/run/alert/response writes | v5.44 T1-T20 | No activation or response change without separate approval. |
+
+## v5.45 Development-Only Supervised Repair Addendum
+
+| Requirement | Status | Source files / routes | Tests / evidence | Docs | Remaining gaps |
+| --- | --- | --- | --- | --- | --- |
+| v5.39-v5.44 custody revalidation | Passed with broader containment finding | `v545_development_model_repair.py` and existing custody validators | protected states unchanged; future labels sealed | v5.45 status/T1-T20 | Future cohort locks must carry broader candidate-near containment. |
+| Provenance-aware development views | Implemented | v5.45 role projection, manual-anchor weighting, and view support audit | three mandatory leakage-safe views; assisted aggregate weight never exceeds manual anchors | v5.45 tests/status | Evidence remains one-device and mostly assisted. |
+| Eight-strategy comparison | Complete; all gates failed | v5.45 evaluator/CLI | calibrated ExtraTrees leader, `0/3` views; no freeze | v5.45 status/runbook | Repair manual-anchor transfer and calibration without weakening gates. |
+| Candidate-near containment | Implemented label-blind in disposable reconstruction | `candidate_near_hash` cross-role quarantine | 62,961 families and 407,689 events contained; zero remaining cross-role families | v5.45 status | Persist the corrected role contract only in a separately governed evidence phase. |
+| Residual/anomaly audit | Complete aggregate-only | residual pattern and IsolationForest diagnostics | no row predictions or identifiers; IsolationForest reliability false | current AI/ML status | Incomplete/80, scan-like, unknown UDP/TCP, FPR, and calibration remain blockers. |
+| Aggregate governance status | Implemented | `GET /api/evidence-review/development-model-repair/status`, typed React query/panel | authenticated API, redaction, rendering, safety, and overflow tests | v5.45 status | Generated private diagnostics remain ignored. |
+| Authority/privacy | Preserved | before/after state proof and safe projection | zero DB/model/label/alert/response mutations; no path/raw/IP/fingerprint/secret | v5.45 T1-T20 | Rules remain authoritative; lifecycle remains `shadow_observation`. |
+
+## v5.46 Manual-Anchor Transfer And Calibration Repair Addendum
+
+| Requirement | Status | Source files / routes | Tests / evidence | Docs | Remaining gaps |
+| --- | --- | --- | --- | --- | --- |
+| v5.39-v5.45 custody revalidation | Passed | `v546_manual_anchor_transfer_repair.py` and prior custody validators | protected states unchanged; future labels sealed | v5.46 status/T1-T20 | Revalidate before every future reuse. |
+| Aggregate transfer diagnosis | Complete | manual/assisted profiles and runtime-derived context features | 918 manual anchors versus 12,022 assisted representatives; no private rows/identifiers | v5.46 status | Material label/application/schema/pattern shift remains. |
+| Nine-strategy comparison | Complete; all gates failed | v5.46 evaluator/CLI | hierarchical two-stage leader, `0/3`; manual F1/FPR/suspicious recall `0.5552/0.1935/0.0614` | v5.46 status/runbook | New human anchors and broader genuine sources are required. |
+| Calibration and threshold isolation | Enforced; calibration weak | dedicated development calibration/threshold roles | evaluation/future labels unused; ECE `0.2381`, gap `0.7455` on manual holdout | focused v5.46 tests | Calibration cannot be trusted for activation. |
+| Aggregate governance status | Implemented | `GET /api/evidence-review/manual-anchor-transfer/status`, typed React query/panel | auth, redaction, rendering, safety, and overflow coverage | v5.46 status | Generated private diagnostics remain ignored. |
+| Authority/privacy | Preserved | before/after state proof and safe projection | zero label/model/run/alert/response writes; no path/raw/IP/identity/fingerprint/prediction/secret | v5.46 T1-T20 | Rules remain authoritative; lifecycle stays `shadow_observation`. |
+
+## v5.47 Prediction-Blind Manual-Anchor Acquisition Addendum
+
+| Requirement | Status | Source files / routes | Tests / evidence | Docs | Remaining gaps |
+| --- | --- | --- | --- | --- | --- |
+| v5.39-v5.46 custody revalidation | Passed | `v547_manual_anchor_acquisition.py` and prior validators | all custody checks pass; future labels sealed | v5.47 status/T1-T20 | Revalidate before workspace creation or reuse. |
+| Prediction-blind development selection | Complete | deterministic seven-stratum selector and disposable private index | `120/120`; seven strata; zero future roles; duplicate/manual families excluded | v5.47 status | Selection is development evidence, not independent accuracy evidence. |
+| Human-only review contract | Implemented; review pending | sealed pack, editable copy, progress validator | automated reviewer rejected; review `0/120`; class gates enforced | v5.47 runbook | Genuine human decisions remain external work. |
+| Aggregate governance status | Implemented | `GET /api/evidence-review/manual-anchor-acquisition/status`, typed React query/panel | auth, redaction, rendering, safety, and overflow tests | v5.47 status | Private generated workspace remains ignored. |
+| Authority/privacy | Preserved | before/after state proof and pack contract | zero label/model/run/alert/response writes; no raw/path/IP/identity/fingerprint/prediction/secret | v5.47 T1-T20 | Rules remain authoritative; lifecycle stays `shadow_observation`. |
+| Independent source support | Insufficient | aggregate device-source count | one genuine source; no fabricated second source | v5.47 status | Obtain a second genuine source before source-generalization or activation. |
+
+## v5.48 Protected Manual-Anchor Review And Fixed Revalidation Addendum
+
+| Requirement | Status | Source files / routes | Tests / evidence | Docs | Remaining gaps |
+| --- | --- | --- | --- | --- | --- |
+| Protocol locked before review | Implemented and measured | `v548_manual_anchor_fixed_revalidation.py`, v5.47 sealed workspace | preflight locks 8 strategies, fixed roles/features/gates, and zero label access | v5.48 status/T1-T20 | Preserve the lock through review and one-time evaluation. |
+| Protected human review | Implemented; `0/120` pending | `v548_manual_anchor_review_service.py`, `/api/evidence-review/manual-anchors/*`, React Evidence Review | auth, owner isolation, revision, filter, save/next, audit, and closure tests | v5.48 status/runbook | A genuine human must complete all decisions and class support. |
+| Privacy and tamper resistance | Implemented fail-closed | approved-field projection plus pack/protocol/state binding | forbidden-data assertions and protocol/state tamper tests | v5.48 change record | Private workspace must remain ignored and access-controlled. |
+| Fixed revalidation | Implemented; correctly blocked | v5.48 CLI and one-time result contract | incomplete review reports zero execution and zero writes | v5.48 status | Run once only after genuine closure; results remain development-only. |
+| Authority and response safety | Preserved | fixed safe projection and no-mutation service contract | zero labels/models/runs/alerts/responses; no activation | current AI/ML status | Rules remain authoritative; lifecycle stays `shadow_observation`. |
+| Independent source support | Insufficient | source breadth carried from v5.47 | exactly one genuine source reported | v5.48 status | Obtain a second genuine source and untouched independent review. |
+
+## v5.49 Fixed Revalidation And Candidate Decision Addendum
+
+| Requirement | Status | Source files / routes | Tests / evidence | Docs | Remaining gaps |
+| --- | --- | --- | --- | --- | --- |
+| Review/custody preflight | Closed at `120/120`; support gate failed | locked v5.48 protocol, protected working copy/state, configured audit check | real status and preflight; focused blocked-state test | v5.49 status/T1-T20 | Honest support is `92/9/0`; v5.49 remains unconsumed. |
+| Atomic one-time execution | Implemented; unconsumed | private exclusive execution claim in `v548_manual_anchor_fixed_revalidation.py` | duplicate-claim fail-closed test | v5.49 status | The real claim must remain absent until review gates pass. |
+| Eight-strategy aggregate decision | Implemented; awaiting result | `v549_fixed_revalidation_decision.py` and CLI | all-eight, gate, leader, tamper, authority, and redaction tests | v5.49 status | No real strategy metrics exist before the single evaluation. |
+| Authority preservation | Enforced | result invariant validation and existing lifecycle contracts | forbidden writes/activation mutations fail closed | v5.49 T1-T20 | Separate approval and independent evidence are required before activation. |
+| Independent evidence | Open | remaining-phase projection | conservative candidate-decision tests | current AI/ML status | Second physical source and newly sealed untouched future evidence are missing. |
+
+## v5.49a Supplemental Threat Anchor Addendum
+
+| Requirement | Status | Source files / routes | Tests / evidence | Docs | Remaining gaps |
+| --- | --- | --- | --- | --- | --- |
+| Preserve closed v5.48 custody and zero original v5.49 execution | Implemented and measured | `v549a_supplemental_threat_anchor_acquisition.py`; status CLI | v5.49a focused custody tests | v5.49a status/T1-T20 | Original protocol remains unconsumed. |
+| Prediction-blind threat-enriched acquisition | Implemented; 60 rows prepared | v5.49a acquisition and CLI | selection, role, duplicate, and original-anchor tests | v5.49a status | One genuine source only. |
+| Protected supplemental dashboard review | Complete and immutable | `/api/evidence-review/supplemental-threat-anchors/*`; `EvidenceReviewPage.tsx` | backend owner/closure tests; Playwright supplemental workflow | AI training runbook | Genuine review closed `60/60`, invalid `0`. |
+| Hide predictions, identifiers, paths, and support targets | Implemented | approved-field projection and response schemas | redaction, quota-blind, and frontend evidence tests | v5.49a safety contract | Institutional privacy review remains future work. |
+| Post-closure combined support and proposed protocol | Complete | `combined_support_status`; `write_proposed_v549b_protocol` | sufficient and insufficient support tests | v5.49a status | Combined support `95/39/27`; proposal consumed only by separate v5.49b. |
+| Preserve alert and response authority | Implemented | operation safety projection and no execution route | zero authoritative mutation tests | PRD and current ML status | Model remains shadow-only. |
+
+## v5.49b Immutable Combined Revalidation Addendum
+
+| Requirement | Status | Source files / routes | Tests / evidence | Docs | Remaining gaps |
+| --- | --- | --- | --- | --- | --- |
+| Combined custody and support | Passed and immutable | `v549b_combined_fixed_revalidation.py`; original/supplemental protected state | real status `180/180`, invalid `0`, support `95/39/27` | v5.49b status/T1-T20 | One physical source and threat-enriched sampling limit generalization. |
+| Immutable one-shot protocol | Complete and consumed | v5.49b private protocol/claim/result contract and CLI | claim-before-label, tamper, interruption, and retry tests; execution count `1` | v5.49b status | The stored result must never be rerun or deleted. |
+| Eight-strategy fixed decision | Complete; no candidate | unchanged v5.48 strategies/features/calibration/thresholds/gates | `8/8` evaluated; suspicious support `0`; all fixed gates fail | current AI/ML status | Fresh development evidence and a predeclared support-preserving split are required. |
+| Aggregate governance status | Implemented | authenticated combined status endpoint and AI Governance panel | API redaction, auth, rendering, safety, and overflow coverage | v5.49b status | Private generated protocol/result remains ignored. |
+| Authority/privacy | Preserved | safe aggregate projection and before/after count proof | zero label/model/run/alert/response writes; no protected values exposed | v5.49b T1-T20 | Rules remain authoritative; lifecycle stays `shadow_observation`. |
+| Independent activation evidence | Not satisfied | stored negative decision and external-evidence requirements | no candidate activation/promotion/artifact write | product finish line | Requires a second source, untouched future window, passing fixed gates, and human approval. |

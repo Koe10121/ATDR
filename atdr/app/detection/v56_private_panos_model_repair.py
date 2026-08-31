@@ -299,6 +299,27 @@ def _near_fingerprint(normalized: dict[str, Any], *, minute: str | None) -> str:
     )
 
 
+def _candidate_near_fingerprint(normalized: dict[str, Any]) -> str:
+    """Match the protected v5.41 candidate-family contract without identifiers."""
+
+    return _stable_hash(
+        {
+            "log_type": normalized.get("log_type"),
+            "subtype": normalized.get("subtype"),
+            "app": _lower(normalized.get("app")),
+            "action": _lower(normalized.get("action")),
+            "protocol": _lower(normalized.get("protocol")),
+            "src_port": normalized.get("src_port"),
+            "dst_port": normalized.get("dst_port"),
+            "src_zone": _lower(normalized.get("src_zone")),
+            "dst_zone": _lower(normalized.get("dst_zone")),
+            "app_risk": normalized.get("app_risk"),
+            "bytes_bucket": _magnitude_bucket(normalized.get("bytes")),
+            "packets_bucket": _magnitude_bucket(normalized.get("packets")),
+        }
+    )
+
+
 def _create_disposable_schema(connection: sqlite3.Connection) -> None:
     connection.executescript(
         """
@@ -348,7 +369,10 @@ def _create_disposable_schema(connection: sqlite3.Connection) -> None:
             unknown_app_flag INTEGER NOT NULL,
             high_risk_app_flag INTEGER NOT NULL,
             external_to_internal_flag INTEGER NOT NULL,
-            internal_to_external_flag INTEGER NOT NULL
+            internal_to_external_flag INTEGER NOT NULL,
+            device_token TEXT NOT NULL,
+            device_identity_present INTEGER NOT NULL,
+            candidate_near_hash TEXT NOT NULL
         );
         """
     )
@@ -462,6 +486,11 @@ def _event_record(raw_text: str) -> tuple[Any, ...]:
         if item is None or (isinstance(item, str) and not item.strip())
     )
     field_count = _integer(parsed.parsed_json.get("field_count"))
+    device_identity = (
+        normalized.get("serial")
+        or parsed.device_hostname
+        or normalized.get("device_name")
+    )
     return (
         raw_line_fingerprint(raw_text),
         _stable_hash(
@@ -506,6 +535,9 @@ def _event_record(raw_text: str) -> tuple[Any, ...]:
         int(_integer(normalized.get("app_risk")) >= 4),
         external_to_internal,
         internal_to_external,
+        _safe_token("device", device_identity),
+        int(bool(str(device_identity or "").strip())),
+        _candidate_near_fingerprint(normalized),
     )
 
 
@@ -518,10 +550,11 @@ INSERT INTO events(
     parser_error, parser_warning_count, required_missing_count, field_count,
     schema_bucket, threat_severity, app_characteristic, session_end_reason,
     deny_flag, auth_deny_flag, unknown_app_flag, high_risk_app_flag,
-    external_to_internal_flag, internal_to_external_flag
+    external_to_internal_flag, internal_to_external_flag, device_token,
+    device_identity_present, candidate_near_hash
 ) VALUES (
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 )
 """
 
@@ -600,6 +633,10 @@ def stream_private_file_to_disposable_index(
         CREATE INDEX ix_v56_events_minute ON events(minute_bucket);
         CREATE INDEX ix_v56_events_source_minute
             ON events(source_token, minute_bucket);
+        CREATE INDEX ix_v56_events_device
+            ON events(device_token, minute_bucket);
+        CREATE INDEX ix_v56_events_candidate_near
+            ON events(candidate_near_hash);
         CREATE INDEX ix_v56_events_role ON events(role_rank);
         CREATE INDEX ix_v56_db_hashes ON db_hashes(exact_hash);
         UPDATE events
@@ -628,6 +665,17 @@ def stream_private_file_to_disposable_index(
         "SELECT MIN(event_time), MAX(event_time) FROM events "
         "WHERE event_time IS NOT NULL"
     ).fetchone()
+    device_source_count = int(
+        connection.execute(
+            "SELECT COUNT(DISTINCT device_token) FROM events "
+            "WHERE device_identity_present=1"
+        ).fetchone()[0]
+    )
+    missing_device_identity_rows = int(
+        connection.execute(
+            "SELECT COUNT(*) FROM events WHERE device_identity_present=0"
+        ).fetchone()[0]
+    )
     return {
         "ok": nonblank > 0,
         "status": "complete_file_streamed" if nonblank else "empty_evidence",
@@ -656,6 +704,11 @@ def stream_private_file_to_disposable_index(
         "unique_near_families": unique_near,
         "configured_database_overlap_rows": overlap_rows,
         "configured_database_overlap": overlap_index,
+        "device_sources": {
+            "identified_source_count": device_source_count,
+            "missing_identity_rows": missing_device_identity_rows,
+            "identity_tokens_returned": False,
+        },
         "streaming": {
             "bounded_chunk_size": max(100, int(chunk_size)),
             "entire_file_loaded_in_memory": False,

@@ -25,7 +25,13 @@ import {
   useClassTemporalCoverage,
   useBlindEvidenceStatus,
   useCandidateFreezeStatus,
+  useCombinedFixedRevalidationStatus,
   useDetectionMlProductization,
+  useDevelopmentModelRepairStatus,
+  useManualAnchorAcquisitionStatus,
+  useManualAnchorFixedRevalidationStatus,
+  useManualAnchorReviewStatus,
+  useManualAnchorTransferStatus,
   useMlLabelMutations,
   useMlEvidenceSnapshot,
   useMlReport,
@@ -36,7 +42,8 @@ import {
   useShadowObservationSummary,
   useSources,
   useSupervisedModels,
-  useSupervisedReport
+  useSupervisedReport,
+  useTemporalStabilityStatus
 } from "../hooks/useApiQueries";
 import type { ClassTemporalCoverageRow, MLAttackType, MLLabelValue, MLReviewQueueItem } from "../types/api";
 
@@ -63,6 +70,13 @@ export function MLGovernance() {
   const evidenceSnapshot = useMlEvidenceSnapshot();
   const blindEvidence = useBlindEvidenceStatus();
   const candidateFreeze = useCandidateFreezeStatus();
+  const temporalStability = useTemporalStabilityStatus();
+  const developmentModelRepair = useDevelopmentModelRepairStatus();
+  const manualAnchorTransfer = useManualAnchorTransferStatus();
+  const manualAnchorAcquisition = useManualAnchorAcquisitionStatus();
+  const manualAnchorReview = useManualAnchorReviewStatus();
+  const manualAnchorRevalidation = useManualAnchorFixedRevalidationStatus();
+  const combinedFixedRevalidation = useCombinedFixedRevalidationStatus();
   const supervised = useSupervisedReport();
   const productization = useDetectionMlProductization();
   const supervisedModels = useSupervisedModels();
@@ -140,6 +154,13 @@ export function MLGovernance() {
   const parserDiagnostics = parserProfileDiagnostics.data;
   const blindEvidenceData = blindEvidence.data;
   const candidateFreezeData = candidateFreeze.data;
+  const temporalStabilityData = temporalStability.data;
+  const developmentModelRepairData = developmentModelRepair.data;
+  const manualAnchorTransferData = manualAnchorTransfer.data;
+  const manualAnchorAcquisitionData = manualAnchorAcquisition.data;
+  const manualAnchorReviewData = manualAnchorReview.data;
+  const manualAnchorRevalidationData = manualAnchorRevalidation.data;
+  const combinedFixedRevalidationData = combinedFixedRevalidation.data;
   const runtimeParserAlertCount = (runtimeSources.data ?? []).reduce(
     (total, source) => total + (source.health.operational_alerts?.length ?? 0),
     0
@@ -495,6 +516,267 @@ export function MLGovernance() {
               value={candidateFreezeData?.supervised_phases_remaining ?? 5}
               detail="Before a governance decision"
               tone="cyan"
+            />
+          </div>
+        )}
+      </section>
+
+      <section className="panel overflow-hidden" data-testid="manual-anchor-transfer-readiness">
+        <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="text-xs font-extrabold uppercase tracking-wide text-muted">
+              Manual-Anchor Transfer
+            </div>
+            <div className="mt-1 text-sm text-muted">
+              Development-only transfer and calibration decision.
+            </div>
+          </div>
+          <div className="flex min-w-0 max-w-full flex-wrap gap-2">
+            <Badge value={manualAnchorTransferData?.status ?? "Not Run"} />
+            <Badge value="Rules Authoritative" />
+            <Badge value="Shadow Observation" />
+          </div>
+        </div>
+        {manualAnchorTransfer.isError ? (
+          <div className="mt-3 rounded border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+            Transfer status is unavailable. Model lifecycle remains unchanged.
+          </div>
+        ) : (
+          <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <MetricCard
+              label="Transfer Status"
+              value={(manualAnchorTransferData?.manual_anchor_transfer_status ?? "blocked").replaceAll("_", " ")}
+              detail={`${manualAnchorTransferData?.passing_views ?? 0}/${manualAnchorTransferData?.required_views ?? 3} views passed`}
+              tone={manualAnchorTransferData?.candidate_freeze_ready ? "teal" : "amber"}
+            />
+            <MetricCard
+              label="Manual-Anchor F1"
+              value={rateText(manualAnchorTransferData?.manual_anchor_queue_f1)}
+              detail="Held-out human-reviewed evidence"
+              tone="cyan"
+            />
+            <MetricCard
+              label="Manual-Anchor FPR"
+              value={rateText(manualAnchorTransferData?.manual_anchor_fpr)}
+              detail="Lower is better"
+              tone={(manualAnchorTransferData?.manual_anchor_fpr ?? 1) <= 0.15 ? "teal" : "amber"}
+            />
+            <MetricCard
+              label="Calibration"
+              value={(manualAnchorTransferData?.calibration_status ?? "not_evaluated").replaceAll("_", " ")}
+              detail="No active artifact written"
+              tone={manualAnchorTransferData?.calibration_status === "passed" ? "teal" : "amber"}
+            />
+          </div>
+        )}
+      </section>
+
+      <section className="panel overflow-hidden" data-testid="manual-anchor-acquisition-readiness">
+        <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="text-xs font-extrabold uppercase tracking-wide text-muted">
+              Manual-Anchor Evidence
+            </div>
+            <div className="mt-1 text-sm text-muted">
+              Prediction-blind development evidence awaiting genuine review.
+            </div>
+          </div>
+          <div className="flex min-w-0 max-w-full flex-wrap gap-2">
+            <Badge value={manualAnchorAcquisitionData?.status ?? "Not Run"} />
+            <Badge value={manualAnchorRevalidationData?.protocol.locked ? "Protocol Locked" : "Protocol Pending"} />
+            <Badge value="Predictions Withheld" />
+            <Badge value="No Auto Import" />
+          </div>
+        </div>
+        {manualAnchorAcquisition.isError ? (
+          <div className="mt-3 rounded border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+            Manual-anchor status is unavailable. Governed evidence remains sealed.
+          </div>
+        ) : (
+          <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <MetricCard
+              label="Evidence Pack"
+              value={`${manualAnchorAcquisitionData?.selected_rows ?? 0}/${manualAnchorAcquisitionData?.target_rows ?? 120}`}
+              detail={`${manualAnchorAcquisitionData?.represented_strata ?? 0} coverage strata`}
+              tone={manualAnchorAcquisitionData?.coverage_gate_passed ? "teal" : "amber"}
+            />
+            <MetricCard
+              label="Human Review"
+              value={`${manualAnchorReviewData?.reviewed ?? manualAnchorAcquisitionData?.reviewed_rows ?? 0}/${manualAnchorReviewData?.total ?? manualAnchorAcquisitionData?.total_review_rows ?? 0}`}
+              detail={manualAnchorReviewData?.closed ? "Review closed" : "Genuine review required"}
+              tone={manualAnchorReviewData?.evaluation_ready ? "teal" : "amber"}
+            />
+            <MetricCard
+              label="Real Sources"
+              value={manualAnchorAcquisitionData?.independent_source_count ?? 0}
+              detail={manualAnchorAcquisitionData?.second_real_source_present ? "Source diversity available" : "Second source still required"}
+              tone={manualAnchorAcquisitionData?.second_real_source_present ? "teal" : "amber"}
+            />
+            <MetricCard
+              label="Revalidation"
+              value={manualAnchorReviewData?.evaluation_ready ? "Ready" : "Blocked"}
+              detail="No model activation"
+              tone={manualAnchorReviewData?.evaluation_ready ? "teal" : "slate"}
+            />
+          </div>
+        )}
+        <div className="mt-4">
+          <Link className="btn-secondary inline-flex" to="/evidence-review">Open protected review</Link>
+        </div>
+      </section>
+
+      <section className="panel overflow-hidden" data-testid="combined-fixed-revalidation-status">
+        <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="text-xs font-extrabold uppercase tracking-wide text-muted">
+              Combined Fixed Revalidation
+            </div>
+            <div className="mt-1 text-sm text-muted">
+              Immutable aggregate decision from the two closed review sets.
+            </div>
+          </div>
+          <div className="flex min-w-0 max-w-full flex-wrap gap-2">
+            <Badge value={combinedFixedRevalidationData?.status ?? "Not Run"} />
+            <Badge value={combinedFixedRevalidationData?.protocol.locked ? "Protocol Locked" : "Protocol Pending"} />
+            <Badge value="Rules Authoritative" />
+            <Badge value="Shadow Only" />
+            <Badge value="No Model Activation" />
+          </div>
+        </div>
+        {combinedFixedRevalidation.isError ? (
+          <div className="mt-3 rounded border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+            Combined revalidation status is unavailable. The supervised lifecycle remains unchanged.
+          </div>
+        ) : (
+          <>
+            <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <MetricCard
+                label="Reviewed Evidence"
+                value={`${combinedFixedRevalidationData?.custody.combined_reviewed ?? 0}/180`}
+                detail="Both review sets closed and immutable"
+                tone={combinedFixedRevalidationData?.custody.combined_support_passed ? "teal" : "amber"}
+              />
+              <MetricCard
+                label="Class Support"
+                value={`${combinedFixedRevalidationData?.custody.combined_class_support.benign_like ?? 0}/${combinedFixedRevalidationData?.custody.combined_class_support.suspicious ?? 0}/${combinedFixedRevalidationData?.custody.combined_class_support.malicious ?? 0}`}
+                detail="Benign-like / suspicious / malicious"
+                tone={combinedFixedRevalidationData?.custody.combined_support_passed ? "teal" : "amber"}
+              />
+              <MetricCard
+                label="One-Shot Execution"
+                value={`${combinedFixedRevalidationData?.evaluation_execution_count ?? 0}/1`}
+                detail={`${combinedFixedRevalidationData?.evaluated_strategy_count ?? 0}/8 strategies evaluated`}
+                tone={combinedFixedRevalidationData?.metrics_available ? "teal" : "amber"}
+              />
+              <MetricCard
+                label="Diagnostic Candidate"
+                value={combinedFixedRevalidationData?.diagnostic_candidate?.replaceAll("_", " ") ?? "None qualified"}
+                detail="No active artifact written"
+                tone={combinedFixedRevalidationData?.diagnostic_candidate_qualified ? "teal" : "amber"}
+              />
+            </div>
+            <div className="mt-3 rounded border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-muted">
+              {combinedFixedRevalidationData?.selection_bias_notice ?? "Threat-enriched evidence is diagnostic and does not estimate field prevalence."}
+            </div>
+          </>
+        )}
+      </section>
+
+      <section className="panel overflow-hidden" data-testid="development-model-repair-readiness">
+        <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="text-xs font-extrabold uppercase tracking-wide text-muted">
+              Development Model Repair
+            </div>
+            <div className="mt-1 text-sm text-muted">
+              Latest aggregate decision from locked development cohorts.
+            </div>
+          </div>
+          <div className="flex min-w-0 max-w-full flex-wrap gap-2">
+            <Badge value={developmentModelRepairData?.status ?? "Not Run"} />
+            <Badge value="Rules Authoritative" />
+            <Badge value="No Model Activation" />
+          </div>
+        </div>
+        {developmentModelRepair.isError ? (
+          <div className="mt-3 rounded border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+            Development repair status is unavailable. Model lifecycle remains unchanged.
+          </div>
+        ) : (
+          <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <MetricCard
+              label="Diagnostic Leader"
+              value={developmentModelRepairData?.diagnostic_leader?.replaceAll("_", " ") ?? "Not evaluated"}
+              detail="Development comparison only"
+              tone="cyan"
+            />
+            <MetricCard
+              label="Passing Views"
+              value={`${developmentModelRepairData?.passing_views ?? 0}/${developmentModelRepairData?.required_views ?? 3}`}
+              detail="Every fixed gate must pass"
+              tone={developmentModelRepairData?.candidate_freeze_ready ? "teal" : "amber"}
+            />
+            <MetricCard
+              label="Candidate Freeze"
+              value={developmentModelRepairData?.candidate_frozen ? "Frozen" : "Blocked"}
+              detail="No active artifact written"
+              tone={developmentModelRepairData?.candidate_frozen ? "teal" : "amber"}
+            />
+            <MetricCard
+              label="IsolationForest"
+              value={developmentModelRepairData?.isolation_forest_reliable ? "Reliable" : "Advisory Only"}
+              detail="Cannot authorize alerts"
+              tone={developmentModelRepairData?.isolation_forest_reliable ? "teal" : "amber"}
+            />
+          </div>
+        )}
+      </section>
+
+      <section className="panel overflow-hidden" data-testid="temporal-stability-readiness">
+        <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="text-xs font-extrabold uppercase tracking-wide text-muted">
+              Temporal Stability
+            </div>
+            <div className="mt-1 text-sm text-muted">
+              Development-only repair across isolated chronological folds.
+            </div>
+          </div>
+          <div className="flex min-w-0 max-w-full flex-wrap gap-2">
+            <Badge value={temporalStabilityData?.status ?? "Designed"} />
+            <Badge value="Rules Authoritative" />
+            <Badge value="Shadow Observation" />
+          </div>
+        </div>
+        {temporalStability.isError ? (
+          <div className="mt-3 rounded border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+            Temporal stability status is unavailable. Model lifecycle remains unchanged.
+          </div>
+        ) : (
+          <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <MetricCard
+              label="Best Repair"
+              value={temporalStabilityData?.best_variant?.replaceAll("_", " ") ?? "Not evaluated"}
+              detail="Five fixed diagnostic variants"
+              tone="cyan"
+            />
+            <MetricCard
+              label="Stable Folds"
+              value={`${temporalStabilityData?.passing_folds ?? 0}/${temporalStabilityData?.required_folds ?? 3}`}
+              detail="All gates must pass"
+              tone={(temporalStabilityData?.passing_folds ?? 0) === (temporalStabilityData?.required_folds ?? 3) ? "teal" : "amber"}
+            />
+            <MetricCard
+              label="Calibration"
+              value={(temporalStabilityData?.calibration_status ?? "not_evaluated").replaceAll("_", " ")}
+              detail="ECE and confidence gap"
+              tone={temporalStabilityData?.calibration_status === "passed" ? "teal" : "amber"}
+            />
+            <MetricCard
+              label="Queue Stability"
+              value={(temporalStabilityData?.queue_stability_status ?? "not_evaluated").replaceAll("_", " ")}
+              detail="Cross-fold review load"
+              tone={temporalStabilityData?.queue_stability_status === "passed" ? "teal" : "amber"}
             />
           </div>
         )}

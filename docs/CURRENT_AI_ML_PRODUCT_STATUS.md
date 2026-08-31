@@ -947,6 +947,25 @@ fixed evaluation. Lifecycle remains `shadow_observation`, rules remain
 alert-authoritative, and response automation and real blocking remain
 disabled. See `docs/V5_40_DEVELOPMENT_ONLY_SUPERVISED_MODEL_REPAIR.md`.
 
+## v5.43 Decision Update
+
+ATDR tested five fixed development-only repairs without opening consumed or
+blind evidence. Temporal/provenance-balanced weighting ranked first but passed
+`0/3` folds: minimum queue F1 is `0.4053`, maximum benign-like FPR `0.4458`,
+minimum suspicious recall `0.1895`, minimum malicious recall `0.1429`, maximum
+ECE `0.5019`, and queue spread `0.2641`.
+
+Feature ablation confirms material chronology shift in application,
+evidence-family, byte-volume, source-diversity, and scan-pressure signals. The
+current development evidence still represents one source over about three
+minutes, with 549 assisted/weak rows and 421 duplicate-family rows. No repair
+can turn that evidence into independent temporal validation.
+
+No candidate was frozen and no model or response authority changed. Five
+supervised phases remain: stable development freeze, two-source/three-window
+future collection, genuine blind review, one frozen evaluation, and separate
+governance/shadow acceptance. Rules remain alert-authoritative.
+
 ## v5.41 Governed Blind Evidence Acquisition
 
 v5.41 turns the future evidence protocol into a fail-closed operator workflow.
@@ -975,3 +994,166 @@ future evidence acquisition, human blind review, one frozen one-shot
 evaluation, and a separate governance/shadow-observation decision. The first
 two require real devices and humans. See
 `docs/V5_41_GOVERNED_BLIND_EVIDENCE_ACQUISITION.md`.
+
+## v5.44 Decision Update
+
+v5.44 converts the complete private PAN-OS history into a custody-locked,
+development-only evidence population without importing it into the configured
+database. All v5.39-v5.43 boundaries pass. The parser succeeds on all 773,551
+rows; 120,626 rows are quarantined, 540,921 remain in three development roles,
+and 112,004 newest rows remain sealed for future validation.
+
+Assisted coverage contains 360,886 high-confidence representative groups and
+133,373 ambiguous represented events. These are weak/assisted labels, not
+human ground truth. The optional 200-row pack requires human confirmation and
+is not import-ready. Existing governed anchors remain 918 manual/reviewed plus
+549 assisted/weak rows.
+
+The evidence is sufficient for another development-only repair run, but not
+for candidate freeze, independent validation, or activation. It still
+represents one genuine device. IsolationForest remains advisory because its
+sampled FPR is `0.0056` while queue recall is also `0.0056` and malicious
+recall is `0.0000`.
+
+Lifecycle remains `shadow_observation`; no model/artifact/label/alert/run/
+response state changed. Rules remain alert-authoritative; automatic response
+and real blocking remain disabled. Five supervised phases remain.
+
+## v5.45 Decision Update
+
+v5.45 reruns development-only repair over the eligible v5.44 fit,
+calibration, and threshold roles. It compares eight supervised strategies,
+uses manual-anchor aggregate weight caps, keeps future labels sealed, and
+applies unchanged v5.42 gates.
+
+The label-blind custody audit found broader candidate-near families crossing
+v5.44 role boundaries. Disposable containment quarantined 62,961 families and
+407,689 represented events, including 65,580 future events, without opening
+their labels. Cross-role candidate-near count is zero after containment. This
+qualifies v5.44's earlier exact/propagation-family isolation claim.
+
+Calibrated flat five-class ExtraTrees is the diagnostic leader, but passes
+`0/3` mandatory views. On the manual-anchor holdout, F1 is `0.7855`, FPR
+`0.1290`, suspicious recall `0.5175`, malicious recall `0.8537`, ECE `0.3232`,
+and maximum confidence/accuracy gap `0.5737`. Assisted-cohort results are much
+stronger, so they cannot be treated as independent field accuracy.
+
+IsolationForest also fails reliability gates and remains advisory. No recipe
+or active artifact was frozen; no label, model run, alert, detection run, or
+response was created. Lifecycle stays `shadow_observation`, rules remain
+alert-authoritative, and five supervised phases remain.
+
+## v5.46 Decision Update
+
+v5.46 tests manual-anchor transfer directly using runtime-derived context,
+manual-prioritized/provenance-balanced weighting, sigmoid and isotonic
+calibration, class/global thresholds, eight model variants, and one
+conservative ensemble. It uses only v5.44 development roles and leaves future
+labels sealed.
+
+Aggregate diagnosis confirms material manual-versus-assisted shifts in label,
+application, schema, and residual-pattern distributions. Hierarchical
+two-stage transfer ranks first diagnostically but passes `0/3` views. Its
+manual-anchor F1 is `0.5552`, FPR `0.1935`, suspicious recall `0.0614`,
+malicious recall `0.8537`, ECE `0.2381`, and confidence gap `0.7455`.
+
+The transfer is worse than v5.45 on F1 and suspicious recall. No recipe or
+artifact is frozen, activated, or promoted. IsolationForest remains advisory;
+rules remain alert-authoritative; response automation and real blocking remain
+disabled. Five supervised phases remain, beginning with new prediction-blind
+human anchors and broader genuine source evidence rather than another tuning
+pass over the same cohorts.
+
+## v5.47 Decision Update
+
+v5.47 converts the v5.46 evidence recommendation into a governed human-review
+workspace. A disposable run over the private PAN-OS evidence selected 120
+unique development-only families across seven error/control strata. It
+excluded 18,994 duplicate, 44,741 reserved-role, and 706 existing
+manual-anchor families. Reserved-future rows selected: `0`.
+
+The sealed pack contains no predictions, model scores, assisted labels, raw
+logs, IPs, source identities, private paths, or fingerprints. The editable
+copy is not import-ready. Human progress remains honestly `0/120`; an
+automated assistant or model cannot satisfy the reviewer contract.
+
+No configured database row, label, model run, detection run, alert, response
+action, protected workspace, or active artifact changed. Rules remain
+alert-authoritative, lifecycle remains `shadow_observation`, and response
+automation and real blocking remain disabled. The next gate is genuine review
+completion and fixed development revalidation; a second real source remains
+required before activation evidence can be considered independent.
+
+## v5.48 Decision Update
+
+v5.48 adds the protected row-level workflow needed to complete the sealed
+v5.47 development review without exposing predictions or private evidence. The
+first authenticated human reviewer owns the workspace; stale revisions,
+cross-user access, automated reviewer identities, incomplete closure,
+post-closure edits, and protocol/state tamper fail closed.
+
+The development protocol was locked before any decision. It fixes three
+eligible evidence roles, deterministic calibration/threshold/evaluation
+partitions, the feature schema, eight candidate strategies, and unchanged
+v5.42 gates. The review later closed at `120/120`, but support `92/9/0` failed
+the suspicious and malicious preconditions. Its execution count remains `0`;
+the original protocol was never consumed.
+
+No label was imported, no model or recipe was activated or promoted, and no
+detection run, alert, or response action was created. Lifecycle remains
+`shadow_observation`; rules remain alert-authoritative; response automation
+and real blocking remain disabled. Genuine review, a second real source, and
+later untouched independent evaluation are still required.
+
+## v5.49 Decision Update
+
+v5.49 has not run the fixed development evaluation. The immutable protocol is
+valid and still contains eight strategies. Authoritative review evidence is
+now `120/120`, invalid `0`, and formally closed, but honest support is
+benign-like `92`, suspicious `9`, and malicious `0`. The fixed class-support
+preconditions fail, so no supervised candidate or new metric may be claimed.
+
+The runner now protects its single execution with an atomic private claim, and
+the read-only v5.49 decision CLI is ready to validate all eight aggregate
+strategy outcomes and reject any changed gate, inconsistent leader, or
+authority mutation. The real claim and result remain absent and execution
+count remains `0`.
+Lifecycle remains `shadow_observation`; rules remain alert-authoritative;
+active model state, automatic response, and real blocking remain unchanged.
+
+## v5.49a Decision Update
+
+v5.49a preserved the closed v5.48 review and prepared a separate
+prediction-blind 60-row workspace from disposable private-source processing.
+The pack contains 57 threat-enriched rows and three hard-negative controls
+across nine evidence strata. It excludes original anchors, prior manual
+families, duplicate groups, and locked/reserved evidence roles. Supervised
+predictions and assisted labels were not used for selection or display.
+
+The genuine review is complete at `60/60`, invalid `0`, and immutable. Its
+support is `3/30/27`, producing combined support `95/39/27`. The fixed minimums
+therefore passed and a private v5.49b proposal was created. v5.49a itself
+performed no evaluation or authoritative write.
+
+## v5.49b Decision Update
+
+v5.49b bound both immutable reviews to a newly versioned fixed protocol and
+consumed it exactly once. All eight locked strategies ran. The configured
+database retained exactly `145,232` raw logs, `145,232` normalized logs,
+`3,231` alerts, `2,672` labels, `45` model runs, `31` detection runs, and `0`
+response actions before and after evaluation.
+
+No candidate qualified. The fixed evaluation role contains 11 rows: nine
+benign-like, zero suspicious, and two malicious. Several strategies score
+queue F1 `1.0000` and FPR `0.0000` on that narrow role, but suspicious recall
+is not measurable and every confidence gap exceeds the fixed `0.15` maximum.
+The strongest binary variants have ECE `0.0977` and confidence gap `0.2720`.
+These metrics cannot justify selection, especially because the supplemental
+evidence was threat-enriched and is not a field-prevalence sample.
+
+The stored result is immutable and must not be rerun or used for tuning.
+Lifecycle remains `shadow_observation`; rules remain alert-authoritative;
+model activation/promotion, automatic response, and real blocking remain
+disabled. The next model cycle requires fresh development evidence, a
+predeclared support-preserving partition, a second physical source, and a new
+untouched future evaluation.

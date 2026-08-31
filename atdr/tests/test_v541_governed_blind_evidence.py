@@ -62,6 +62,9 @@ def _event_record(
         0,
         0,
         1,
+        "device-token",
+        1,
+        "candidate-near-hash",
     )
 
 

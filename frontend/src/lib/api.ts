@@ -17,6 +17,22 @@ import type {
   BenchmarkReviewImportResult,
   BlindEvidenceStatus,
   CandidateFreezeStatus,
+  CombinedFixedRevalidationStatus,
+  DevelopmentModelRepairStatus,
+  ManualAnchorAcquisitionStatus,
+  ManualAnchorFixedRevalidationStatus,
+  ManualAnchorReviewItem,
+  ManualAnchorReviewOperation,
+  ManualAnchorReviewPage,
+  ManualAnchorReviewProgress,
+  ManualAnchorReviewSaveRequest,
+  ManualAnchorTransferStatus,
+  SupplementalThreatAnchorReviewItem,
+  SupplementalThreatAnchorReviewOperation,
+  SupplementalThreatAnchorReviewPage,
+  SupplementalThreatAnchorReviewProgress,
+  SupplementalThreatAnchorReviewSaveRequest,
+  SupplementalThreatAnchorStatus,
   ClassTemporalCoverageReport,
   DashboardSummary,
   DashboardValidationSummary,
@@ -32,6 +48,7 @@ import type {
   EvidenceReviewStatus,
   FrozenEvaluationStatus,
   HealthResponse,
+  TemporalStabilityStatus,
   DetectionRun,
   IngestionRun,
   LogSource,
@@ -212,6 +229,106 @@ export const api = {
     apiRequest<BlindEvidenceStatus>("/api/evidence-review/blind-evidence/status"),
   candidateFreezeStatus: () =>
     apiRequest<CandidateFreezeStatus>("/api/evidence-review/candidate-freeze/status"),
+  temporalStabilityStatus: () =>
+    apiRequest<TemporalStabilityStatus>("/api/evidence-review/temporal-stability/status"),
+  developmentModelRepairStatus: () =>
+    apiRequest<DevelopmentModelRepairStatus>(
+      "/api/evidence-review/development-model-repair/status"
+    ),
+  manualAnchorTransferStatus: () =>
+    apiRequest<ManualAnchorTransferStatus>(
+      "/api/evidence-review/manual-anchor-transfer/status"
+    ),
+  manualAnchorAcquisitionStatus: () =>
+    apiRequest<ManualAnchorAcquisitionStatus>(
+      "/api/evidence-review/manual-anchor-acquisition/status"
+    ),
+  manualAnchorReviewStatus: () =>
+    apiRequest<ManualAnchorReviewProgress>(
+      "/api/evidence-review/manual-anchors/status"
+    ),
+  manualAnchorFixedRevalidationStatus: () =>
+    apiRequest<ManualAnchorFixedRevalidationStatus>(
+      "/api/evidence-review/manual-anchors/revalidation-status"
+    ),
+  combinedFixedRevalidationStatus: () =>
+    apiRequest<CombinedFixedRevalidationStatus>(
+      "/api/evidence-review/combined-manual-anchors/revalidation-status"
+    ),
+  startManualAnchorReview: () =>
+    apiRequest<ManualAnchorReviewOperation>(
+      "/api/evidence-review/manual-anchors/start",
+      { method: "POST" }
+    ),
+  manualAnchorReviewItems: (params: Params = {}) =>
+    apiRequest<ManualAnchorReviewPage>(
+      "/api/evidence-review/manual-anchors/items",
+      { params }
+    ),
+  manualAnchorReviewItem: (rowIndex: number) =>
+    apiRequest<ManualAnchorReviewItem>(
+      `/api/evidence-review/manual-anchors/items/${rowIndex}`
+    ),
+  saveManualAnchorReviewItem: (
+    rowIndex: number,
+    payload: ManualAnchorReviewSaveRequest
+  ) =>
+    apiRequest<ManualAnchorReviewOperation>(
+      `/api/evidence-review/manual-anchors/items/${rowIndex}`,
+      { method: "POST", body: JSON.stringify(payload) }
+    ),
+  closeManualAnchorReview: (expectedRevision: number) =>
+    apiRequest<ManualAnchorReviewOperation>(
+      "/api/evidence-review/manual-anchors/close",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          expected_revision: expectedRevision,
+          human_confirmed: true
+        })
+      }
+    ),
+  supplementalThreatAnchorStatus: () =>
+    apiRequest<SupplementalThreatAnchorStatus>(
+      "/api/evidence-review/supplemental-threat-anchors/acquisition-status"
+    ),
+  supplementalThreatAnchorReviewStatus: () =>
+    apiRequest<SupplementalThreatAnchorReviewProgress>(
+      "/api/evidence-review/supplemental-threat-anchors/status"
+    ),
+  startSupplementalThreatAnchorReview: () =>
+    apiRequest<SupplementalThreatAnchorReviewOperation>(
+      "/api/evidence-review/supplemental-threat-anchors/start",
+      { method: "POST" }
+    ),
+  supplementalThreatAnchorReviewItems: (params: Params = {}) =>
+    apiRequest<SupplementalThreatAnchorReviewPage>(
+      "/api/evidence-review/supplemental-threat-anchors/items",
+      { params }
+    ),
+  supplementalThreatAnchorReviewItem: (rowIndex: number) =>
+    apiRequest<SupplementalThreatAnchorReviewItem>(
+      `/api/evidence-review/supplemental-threat-anchors/items/${rowIndex}`
+    ),
+  saveSupplementalThreatAnchorReviewItem: (
+    rowIndex: number,
+    payload: SupplementalThreatAnchorReviewSaveRequest
+  ) =>
+    apiRequest<SupplementalThreatAnchorReviewOperation>(
+      `/api/evidence-review/supplemental-threat-anchors/items/${rowIndex}`,
+      { method: "POST", body: JSON.stringify(payload) }
+    ),
+  closeSupplementalThreatAnchorReview: (expectedRevision: number) =>
+    apiRequest<SupplementalThreatAnchorReviewOperation>(
+      "/api/evidence-review/supplemental-threat-anchors/close",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          expected_revision: expectedRevision,
+          human_confirmed: true
+        })
+      }
+    ),
   frozenEvaluationStatus: () =>
     apiRequest<FrozenEvaluationStatus>("/api/evidence-review/evaluation-status"),
   startEvidenceReview: (workspace: "detection" | "assistant") =>

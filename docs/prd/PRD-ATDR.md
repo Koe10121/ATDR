@@ -1571,3 +1571,203 @@ disabled.
 - Failure to satisfy every gate shall preserve `shadow_observation`,
   deterministic-rule authority, disabled response automation, and disabled
   real blocking.
+
+## v5.43 Temporal Stability Repair Requirements
+
+- **FR-ATDR-094:** ATDR shall support a fixed development-only repair protocol
+  that revalidates v5.39-v5.42 custody before fitting.
+- The protocol shall compare exactly the predeclared baseline, inverse
+  duplicate weighting, temporal/provenance weighting, stronger assisted-label
+  down-weighting, and compact stable-feature hierarchical variants.
+- It shall use only duplicate-isolated development fit, calibration, threshold,
+  and evaluation roles and shall preserve the unchanged v5.42 gates.
+- Feature analysis shall report aggregate missingness, drift, redundancy,
+  constant/source-specific behavior, and possible label-derived names without
+  returning private rows or identifiers.
+- At most one ignored inactive diagnostic candidate may be frozen, and only
+  when all fold and queue-stability gates pass.
+- AI Governance shall expose authenticated aggregate temporal-stability status
+  with no training, activation, promotion, alert, or response control.
+- A failed repair shall keep supervised lifecycle in `shadow_observation`,
+  preserve deterministic-rule alert authority, and create no automatic
+  response or real firewall action.
+
+## v5.44 Chronological Evidence Expansion Requirements
+
+- **FR-ATDR-095:** ATDR shall inspect private PAN-OS development evidence only
+  through an explicit CLI path and disposable storage, without importing it
+  into the configured database.
+- The workflow shall revalidate v5.39-v5.43 custody and exclude configured,
+  consumed, exact, near, temporal, and candidate-family overlap before any
+  assisted decision is calculated.
+- Chronological fit, calibration, threshold, and untouched-future roles shall
+  be assigned before label assistance and shall contain duplicate families in
+  exactly one role.
+- The untouched-future role shall remain sealed during development evidence
+  coverage and anomaly diagnosis.
+- Assisted decisions shall retain non-human provenance, never overwrite an
+  existing label, and never produce an import-ready review file automatically.
+- Public output shall contain aggregates only and exclude private paths,
+  filenames, raw logs, IP addresses, source identities, reusable
+  fingerprints, predictions, and secrets.
+- A private ignored custody lock shall bind collection, protected-boundary,
+  and assisted-policy summaries and fail closed on conflict or tamper.
+- Development evidence sufficiency shall be distinct from candidate-freeze,
+  independent-validation, activation, and production claims.
+- v5.44 shall preserve `shadow_observation`, deterministic-rule authority,
+  disabled response automation, and disabled real firewall blocking.
+
+## v5.45 Development-Only Supervised Repair Requirements
+
+- **FR-ATDR-096:** ATDR shall revalidate v5.39-v5.44 custody and use only the
+  locked development-fit, calibration, and threshold roles for supervised
+  repair, calibration, threshold selection, and candidate ranking.
+- The workflow shall prevent exact, propagation, and broader candidate-near
+  family leakage without inspecting reserved-future labels.
+- Manual/reviewed labels shall remain distinct from assisted evidence, and
+  assisted aggregate sample weight shall never exceed manual-anchor weight.
+- The comparison shall include calibrated ExtraTrees,
+  HistGradientBoosting, Logistic Regression, binary queue, three-class queue,
+  and hierarchical two-stage strategies.
+- Every mandatory view shall use the unchanged v5.42 gates. Optional views
+  lacking required class support shall be excluded transparently rather than
+  counted as automatic failures.
+- ATDR may freeze at most one inactive diagnostic recipe only when every gate
+  and queue-stability requirement passes. It shall not write an active model
+  artifact in this workflow.
+- IsolationForest shall be evaluated separately and remain advisory unless
+  fixed FPR and sensitivity gates pass.
+- AI Governance shall expose an authenticated aggregate v5.45 status without
+  private rows, paths, identities, predictions, fingerprints, or secrets.
+- A failed decision shall preserve `shadow_observation`, deterministic-rule
+  alert authority, disabled response automation, and disabled real blocking.
+
+## v5.46 Manual-Anchor Transfer Requirements
+
+- **FR-ATDR-097:** ATDR shall diagnose manual-versus-assisted transfer using
+  aggregate development evidence without opening reserved-future labels.
+- Transfer features shall be derivable at runtime and shall not use provenance,
+  source identity, private fingerprints, or reviewer identity as predictors.
+- Manual/reviewed anchors shall retain greater aggregate effective weight than
+  assisted evidence, and no label shall be rewritten by the evaluator.
+- Calibration and thresholds shall use dedicated development partitions only;
+  evaluation labels shall not influence their selection.
+- The comparison shall include provenance-balanced, manual-prioritized,
+  calibrated linear/tree, binary, three-class, hierarchical, and conservative
+  ensemble strategies under unchanged v5.42 gates.
+- A failed transfer shall freeze no recipe or active artifact and shall not
+  create labels, runs, alerts, response actions, or firewall actions.
+- The authenticated dashboard shall expose only aggregate transfer status,
+  manual-anchor metrics, calibration state, and safety/lifecycle state.
+- Further tuning against the same evidence shall stop when transfer worsens;
+  the next decision shall require new prediction-blind human anchors and
+  broader genuine-source evidence.
+
+## v5.47 Prediction-Blind Manual-Anchor Acquisition Requirements
+
+- **FR-ATDR-098:** ATDR shall create a sealed development-only review pack
+  without exposing model predictions, model scores, or assisted labels to the
+  reviewer.
+- Selection shall use only eligible development roles and shall exclude
+  quarantined, reserved-future, duplicate, and existing manual-anchor families.
+- The pack shall cover known error boundaries including unknown transport,
+  incomplete/allow/80, scan-like behavior, low-signal suspicious cases,
+  QUIC/443 controls, high-risk context, and routine benign controls.
+- Raw logs, IP addresses, source/device identities, private paths,
+  fingerprints, predictions, and assisted labels shall not appear in the pack
+  or public status.
+- Review shall require a genuine human identity, supported decision,
+  confidence, rationale, timestamp, and explicit confirmation. Automated
+  reviewer identities shall be rejected.
+- The workspace shall remain non-import-ready. ATDR shall not automatically
+  create labels, train, freeze, activate, promote, create alerts, or execute
+  responses from review progress.
+- Fixed revalidation shall remain blocked until every selected row is validly
+  reviewed and minimum benign-like, suspicious, and malicious support is met.
+- The authenticated dashboard shall expose aggregate coverage and review
+  readiness only. One-device evidence shall not be represented as source
+  generalization or independent activation evidence.
+
+## v5.48 Protected Manual-Anchor Review And Fixed Revalidation Requirements
+
+- **FR-ATDR-099:** ATDR shall lock the eligible roles, deterministic
+  partitions, feature schema, candidate strategies, calibration/threshold
+  policy, and unchanged quality gates before the first v5.47 review decision.
+- Manual-anchor rows shall be accessible only to an authenticated assigned
+  human reviewer through a dedicated protected workspace.
+- The workspace shall enforce owner isolation, optimistic revision control,
+  supported decisions, confidence, rationale, explicit human confirmation,
+  complete-review validation, and immutable formal closure.
+- Predictions, model scores, assisted labels, raw logs, IP addresses, source
+  identities, fingerprints, private paths, reviewer identities, and secrets
+  shall not be returned by its API or UI.
+- Protocol, sealed-pack, working-copy, or review-state binding conflicts shall
+  fail closed.
+- Fixed revalidation shall require complete valid review, minimum class
+  support, formal closure, and explicit operator confirmation. It may execute
+  at most once against the predeclared development protocol.
+- The workflow shall not import labels, write an active artifact, activate or
+  promote a model, change alert authority, or create a response action.
+- One-source development evidence shall not be represented as independent
+  source-generalization evidence or production readiness.
+
+## v5.49 Fixed Revalidation And Candidate Decision Requirements
+
+- **FR-ATDR-100:** ATDR shall execute the locked v5.48 development protocol at
+  most once and only after proven complete human review, minimum class support,
+  formal closure, valid custody, and explicit operator confirmation.
+- The execution shall be atomically claimed before evaluation-label access;
+  an interrupted or conflicting claim shall fail closed without automatic
+  retry.
+- The decision report shall contain all eight locked strategies and their
+  precision, recall, F1, benign-like FPR, suspicious and malicious recall,
+  macro/weighted F1, queue rate, calibration diagnostics, and fixed-gate checks.
+- Missing, duplicate, reordered, changed-gate, or authority-mutating result
+  data shall fail integrity validation.
+- At most one result may qualify as an inactive diagnostic candidate. No
+  candidate shall be activated or promoted by this workflow.
+- The workflow shall write no labels, configured model runs, detection runs,
+  alerts, response actions, active artifacts, or firewall actions.
+- Independent second-source and untouched-future validation shall remain
+  mandatory after any passing development result.
+
+## v5.49a Supplemental Evidence Requirements
+
+When a closed protected review does not meet honest class-support
+preconditions, ATDR shall fail closed rather than request relabeling or use
+machine predictions as human truth. It shall support a separate prediction-
+blind supplemental workspace selected only from deterministic parser, rule,
+and correlation evidence.
+
+The workspace shall exclude original anchors, duplicate families, quarantined
+rows, prior protected manual families, and locked final/future/external roles.
+It shall be authenticated, owner-isolated, revision-safe, immutable after
+closure, and expose only approved normalized evidence. Class targets and
+combined support shall remain hidden until closure.
+
+Supplemental closure may produce only a proposal for a newly versioned fixed
+protocol when honest combined support passes. It shall not execute evaluation,
+write labels, train or activate models, change alert authority, enable response
+automation, or perform real blocking. A second genuine source and untouched
+future validation remain prerequisites for any activation decision.
+
+## v5.49b Immutable Combined Revalidation Requirements
+
+- **FR-ATDR-101:** ATDR shall bind the closed original and supplemental review
+  workspaces to a new immutable combined protocol before evaluation-label
+  access.
+- The protocol shall preserve the v5.48 feature schema, eight strategies,
+  calibration/threshold policy, duplicate isolation, and fixed quality gates.
+- Execution shall require combined support of at least `20` benign-like, `15`
+  suspicious, and `10` malicious decisions and explicit operator confirmation.
+- An atomic claim shall be written before any evaluation-label access. A
+  claimed, interrupted, completed, or tampered protocol shall not be retried.
+- Public status shall expose aggregate custody, metrics, gate outcomes, and
+  safety state only. Private rows, identities, paths, fingerprints,
+  predictions, and digests shall remain withheld.
+- A diagnostic candidate may be named only when every fixed gate passes. The
+  workflow shall never activate, promote, or write an active artifact.
+- The workflow shall not write labels, configured model runs, detection runs,
+  alerts, response actions, or firewall actions.
+- Consumed evaluation evidence shall not be used for tuning. A failed result
+  shall require fresh development evidence and a newly versioned protocol.

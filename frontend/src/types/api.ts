@@ -2690,6 +2690,506 @@ export interface CandidateFreezeStatus {
   secrets_exposed: false;
 }
 
+export interface TemporalStabilityStatus {
+  version: string;
+  status: string;
+  best_variant?: string | null;
+  passing_folds: number;
+  required_folds: number;
+  candidate_frozen: boolean;
+  calibration_status: "not_evaluated" | "weak" | "passed";
+  queue_stability_status: "not_evaluated" | "unstable" | "passed";
+  feature_ablation_status: "not_evaluated" | "incomplete" | "complete";
+  supervised_phases_remaining: number;
+  blockers: string[];
+  lifecycle_state: "shadow_observation";
+  rules_alert_authoritative: true;
+  model_activated: false;
+  model_promoted: false;
+  response_automation_allowed: false;
+  private_paths_exposed: false;
+  digests_exposed: false;
+  blind_predictions_exposed: false;
+  secrets_exposed: false;
+}
+
+export interface DevelopmentModelRepairStatus {
+  version: string;
+  status: string;
+  generated_at?: string | null;
+  diagnostic_leader?: string | null;
+  passing_views: number;
+  required_views: number;
+  candidate_freeze_ready: boolean;
+  candidate_frozen: boolean;
+  isolation_forest_reliable: boolean;
+  supervised_phases_remaining: number;
+  blockers: string[];
+  lifecycle_state: "shadow_observation";
+  model_activated: false;
+  model_promoted: false;
+  response_automation_allowed: false;
+  future_labels_opened: false;
+  private_paths_returned: false;
+  fingerprints_returned: false;
+  secrets_exposed: false;
+}
+
+export interface ManualAnchorTransferStatus {
+  version: string;
+  status: string;
+  generated_at?: string | null;
+  diagnostic_leader?: string | null;
+  passing_views: number;
+  required_views: number;
+  manual_anchor_transfer_status: "not_evaluated" | "improved" | "blocked";
+  calibration_status: string;
+  manual_anchor_queue_f1?: number | null;
+  manual_anchor_fpr?: number | null;
+  manual_anchor_suspicious_recall?: number | null;
+  manual_anchor_malicious_recall?: number | null;
+  queue_f1_transfer_gap?: number | null;
+  candidate_freeze_ready: boolean;
+  candidate_frozen: boolean;
+  isolation_forest_reliable: boolean;
+  supervised_phases_remaining: number;
+  blockers: string[];
+  lifecycle_state: "shadow_observation";
+  rules_alert_authoritative: true;
+  model_activated: false;
+  model_promoted: false;
+  response_automation_allowed: false;
+  future_labels_opened: false;
+  private_paths_returned: false;
+  fingerprints_returned: false;
+  secrets_exposed: false;
+}
+
+export interface ManualAnchorAcquisitionStatus {
+  version: string;
+  status: string;
+  generated_at?: string | null;
+  selected_rows: number;
+  target_rows: number;
+  represented_strata: number;
+  coverage_counts: Record<string, number>;
+  coverage_gate_passed: boolean;
+  review_status: string;
+  reviewed_rows: number;
+  total_review_rows: number;
+  invalid_review_rows: number;
+  class_support: Record<string, number>;
+  ready_for_fixed_revalidation: boolean;
+  independent_source_count: number;
+  second_real_source_present: boolean;
+  development_evidence_only: true;
+  workspace_created: boolean;
+  lifecycle_state: "shadow_observation";
+  rules_alert_authoritative: true;
+  model_activated: false;
+  model_promoted: false;
+  response_automation_allowed: false;
+  future_labels_opened: false;
+  predictions_exposed: false;
+  assisted_labels_exposed: false;
+  private_paths_returned: false;
+  fingerprints_returned: false;
+  secrets_exposed: false;
+}
+
+export interface FixedRevalidationProtocolStatus {
+  version: string;
+  locked: boolean;
+  valid: boolean;
+  strategy_count: number;
+  eligible_roles: string[];
+  quality_gates_unchanged?: boolean;
+  evaluation_labels_accessed: false;
+  digest_exposed: false;
+}
+
+export interface ManualAnchorReviewProgress {
+  workspace: "manual_anchors";
+  available: boolean;
+  prepared: boolean;
+  integrity_status: "valid" | "not_prepared" | "unavailable";
+  total: number;
+  reviewed: number;
+  remaining: number;
+  invalid: number;
+  progress_percent: number;
+  revision: number;
+  owner_assigned: boolean;
+  owned_by_current_user: boolean;
+  can_review: boolean;
+  completed: boolean;
+  closed: boolean;
+  evaluation_ready: boolean;
+  protocol_locked: boolean;
+  protocol_valid: boolean;
+  class_support: Record<string, number>;
+  minimum_class_support: Record<string, number>;
+  class_support_passed: boolean;
+  coverage_counts: Record<string, number>;
+  coverage_strata: string[];
+  next_pending_index?: number | null;
+  message: string;
+  predictions_exposed: false;
+  model_scores_exposed: false;
+  assisted_labels_exposed: false;
+  raw_logs_exposed: false;
+  ip_addresses_exposed: false;
+  source_identities_exposed: false;
+  fingerprints_exposed: false;
+  private_paths_exposed: false;
+  reviewer_identity_exposed: false;
+  import_ready: false;
+  automatic_import_performed: false;
+  model_activation_performed: false;
+  response_action_performed: false;
+  secrets_exposed: false;
+}
+
+export interface ManualAnchorFixedRevalidationStatus {
+  version: string;
+  status: string;
+  protocol: FixedRevalidationProtocolStatus;
+  review: {
+    status: string;
+    total: number;
+    reviewed: number;
+    remaining: number;
+    invalid: number;
+    class_support: Record<string, number>;
+    minimum_class_support: Record<string, number>;
+    closed: boolean;
+    ready_for_fixed_revalidation: boolean;
+  };
+  evaluation_attempted: boolean;
+  evaluation_execution_count: number;
+  metrics_available: boolean;
+  diagnostic_leader?: string | null;
+  leader_metrics: Record<string, unknown>;
+  lifecycle_state: "shadow_observation";
+  rules_alert_authoritative: true;
+  model_activated: false;
+  model_promoted: false;
+  response_automation_allowed: false;
+  automatic_import_performed: false;
+  predictions_exposed: false;
+  raw_logs_exposed: false;
+  private_paths_exposed: false;
+  fingerprints_exposed: false;
+  secrets_exposed: false;
+}
+
+export interface CombinedFixedRevalidationStatus {
+  version: string;
+  status: string;
+  custody: {
+    original_reviewed: number;
+    supplemental_reviewed: number;
+    combined_reviewed: number;
+    remaining: number;
+    invalid: number;
+    reviews_closed: boolean;
+    reviews_immutable: boolean;
+    combined_class_support: Record<string, number>;
+    minimum_class_support: Record<string, number>;
+    combined_support_passed: boolean;
+    old_evaluation_execution_count: number;
+  };
+  protocol: {
+    version: string;
+    locked: boolean;
+    valid: boolean;
+    immutable: boolean;
+    strategy_count: number;
+    combined_rows: number;
+    contracts_unchanged: boolean;
+    supplemental_evidence_threat_enriched: true;
+    representative_of_production_prevalence: false;
+    digest_exposed: false;
+  };
+  evaluation_attempted: boolean;
+  evaluation_execution_count: number;
+  metrics_available: boolean;
+  strategy_count: number;
+  evaluated_strategy_count: number;
+  strategies: Array<Record<string, unknown>>;
+  diagnostic_candidate?: string | null;
+  diagnostic_candidate_qualified: boolean;
+  selection_bias_notice: string;
+  lifecycle_state: "shadow_observation";
+  rules_alert_authoritative: true;
+  model_activated: false;
+  model_promoted: false;
+  active_artifact_written: false;
+  response_automation_allowed: false;
+  real_firewall_blocking_enabled: false;
+  labels_written: 0;
+  model_runs_written: 0;
+  detection_runs_written: 0;
+  alerts_written: 0;
+  response_actions_written: 0;
+  predictions_exposed: false;
+  raw_logs_exposed: false;
+  ip_addresses_exposed: false;
+  source_identities_exposed: false;
+  private_paths_exposed: false;
+  fingerprints_exposed: false;
+  digests_exposed: false;
+  secrets_exposed: false;
+}
+
+export interface ManualAnchorReviewInput {
+  decision: DetectionReviewDecision;
+  attack_type: string;
+  confidence: number;
+  rationale: string;
+}
+
+export interface ManualAnchorReviewItem {
+  workspace: "manual_anchors";
+  row_index: number;
+  display_position: number;
+  total: number;
+  revision: number;
+  reviewed: boolean;
+  closed: boolean;
+  coverage_stratum: string;
+  evidence: Record<string, string>;
+  existing_review?: ManualAnchorReviewInput | null;
+  next_pending_index?: number | null;
+  predictions_exposed: false;
+  model_scores_exposed: false;
+  assisted_labels_exposed: false;
+  raw_logs_exposed: false;
+  ip_addresses_exposed: false;
+  source_identities_exposed: false;
+  fingerprints_exposed: false;
+  private_paths_exposed: false;
+  reviewer_identity_exposed: false;
+  import_ready: false;
+  automatic_import_performed: false;
+  model_activation_performed: false;
+  response_action_performed: false;
+  secrets_exposed: false;
+}
+
+export interface ManualAnchorReviewListItem {
+  row_index: number;
+  display_position: number;
+  reviewed: boolean;
+  coverage_stratum: string;
+  evidence: Record<string, string>;
+}
+
+export interface ManualAnchorReviewPage {
+  workspace: "manual_anchors";
+  offset: number;
+  limit: number;
+  filtered_total: number;
+  items: ManualAnchorReviewListItem[];
+  predictions_exposed: false;
+  raw_logs_exposed: false;
+  private_paths_exposed: false;
+  reviewer_identities_exposed: false;
+  secrets_exposed: false;
+}
+
+export interface ManualAnchorReviewSaveRequest extends ManualAnchorReviewInput {
+  expected_revision: number;
+  human_confirmed: true;
+}
+
+export interface ManualAnchorReviewOperation {
+  ok: boolean;
+  workspace: "manual_anchors";
+  status: string;
+  revision: number;
+  progress: ManualAnchorReviewProgress;
+  next_item?: ManualAnchorReviewItem | null;
+  authoritative_mutations: {
+    labels: number;
+    model_runs: number;
+    detection_runs: number;
+    alerts: number;
+    response_actions: number;
+  };
+  import_performed: false;
+  model_activation_performed: false;
+  response_action_performed: false;
+}
+
+export interface SupplementalThreatAnchorStatus {
+  version: string;
+  status: string;
+  generated_at?: string | null;
+  original_review: {
+    total: number;
+    reviewed: number;
+    remaining: number;
+    invalid: number;
+    closed: boolean;
+    immutable: boolean;
+    evaluation_execution_count: 0;
+  };
+  selected_rows: number;
+  target_rows: number;
+  coverage_counts: Record<string, number>;
+  represented_threat_strata: number;
+  threat_enriched_rows: number;
+  coverage_gate_passed: boolean;
+  exclusion_counts: Record<string, number>;
+  review: {
+    status: string;
+    total: number;
+    reviewed: number;
+    remaining: number;
+    invalid: number;
+    complete: boolean;
+    closed: boolean;
+  };
+  combined_support_visible: boolean;
+  combined_class_support: Record<string, number>;
+  minimum_class_support: Record<string, number>;
+  combined_support_passed: boolean;
+  ready_for_relocked_protocol: boolean;
+  proposed_protocol_created: boolean;
+  evaluation_execution_count: 0;
+  evaluation_claim_created: false;
+  evaluation_result_created: false;
+  predictions_used_for_selection: false;
+  predictions_exposed: false;
+  assisted_labels_exposed: false;
+  lifecycle_state: "shadow_observation";
+  rules_alert_authoritative: true;
+  model_activated: false;
+  model_promoted: false;
+  response_automation_allowed: false;
+  raw_logs_exposed: false;
+  ip_addresses_exposed: false;
+  private_paths_returned: false;
+  fingerprints_returned: false;
+  secrets_exposed: false;
+}
+
+export interface SupplementalThreatAnchorReviewProgress {
+  workspace: "supplemental_threat_anchors";
+  available: boolean;
+  prepared: boolean;
+  integrity_status: "valid" | "not_prepared" | "unavailable";
+  total: number;
+  reviewed: number;
+  remaining: number;
+  invalid: number;
+  progress_percent: number;
+  revision: number;
+  owner_assigned: boolean;
+  owned_by_current_user: boolean;
+  can_review: boolean;
+  completed: boolean;
+  closed: boolean;
+  combined_support_visible: boolean;
+  combined_class_support: Record<string, number>;
+  minimum_class_support: Record<string, number>;
+  combined_support_passed: boolean;
+  ready_for_relocked_protocol: boolean;
+  proposed_protocol_created: boolean;
+  coverage_counts: Record<string, number>;
+  coverage_strata: string[];
+  next_pending_index?: number | null;
+  evaluation_execution_count: 0;
+  message: string;
+  predictions_exposed: false;
+  model_scores_exposed: false;
+  assisted_labels_exposed: false;
+  raw_logs_exposed: false;
+  ip_addresses_exposed: false;
+  source_identities_exposed: false;
+  fingerprints_exposed: false;
+  private_paths_exposed: false;
+  reviewer_identity_exposed: false;
+  import_ready: false;
+  automatic_import_performed: false;
+  model_activation_performed: false;
+  response_action_performed: false;
+  secrets_exposed: false;
+}
+
+export interface SupplementalThreatAnchorReviewItem {
+  workspace: "supplemental_threat_anchors";
+  row_index: number;
+  display_position: number;
+  total: number;
+  revision: number;
+  reviewed: boolean;
+  closed: boolean;
+  coverage_stratum: string;
+  evidence: Record<string, string>;
+  existing_review?: ManualAnchorReviewInput | null;
+  next_pending_index?: number | null;
+  predictions_exposed: false;
+  model_scores_exposed: false;
+  assisted_labels_exposed: false;
+  raw_logs_exposed: false;
+  ip_addresses_exposed: false;
+  source_identities_exposed: false;
+  fingerprints_exposed: false;
+  private_paths_exposed: false;
+  reviewer_identity_exposed: false;
+  import_ready: false;
+  automatic_import_performed: false;
+  model_activation_performed: false;
+  response_action_performed: false;
+  secrets_exposed: false;
+}
+
+export interface SupplementalThreatAnchorReviewListItem {
+  row_index: number;
+  display_position: number;
+  reviewed: boolean;
+  coverage_stratum: string;
+  evidence: Record<string, string>;
+}
+
+export interface SupplementalThreatAnchorReviewPage {
+  workspace: "supplemental_threat_anchors";
+  offset: number;
+  limit: number;
+  filtered_total: number;
+  items: SupplementalThreatAnchorReviewListItem[];
+  predictions_exposed: false;
+  raw_logs_exposed: false;
+  private_paths_exposed: false;
+  reviewer_identities_exposed: false;
+  secrets_exposed: false;
+}
+
+export type SupplementalThreatAnchorReviewSaveRequest = ManualAnchorReviewSaveRequest;
+
+export interface SupplementalThreatAnchorReviewOperation {
+  ok: boolean;
+  workspace: "supplemental_threat_anchors";
+  status: string;
+  revision: number;
+  progress: SupplementalThreatAnchorReviewProgress;
+  next_item?: SupplementalThreatAnchorReviewItem | null;
+  authoritative_mutations: {
+    labels: number;
+    model_runs: number;
+    detection_runs: number;
+    alerts: number;
+    response_actions: number;
+  };
+  evaluation_execution_count: 0;
+  evaluation_claim_created: false;
+  import_performed: false;
+  model_activation_performed: false;
+  response_action_performed: false;
+}
+
 export interface FrozenEvidenceReviewSummary {
   available: boolean;
   total: number;

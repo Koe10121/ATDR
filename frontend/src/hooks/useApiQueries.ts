@@ -9,6 +9,8 @@ import type {
   AssistantReviewSaveRequest,
   DetectionReviewSaveRequest,
   EvidenceReviewWorkspace,
+  ManualAnchorReviewSaveRequest,
+  SupplementalThreatAnchorReviewSaveRequest,
   MLLabelPayload,
   OperationImportSubmit
 } from "../types/api";
@@ -27,6 +29,19 @@ export const queryKeys = {
   evidenceReviewStatus: ["evidence-review-status"],
   blindEvidenceStatus: ["blind-evidence-status"],
   candidateFreezeStatus: ["candidate-freeze-status"],
+  temporalStabilityStatus: ["temporal-stability-status"],
+  developmentModelRepairStatus: ["development-model-repair-status"],
+  manualAnchorTransferStatus: ["manual-anchor-transfer-status"],
+  manualAnchorAcquisitionStatus: ["manual-anchor-acquisition-status"],
+  manualAnchorReviewStatus: ["manual-anchor-review-status"],
+  manualAnchorFixedRevalidationStatus: ["manual-anchor-fixed-revalidation-status"],
+  combinedFixedRevalidationStatus: ["combined-fixed-revalidation-status"],
+  manualAnchorReviewItems: (params?: Record<string, unknown>) => ["manual-anchor-review-items", params ?? {}],
+  manualAnchorReviewItem: (rowIndex?: number | null) => ["manual-anchor-review-item", rowIndex],
+  supplementalThreatAnchorStatus: ["supplemental-threat-anchor-status"],
+  supplementalThreatAnchorReviewStatus: ["supplemental-threat-anchor-review-status"],
+  supplementalThreatAnchorReviewItems: (params?: Record<string, unknown>) => ["supplemental-threat-anchor-review-items", params ?? {}],
+  supplementalThreatAnchorReviewItem: (rowIndex?: number | null) => ["supplemental-threat-anchor-review-item", rowIndex],
   frozenEvaluationStatus: ["evidence-review-evaluation-status"],
   detectionReviewItem: (rowIndex?: number | null) => ["evidence-review-detection-item", rowIndex],
   assistantReviewItem: (rowIndex?: number | null) => ["evidence-review-assistant-item", rowIndex],
@@ -190,6 +205,14 @@ function invalidateEvidenceReview(queryClient: QueryClient) {
   void queryClient.invalidateQueries({ queryKey: queryKeys.frozenEvaluationStatus });
   void queryClient.invalidateQueries({ queryKey: ["evidence-review-detection-item"] });
   void queryClient.invalidateQueries({ queryKey: ["evidence-review-assistant-item"] });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.manualAnchorReviewStatus });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.manualAnchorFixedRevalidationStatus });
+  void queryClient.invalidateQueries({ queryKey: ["manual-anchor-review-items"] });
+  void queryClient.invalidateQueries({ queryKey: ["manual-anchor-review-item"] });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.supplementalThreatAnchorStatus });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.supplementalThreatAnchorReviewStatus });
+  void queryClient.invalidateQueries({ queryKey: ["supplemental-threat-anchor-review-items"] });
+  void queryClient.invalidateQueries({ queryKey: ["supplemental-threat-anchor-review-item"] });
   invalidateAudit(queryClient);
 }
 
@@ -217,6 +240,135 @@ export function useCandidateFreezeStatus() {
     queryFn: api.candidateFreezeStatus,
     retry: false,
     staleTime: 30_000
+  });
+}
+
+export function useTemporalStabilityStatus() {
+  return useQuery({
+    queryKey: queryKeys.temporalStabilityStatus,
+    queryFn: api.temporalStabilityStatus,
+    retry: false,
+    staleTime: 30_000
+  });
+}
+
+export function useDevelopmentModelRepairStatus() {
+  return useQuery({
+    queryKey: queryKeys.developmentModelRepairStatus,
+    queryFn: api.developmentModelRepairStatus,
+    retry: false,
+    staleTime: 30_000
+  });
+}
+
+export function useManualAnchorTransferStatus() {
+  return useQuery({
+    queryKey: queryKeys.manualAnchorTransferStatus,
+    queryFn: api.manualAnchorTransferStatus,
+    retry: false,
+    staleTime: 30_000
+  });
+}
+
+export function useManualAnchorAcquisitionStatus() {
+  return useQuery({
+    queryKey: queryKeys.manualAnchorAcquisitionStatus,
+    queryFn: api.manualAnchorAcquisitionStatus,
+    retry: false,
+    staleTime: 30_000
+  });
+}
+
+export function useManualAnchorReviewStatus() {
+  return useQuery({
+    queryKey: queryKeys.manualAnchorReviewStatus,
+    queryFn: api.manualAnchorReviewStatus,
+    retry: false,
+    staleTime: 5_000
+  });
+}
+
+export function useManualAnchorFixedRevalidationStatus() {
+  return useQuery({
+    queryKey: queryKeys.manualAnchorFixedRevalidationStatus,
+    queryFn: api.manualAnchorFixedRevalidationStatus,
+    retry: false,
+    staleTime: 10_000
+  });
+}
+
+export function useCombinedFixedRevalidationStatus() {
+  return useQuery({
+    queryKey: queryKeys.combinedFixedRevalidationStatus,
+    queryFn: api.combinedFixedRevalidationStatus,
+    retry: false,
+    staleTime: 10_000
+  });
+}
+
+export function useManualAnchorReviewItems(
+  params: Params,
+  enabled = true
+) {
+  return useQuery({
+    queryKey: queryKeys.manualAnchorReviewItems(params),
+    queryFn: () => api.manualAnchorReviewItems(params),
+    enabled,
+    retry: false
+  });
+}
+
+export function useManualAnchorReviewItem(
+  rowIndex?: number | null,
+  enabled = true
+) {
+  return useQuery({
+    queryKey: queryKeys.manualAnchorReviewItem(rowIndex),
+    queryFn: () => api.manualAnchorReviewItem(rowIndex as number),
+    enabled: enabled && rowIndex !== null && rowIndex !== undefined,
+    retry: false
+  });
+}
+
+export function useSupplementalThreatAnchorStatus() {
+  return useQuery({
+    queryKey: queryKeys.supplementalThreatAnchorStatus,
+    queryFn: api.supplementalThreatAnchorStatus,
+    retry: false,
+    staleTime: 10_000
+  });
+}
+
+export function useSupplementalThreatAnchorReviewStatus() {
+  return useQuery({
+    queryKey: queryKeys.supplementalThreatAnchorReviewStatus,
+    queryFn: api.supplementalThreatAnchorReviewStatus,
+    retry: false,
+    staleTime: 5_000
+  });
+}
+
+export function useSupplementalThreatAnchorReviewItems(
+  params: Params,
+  enabled = true
+) {
+  return useQuery({
+    queryKey: queryKeys.supplementalThreatAnchorReviewItems(params),
+    queryFn: () => api.supplementalThreatAnchorReviewItems(params),
+    enabled,
+    retry: false
+  });
+}
+
+export function useSupplementalThreatAnchorReviewItem(
+  rowIndex?: number | null,
+  enabled = true
+) {
+  return useQuery({
+    queryKey: queryKeys.supplementalThreatAnchorReviewItem(rowIndex),
+    queryFn: () => api.supplementalThreatAnchorReviewItem(rowIndex as number),
+    enabled: enabled && rowIndex !== null && rowIndex !== undefined,
+    retry: false
   });
 }
 
@@ -278,6 +430,67 @@ export function useCompleteEvidenceReviewMutation() {
   return useMutation({
     mutationFn: ({ workspace, revision }: { workspace: EvidenceReviewWorkspace; revision: number }) =>
       api.completeEvidenceReview(workspace, revision),
+    onSuccess: () => invalidateEvidenceReview(queryClient)
+  });
+}
+
+export function useStartManualAnchorReviewMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.startManualAnchorReview,
+    onSuccess: () => invalidateEvidenceReview(queryClient)
+  });
+}
+
+export function useSaveManualAnchorReviewMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      rowIndex,
+      payload
+    }: {
+      rowIndex: number;
+      payload: ManualAnchorReviewSaveRequest;
+    }) => api.saveManualAnchorReviewItem(rowIndex, payload),
+    onSuccess: () => invalidateEvidenceReview(queryClient)
+  });
+}
+
+export function useCloseManualAnchorReviewMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (revision: number) => api.closeManualAnchorReview(revision),
+    onSuccess: () => invalidateEvidenceReview(queryClient)
+  });
+}
+
+export function useStartSupplementalThreatAnchorReviewMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.startSupplementalThreatAnchorReview,
+    onSuccess: () => invalidateEvidenceReview(queryClient)
+  });
+}
+
+export function useSaveSupplementalThreatAnchorReviewMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      rowIndex,
+      payload
+    }: {
+      rowIndex: number;
+      payload: SupplementalThreatAnchorReviewSaveRequest;
+    }) => api.saveSupplementalThreatAnchorReviewItem(rowIndex, payload),
+    onSuccess: () => invalidateEvidenceReview(queryClient)
+  });
+}
+
+export function useCloseSupplementalThreatAnchorReviewMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (revision: number) =>
+      api.closeSupplementalThreatAnchorReview(revision),
     onSuccess: () => invalidateEvidenceReview(queryClient)
   });
 }

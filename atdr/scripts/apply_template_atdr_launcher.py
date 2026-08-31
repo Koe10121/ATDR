@@ -127,7 +127,9 @@ def build_report(template_root: Path, *, write: bool = False, backup: bool = Tru
 
     if backup:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        backup_path = target.with_suffix(target.suffix + f".bak-{stamp}")
+        # The template registry filename is already long enough to exceed the
+        # Windows path limit in deep clones when a suffix is appended.
+        backup_path = target.parent / f"atdr-launcher-{stamp}.vue.bak"
         shutil.copy2(target, backup_path)
         report["backup_created"] = str(backup_path)
     target.write_text(patched, encoding="utf-8")

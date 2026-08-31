@@ -147,6 +147,492 @@ class CandidateFreezeStatusResponse(BaseModel):
     secrets_exposed: Literal[False] = False
 
 
+class TemporalStabilityStatusResponse(BaseModel):
+    version: str
+    status: str
+    best_variant: str | None = None
+    passing_folds: int = 0
+    required_folds: int = 3
+    candidate_frozen: bool = False
+    calibration_status: Literal["not_evaluated", "weak", "passed"]
+    queue_stability_status: Literal["not_evaluated", "unstable", "passed"]
+    feature_ablation_status: Literal["not_evaluated", "incomplete", "complete"]
+    supervised_phases_remaining: int
+    blockers: list[str] = Field(default_factory=list)
+    lifecycle_state: Literal["shadow_observation"] = "shadow_observation"
+    rules_alert_authoritative: Literal[True] = True
+    model_activated: Literal[False] = False
+    model_promoted: Literal[False] = False
+    response_automation_allowed: Literal[False] = False
+    private_paths_exposed: Literal[False] = False
+    digests_exposed: Literal[False] = False
+    blind_predictions_exposed: Literal[False] = False
+    secrets_exposed: Literal[False] = False
+
+
+class DevelopmentModelRepairStatusResponse(BaseModel):
+    version: str
+    status: str
+    generated_at: str | None = None
+    diagnostic_leader: str | None = None
+    passing_views: int = 0
+    required_views: int = 3
+    candidate_freeze_ready: bool = False
+    candidate_frozen: bool = False
+    isolation_forest_reliable: bool = False
+    supervised_phases_remaining: int = 5
+    blockers: list[str] = Field(default_factory=list)
+    lifecycle_state: Literal["shadow_observation"] = "shadow_observation"
+    model_activated: Literal[False] = False
+    model_promoted: Literal[False] = False
+    response_automation_allowed: Literal[False] = False
+    future_labels_opened: Literal[False] = False
+    private_paths_returned: Literal[False] = False
+    fingerprints_returned: Literal[False] = False
+    secrets_exposed: Literal[False] = False
+
+
+class ManualAnchorTransferStatusResponse(BaseModel):
+    version: str
+    status: str
+    generated_at: str | None = None
+    diagnostic_leader: str | None = None
+    passing_views: int = 0
+    required_views: int = 3
+    manual_anchor_transfer_status: Literal[
+        "not_evaluated", "improved", "blocked"
+    ] = "not_evaluated"
+    calibration_status: str = "not_evaluated"
+    manual_anchor_queue_f1: float | None = None
+    manual_anchor_fpr: float | None = None
+    manual_anchor_suspicious_recall: float | None = None
+    manual_anchor_malicious_recall: float | None = None
+    queue_f1_transfer_gap: float | None = None
+    candidate_freeze_ready: bool = False
+    candidate_frozen: bool = False
+    isolation_forest_reliable: bool = False
+    supervised_phases_remaining: int = 5
+    blockers: list[str] = Field(default_factory=list)
+    lifecycle_state: Literal["shadow_observation"] = "shadow_observation"
+    rules_alert_authoritative: Literal[True] = True
+    model_activated: Literal[False] = False
+    model_promoted: Literal[False] = False
+    response_automation_allowed: Literal[False] = False
+    future_labels_opened: Literal[False] = False
+    private_paths_returned: Literal[False] = False
+    fingerprints_returned: Literal[False] = False
+    secrets_exposed: Literal[False] = False
+
+
+class ManualAnchorAcquisitionStatusResponse(BaseModel):
+    version: str
+    status: str
+    generated_at: str | None = None
+    selected_rows: int = 0
+    target_rows: int = 120
+    represented_strata: int = 0
+    coverage_counts: dict[str, int] = Field(default_factory=dict)
+    coverage_gate_passed: bool = False
+    review_status: str = "not_prepared"
+    reviewed_rows: int = 0
+    total_review_rows: int = 0
+    invalid_review_rows: int = 0
+    class_support: dict[str, int] = Field(default_factory=dict)
+    ready_for_fixed_revalidation: bool = False
+    independent_source_count: int = 0
+    second_real_source_present: bool = False
+    development_evidence_only: Literal[True] = True
+    workspace_created: bool = False
+    lifecycle_state: Literal["shadow_observation"] = "shadow_observation"
+    rules_alert_authoritative: Literal[True] = True
+    model_activated: Literal[False] = False
+    model_promoted: Literal[False] = False
+    response_automation_allowed: Literal[False] = False
+    future_labels_opened: Literal[False] = False
+    predictions_exposed: Literal[False] = False
+    assisted_labels_exposed: Literal[False] = False
+    private_paths_returned: Literal[False] = False
+    fingerprints_returned: Literal[False] = False
+    secrets_exposed: Literal[False] = False
+
+
+class FixedRevalidationProtocolStatus(BaseModel):
+    version: str
+    locked: bool
+    valid: bool
+    strategy_count: int
+    eligible_roles: list[str] = Field(default_factory=list)
+    quality_gates_unchanged: bool = False
+    evaluation_labels_accessed: Literal[False] = False
+    digest_exposed: Literal[False] = False
+
+
+class ManualAnchorReviewProgress(BaseModel):
+    workspace: Literal["manual_anchors"] = "manual_anchors"
+    available: bool
+    prepared: bool
+    integrity_status: Literal["valid", "not_prepared", "unavailable"]
+    total: int = 0
+    reviewed: int = 0
+    remaining: int = 0
+    invalid: int = 0
+    progress_percent: float = 0.0
+    revision: int = 0
+    owner_assigned: bool = False
+    owned_by_current_user: bool = False
+    can_review: bool = False
+    completed: bool = False
+    closed: bool = False
+    evaluation_ready: bool = False
+    protocol_locked: bool = False
+    protocol_valid: bool = False
+    class_support: dict[str, int] = Field(default_factory=dict)
+    minimum_class_support: dict[str, int] = Field(default_factory=dict)
+    class_support_passed: bool = False
+    coverage_counts: dict[str, int] = Field(default_factory=dict)
+    coverage_strata: list[str] = Field(default_factory=list)
+    next_pending_index: int | None = None
+    message: str
+    predictions_exposed: Literal[False] = False
+    model_scores_exposed: Literal[False] = False
+    assisted_labels_exposed: Literal[False] = False
+    raw_logs_exposed: Literal[False] = False
+    ip_addresses_exposed: Literal[False] = False
+    source_identities_exposed: Literal[False] = False
+    fingerprints_exposed: Literal[False] = False
+    private_paths_exposed: Literal[False] = False
+    reviewer_identity_exposed: Literal[False] = False
+    import_ready: Literal[False] = False
+    automatic_import_performed: Literal[False] = False
+    model_activation_performed: Literal[False] = False
+    response_action_performed: Literal[False] = False
+    secrets_exposed: Literal[False] = False
+
+
+class ManualAnchorReviewStatusResponse(BaseModel):
+    version: str
+    status: str
+    protocol: FixedRevalidationProtocolStatus
+    review: dict[str, Any]
+    evaluation_attempted: bool = False
+    evaluation_execution_count: int = 0
+    metrics_available: bool = False
+    diagnostic_leader: str | None = None
+    leader_metrics: dict[str, Any] = Field(default_factory=dict)
+    lifecycle_state: Literal["shadow_observation"] = "shadow_observation"
+    rules_alert_authoritative: Literal[True] = True
+    model_activated: Literal[False] = False
+    model_promoted: Literal[False] = False
+    response_automation_allowed: Literal[False] = False
+    automatic_import_performed: Literal[False] = False
+    predictions_exposed: Literal[False] = False
+    raw_logs_exposed: Literal[False] = False
+    private_paths_exposed: Literal[False] = False
+    fingerprints_exposed: Literal[False] = False
+    secrets_exposed: Literal[False] = False
+
+
+class CombinedFixedRevalidationProtocolStatus(BaseModel):
+    version: str
+    locked: bool
+    valid: bool
+    immutable: bool
+    strategy_count: int
+    combined_rows: int
+    contracts_unchanged: bool
+    supplemental_evidence_threat_enriched: Literal[True] = True
+    representative_of_production_prevalence: Literal[False] = False
+    digest_exposed: Literal[False] = False
+
+
+class CombinedFixedRevalidationStatusResponse(BaseModel):
+    version: str
+    status: str
+    custody: dict[str, Any] = Field(default_factory=dict)
+    protocol: CombinedFixedRevalidationProtocolStatus
+    evaluation_attempted: bool = False
+    evaluation_execution_count: int = 0
+    metrics_available: bool = False
+    strategy_count: int = 0
+    evaluated_strategy_count: int = 0
+    strategies: list[dict[str, Any]] = Field(default_factory=list)
+    diagnostic_candidate: str | None = None
+    diagnostic_candidate_qualified: bool = False
+    selection_bias_notice: str
+    lifecycle_state: Literal["shadow_observation"] = "shadow_observation"
+    rules_alert_authoritative: Literal[True] = True
+    model_activated: Literal[False] = False
+    model_promoted: Literal[False] = False
+    active_artifact_written: Literal[False] = False
+    response_automation_allowed: Literal[False] = False
+    real_firewall_blocking_enabled: Literal[False] = False
+    labels_written: Literal[0] = 0
+    model_runs_written: Literal[0] = 0
+    detection_runs_written: Literal[0] = 0
+    alerts_written: Literal[0] = 0
+    response_actions_written: Literal[0] = 0
+    predictions_exposed: Literal[False] = False
+    raw_logs_exposed: Literal[False] = False
+    ip_addresses_exposed: Literal[False] = False
+    source_identities_exposed: Literal[False] = False
+    private_paths_exposed: Literal[False] = False
+    fingerprints_exposed: Literal[False] = False
+    digests_exposed: Literal[False] = False
+    secrets_exposed: Literal[False] = False
+
+
+class ManualAnchorReviewExistingInput(BaseModel):
+    decision: Literal[
+        "benign",
+        "benign_unusual",
+        "needs_context",
+        "suspicious",
+        "malicious",
+    ]
+    attack_type: str = ""
+    confidence: int = Field(ge=1, le=100)
+    rationale: str
+
+
+class ManualAnchorReviewItemResponse(BaseModel):
+    workspace: Literal["manual_anchors"] = "manual_anchors"
+    row_index: int
+    display_position: int
+    total: int
+    revision: int
+    reviewed: bool
+    closed: bool
+    coverage_stratum: str
+    evidence: dict[str, str] = Field(default_factory=dict)
+    existing_review: ManualAnchorReviewExistingInput | None = None
+    next_pending_index: int | None = None
+    predictions_exposed: Literal[False] = False
+    model_scores_exposed: Literal[False] = False
+    assisted_labels_exposed: Literal[False] = False
+    raw_logs_exposed: Literal[False] = False
+    ip_addresses_exposed: Literal[False] = False
+    source_identities_exposed: Literal[False] = False
+    fingerprints_exposed: Literal[False] = False
+    private_paths_exposed: Literal[False] = False
+    reviewer_identity_exposed: Literal[False] = False
+    import_ready: Literal[False] = False
+    automatic_import_performed: Literal[False] = False
+    model_activation_performed: Literal[False] = False
+    response_action_performed: Literal[False] = False
+    secrets_exposed: Literal[False] = False
+
+
+class ManualAnchorReviewListItem(BaseModel):
+    row_index: int
+    display_position: int
+    reviewed: bool
+    coverage_stratum: str
+    evidence: dict[str, str] = Field(default_factory=dict)
+
+
+class ManualAnchorReviewPageResponse(BaseModel):
+    workspace: Literal["manual_anchors"] = "manual_anchors"
+    offset: int
+    limit: int
+    filtered_total: int
+    items: list[ManualAnchorReviewListItem] = Field(default_factory=list)
+    predictions_exposed: Literal[False] = False
+    raw_logs_exposed: Literal[False] = False
+    private_paths_exposed: Literal[False] = False
+    reviewer_identities_exposed: Literal[False] = False
+    secrets_exposed: Literal[False] = False
+
+
+class ManualAnchorReviewSaveRequest(BaseModel):
+    expected_revision: int = Field(ge=0)
+    decision: Literal[
+        "benign",
+        "benign_unusual",
+        "needs_context",
+        "suspicious",
+        "malicious",
+    ]
+    attack_type: str = Field(default="", max_length=120)
+    confidence: int = Field(ge=1, le=100)
+    rationale: str = Field(min_length=8, max_length=2000)
+    human_confirmed: Literal[True]
+
+
+class ManualAnchorReviewCloseRequest(BaseModel):
+    expected_revision: int = Field(ge=0)
+    human_confirmed: Literal[True]
+
+
+class ManualAnchorReviewOperationResponse(BaseModel):
+    ok: bool = True
+    workspace: Literal["manual_anchors"] = "manual_anchors"
+    status: str
+    revision: int
+    progress: ManualAnchorReviewProgress
+    next_item: ManualAnchorReviewItemResponse | None = None
+    authoritative_mutations: dict[str, int] = Field(default_factory=dict)
+    import_performed: Literal[False] = False
+    model_activation_performed: Literal[False] = False
+    response_action_performed: Literal[False] = False
+
+
+class SupplementalThreatAnchorStatusResponse(BaseModel):
+    version: str
+    status: str
+    generated_at: str | None = None
+    original_review: dict[str, Any] = Field(default_factory=dict)
+    selected_rows: int = 0
+    target_rows: int = 60
+    coverage_counts: dict[str, int] = Field(default_factory=dict)
+    represented_threat_strata: int = 0
+    threat_enriched_rows: int = 0
+    coverage_gate_passed: bool = False
+    exclusion_counts: dict[str, int] = Field(default_factory=dict)
+    review: dict[str, Any] = Field(default_factory=dict)
+    combined_support_visible: bool = False
+    combined_class_support: dict[str, int] = Field(default_factory=dict)
+    minimum_class_support: dict[str, int] = Field(default_factory=dict)
+    combined_support_passed: bool = False
+    ready_for_relocked_protocol: bool = False
+    proposed_protocol_created: bool = False
+    evaluation_execution_count: Literal[0] = 0
+    evaluation_claim_created: Literal[False] = False
+    evaluation_result_created: Literal[False] = False
+    predictions_used_for_selection: Literal[False] = False
+    predictions_exposed: Literal[False] = False
+    assisted_labels_exposed: Literal[False] = False
+    development_evidence_only: Literal[True] = True
+    lifecycle_state: Literal["shadow_observation"] = "shadow_observation"
+    rules_alert_authoritative: Literal[True] = True
+    model_activated: Literal[False] = False
+    model_promoted: Literal[False] = False
+    response_automation_allowed: Literal[False] = False
+    automatic_import_performed: Literal[False] = False
+    raw_logs_exposed: Literal[False] = False
+    ip_addresses_exposed: Literal[False] = False
+    source_identities_exposed: Literal[False] = False
+    private_paths_returned: Literal[False] = False
+    fingerprints_returned: Literal[False] = False
+    secrets_exposed: Literal[False] = False
+
+
+class SupplementalThreatAnchorReviewProgress(BaseModel):
+    workspace: Literal["supplemental_threat_anchors"] = (
+        "supplemental_threat_anchors"
+    )
+    available: bool
+    prepared: bool
+    integrity_status: Literal["valid", "not_prepared", "unavailable"]
+    total: int = 0
+    reviewed: int = 0
+    remaining: int = 0
+    invalid: int = 0
+    progress_percent: float = 0.0
+    revision: int = 0
+    owner_assigned: bool = False
+    owned_by_current_user: bool = False
+    can_review: bool = False
+    completed: bool = False
+    closed: bool = False
+    combined_support_visible: bool = False
+    combined_class_support: dict[str, int] = Field(default_factory=dict)
+    minimum_class_support: dict[str, int] = Field(default_factory=dict)
+    combined_support_passed: bool = False
+    ready_for_relocked_protocol: bool = False
+    proposed_protocol_created: bool = False
+    coverage_counts: dict[str, int] = Field(default_factory=dict)
+    coverage_strata: list[str] = Field(default_factory=list)
+    next_pending_index: int | None = None
+    evaluation_execution_count: Literal[0] = 0
+    message: str
+    predictions_exposed: Literal[False] = False
+    model_scores_exposed: Literal[False] = False
+    assisted_labels_exposed: Literal[False] = False
+    raw_logs_exposed: Literal[False] = False
+    ip_addresses_exposed: Literal[False] = False
+    source_identities_exposed: Literal[False] = False
+    fingerprints_exposed: Literal[False] = False
+    private_paths_exposed: Literal[False] = False
+    reviewer_identity_exposed: Literal[False] = False
+    import_ready: Literal[False] = False
+    automatic_import_performed: Literal[False] = False
+    model_activation_performed: Literal[False] = False
+    response_action_performed: Literal[False] = False
+    secrets_exposed: Literal[False] = False
+
+
+class SupplementalThreatAnchorReviewItemResponse(BaseModel):
+    workspace: Literal["supplemental_threat_anchors"] = (
+        "supplemental_threat_anchors"
+    )
+    row_index: int
+    display_position: int
+    total: int
+    revision: int
+    reviewed: bool
+    closed: bool
+    coverage_stratum: str
+    evidence: dict[str, str] = Field(default_factory=dict)
+    existing_review: ManualAnchorReviewExistingInput | None = None
+    next_pending_index: int | None = None
+    predictions_exposed: Literal[False] = False
+    model_scores_exposed: Literal[False] = False
+    assisted_labels_exposed: Literal[False] = False
+    raw_logs_exposed: Literal[False] = False
+    ip_addresses_exposed: Literal[False] = False
+    source_identities_exposed: Literal[False] = False
+    fingerprints_exposed: Literal[False] = False
+    private_paths_exposed: Literal[False] = False
+    reviewer_identity_exposed: Literal[False] = False
+    import_ready: Literal[False] = False
+    automatic_import_performed: Literal[False] = False
+    model_activation_performed: Literal[False] = False
+    response_action_performed: Literal[False] = False
+    secrets_exposed: Literal[False] = False
+
+
+class SupplementalThreatAnchorReviewListItem(BaseModel):
+    row_index: int
+    display_position: int
+    reviewed: bool
+    coverage_stratum: str
+    evidence: dict[str, str] = Field(default_factory=dict)
+
+
+class SupplementalThreatAnchorReviewPageResponse(BaseModel):
+    workspace: Literal["supplemental_threat_anchors"] = (
+        "supplemental_threat_anchors"
+    )
+    offset: int
+    limit: int
+    filtered_total: int
+    items: list[SupplementalThreatAnchorReviewListItem] = Field(
+        default_factory=list
+    )
+    predictions_exposed: Literal[False] = False
+    raw_logs_exposed: Literal[False] = False
+    private_paths_exposed: Literal[False] = False
+    reviewer_identities_exposed: Literal[False] = False
+    secrets_exposed: Literal[False] = False
+
+
+class SupplementalThreatAnchorReviewOperationResponse(BaseModel):
+    ok: bool = True
+    workspace: Literal["supplemental_threat_anchors"] = (
+        "supplemental_threat_anchors"
+    )
+    status: str
+    revision: int
+    progress: SupplementalThreatAnchorReviewProgress
+    next_item: SupplementalThreatAnchorReviewItemResponse | None = None
+    authoritative_mutations: dict[str, int] = Field(default_factory=dict)
+    evaluation_execution_count: Literal[0] = 0
+    evaluation_claim_created: Literal[False] = False
+    import_performed: Literal[False] = False
+    model_activation_performed: Literal[False] = False
+    response_action_performed: Literal[False] = False
+
+
 class DetectionReviewExistingInput(BaseModel):
     decision_group: Literal["benign_like", "needs_context", "threat_positive"]
     decision: Literal[

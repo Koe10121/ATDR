@@ -2123,3 +2123,244 @@ the gates. Generated output remains ignored under `ml_baseline_reviews/`.
 
 See `docs/V5_42_DEVELOPMENT_CANDIDATE_FREEZE_READINESS.md` for the fixed gates,
 root-cause analysis, safety result, and remaining five supervised phases.
+
+## v5.43 Development Temporal Stability Repair
+
+Run custody-only preflight:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v543_temporal_stability_repair `
+  --preflight-only --no-report --pretty
+```
+
+Run the exact five-variant development comparison:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v543_temporal_stability_repair --pretty
+```
+
+The measured leader is temporal/provenance-balanced weighting, but it passes
+`0/3` folds. Its F1 ranges `0.4053-0.6850`, FPR reaches `0.4458`, suspicious
+recall falls to `0.1895`, malicious recall to `0.1429`, ECE reaches `0.5019`,
+and queue spread is `0.2641`. No candidate is frozen. Do not lower gates or
+reuse protected evidence to improve this result. See
+`docs/V5_43_DEVELOPMENT_TEMPORAL_STABILITY_REPAIR.md`.
+
+## v5.44 Chronological Evidence Expansion
+
+Run custody/source preflight without reading log rows:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v544_chronological_evidence_expansion `
+  --sample-path "C:\Path\Outside\Git\private-panos.log" `
+  --use-temp-db --preflight-only --no-report --pretty
+```
+
+Run the complete aggregate-only qualification:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v544_chronological_evidence_expansion `
+  --sample-path "C:\Path\Outside\Git\private-panos.log" `
+  --use-temp-db --pretty
+```
+
+The measured run parsed 773,551/773,551 rows, quarantined 120,626, assigned
+540,921 usable development rows to fit/calibration/threshold roles, and sealed
+112,004 future rows without opening their assisted labels. A 200-row assisted
+preview is non-import-ready and never human-reviewed.
+
+Development-only model repair may now be rerun. Independent validation and
+activation may not: evidence still represents one device and has no new human
+ground truth. The unchanged IsolationForest is low-noise but under-sensitive
+(FPR `0.0056`, recall `0.0056`, malicious recall `0.0000`). Keep it advisory.
+See `docs/V5_44_CHRONOLOGICAL_EVIDENCE_EXPANSION.md`.
+
+## v5.45 Development-Only Supervised Repair
+
+Run custody-only preflight:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v545_development_model_repair `
+  --sample-path "C:\Path\Outside\Git\private-panos.log" `
+  --use-temp-db --preflight-only --no-report --pretty
+```
+
+Run the aggregate-only eight-strategy comparison:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v545_development_model_repair `
+  --sample-path "C:\Path\Outside\Git\private-panos.log" `
+  --use-temp-db --summary-only --pretty
+```
+
+The measured diagnostic leader is calibrated flat five-class ExtraTrees, but
+it passes `0/3` mandatory views. Its manual-anchor holdout F1/FPR/suspicious
+recall/malicious recall are `0.7855/0.1290/0.5175/0.8537`; ECE is `0.3232` and
+confidence gap is `0.5737`. No recipe or model artifact is frozen.
+
+The label-blind audit also found broader candidate-near families across v5.44
+roles and quarantined them in disposable storage before modeling. Future
+labels remained sealed. Do not reuse generated reports as labels, lower gates,
+or treat assisted-cohort performance as independent accuracy. See
+`docs/V5_45_DEVELOPMENT_ONLY_SUPERVISED_MODEL_REPAIR.md`.
+
+## v5.46 Manual-Anchor Transfer And Calibration Repair
+
+Run custody-only preflight:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v546_manual_anchor_transfer_repair `
+  --sample-path "C:\Path\Outside\Git\private-panos.log" `
+  --use-temp-db --preflight-only --no-report --pretty
+```
+
+Run the aggregate-only nine-strategy comparison:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v546_manual_anchor_transfer_repair `
+  --sample-path "C:\Path\Outside\Git\private-panos.log" `
+  --use-temp-db --summary-only --pretty
+```
+
+The measured diagnostic leader is hierarchical two-stage transfer, but it
+passes `0/3` views. Manual-anchor F1/FPR/suspicious recall/malicious recall are
+`0.5552/0.1935/0.0614/0.8537`; ECE is `0.2381` and confidence gap `0.7455`.
+The result is worse than v5.45 on F1 and suspicious recall, so no recipe or
+artifact is frozen. Do not lower gates or rerun threshold tuning against the
+same evidence. Obtain new prediction-blind human anchors and another genuine
+source before an independent activation decision. See
+`docs/V5_46_MANUAL_ANCHOR_TRANSFER_AND_CALIBRATION_REPAIR.md`.
+
+## v5.47 Prediction-Blind Manual-Anchor Acquisition
+
+Run the custody/private-file preflight first:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v547_manual_anchor_acquisition `
+  --sample-path "C:\Path\Outside\Git\private-panos.log" `
+  --use-temp-db --preflight-only --no-report --pretty
+```
+
+Create or revalidate the development-only 120-row pack:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v547_manual_anchor_acquisition `
+  --sample-path "C:\Path\Outside\Git\private-panos.log" `
+  --use-temp-db --review-limit 120 --pretty
+```
+
+The measured pack covers seven boundary strata and withholds predictions,
+scores, assisted labels, raw logs, IPs, identities, paths, and fingerprints.
+It is never import-ready. Complete the editable working copy only through a
+genuine human review process; automated-system reviewer identities are
+invalid. Read aggregate progress with `--status-only --pretty` or the
+authenticated `/api/evidence-review/manual-anchor-acquisition/status` route.
+
+Do not train or select thresholds from the review pack while review is in
+progress. After all 120 decisions and minimum class-support gates pass, use one
+fixed development-only revalidation. Keep a later independent set untouched,
+and obtain a second genuine source before any source-generalization or
+activation decision. See
+`docs/V5_47_PREDICTION_BLIND_MANUAL_ANCHOR_ACQUISITION.md`.
+
+## v5.48 Protected Review And Fixed Revalidation
+
+Open **Evidence Review > Manual Anchors** as an authenticated analyst or
+administrator. Start once to claim the private workspace and bind it to the
+already locked protocol. Review only the approved evidence shown in the UI.
+Every decision needs confidence, rationale, and human confirmation. The
+workspace exposes no predictions or assisted labels and never imports labels.
+
+Check fail-closed readiness without evaluating:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v548_manual_anchor_fixed_revalidation `
+  --preflight-only --use-temp-db --pretty
+```
+
+After all 120 rows are valid, minimum support reaches 20 benign-like, 15
+suspicious, and 10 malicious decisions, and the reviewer formally closes the
+workspace, run the one-time fixed development evaluation:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v548_manual_anchor_fixed_revalidation `
+  --use-temp-db --confirm-fixed-revalidation --pretty
+```
+
+Do not change the protocol or gates after decisions begin. A passing result is
+still development evidence; it does not activate a model or replace a second
+real source and later untouched independent validation. See
+`docs/V5_48_PROTECTED_MANUAL_ANCHOR_REVIEW_AND_FIXED_REVALIDATION.md`.
+
+## v5.49 Fixed Development Revalidation And Candidate Decision
+
+Inspect source truth without evaluating:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v548_manual_anchor_fixed_revalidation `
+  --status-only --pretty
+
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v549_fixed_revalidation_decision `
+  --pretty
+```
+
+Do not continue unless v5.48 reports exactly `120/120`, zero remaining and
+invalid rows, required class support, formal closure, and execution count zero.
+The current authoritative status is `120/120`, invalid `0`, and closed, but
+class support is `92/9/0`; suspicious and malicious minimums fail. Do **not**
+execute the immutable protocol. Its claim/result remain absent and execution
+count remains `0`.
+
+Continue with v5.49a supplemental review below. If honest combined support
+passes after closure, a separate v5.49b phase must relock and approve a newly
+versioned fixed protocol before any evaluation. Never delete a claim, weaken a
+gate, or alter closed decisions to force a run. Any qualified result remains
+diagnostic-only and still requires second-source and untouched-future evidence
+plus separate activation approval.
+
+## v5.49a Supplemental Threat Anchor Recovery
+
+Use this phase when the closed v5.48 review is complete but honest class
+support is insufficient. Never reopen or relabel v5.48 decisions to satisfy a
+model gate.
+
+Safe aggregate status:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v549a_supplemental_threat_anchor_acquisition --status-only --pretty
+```
+
+The measured workspace at **Evidence Review > Supplemental Threat Anchors** is
+now closed and immutable at `60/60`. Its genuine decisions produced combined
+support `95/39/27`, above the fixed `20/15/10` minimums.
+
+Closure created only the private proposed v5.49b protocol. It did not run
+evaluation, train, activate, promote, import labels, create alerts, or perform
+response actions.
+
+Private-source preparation requires an explicit `--sample-path`,
+`--use-temp-db`, and `--prepare-review`. Never paste the private path into
+tracked docs or command output. The current pack is already prepared; do not
+regenerate it while review is open.
+
+## v5.49b Immutable Combined Revalidation
+
+The v5.49b combined protocol is already claimed and completed. Do not execute
+it again. Read only its stored aggregate status:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v549b_combined_fixed_revalidation `
+  --status-only --pretty
+```
+
+The stored run evaluated all eight fixed strategies exactly once and selected
+no candidate. Its evaluation role had suspicious support `0` and malicious
+support `2`; every strategy failed suspicious recall/support and the maximum
+confidence-gap gate. Threat enrichment also means queue rate and precision are
+not production-prevalence estimates.
+
+Never delete the claim/result, repartition the 180 reviewed rows, or tune from
+this evaluation. Start a new versioned cycle using fresh development evidence
+and a partition contract declared before labels are opened. Any future
+activation still requires a second physical source, a new untouched future
+window, all fixed gates, and separate human approval.

@@ -16,6 +16,10 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
   let detectionReviewReviewed = 0;
   let assistantReviewRevision = 0;
   let assistantReviewReviewed = 0;
+  let manualAnchorReviewRevision = 0;
+  let manualAnchorReviewReviewed = 0;
+  let supplementalAnchorReviewRevision = 0;
+  let supplementalAnchorReviewReviewed = 0;
   const smokeAlert = {
     id: 1,
     title: "Critical: Smoke alert",
@@ -300,6 +304,214 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
     secrets_exposed: false,
     import_ready: false
   });
+  const manualAnchorProgress = () => ({
+    workspace: "manual_anchors",
+    available: true,
+    prepared: true,
+    integrity_status: "valid",
+    total: 120,
+    reviewed: manualAnchorReviewReviewed,
+    remaining: 120 - manualAnchorReviewReviewed,
+    invalid: 0,
+    progress_percent: (manualAnchorReviewReviewed / 120) * 100,
+    revision: manualAnchorReviewRevision,
+    owner_assigned: true,
+    owned_by_current_user: true,
+    can_review: true,
+    completed: manualAnchorReviewReviewed === 120,
+    closed: false,
+    evaluation_ready: false,
+    protocol_locked: true,
+    protocol_valid: true,
+    class_support: { benign_like: manualAnchorReviewReviewed, suspicious: 0, malicious: 0 },
+    minimum_class_support: { benign_like: 20, suspicious: 15, malicious: 10 },
+    class_support_passed: false,
+    coverage_counts: { routine_benign_control: 20, scan_like_behavior: 20 },
+    coverage_strata: ["routine_benign_control", "scan_like_behavior"],
+    next_pending_index: manualAnchorReviewReviewed < 120 ? manualAnchorReviewReviewed : null,
+    message: "Record genuine human decisions using approved evidence only.",
+    predictions_exposed: false,
+    model_scores_exposed: false,
+    assisted_labels_exposed: false,
+    raw_logs_exposed: false,
+    ip_addresses_exposed: false,
+    source_identities_exposed: false,
+    fingerprints_exposed: false,
+    private_paths_exposed: false,
+    reviewer_identity_exposed: false,
+    import_ready: false,
+    automatic_import_performed: false,
+    model_activation_performed: false,
+    response_action_performed: false,
+    secrets_exposed: false
+  });
+  const manualAnchorItem = (rowIndex: number) => ({
+    workspace: "manual_anchors",
+    row_index: rowIndex,
+    display_position: rowIndex + 1,
+    total: 120,
+    revision: manualAnchorReviewRevision,
+    reviewed: rowIndex < manualAnchorReviewReviewed,
+    closed: false,
+    coverage_stratum: rowIndex % 2 ? "scan_like_behavior" : "routine_benign_control",
+    evidence: {
+      evidence_role: "development_fit",
+      selection_stratum: rowIndex % 2 ? "scan_like_behavior" : "routine_benign_control",
+      event_time_utc: "2026-08-01T00:00:00+00:00",
+      log_type: "TRAFFIC",
+      application: rowIndex % 2 ? "unknown-udp" : "ssl",
+      action: rowIndex % 2 ? "deny" : "allow",
+      protocol: rowIndex % 2 ? "udp" : "tcp",
+      destination_port: rowIndex % 2 ? "4040" : "443",
+      source_zone: "untrust",
+      destination_zone: "trust",
+      source_event_count: rowIndex % 2 ? "20" : "2",
+      source_unique_destinations: rowIndex % 2 ? "10" : "1"
+    },
+    existing_review: null,
+    next_pending_index: manualAnchorReviewReviewed < 120 ? manualAnchorReviewReviewed : null,
+    predictions_exposed: false,
+    model_scores_exposed: false,
+    assisted_labels_exposed: false,
+    raw_logs_exposed: false,
+    ip_addresses_exposed: false,
+    source_identities_exposed: false,
+    fingerprints_exposed: false,
+    private_paths_exposed: false,
+    reviewer_identity_exposed: false,
+    import_ready: false,
+    automatic_import_performed: false,
+    model_activation_performed: false,
+    response_action_performed: false,
+    secrets_exposed: false
+  });
+  const manualAnchorOperation = (nextItem: ReturnType<typeof manualAnchorItem> | null) => ({
+    ok: true,
+    workspace: "manual_anchors",
+    status: "manual_anchor_review_saved",
+    revision: manualAnchorReviewRevision,
+    progress: manualAnchorProgress(),
+    next_item: nextItem,
+    authoritative_mutations: { labels: 0, model_runs: 0, detection_runs: 0, alerts: 0, response_actions: 0 },
+    import_performed: false,
+    model_activation_performed: false,
+    response_action_performed: false
+  });
+  const supplementalAnchorProgress = () => ({
+    workspace: "supplemental_threat_anchors",
+    available: true,
+    prepared: true,
+    integrity_status: "valid",
+    total: 60,
+    reviewed: supplementalAnchorReviewReviewed,
+    remaining: 60 - supplementalAnchorReviewReviewed,
+    invalid: 0,
+    progress_percent: (supplementalAnchorReviewReviewed / 60) * 100,
+    revision: supplementalAnchorReviewRevision,
+    owner_assigned: true,
+    owned_by_current_user: true,
+    can_review: true,
+    completed: supplementalAnchorReviewReviewed === 60,
+    closed: false,
+    combined_support_visible: false,
+    combined_class_support: {},
+    minimum_class_support: {},
+    combined_support_passed: false,
+    ready_for_relocked_protocol: false,
+    proposed_protocol_created: false,
+    coverage_counts: {
+      vendor_threat_high: 10,
+      c2_exfiltration: 10,
+      brute_force_access: 10,
+      scan_behavior: 10,
+      denied_high_risk_service: 8,
+      unknown_correlated_transport: 7,
+      hard_negative: 5
+    },
+    coverage_strata: [
+      "vendor_threat_high",
+      "c2_exfiltration",
+      "brute_force_access",
+      "scan_behavior",
+      "denied_high_risk_service",
+      "unknown_correlated_transport",
+      "hard_negative"
+    ],
+    next_pending_index: supplementalAnchorReviewReviewed < 60 ? supplementalAnchorReviewReviewed : null,
+    evaluation_execution_count: 0,
+    message: "Record independent human decisions using deterministic evidence only.",
+    predictions_exposed: false,
+    model_scores_exposed: false,
+    assisted_labels_exposed: false,
+    raw_logs_exposed: false,
+    ip_addresses_exposed: false,
+    source_identities_exposed: false,
+    fingerprints_exposed: false,
+    private_paths_exposed: false,
+    reviewer_identity_exposed: false,
+    import_ready: false,
+    automatic_import_performed: false,
+    model_activation_performed: false,
+    response_action_performed: false,
+    secrets_exposed: false
+  });
+  const supplementalAnchorItem = (rowIndex: number) => ({
+    workspace: "supplemental_threat_anchors",
+    row_index: rowIndex,
+    display_position: rowIndex + 1,
+    total: 60,
+    revision: supplementalAnchorReviewRevision,
+    reviewed: rowIndex < supplementalAnchorReviewReviewed,
+    closed: false,
+    coverage_stratum: rowIndex % 2 ? "scan_behavior" : "vendor_threat_high",
+    evidence: {
+      evidence_role: "development_fit",
+      selection_stratum: rowIndex % 2 ? "scan_behavior" : "vendor_threat_high",
+      event_time_utc: "2026-08-01T00:00:00+00:00",
+      log_type: rowIndex % 2 ? "TRAFFIC" : "THREAT",
+      application: rowIndex % 2 ? "unknown-tcp" : "web-browsing",
+      action: "deny",
+      protocol: "tcp",
+      destination_port: rowIndex % 2 ? "22" : "443",
+      source_zone: "untrust",
+      destination_zone: "trust",
+      source_event_count: "24",
+      source_unique_destinations: "12",
+      source_unique_destination_ports: "9",
+      rule_evidence: rowIndex % 2 ? "repeated denied high-risk service attempts" : "high-severity vendor threat record",
+      rule_evidence_score: "5"
+    },
+    existing_review: null,
+    next_pending_index: supplementalAnchorReviewReviewed < 60 ? supplementalAnchorReviewReviewed : null,
+    predictions_exposed: false,
+    model_scores_exposed: false,
+    assisted_labels_exposed: false,
+    raw_logs_exposed: false,
+    ip_addresses_exposed: false,
+    source_identities_exposed: false,
+    fingerprints_exposed: false,
+    private_paths_exposed: false,
+    reviewer_identity_exposed: false,
+    import_ready: false,
+    automatic_import_performed: false,
+    model_activation_performed: false,
+    response_action_performed: false,
+    secrets_exposed: false
+  });
+  const supplementalAnchorOperation = (nextItem: ReturnType<typeof supplementalAnchorItem> | null) => ({
+    ok: true,
+    workspace: "supplemental_threat_anchors",
+    status: "supplemental_threat_anchor_review_saved",
+    revision: supplementalAnchorReviewRevision,
+    progress: supplementalAnchorProgress(),
+    next_item: nextItem,
+    authoritative_mutations: { labels: 0, model_runs: 0, detection_runs: 0, alerts: 0, response_actions: 0 },
+    evaluation_execution_count: 0,
+    evaluation_claim_created: false,
+    import_performed: false,
+    model_activation_performed: false,
+    response_action_performed: false
+  });
   const operation = (workspace: "detection" | "assistant", nextItem: ReturnType<typeof detectionItem> | ReturnType<typeof assistantItem> | null) => ({
     ok: true,
     workspace,
@@ -445,6 +657,394 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
         secrets_exposed: false
       }
     })
+  );
+  await page.route("**/api/evidence-review/temporal-stability/status", async (route) =>
+    route.fulfill({
+      json: {
+        version: "v5.43-development-temporal-stability-repair-v1",
+        status: "No Candidate Frozen",
+        best_variant: "temporal_provenance_balanced_weighting",
+        passing_folds: 0,
+        required_folds: 3,
+        candidate_frozen: false,
+        calibration_status: "weak",
+        queue_stability_status: "unstable",
+        feature_ablation_status: "complete",
+        supervised_phases_remaining: 5,
+        blockers: ["Temporal stability gate failed."],
+        lifecycle_state: "shadow_observation",
+        rules_alert_authoritative: true,
+        model_activated: false,
+        model_promoted: false,
+        response_automation_allowed: false,
+        private_paths_exposed: false,
+        digests_exposed: false,
+        blind_predictions_exposed: false,
+        secrets_exposed: false
+      }
+    })
+  );
+  await page.route("**/api/evidence-review/development-model-repair/status", async (route) =>
+    route.fulfill({
+      json: {
+        version: "v5.45-development-only-supervised-repair-v1",
+        status: "development_repair_incomplete",
+        generated_at: "2026-08-21T00:00:00+00:00",
+        diagnostic_leader: "calibrated_extra_trees_flat_5class",
+        passing_views: 0,
+        required_views: 3,
+        candidate_freeze_ready: false,
+        candidate_frozen: false,
+        isolation_forest_reliable: false,
+        supervised_phases_remaining: 5,
+        blockers: ["Manual-anchor stability gate failed."],
+        lifecycle_state: "shadow_observation",
+        model_activated: false,
+        model_promoted: false,
+        response_automation_allowed: false,
+        future_labels_opened: false,
+        private_paths_returned: false,
+        fingerprints_returned: false,
+        secrets_exposed: false
+      }
+    })
+  );
+  await page.route("**/api/evidence-review/manual-anchor-transfer/status", async (route) =>
+    route.fulfill({
+      json: {
+        version: "v5.46-manual-anchor-transfer-repair-v1",
+        status: "manual_anchor_transfer_incomplete",
+        generated_at: "2026-08-21T00:00:00+00:00",
+        diagnostic_leader: "manual_anchor_prioritized_extra_trees",
+        passing_views: 1,
+        required_views: 3,
+        manual_anchor_transfer_status: "improved",
+        calibration_status: "weak",
+        manual_anchor_queue_f1: 0.79,
+        manual_anchor_fpr: 0.12,
+        manual_anchor_suspicious_recall: 0.71,
+        manual_anchor_malicious_recall: 0.84,
+        queue_f1_transfer_gap: 0.18,
+        candidate_freeze_ready: false,
+        candidate_frozen: false,
+        isolation_forest_reliable: false,
+        supervised_phases_remaining: 5,
+        blockers: ["Manual-anchor gate failed."],
+        lifecycle_state: "shadow_observation",
+        rules_alert_authoritative: true,
+        model_activated: false,
+        model_promoted: false,
+        response_automation_allowed: false,
+        future_labels_opened: false,
+        private_paths_returned: false,
+        fingerprints_returned: false,
+        secrets_exposed: false
+      }
+    })
+  );
+  await page.route("**/api/evidence-review/manual-anchor-acquisition/status", async (route) =>
+    route.fulfill({
+      json: {
+        version: "v5.47-prediction-blind-manual-anchor-acquisition-v1",
+        status: "ready_for_human_review",
+        generated_at: "2026-08-21T00:00:00+00:00",
+        selected_rows: 120,
+        target_rows: 120,
+        represented_strata: 8,
+        coverage_counts: {
+          unknown_transport: 20,
+          incomplete_allow_80: 20,
+          scan_like_behavior: 20
+        },
+        coverage_gate_passed: true,
+        review_status: "ready_for_human_review",
+        reviewed_rows: 0,
+        total_review_rows: 120,
+        invalid_review_rows: 0,
+        class_support: { benign_like: 0, suspicious: 0, malicious: 0 },
+        ready_for_fixed_revalidation: false,
+        independent_source_count: 1,
+        second_real_source_present: false,
+        development_evidence_only: true,
+        workspace_created: true,
+        lifecycle_state: "shadow_observation",
+        rules_alert_authoritative: true,
+        model_activated: false,
+        model_promoted: false,
+        response_automation_allowed: false,
+        future_labels_opened: false,
+        predictions_exposed: false,
+        assisted_labels_exposed: false,
+        private_paths_returned: false,
+        fingerprints_returned: false,
+        secrets_exposed: false
+      }
+    })
+  );
+  await page.route("**/api/evidence-review/manual-anchors/revalidation-status", async (route) =>
+    route.fulfill({
+      json: {
+        version: "v5.48-protected-manual-anchor-fixed-revalidation-v1",
+        status: "ready_for_human_review",
+        protocol: {
+          version: "v5.48-fixed-development-protocol-v1",
+          locked: true,
+          valid: true,
+          strategy_count: 8,
+          eligible_roles: ["development_fit", "calibration", "threshold"],
+          quality_gates_unchanged: true,
+          evaluation_labels_accessed: false,
+          digest_exposed: false
+        },
+        review: {
+          status: "ready_for_human_review",
+          total: 120,
+          reviewed: manualAnchorReviewReviewed,
+          remaining: 120 - manualAnchorReviewReviewed,
+          invalid: 0,
+          class_support: { benign_like: manualAnchorReviewReviewed, suspicious: 0, malicious: 0 },
+          minimum_class_support: { benign_like: 20, suspicious: 15, malicious: 10 },
+          closed: false,
+          ready_for_fixed_revalidation: false
+        },
+        evaluation_attempted: false,
+        evaluation_execution_count: 0,
+        metrics_available: false,
+        diagnostic_leader: null,
+        leader_metrics: {},
+        lifecycle_state: "shadow_observation",
+        rules_alert_authoritative: true,
+        model_activated: false,
+        model_promoted: false,
+        response_automation_allowed: false,
+        automatic_import_performed: false,
+        predictions_exposed: false,
+        raw_logs_exposed: false,
+        private_paths_exposed: false,
+        fingerprints_exposed: false,
+        secrets_exposed: false
+      }
+    })
+  );
+  await page.route("**/api/evidence-review/combined-manual-anchors/revalidation-status", async (route) =>
+    route.fulfill({
+      json: {
+        version: "v5.49b-immutable-combined-fixed-revalidation-v1",
+        status: "combined_fixed_revalidation_completed",
+        custody: {
+          original_reviewed: 120,
+          supplemental_reviewed: 60,
+          combined_reviewed: 180,
+          remaining: 0,
+          invalid: 0,
+          reviews_closed: true,
+          reviews_immutable: true,
+          combined_class_support: {
+            benign_like: 95,
+            suspicious: 39,
+            malicious: 27
+          },
+          minimum_class_support: {
+            benign_like: 20,
+            suspicious: 15,
+            malicious: 10
+          },
+          combined_support_passed: true,
+          old_evaluation_execution_count: 0
+        },
+        protocol: {
+          version: "v5.49b-combined-fixed-protocol-v1",
+          locked: true,
+          valid: true,
+          immutable: true,
+          strategy_count: 8,
+          combined_rows: 180,
+          contracts_unchanged: true,
+          supplemental_evidence_threat_enriched: true,
+          representative_of_production_prevalence: false,
+          digest_exposed: false
+        },
+        evaluation_attempted: true,
+        evaluation_execution_count: 1,
+        metrics_available: true,
+        strategy_count: 8,
+        evaluated_strategy_count: 8,
+        strategies: [],
+        diagnostic_candidate: null,
+        diagnostic_candidate_qualified: false,
+        selection_bias_notice: "Supplemental evidence was threat-enriched; queue rate and precision are diagnostic and are not field-prevalence estimates.",
+        lifecycle_state: "shadow_observation",
+        rules_alert_authoritative: true,
+        model_activated: false,
+        model_promoted: false,
+        active_artifact_written: false,
+        response_automation_allowed: false,
+        real_firewall_blocking_enabled: false,
+        labels_written: 0,
+        model_runs_written: 0,
+        detection_runs_written: 0,
+        alerts_written: 0,
+        response_actions_written: 0,
+        predictions_exposed: false,
+        raw_logs_exposed: false,
+        ip_addresses_exposed: false,
+        source_identities_exposed: false,
+        private_paths_exposed: false,
+        fingerprints_exposed: false,
+        digests_exposed: false,
+        secrets_exposed: false
+      }
+    })
+  );
+  await page.route("**/api/evidence-review/manual-anchors/status", async (route) =>
+    route.fulfill({ json: manualAnchorProgress() })
+  );
+  await page.route("**/api/evidence-review/manual-anchors/start", async (route) =>
+    route.fulfill({ json: manualAnchorOperation(manualAnchorItem(manualAnchorReviewReviewed)) })
+  );
+  await page.route("**/api/evidence-review/manual-anchors/items", async (route) => {
+    const url = new URL(route.request().url());
+    const offset = Number(url.searchParams.get("offset") ?? 0);
+    const limit = Number(url.searchParams.get("limit") ?? 20);
+    const reviewState = url.searchParams.get("review_state") ?? "all";
+    const candidates = Array.from({ length: 120 }, (_, rowIndex) => manualAnchorItem(rowIndex))
+      .filter((item) => reviewState === "all" || (reviewState === "reviewed" ? item.reviewed : !item.reviewed));
+    return route.fulfill({
+      json: {
+        workspace: "manual_anchors",
+        offset,
+        limit,
+        filtered_total: candidates.length,
+        items: candidates.slice(offset, offset + limit).map((item) => ({
+          row_index: item.row_index,
+          display_position: item.display_position,
+          reviewed: item.reviewed,
+          coverage_stratum: item.coverage_stratum,
+          evidence: item.evidence
+        })),
+        predictions_exposed: false,
+        raw_logs_exposed: false,
+        private_paths_exposed: false,
+        reviewer_identities_exposed: false,
+        secrets_exposed: false
+      }
+    });
+  });
+  await page.route("**/api/evidence-review/manual-anchors/items/*", async (route) => {
+    const rowIndex = Number(new URL(route.request().url()).pathname.split("/").at(-1));
+    if (route.request().method() === "POST") {
+      manualAnchorReviewReviewed = Math.max(manualAnchorReviewReviewed, rowIndex + 1);
+      manualAnchorReviewRevision += 1;
+      return route.fulfill({ json: manualAnchorOperation(manualAnchorItem(manualAnchorReviewReviewed)) });
+    }
+    return route.fulfill({ json: manualAnchorItem(rowIndex) });
+  });
+  await page.route("**/api/evidence-review/manual-anchors/close", async (route) =>
+    route.fulfill({ json: manualAnchorOperation(null) })
+  );
+  await page.route("**/api/evidence-review/supplemental-threat-anchors/acquisition-status", async (route) =>
+    route.fulfill({
+      json: {
+        version: "v5.49a-supplemental-threat-anchor-recovery-v1",
+        status: "ready_for_human_review",
+        generated_at: "2026-08-29T00:00:00+00:00",
+        original_review: {
+          total: 120,
+          reviewed: 120,
+          remaining: 0,
+          invalid: 0,
+          closed: true,
+          immutable: true,
+          evaluation_execution_count: 0
+        },
+        selected_rows: 60,
+        target_rows: 60,
+        coverage_counts: supplementalAnchorProgress().coverage_counts,
+        represented_threat_strata: 7,
+        threat_enriched_rows: 55,
+        coverage_gate_passed: true,
+        exclusion_counts: { original_anchor: 120, locked_role: 80, duplicate_group: 12 },
+        review: {
+          status: "ready_for_human_review",
+          total: 60,
+          reviewed: supplementalAnchorReviewReviewed,
+          remaining: 60 - supplementalAnchorReviewReviewed,
+          invalid: 0,
+          complete: supplementalAnchorReviewReviewed === 60,
+          closed: false
+        },
+        combined_support_visible: false,
+        combined_class_support: {},
+        minimum_class_support: {},
+        combined_support_passed: false,
+        ready_for_relocked_protocol: false,
+        proposed_protocol_created: false,
+        evaluation_execution_count: 0,
+        evaluation_claim_created: false,
+        evaluation_result_created: false,
+        predictions_used_for_selection: false,
+        predictions_exposed: false,
+        assisted_labels_exposed: false,
+        lifecycle_state: "shadow_observation",
+        rules_alert_authoritative: true,
+        model_activated: false,
+        model_promoted: false,
+        response_automation_allowed: false,
+        raw_logs_exposed: false,
+        ip_addresses_exposed: false,
+        private_paths_returned: false,
+        fingerprints_returned: false,
+        secrets_exposed: false
+      }
+    })
+  );
+  await page.route("**/api/evidence-review/supplemental-threat-anchors/status", async (route) =>
+    route.fulfill({ json: supplementalAnchorProgress() })
+  );
+  await page.route("**/api/evidence-review/supplemental-threat-anchors/start", async (route) =>
+    route.fulfill({ json: supplementalAnchorOperation(supplementalAnchorItem(supplementalAnchorReviewReviewed)) })
+  );
+  await page.route("**/api/evidence-review/supplemental-threat-anchors/items", async (route) => {
+    const url = new URL(route.request().url());
+    const offset = Number(url.searchParams.get("offset") ?? 0);
+    const limit = Number(url.searchParams.get("limit") ?? 20);
+    const reviewState = url.searchParams.get("review_state") ?? "all";
+    const coverageStratum = url.searchParams.get("coverage_stratum") ?? "";
+    const candidates = Array.from({ length: 60 }, (_, rowIndex) => supplementalAnchorItem(rowIndex))
+      .filter((item) => reviewState === "all" || (reviewState === "reviewed" ? item.reviewed : !item.reviewed))
+      .filter((item) => !coverageStratum || item.coverage_stratum === coverageStratum);
+    return route.fulfill({
+      json: {
+        workspace: "supplemental_threat_anchors",
+        offset,
+        limit,
+        filtered_total: candidates.length,
+        items: candidates.slice(offset, offset + limit).map((item) => ({
+          row_index: item.row_index,
+          display_position: item.display_position,
+          reviewed: item.reviewed,
+          coverage_stratum: item.coverage_stratum,
+          evidence: item.evidence
+        })),
+        predictions_exposed: false,
+        raw_logs_exposed: false,
+        private_paths_exposed: false,
+        reviewer_identities_exposed: false,
+        secrets_exposed: false
+      }
+    });
+  });
+  await page.route("**/api/evidence-review/supplemental-threat-anchors/items/*", async (route) => {
+    const rowIndex = Number(new URL(route.request().url()).pathname.split("/").at(-1));
+    if (route.request().method() === "POST") {
+      supplementalAnchorReviewReviewed = Math.max(supplementalAnchorReviewReviewed, rowIndex + 1);
+      supplementalAnchorReviewRevision += 1;
+      return route.fulfill({ json: supplementalAnchorOperation(supplementalAnchorItem(supplementalAnchorReviewReviewed)) });
+    }
+    return route.fulfill({ json: supplementalAnchorItem(rowIndex) });
+  });
+  await page.route("**/api/evidence-review/supplemental-threat-anchors/close", async (route) =>
+    route.fulfill({ json: supplementalAnchorOperation(null) })
   );
   await page.route("**/api/evidence-review/detection/start", async (route) => route.fulfill({ json: operation("detection", detectionItem(detectionReviewReviewed)) }));
   await page.route("**/api/evidence-review/assistant/start", async (route) => route.fulfill({ json: operation("assistant", assistantItem(assistantReviewReviewed)) }));
@@ -3432,6 +4032,67 @@ test("AI Governance shows governed supervised shadow status without selecting th
     (element) => element.scrollWidth > element.clientWidth + 1
   );
   expect(candidateFreezeOverflow).toBe(false);
+  const temporalStability = page.getByTestId("temporal-stability-readiness");
+  await expect(temporalStability).toContainText("No Candidate Frozen");
+  await expect(temporalStability).toContainText("temporal provenance balanced weighting");
+  await expect(temporalStability).toContainText("0/3");
+  await expect(temporalStability).toContainText("weak");
+  await expect(temporalStability).toContainText("unstable");
+  await expect(temporalStability).toContainText("Rules Authoritative");
+  const temporalStabilityOverflow = await temporalStability.evaluate(
+    (element) => element.scrollWidth > element.clientWidth + 1
+  );
+  expect(temporalStabilityOverflow).toBe(false);
+  const manualAnchorTransfer = page.getByTestId("manual-anchor-transfer-readiness");
+  await expect(manualAnchorTransfer).toContainText("manual anchor transfer incomplete");
+  await expect(manualAnchorTransfer).toContainText("improved");
+  await expect(manualAnchorTransfer).toContainText("1/3 views passed");
+  await expect(manualAnchorTransfer).toContainText("79.0%");
+  await expect(manualAnchorTransfer).toContainText("12.0%");
+  await expect(manualAnchorTransfer).toContainText("weak");
+  await expect(manualAnchorTransfer).toContainText("Rules Authoritative");
+  await expect(manualAnchorTransfer).toContainText("Shadow Observation");
+  const manualAnchorTransferOverflow = await manualAnchorTransfer.evaluate(
+    (element) => element.scrollWidth > element.clientWidth + 1
+  );
+  expect(manualAnchorTransferOverflow).toBe(false);
+  const manualAnchorAcquisition = page.getByTestId("manual-anchor-acquisition-readiness");
+  await expect(manualAnchorAcquisition).toContainText("ready for human review");
+  await expect(manualAnchorAcquisition).toContainText("120/120");
+  await expect(manualAnchorAcquisition).toContainText("8 coverage strata");
+  await expect(manualAnchorAcquisition).toContainText("0/120");
+  await expect(manualAnchorAcquisition).toContainText("Second source still required");
+  await expect(manualAnchorAcquisition).toContainText("Predictions Withheld");
+  await expect(manualAnchorAcquisition).toContainText("No Auto Import");
+  const manualAnchorAcquisitionOverflow = await manualAnchorAcquisition.evaluate(
+    (element) => element.scrollWidth > element.clientWidth + 1
+  );
+  expect(manualAnchorAcquisitionOverflow).toBe(false);
+  const combinedRevalidation = page.getByTestId("combined-fixed-revalidation-status");
+  await expect(combinedRevalidation).toContainText("combined fixed revalidation completed");
+  await expect(combinedRevalidation).toContainText("180/180");
+  await expect(combinedRevalidation).toContainText("95/39/27");
+  await expect(combinedRevalidation).toContainText("1/1");
+  await expect(combinedRevalidation).toContainText("8/8 strategies evaluated");
+  await expect(combinedRevalidation).toContainText("None qualified");
+  await expect(combinedRevalidation).toContainText("Rules Authoritative");
+  await expect(combinedRevalidation).toContainText("No Model Activation");
+  const combinedRevalidationOverflow = await combinedRevalidation.evaluate(
+    (element) => element.scrollWidth > element.clientWidth + 1
+  );
+  expect(combinedRevalidationOverflow).toBe(false);
+  const developmentRepair = page.getByTestId("development-model-repair-readiness");
+  await expect(developmentRepair).toContainText("development repair incomplete");
+  await expect(developmentRepair).toContainText("calibrated extra trees flat 5class");
+  await expect(developmentRepair).toContainText("0/3");
+  await expect(developmentRepair).toContainText("Blocked");
+  await expect(developmentRepair).toContainText("Advisory Only");
+  await expect(developmentRepair).toContainText("Rules Authoritative");
+  await expect(developmentRepair).toContainText("No Model Activation");
+  const developmentRepairOverflow = await developmentRepair.evaluate(
+    (element) => element.scrollWidth > element.clientWidth + 1
+  );
+  expect(developmentRepairOverflow).toBe(false);
   const blindEvidence = page.getByTestId("blind-evidence-readiness");
   await expect(blindEvidence).toContainText("Insufficient Sources");
   await expect(blindEvidence).toContainText("1/2");
@@ -4072,6 +4733,63 @@ test("evidence review workspace saves blind decisions without exposing hidden da
   const horizontalScroll = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(horizontalScroll).toBeLessThanOrEqual(1);
   await expect(page.getByRole("button", { name: /run detection|activate model|response action/i })).toHaveCount(0);
+});
+
+test("manual-anchor workspace is prediction-blind, responsive, and saves with next navigation", async ({ page }) => {
+  await mockApi(page);
+  await seedSession(page);
+  await page.goto("/evidence-review");
+  await page.getByRole("tab", { name: "Manual Anchors" }).click();
+
+  await expect(page.getByTestId("manual-anchor-protocol-status")).toContainText("Protocol Locked");
+  await expect(page.getByTestId("manual_anchors-review-metrics")).toContainText("0/120");
+  await expect(page.getByTestId("manual-anchor-approved-evidence")).toContainText("Predictions Withheld");
+  await expect(page.getByTestId("manual-anchor-evidence-fields")).not.toContainText(/prediction|model score|review token|fingerprint|source ip|raw log/i);
+  await expect(page.getByText("No Auto Import", { exact: true })).toBeVisible();
+
+  await chooseSafeSelect(page, "Manual anchor final decision", "Benign");
+  await page.getByLabel("Confidence (1-100)").fill("94");
+  await page.getByLabel("Rationale").fill("Independent analyst review supports routine allowed traffic.");
+  await page.getByText("I confirm this is my independent human decision based only on the approved evidence shown.").click();
+  await page.getByRole("button", { name: "Save and next" }).click();
+  await expect(page.getByTestId("manual_anchors-review-metrics")).toContainText("1/120");
+
+  const horizontalScroll = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(horizontalScroll).toBeLessThanOrEqual(1);
+  await expect(page.getByRole("button", { name: /run detection|activate model|response action|import/i })).toHaveCount(0);
+});
+
+test("supplemental threat-anchor workspace preserves custody and hides class support while open", async ({ page }) => {
+  await mockApi(page);
+  await seedSession(page);
+  await page.goto("/evidence-review");
+  await page.getByRole("tab", { name: "Supplemental Threat Anchors" }).click();
+
+  const custody = page.getByTestId("supplemental-anchor-custody-status");
+  await expect(custody).toContainText("120/120 Closed");
+  await expect(custody).toContainText("60");
+  await expect(custody).toContainText("7");
+  await expect(custody).toContainText("Prediction-Blind Pack Ready");
+  await expect(page.getByTestId("supplemental_threat_anchors-review-metrics")).toContainText("0/60");
+  await expect(page.getByTestId("supplemental-anchor-combined-support")).toHaveCount(0);
+
+  const evidence = page.getByTestId("supplemental-anchor-approved-evidence");
+  await expect(evidence).toContainText("Predictions Withheld");
+  await expect(evidence).toContainText("Deterministic Evidence");
+  await expect(evidence).toContainText("Rule Evidence");
+  await expect(page.getByTestId("supplemental-anchor-evidence-fields")).not.toContainText(/prediction|model score|review token|fingerprint|source ip|destination ip|raw log|class support|quota/i);
+
+  await chooseSafeSelect(page, "Supplemental threat anchor final decision", "Malicious");
+  await page.getByPlaceholder("e.g. port_scan").fill("brute_force");
+  await page.getByLabel("Confidence (1-100)").fill("93");
+  await page.getByLabel("Rationale").fill("Repeated denied high-risk access attempts support threat classification.");
+  await page.getByText("I confirm this is my independent human decision based only on the approved evidence shown.").click();
+  await page.getByRole("button", { name: "Save and next" }).click();
+  await expect(page.getByTestId("supplemental_threat_anchors-review-metrics")).toContainText("1/60");
+
+  const horizontalScroll = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(horizontalScroll).toBeLessThanOrEqual(1);
+  await expect(page.getByRole("button", { name: /run detection|activate model|response action|import/i })).toHaveCount(0);
 });
 
 test("evidence review advances to Assistant acceptance after detection closes", async ({ page }) => {
