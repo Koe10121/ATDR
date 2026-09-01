@@ -940,3 +940,38 @@ status/change documents.
 | AI and response safety | Database counts unchanged; no artifact, activation, promotion, label, alert, run, response, or blocking write | Satisfied; rules authoritative and lifecycle `shadow_observation`. |
 | Traceability | v5.49b status, T1-T20, PRD, traceability, runbook, taskboard, tests, and exact allowlist | Satisfied locally; commit/push require separate approval. |
 | Independent activation evidence | One source and no untouched future validation | Not satisfied; acquire fresh development evidence, then a second source and new blind future window. |
+
+## v5.50 Current-State Truth Lock Compliance Status
+
+| University / ATDR rule | v5.50 evidence | Current status / next action |
+| --- | --- | --- |
+| Source evidence before claims | Runtime, routes, tests, CI, published Git state, and aggregate v5.49b records were reconciled | Satisfied; current claims distinguish implementation from external acceptance. |
+| No guessing / honest ML status | v5.49b selected no candidate; historical artifacts are not presented as qualified current models | Satisfied; lifecycle remains `shadow_observation`. |
+| Privacy | Only aggregate counts and decisions are documented; protected rows, identities, paths, fingerprints, predictions, claims, digests, raw logs, and secrets remain private | Satisfied by scope and repository hygiene. |
+| Safety authority | Rules remain alert-authoritative; Assistant read-only; automatic response and real blocking disabled | Satisfied; v5.50 changes documentation only. |
+| T1-T20 / PRD / traceability / taskboard | Canonical truth lock, change record, PRD addendum, traceability, checklist, taskboard, and exact allowlist | Satisfied locally after final verification; commit/push require separate approval. |
+| Finish-line ownership | Four remaining phases are mapped to Codex, reviewer, hardware, MFU, provider, deployment, and repository owners | Satisfied; blocked gates must not be replaced by fabricated evidence. |
+
+## v5.51 Detection Field Qualification Compliance Status
+
+| University / ATDR rule | v5.51 evidence | Current status / next action |
+| --- | --- | --- |
+| Source evidence before claims | Local transport/parser/rule results are measured; field claims require a matching versioned human attestation | Satisfied locally; physical hardware remains required. |
+| No guessing / human provenance | AI/automated identities are rejected; field and rule truth remain unavailable without genuine confirmation | Satisfied by fail-closed validators. |
+| Privacy / least disclosure | API/CLI reject addresses, raw rows, private paths, identities, fingerprints, salts, and secrets | Satisfied; private manifests/reviews/seals remain ignored. |
+| Evidence separation | Post-v5.49b cutoff, duplicate containment, fixed roles, and untouched label-closed future role | Satisfied by source/tests; no protected v5.49b evidence opened. |
+| AI and response safety | Rules authoritative; lifecycle shadow; zero model/label/alert/run/response writes | Satisfied; no activation, promotion, automation, or blocking. |
+| T1-T20 / taskboard / traceability | Status, contracts, change record, PRD, traceability, checklist, taskboard, and allowlist | Satisfied locally after final verification; commit/push require separate approval. |
+| External qualification | Two physical sources, four windows, human field and rule review | Not satisfied; status correctly remains `hardware_required`. |
+
+## v5.52 Analyst Experience And Assistant Compliance Status
+
+| University / ATDR rule | v5.52 evidence | Current status / next action |
+| --- | --- | --- |
+| Source-backed answers | Explicit provenance identifies database, rule, advisory ML, operations, docs, and external synthesis scopes | Satisfied; Gemini is never presented as the source of ATDR facts. |
+| Context integrity | Typed IDs, primary-entity citations, clean reset/switch threads, and four-turn sanitized persistence | Implemented and backend/browser tested. |
+| Concision and relevance | Fixed intent contracts; at most two follow-ups; QA average `60.9`, maximum `110` | Satisfied for controlled questions; field semantic acceptance remains external. |
+| Provider privacy | Configured Gemini probes use redaction, exclude raw logs, hide secrets, and return structured guarded output | Satisfied locally; MFU privacy, quota, billing, and key-rotation approval remain external. |
+| AI and response safety | Assistant writes zero labels/models/detections/responses; rules remain authoritative and ML advisory | Satisfied; automation and real blocking remain disabled. |
+| Accessibility and UI | Keyboard submit, live-region/loading semantics, progressive disclosure, wrapping, and responsive browser checks | Implemented locally; formal assistive-technology/usability review remains external. |
+| T1-T20 / PRD / traceability | v5.52 status, change record, PRD, traceability, checklist, taskboard, and exact allowlist | Satisfied locally after complete verification; commit/push require separate approval. |

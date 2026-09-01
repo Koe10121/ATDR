@@ -299,6 +299,7 @@ def test_evidence_review_requires_authentication(workspace_client) -> None:
     assert client.get("/api/evidence-review/status").status_code == 401
     assert client.get("/api/evidence-review/evaluation-status").status_code == 401
     assert client.get("/api/evidence-review/blind-evidence/status").status_code == 401
+    assert client.get("/api/evidence-review/field-qualification/status").status_code == 401
     assert client.get("/api/evidence-review/candidate-freeze/status").status_code == 401
     assert client.get("/api/evidence-review/temporal-stability/status").status_code == 401
     assert (
@@ -366,6 +367,76 @@ def test_blind_evidence_status_is_safe_and_aggregate_only(
     assert payload["status"] == "Insufficient Sources"
     assert payload["source_identities_exposed"] is False
     assert payload["fingerprints_exposed"] is False
+    assert payload["secrets_exposed"] is False
+
+
+def test_field_qualification_status_is_safe_and_aggregate_only(
+    workspace_client,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, _, _ = workspace_client
+    headers = _login(client, "reviewer-one")
+    monkeypatch.setattr(
+        evidence_review_router,
+        "get_public_v551_status",
+        lambda: {
+            "version": "v5.51-detection-field-qualification-v1",
+            "status": "hardware_required",
+            "generated_at": "2026-09-01T00:00:00+00:00",
+            "gates": {
+                "physical_transport": False,
+                "parser_contract": True,
+                "rule_review": False,
+                "fresh_evidence": False,
+            },
+            "transport": {
+                "real_device_validated": False,
+                "messages_received": 0,
+                "messages_expected": 0,
+            },
+            "parser": {
+                "parse_success_rate": 1.0,
+                "field_accuracy": {"valid": False},
+            },
+            "rule_review": {
+                "metrics_available": False,
+                "reviewed_rows": 0,
+            },
+            "fresh_evidence": {
+                "fresh_rows": 0,
+                "independent_source_count": 0,
+                "collection_window_count": 0,
+            },
+            "blockers": ["A physical firewall or router source is required."],
+            "lifecycle_state": "shadow_observation",
+            "rules_alert_authoritative": True,
+            "model_activated": False,
+            "model_promoted": False,
+            "response_automation_allowed": False,
+            "raw_logs_exposed": False,
+            "ip_addresses_exposed": False,
+            "private_paths_exposed": False,
+            "fingerprints_exposed": False,
+            "source_identities_exposed": False,
+            "secrets_exposed": False,
+        },
+    )
+
+    response = client.get(
+        "/api/evidence-review/field-qualification/status",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "hardware_required"
+    assert payload["rules_alert_authoritative"] is True
+    assert payload["model_activated"] is False
+    assert payload["raw_logs_exposed"] is False
+    assert payload["ip_addresses_exposed"] is False
+    assert payload["private_paths_exposed"] is False
+    assert payload["fingerprints_exposed"] is False
+    assert payload["source_identities_exposed"] is False
     assert payload["secrets_exposed"] is False
 
 

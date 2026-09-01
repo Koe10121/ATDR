@@ -39,9 +39,9 @@ from atdr.app.services.source_service import get_source, list_sources, source_to
 
 
 IP_PATTERN = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
-ALERT_ID_PATTERN = re.compile(r"\b(?:alert|id|#)\s*#?\s*(\d{1,10})\b", re.IGNORECASE)
-LOG_ID_PATTERN = re.compile(r"\b(?:log|row|event)\s*#?\s*(\d{1,10})\b", re.IGNORECASE)
-SOURCE_ID_PATTERN = re.compile(r"\b(?:source|sensor)\s*#?\s*(\d{1,10})\b", re.IGNORECASE)
+ALERT_ID_PATTERN = re.compile(r"(?:\balert(?:\s+id)?\s*#?\s*|(?<!\w)#)(\d{1,10})\b", re.IGNORECASE)
+LOG_ID_PATTERN = re.compile(r"\b(?:log|row|event)(?:\s+id)?\s*#?\s*(\d{1,10})\b", re.IGNORECASE)
+SOURCE_ID_PATTERN = re.compile(r"\b(?:source|sensor)(?:\s+id)?\s*#?\s*(\d{1,10})\b", re.IGNORECASE)
 CASE_ID_PATTERN = re.compile(r"\bcase\s*#?\s*([a-zA-Z0-9_-]{4,120})\b", re.IGNORECASE)
 CONVERSATION_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
 
@@ -254,6 +254,8 @@ def _question_resets_context(lowered: str) -> bool:
             "summarize source health",
             "which sources have warnings",
             "current ml model",
+            "supervised ml output",
+            "model not production promoted",
             "recent detection runs",
             "failed jobs",
             "controlled validation scenario",
@@ -333,6 +335,10 @@ def _active_context_from_result(
         "case_id": case_id,
         "primary": None,
     }
+    for key, name in [("alert_id", "alert"), ("log_id", "log"), ("source_id", "source"), ("case_id", "case")]:
+        if active[key]:
+            active["primary"] = name
+            break
     for citation in result.citations:
         reference = citation.reference_id
         if not reference:
@@ -341,6 +347,14 @@ def _active_context_from_result(
             numeric_reference = int(reference)
         except (TypeError, ValueError):
             numeric_reference = None
+        citation_primary = {
+            "/api/alerts/{alert_id}": "alert",
+            "/api/logs/{log_id}": "log",
+            "/api/sources/{source_id}": "source",
+            "/api/alerts/cases": "case",
+        }.get(citation.source)
+        if citation_primary is None or active["primary"] not in {None, citation_primary}:
+            continue
         if citation.source == "/api/alerts/{alert_id}" and numeric_reference:
             active["alert_id"] = numeric_reference
             active["primary"] = active["primary"] or "alert"
@@ -353,11 +367,6 @@ def _active_context_from_result(
         elif citation.source == "/api/alerts/cases":
             active["case_id"] = str(reference)[:120]
             active["primary"] = active["primary"] or "case"
-    if active["primary"] is None:
-        for key, name in [("alert_id", "alert"), ("log_id", "log"), ("source_id", "source"), ("case_id", "case")]:
-            if active[key]:
-                active["primary"] = name
-                break
     return active
 
 
@@ -379,6 +388,7 @@ def _record_assistant_audit(
     provider_outcome_category: str | None,
     latency_ms: int | None,
     answer_summary: str,
+    provenance: dict[str, Any],
 ) -> int:
     audit = AuditLog(
         actor=actor,
@@ -401,6 +411,8 @@ def _record_assistant_audit(
             "question_category": question_category,
             "latency_ms": latency_ms,
             "answer_summary": answer_summary[:600],
+            "answer_origin": provenance["answer_origin"],
+            "evidence_scope": provenance["evidence_scope"],
         },
     )
     db.add(audit)
@@ -552,7 +564,59 @@ def assistant_status(settings: Settings) -> dict[str, Any]:
     }
 
 
-def _grounding_details(citations: list[Citation]) -> dict[str, Any]:
+def _answer_provenance(
+    citations: list[Citation],
+    context_used: list[str],
+    *,
+    external_provider_used: bool,
+    provider: str | None,
+) -> dict[str, Any]:
+    citation_text = " ".join(f"{item.label} {item.source}" for item in citations).lower()
+    context_text = " ".join(context_used).lower()
+    database_records_used = any(item.source.startswith("/api/") for item in citations)
+    deterministic_rules_used = any(
+        token in f"{citation_text} {context_text}"
+        for token in ["rule", "why_flagged", "alert_evidence", "detection explanation"]
+    )
+    ml_evidence_used = any(
+        token in f"{citation_text} {context_text}"
+        for token in ["/api/ml", "supervised", "anomaly", "ml_governance", "model report"]
+    )
+    operational_data_used = any(
+        token in f"{citation_text} {context_text}"
+        for token in ["source_health", "operation", "job", "detection_run", "audit", "/api/sources"]
+    )
+    documentation_used = any(item.source.startswith("docs/") for item in citations)
+    evidence_scope: list[str] = []
+    for included, label in [
+        (database_records_used, "ATDR database records"),
+        (deterministic_rules_used, "Deterministic detection rules"),
+        (ml_evidence_used, "Advisory ML evidence"),
+        (operational_data_used, "Operational telemetry"),
+        (documentation_used, "ATDR documentation"),
+    ]:
+        if included:
+            evidence_scope.append(label)
+    if citations and not evidence_scope:
+        evidence_scope.append("ATDR services and references")
+    return {
+        "answer_origin": "external_llm_synthesis" if external_provider_used else "atdr_deterministic",
+        "provider": provider if external_provider_used else None,
+        "evidence_scope": evidence_scope,
+        "citation_count": len(citations),
+        "grounded": bool(citations),
+        "database_records_used": database_records_used,
+        "deterministic_rules_used": deterministic_rules_used,
+        "ml_evidence_used": ml_evidence_used,
+        "operational_data_used": operational_data_used,
+        "documentation_used": documentation_used,
+        "raw_logs_included": False,
+        "rules_authoritative": True,
+        "ml_advisory_only": True,
+    }
+
+
+def _grounding_details(citations: list[Citation], provenance: dict[str, Any]) -> dict[str, Any]:
     source_types: list[str] = []
     for citation in citations:
         if citation.source.startswith("/api/"):
@@ -572,6 +636,10 @@ def _grounding_details(citations: list[Citation]) -> dict[str, Any]:
         "source_types": source_types,
         "external_provider_role": "explanation_and_summarization_only",
         "raw_logs_included": False,
+        "answer_origin": provenance["answer_origin"],
+        "evidence_scope": provenance["evidence_scope"],
+        "rules_authoritative": True,
+        "ml_advisory_only": True,
     }
 
 
@@ -594,6 +662,11 @@ def list_assistant_history(db: Session, *, current_user: User, limit: int = 20) 
                 "external_provider_used": bool(details.get("external_provider_used", False)),
                 "conversation_id": str(details.get("conversation_id", ""))[:64] or None,
                 "question_category": str(details.get("question_category", ""))[:64] or None,
+                "answer_origin": str(details.get("answer_origin", "atdr_deterministic"))[:64],
+                "evidence_scope": [
+                    str(item)[:120]
+                    for item in details.get("evidence_scope", [])[:8]
+                ] if isinstance(details.get("evidence_scope"), list) else [],
             }
         )
     return rows
@@ -951,8 +1024,7 @@ def answer_assistant_question(
         "conversation_id": resolved_conversation_id,
         "active_context": active_context,
     }
-    response["details"]["grounding"] = _grounding_details(result.citations)
-    conversation_history = _load_conversation_history(
+    conversation_history = [] if should_reset_context else _load_conversation_history(
         db,
         actor=actor,
         conversation_id=resolved_conversation_id,
@@ -1078,6 +1150,14 @@ def answer_assistant_question(
     elif provider_called:
         response["mode"] = f"deterministic_local_llm_fallback_{llm_result.provider}"
         response["context_used"] = [*response["context_used"], f"external_llm_fallback:{llm_result.provider}"]
+    provenance = _answer_provenance(
+        result.citations,
+        response["context_used"],
+        external_provider_used=bool(response["external_provider_used"]),
+        provider=llm_result.provider,
+    )
+    response["provenance"] = provenance
+    response["details"]["grounding"] = _grounding_details(result.citations, provenance)
     response["details"]["conversation"] = {
         "conversation_id": resolved_conversation_id,
         "history_turns_used": len(conversation_history),
@@ -1104,6 +1184,7 @@ def answer_assistant_question(
         provider_outcome_category=provider_outcome_category,
         latency_ms=llm_result.latency_ms,
         answer_summary=response["answer"],
+        provenance=provenance,
     )
     response["details"]["assistant_audit_id"] = audit_id
     return response

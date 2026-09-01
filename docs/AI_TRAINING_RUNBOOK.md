@@ -8,22 +8,49 @@ simulated response action.
 
 ## Current Model Status
 
-Current supervised lifecycle status is `shadow_observation`. A governed v5.1
-calibrated ExtraTrees binary SOC queue artifact exists, but v5.2 selected no new
-candidate: no supervised strategy passed every temporal, source/proxy, random,
-calibration, and external gate. Shadow scores cannot create or suppress alerts,
+Current supervised lifecycle status is `shadow_observation`, with no qualified
+current candidate. v5.49b bound 180 genuine protected decisions with support
+`95/39/27`, consumed one immutable fixed evaluation, ran all eight strategies,
+and selected none. The evaluation role had no suspicious support, and every
+strategy failed the fixed confidence-gap limit. The result cannot be rerun,
+repartitioned, or tuned. Historical registry artifacts are not a current
+qualified model. Shadow or advisory scores cannot create or suppress alerts,
 change severity, or authorize response.
 
-v5.2 repaired the controlled layered matrix from 267/288 to 288/288 with zero
-controlled false positives, false negatives, or response actions. This validates
-the synthetic regression contract, not real-world accuracy. The locked external
-benchmark and source-independent evidence requirements remain failed/open.
+The current controlled layered matrix passes 288/288 with zero controlled false
+positives, false negatives, or response actions, and controlled source scenarios
+pass 24/24. This validates the synthetic regression contract, not real-world
+accuracy. Fresh development evidence, a second physical source, and a new
+untouched future evaluation remain required before activation can be considered.
 
 Recommended demo wording:
 
 > Deterministic rules create explainable alerts. Supervised and anomaly layers
 > remain shadow/advisory evidence because independent stability gates have not
 > passed. They cannot trigger containment.
+
+### v5.50 Operator Rule
+
+Treat v5.49b as a consumed negative decision. Do not rerun it, repartition its
+roles, tune against its evaluation result, or describe a historical registry
+artifact as the current qualified model. Future supervised work starts with
+fresh development evidence under a new predeclared protocol. A second physical
+source and a later untouched future evaluation remain mandatory before any
+activation review.
+
+### v5.51 Field Qualification Rule
+
+Use `run_v551_detection_field_qualification` for new field evidence. Always
+pass `--use-temp-db`. A loopback or second-laptop sender may validate the local
+transport path but cannot satisfy the physical firewall/router gate. Human
+attestations, field expectations, and prediction-blind reviews must remain
+private and genuine; assisted decisions cannot be represented as human.
+
+Only evidence at or after `2026-09-01T00:00:00+07:00` can enter the new roles.
+Exact duplicates are removed and near-duplicate families stay in one role. The
+untouched future role remains label-closed. The v5.49b result must never be
+opened, rerun, or used for tuning. Current readiness is `hardware_required`;
+this does not change `shadow_observation` or alert authority.
 
 ## 1. Start From A Clean Demo Baseline
 

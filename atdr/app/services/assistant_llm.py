@@ -14,7 +14,7 @@ from atdr.app.services.assistant_response_contracts import AssistantResponseMode
 
 
 IP_PATTERN = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
-PROMPT_CONTRACT_VERSION = "soc_intent_aware_concise_v4"
+PROMPT_CONTRACT_VERSION = "soc_intent_aware_concise_v5"
 
 GEMINI_STRUCTURED_RESPONSE_SCHEMA = {
     "type": "OBJECT",

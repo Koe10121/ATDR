@@ -28,6 +28,22 @@ class AssistantCitation(BaseModel):
     reference_id: str | None = None
 
 
+class AssistantAnswerProvenance(BaseModel):
+    answer_origin: Literal["atdr_deterministic", "external_llm_synthesis"]
+    provider: str | None = None
+    evidence_scope: list[str] = Field(default_factory=list)
+    citation_count: int = 0
+    grounded: bool = False
+    database_records_used: bool = False
+    deterministic_rules_used: bool = False
+    ml_evidence_used: bool = False
+    operational_data_used: bool = False
+    documentation_used: bool = False
+    raw_logs_included: bool = False
+    rules_authoritative: bool = True
+    ml_advisory_only: bool = True
+
+
 class AssistantChatResponse(BaseModel):
     answer: str
     mode: str
@@ -53,6 +69,7 @@ class AssistantChatResponse(BaseModel):
     details: dict[str, Any] = Field(default_factory=dict)
     conversation_id: str
     active_context: AssistantActiveContext
+    provenance: AssistantAnswerProvenance
 
 
 AssistantFeedbackRating = Literal["helpful", "not_helpful", "unsafe", "incorrect", "unclear"]
@@ -152,3 +169,5 @@ class AssistantHistoryItem(BaseModel):
     external_provider_used: bool = False
     conversation_id: str | None = None
     question_category: str | None = None
+    answer_origin: str = "atdr_deterministic"
+    evidence_scope: list[str] = Field(default_factory=list)

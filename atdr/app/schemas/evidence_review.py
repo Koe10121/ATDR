@@ -125,6 +125,35 @@ class BlindEvidenceStatusResponse(BaseModel):
     message: str
 
 
+class FieldQualificationStatusResponse(BaseModel):
+    version: str
+    status: Literal[
+        "ready",
+        "hardware_required",
+        "reviewer_required",
+        "failed",
+        "insufficient_evidence",
+    ]
+    generated_at: str | None = None
+    gates: dict[str, bool] = Field(default_factory=dict)
+    transport: dict[str, Any] = Field(default_factory=dict)
+    parser: dict[str, Any] = Field(default_factory=dict)
+    rule_review: dict[str, Any] = Field(default_factory=dict)
+    fresh_evidence: dict[str, Any] = Field(default_factory=dict)
+    blockers: list[str] = Field(default_factory=list)
+    lifecycle_state: Literal["shadow_observation"] = "shadow_observation"
+    rules_alert_authoritative: Literal[True] = True
+    model_activated: Literal[False] = False
+    model_promoted: Literal[False] = False
+    response_automation_allowed: Literal[False] = False
+    raw_logs_exposed: Literal[False] = False
+    ip_addresses_exposed: Literal[False] = False
+    private_paths_exposed: Literal[False] = False
+    fingerprints_exposed: Literal[False] = False
+    source_identities_exposed: Literal[False] = False
+    secrets_exposed: Literal[False] = False
+
+
 class CandidateFreezeStatusResponse(BaseModel):
     version: str
     status: str

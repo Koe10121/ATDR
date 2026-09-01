@@ -28,6 +28,7 @@ import {
   useCombinedFixedRevalidationStatus,
   useDetectionMlProductization,
   useDevelopmentModelRepairStatus,
+  useFieldQualificationStatus,
   useManualAnchorAcquisitionStatus,
   useManualAnchorFixedRevalidationStatus,
   useManualAnchorReviewStatus,
@@ -69,6 +70,7 @@ export function MLGovernance() {
   const report = useMlReport();
   const evidenceSnapshot = useMlEvidenceSnapshot();
   const blindEvidence = useBlindEvidenceStatus();
+  const fieldQualification = useFieldQualificationStatus();
   const candidateFreeze = useCandidateFreezeStatus();
   const temporalStability = useTemporalStabilityStatus();
   const developmentModelRepair = useDevelopmentModelRepairStatus();
@@ -153,6 +155,7 @@ export function MLGovernance() {
   const diagnostics = shadowDiagnostics.data;
   const parserDiagnostics = parserProfileDiagnostics.data;
   const blindEvidenceData = blindEvidence.data;
+  const fieldQualificationData = fieldQualification.data;
   const candidateFreezeData = candidateFreeze.data;
   const temporalStabilityData = temporalStability.data;
   const developmentModelRepairData = developmentModelRepair.data;
@@ -421,6 +424,7 @@ export function MLGovernance() {
     void report.refetch();
     void evidenceSnapshot.refetch();
     void blindEvidence.refetch();
+    void fieldQualification.refetch();
     void supervised.refetch();
     void productization.refetch();
     void supervisedModels.refetch();
@@ -470,6 +474,57 @@ export function MLGovernance() {
       </div>
 
       <MLEvidenceSnapshotPanel snapshot={evidenceSnapshot.data} loading={evidenceSnapshot.isLoading} error={evidenceSnapshot.isError} />
+
+      <section className="panel overflow-hidden" data-testid="field-qualification-readiness">
+        <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="text-xs font-extrabold uppercase tracking-wide text-muted">
+              Detection Field Qualification
+            </div>
+            <div className="mt-1 text-sm text-muted">
+              Physical transport, parser accuracy, rule review, and fresh evidence custody.
+            </div>
+          </div>
+          <div className="flex min-w-0 max-w-full flex-wrap gap-2">
+            <Badge value={(fieldQualificationData?.status ?? "hardware_required").replaceAll("_", " ")} />
+            <Badge value="Rules Authoritative" />
+            <Badge value="Prediction Blind" />
+            <Badge value="No Model Activation" />
+          </div>
+        </div>
+        {fieldQualification.isError ? (
+          <div className="mt-3 rounded border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+            Field qualification status is unavailable. Detection authority and model lifecycle remain unchanged.
+          </div>
+        ) : (
+          <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <MetricCard
+              label="Device Transport"
+              value={fieldQualificationData?.transport.real_device_validated ? "Validated" : "Required"}
+              detail={`${fieldQualificationData?.transport.messages_received ?? 0}/${fieldQualificationData?.transport.messages_expected ?? 0} datagrams accounted`}
+              tone={fieldQualificationData?.transport.real_device_validated ? "teal" : "amber"}
+            />
+            <MetricCard
+              label="Parser Contract"
+              value={rateText(fieldQualificationData?.parser.parse_success_rate)}
+              detail={fieldQualificationData?.parser.field_accuracy?.valid ? "Human-confirmed field mapping" : "Field confirmation required"}
+              tone={fieldQualificationData?.gates.parser_contract ? "teal" : "amber"}
+            />
+            <MetricCard
+              label="Rule Field Review"
+              value={fieldQualificationData?.rule_review.metrics_available ? rateText(fieldQualificationData.rule_review.false_positive_rate) : "Pending"}
+              detail={fieldQualificationData?.rule_review.metrics_available ? "Measured false-positive rate" : `${fieldQualificationData?.rule_review.reviewed_rows ?? 0} prediction-blind rows reviewed`}
+              tone={fieldQualificationData?.rule_review.metrics_available ? "teal" : "amber"}
+            />
+            <MetricCard
+              label="Fresh Evidence"
+              value={fieldQualificationData?.fresh_evidence.fresh_rows ?? 0}
+              detail={`${fieldQualificationData?.fresh_evidence.independent_source_count ?? 0}/2 sources, ${fieldQualificationData?.fresh_evidence.collection_window_count ?? 0}/4 windows`}
+              tone={fieldQualificationData?.status === "ready" ? "teal" : "cyan"}
+            />
+          </div>
+        )}
+      </section>
 
       <section className="panel overflow-hidden" data-testid="candidate-freeze-readiness">
         <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">

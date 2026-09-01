@@ -1,6 +1,6 @@
 # ATDR Product Finish Line
 
-Date: 2026-08-24
+Date: 2026-08-31
 
 ## Purpose
 
@@ -66,7 +66,6 @@ Use these sources in this order when status statements disagree:
 
 ### Not Yet Closed
 
-- The protected fixed supervised revalidation and candidate decision.
 - Non-loopback forwarding from a real firewall/router and a second independent
   physical source.
 - Independently labeled real-source false-positive/false-negative evidence.
@@ -81,9 +80,9 @@ Use these sources in this order when status statements disagree:
 
 ## Consolidated Remaining Roadmap
 
-The previous eight-part roadmap is consolidated into four substantial product
-closure phases after v5.49b. Do not create additional phases unless a verified defect or an
-external acceptance result requires one.
+The previous roadmap is consolidated into the current v5.50 truth lock plus
+four substantial product closure phases. Do not create additional phases
+unless a verified defect or an external acceptance result requires one.
 
 ### v5.49b - Combined Fixed Revalidation (Complete)
 
@@ -94,9 +93,11 @@ external acceptance result requires one.
 - No model, artifact, alert authority, or response behavior changed.
 
 Exit: one immutable negative result exists and lifecycle remains safely in
-`shadow_observation`. Publication still requires separate exact-path approval.
+`shadow_observation`. The result is published at
+`1866086e6ba9d0e6ac752e4b44e2b54a2acd6fb0`, and GitHub Actions run
+`33348242534` is green.
 
-### v5.50 - Current-State And Repository Truth Lock
+### v5.51 - Detection Pipeline Field Qualification
 
 - Consolidate v5.43-v5.49b into one source-backed public baseline.
 - Remove stale baseline claims and duplicate/conflicting roadmap wording.
@@ -105,7 +106,9 @@ Exit: one immutable negative result exists and lifecycle remains safely in
 - Confirm no protected/generated/private evidence is tracked.
 - Publish one exact allowlist after separate approval.
 
-Exit: one clean commit and green CI describe the same current system state.
+Exit: the active source-of-truth documents, taskboard, and exact allowlist
+describe the same current system state. Commit/push still require separate
+approval.
 
 ### v5.51 - Detection Pipeline Field Qualification
 
@@ -124,6 +127,14 @@ This phase combines live-source, parser, rule, and supervised lifecycle work.
 Exit: source/parser/rule field evidence is accepted, and supervised lifecycle
 has a documented shadow/no-candidate decision without weakened gates.
 
+Implementation update: the disposable service/CLI, parser compatibility and
+field-accuracy contract, prediction-blind rule review, duplicate-contained
+fresh roles, authenticated aggregate API, and AI Governance status are now
+implemented and locally verified. Current status remains `hardware_required`:
+the physical transport, second source, four post-boundary windows, and genuine
+field/rule reviews are external and have not been fabricated. v5.51 therefore
+closes Codex-owned harness work while leaving its field-acceptance exit open.
+
 ### v5.52 - Analyst Experience And Assistant Closure
 
 - Run representative alert, source, case, and workflow questions through the
@@ -137,6 +148,15 @@ has a documented shadow/no-candidate decision without weakened gates.
 
 Exit: analysts can move from alert to evidence, recommendation, Assistant, and
 simulated response without losing context or seeing misleading claims.
+
+Implementation update: the locally controllable exit is complete. Entity
+switches and reset prompts rotate conversations; ordinary follow-ups retain the
+primary record; four sanitized tab-scoped turns survive navigation; provenance
+is visible; and intent budgets are 55-120 words with at most two follow-ups.
+Assistant QA passes `20/20`, and configured Gemini minimal/full synthetic probes
+pass with no raw logs, secrets, or authoritative writes. Institutional provider
+governance and formal independent usability/accessibility acceptance remain
+external.
 
 ### v5.53 - IAM And Shared Deployment Acceptance
 
@@ -196,9 +216,11 @@ The priority is evidence, consolidation, external acceptance, and release.
 
 ## Distance To Finish
 
-- Controlled senior-project product: v5.49 plus v5.50 closure.
+- Controlled senior-project product: v5.49b plus v5.50 closure.
 - Strong analyst-facing controlled release: add v5.52.
 - Credible shared-lab release candidate: complete v5.51-v5.54.
+- Substantial phases remaining after v5.52: two, plus the parallel external
+  v5.51 field-evidence gate.
 - Production certification is not a fixed version count; it additionally
   requires organization-owned operations, security review, and ongoing field
   evidence.

@@ -1,6 +1,6 @@
 # ATDR Current AI And ML Product Status
 
-Date: 2026-08-14
+Date: 2026-08-31
 
 ATDR uses several distinct AI/ML layers. They must not be presented as one
 autonomous model. Deterministic rules detect explainable patterns, an
@@ -8,7 +8,22 @@ IsolationForest can add anomaly evidence, supervised models remain governed
 decision-support candidates, and Gemini may summarize bounded ATDR evidence for
 an analyst. None of these layers may execute a response action.
 
-## v5.42 Candidate Freeze Decision
+## Current Governed Decision: v5.49b
+
+The immutable combined protocol bound 180 genuine protected decisions with
+support `95/39/27`, was claimed before evaluation-label access, and was
+consumed exactly once. All eight fixed strategies ran and no candidate
+qualified. The 11-row evaluation role contained nine benign-like rows, zero
+suspicious rows, and two malicious rows; suspicious recall was therefore not
+measurable, and every strategy exceeded the fixed `0.15` confidence-gap limit.
+The result cannot be rerun, repartitioned, or tuned.
+
+No active artifact was written, activated, or promoted. Rules remain
+alert-authoritative, supervised lifecycle remains `shadow_observation`, and
+response automation remains disabled. See
+`docs/V5_49B_IMMUTABLE_COMBINED_PROTOCOL_AND_ONE_SHOT_REVALIDATION.md`.
+
+## Historical v5.42 Candidate Freeze Decision
 
 The latest development-only comparison used 1,467 rows, exactly five
 predeclared strategies, three duplicate-isolated nested temporal folds, fixed
@@ -28,10 +43,10 @@ The authenticated aggregate status is
 | --- | --- | --- | --- |
 | Deterministic detection rules | Primary explainable alert generation | v5.31 adversarial lock: 27/27 synthetic cases; 19-rule catalog contract reconciled | May create/deduplicate alerts; cannot execute response |
 | IsolationForest | Assistive unusual-behavior score | v5.5 audit and v5.13 regression: advisory only; controlled anomaly layer remains 72/72 | Decision support only; cannot create an alert by itself |
-| Supervised SOC queue | Rank/recommend review from labeled evidence | v5.42 revalidated protected custody and compared five fixed development candidates. Hierarchical two-stage ranked best but passed `0/3` folds, so no diagnostic candidate was frozen. v5.41 blind readiness remains `Designed` with `0/2` sources and `0/3` windows. | Evidence only; rules remain authoritative |
-| Legacy supervised artifact | Unselected local reference | Artifact exists; model/feature metadata are unknown | Not selected by the governed lifecycle |
+| Supervised SOC queue | Rank/recommend review from labeled evidence | v5.49b evaluated eight fixed strategies once and selected no candidate; lifecycle remains `shadow_observation` | Evidence only; rules remain authoritative |
+| Legacy supervised artifact | Unselected local reference | Artifact exists; model/feature metadata are incomplete and must not be guessed | Not selected by the governed lifecycle |
 | SOC Assistant deterministic layer | Retrieve and explain ATDR evidence | 20/20 controlled QA questions passed | Read-only |
-| Gemini provider layer | Rephrase/summarize bounded evidence | Private configuration and one bounded synthetic probe passed | Explanation only; no detector or action authority |
+| Gemini provider layer | Rephrase/summarize bounded evidence | Private adapter configuration and bounded controlled acceptance passed; institutional privacy/operations approval remains open | Explanation only; no detector or action authority |
 
 ## Where Assistant Answers Come From
 
@@ -76,12 +91,12 @@ Source evidence: `atdr/app/services/assistant_llm.py`,
 `atdr/app/services/assistant_service.py`, `atdr/app/core/config.py`, and
 `atdr/tests/test_assistant.py`.
 
-On 2026-07-18, a secret-safe status check reported provider/model/key configured,
-IP redaction enabled, raw-log context disabled, and `secrets_exposed=false`. One
-bounded synthetic Gemini probe completed in about 2.0 seconds with valid
-structured output and no raw-log or secret exposure. This proves the configured
-adapter worked at that moment; it is not an availability, privacy, quota, cost,
-or production-service guarantee.
+Secret-safe provider checks and bounded controlled suites have validated the
+configured Gemini adapter with IP redaction enabled, raw-log context disabled,
+structured output, citation filtering, safe fallback, and no authoritative
+mutations. These checks prove bounded adapter behavior only; they are not an
+institutional privacy approval, availability guarantee, quota/cost guarantee,
+or production-service certification.
 
 ## Assistant Safety And Quality
 
@@ -152,10 +167,11 @@ malicious; IsolationForest cannot authorize a response.
 ## Supervised Model Candidates
 
 ATDR supports reviewed-label workflows, candidate comparisons, calibration,
-threshold analysis, and a governed model registry. A fresh calibrated ExtraTrees
-binary SOC review-queue artifact is active in `shadow_observation`. The older
-local artifact still has unknown metadata, but it is an unselected legacy
-reference and is not treated as the active governed model.
+threshold analysis, and a governed model registry. No current supervised
+candidate qualifies for activation or promotion. Registry artifacts with
+incomplete metadata are historical references and must not be described as a
+known active model family. The governed lifecycle remains
+`shadow_observation` without alert or response authority.
 
 The v4.0 provider-blinded CSE-CIC-IDS2018 evaluation exposed the key blocker:
 the frozen internal queue did not generalize to a provider-flow schema lacking
@@ -165,14 +181,18 @@ behavior context. It produced threat precision `0.3171`, recall `1.0000`, F1
 
 v4.1 added explicit schema contracts and missingness-aware development
 experiments. It found useful pooled diagnostic signals, but calibration and
-source/time/schema-held-out transfer remained unstable. Therefore:
+source/time/schema-held-out transfer remained unstable. Those historical
+results remain useful diagnostic evidence. The later v5.49b one-shot decision
+is now authoritative for current candidate status. Therefore:
 
-- readiness remains `candidate_only`;
+- no current candidate is selected;
+- lifecycle remains `shadow_observation`;
 - `production_promoted=false`;
-- no v4.0/v4.1 candidate is selected by the governed lifecycle;
+- no historical candidate is selected by the governed lifecycle;
 - `response_automation_allowed=false`; and
-- model activation requires a separately governed untouched benchmark plus
-  independently collected multi-source firewall/syslog evidence.
+- any future activation review requires fresh development evidence, a second
+  physical source, a separately governed untouched future benchmark, stable
+  calibration, and explicit human approval.
 
 Source evidence: `docs/V4_0_PROVIDER_BLINDED_EXTERNAL_EVIDENCE_AND_FROZEN_VALIDATION.md`,
 `docs/V4_1_SCHEMA_AWARE_SOC_QUEUE_MODEL_REDESIGN.md`,
@@ -1157,3 +1177,37 @@ model activation/promotion, automatic response, and real blocking remain
 disabled. The next model cycle requires fresh development evidence, a
 predeclared support-preserving partition, a second physical source, and a new
 untouched future evaluation.
+
+## v5.51 Detection Field Qualification Update
+
+The next supervised evidence namespace is now implemented without opening or
+reusing v5.49b. It accepts only attested post-boundary physical collections,
+removes exact duplicates, contains near-duplicate families within one role,
+and fixes development-fit, calibration, threshold, and untouched-future roles.
+The future role remains label-closed and no model work occurs in v5.51.
+
+Local parser/rule tooling passes, but aggregate readiness is
+`hardware_required`. Field rule precision/recall/F1/FPR are intentionally
+unavailable until a complete prediction-blind human review exists. No candidate
+is selected; lifecycle remains `shadow_observation`; rules remain authoritative;
+model activation/promotion and automatic response remain false.
+
+## v5.52 SOC Assistant Closure Update
+
+The deterministic Assistant remains the grounding and fallback layer. Each
+answer now carries explicit provenance: deterministic or external synthesis,
+safe evidence scopes, citation count, rules-authoritative status, advisory-ML
+status, and raw-log exclusion. Gemini never becomes a detector or database
+source.
+
+Context continuity is primary-entity based. Alert, log, source, and case IDs
+require typed wording; related citations do not hijack active context; reset or
+explicit entity switches start a clean conversation; and only four sanitized
+tab-scoped turns persist across navigation.
+
+Controlled QA passes `20/20`, required citations pass `1.0000`, average answer
+length is `60.9` words, maximum is `110`, and every intent budget passes. The
+configured Gemini minimal probe and full synthetic Assistant path both pass
+with structured output, redaction enabled, raw logs excluded, secrets hidden,
+and zero label/model/detection/response writes. Institutional privacy, quota,
+billing, rotation, and real-traffic operational acceptance remain external.

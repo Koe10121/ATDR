@@ -633,6 +633,51 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
       }
     })
   );
+  await page.route("**/api/evidence-review/field-qualification/status", async (route) =>
+    route.fulfill({
+      json: {
+        version: "v5.51-detection-field-qualification-v1",
+        status: "hardware_required",
+        generated_at: "2026-09-01T00:00:00+00:00",
+        gates: {
+          physical_transport: false,
+          parser_contract: true,
+          rule_review: false,
+          fresh_evidence: false
+        },
+        transport: {
+          real_device_validated: false,
+          messages_received: 0,
+          messages_expected: 0
+        },
+        parser: {
+          parse_success_rate: 1,
+          field_accuracy: { valid: false }
+        },
+        rule_review: {
+          metrics_available: false,
+          reviewed_rows: 0
+        },
+        fresh_evidence: {
+          fresh_rows: 0,
+          independent_source_count: 0,
+          collection_window_count: 0
+        },
+        blockers: ["A physical firewall or router source is required."],
+        lifecycle_state: "shadow_observation",
+        rules_alert_authoritative: true,
+        model_activated: false,
+        model_promoted: false,
+        response_automation_allowed: false,
+        raw_logs_exposed: false,
+        ip_addresses_exposed: false,
+        private_paths_exposed: false,
+        fingerprints_exposed: false,
+        source_identities_exposed: false,
+        secrets_exposed: false
+      }
+    })
+  );
   await page.route("**/api/evidence-review/candidate-freeze/status", async (route) =>
     route.fulfill({
       json: {
@@ -1253,7 +1298,7 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
             failure_category: "grounding_rejection",
             raw_log_context_included: false,
             secrets_exposed: false,
-            prompt_contract: "soc_intent_aware_concise_v4",
+            prompt_contract: "soc_intent_aware_concise_v5",
             provider_called: false,
             answer_used: false,
             answer_guard_reason: null
@@ -1277,7 +1322,22 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
           }
         },
         conversation_id: "smoke-assistant-conversation",
-        active_context: { alert_id: 1, log_id: 1, source_id: 1, case_id: null, primary: "alert" }
+        active_context: { alert_id: 1, log_id: null, source_id: null, case_id: null, primary: "alert" },
+        provenance: {
+          answer_origin: "atdr_deterministic",
+          provider: null,
+          evidence_scope: ["ATDR database records", "Deterministic detection rules"],
+          citation_count: 7,
+          grounded: true,
+          database_records_used: true,
+          deterministic_rules_used: true,
+          ml_evidence_used: true,
+          operational_data_used: true,
+          documentation_used: true,
+          raw_logs_included: false,
+          rules_authoritative: true,
+          ml_advisory_only: true
+        }
       }
     })
   );
@@ -4021,6 +4081,20 @@ test("AI Governance shows governed supervised shadow status without selecting th
   await seedSession(page);
 
   await page.goto("/ml");
+  const fieldQualification = page.getByTestId("field-qualification-readiness");
+  await expect(fieldQualification).toContainText("hardware required");
+  await expect(fieldQualification).toContainText("Device Transport");
+  await expect(fieldQualification).toContainText("Required");
+  await expect(fieldQualification).toContainText("100.0%");
+  await expect(fieldQualification).toContainText("Field confirmation required");
+  await expect(fieldQualification).toContainText("0/2 sources, 0/4 windows");
+  await expect(fieldQualification).toContainText("Prediction Blind");
+  await expect(fieldQualification).toContainText("Rules Authoritative");
+  await expect(fieldQualification).toContainText("No Model Activation");
+  const fieldQualificationOverflow = await fieldQualification.evaluate(
+    (element) => element.scrollWidth > element.clientWidth + 1
+  );
+  expect(fieldQualificationOverflow).toBe(false);
   const candidateFreeze = page.getByTestId("candidate-freeze-readiness");
   await expect(candidateFreeze).toContainText("No Candidate Frozen");
   await expect(candidateFreeze).toContainText("hierarchical two stage");
@@ -4603,10 +4677,13 @@ test("SOC assistant page is read-only and contains long responses safely", async
   await expect(panel.getByTestId("assistant-answer-sections")).toBeVisible();
   await expect(panel.getByTestId("assistant-direct-answer")).toContainText("Alert explanation");
   await expect(panel.getByTestId("assistant-direct-answer")).toContainText("Alert #1 was flagged");
-  await expect(panel.getByText("Read Only", { exact: true }).first()).toBeVisible();
-  await expect(panel.getByText("Decision Support Only", { exact: true })).toBeVisible();
-  await expect(panel.getByText("Response Automation Disabled", { exact: true })).toBeVisible();
+  await expect(page.getByText("Read Only", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Decision Support Only", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Response Automation Disabled", { exact: true }).first()).toBeVisible();
   await expect(panel.getByText("Simulation Mode", { exact: true })).toHaveCount(0);
+  await expect(panel.getByTestId("assistant-answer-provenance")).toContainText("ATDR deterministic analysis");
+  await expect(panel.getByTestId("assistant-answer-provenance")).toContainText("Deterministic detection rules");
+  await expect(panel.getByTestId("assistant-answer-provenance")).toContainText("Rules authoritative");
   const evidenceItem = panel.getByTestId("assistant-section-evidence").getByText("Flagged as suspicious because action=deny.");
   await expect(evidenceItem).not.toBeVisible();
   await panel.getByText("Evidence and reasoning").click();
@@ -4618,7 +4695,7 @@ test("SOC assistant page is read-only and contains long responses safely", async
   await expect(panel.getByTestId("assistant-provider-telemetry")).toContainText("Not included");
   await expect(panel.getByTestId("assistant-provider-telemetry")).toContainText("Secrets");
   await expect(panel.getByTestId("assistant-provider-telemetry")).toContainText("Not exposed");
-  await expect(panel.getByTestId("assistant-provider-telemetry")).toContainText("soc_intent_aware_concise_v4");
+  await expect(panel.getByTestId("assistant-provider-telemetry")).toContainText("soc_intent_aware_concise_v5");
   await expect(panel.getByTestId("assistant-citations")).toContainText("Grounded In");
   await expect(panel.getByTestId("assistant-citations")).toContainText("/api/alerts/{alert_id}");
   await expect(panel.getByTestId("assistant-citation-open-alert-detail-1")).toHaveAttribute("href", "/alerts?alert=1");
@@ -4932,7 +5009,7 @@ test("SOC assistant provider telemetry shows guarded external LLM state", async 
             raw_log_context_included: false,
             secrets_exposed: false,
             context_characters: 1400,
-            prompt_contract: "soc_intent_aware_concise_v4",
+            prompt_contract: "soc_intent_aware_concise_v5",
             provider_called: true,
             answer_used: false,
             answer_guard_reason: "provider_answer_contains_unsupported_alert_id",
@@ -4970,7 +5047,7 @@ test("SOC assistant provider telemetry shows guarded external LLM state", async 
   await expect(telemetry).toContainText("Secrets");
   await expect(telemetry).toContainText("Not exposed");
   await expect(telemetry).toContainText("grounding rejection");
-  await expect(telemetry).toContainText("soc_intent_aware_concise_v4");
+  await expect(telemetry).toContainText("soc_intent_aware_concise_v5");
   await expect(telemetry).toContainText("45");
   await expect(page.getByTestId("assistant-response-panel")).toContainText("Alert #3225");
   await expect(page.getByText("ASSISTANT_LLM_API_KEY")).not.toBeVisible();
@@ -5053,11 +5130,26 @@ test("SOC assistant labels Gemini only after an answer uses the provider", async
             structured_output_valid: true,
             raw_log_context_included: false,
             secrets_exposed: false,
-            prompt_contract: "soc_intent_aware_concise_v4"
+            prompt_contract: "soc_intent_aware_concise_v5"
           }
         },
         conversation_id: "gemini-verified-conversation",
-        active_context: { alert_id: 77, log_id: null, source_id: null, case_id: null, primary: "alert" }
+        active_context: { alert_id: 77, log_id: null, source_id: null, case_id: null, primary: "alert" },
+        provenance: {
+          answer_origin: "external_llm_synthesis",
+          provider: "gemini",
+          evidence_scope: ["ATDR database records", "Deterministic detection rules"],
+          citation_count: 1,
+          grounded: true,
+          database_records_used: true,
+          deterministic_rules_used: true,
+          ml_evidence_used: false,
+          operational_data_used: false,
+          documentation_used: false,
+          raw_logs_included: false,
+          rules_authoritative: true,
+          ml_advisory_only: true
+        }
       }
     })
   );
@@ -5069,6 +5161,7 @@ test("SOC assistant labels Gemini only after an answer uses the provider", async
   await page.getByLabel("Analyst question").fill("Why was alert 77 flagged?");
   await page.getByRole("button", { name: "Ask assistant" }).click();
   await expect(page.getByText("Gemini Assisted", { exact: true }).first()).toBeVisible();
+  await expect(page.getByTestId("assistant-provenance-origin")).toHaveText("Gemini synthesis");
   await page.getByText("Sources and provider details").click();
   await expect(page.getByTestId("assistant-citations")).toContainText("Alert detail");
   await expect(page.getByText("ASSISTANT_LLM_API_KEY")).toHaveCount(0);
@@ -5132,7 +5225,7 @@ test("SOC assistant follow-up questions keep the previous alert context", async 
           `What should an analyst check next for alert ${alertId}?`
         ],
         details: {
-          assistant_audit_id: 1717,
+          assistant_audit_id: 1700 + assistantRequests.length,
           answer_sections: {
             response_mode: [responseMode],
             direct_answer: [answer.split("\n")[0]],
@@ -5159,6 +5252,7 @@ test("SOC assistant follow-up questions keep the previous alert context", async 
   await page.getByLabel("Analyst question").fill("Why was alert 1717 flagged?");
   await page.getByRole("button", { name: "Ask assistant" }).click();
   await expect(page.getByTestId("assistant-response-panel")).toContainText("Alert #1717 context was retained.");
+  await expect(page.getByTestId("assistant-conversation-status")).toContainText("1/4");
   const requestCountBeforeNavigation = assistantRequests.length;
   await page.goto("/alerts");
   await expect(page).toHaveURL(/\/alerts$/);
@@ -5166,12 +5260,15 @@ test("SOC assistant follow-up questions keep the previous alert context", async 
   await expect(page.getByLabel("Analyst question")).toHaveValue("Why was alert 1717 flagged?");
   await expect(page.getByTestId("assistant-response-panel")).toContainText("Alert #1717 context was retained.");
   await expect(page.getByText("Using alert #1717")).toBeVisible();
+  await expect(page.getByTestId("assistant-conversation-status")).toContainText("1/4");
   expect(assistantRequests).toHaveLength(requestCountBeforeNavigation);
   await page.getByRole("button", { name: "What logs are related to alert 1717?" }).click();
   await expect(page.getByLabel("Analyst question")).toHaveValue("What logs are related to alert 1717?");
   await expect(page.getByText("Using alert #1717")).toBeVisible();
   await expect(page.getByTestId("assistant-response-panel")).toContainText("Related logs for alert #1717");
-  await expect(page.getByTestId("assistant-response-panel")).not.toContainText("Verdict: Alert #1717 context was retained.");
+  await expect(page.getByTestId("assistant-direct-answer")).not.toContainText("Verdict: Alert #1717 context was retained.");
+  await expect(page.getByTestId("assistant-conversation-status")).toContainText("2/4");
+  await expect(page.getByTestId("assistant-conversation-history")).toContainText("Why was alert 1717 flagged?");
 
   expect(assistantRequests.length).toBeGreaterThanOrEqual(2);
   expect(assistantRequests[0].alert_id).toBe(1717);
@@ -5183,7 +5280,7 @@ test("SOC assistant follow-up questions keep the previous alert context", async 
   await page.getByRole("button", { name: "What should an analyst check next for alert 1717?" }).click();
   await expect(page.getByLabel("Analyst question")).toHaveValue("What should an analyst check next for alert 1717?");
   await expect(page.getByTestId("assistant-response-panel")).toContainText("Prioritized checks for alert #1717");
-  await expect(page.getByTestId("assistant-response-panel")).not.toContainText("Related logs for alert #1717");
+  await expect(page.getByTestId("assistant-direct-answer")).not.toContainText("Related logs for alert #1717");
   expect(assistantRequests.length).toBeGreaterThanOrEqual(3);
   expect(assistantRequests[2].alert_id).toBe(1717);
   expect(assistantRequests[2].log_id).toBeNull();
@@ -5195,6 +5292,7 @@ test("SOC assistant follow-up questions keep the previous alert context", async 
   expect(assistantRequests.length).toBeGreaterThanOrEqual(4);
   expect(assistantRequests[3].alert_id).toBe(1717);
   expect(assistantRequests[3].log_id).toBe(9001);
+  await expect(page.getByTestId("assistant-conversation-status")).toContainText("4/4");
   await page.getByLabel("Analyst question").fill("Why was alert 35 flagged?");
   await page.getByRole("button", { name: "Ask assistant" }).click();
   await expect(page.getByLabel("Analyst question")).toHaveValue("Why was alert 35 flagged?");
@@ -5203,6 +5301,9 @@ test("SOC assistant follow-up questions keep the previous alert context", async 
   expect(assistantRequests[4].alert_id).toBe(35);
   expect(assistantRequests[4].log_id).toBeNull();
   expect(assistantRequests[4].source_id).toBeNull();
+  expect(assistantRequests[4].reset_context).toBe(true);
+  expect(assistantRequests[4].conversation_id).not.toBe(assistantRequests[3].conversation_id);
+  await expect(page.getByTestId("assistant-conversation-status")).toContainText("1/4");
   await page.getByRole("button", { name: "Latest Critical Alert", exact: true }).click();
   await expect(page.getByLabel("Analyst question")).toHaveValue("Explain the latest critical alert.");
   expect(assistantRequests.length).toBeGreaterThanOrEqual(6);
@@ -5210,6 +5311,61 @@ test("SOC assistant follow-up questions keep the previous alert context", async 
   expect(assistantRequests[5].log_id).toBeNull();
   expect(assistantRequests[5].source_id).toBeNull();
   expect(assistantRequests[5].reset_context).toBe(true);
+  expect(assistantRequests[5].conversation_id).not.toBe(assistantRequests[4].conversation_id);
+});
+
+test("SOC assistant treats source ID as source context and supports keyboard submit", async ({ page }) => {
+  let assistantRequest: Record<string, unknown> | null = null;
+  await mockApi(page);
+  await page.route("**/api/assistant/chat", async (route) => {
+    assistantRequest = route.request().postDataJSON() as Record<string, unknown>;
+    await route.fulfill({
+      json: {
+        answer: "Source #44 is healthy. Verify parser warnings before relying on missing fields.",
+        mode: "deterministic_local",
+        response_mode: "source_health",
+        external_provider_used: false,
+        safety: ["Read Only", "Decision Support Only", "Response Automation Disabled"],
+        context_used: ["source_health", "source_quality"],
+        citations: [{ label: "Source", source: "/api/sources/{source_id}", reference_id: "44" }],
+        redaction_applied: true,
+        raw_log_context_included: false,
+        suggested_followups: [],
+        details: { assistant_audit_id: 552 },
+        conversation_id: String(assistantRequest.conversation_id),
+        active_context: { alert_id: null, log_id: null, source_id: 44, case_id: null, primary: "source" },
+        provenance: {
+          answer_origin: "atdr_deterministic",
+          provider: null,
+          evidence_scope: ["ATDR database records", "Operational telemetry"],
+          citation_count: 1,
+          grounded: true,
+          database_records_used: true,
+          deterministic_rules_used: false,
+          ml_evidence_used: false,
+          operational_data_used: true,
+          documentation_used: false,
+          raw_logs_included: false,
+          rules_authoritative: true,
+          ml_advisory_only: true
+        }
+      }
+    });
+  });
+  await seedSession(page);
+  await page.goto("/assistant");
+
+  await page.getByLabel("Analyst question").fill("Summarize source ID 44 health.");
+  await page.getByLabel("Analyst question").press("Control+Enter");
+  await expect(page.getByTestId("assistant-response-panel")).toContainText("Source #44 is healthy");
+  await expect(page.getByText("Using source #44")).toBeVisible();
+  await expect(page.getByText("Using alert #44")).toHaveCount(0);
+  expect(assistantRequest).not.toBeNull();
+  expect(assistantRequest?.source_id).toBe(44);
+  expect(assistantRequest?.alert_id).toBeNull();
+  expect(assistantRequest?.reset_context).toBe(true);
+  await expect(page.getByTestId("assistant-provenance-scope")).toContainText("Operational telemetry");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 2)).toBe(false);
 });
 
 test("SOC assistant clear context removes URL-scoped alert before the next question", async ({ page }) => {

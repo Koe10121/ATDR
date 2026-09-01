@@ -28,6 +28,7 @@ export const queryKeys = {
   assistantFeedbackRecent: (params?: Record<string, unknown>) => ["assistant-feedback-recent", params ?? {}],
   evidenceReviewStatus: ["evidence-review-status"],
   blindEvidenceStatus: ["blind-evidence-status"],
+  fieldQualificationStatus: ["field-qualification-status"],
   candidateFreezeStatus: ["candidate-freeze-status"],
   temporalStabilityStatus: ["temporal-stability-status"],
   developmentModelRepairStatus: ["development-model-repair-status"],
@@ -229,6 +230,15 @@ export function useBlindEvidenceStatus() {
   return useQuery({
     queryKey: queryKeys.blindEvidenceStatus,
     queryFn: api.blindEvidenceStatus,
+    retry: false,
+    staleTime: 30_000
+  });
+}
+
+export function useFieldQualificationStatus() {
+  return useQuery({
+    queryKey: queryKeys.fieldQualificationStatus,
+    queryFn: api.fieldQualificationStatus,
     retry: false,
     staleTime: 30_000
   });

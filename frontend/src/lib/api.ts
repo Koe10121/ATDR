@@ -46,6 +46,7 @@ import type {
   EmailVerificationStatus,
   EvidenceReviewOperation,
   EvidenceReviewStatus,
+  FieldQualificationStatus,
   FrozenEvaluationStatus,
   HealthResponse,
   TemporalStabilityStatus,
@@ -227,6 +228,10 @@ export const api = {
   evidenceReviewStatus: () => apiRequest<EvidenceReviewStatus>("/api/evidence-review/status"),
   blindEvidenceStatus: () =>
     apiRequest<BlindEvidenceStatus>("/api/evidence-review/blind-evidence/status"),
+  fieldQualificationStatus: () =>
+    apiRequest<FieldQualificationStatus>(
+      "/api/evidence-review/field-qualification/status"
+    ),
   candidateFreezeStatus: () =>
     apiRequest<CandidateFreezeStatus>("/api/evidence-review/candidate-freeze/status"),
   temporalStabilityStatus: () =>

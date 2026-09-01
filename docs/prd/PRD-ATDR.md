@@ -4,7 +4,7 @@
 | --- | --- |
 | Product | MFU AI-Driven Log-Based Threat Detection and Response System |
 | Short name | ATDR |
-| Current stage | v4.8 reproducible product acceptance published; v4.8.1 repository consolidation proposed; external IAM/host/real-source/model gates remain open |
+| Current stage | v5.49b governed supervised revalidation published; v5.50 current-state truth lock in progress; external field/IAM/provider/deployment gates remain open |
 | Production claim | None. ATDR is not certified production software. |
 | Main workflow doc | `docs/ATDR_AI_WORKFLOW.md` |
 | Agent model | `docs/agents/ATDR_AGENT_OPERATING_MODEL.md` |
@@ -71,7 +71,12 @@
 
 ## Product Overview
 
-ATDR is a defensive cybersecurity monitoring prototype for controlled small-office or university lab validation. It ingests firewall/syslog logs, preserves raw evidence, normalizes fields, runs explainable rule-based detection, adds ML-assisted anomaly and supervised scoring, groups alerts, supports analyst investigation, and records simulated analyst-approved response actions in audit logs.
+ATDR is a defensive cybersecurity monitoring platform for controlled
+small-office or university lab validation. It ingests firewall/syslog logs,
+preserves raw evidence, normalizes fields, runs explainable rule-based
+detection, adds advisory anomaly and supervised scoring, groups alerts,
+supports analyst investigation, and records simulated analyst-approved
+response actions in audit logs.
 
 ATDR does not currently perform real firewall blocking. It does not claim production readiness or production ML accuracy.
 
@@ -85,7 +90,9 @@ ATDR exists to demonstrate and validate:
 - AI-assisted but analyst-controlled triage.
 - Source health and parser profile visibility.
 - Safe response simulation with audit trail.
-- Lab-ready workflow that can later be validated with PostgreSQL, Docker, and real device syslog forwarding.
+- Lab-ready workflow with SQLite local operation, PostgreSQL compatibility and
+  CI/scale qualification, plus explicit external gates for approved shared
+  deployment and real-device syslog forwarding.
 
 ## Users And Roles
 
@@ -129,7 +136,9 @@ Evidence: `atdr/app/services/detection_service.py`, `atdr/app/detection/*`, `atd
 - CSV review import/export.
 - Active learning samples.
 - Supervised model training, dataset snapshots, feature-set metadata, comparison experiments, tuning, error analysis, model registry, and evaluation reports.
-- Promotion gate that keeps the model in analyst-review / candidate status unless readiness checks pass.
+- Promotion gate that keeps supervised lifecycle in `shadow_observation` with
+  no selected candidate unless every predeclared readiness check passes and a
+  separate human activation decision is approved.
 
 Evidence: `atdr/app/db/models.py`, `atdr/app/routers/ml.py`, `atdr/app/detection/supervised_workflow.py`, `atdr/scripts/train_supervised_model.py`, `atdr/scripts/export_supervised_dataset_snapshot.py`, `atdr/scripts/run_supervised_experiment.py`, `atdr/scripts/tune_supervised_model.py`, `atdr/scripts/supervised_sanity_report.py`, `atdr/scripts/analyze_supervised_errors.py`, `atdr/scripts/generate_assisted_labels.py`, `docs/AI_TRAINING_RUNBOOK.md`.
 
@@ -391,11 +400,17 @@ Template ideas not adopted by ATDR:
 ## Known Limitations
 
 - SQLite slows down with large imports and is not the recommended shared lab database.
-- PostgreSQL/Docker validation still needs a Docker-capable host.
+- PostgreSQL compatibility, multi-worker coordination, scale qualification,
+  and backup/restore are implemented and CI-tested; approved shared-host
+  deployment, TLS, managed secrets, persistent monitoring, and measured RPO/RTO
+  remain external.
 - Real firewall blocking is not implemented.
 - Real device forwarding needs controlled lab validation.
 - Case grouping is lightweight and computed; it is not a full incident management system.
-- Supervised ML still needs more reviewed labels and live validation before stronger claims.
+- Supervised ML currently has no qualified candidate. The consumed v5.49b
+  result cannot be tuned; fresh development evidence, a second physical
+  source, an untouched future evaluation, stable calibration, and separate
+  human activation approval are required before stronger claims.
 
 ## PRD Update Rules
 
@@ -1771,3 +1786,70 @@ future validation remain prerequisites for any activation decision.
   alerts, response actions, or firewall actions.
 - Consumed evaluation evidence shall not be used for tuning. A failed result
   shall require fresh development evidence and a newly versioned protocol.
+
+## v5.50 Current-State Truth Lock Requirements
+
+- **FR-ATDR-102:** ATDR shall maintain one active source-backed truth lock that
+  identifies the published commit, CI result, current runtime authority,
+  supervised lifecycle, and remaining external gates without exposing private
+  evidence.
+- Current documentation shall distinguish implemented controlled-lab behavior
+  from field acceptance, provider approval, shared deployment, and production
+  certification.
+- Historical candidate results and registry artifacts shall not be presented
+  as a qualified current supervised model.
+- Only aggregate v5.49b facts may be documented. Protected rows, decisions,
+  identities, paths, fingerprints, predictions, claims, digests, and provider
+  secrets remain private and ignored.
+- v5.50 changes documentation and governance only. It shall not rerun consumed
+  evaluation, write labels or models, change detection authority, activate a
+  candidate, or enable automatic response or real blocking.
+
+## v5.51 Detection Field Qualification Requirements
+
+- **FR-ATDR-103:** ATDR shall provide a disposable, fail-closed field
+  qualification workflow for transport, parser fields, deterministic rules,
+  and fresh evidence without modifying configured application data.
+- The workflow shall distinguish local loopback, second-laptop transport, and
+  truthfully attested physical firewall/router evidence.
+- Human source attestation and field expectations shall use versioned private
+  contracts. Automated or assisted identities shall not satisfy human gates.
+- Rule FP/FN metrics shall remain unavailable until every sealed review row is
+  completed prediction-blind with confidence, rationale, and required attack
+  type. No automatic label import is permitted.
+- Fresh evidence shall start at the public post-v5.49b boundary, exclude
+  missing/pre-boundary timestamps and exact duplicates, and keep each
+  near-duplicate family in one fixed chronological role.
+- The untouched future role shall remain label-closed until a separately
+  approved one-shot evaluation protocol.
+- Public API/UI status shall use only `ready`, `hardware_required`,
+  `reviewer_required`, `insufficient_evidence`, or `failed` and shall expose no
+  raw row, IP address, private path, identity, fingerprint, seal, or secret.
+- v5.51 shall not access v5.49b protected evidence, train/activate/promote a
+  model, create or suppress an alert, change severity, or execute response.
+
+## v5.52 Analyst Experience And SOC Assistant Closure Requirements
+
+- **FR-ATDR-104:** ATDR shall maintain one explicit primary alert, log, source,
+  or case context for Assistant follow-ups and shall start a clean conversation
+  when the analyst resets context or explicitly switches entities.
+- Generic `ID` text shall never be interpreted as an alert ID. Entity IDs shall
+  require explicit entity wording or an alert `#` reference.
+- Related citations shall remain evidence and shall not silently replace the
+  primary conversational entity.
+- **FR-ATDR-105:** ATDR shall persist at most four sanitized conversation turns
+  in the current browser tab across dashboard navigation. Persistence shall be
+  bounded, exclude raw logs/secrets, and clear on logout or explicit reset.
+- **FR-ATDR-106:** Every Assistant answer shall expose whether it is ATDR
+  deterministic analysis or external-LLM synthesis, its safe evidence scopes,
+  citation count, deterministic-rule authority, advisory-ML status, and raw-log
+  exclusion.
+- **FR-ATDR-107:** Assistant response contracts shall remain intent-specific,
+  enforce 55-120 word limits and at most two follow-ups, preserve deterministic
+  fallback, and reject ungrounded, unsafe, over-budget, or unsupported provider
+  output.
+- Provider checks shall never expose API keys or provider payloads and shall
+  verify raw-log exclusion, redaction, structured output, fallback, and zero
+  label/model/detection/response side effects.
+- The Assistant shall remain read-only. Rules remain alert-authoritative, ML
+  remains advisory, and automatic response and real blocking remain disabled.

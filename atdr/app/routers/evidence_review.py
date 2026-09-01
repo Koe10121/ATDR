@@ -21,6 +21,7 @@ from atdr.app.schemas.evidence_review import (
     EvidenceReviewCompleteRequest,
     EvidenceReviewOperationResponse,
     EvidenceReviewStatusResponse,
+    FieldQualificationStatusResponse,
     FrozenEvaluationStatusResponse,
     ManualAnchorAcquisitionStatusResponse,
     ManualAnchorReviewCloseRequest,
@@ -73,6 +74,10 @@ from atdr.app.detection.v549a_supplemental_threat_anchor_acquisition import (
 from atdr.app.detection.v549b_combined_fixed_revalidation import (
     V549BRevalidationError,
     get_public_v549b_status,
+)
+from atdr.app.services.v551_field_qualification_service import (
+    V551QualificationError,
+    get_public_v551_status,
 )
 from atdr.app.services.evidence_review_service import (
     EvidenceReviewError,
@@ -214,6 +219,23 @@ def blind_evidence_status(
         raise HTTPException(
             status_code=409,
             detail="The private blind-evidence workspace failed integrity validation.",
+        ) from exc
+
+
+@router.get(
+    "/field-qualification/status",
+    response_model=FieldQualificationStatusResponse,
+)
+def field_qualification_status(
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    del current_user
+    try:
+        return get_public_v551_status()
+    except V551QualificationError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="The aggregate field-qualification status failed privacy or integrity validation.",
         ) from exc
 
 

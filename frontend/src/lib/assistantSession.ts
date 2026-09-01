@@ -1,8 +1,17 @@
-import type { AssistantActiveContext, AssistantChatResponse, AssistantCitation, AssistantResponseMode } from "../types/api";
+import type {
+  AssistantActiveContext,
+  AssistantAnswerProvenance,
+  AssistantChatResponse,
+  AssistantCitation,
+  AssistantResponseMode
+} from "../types/api";
 
 const ASSISTANT_SESSION_KEY = "atdr.assistant.session.v1";
 const DEFAULT_QUESTION = "What is the latest critical alert?";
 const CONVERSATION_ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
+const MAX_SESSION_CHARACTERS = 180_000;
+
+export const assistantConversationTurnLimit = 4;
 
 export interface AssistantSessionContext {
   alertId: number | null;
@@ -17,6 +26,14 @@ export interface AssistantSessionSnapshot {
   conversationId: string;
   context: AssistantSessionContext;
   response: AssistantChatResponse | null;
+  turns: AssistantConversationTurn[];
+}
+
+export interface AssistantConversationTurn {
+  id: string;
+  question: string;
+  response: AssistantChatResponse;
+  createdAt: number;
 }
 
 function boundedString(value: unknown, limit: number): string {
@@ -85,6 +102,34 @@ function safeActiveContext(value: unknown): AssistantActiveContext {
     source_id: positiveInteger(row.source_id),
     case_id: boundedString(row.case_id, 120) || null,
     primary: safePrimary(row.primary)
+  };
+}
+
+function safeProvenance(
+  value: unknown,
+  options: { externalProviderUsed: boolean; citationCount: number }
+): AssistantAnswerProvenance {
+  const { externalProviderUsed, citationCount } = options;
+  const row = value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+  const answerOrigin = row.answer_origin === "external_llm_synthesis" || externalProviderUsed
+    ? "external_llm_synthesis"
+    : "atdr_deterministic";
+  return {
+    answer_origin: answerOrigin,
+    provider: boundedString(row.provider, 40) || null,
+    evidence_scope: boundedStrings(row.evidence_scope, 8, 120),
+    citation_count: typeof row.citation_count === "number" ? Math.max(0, row.citation_count) : citationCount,
+    grounded: row.grounded === true || citationCount > 0,
+    database_records_used: row.database_records_used === true,
+    deterministic_rules_used: row.deterministic_rules_used === true,
+    ml_evidence_used: row.ml_evidence_used === true,
+    operational_data_used: row.operational_data_used === true,
+    documentation_used: row.documentation_used === true,
+    raw_logs_included: false,
+    rules_authoritative: row.rules_authoritative !== false,
+    ml_advisory_only: row.ml_advisory_only !== false
   };
 }
 
@@ -160,7 +205,11 @@ function safeGrounding(value: unknown): Record<string, unknown> | null {
     source_count: typeof row.source_count === "number" ? row.source_count : 0,
     source_types: boundedStrings(row.source_types, 8, 80),
     external_provider_role: boundedString(row.external_provider_role, 120),
-    raw_logs_included: false
+    raw_logs_included: false,
+    answer_origin: boundedString(row.answer_origin, 64),
+    evidence_scope: boundedStrings(row.evidence_scope, 8, 120),
+    rules_authoritative: row.rules_authoritative !== false,
+    ml_advisory_only: row.ml_advisory_only !== false
   };
 }
 
@@ -174,6 +223,7 @@ function safeResponse(value: unknown): AssistantChatResponse | null {
   const citations = Array.isArray(row.citations)
     ? row.citations.slice(0, 20).map(safeCitation).filter((item): item is AssistantCitation => item !== null)
     : [];
+  const externalProviderUsed = row.external_provider_used === true;
   const rawDetails = row.details && typeof row.details === "object" && !Array.isArray(row.details)
     ? (row.details as Record<string, unknown>)
     : {};
@@ -202,7 +252,7 @@ function safeResponse(value: unknown): AssistantChatResponse | null {
     answer,
     mode: boundedString(row.mode, 120) || "deterministic_local",
     response_mode: safeResponseMode(row.response_mode),
-    external_provider_used: row.external_provider_used === true,
+    external_provider_used: externalProviderUsed,
     safety: boundedStrings(row.safety, 12, 120),
     context_used: boundedStrings(row.context_used, 20, 120),
     citations,
@@ -211,7 +261,27 @@ function safeResponse(value: unknown): AssistantChatResponse | null {
     suggested_followups: boundedStrings(row.suggested_followups, 8, 240),
     details,
     conversation_id: conversationId,
-    active_context: safeActiveContext(row.active_context)
+    active_context: safeActiveContext(row.active_context),
+    provenance: safeProvenance(
+      row.provenance,
+      { externalProviderUsed, citationCount: citations.length }
+    )
+  };
+}
+
+function safeTurn(value: unknown): AssistantConversationTurn | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  const response = safeResponse(row.response);
+  const question = boundedString(row.question, 2000);
+  if (!response || !question) return null;
+  return {
+    id: boundedString(row.id, 120) || `turn-${response.conversation_id}-${boundedString(row.createdAt, 20)}`,
+    question,
+    response,
+    createdAt: typeof row.createdAt === "number" && Number.isFinite(row.createdAt)
+      ? row.createdAt
+      : Date.now()
   };
 }
 
@@ -222,11 +292,24 @@ export function loadAssistantSession(): AssistantSessionSnapshot | null {
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     const conversationId = boundedString(parsed.conversationId, 64);
     if (!CONVERSATION_ID_PATTERN.test(conversationId)) return null;
+    const response = safeResponse(parsed.response);
+    const turns = Array.isArray(parsed.turns)
+      ? parsed.turns.map(safeTurn).filter((item): item is AssistantConversationTurn => item !== null).slice(-assistantConversationTurnLimit)
+      : [];
+    if (!turns.length && response) {
+      turns.push({
+        id: `legacy-${conversationId}`,
+        question: boundedString(parsed.question, 2000) || DEFAULT_QUESTION,
+        response,
+        createdAt: Date.now()
+      });
+    }
     return {
       question: boundedString(parsed.question, 2000) || DEFAULT_QUESTION,
       conversationId,
       context: safeContext(parsed.context),
-      response: safeResponse(parsed.response)
+      response,
+      turns
     };
   } catch {
     window.sessionStorage.removeItem(ASSISTANT_SESSION_KEY);
@@ -242,15 +325,40 @@ export function saveAssistantSession(snapshot: AssistantSessionSnapshot): void {
     ? snapshot.conversationId
     : "";
   if (!conversationId) return;
+  let turns = snapshot.turns
+    .map(safeTurn)
+    .filter((item): item is AssistantConversationTurn => item !== null)
+    .filter((item) => item.response.conversation_id === conversationId)
+    .slice(-assistantConversationTurnLimit);
   const hasContext = Boolean(context.alertId || context.logId || context.sourceId || context.caseId);
-  if (!response && !hasContext && question === DEFAULT_QUESTION) {
+  if (!response && !turns.length && !hasContext && question === DEFAULT_QUESTION) {
     clearAssistantSession();
     return;
   }
-  window.sessionStorage.setItem(
-    ASSISTANT_SESSION_KEY,
-    JSON.stringify({ question, conversationId, context, response })
-  );
+  let serialized = JSON.stringify({ question, conversationId, context, response, turns });
+  while (serialized.length > MAX_SESSION_CHARACTERS && turns.length > 1) {
+    turns = turns.slice(1);
+    serialized = JSON.stringify({ question, conversationId, context, response, turns });
+  }
+  if (serialized.length <= MAX_SESSION_CHARACTERS) {
+    window.sessionStorage.setItem(ASSISTANT_SESSION_KEY, serialized);
+  }
+}
+
+export function appendAssistantConversationTurn(
+  turns: AssistantConversationTurn[],
+  question: string,
+  response: AssistantChatResponse,
+  createdAt = Date.now()
+): AssistantConversationTurn[] {
+  const auditId = Number(response.details?.assistant_audit_id);
+  const id = Number.isFinite(auditId) && auditId > 0
+    ? `audit-${auditId}`
+    : `${response.conversation_id}-${createdAt}`;
+  return [
+    ...turns.filter((item) => item.id !== id && item.response.conversation_id === response.conversation_id),
+    { id, question: boundedString(question, 2000), response, createdAt }
+  ].slice(-assistantConversationTurnLimit);
 }
 
 export function clearAssistantSession(): void {

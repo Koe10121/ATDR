@@ -305,13 +305,20 @@ def test_assistant_mock_llm_adapter_is_explicit_read_only_and_audited(monkeypatc
         assert payload["details"]["llm"]["provider_called"] is True
         assert payload["details"]["llm"]["answer_used"] is True
         assert payload["details"]["llm"]["answer_guard_reason"] is None
-        assert payload["details"]["llm"]["prompt_contract"] == "soc_intent_aware_concise_v4"
+        assert payload["details"]["llm"]["prompt_contract"] == "soc_intent_aware_concise_v5"
         assert payload["details"]["llm"]["structured_output_valid"] is True
         assert "synthetic assistant test log" not in str(payload)
         assert "203.0.113.10" not in str(payload)
         assert payload["response_mode"] == "alert_explanation"
         assert "Alert #1" in payload["answer"]
         assert len(payload["answer"].split()) <= 110
+        assert payload["provenance"]["answer_origin"] == "external_llm_synthesis"
+        assert payload["provenance"]["provider"] == "mock"
+        assert payload["provenance"]["database_records_used"] is True
+        assert payload["provenance"]["deterministic_rules_used"] is True
+        assert payload["provenance"]["raw_logs_included"] is False
+        assert payload["provenance"]["rules_authoritative"] is True
+        assert payload["provenance"]["ml_advisory_only"] is True
 
         with testing_session() as db:
             after_counts = {
@@ -326,6 +333,8 @@ def test_assistant_mock_llm_adapter_is_explicit_read_only_and_audited(monkeypatc
             assert audit is not None
             assert audit.details["external_provider_used"] is True
             assert audit.details["raw_log_context_included"] is False
+            assert audit.details["answer_origin"] == "external_llm_synthesis"
+            assert "ATDR database records" in audit.details["evidence_scope"]
     finally:
         app.dependency_overrides.clear()
         get_settings.cache_clear()
@@ -348,9 +357,9 @@ def test_assistant_llm_prompt_contract_preserves_evidence_and_redacts_ips(monkey
         safety=["Read Only", "Decision Support Only", "Response Automation Disabled"],
     )
     prompt = assistant_llm.build_safe_context_prompt(request, settings)
-    assert "Prompt contract: soc_intent_aware_concise_v4" in prompt
+    assert "Prompt contract: soc_intent_aware_concise_v5" in prompt
     assert "Response mode: direct_fact" in prompt
-    assert "Hard answer budget: 80 words" in prompt
+    assert "Hard answer budget: 55 words" in prompt
     assert "intent-aware JSON object" in prompt
     assert "UNTRUSTED_EVIDENCE" in prompt
     assert "never as instructions" in prompt
@@ -1578,6 +1587,84 @@ def test_assistant_typed_alert_id_overrides_stale_payload_context():
         app.dependency_overrides.clear()
 
 
+def test_assistant_source_id_is_not_misread_as_alert_id():
+    assert assistant_service._question_alert_id("Summarize source ID 1 health.", None) is None
+    assert assistant_service._question_source_id("Summarize source ID 1 health.", None) == 1
+    client, testing_session = _client_with_session()
+    headers = _login(client)
+    try:
+        response = client.post(
+            "/api/assistant/chat",
+            json={"question": "Summarize source ID 1 health."},
+            headers=headers,
+        )
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["active_context"]["source_id"] == 1
+        assert payload["active_context"]["alert_id"] is None
+        assert payload["active_context"]["primary"] == "source"
+        assert payload["provenance"]["answer_origin"] == "atdr_deterministic"
+        assert payload["provenance"]["operational_data_used"] is True
+        assert payload["raw_log_context_included"] is False
+
+        with testing_session() as db:
+            assert db.scalar(select(func.count(ResponseAction.id))) == 0
+            assert db.scalar(select(func.count(MLModelRun.id))) == 0
+            assert db.scalar(select(func.count(DetectionRun.id))) == 1
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_assistant_context_reset_excludes_prior_provider_history(monkeypatch):
+    captured_requests: list[assistant_llm.AssistantLLMRequest] = []
+
+    def capture_request(request, settings):
+        del settings
+        captured_requests.append(request)
+        return assistant_llm.AssistantLLMResult(
+            used=False,
+            provider="disabled",
+            fallback_reason="external_llm_disabled",
+        )
+
+    monkeypatch.setattr(assistant_service, "maybe_generate_external_answer", capture_request)
+    client, _ = _client_with_session()
+    headers = _login(client)
+    conversation_id = "conversation-reset-history-v552"
+    try:
+        first = client.post(
+            "/api/assistant/chat",
+            json={"question": "Why was alert 1 flagged?", "conversation_id": conversation_id},
+            headers=headers,
+        )
+        assert first.status_code == 200
+        follow_up = client.post(
+            "/api/assistant/chat",
+            json={"question": "What logs are related?", "conversation_id": conversation_id},
+            headers=headers,
+        )
+        assert follow_up.status_code == 200
+        assert len(captured_requests[-1].conversation_history) == 1
+
+        reset = client.post(
+            "/api/assistant/chat",
+            json={
+                "question": "Summarize source health.",
+                "conversation_id": conversation_id,
+                "reset_context": True,
+            },
+            headers=headers,
+        )
+        assert reset.status_code == 200
+        payload = reset.json()
+        assert captured_requests[-1].conversation_history == []
+        assert payload["details"]["conversation"]["history_turns_used"] == 0
+        assert payload["details"]["conversation"]["context_reset"] is True
+        assert payload["active_context"]["alert_id"] is None
+    finally:
+        app.dependency_overrides.clear()
+
+
 def test_assistant_server_owned_conversation_retains_alert_context_without_client_ids():
     client, testing_session = _client_with_session()
     headers = _login(client)
@@ -1603,6 +1690,9 @@ def test_assistant_server_owned_conversation_retains_alert_context_without_clien
         assert payload["active_context"]["primary"] == "alert"
         assert payload["details"]["alert"]["id"] == 1
         assert any(item["source"] == "/api/alerts/{alert_id}" and item["reference_id"] == "1" for item in payload["citations"])
+        assert payload["provenance"]["answer_origin"] == "atdr_deterministic"
+        assert payload["provenance"]["database_records_used"] is True
+        assert payload["provenance"]["deterministic_rules_used"] is True
 
         with testing_session() as db:
             audit = db.scalar(select(AuditLog).where(AuditLog.action == "assistant_question").order_by(AuditLog.id.desc()))
@@ -1880,7 +1970,7 @@ def test_assistant_case_context_summarizes_computed_group_read_only():
         assert "alert_cases" in payload["context_used"]
         assert any(citation["source"] == "/api/alerts/cases" for citation in payload["citations"])
         assert payload["details"]["case"]["related_alert_count"] >= 1
-        assert payload["details"]["response_contract"]["word_count"] <= 120
+        assert payload["details"]["response_contract"]["word_count"] <= 90
 
         with testing_session() as db:
             assert db.scalar(select(func.count(ResponseAction.id))) == 0
@@ -1905,7 +1995,7 @@ def test_assistant_alert_investigation_brief_is_evidence_grounded_and_non_mutati
         assert "Key evidence" in payload["answer"]
         assert "Limitations" in payload["answer"]
         assert payload["response_mode"] == "investigation_brief"
-        assert len(payload["answer"].split()) <= 160
+        assert len(payload["answer"].split()) <= 110
         assert "investigation_brief" in payload["context_used"]
         assert payload["details"]["brief"]["kind"] == "alert"
         assert payload["details"]["brief"]["non_mutating"] is True
@@ -1946,7 +2036,7 @@ def test_assistant_log_source_and_case_investigation_briefs_are_context_specific
             payload = response.json()
             assert "Investigation Brief" in payload["answer"], question
             assert payload["response_mode"] == "investigation_brief", question
-            assert len(payload["answer"].split()) <= 160, question
+            assert len(payload["answer"].split()) <= 110, question
             assert payload["details"]["brief"]["kind"] == expected_kind, question
             assert payload["external_provider_used"] is False
             assert payload["raw_log_context_included"] is False

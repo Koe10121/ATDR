@@ -198,6 +198,22 @@ export interface AssistantCitation {
   reference_id?: string | null;
 }
 
+export interface AssistantAnswerProvenance {
+  answer_origin: "atdr_deterministic" | "external_llm_synthesis";
+  provider?: string | null;
+  evidence_scope: string[];
+  citation_count: number;
+  grounded: boolean;
+  database_records_used: boolean;
+  deterministic_rules_used: boolean;
+  ml_evidence_used: boolean;
+  operational_data_used: boolean;
+  documentation_used: boolean;
+  raw_logs_included: boolean;
+  rules_authoritative: boolean;
+  ml_advisory_only: boolean;
+}
+
 export type AssistantResponseMode =
   | "direct_fact"
   | "alert_explanation"
@@ -224,6 +240,7 @@ export interface AssistantChatResponse {
   details: Record<string, unknown>;
   conversation_id: string;
   active_context: AssistantActiveContext;
+  provenance: AssistantAnswerProvenance;
 }
 
 export type AssistantFeedbackRating = "helpful" | "not_helpful" | "unsafe" | "incorrect" | "unclear";
@@ -290,6 +307,8 @@ export interface AssistantHistoryItem {
   external_provider_used: boolean;
   conversation_id?: string | null;
   question_category?: string | null;
+  answer_origin: string;
+  evidence_scope: string[];
 }
 
 export interface AssistantStatusResponse {
@@ -2666,6 +2685,64 @@ export interface BlindEvidenceStatus {
   fingerprints_exposed: false;
   secrets_exposed: false;
   message: string;
+}
+
+export interface FieldQualificationStatus {
+  version: string;
+  status:
+    | "ready"
+    | "hardware_required"
+    | "reviewer_required"
+    | "failed"
+    | "insufficient_evidence";
+  generated_at?: string | null;
+  gates: Record<string, boolean>;
+  transport: {
+    mode?: string;
+    source_kind?: string;
+    messages_expected?: number;
+    messages_received?: number;
+    loss_count?: number;
+    real_device_validated?: boolean;
+    sender_addresses_returned: false;
+  };
+  parser: {
+    contract_version?: string;
+    parsed_rows?: number;
+    parse_success_rate?: number | null;
+    field_accuracy?: {
+      valid?: boolean;
+      accuracy?: number | null;
+    };
+  };
+  rule_review: {
+    status?: string;
+    reviewed_rows?: number;
+    metrics_available?: boolean;
+    false_positive_rate?: number | null;
+    predictions_exposed: false;
+  };
+  fresh_evidence: {
+    protocol_version?: string;
+    independent_source_count?: number;
+    collection_window_count?: number;
+    fresh_rows?: number;
+    roles?: Record<string, { rows?: number }>;
+    protected_v549b_accessed: false;
+    future_labels_opened: false;
+  };
+  blockers: string[];
+  lifecycle_state: "shadow_observation";
+  rules_alert_authoritative: true;
+  model_activated: false;
+  model_promoted: false;
+  response_automation_allowed: false;
+  raw_logs_exposed: false;
+  ip_addresses_exposed: false;
+  private_paths_exposed: false;
+  fingerprints_exposed: false;
+  source_identities_exposed: false;
+  secrets_exposed: false;
 }
 
 export interface CandidateFreezeStatus {

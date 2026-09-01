@@ -3,6 +3,7 @@ import { Bot, Clock3, Send, ShieldCheck } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import {
   AssistantAnswerContent,
+  AssistantAnswerProvenance,
   AssistantCitationList,
   AssistantTechnicalContext
 } from "../components/AssistantAnswerContent";
@@ -12,10 +13,13 @@ import { LoadingPanel } from "../components/LoadingPanel";
 import { SafeSelect } from "../components/SafeSelect";
 import { SocPageHeader } from "../components/SocPageHeader";
 import {
+  appendAssistantConversationTurn,
+  assistantConversationTurnLimit,
   assistantDefaultQuestion,
   clearAssistantSession,
   loadAssistantSession,
-  saveAssistantSession
+  saveAssistantSession,
+  type AssistantConversationTurn
 } from "../lib/assistantSession";
 import { useAuth } from "../hooks/useAuth";
 import {
@@ -188,10 +192,17 @@ function normalizeFeedbackContext(context?: string | null): string | null {
 }
 
 function parseQuestionId(question: string, kind: "alert" | "log" | "source"): number | null {
+  if (kind === "alert") {
+    const match = question.match(/\balert(?:\s+id)?\s*#?\s*(\d{1,10})\b/i)
+      ?? question.match(/(?:^|\s)#\s*(\d{1,10})\b/);
+    if (!match) return null;
+    const value = Number(match[1]);
+    return Number.isFinite(value) && value > 0 ? value : null;
+  }
   const aliases = {
-    alert: "(?:alert|id|#)",
-    log: "(?:log|row|event)",
-    source: "(?:source|sensor)"
+    alert: "alert",
+    log: "(?:log|row|event)(?:\\s+id)?",
+    source: "(?:source|sensor)(?:\\s+id)?"
   }[kind];
   const match = question.match(new RegExp(`\\b${aliases}\\s*#?\\s*(\\d{1,10})\\b`, "i"));
   if (!match) return null;
@@ -430,6 +441,9 @@ export function AssistantPage() {
   const caseId = caseIdParam?.trim() || null;
   const promptParam = searchParams.get("prompt");
   const hasRouteDirective = Boolean(promptParam || alertId || logId || sourceId || caseId);
+  const routeDirectiveKey = hasRouteDirective
+    ? `${alertId ?? ""}|${logId ?? ""}|${sourceId ?? ""}|${caseId ?? ""}|${promptParam ?? ""}`
+    : null;
   const initialQuestion =
     promptParam ||
     (alertId
@@ -442,6 +456,7 @@ export function AssistantPage() {
             ? `Summarize case ${caseId} and related alert group.`
             : assistantDefaultQuestion);
   const restoredSessionRef = useRef<ReturnType<typeof loadAssistantSession> | undefined>(undefined);
+  const appliedRouteDirectiveRef = useRef<string | null>(null);
   if (restoredSessionRef.current === undefined) {
     restoredSessionRef.current = loadAssistantSession();
   }
@@ -464,7 +479,9 @@ export function AssistantPage() {
   const [conversationId, setConversationId] = useState(() => restoredSession?.conversationId ?? createConversationId());
   const [lastContext, setLastContext] = useState<AssistantContextState>(() => restoredSession?.context ?? routeContext);
   const [persistedResponse, setPersistedResponse] = useState<AssistantChatResponse | null>(() => restoredSession?.response ?? null);
-  const response = assistant.data ?? persistedResponse;
+  const [conversationTurns, setConversationTurns] = useState<AssistantConversationTurn[]>(() => restoredSession?.turns ?? []);
+  const response = persistedResponse ?? assistant.data ?? null;
+  const previousConversationTurns = conversationTurns.length > 1 ? conversationTurns.slice(0, -1) : [];
   const feedbackParams = useMemo(
     () => ({
       limit: Number(feedbackLimit),
@@ -518,22 +535,25 @@ export function AssistantPage() {
   }, [lastContext]);
 
   useEffect(() => {
-    if (!hasRouteDirective) return;
+    if (!routeDirectiveKey) {
+      appliedRouteDirectiveRef.current = null;
+      return;
+    }
+    if (appliedRouteDirectiveRef.current === routeDirectiveKey) return;
+    appliedRouteDirectiveRef.current = routeDirectiveKey;
     setQuestion(initialQuestion);
     setPersistedResponse(null);
-  }, [hasRouteDirective, initialQuestion]);
-
-  useEffect(() => {
-    if (alertId || logId || sourceId || caseId) {
-      setLastContext({ alertId, logId, sourceId, caseId, primary: primaryContextFromValues({ alertId, logId, sourceId, caseId }) });
-    }
-  }, [alertId, logId, sourceId, caseId]);
-
-  useEffect(() => {
-    if (assistant.data) {
-      setPersistedResponse(assistant.data);
-    }
-  }, [assistant.data]);
+    setConversationTurns([]);
+    setConversationId(createConversationId());
+    setLastContext({
+      alertId,
+      logId,
+      sourceId,
+      caseId,
+      primary: primaryContextFromValues({ alertId, logId, sourceId, caseId })
+    });
+    assistant.reset();
+  }, [alertId, assistant, caseId, initialQuestion, logId, routeDirectiveKey, sourceId]);
 
   useEffect(() => {
     if (!response) return;
@@ -559,9 +579,10 @@ export function AssistantPage() {
       question,
       conversationId,
       context: lastContext,
-      response
+      response,
+      turns: conversationTurns
     });
-  }, [conversationId, lastContext, question, response]);
+  }, [conversationId, conversationTurns, lastContext, question, response]);
 
   function askQuestion(value: string, options: { resetContext?: boolean } = {}) {
     const trimmed = value.trim();
@@ -577,10 +598,42 @@ export function AssistantPage() {
     const explicitLogId = parseQuestionId(trimmed, "log");
     const explicitSourceId = parseQuestionId(trimmed, "source");
     const explicitCaseId = parseQuestionCaseId(trimmed);
-    const rememberedAlertId = resetContext ? null : alertId ?? lastContext.alertId ?? citationNumber(response, "/api/alerts/{alert_id}", ["alert"]);
-    const rememberedLogId = resetContext ? null : logId ?? lastContext.logId ?? citationNumber(response, "/api/logs/{log_id}", ["log", "related"]);
-    const rememberedSourceId = resetContext ? null : sourceId ?? lastContext.sourceId ?? citationNumber(response, "/api/sources/{source_id}", ["source"]);
-    const rememberedCaseId = resetContext ? null : caseId ?? lastContext.caseId ?? citationString(response, "/api/alerts/cases", ["case"]);
+    const explicitTarget = explicitAlertId
+      ? { primary: "alert" as const, value: String(explicitAlertId) }
+      : explicitLogId
+        ? { primary: "log" as const, value: String(explicitLogId) }
+        : explicitSourceId
+          ? { primary: "source" as const, value: String(explicitSourceId) }
+          : explicitCaseId
+            ? { primary: "case" as const, value: explicitCaseId }
+            : null;
+    const activeTargetValue = explicitTarget?.primary === "alert"
+      ? lastContext.alertId && String(lastContext.alertId)
+      : explicitTarget?.primary === "log"
+        ? lastContext.logId && String(lastContext.logId)
+        : explicitTarget?.primary === "source"
+          ? lastContext.sourceId && String(lastContext.sourceId)
+          : explicitTarget?.primary === "case"
+            ? lastContext.caseId
+            : null;
+    const explicitContextSwitch = Boolean(
+      explicitTarget
+        && (lastContext.primary !== explicitTarget.primary || activeTargetValue !== explicitTarget.value)
+    );
+    const rotateConversation = resetContext || explicitContextSwitch;
+    const effectiveResetContext = rotateConversation;
+    const requestConversationId = rotateConversation ? createConversationId() : conversationId;
+    if (rotateConversation) {
+      setConversationId(requestConversationId);
+      setConversationTurns([]);
+      const next = new URLSearchParams(searchParams);
+      ["alert", "log", "source", "case", "prompt"].forEach((key) => next.delete(key));
+      setSearchParams(next, { replace: true });
+    }
+    const rememberedAlertId = effectiveResetContext ? null : alertId ?? lastContext.alertId ?? citationNumber(response, "/api/alerts/{alert_id}", ["alert"]);
+    const rememberedLogId = effectiveResetContext ? null : logId ?? lastContext.logId ?? citationNumber(response, "/api/logs/{log_id}", ["log", "related"]);
+    const rememberedSourceId = effectiveResetContext ? null : sourceId ?? lastContext.sourceId ?? citationNumber(response, "/api/sources/{source_id}", ["source"]);
+    const rememberedCaseId = effectiveResetContext ? null : caseId ?? lastContext.caseId ?? citationString(response, "/api/alerts/cases", ["case"]);
     const carriedAlertId = explicitAlertId ?? rememberedAlertId;
     const explicitAlertQuestion = explicitAlertId !== null;
     const asksRelatedLogs = ["related log", "logs are related", "what logs", "show logs", "linked logs", "evidence logs"].some((term) => lowered.includes(term));
@@ -621,10 +674,10 @@ export function AssistantPage() {
         sourceId: carriedSourceId,
         caseId: carriedCaseId
       },
-      isAlertFollowUp && carriedAlertId ? "alert" : lastContext.primary
+      isAlertFollowUp && carriedAlertId ? "alert" : effectiveResetContext ? null : lastContext.primary
     );
     setLastContext((current) =>
-      resetContext
+      effectiveResetContext
         ? {
             alertId: carriedAlertId,
             logId: carriedLogId,
@@ -640,22 +693,36 @@ export function AssistantPage() {
             primary: nextPrimary ?? current.primary
           }
     );
-    assistant.mutate({
-      question: trimmed,
-      alert_id: carriedAlertId,
-      log_id: carriedLogId,
-      source_id: carriedSourceId,
-      case_id: carriedCaseId,
-      include_recent_context: true,
-      conversation_id: conversationId,
-      reset_context: resetContext
-    });
+    assistant.mutate(
+      {
+        question: trimmed,
+        alert_id: carriedAlertId,
+        log_id: carriedLogId,
+        source_id: carriedSourceId,
+        case_id: carriedCaseId,
+        include_recent_context: true,
+        conversation_id: requestConversationId,
+        reset_context: effectiveResetContext
+      },
+      {
+        onSuccess: (data) => {
+          setPersistedResponse(data);
+          setConversationId(data.conversation_id);
+          setConversationTurns((current) => appendAssistantConversationTurn(
+            rotateConversation ? [] : current,
+            trimmed,
+            data
+          ));
+        }
+      }
+    );
   }
 
   function clearContext() {
     clearAssistantSession();
     setLastContext(emptyAssistantContext);
     setConversationId(createConversationId());
+    setConversationTurns([]);
     assistant.reset();
     setPersistedResponse(null);
     setQuestion(assistantDefaultQuestion);
@@ -811,6 +878,12 @@ export function AssistantPage() {
             className="mt-3 min-h-36 w-full rounded-lg border border-line bg-white p-3 text-sm font-semibold text-text outline-none transition focus:border-danger"
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
+            onKeyDown={(event) => {
+              if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+                event.preventDefault();
+                askQuestion(question);
+              }
+            }}
             placeholder="Ask about alerts, sources, ML governance, operations, or lab workflow."
           />
           <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -880,9 +953,21 @@ export function AssistantPage() {
           </div>
         </form>
 
-        <section className="rounded-xl border border-line bg-white p-5 shadow-panel" data-testid="assistant-response-panel">
+        <section
+          className="rounded-xl border border-line bg-white p-5 shadow-panel"
+          data-testid="assistant-response-panel"
+          aria-live="polite"
+          aria-busy={assistant.isPending}
+        >
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="text-sm font-black uppercase tracking-wide text-muted">Assistant response</div>
+            <div>
+              <div className="text-sm font-black uppercase tracking-wide text-muted">Assistant response</div>
+              {conversationTurns.length ? (
+                <div className="mt-1 text-xs font-semibold text-muted" data-testid="assistant-conversation-status">
+                  {conversationTurns.length}/{assistantConversationTurnLimit} recent turns retained in this tab
+                </div>
+              ) : null}
+            </div>
             <div className="flex flex-wrap items-center gap-2">
               {response ? (
                 <button className="btn-secondary text-xs" type="button" onClick={copyBrief}>
@@ -902,12 +987,25 @@ export function AssistantPage() {
           ) : null}
           {response ? (
             <div className="mt-4 space-y-4">
+              {previousConversationTurns.length ? (
+                <details className="rounded-lg border border-line bg-panel2 p-4" data-testid="assistant-conversation-history">
+                  <summary className="cursor-pointer text-xs font-black uppercase tracking-wide text-muted">
+                    Previous turns ({previousConversationTurns.length})
+                  </summary>
+                  <ol className="mt-3 space-y-3">
+                    {previousConversationTurns.map((turn) => (
+                      <li key={turn.id} className="rounded-lg border border-line bg-white p-3">
+                        <div className="break-words text-xs font-black text-text">{turn.question}</div>
+                        <div className="mt-1 break-words text-xs font-semibold text-muted">
+                          {turn.response.answer.slice(0, 240)}{turn.response.answer.length > 240 ? "..." : ""}
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                </details>
+              ) : null}
               <AssistantAnswerContent response={response} />
-              <div className="flex flex-wrap gap-2">
-                {response.safety.filter((item) => ["Read Only", "Decision Support Only", "Response Automation Disabled"].includes(item)).map((item) => (
-                  <Badge key={item} value={item} />
-                ))}
-              </div>
+              <AssistantAnswerProvenance response={response} />
               <details className="rounded-lg border border-line bg-panel2 p-4" data-testid="assistant-grounding-detail">
                 <summary className="cursor-pointer text-sm font-black uppercase tracking-wide text-muted">Sources and provider details</summary>
                 <div className="mt-4 space-y-4">

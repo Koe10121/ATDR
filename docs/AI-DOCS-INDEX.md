@@ -4,18 +4,38 @@ This index defines the active ATDR documentation set for AI/Codex-assisted work.
 
 ## Current Baseline
 
-- `docs/CURRENT_SYSTEM_STATE_LOCK.md`: current v5.13 source, behavior, safety, and external-gate anchor.
-- `docs/CURRENT_AI_ML_PRODUCT_STATUS.md`: current assistant, Gemini, rules, IsolationForest, supervised-candidate, and registry truth.
-- `docs/V4_7_LARGE_SQLITE_PERFORMANCE_STABILIZATION.md`: current Overview performance repair and measured budgets.
-- `docs/V4_8_END_TO_END_PRODUCT_ACCEPTANCE.md`: disposable 50,000-log integrated acceptance evidence.
-- `docs/V4_8_1_REPOSITORY_CONSOLIDATION_REPORT.md`: proposed uncommitted repository cleanup and protected-file boundary.
-- `docs/V4_8_1_COMMIT_ALLOWLIST.md`: exact cleanup review boundary; no commit/push is authorized by the document.
-- `docs/V4_9_DETECTION_ML_RELIABILITY_LOCK.md`: current parser/rule/feature/model reliability evidence and conservative `candidate_only` decision.
-- `docs/V5_1_SUPERVISED_SHADOW_ACTIVATION.md`: governed artifact, shadow lifecycle, private aggregate validation, strict-gate result, and rollback operations.
-- `docs/V5_2_SHADOW_RELIABILITY_AND_LAYERED_REPAIR.md`: current layered 288/288 repair, multi-view supervised reliability result, aggregate telemetry, and shadow-only decision.
-- `docs/V5_8_GOVERNED_SHADOW_SCORING_RUNTIME.md`: disabled-by-default frozen-candidate shadow runtime, aggregate monitoring, mutation-safety proof, and governed evidence intake.
-- `docs/V5_9_LONGITUDINAL_SHADOW_OBSERVATION.md` through `docs/V5_13_RUNTIME_PARSER_CONTRACT_AND_SOURCE_QUALITY.md`: governed aggregate observation, operational acceptance, drift monitoring, parser baselines, and shared runtime parser-quality contract.
-- `docs/V5_13_1_DETECTION_PARSER_PROGRAM_CONSOLIDATION.md`: cumulative v4.9-v5.13 repository reconciliation, path classification, safety state, verification, and next-phase decision.
+- `docs/V5_50_CURRENT_STATE_TRUTH_LOCK.md`: canonical v5.50 baseline,
+  completion matrix, external-gate ledger, and shortest finish roadmap.
+- `docs/V5_51_DETECTION_PIPELINE_FIELD_QUALIFICATION.md`: current field
+  qualification implementation, measured local result, fixed readiness states,
+  and honest external gates.
+- `docs/V5_52_ANALYST_EXPERIENCE_AND_SOC_ASSISTANT_CLOSURE.md`: current
+  Assistant context, provenance, concision, Gemini, accessibility, privacy, and
+  analyst-workflow closure evidence.
+- `docs/detection/V5_51_FIELD_QUALIFICATION_CONTRACT.md` and
+  `docs/detection/V5_51_FRESH_EVIDENCE_PROTOCOL.md`: operator input, privacy,
+  duplicate-containment, role, and post-v5.49b evidence contracts.
+- `docs/CURRENT_SYSTEM_STATE_LOCK.md`: current architecture, runtime, safety,
+  published commit, CI, and known-limitations anchor.
+- `docs/CURRENT_AI_ML_PRODUCT_STATUS.md`: current rules, IsolationForest,
+  supervised no-candidate decision, Assistant grounding, Gemini boundary, and
+  registry truth.
+- `docs/ATDR_PRODUCT_FINISH_LINE.md`: constrained v5.51-v5.54 closure plan.
+- `docs/V5_49B_IMMUTABLE_COMBINED_PROTOCOL_AND_ONE_SHOT_REVALIDATION.md`:
+  immutable aggregate supervised decision; eight strategies ran and no
+  candidate qualified.
+- `docs/V5_31_DETECTION_EXPLAINABILITY_ADVERSARIAL_RELIABILITY.md`: current 19-rule
+  deterministic catalog and controlled adversarial reliability evidence.
+- `docs/V5_34_SOC_ASSISTANT_CONCISION_AND_PROVIDER_RELIABILITY.md`: current
+  integrated detection/Assistant acceptance boundary.
+- `docs/V5_35_LARGE_SQLITE_OVERVIEW_STABILIZATION.md`: current local
+  large-SQLite query-performance evidence.
+- `docs/V5_38_PRODUCT_RELIABILITY_AND_FAILURE_MODE_LOCK.md`: current product
+  lifecycle and failure-mode reliability evidence.
+
+Earlier versioned documents remain historical change evidence. They do not
+override the current v5.50 truth lock when candidate, baseline, or readiness
+wording differs.
 
 ## Active Control Documents
 
@@ -32,6 +52,11 @@ This index defines the active ATDR documentation set for AI/Codex-assisted work.
 | `docs/agents/ATDR_AGENT_OPERATING_MODEL.md` | ATDR agent roles, responsibilities, and verification responsibilities. |
 | `docs/ATDR_REQUIREMENT_TRACEABILITY.md` | Requirement-to-source/test/docs/gap traceability. |
 | `docs/ATDR_UNIVERSITY_COMPLIANCE_CHECKLIST.md` | University process compliance status and remaining gaps. |
+| `docs/V5_50_CURRENT_STATE_TRUTH_LOCK.md` | Canonical current baseline, completion classification, ownership ledger, and shortest remaining roadmap. |
+| `docs/V5_51_DETECTION_PIPELINE_FIELD_QUALIFICATION.md` | Current local field-qualification implementation and aggregate readiness. |
+| `docs/V5_52_ANALYST_EXPERIENCE_AND_SOC_ASSISTANT_CLOSURE.md` | Current bounded conversation, answer provenance, concision, Gemini, privacy, and analyst UX closure. |
+| `docs/detection/V5_51_FIELD_QUALIFICATION_CONTRACT.md` | Private source/field/review input contracts and physical-run procedure. |
+| `docs/detection/V5_51_FRESH_EVIDENCE_PROTOCOL.md` | Fresh temporal namespace, duplicate containment, fixed roles, and sufficiency gates. |
 | `docs/ATDR_TEMPLATE_COMPARISON_AND_GAP_AUDIT.md` | Supervisor-template comparison showing what ATDR has completed, what is partial, and what remains future work. |
 | `docs/CURRENT_SYSTEM_STATE_LOCK.md` | Current-state anchor before major productization work, including architecture, safety boundaries, limitations, verification commands, and protected local artifacts. |
 | `docs/PRODUCTIZATION_TEMPLATE_GAP_ANALYSIS.md` | Phase 1 comparison between ATDR and the official supervisor template with keep/adapt/do-not-copy guidance and safe cleanup plan. |

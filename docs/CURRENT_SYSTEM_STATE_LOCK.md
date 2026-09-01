@@ -1,19 +1,19 @@
 # ATDR Current System State Lock
 
-Date: 2026-07-30
+Date: 2026-08-31
 
 Purpose: this document is the current-state memory anchor before larger ATDR productization work. It captures what exists now, what must stay safe, and what must not be deleted or committed while ATDR moves from controlled academic/lab prototype toward a more serious SOC/SaaS-style product.
 
-Checkpoint: the published baseline is commit `c7ebd2d` on `origin/main`; its
-GitHub Actions run passed and includes v5.16 bounded memory/query
-stabilization plus v5.17 PostgreSQL multi-worker and lock-ownership
-acceptance. v5.18 is implemented and locally qualified on an owner-approved,
-disposable PostgreSQL 16.14 runtime. The 100,000-row and conditional
-250,000-row profiles passed with 2 and 4 workers, but the v5.18 worktree
-remains uncommitted pending exact-path review and separate owner approval.
-Existing ATDR data, normal SQLite startup, MFU companion-shell distribution,
-model lifecycle, and response safety remain unchanged. This is a
-source-backed state lock, not a production-readiness claim.
+Checkpoint: the published baseline is commit
+`1866086e6ba9d0e6ac752e4b44e2b54a2acd6fb0` on `origin/main`. GitHub Actions
+run `33348242534` passed the backend release gate, frontend dashboard, and
+disposable PostgreSQL persistence jobs. v5.49b bound two immutable protected
+reviews into one fixed protocol, consumed it exactly once, evaluated all eight
+locked strategies, and selected no supervised candidate. Only aggregate
+results are recorded here. Existing ATDR data, normal SQLite startup, MFU
+companion-shell distribution, model lifecycle, alert authority, and response
+safety remain unchanged. This is a source-backed controlled-lab state lock,
+not a production-readiness or production-accuracy claim.
 
 ## Source Evidence
 
@@ -39,6 +39,7 @@ source-backed state lock, not a production-readiness claim.
 | Full-scale memory/query stabilization | `atdr/app/services/v516_memory_query_service.py`, `atdr/scripts/run_v516_memory_query_stabilization.py`, `atdr/tests/test_v516_memory_query_stabilization.py`, `docs/V5_16_FULL_SCALE_MEMORY_QUERY_STABILIZATION.md` |
 | PostgreSQL multi-worker capacity/recovery acceptance | `atdr/app/services/v517_postgres_multiworker_service.py`, `atdr/app/services/detection_coordination_service.py`, `atdr/scripts/run_v517_postgres_multiworker_acceptance.py`, `atdr/tests/test_v517_postgres_multiworker_acceptance.py`, `docs/V5_17_POSTGRES_MULTIWORKER_CAPACITY_RECOVERY.md` |
 | PostgreSQL 100k/250k scale and SLO qualification | `atdr/app/services/v518_postgres_scale_service.py`, `atdr/scripts/run_v518_postgres_scale_qualification.py`, `atdr/tests/test_v518_postgres_scale_qualification.py`, `docs/V5_18_POSTGRES_SCALE_QUALIFICATION.md` |
+| Latest supervised evidence decision | `atdr/app/detection/v549b_combined_fixed_revalidation.py`, `atdr/scripts/run_v549b_combined_fixed_revalidation.py`, `docs/V5_49B_IMMUTABLE_COMBINED_PROTOCOL_AND_ONE_SHOT_REVALIDATION.md` |
 | Governed shadow operations | `atdr/app/services/v58_shadow_scoring_service.py`, `atdr/app/services/v59_shadow_observation_service.py`, `atdr/app/services/v510_detection_operations_service.py`, `atdr/app/services/v511_shadow_monitoring_service.py` |
 | Independent holdout evidence | `atdr/app/detection/v398_independent_holdout_validation.py`, `atdr/scripts/run_v398_independent_holdout_validation.py`, `atdr/tests/test_v398_independent_holdout_validation.py`, `docs/V3_98_INDEPENDENT_DETECTION_ML_HOLDOUT_VALIDATION.md` |
 | Synthetic multi-source frozen revalidation | `atdr/app/detection/v399_multisource_frozen_revalidation.py`, `atdr/scripts/run_v399_multisource_frozen_revalidation.py`, `atdr/tests/test_v399_multisource_frozen_revalidation.py`, `docs/V3_99_INDEPENDENT_MULTI_SOURCE_EVIDENCE_AND_FROZEN_REVALIDATION.md` |
@@ -332,12 +333,19 @@ ATDR currently has:
 - Human/assisted label workflow.
 - Supervised model training and diagnostic evaluation scripts.
 - Model registry and governance UI.
-- Candidate-only, diagnostic profiles.
+- A fail-closed `shadow_observation` lifecycle with no qualified current
+  candidate.
 - Conservative readiness gates.
 - Explicit `production_promoted=false` / model activation safety discipline.
 - Unified detection/ML productization evaluator that checks rule contracts, scenario status, training-data readiness, output policy, and response-safety invariants.
 
-Important current limitation: supervised outputs remain decision support. Recent work found that flat multi-class labels and exact severity/benign boundaries are still weaker than binary SOC queue / evidence-first triage framing. No ML output may trigger automatic response.
+The latest immutable v5.49b decision used 180 genuine protected decisions with
+combined support `95/39/27`. All eight fixed strategies ran exactly once and no
+candidate qualified: the 11-row evaluation role contained no suspicious row,
+and all strategies failed the fixed confidence-gap limit. That result is
+consumed and cannot be repartitioned or tuned. Supervised output remains
+decision support, and no ML output may create or suppress alerts or trigger
+automatic response.
 
 ## Assistant / Chatbot Status
 
@@ -405,12 +413,17 @@ Real firewall blocking must remain disabled unless explicitly approved later wit
 - Real firewall/router syslog forwarding still needs controlled hardware validation.
 - The local template-shell handoff is implemented and exercised, but preprod/production URLs, IAM group-role mapping, provider-managed 2FA evidence, recovery, deprovisioning, and deployment approval remain incomplete.
 - Real SMTP/OTP requires provider approval and security policy.
-- Supervised ML still needs better stability, calibration, and real-source validation before stronger claims.
+- Supervised ML has no qualified current candidate. It requires fresh
+  development evidence, a second physical source, a predeclared untouched
+  future evaluation, stable calibration, and a separate human activation
+  decision before stronger claims.
 - Case grouping is lightweight, not a full incident/ticketing platform.
-- Observability is still mostly app logs, health checks, scripts, and performance smoke; production metrics/alerting is future work.
-- The published v5.17 baseline is clean and CI-green at `c7ebd2d`. The v5.18
-  worktree remains local and must not be staged or pushed outside its exact
-  allowlist or without explicit owner approval.
+- Metrics, request IDs, health/readiness checks, operation alerts, retention,
+  and performance/release probes are implemented. Persistent external
+  monitoring, paging, managed secrets, and approved-host operations remain.
+- The published v5.49b baseline is clean and CI-green at
+  `1866086e6ba9d0e6ac752e4b44e2b54a2acd6fb0`. v5.50 is a documentation-only
+  truth lock and requires separate commit/push approval.
 
 ## Current Verification Commands
 
@@ -757,3 +770,35 @@ output, or production-readiness claim occurred. The v5.20-v5.25 local roadmap
 is complete, while non-loopback transport, real device, independent human
 native labels, MFU preproduction, approved host, and Gemini deployment
 governance remain open external gates.
+
+## v5.51 Field Qualification Update
+
+ATDR now has a disposable field-qualification service and CLI that combines
+the existing v5.23 transport acceptance with PAN-OS layout/field diagnostics,
+production rule/grouping diagnostics, prediction-blind review custody, and a
+new post-v5.49b evidence namespace. The authenticated aggregate status is
+visible in AI Governance.
+
+Measured local status is `hardware_required`: local preflight passes; the
+controlled run receives `5/5` loopback datagrams with zero loss or parse
+failures and parses the tracked two-row sample completely. No physical device,
+field expectation, human rule review, second source, or qualifying fresh window
+was supplied. No configured database, label, model, alert, detection run,
+response, artifact, or authority state changed. v5.49b protected evidence was
+not accessed.
+
+## v5.52 Analyst Experience And Assistant Update
+
+The Assistant now maintains one primary alert, log, source, or case entity.
+Ordinary follow-ups retain that entity; reset prompts and explicit switches use
+a new conversation and zero previous provider-history turns. Related citations
+remain evidence without becoming active context. Four sanitized turns persist
+in the current browser tab and clear on logout or explicit context reset.
+
+Every answer exposes deterministic versus external synthesis provenance,
+evidence scopes, citation count, rules authority, advisory-ML status, and raw-
+log exclusion. Intent budgets are 55-120 words with at most two follow-ups.
+Controlled QA passes `20/20`; configured Gemini minimal/full synthetic probes
+pass with redaction enabled, raw logs excluded, secrets hidden, and zero
+authoritative writes. Institutional provider approval and independent field/
+usability evidence remain external. Two substantial shared-lab phases remain.

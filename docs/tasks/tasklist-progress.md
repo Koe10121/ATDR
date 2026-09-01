@@ -4,13 +4,13 @@
 | --- | --- |
 | Date | 2026-08-31 |
 | Project | MFU AI-Driven Log-Based Threat Detection and Response System |
-| Module / Feature | v5.49b Immutable Combined Protocol And One-Shot Revalidation |
-| Requirement | Bind both immutable protected reviews to one new fixed protocol, execute it at most once, and record an honest diagnostic candidate decision without changing runtime authority. |
-| Active Change Record | `docs/V5_49B_IMMUTABLE_COMBINED_PROTOCOL_AND_ONE_SHOT_REVALIDATION.md`, `docs/changes/T1_T20_V5_49B_IMMUTABLE_COMBINED_PROTOCOL_AND_ONE_SHOT_REVALIDATION.md` |
+| Module / Feature | v5.52 Analyst Experience And SOC Assistant Closure |
+| Requirement | Close stale context, follow-up, navigation persistence, answer provenance, concision, Gemini safety, and analyst-facing usability without changing detection or response authority. |
+| Active Change Record | `docs/V5_52_ANALYST_EXPERIENCE_AND_SOC_ASSISTANT_CLOSURE.md`, `docs/changes/T1_T20_V5_52_ANALYST_EXPERIENCE_AND_SOC_ASSISTANT_CLOSURE.md` |
 | Current Checkpoint Records | `docs/V4_1_SCHEMA_AWARE_SOC_QUEUE_MODEL_REDESIGN.md`, `docs/V4_2_PRESENTATION_READY_SOC_ASSISTANT.md`, `docs/V4_3_PORTABLE_MFU_SHELL_RUNTIME.md`, `docs/CURRENT_SYSTEM_STATE_LOCK.md` |
-| Overall Status | Both reviews are closed and immutable at `180/180`, combined support is `95/39/27`, and the new v5.49b protocol was consumed exactly once. All eight strategies ran; no candidate qualified. |
-| Overall Progress | Immutable custody, atomic claim, one-shot evaluation, aggregate API/UI, complete verification, governance, zero-authority-write proof, and exact 78-path cumulative allowlist closure are complete. |
-| Progress Type | v5.49b records a valid negative diagnostic decision. It does not relabel evidence, rerun a consumed protocol, activate a model, change alert authority, or enable response. Fresh evidence, a second source, and untouched future validation remain. |
+| Overall Status | v5.52 local implementation and complete closure verification pass; external provider governance, field evidence, and independent usability acceptance remain open. |
+| Overall Progress | Primary-entity context, clean conversation rotation, four-turn sanitized persistence, explicit provenance, concise v5 contracts, Gemini probes, UI/accessibility states, complete verification, governance, and exact 42-path cumulative allowlist are complete. |
+| Progress Type | Analyst workflow and read-only Assistant closure. No protected v5.49b access, configured-data reset, label/model activation, alert-authority change, automatic response, or real blocking. |
 | v3.98 Change Record | `docs/V3_98_INDEPENDENT_DETECTION_ML_HOLDOUT_VALIDATION.md`, `docs/changes/T1_T20_V3_98_INDEPENDENT_DETECTION_ML_HOLDOUT_VALIDATION.md`, `atdr/tests/test_v398_independent_holdout_validation.py`, `atdr/scripts/run_v398_independent_holdout_validation.py` |
 | v3.99 Change Record | `docs/V3_99_INDEPENDENT_MULTI_SOURCE_EVIDENCE_AND_FROZEN_REVALIDATION.md`, `docs/changes/T1_T20_V3_99_INDEPENDENT_MULTI_SOURCE_EVIDENCE.md`, `atdr/tests/test_v399_multisource_frozen_revalidation.py`, `atdr/scripts/run_v399_multisource_frozen_revalidation.py` |
 | v4.0 Change Record | `docs/V4_0_PROVIDER_BLINDED_EXTERNAL_EVIDENCE_AND_FROZEN_VALIDATION.md`, `docs/changes/T1_T20_V4_0_PROVIDER_BLINDED_EXTERNAL_EVIDENCE.md`, `atdr/tests/test_v400_provider_blinded_external_validation.py`, `atdr/scripts/run_v400_provider_blinded_external_validation.py` |
@@ -77,11 +77,15 @@
 | v5.49 Change Record | `docs/V5_49_FIXED_DEVELOPMENT_REVALIDATION_AND_CANDIDATE_DECISION.md`, `docs/changes/T1_T20_V5_49_FIXED_DEVELOPMENT_REVALIDATION_AND_CANDIDATE_DECISION.md`, atomic execution claim, aggregate decision CLI, focused tests, and in-progress governance |
 | v5.49a Change Record | `docs/V5_49A_SUPPLEMENTAL_THREAT_ANCHOR_RECOVERY.md`, `docs/changes/T1_T20_V5_49A_SUPPLEMENTAL_THREAT_ANCHOR_RECOVERY.md`, deterministic acquisition, protected review API/UI, CLI, tests, measured private preparation, governance, and exact allowlist |
 | v5.49b Change Record | `docs/V5_49B_IMMUTABLE_COMBINED_PROTOCOL_AND_ONE_SHOT_REVALIDATION.md`, `docs/changes/T1_T20_V5_49B_IMMUTABLE_COMBINED_PROTOCOL_AND_ONE_SHOT_REVALIDATION.md`, immutable combined protocol, atomic one-shot evaluator/CLI, aggregate API/UI, tests, governance, and exact allowlist |
+| v5.50 Change Record | `docs/V5_50_CURRENT_STATE_TRUTH_LOCK.md`, `docs/changes/T1_T20_V5_50_CURRENT_STATE_TRUTH_LOCK.md`, published-baseline audit, current product matrix, stale-claim corrections, ownership ledger, four-phase roadmap, verification, governance, and exact allowlist |
+| v5.51 Change Record | `docs/V5_51_DETECTION_PIPELINE_FIELD_QUALIFICATION.md`, `docs/detection/V5_51_FIELD_QUALIFICATION_CONTRACT.md`, `docs/detection/V5_51_FRESH_EVIDENCE_PROTOCOL.md`, `docs/changes/T1_T20_V5_51_DETECTION_PIPELINE_FIELD_QUALIFICATION.md`, disposable service/CLI, aggregate API/UI, tests, governance, and exact allowlist |
+| v5.52 Change Record | `docs/V5_52_ANALYST_EXPERIENCE_AND_SOC_ASSISTANT_CLOSURE.md`, `docs/changes/T1_T20_V5_52_ANALYST_EXPERIENCE_AND_SOC_ASSISTANT_CLOSURE.md`, Assistant backend/contracts, React persistence/provenance UI, tests, governance, and exact allowlist |
 
 ## T1. Source Evidence
 
 | Area | Source Evidence |
 | --- | --- |
+| v5.52 analyst and Assistant evidence | Assistant schema/service/LLM/response contracts; React Assistant/session/answer components; backend and Playwright regressions; `evaluate_assistant_qa`; configured Gemini status, minimal, and full synthetic probes; v5.52 status/T1-T20/allowlist |
 | v5.40 development-repair evidence | consumed v5.39 freeze/pack boundary; v5.2/v5.4/v5.5 dataset and partition helpers; `atdr/app/detection/v540_development_supervised_repair.py`; CLI/tests; measured ignored diagnostic; status/blind protocol/T1-T20/allowlist |
 | v5.41 blind-acquisition evidence | revalidated v5.39/v5.40 boundaries; `atdr/app/detection/v541_governed_blind_evidence.py`; disposable parser/index; CLI/API/schema/React/tests; measured 773,551-row aggregate rehearsal; status/T1-T20/allowlist |
 | v5.42 candidate-freeze evidence | revalidated v5.39-v5.41 boundaries; `atdr/app/detection/v542_development_candidate_freeze.py`; CLI/API/schema/React/tests; measured five-strategy nested-temporal comparison; immutable freeze tests; status/T1-T20/allowlist |
@@ -312,6 +316,7 @@
 | v5.49 fixed candidate decision | 0 | 0 | Atomic claiming and aggregate result validation strengthen decision custody but add no evidence point while the support gate fails and no measured result exists. |
 | v5.49a supplemental threat-anchor recovery | 0 | 0 | A separate 60-row prediction-blind protected pack removes the threat-evidence tooling gap but adds no readiness point before genuine review, closure, relocked evaluation, and independent-source evidence. |
 | v5.49b immutable combined revalidation | 0 | 0 | Genuine closure and one fixed run improve decision integrity, but the zero-suspicious evaluation role and failed calibration gaps reject every candidate; one-device threat-enriched evidence adds no independent readiness point. |
+| v5.51 field qualification and fresh evidence | 0 | 0 | The local harness, parser/rule review contracts, aggregate API/UI, and fresh-role custody are complete, but no physical device, second source, human field/rule review, or fresh field row exists. Missing external evidence adds no readiness point. |
 | Safety and repo hygiene preserved | 10 | 10 | No database reset, destructive migration, IAM activation, response behavior change, production promotion, `.env`, DB, real logs, tracked model artifacts, review files, generated reports, or protected data were introduced. Active artifacts remain unchanged; v5.49 performs no automatic import, activation, or response. |
 | Verification completed | 10 | 10 | Tasklist render/check, Ruff, compileall, assistant tests, Alembic check, frontend lint/build/e2e, replay dry-run, provider status/probe checks, performance smoke, and release gates are recorded below. |
 | **Total** | **560** | **557** | v3.78-v5.49b form a locally verified repository baseline with controlled layered detection, governed read-only scoring, profile-aware source operations, full-file recovery, measured PostgreSQL scale, and fail-closed evidence/review/candidate custody. Three external points remain: real multi-device/native labeled evidence, human/provider governance, and MFU/shared-preproduction security and operations acceptance. |
@@ -320,6 +325,9 @@
 
 | Task ID | Task | Agent | Owner | Depends On | Status | Progress % | Progress Basis | Source Evidence | Tests Evidence | Blocker | Next Action | Output |
 | --- | --- | --- | --- | --- | --- | ---: | --- | --- | --- | --- | --- | --- |
+| ATDR-V552-001 | v5.52 Analyst Experience And SOC Assistant Closure | Orchestrator / Backend / Frontend / Assistant / Security / Accessibility / QA / Docs | Codex plus future provider/university/usability owners | published v5.49b; local v5.50-v5.51 baseline; configured private Gemini | done locally; external acceptance open | 100 | Context defects repaired; provenance and four-turn persistence implemented; response budgets tightened; Gemini and controlled QA pass; complete verification, privacy/hygiene checks, governance, and cumulative allowlist are closed. | Assistant runtime/UI/tests plus v5.52 status/T1-T20/allowlist | Backend/release `1040 passed, 1 skipped`; Playwright `38 passed, 1 skipped`; Assistant QA `20/20`; Gemini minimal/full synthetic probes pass; controlled source `4/4`; detection `24/24`; layered `288/288`; replay/performance/release pass. | Institutional provider approval and independent usability/field evidence remain external; they do not block local implementation closure. | Preserve read-only controls; proceed to v5.53 MFU IAM/shared deployment acceptance when external owners are available. | Concise grounded Assistant, persistent investigation context, explicit provenance, tests, docs, and exact 42-path cumulative allowlist. |
+| ATDR-V551-001 | v5.51 Detection Pipeline Field Qualification And Fresh Evidence | Orchestrator / Ingestion / Parser / Detection / Evidence Governance / Backend / Frontend / Security / QA / Docs | Codex plus future hardware and human owners | published v5.49b; v5.50 truth lock; v5.23 transport contract | local implementation complete; field gate open | 100 | Disposable local transport/parser/rule/safety pass; source and review inputs fail closed; fresh roles exclude protected-era/duplicate evidence; API/UI are aggregate-only; no authority write occurs. | v5.51 service/CLI/schema/route/UI, field contract, fresh protocol, status/T1-T20 | Focused backend `11/11`; full backend/release `1037 passed, 1 skipped`; Alembic, React lint/build, Playwright `37/1`, controlled `24/24`, layered `288/288`, Assistant `20/20`, replay, and performance pass. | Physical firewall/router, second source, four windows, human field expectations, and prediction-blind rule review are external. | Seek separate exact-path publication approval; collect genuine field evidence when external owners are available. | Fail-closed field harness, private evidence contracts, aggregate readiness, tests, governance, and allowlist. |
+| ATDR-V550-001 | v5.50 Current-State Truth Lock And Finish-Line Consolidation | Orchestrator / Architecture / Detection ML / Assistant / IAM / Operations / Security / QA / Docs | Codex | published v5.49b baseline and immutable aggregate decision | complete | 100 | Source/Git/CI audit, active-doc correction, completion matrix, ownership ledger, four-phase roadmap, full verification, governance, privacy, and exact allowlist pass. | runtime source, commit `1866086e...`, Actions `33348242534`, v5.49b aggregate status, v5.50 truth lock/T1-T20/allowlist | Backend `1027 passed, 1 skipped`; Playwright `37 passed, 1 skipped`; controlled `24/24`; layered `288/288`; Assistant `20/20`; performance/release pass. | Field detection, MFU IAM, provider governance, and shared deployment require external owners; they do not block v5.50 closure. | Seek separate exact-path publication approval, then begin v5.51 without touching consumed v5.49b evidence. | Canonical truth lock, corrected active docs, shortest roadmap, T1-T20, taskboard/HTML, exact 14-path allowlist. |
 | ATDR-V549B-001 | v5.49b Immutable Combined Protocol And One-Shot Revalidation | Orchestrator / Detection ML / Evidence Governance / Backend / Frontend / Security / QA / Release / Docs | Codex plus the completed genuine reviewers | immutable v5.48 and v5.49a reviews; private v5.49a proposal; unchanged fixed contracts | complete; no candidate qualified | 100 | Combined custody/support, immutable lock, atomic claim, all-eight evaluation, negative candidate decision, aggregate API/UI, complete verification, docs, hygiene, and zero-write proof pass. | v5.49b module/CLI/API/schema/UI/tests/status/T1-T20 plus ignored protocol/claim/result | Reviews `180/180`; support `95/39/27`; execution `1`; strategies `8/8`; candidates `0`; backend `1027 passed, 1 skipped`; Playwright `37 passed, 1 skipped`; layered `288/288`; Assistant `20/20`; release `ok: true`. | Evaluation suspicious support is `0`, confidence gaps fail, evidence is threat-enriched and one-source; the consumed result cannot be retuned or rerun. | Preserve the negative decision and acquire fresh development evidence under a new predeclared protocol. | Immutable stored aggregate decision; no artifact, model activation, label, alert, detection, response, or authority mutation. |
 | ATDR-V549A-001 | v5.49a Supplemental Threat Anchor Recovery | Orchestrator / Detection ML / Evidence Governance / Backend / Frontend / Security / QA / Release / Docs | Codex plus the genuine authenticated reviewer | closed v5.48 review; governed development evidence; private PAN-OS source | complete | 100 | Acquisition, protected API/UI, CLI, measured 60-row pack, genuine review, immutable closure, aggregate support, governance, and verification are complete. | v5.49a module/service/routes/schemas/CLI/tests/UI/status/T1-T20 | Original `120/120`; supplemental `60/60`; combined support `95/39/27`; 57 threat-enriched plus 3 hard negatives; original execution `0`. | One source and untouched future evidence remain external; threat enrichment is not production prevalence. | Preserve both reviews and the consumed v5.49b boundary. | Prediction-blind closed workspace and private proposal; no labels, model, alert, response, or evaluation mutation in v5.49a. |
 | ATDR-V549-001 | v5.49 Fixed Development Revalidation And Supervised Candidate Decision | Orchestrator / Detection ML / Evidence Governance / Security / QA / Release / Docs | Codex plus the genuine authenticated human reviewer | sealed v5.47 workspace; locked v5.48 protocol and protected review | closed through safe non-execution | 100 | Source-truth audit, atomic one-run guard, aggregate decision validator, CLI, tests, and governance are complete; honest `92/9/0` support prevented consumption. | v5.48 protected workspace/state; v5.49 module/CLI/tests/status/T1-T20 | Review `120/120`, invalid `0`, closed; original execution `0`; claim/result absent. | The original protocol can never pass its immutable support precondition. | Preserve it unchanged; v5.49b used a separately versioned combined protocol. | Honest blocked decision and preserved original custody; no label/model/alert/response change. |
@@ -469,6 +477,9 @@
 
 | Command / Check | Result | Evidence |
 | --- | --- | --- |
+| v5.52 complete closure verification | pass | Taskboard render/check, Ruff, compileall, backend/release `1040 passed, 1 skipped`, Alembic no drift, React lint/build, Playwright `38 passed, 1 skipped`, controlled source `4/4`, controlled detection `24/24`, layered `288/288` with FP/FN `0/0`, Assistant QA `20/20`, required citations `1.0000`, average/max `60.9/110` words, configured Gemini status/minimal/full synthetic probes, raw logs false, redaction true, secrets false, authoritative side effects zero, replay zero-write, all performance budgets, release `ok: true`, and exact cumulative 42-path reconciliation. |
+| v5.51 full implementation, qualification, and closure verification | pass; external field gate open | Service/API `11/11`; full backend/release `1037 passed, 1 skipped`; Alembic no drift; React lint/build; Playwright `37 passed, 1 skipped`; controlled `24/24`; layered `288/288` with zero controlled FP/FN; Assistant QA `20/20`; replay dry-run; performance budgets pass. Local full qualification accounts for `5/5` UDP messages, parses `2/2` tracked rows with zero loss/failures, records one rule-eligible group, writes zero authoritative state, opens no protected v5.49b evidence, and returns `hardware_required`. |
+| v5.50 complete truth-lock matrix | pass | Published commit/CI verified; taskboard render/check, Ruff, compileall, backend/release `1027 passed, 1 skipped`, Alembic no drift, React lint/build, Playwright `37 passed, 1 skipped`, disposable controlled source, controlled `24/24`, layered `288/288` with FP/FN `0/0`, Assistant `20/20`, replay zero-write, warning-free performance, release `ok: true`, exact 14-path allowlist, privacy, staging, diff, and tracked/ignored hygiene pass. The first direct backend run hit a Windows global-temp ACL denial; the approved `.tmp` rerun and release-gate rerun both passed. |
 | v5.26 eligibility and one-time native qualification | pass; metrics unavailable | 40 sealed rows passed role/duplicate/pack/candidate eligibility; 773,551 private rows parsed with 0 failures in disposable storage; predictions froze before label access; 0 genuine human labels correctly withheld all accuracy, calibration, and FP/FN metrics. |
 | v5.26 layer queue observations | measured; not accuracy | Rules queued 25/40, IsolationForest 3/40, supervised shadow 12/40, and hybrid 4/40. Zero labels mean none of these counts can be classified as correct, false positive, or false negative. |
 | v5.26 focused safety regression | pass | `8 passed`; no blind labels in tuning, no assisted-as-human labels, redacted preflight, lock mismatch failure, one-shot lock, configured-DB/model/response immutability, and pre-lock repair constraints pass. |
@@ -1266,6 +1277,9 @@
 
 | ID | Type | Status | Evidence | Impact | Next Action |
 | --- | --- | --- | --- | --- | --- |
+| R-099 | v5.52 external provider and usability acceptance | local implementation passed; external governance open | Gemini bounded probes and controlled QA pass, but MFU privacy/quota/key custody and independent assistive-technology/analyst acceptance were not supplied. | ATDR can claim a controlled read-only Assistant workflow, not institutional provider approval or universal semantic accuracy. | Obtain MFU/provider approval and run representative field-traffic plus independent usability/accessibility acceptance without weakening safety guards. |
+| R-098 | v5.51 field qualification evidence | local harness complete; hardware/reviewer gate open | Preflight and local full run pass with `5/5` UDP accounting and `2/2` parser rows; readiness remains `hardware_required`; fresh source/window/row counts are `0/0/0`; rule metrics are withheld. | ATDR can prove its local acceptance path but cannot claim field transport, parser accuracy, rule FP/FN, source generalization, or supervised readiness. | Run the versioned private contract with two physical devices, four fresh windows, genuine field expectations, and prediction-blind review; do not substitute synthetic or assisted evidence. |
+| R-097 | v5.50 finish-line external gates | open; accurately classified | Source audit confirms controlled implementation, while field hardware/review, MFU/provider approval, and approved deployment remain external. | ATDR can close controlled senior-project scope but cannot claim field generalization, institutional IAM/provider acceptance, or production certification. | Complete v5.51-v5.54 with real owners/resources; never replace missing evidence with synthetic or guessed claims. |
 | R-096 | v5.49b fixed-evaluation class coverage and calibration | open; candidate rejected safely | Combined support is `95/39/27`, but the immutable evaluation role contains `9/0/2`. All eight strategies fail suspicious support/recall and confidence-gap gates; the pack is threat-enriched and one-source. | No candidate can be selected or activated, and the consumed evidence cannot be repartitioned or tuned. | Acquire fresh prediction-blind development evidence under a predeclared support-preserving split; later validate on a second source and untouched future window. |
 | R-094 | v5.49 insufficient threat-class support | resolved through separate evidence; original remains unconsumed | The original review is `120/120`, closed, support `92/9/0`; the original protocol claim/result remain absent. | The original fixed evaluation remains permanently invalid for execution. | Preserve it unchanged; use only separately versioned future protocols. |
 | R-095 | v5.49a genuine supplemental review | resolved | The supplemental workspace is `60/60`, invalid `0`, closed and immutable; combined support is `95/39/27`. | Human completion no longer blocks the decision, but it does not establish source generalization. | Preserve the review and stored v5.49b result; do not relabel or reopen it. |
@@ -1366,7 +1380,7 @@
 
 ## T6. Decision
 
-ATDR productization has a source-backed current-state lock, supervisor-template alignment, secure shell handoff, hardened read-only SOC Assistant behavior, Detection/ML contracts, SQLite-preserving persistence, durable background jobs, resumable ingestion, operational observability, PostgreSQL multi-worker coordination, deployment/recovery references, and controlled multi-source synthetic validation. GitHub Actions #50 validates the backend, frontend, and disposable PostgreSQL persistence/multi-worker workflows. The current local database was not reset or deleted. ATDR remains FastAPI + React + SQLAlchemy/Alembic, with SQLite for local development, optional PostgreSQL for shared deployment, local JWT/RBAC plus disabled-by-default MFU IAM, simulated analyst-approved response, and ML decision support only. The next evidence phases are provider-blinded/real-source Detection/ML validation and an approved-host rehearsal for shared storage, Linux services, TLS, monitoring, managed secrets, and measured recovery. Real-source hardware forwarding, production detection accuracy, completed provider-backed MFU IAM, real response enforcement, raw-log sharing with external LLMs, and production readiness remain unclaimed.
+The published v5.49b baseline is commit `1866086e6ba9d0e6ac752e4b44e2b54a2acd6fb0`; GitHub Actions run `33348242534` is green. ATDR implements a controlled collection-to-audit SOC workflow with source-backed parsing, a versioned 19-rule alert-authoritative catalog, advisory ML, evidence-first explanations, a read-only bounded Assistant, simulated analyst-approved response, RBAC, durable operations, SQLite local use, and PostgreSQL compatibility/qualification. v5.49b evaluated eight fixed supervised strategies once and selected none; lifecycle remains `shadow_observation`. Four substantial phases remain after v5.50: field/fresh-evidence qualification, analyst/Assistant closure, MFU IAM/shared-deployment acceptance, and release-candidate closure. Real-source generalization, institutional provider acceptance, approved-host operation, automatic response, real blocking, and production certification remain unclaimed.
 
 ### v3.90 Decision Update
 
@@ -2298,3 +2312,67 @@ Configured counts remained identical before and after: raw/normalized logs
 alert, detection, response, or authority state changed. The result is immutable
 and must not be rerun or tuned. Lifecycle remains `shadow_observation`, rules
 remain alert-authoritative, and automation and real blocking remain disabled.
+
+### v5.50 Decision Update
+
+The published baseline is now recorded consistently as commit
+`1866086e6ba9d0e6ac752e4b44e2b54a2acd6fb0`, with GitHub Actions run
+`33348242534` green. Active documentation no longer presents older baselines,
+historical candidate states, or unknown registry metadata as current model
+truth.
+
+ATDR is controlled-validated from collection through audit. The current
+supervised decision remains no candidate in `shadow_observation`; rules remain
+alert-authoritative; the Assistant remains read-only; automatic response and
+real blocking remain disabled. Four substantial phases remain after v5.50:
+field/fresh-evidence qualification, analyst/Assistant closure, MFU IAM/shared
+deployment acceptance, and release-candidate closure. Missing hardware,
+reviewer, provider, university, or deployment evidence must fail closed rather
+than be guessed or fabricated.
+
+### v5.51 Decision Update
+
+The disposable v5.51 qualification path is implemented across service, CLI,
+authenticated aggregate API, AI Governance, tests, and governance. Local
+preflight passes. The controlled full run receives `5/5` loopback datagrams,
+records zero loss and parse failures, parses `2/2` tracked rows under the known
+PAN-OS layout, and observes one deterministic rule-eligible group.
+
+Field accuracy and rule FP/FN metrics remain unavailable because no genuine
+field expectations or prediction-blind human review were supplied. Fresh
+evidence remains `0` rows from `0/2` physical sources and `0/4` windows. Status
+is therefore `hardware_required`, not ready. Protected v5.49b evidence was not
+opened; the new future role remains label-closed; no configured data, label,
+model, artifact, alert, detection run, response, or authority state changed.
+
+Full closure verification passes: focused backend `11/11`, full backend and
+release gate `1037 passed, 1 skipped`, React lint/build, Playwright `37/1`,
+controlled detection `24/24`, layered detection `288/288` with zero controlled
+FP/FN, Assistant QA `20/20`, dry-run replay, Alembic, and performance budgets.
+
+Three substantial shared-lab phases remain after v5.51: analyst/Assistant
+closure, MFU IAM/shared deployment acceptance, and release-candidate closure.
+The field gate can close only when the hardware and human owners supply real
+evidence under the tracked contracts.
+
+### v5.52 Decision Update
+
+ATDR now keeps one primary alert, log, source, or case entity for Assistant
+follow-ups. Explicit switches and reset prompts rotate to a clean conversation
+and remove stale URL context; related citations remain evidence rather than
+becoming active entities. Four sanitized turns persist in the current tab and
+clear on logout or explicit reset.
+
+Every answer reports deterministic versus external synthesis provenance,
+evidence scopes, citations, rules authority, advisory-ML status, and raw-log
+exclusion. Response contracts are limited to 55-120 words and two follow-ups.
+Controlled QA passes `20/20`, required citations pass `1.0000`, and average/max
+length is `60.9/110` words. Configured Gemini minimal and full synthetic probes
+pass with redaction enabled, raw logs excluded, secrets hidden, and zero
+label/model/detection/response writes.
+
+The Assistant remains read-only, rules remain alert-authoritative, ML remains
+advisory, and response automation/real blocking remain disabled. Institutional
+provider governance and independent usability/accessibility acceptance remain
+external. Two substantial shared-lab phases remain after v5.52, while the v5.51
+physical field-evidence gate continues in parallel.

@@ -36,16 +36,16 @@ class ResponsePresentation:
 
 
 RESPONSE_CONTRACTS: dict[AssistantResponseMode, ResponseContract] = {
-    "direct_fact": ResponseContract("direct_fact", 80),
-    "alert_explanation": ResponseContract("alert_explanation", 110),
-    "safe_next_step": ResponseContract("safe_next_step", 100),
-    "related_logs": ResponseContract("related_logs", 120),
-    "source_health": ResponseContract("source_health", 100),
-    "list_summary": ResponseContract("list_summary", 100),
-    "case_handoff": ResponseContract("case_handoff", 120),
-    "investigation_brief": ResponseContract("investigation_brief", 160),
-    "how_to": ResponseContract("how_to", 180),
-    "governance": ResponseContract("governance", 100),
+    "direct_fact": ResponseContract("direct_fact", 55, 2),
+    "alert_explanation": ResponseContract("alert_explanation", 75, 2),
+    "safe_next_step": ResponseContract("safe_next_step", 70, 2),
+    "related_logs": ResponseContract("related_logs", 80, 2),
+    "source_health": ResponseContract("source_health", 70, 2),
+    "list_summary": ResponseContract("list_summary", 75, 2),
+    "case_handoff": ResponseContract("case_handoff", 90, 2),
+    "investigation_brief": ResponseContract("investigation_brief", 110, 2),
+    "how_to": ResponseContract("how_to", 120, 2),
+    "governance": ResponseContract("governance", 70, 2),
 }
 
 

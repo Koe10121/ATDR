@@ -190,6 +190,41 @@ export function AssistantCitationList({ citations }: { citations: AssistantCitat
   );
 }
 
+export function AssistantAnswerProvenance({ response }: { response: AssistantChatResponse }) {
+  const provenance = response.provenance;
+  const provider = provenance?.provider?.trim();
+  const origin = provenance?.answer_origin === "external_llm_synthesis"
+    ? `${provider ? `${provider.charAt(0).toUpperCase()}${provider.slice(1)}` : "External LLM"} synthesis`
+    : "ATDR deterministic analysis";
+  const evidenceScope = provenance?.evidence_scope?.length
+    ? provenance.evidence_scope
+    : response.citations.length
+      ? ["ATDR cited evidence"]
+      : ["No record-specific evidence"];
+  return (
+    <div
+      className="rounded-lg border border-line bg-white px-4 py-3"
+      data-testid="assistant-answer-provenance"
+      aria-label="Answer provenance"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[11px] font-black uppercase tracking-wide text-muted">Answer provenance</div>
+          <div className="mt-1 text-sm font-black text-text" data-testid="assistant-provenance-origin">{origin}</div>
+          <div className="mt-1 break-words text-xs font-semibold text-muted" data-testid="assistant-provenance-scope">
+            Evidence: {evidenceScope.join(", ")} ({provenance?.citation_count ?? response.citations.length} references)
+          </div>
+        </div>
+        <div className="text-right text-xs font-bold text-muted">
+          <div>Rules authoritative</div>
+          <div>ML advisory only</div>
+          <div>Raw logs excluded</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function AssistantAnswerContent({ response }: { response: AssistantChatResponse }) {
   const sections = answerSections(response);
   const detail = evidenceSections(response);
@@ -237,6 +272,7 @@ export function AssistantTechnicalContext({ response }: { response: AssistantCha
             redaction_applied: response.redaction_applied,
             raw_log_context_included: response.raw_log_context_included,
             external_provider_used: response.external_provider_used,
+            provenance: response.provenance,
             details: response.details
           },
           null,

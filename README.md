@@ -6,15 +6,15 @@ ATDR is lab-ready for controlled small-office validation. It is not certified pr
 
 ## Current Reproducible Baseline
 
-The published baseline is commit `c7ebd2d`; its GitHub Actions run passed and
-includes v5.16 bounded memory/query stabilization plus v5.17 PostgreSQL
-multi-worker, recovery, and lock-ownership acceptance. v5.18 has now passed a
-local approved-host qualification on disposable PostgreSQL 16.14 databases:
-the 100,000-row and conditional 250,000-row gates both passed with 2 and 4
-workers, all fixed SLO checks, exact counters, isolated backup/restore, and
-zero safety side effects. v5.18 remains uncommitted pending exact-path review
-and separate owner approval. This is a single-host qualification, not a
-production SLA. See:
+The published baseline is commit
+`1866086e6ba9d0e6ac752e4b44e2b54a2acd6fb0` (`v5.49b`). GitHub Actions run
+`33348242534` passed the backend release gate, React dashboard, and disposable
+PostgreSQL persistence jobs. The governed supervised revalidation consumed its
+fixed protocol exactly once, evaluated all eight locked strategies, and
+selected no candidate. Deterministic rules remain alert-authoritative,
+supervised lifecycle remains `shadow_observation`, and response automation
+remains disabled. This is a controlled-lab baseline, not a production SLA or
+production-accuracy claim. See:
 
 - `docs/V4_7_LARGE_SQLITE_PERFORMANCE_STABILIZATION.md`
 - `docs/V4_8_END_TO_END_PRODUCT_ACCEPTANCE.md`
@@ -29,6 +29,9 @@ production SLA. See:
 - `docs/V5_16_FULL_SCALE_MEMORY_QUERY_STABILIZATION.md`
 - `docs/V5_17_POSTGRES_MULTIWORKER_CAPACITY_RECOVERY.md`
 - `docs/V5_18_POSTGRES_SCALE_QUALIFICATION.md`
+- `docs/V5_49B_IMMUTABLE_COMBINED_PROTOCOL_AND_ONE_SHOT_REVALIDATION.md`
+- `docs/V5_50_CURRENT_STATE_TRUTH_LOCK.md`
+- `docs/V5_51_DETECTION_PIPELINE_FIELD_QUALIFICATION.md`
 
 Installation is locally reproducible. Real MFU/Google sign-in still requires an
 approved OAuth Web client and account/group assignment from the university
@@ -56,15 +59,50 @@ production accuracy or deployment readiness.
 
 ## Current Supervised Runtime
 
-A fresh calibrated ExtraTrees binary SOC review-queue model is registered and
-active in `shadow_observation`. It exposes bounded queue probability and model
-provenance in AI Governance, alert/log explanations, and the SOC Assistant, but
-it cannot create or suppress alerts, change severity, or execute response.
-Rules remain authoritative. The model passed artifact, leakage, checksum, and
-latency safety checks but passed 0/5 strict reliability splits, so
-`decision_support` influence is blocked, production promotion is false, and
-response automation remains disabled. See
-`docs/V5_1_SUPERVISED_SHADOW_ACTIVATION.md`.
+No supervised candidate currently qualifies for activation or promotion. The
+immutable v5.49b evaluation bound 180 genuine protected decisions with class
+support `95/39/27`, evaluated eight fixed strategies once, and selected zero
+candidates because the evaluation role had no suspicious support and every
+strategy failed the fixed confidence-gap gate. Existing registry artifacts are
+historical or have incomplete metadata; they are not a current qualified
+model. Supervised output remains advisory in `shadow_observation` and cannot
+create or suppress alerts, change severity, or execute response. See
+`docs/CURRENT_AI_ML_PRODUCT_STATUS.md`.
+
+## v5.51 Detection Field Qualification
+
+ATDR now provides one disposable, fail-closed qualification command for local
+transport, PAN-OS parser contracts, deterministic-rule diagnostics, and fresh
+evidence custody:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v551_detection_field_qualification --use-temp-db --preflight-only --pretty
+```
+
+The controlled local preflight passes, but current aggregate readiness is
+`hardware_required`. A real non-loopback firewall/router run, a second physical
+source, human-confirmed parser fields, prediction-blind rule review, and fresh
+post-boundary windows remain required. The command never modifies the
+configured database and never returns raw logs, addresses, private paths,
+identities, fingerprints, or secrets. See
+`docs/detection/V5_51_FIELD_QUALIFICATION_CONTRACT.md`.
+
+## v5.52 Analyst Experience And SOC Assistant Closure
+
+Alert, log, source, and case conversations now retain one explicit primary
+entity across dashboard navigation. Reset prompts and explicit entity switches
+start a clean thread, while at most four sanitized turns persist in the current
+browser tab. Every answer shows whether it came from ATDR deterministic
+analysis or external LLM synthesis, which evidence scopes were used, and that
+rules remain authoritative while ML remains advisory.
+
+Controlled Assistant QA passes `20/20` with a `1.0000` required-citation pass
+rate, `60.9` average words, and `110` maximum words. The configured Gemini
+minimal probe and full synthetic chat pass with raw-log context disabled, IP
+redaction enabled, secrets hidden, and zero label/model/detection/response
+writes. This is bounded adapter and workflow evidence, not institutional
+provider approval or universal answer accuracy. See
+`docs/V5_52_ANALYST_EXPERIENCE_AND_SOC_ASSISTANT_CLOSURE.md`.
 
 ## v3.0 Production-Readiness Track
 
@@ -422,10 +460,10 @@ ATDR combines:
 - supervised classifier output trained from reviewed/assisted labels
 - hybrid risk scoring for analyst triage
 
-Supervised outputs remain SOC triage decision support. Current candidates are
-`candidate_only`, the legacy active artifact has unknown registration metadata,
-and no current candidate is production-promoted. Response Automation remains
-disabled regardless of model output.
+Supervised outputs remain SOC triage decision support. v5.49b selected no
+candidate, the legacy artifact has incomplete registration metadata, and no
+model is production-promoted. Response Automation remains disabled regardless
+of model output.
 
 Useful commands:
 
@@ -605,7 +643,11 @@ docs/               runbooks, PRD, governance, status, release docs
 - Real firewall blocking is not implemented.
 - Automatic response is not enabled.
 - Real router/firewall syslog forwarding still needs controlled lab validation.
-- SQLite is convenient for local use; PostgreSQL is recommended later for shared/larger lab deployment.
-- Supervised ML remains `candidate_only`; schema transfer, calibration, complete
-  artifact provenance, and independent real-source validation remain blockers.
+- SQLite remains the supported local profile. PostgreSQL compatibility,
+  multi-worker coordination, scale qualification, and backup/restore are
+  implemented and CI-tested; an approved shared deployment is still external.
+- Supervised lifecycle remains `shadow_observation` with no qualified current
+  candidate. The consumed v5.49b evidence cannot be retuned; fresh development
+  evidence, a second physical source, and an untouched future evaluation remain
+  blockers.
 - Case grouping is lightweight and not a full incident-management/ticketing platform.

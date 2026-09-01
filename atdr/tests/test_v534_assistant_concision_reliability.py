@@ -8,6 +8,7 @@ from atdr.app.core.config import get_settings
 from atdr.app.main import app
 from atdr.app.services import assistant_llm
 from atdr.app.services.assistant_response_contracts import (
+    RESPONSE_CONTRACTS,
     build_response_presentation,
     infer_response_mode,
 )
@@ -44,6 +45,23 @@ def test_v534_provider_failures_have_safe_stable_categories(reason: str, categor
     assert assistant_llm.classify_assistant_llm_failure(reason) == category
 
 
+def test_v552_response_contracts_are_concise_and_limit_followups() -> None:
+    expected_limits = {
+        "direct_fact": 55,
+        "alert_explanation": 75,
+        "safe_next_step": 70,
+        "related_logs": 80,
+        "source_health": 70,
+        "list_summary": 75,
+        "case_handoff": 90,
+        "investigation_brief": 110,
+        "how_to": 120,
+        "governance": 70,
+    }
+    assert {name: contract.word_limit for name, contract in RESPONSE_CONTRACTS.items()} == expected_limits
+    assert all(contract.max_followups == 2 for contract in RESPONSE_CONTRACTS.values())
+
+
 def test_v534_investigation_presentation_deduplicates_evidence_and_stays_bounded() -> None:
     presentation = build_response_presentation(
         mode="investigation_brief",
@@ -63,8 +81,8 @@ def test_v534_investigation_presentation_deduplicates_evidence_and_stays_bounded
         active_context={"primary": "alert", "alert_id": 1},
         citation_references=["Alert detail #1"],
     )
-    assert presentation.word_limit == 160
-    assert presentation.word_count <= 160
+    assert presentation.word_limit == 110
+    assert presentation.word_count <= 110
     assert presentation.sections["citations"] == ["Alert detail #1"]
     assert len(presentation.sections["key_evidence"]) == 1
 
@@ -123,8 +141,8 @@ def test_v534_gemini_brief_is_compacted_after_provider_rendering_and_read_only(
     sections = payload["details"]["answer_sections"]
     assert payload["external_provider_used"] is True
     assert payload["response_mode"] == "investigation_brief"
-    assert len(payload["answer"].split()) <= 160
-    assert payload["details"]["response_contract"]["word_limit"] == 160
+    assert len(payload["answer"].split()) <= 110
+    assert payload["details"]["response_contract"]["word_limit"] == 110
     assert len(sections["key_evidence"]) == 2
     assert sections["citations"] == ["Alert detail #1"]
     assert payload["raw_log_context_included"] is False

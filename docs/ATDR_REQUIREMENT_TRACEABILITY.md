@@ -895,3 +895,36 @@ This document maps major ATDR requirements to implementation evidence, tests, do
 | Aggregate governance status | Implemented | authenticated combined status endpoint and AI Governance panel | API redaction, auth, rendering, safety, and overflow coverage | v5.49b status | Private generated protocol/result remains ignored. |
 | Authority/privacy | Preserved | safe aggregate projection and before/after count proof | zero label/model/run/alert/response writes; no protected values exposed | v5.49b T1-T20 | Rules remain authoritative; lifecycle stays `shadow_observation`. |
 | Independent activation evidence | Not satisfied | stored negative decision and external-evidence requirements | no candidate activation/promotion/artifact write | product finish line | Requires a second source, untouched future window, passing fixed gates, and human approval. |
+
+## v5.50 Current-State Truth Lock Addendum
+
+| Requirement | Status | Source files / routes | Tests / evidence | Docs | Remaining gaps |
+| --- | --- | --- | --- | --- | --- |
+| Published baseline truth | Implemented | runtime source, CI workflow, Git history | commit `1866086e...`; Actions `33348242534` green | v5.50 truth lock | Future commits still require exact-path approval. |
+| Current supervised decision | Implemented; no candidate | v5.49b evaluator/status and aggregate governance UI | `180/180`, support `95/39/27`, `8/8` strategies, candidates `0` | current AI/ML status | Fresh development evidence, second source, untouched future evaluation, and approval. |
+| Product completion classification | Implemented | backend/frontend/runtime audit | source-backed complete/partial/external matrix | v5.50 truth lock; finish line | Field, provider, university, and deployment acceptance remain external. |
+| Active documentation consistency | Implemented | README, PRD, runbook, status, taskboard | taskboard and full verification matrix | v5.50 T1-T20 | Historical version documents remain evidence, not current authority. |
+| Privacy and authority | Preserved | existing safe aggregate contracts | no protected/private data or runtime writes; staging remains empty | v5.50 status/change record | Continue ignored-output and secret hygiene. |
+| Shortest finish roadmap | Implemented | ownership and gate audit | four substantial phases after v5.50 | product finish line | v5.51-v5.54 depend partly on external owners. |
+
+## v5.51 Detection Field Qualification Addendum
+
+| Requirement | Status | Source files / routes | Tests / evidence | Docs | Remaining gaps |
+| --- | --- | --- | --- | --- | --- |
+| Disposable field qualification | Implemented and locally passed | `v551_field_qualification_service.py`; `run_v551_detection_field_qualification.py` | v5.51 focused tests; local preflight/full run | v5.51 status/field contract | Physical transport remains external. |
+| PAN-OS parser field qualification | Harness implemented; human field truth pending | parser/contract source; private field-expectation validator | TRAFFIC/THREAT/SYSTEM known/extended/partial/unsupported fixtures | field contract | Device-backed human expectations from at least two sources. |
+| Rule FP/FN qualification | Prediction-blind workflow implemented; metrics withheld | production rules/grouping; private review pack/seal | review completeness, attack type, no-import, aggregate metric tests | v5.51 status | Genuine review of field rows. |
+| Fresh evidence roles | Implemented; no qualifying field rows yet | fresh private manifest and role partitioner | cutoff, exact/near duplicate, cross-role, label-closed tests | fresh evidence protocol | Two physical sources, four windows, 240 rows, 40 future rows. |
+| Aggregate API/UI | Implemented | `/api/evidence-review/field-qualification/status`; AI Governance | auth/redaction tests; focused Playwright and overflow check | v5.51 status | Display becomes `ready` only after all fixed gates. |
+
+## v5.52 Analyst Experience And Assistant Closure Addendum
+
+| Requirement | Status | Source | Test evidence | Documentation | Remaining gap |
+| --- | --- | --- | --- | --- | --- |
+| Primary entity and follow-up continuity | Implemented | `assistant_service.py`; `AssistantPage.tsx` | backend context/reset regressions; Playwright navigation, alert switch, source-ID tests | v5.52 status/T1-T20 | Independent analyst usability acceptance remains external. |
+| Bounded conversation persistence | Implemented | `assistantSession.ts`; `AssistantPage.tsx` | four-turn cap, navigation restore, malformed storage, logout clear browser tests | v5.52 status | Tab-only by design; no cross-device transcript store. |
+| Explicit answer provenance | Implemented | Assistant schemas/service/audit; `AssistantAnswerContent.tsx` | deterministic/external provenance, audit, privacy, UI tests | v5.52 status | Provider synthesis remains dependent on supplied ATDR evidence. |
+| Concise intent-specific answers | Implemented | `assistant_response_contracts.py`; prompt contract v5 | Assistant QA `20/20`; average `60.9`, maximum `110`, all budgets pass | v5.52 status | Representative field-traffic semantic evaluation remains external. |
+| Configured Gemini path | Passed in bounded local probes | `assistant_llm.py`; provider/chat probe scripts | structured minimal probe and full synthetic chat; zero mutations | v5.52 status/current AI status | MFU privacy approval, quota, billing, key rotation, and production monitoring. |
+| Assistant authority and privacy | Preserved | Assistant guards/config/audit | raw logs false; redaction true; secrets false; no labels/models/detections/responses | PRD/current AI status | No autonomous action is planned for this release target. |
+| v5.49b isolation and authority | Preserved | module boundary and fixed safe projection | protected access false; zero authoritative writes | T1-T20 | Consumed evidence remains permanently excluded. |
