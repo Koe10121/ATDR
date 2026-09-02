@@ -4,11 +4,13 @@ import argparse
 import json
 from pathlib import Path
 
-from atdr.app.core.config import PROJECT_ROOT
 from atdr.app.services.repository_security_service import (
     build_cyclonedx_sbom,
     build_security_acceptance_report,
 )
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def main() -> None:
