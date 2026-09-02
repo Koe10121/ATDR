@@ -975,3 +975,16 @@ status/change documents.
 | AI and response safety | Assistant writes zero labels/models/detections/responses; rules remain authoritative and ML advisory | Satisfied; automation and real blocking remain disabled. |
 | Accessibility and UI | Keyboard submit, live-region/loading semantics, progressive disclosure, wrapping, and responsive browser checks | Implemented locally; formal assistive-technology/usability review remains external. |
 | T1-T20 / PRD / traceability | v5.52 status, change record, PRD, traceability, checklist, taskboard, and exact allowlist | Satisfied locally after complete verification; commit/push require separate approval. |
+
+## v5.53 IAM And Shared Deployment Readiness Compliance Status
+
+| University / ATDR rule | v5.53 evidence | Current status / next action |
+| --- | --- | --- |
+| Supervisor shell remains the normal entry | Shell-first handoff is preserved; local recovery remains explicit and cannot become a silent fallback | Satisfied locally; MFU preproduction acceptance remains external. |
+| Least privilege and role mapping | New external users default to analyst; admin requires an explicit private IAM group mapping | Implemented fail closed; obtain the approved MFU group identifier. |
+| No secret or private-evidence disclosure | Aggregate API/CLI/UI omit values, paths, identities, tokens, payloads, and raw logs; repository scanning exposes rule/path only | Satisfied by source and focused tests. |
+| Configuration is not acceptance | Expiring private contracts require real login/lifecycle, host/recovery, provider-governance, and physical teammate evidence | Satisfied locally; every external contract currently remains unaccepted. |
+| Dependency and code security | Hashed Python lock, pip audit, npm audit, secret scan, CycloneDX SBOM, and scheduled CodeQL | Local audits pass; CodeQL execution awaits separately approved publication. |
+| AI and response safety | Gemini remains read-only; raw logs disabled; rules authoritative; ML advisory; no automatic response or blocking | Satisfied; no authority change. |
+| Process governance | v5.53 status, manifest guide, T1-T20, PRD, traceability, taskboard, verification, and exact allowlist | Satisfied locally after final verification; commit/push require separate approval. |
+| Production claim | `production_ready=false` is invariant; absent university, provider, host, teammate, and field evidence stays visible | Correctly blocked; do not relabel configuration as acceptance. |

@@ -128,3 +128,25 @@ python -m atdr.scripts.lab_smoke_check
 It checks API health, admin login, dashboard summary, alerts, audit, ML report, Streamlit reachability, and Docker Compose availability. If Docker is missing on the current machine, treat that as a tooling blocker and run Compose validation on a Docker-capable host.
 
 For the full release process, including backup dry runs, optional Playwright smoke tests with `ATDR_RUN_PLAYWRIGHT=1`, rollback notes, and Docker/PostgreSQL validation, use `docs/RELEASE_CHECKLIST.md`.
+
+## v5.53 Operator Readiness
+
+Before a shared deployment claim, run the admin-only aggregate readiness check
+and verify the private deployment contract is current. The operator must supply
+real evidence for HTTPS, managed secrets, PostgreSQL migrations, durable worker
+ownership, monitoring and alerts, load behavior, backup/restore, measured
+RPO/RTO, rollback, and disaster recovery. A configured setting or successful
+local SQLite test is not a substitute.
+
+Run repository security controls before handoff:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v553_security_acceptance --pretty
+.\.venv\Scripts\python.exe -m pip_audit -r requirements.lock.txt --no-deps
+Set-Location frontend
+npm.cmd audit --audit-level=moderate
+```
+
+Keep generated SBOMs and acceptance evidence in ignored temporary/private
+storage. CodeQL runs only after a separately approved publication reaches
+GitHub Actions.

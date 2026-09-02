@@ -100,6 +100,27 @@ class OperationJobSummaryRead(BaseModel):
     recent_failure_count: int = 0
 
 
+class ReleaseReadinessRead(BaseModel):
+    phase: str
+    status: str
+    local_controls_ready: bool
+    external_evidence_complete: bool
+    approved_host_ready: bool
+    shared_lab_ready: bool
+    production_ready: bool = False
+    sections: dict[str, Any] = Field(default_factory=dict)
+    remaining_external_actions: list[str] = Field(default_factory=list)
+    runtime_issue_count: int = 0
+    database_probe_performed: bool = False
+    filesystem_writes_performed: bool = False
+    current_database_modified: bool = False
+    model_activation_performed: bool = False
+    response_automation_allowed: bool = False
+    real_firewall_blocking_enabled: bool = False
+    raw_log_context_allowed: bool = False
+    secrets_exposed: bool = False
+
+
 class OperationJobSubmit(BaseModel):
     job_type: str
     payload: dict[str, Any] = Field(default_factory=dict)

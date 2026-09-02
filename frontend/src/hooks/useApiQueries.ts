@@ -20,6 +20,7 @@ export const queryKeys = {
   me: ["me"],
   oidcStatus: ["oidc-status"],
   mfuIamStatus: ["mfu-iam-status"],
+  releaseReadiness: ["release-readiness"],
   emailStatus: ["email-status"],
   devEmailOutbox: ["dev-email-outbox"],
   assistantStatus: ["assistant-status"],
@@ -136,6 +137,15 @@ export function useOidcStatus() {
 
 export function useMfuIamStatus() {
   return useQuery({ queryKey: queryKeys.mfuIamStatus, queryFn: api.mfuIamStatus, retry: false });
+}
+
+export function useReleaseReadiness() {
+  return useQuery({
+    queryKey: queryKeys.releaseReadiness,
+    queryFn: api.releaseReadiness,
+    retry: false,
+    staleTime: 60_000
+  });
 }
 
 export function useEmailStatus() {

@@ -24,6 +24,7 @@ import { api } from "../lib/api";
 import {
   useClassTemporalCoverage,
   useBlindEvidenceStatus,
+  useAssistantStatus,
   useCandidateFreezeStatus,
   useCombinedFixedRevalidationStatus,
   useDetectionMlProductization,
@@ -67,6 +68,7 @@ function rateText(value: unknown) {
 }
 
 export function MLGovernance() {
+  const assistantStatus = useAssistantStatus();
   const report = useMlReport();
   const evidenceSnapshot = useMlEvidenceSnapshot();
   const blindEvidence = useBlindEvidenceStatus();
@@ -421,6 +423,7 @@ export function MLGovernance() {
   }
 
   function refreshGovernance() {
+    void assistantStatus.refetch();
     void report.refetch();
     void evidenceSnapshot.refetch();
     void blindEvidence.refetch();
@@ -472,6 +475,44 @@ export function MLGovernance() {
         <MetricCard label="Anomalies" value={data?.anomaly_count ?? "-"} detail="Current anomaly flags" tone="amber" />
         <MetricCard label="Anomaly Rate" value={`${data?.anomaly_rate ?? "-"}%`} detail="Assistive signal rate" tone="cyan" />
       </div>
+
+      <section className="panel overflow-hidden" data-testid="assistant-provider-governance">
+        <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-xs font-extrabold uppercase tracking-wide text-muted">Assistant Provider Governance</div>
+            <div className="mt-1 text-sm text-muted">Bounded external synthesis with deterministic fallback.</div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Badge value={assistantStatus.data?.llm_ready ? "External Provider Ready" : "Deterministic Fallback"} />
+            <Badge value="Read Only" />
+          </div>
+        </div>
+        <dl className="mt-4 grid min-w-0 gap-x-4 gap-y-3 border-y border-line py-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="min-w-0">
+            <dt className="text-xs font-extrabold uppercase tracking-wide text-muted">Provider</dt>
+            <dd className="mt-1 break-words font-bold">{assistantStatus.data?.llm_ready ? assistantStatus.data.llm_provider_name : "Disabled"}</dd>
+          </div>
+          <div className="min-w-0">
+            <dt className="text-xs font-extrabold uppercase tracking-wide text-muted">Provider health</dt>
+            <dd className="mt-1 break-words font-bold">{assistantStatus.data?.llm_operational.status?.replaceAll("_", " ") ?? "Not evaluated"}</dd>
+          </div>
+          <div className="min-w-0">
+            <dt className="text-xs font-extrabold uppercase tracking-wide text-muted">Raw log context</dt>
+            <dd className="mt-1 font-bold">{assistantStatus.data?.raw_log_context_allowed ? "Review required" : "Disabled"}</dd>
+          </div>
+          <div className="min-w-0">
+            <dt className="text-xs font-extrabold uppercase tracking-wide text-muted">Privacy controls</dt>
+            <dd className="mt-1 font-bold">{assistantStatus.data?.redaction_enabled ? "Redaction enabled" : "Review required"}</dd>
+          </div>
+        </dl>
+        <div className="mt-3 flex min-w-0 flex-wrap items-center justify-between gap-2 text-sm text-muted">
+          <span>Calls {assistantStatus.data?.llm_operational.calls_attempted ?? 0} · Fallbacks {assistantStatus.data?.llm_operational.fallbacks ?? 0}</span>
+          <span>Estimated provider cost ${Number(assistantStatus.data?.llm_operational.estimated_cost_usd ?? 0).toFixed(4)}</span>
+        </div>
+        {assistantStatus.isError ? (
+          <ErrorBanner error={assistantStatus.error} fallback="Assistant provider governance is unavailable." />
+        ) : null}
+      </section>
 
       <MLEvidenceSnapshotPanel snapshot={evidenceSnapshot.data} loading={evidenceSnapshot.isLoading} error={evidenceSnapshot.isError} />
 

@@ -153,3 +153,20 @@ Use:
 - `docs/V3_0_PRODUCTION_READINESS_TRACK.md`
 
 The v3.0 track keeps response simulation enabled and does not activate a model or enable real firewall blocking.
+
+## v5.53 Approved-Host Acceptance Boundary
+
+The repository contains the PostgreSQL, worker, reverse-proxy, health,
+monitoring, backup/restore, and recovery building blocks for a shared host. A
+deployment is not accepted until the private v5.53 contract records real checks
+for migrations, worker ownership, HTTPS, managed secrets, monitoring, load,
+backup/restore, measured RPO/RTO, rollback, and disaster recovery on the named
+environment.
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v553_release_readiness --pretty
+```
+
+Local SQLite remains the supported laptop profile. Do not put a database URL,
+credential, host identity, or recovery artifact in tracked documentation or an
+acceptance API response.

@@ -72,6 +72,7 @@ import type {
   AssistantReviewItem,
   AssistantReviewSaveRequest,
   ResponseAction,
+  ReleaseReadinessResponse,
   ShadowMonitoringDiagnostics,
   ShadowOperationalAcceptance,
   ShadowObservationSummary,
@@ -209,6 +210,8 @@ export const api = {
   me: () => apiRequest<User>("/api/auth/me"),
   oidcStatus: () => apiRequest<OidcStatus>("/api/auth/oidc/status"),
   mfuIamStatus: () => apiRequest<MfuIamStatus>("/api/auth/mfu-iam/status"),
+  releaseReadiness: () =>
+    apiRequest<ReleaseReadinessResponse>("/api/operations/release-readiness"),
   emailStatus: () => apiRequest<EmailVerificationStatus>("/api/auth/email/status"),
   requestOwnEmailVerification: () =>
     apiRequest<EmailVerificationRequestResult>("/api/auth/email/request-verification", { method: "POST" }),

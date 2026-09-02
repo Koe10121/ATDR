@@ -12,6 +12,11 @@ This index defines the active ATDR documentation set for AI/Codex-assisted work.
 - `docs/V5_52_ANALYST_EXPERIENCE_AND_SOC_ASSISTANT_CLOSURE.md`: current
   Assistant context, provenance, concision, Gemini, accessibility, privacy, and
   analyst-workflow closure evidence.
+- `docs/V5_53_MFU_IAM_AND_SHARED_DEPLOYMENT_READINESS.md`: current fail-closed
+  IAM, approved-host, provider-governance, teammate-runtime, and repository
+  security readiness boundary.
+- `docs/security/V5_53_EXTERNAL_ACCEPTANCE_MANIFESTS.md`: private, expiring,
+  owner-backed evidence contract for the external acceptance tracks.
 - `docs/detection/V5_51_FIELD_QUALIFICATION_CONTRACT.md` and
   `docs/detection/V5_51_FRESH_EVIDENCE_PROTOCOL.md`: operator input, privacy,
   duplicate-containment, role, and post-v5.49b evidence contracts.
@@ -55,6 +60,9 @@ wording differs.
 | `docs/V5_50_CURRENT_STATE_TRUTH_LOCK.md` | Canonical current baseline, completion classification, ownership ledger, and shortest remaining roadmap. |
 | `docs/V5_51_DETECTION_PIPELINE_FIELD_QUALIFICATION.md` | Current local field-qualification implementation and aggregate readiness. |
 | `docs/V5_52_ANALYST_EXPERIENCE_AND_SOC_ASSISTANT_CLOSURE.md` | Current bounded conversation, answer provenance, concision, Gemini, privacy, and analyst UX closure. |
+| `docs/V5_53_MFU_IAM_AND_SHARED_DEPLOYMENT_READINESS.md` | Current local IAM/deployment/provider/team/security controls and external-owner gate ledger. |
+| `docs/changes/T1_T20_V5_53_MFU_IAM_AND_SHARED_DEPLOYMENT_READINESS.md` | v5.53 source, implementation, test, security, safety, rollback, and handoff record. |
+| `docs/V5_53_COMMIT_ALLOWLIST.md` | Exact 44-path v5.53 review boundary; it authorizes no Git operation. |
 | `docs/detection/V5_51_FIELD_QUALIFICATION_CONTRACT.md` | Private source/field/review input contracts and physical-run procedure. |
 | `docs/detection/V5_51_FRESH_EVIDENCE_PROTOCOL.md` | Fresh temporal namespace, duplicate containment, fixed roles, and sufficiency gates. |
 | `docs/ATDR_TEMPLATE_COMPARISON_AND_GAP_AUDIT.md` | Supervisor-template comparison showing what ATDR has completed, what is partial, and what remains future work. |
@@ -132,6 +140,7 @@ wording differs.
 | `docs/security/ATDR_SCHOOL_EMAIL_IAM_READINESS_AUDIT.md` | School-email IAM readiness audit explaining why real MFU/Google/OIDC login remains disabled until provider details are approved. |
 | `docs/security/MFU_IAM_PROVIDER_DETAILS_CHECKLIST.md` | Advisor/provider questions required before real MFU IAM or Google SSO implementation. |
 | `docs/security/ATDR_OWASP_LAB_SECURITY_REVIEW.md` | Lab security review baseline and production-hardening gaps. |
+| `docs/security/V5_53_EXTERNAL_ACCEPTANCE_MANIFESTS.md` | Private evidence schemas for MFU lifecycle, shared-host recovery, Assistant-provider governance, and physical teammate acceptance. |
 
 ## Runbooks And Readiness Documents
 

@@ -104,6 +104,25 @@ writes. This is bounded adapter and workflow evidence, not institutional
 provider approval or universal answer accuracy. See
 `docs/V5_52_ANALYST_EXPERIENCE_AND_SOC_ASSISTANT_CLOSURE.md`.
 
+## v5.53 IAM And Shared Deployment Readiness
+
+ATDR now distinguishes configured controls from real acceptance across the MFU
+shell, shared deployment, Gemini governance, teammate runtime, and repository
+security. The admin-only readiness view is aggregate and fail closed; it never
+returns credentials, private paths, identities, provider payloads, or raw logs.
+Normal authentication still begins in the approved MFU template shell.
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v553_release_readiness --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v553_security_acceptance --pretty
+```
+
+Local controls, dependency audits, secret scanning, and SBOM generation are
+implemented. MFU lifecycle/group acceptance, an approved shared host,
+institutional Gemini governance, a separate physical teammate run, and
+independent field evidence remain external. `production_ready` remains false.
+See `docs/V5_53_MFU_IAM_AND_SHARED_DEPLOYMENT_READINESS.md`.
+
 ## v3.0 Production-Readiness Track
 
 The next track is real-source and lab-deployment hardening, not production approval. It adds:
@@ -521,6 +540,7 @@ Start here:
 
 - `docs/CURRENT_SYSTEM_STATE_LOCK.md` - current source-backed product and safety checkpoint.
 - `docs/CURRENT_AI_ML_PRODUCT_STATUS.md` - current rules, IsolationForest, supervised-candidate, registry, and Gemini boundaries.
+- `docs/V5_53_MFU_IAM_AND_SHARED_DEPLOYMENT_READINESS.md` - current local readiness controls and external-owner acceptance ledger.
 - `docs/V4_8_END_TO_END_PRODUCT_ACCEPTANCE.md` - disposable 50,000-log integrated acceptance evidence.
 - `docs/V4_8_1_REPOSITORY_CONSOLIDATION_REPORT.md` - uncommitted repository consolidation decision and protected-file boundary.
 - `docs/QUICKSTART_FOR_TEAM.md` - Windows setup for teammates using clone or zip download.

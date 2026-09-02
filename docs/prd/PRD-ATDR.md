@@ -1853,3 +1853,32 @@ future validation remain prerequisites for any activation decision.
   label/model/detection/response side effects.
 - The Assistant shall remain read-only. Rules remain alert-authoritative, ML
   remains advisory, and automatic response and real blocking remain disabled.
+
+## v5.53 MFU IAM And Shared Deployment Readiness Requirements
+
+- **FR-ATDR-108:** ATDR shall expose an authenticated admin-only aggregate
+  readiness view for MFU IAM, shared deployment, Assistant-provider governance,
+  teammate runtime, and repository security without exposing configuration
+  values, credentials, private paths, identities, raw evidence, or provider
+  payloads.
+- Configuration shall not count as acceptance. Real acceptance shall require
+  expiring, environment-bound private evidence contracts; absent, malformed,
+  unsafe, replayed, or expired evidence shall fail closed.
+- **FR-ATDR-109:** Normal template-shell mode shall validate explicit origins,
+  callbacks and return paths, HTTPS requirements outside development, secure
+  cookie expectations, analyst-default role mapping, explicit admin groups, and
+  disabled mock behavior outside development. Wildcard CORS policy is forbidden.
+- **FR-ATDR-110:** ATDR shall provide a disposable teammate-machine acceptance
+  runner that validates an approved shell source and rehearses setup, startup,
+  health, shutdown, and cleanup only after an exact confirmation. The runner
+  shall not self-approve a physical-machine acceptance contract.
+- **FR-ATDR-111:** Repository verification shall include high-confidence secret
+  and forbidden-path scanning, Python and npm dependency auditing, a CycloneDX
+  source SBOM, and scheduled Python/JavaScript CodeQL analysis. Scan output shall
+  never include matched secret values.
+- Local SQLite shall remain supported. Shared deployment evidence shall cover
+  PostgreSQL, migrations, durable workers, HTTPS, managed secrets, monitoring,
+  backup/restore, measured recovery, rollback, and disaster recovery on an
+  approved host before a shared-deployment claim is allowed.
+- v5.53 shall not alter detector authority, activate/promote a model, allow raw
+  log provider context, enable automatic response, or enable real blocking.

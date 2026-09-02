@@ -359,6 +359,27 @@ export interface AssistantStatusResponse {
   safety: string[];
 }
 
+export interface ReleaseReadinessResponse {
+  phase: string;
+  status: string;
+  local_controls_ready: boolean;
+  external_evidence_complete: boolean;
+  approved_host_ready: boolean;
+  shared_lab_ready: boolean;
+  production_ready: boolean;
+  sections: Record<string, Record<string, unknown>>;
+  remaining_external_actions: string[];
+  runtime_issue_count: number;
+  database_probe_performed: boolean;
+  filesystem_writes_performed: boolean;
+  current_database_modified: boolean;
+  model_activation_performed: boolean;
+  response_automation_allowed: boolean;
+  real_firewall_blocking_enabled: boolean;
+  raw_log_context_allowed: boolean;
+  secrets_exposed: boolean;
+}
+
 export interface HealthResponse {
   status: string;
   service: string;

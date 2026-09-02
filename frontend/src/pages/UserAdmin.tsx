@@ -4,12 +4,21 @@ import { EmptyState } from "../components/EmptyState";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { MetricCard } from "../components/MetricCard";
 import { SafeSelect } from "../components/SafeSelect";
-import { useDevEmailOutbox, useEmailStatus, useMfuIamStatus, useOidcStatus, useUserMutations, useUsers } from "../hooks/useApiQueries";
+import {
+  useDevEmailOutbox,
+  useEmailStatus,
+  useMfuIamStatus,
+  useOidcStatus,
+  useReleaseReadiness,
+  useUserMutations,
+  useUsers
+} from "../hooks/useApiQueries";
 
 export function UserAdmin() {
   const users = useUsers();
   const oidcStatus = useOidcStatus();
   const mfuIamStatus = useMfuIamStatus();
+  const releaseReadiness = useReleaseReadiness();
   const emailStatus = useEmailStatus();
   const devOutbox = useDevEmailOutbox(Boolean(emailStatus.data?.dev_outbox_available));
   const mutations = useUserMutations();
@@ -71,6 +80,7 @@ export function UserAdmin() {
     : mfuIamStatus.data?.last_safe_validation_status === "failed"
       ? "Failed"
       : "Not run";
+  const deploymentReadiness = releaseReadiness.data?.sections.deployment;
 
   return (
     <div className="space-y-5">
@@ -213,6 +223,68 @@ export function UserAdmin() {
           The supervisor shell owns school login and 2FA, then launches ATDR through a single-use server-side handoff. New approved users default to analyst; admin access requires an explicit IAM group mapping.
         </div>
         {mfuIamStatus.isError ? <ErrorBanner error={mfuIamStatus.error} fallback="MFU IAM status is unavailable." /> : null}
+      </section>
+
+      <section className="panel" data-testid="release-readiness-panel">
+        <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-sm font-extrabold uppercase tracking-wide text-muted">Release Readiness</div>
+            <h2 className="mt-1 text-xl font-black">Shared-lab acceptance</h2>
+            <p className="mt-1 text-sm text-muted">Local controls and externally approved evidence are tracked separately.</p>
+          </div>
+          <Badge value={releaseReadiness.data?.shared_lab_ready ? "Shared lab ready" : "External acceptance required"} />
+        </div>
+        <dl className="mt-4 grid min-w-0 gap-x-4 gap-y-3 border-y border-line py-4 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            ["Local controls", releaseReadiness.data?.local_controls_ready],
+            ["External evidence", releaseReadiness.data?.external_evidence_complete],
+            ["Approved host", releaseReadiness.data?.approved_host_ready],
+            ["Shared lab", releaseReadiness.data?.shared_lab_ready]
+          ].map(([label, ready]) => (
+            <div className="min-w-0" key={String(label)}>
+              <dt className="text-xs font-extrabold uppercase tracking-wide text-muted">{String(label)}</dt>
+              <dd className="mt-1 font-bold">{ready ? "Accepted" : "Pending"}</dd>
+            </div>
+          ))}
+        </dl>
+        <dl className="grid min-w-0 gap-x-4 gap-y-3 border-b border-line py-4 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            ["Database", String(deploymentReadiness?.database_profile ?? "Not evaluated")],
+            ["Workers", deploymentReadiness?.workers_ready === true ? "Ready" : "Pending"],
+            ["Backup / restore", deploymentReadiness?.backup_ready === true ? "Ready" : "Pending"],
+            ["Monitoring", deploymentReadiness?.monitoring_ready === true ? "Ready" : "Pending"],
+            ["HTTPS", deploymentReadiness?.https_ready === true ? "Ready" : "Pending"],
+            ["Managed secrets", deploymentReadiness?.managed_secrets_ready === true ? "Ready" : "Pending"],
+            ["Migrations", deploymentReadiness?.database_migration_ready === true ? "At head" : "Probe required"],
+            ["Recovery evidence", deploymentReadiness?.recovery_evidence_ready === true ? "Accepted" : "Pending"]
+          ].map(([label, value]) => (
+            <div className="min-w-0" key={label}>
+              <dt className="text-xs font-extrabold uppercase tracking-wide text-muted">{label}</dt>
+              <dd className="mt-1 break-words font-bold">{value}</dd>
+            </div>
+          ))}
+        </dl>
+        <div className="mt-4 grid min-w-0 gap-3 lg:grid-cols-[1fr_auto] lg:items-start">
+          <div className="min-w-0">
+            <div className="text-xs font-extrabold uppercase tracking-wide text-muted">Remaining external actions</div>
+            {releaseReadiness.data?.remaining_external_actions.length ? (
+              <ul className="mt-2 space-y-1 text-sm text-muted">
+                {releaseReadiness.data.remaining_external_actions.map((action) => (
+                  <li className="break-words" key={action}>{action}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-2 text-sm text-muted">No outstanding shared-lab acceptance evidence.</p>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2 lg:justify-end">
+            <Badge value="Production Not Claimed" />
+            <Badge value="Response Automation Disabled" />
+          </div>
+        </div>
+        {releaseReadiness.isError ? (
+          <ErrorBanner error={releaseReadiness.error} fallback="Release readiness status is unavailable." />
+        ) : null}
       </section>
 
       <section className="panel">

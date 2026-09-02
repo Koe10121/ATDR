@@ -1,6 +1,7 @@
 from functools import lru_cache
 from ipaddress import ip_network
 from pathlib import Path
+from urllib.parse import urlparse
 
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -12,6 +13,20 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 def _is_documentation_placeholder(value: str) -> bool:
     clean = value.strip().lower()
     return not clean or any(marker in clean for marker in ("replace-during", "replace-with", "change-this", "placeholder"))
+
+
+def _valid_http_url(value: str, *, require_https: bool, origin_only: bool) -> bool:
+    try:
+        parsed = urlparse(value.strip())
+    except ValueError:
+        return False
+    if parsed.scheme not in ({"https"} if require_https else {"http", "https"}):
+        return False
+    if not parsed.hostname or parsed.username or parsed.password or "*" in value:
+        return False
+    if origin_only and (parsed.path not in {"", "/"} or parsed.params or parsed.query or parsed.fragment):
+        return False
+    return True
 
 
 class Settings(BaseSettings):
@@ -135,6 +150,18 @@ class Settings(BaseSettings):
         default="http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:8501,http://localhost:8501",
         alias="CORS_ALLOWED_ORIGINS",
     )
+    cors_allowed_methods: str = Field(
+        default="GET,POST,PUT,PATCH,DELETE,OPTIONS",
+        alias="CORS_ALLOWED_METHODS",
+    )
+    cors_allowed_headers: str = Field(
+        default="Authorization,Content-Type,X-Request-ID",
+        alias="CORS_ALLOWED_HEADERS",
+    )
+    cors_exposed_headers: str = Field(
+        default="X-Request-ID,X-Total-Count,Content-Disposition",
+        alias="CORS_EXPOSED_HEADERS",
+    )
     security_headers_enabled: bool = Field(default=True, alias="SECURITY_HEADERS_ENABLED")
     trust_proxy_headers: bool = Field(default=False, alias="TRUST_PROXY_HEADERS")
     trusted_proxy_cidrs: str = Field(default="127.0.0.1/32,::1/128", alias="TRUSTED_PROXY_CIDRS")
@@ -145,6 +172,7 @@ class Settings(BaseSettings):
     deployment_tls_private_key_path: str = Field(default="", alias="DEPLOYMENT_TLS_PRIVATE_KEY_PATH")
     deployment_prometheus_url: str = Field(default="", alias="DEPLOYMENT_PROMETHEUS_URL")
     deployment_secret_provider: str = Field(default="disabled", alias="DEPLOYMENT_SECRET_PROVIDER")
+    acceptance_evidence_root: str = Field(default="", alias="ATDR_ACCEPTANCE_EVIDENCE_ROOT")
     syslog_enabled: bool = Field(default=False, alias="SYSLOG_ENABLED")
     syslog_host: str = Field(default="127.0.0.1", alias="SYSLOG_HOST")
     syslog_port: int = Field(default=5514, alias="SYSLOG_PORT")
@@ -445,6 +473,18 @@ class Settings(BaseSettings):
         return origins or ["http://127.0.0.1:8501"]
 
     @property
+    def cors_methods(self) -> list[str]:
+        return [value.strip().upper() for value in self.cors_allowed_methods.split(",") if value.strip()]
+
+    @property
+    def cors_headers(self) -> list[str]:
+        return [value.strip() for value in self.cors_allowed_headers.split(",") if value.strip()]
+
+    @property
+    def cors_expose_headers(self) -> list[str]:
+        return [value.strip() for value in self.cors_exposed_headers.split(",") if value.strip()]
+
+    @property
     def trusted_proxy_cidr_list(self) -> list[str]:
         return [value.strip() for value in self.trusted_proxy_cidrs.split(",") if value.strip()]
 
@@ -548,6 +588,15 @@ def validate_runtime_settings(settings: Settings) -> list[str]:
             issues.append("RESPONSE_SIMULATION should remain true until a firewall connector is formally approved.")
         if "*" in settings.cors_origins:
             issues.append("CORS_ALLOWED_ORIGINS must not include '*' in production.")
+    allowed_cors_methods = {"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
+    if not settings.cors_methods or any(method not in allowed_cors_methods for method in settings.cors_methods):
+        issues.append("CORS_ALLOWED_METHODS must contain only GET, POST, PUT, PATCH, DELETE, or OPTIONS.")
+    if "*" in settings.cors_methods:
+        issues.append("CORS_ALLOWED_METHODS must not include '*'.")
+    if not settings.cors_headers or "*" in settings.cors_headers:
+        issues.append("CORS_ALLOWED_HEADERS must be explicit and must not include '*'.")
+    if "*" in settings.cors_expose_headers:
+        issues.append("CORS_EXPOSED_HEADERS must not include '*'.")
     trusted_proxy_cidrs = settings.trusted_proxy_cidr_list
     if settings.trust_proxy_headers and not trusted_proxy_cidrs:
         issues.append("TRUSTED_PROXY_CIDRS is required when TRUST_PROXY_HEADERS=true.")
@@ -581,8 +630,18 @@ def validate_runtime_settings(settings: Settings) -> list[str]:
         # Shell handoff and direct IAM B2B are separate contracts. A selected
         # shell profile must never demand unrelated B2B client credentials.
         b2b_required = False
+        if settings.mfu_iam_default_role != "analyst":
+            issues.append("MFU_IAM_DEFAULT_ROLE must be 'analyst' for template-shell login; admin requires an explicit group mapping.")
+        if settings.mfu_iam_mock_enabled and settings.environment.lower() != "development":
+            issues.append("MFU_IAM_MOCK_ENABLED must remain false outside development.")
         if template_shell_enabled and not settings.mfu_iam_template_shell_base_url.strip():
             issues.append("MFU_IAM_TEMPLATE_SHELL_BASE_URL is required when MFU_IAM_TEMPLATE_SHELL_ENABLED=true.")
+        elif template_shell_enabled and not _valid_http_url(
+            settings.mfu_iam_template_shell_base_url,
+            require_https=settings.environment.lower() in {"shared_lab", "preproduction", "production"},
+            origin_only=True,
+        ):
+            issues.append("MFU_IAM_TEMPLATE_SHELL_BASE_URL must be a valid approved http(s) origin (HTTPS outside local development).")
         if settings.mfu_iam_handoff_enabled:
             if not template_shell_enabled:
                 issues.append("MFU_IAM_TEMPLATE_SHELL_ENABLED must be true when MFU_IAM_HANDOFF_ENABLED=true.")
@@ -590,12 +649,34 @@ def validate_runtime_settings(settings: Settings) -> list[str]:
                 issues.append("MFU_IAM_HANDOFF_SHARED_SECRET is required when MFU_IAM_HANDOFF_ENABLED=true.")
             if not settings.mfu_iam_handoff_exchange_path.strip().startswith("/"):
                 issues.append("MFU_IAM_HANDOFF_EXCHANGE_PATH must start with '/'.")
-            if not settings.mfu_iam_handoff_frontend_url.strip().startswith(("http://", "https://")):
-                issues.append("MFU_IAM_HANDOFF_FRONTEND_URL must be an http(s) URL when MFU_IAM_HANDOFF_ENABLED=true.")
+            if not _valid_http_url(
+                settings.mfu_iam_handoff_frontend_url,
+                require_https=settings.environment.lower() in {"shared_lab", "preproduction", "production"},
+                origin_only=True,
+            ):
+                issues.append("MFU_IAM_HANDOFF_FRONTEND_URL must be a valid approved http(s) origin (HTTPS outside local development).")
             if not settings.mfu_iam_handoff_allowed_origin_list:
                 issues.append("MFU_IAM_HANDOFF_ALLOWED_ORIGINS is required when MFU_IAM_HANDOFF_ENABLED=true.")
+            elif any(
+                not _valid_http_url(
+                    origin,
+                    require_https=settings.environment.lower() in {"shared_lab", "preproduction", "production"},
+                    origin_only=True,
+                )
+                for origin in settings.mfu_iam_handoff_allowed_origin_list
+            ):
+                issues.append("MFU_IAM_HANDOFF_ALLOWED_ORIGINS must contain exact approved origins without wildcards, paths, credentials, query strings, or fragments.")
             if not settings.mfu_iam_handoff_allowed_return_path_list:
                 issues.append("MFU_IAM_HANDOFF_ALLOWED_RETURN_PATHS is required when MFU_IAM_HANDOFF_ENABLED=true.")
+            elif any(
+                not path.startswith("/")
+                or path.startswith("//")
+                or "://" in path
+                or "?" in path
+                or "#" in path
+                for path in settings.mfu_iam_handoff_allowed_return_path_list
+            ):
+                issues.append("MFU_IAM_HANDOFF_ALLOWED_RETURN_PATHS must contain only absolute application paths without URLs, queries, or fragments.")
             if not settings.mfu_iam_handoff_cookie_name.strip():
                 issues.append("MFU_IAM_HANDOFF_COOKIE_NAME is required when MFU_IAM_HANDOFF_ENABLED=true.")
             if settings.environment.lower() == "production" and not settings.mfu_iam_handoff_cookie_secure:
@@ -622,6 +703,8 @@ def validate_runtime_settings(settings: Settings) -> list[str]:
             issues.append("MFU_IAM_ADMIN_CLIENT_SECRET is required when MFU_IAM_ADMIN_CLIENT_ID is configured.")
         if settings.mfu_iam_admin_client_secret.strip() and not settings.mfu_iam_admin_client_id.strip():
             issues.append("MFU_IAM_ADMIN_CLIENT_ID is required when MFU_IAM_ADMIN_CLIENT_SECRET is configured.")
+    if settings.acceptance_evidence_root.strip() and not Path(settings.acceptance_evidence_root).expanduser().is_absolute():
+        issues.append("ATDR_ACCEPTANCE_EVIDENCE_ROOT must be an absolute private path when configured.")
     if settings.google_sso_enabled and not settings.google_client_id.strip():
         issues.append("GOOGLE_CLIENT_ID is required when GOOGLE_SSO_ENABLED=true.")
     if settings.require_school_email and not settings.school_email_domain_list:

@@ -1211,3 +1211,20 @@ configured Gemini minimal probe and full synthetic Assistant path both pass
 with structured output, redaction enabled, raw logs excluded, secrets hidden,
 and zero label/model/detection/response writes. Institutional privacy, quota,
 billing, rotation, and real-traffic operational acceptance remain external.
+
+## v5.53 Provider And Authority Update
+
+The Gemini adapter is configured in the private local profile and retains the
+deterministic Assistant as its fallback and grounding source. The new aggregate
+readiness view distinguishes provider configuration from institutional
+acceptance and reports only safe operational facts such as health, call/fallback
+counts, bounded cost telemetry, redaction, and raw-log exclusion. It never
+returns a key, prompt payload, response payload, private path, or raw log.
+
+Institutional privacy/retention approval, quota and billing ownership, key
+rotation evidence, approved-host monitoring, and representative field-traffic
+evaluation remain external gates. No detection rule, supervised lifecycle,
+model artifact, label, alert, detection run, or response authority changed in
+v5.53. Rules remain alert-authoritative, supervised ML remains
+`shadow_observation`, the Assistant remains read-only, and automation and real
+blocking remain disabled.

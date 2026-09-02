@@ -928,3 +928,15 @@ This document maps major ATDR requirements to implementation evidence, tests, do
 | Configured Gemini path | Passed in bounded local probes | `assistant_llm.py`; provider/chat probe scripts | structured minimal probe and full synthetic chat; zero mutations | v5.52 status/current AI status | MFU privacy approval, quota, billing, key rotation, and production monitoring. |
 | Assistant authority and privacy | Preserved | Assistant guards/config/audit | raw logs false; redaction true; secrets false; no labels/models/detections/responses | PRD/current AI status | No autonomous action is planned for this release target. |
 | v5.49b isolation and authority | Preserved | module boundary and fixed safe projection | protected access false; zero authoritative writes | T1-T20 | Consumed evidence remains permanently excluded. |
+
+## v5.53 IAM And Shared Deployment Readiness Addendum
+
+| Requirement | Status | Source | Test evidence | Documentation | Remaining gap |
+| --- | --- | --- | --- | --- | --- |
+| Fail-closed aggregate readiness | Implemented | `v553_release_readiness_service.py`; `/api/operations/release-readiness`; Admin UI | focused backend and Playwright coverage | v5.53 status and manifest contract | Real owner-backed manifests are still required. |
+| Shell-first IAM configuration safety | Implemented locally | `config.py`; environment examples; shell handoff contracts | explicit-origin, HTTPS, role, mock-mode, expiry, replay, malformed-manifest tests | IAM preproduction guide | MFU-approved origins, group IDs, 2FA, recovery, and deprovisioning evidence. |
+| Shared deployment evidence boundary | Implemented locally | release-readiness service; existing PostgreSQL/worker/backup/monitoring assets | aggregate contract and no-side-effect tests | deployment and operations runbooks | Approved host, DNS/TLS, managed secrets, monitoring, load, RPO/RTO, and DR exercise. |
+| Provider-governance projection | Implemented | readiness service; AI Governance UI | privacy/redaction/status browser and backend tests | current AI status and v5.53 status | Institutional Gemini privacy, billing/quota, key rotation, and representative evaluation. |
+| Disposable teammate acceptance | Implemented; physical run pending | `run_v553_team_runtime_acceptance.py` | safe preflight and source/path validation | team quickstart/runbook | Clean clone on a separate physical machine after publication. |
+| Software supply-chain controls | Implemented locally | security service/CLI; CI; CodeQL workflow; hashed Python lock | secret scan, SBOM, pip audit, npm audit, full regression | v5.53 status/T1-T20 | CodeQL execution occurs after separately approved publication. |
+| Detection/response authority | Preserved | existing rule, ML, Assistant, and response controls | zero side-effect assertions | current state and AI status | Independent field evidence remains external; no authority expansion is permitted. |

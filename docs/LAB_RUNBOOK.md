@@ -2328,3 +2328,27 @@ show concise primary-query failures instead of leaving ambiguous page state.
 This is synthetic local SQLite acceptance plus tested startup contracts. It
 does not replace a clean teammate-machine run, approved MFU preproduction,
 real-device forwarding, institutional Gemini approval, or deployment SLOs.
+
+## v5.53 IAM And Shared Deployment Readiness
+
+Run the aggregate status without probing or writing the configured database:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v553_release_readiness --pretty
+```
+
+Run a safe approved-shell source preflight without installing or starting it:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v553_team_runtime_acceptance `
+  --template-root "C:\Path\To\Approved-MFU-Shell" `
+  --pretty
+```
+
+The report separates local controls from external acceptance. A configured
+provider, PostgreSQL URL, or callback never counts as accepted evidence. Use
+the private manifest schemas in
+`docs/security/V5_53_EXTERNAL_ACCEPTANCE_MANIFESTS.md`; keep their files under
+ignored private storage and mark checks true only after the named owner performs
+the real test. The normal entry remains the MFU shell, local recovery remains
+explicit only, and response automation/real blocking remain disabled.

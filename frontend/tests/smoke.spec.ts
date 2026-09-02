@@ -220,6 +220,46 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
       }
     })
   );
+  await page.route("**/api/operations/release-readiness", async (route) =>
+    route.fulfill({
+      json: {
+        phase: "v5.53",
+        status: "local_controls_ready_external_evidence_required",
+        local_controls_ready: true,
+        external_evidence_complete: false,
+        approved_host_ready: false,
+        shared_lab_ready: false,
+        production_ready: false,
+        sections: {
+          deployment: {
+            database_profile: "local SQLite",
+            database_migration_ready: false,
+            workers_ready: false,
+            backup_ready: false,
+            monitoring_ready: false,
+            https_ready: false,
+            managed_secrets_ready: false,
+            recovery_evidence_ready: false
+          }
+        },
+        remaining_external_actions: [
+          "MFU provider lifecycle acceptance",
+          "approved shared-host deployment rehearsal",
+          "Gemini institutional governance",
+          "physical teammate clean-clone exercise"
+        ],
+        runtime_issue_count: 0,
+        database_probe_performed: false,
+        filesystem_writes_performed: false,
+        current_database_modified: false,
+        model_activation_performed: false,
+        response_automation_allowed: false,
+        real_firewall_blocking_enabled: false,
+        raw_log_context_allowed: false,
+        secrets_exposed: false
+      }
+    })
+  );
   const reviewProgress = (workspace: "detection" | "assistant") => {
     const total = workspace === "detection" ? 40 : 8;
     const reviewed = workspace === "detection" ? detectionReviewReviewed : assistantReviewReviewed;
@@ -4605,6 +4645,17 @@ test("admin settings shows external IAM groundwork", async ({ page }) => {
   await expect(page.getByText("Admin API")).toBeVisible();
   await expect(page.getByText("Permission Bootstrap")).toBeVisible();
   await expect(page.getByText("Secrets", { exact: true })).toBeVisible();
+  const releaseReadiness = page.getByTestId("release-readiness-panel");
+  await expect(releaseReadiness).toContainText("Shared-lab acceptance");
+  await expect(releaseReadiness).toContainText("Local controls");
+  await expect(releaseReadiness).toContainText("Accepted");
+  await expect(releaseReadiness).toContainText("External acceptance required");
+  await expect(releaseReadiness).toContainText("MFU provider lifecycle acceptance");
+  await expect(releaseReadiness).toContainText("Production Not Claimed");
+  await expect(releaseReadiness).toContainText("local SQLite");
+  await expect(releaseReadiness).toContainText("Workers");
+  await expect(releaseReadiness).toContainText("Backup / restore");
+  await expect(releaseReadiness).toContainText("Managed secrets");
   await expect(page.getByText("Account Notifications")).toBeVisible();
   await expect(page.getByText("Email verification foundation")).toBeVisible();
   await expect(page.getByText("Verification disabled")).toBeVisible();
@@ -5526,6 +5577,12 @@ test("dashboard dropdowns close and do not block follow-up clicks", async ({ pag
 
   await page.goto("/ml");
   await expect(page.getByRole("heading", { name: "Model status and review operations" })).toBeVisible();
+  const assistantGovernance = page.getByTestId("assistant-provider-governance");
+  await expect(assistantGovernance).toContainText("Assistant Provider Governance");
+  await expect(assistantGovernance).toContainText("Deterministic Fallback");
+  await expect(assistantGovernance).toContainText("Raw log context");
+  await expect(assistantGovernance).toContainText("Disabled");
+  await expect(assistantGovernance).toContainText("Redaction enabled");
   await expect(page.getByText("Canonical ML Evidence", { exact: true })).toBeVisible();
   await expect(page.getByText("Queue F1", { exact: true })).toBeVisible();
   await expect(page.getByText("0.9237-0.9524", { exact: true })).toBeVisible();

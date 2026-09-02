@@ -88,3 +88,16 @@ Stop the launcher-owned services. For an authorized recovery event only, select 
 ## v3.96 Environment Finding
 
 The private local profile inspected on 2026-07-13 had MFU IAM enabled while neither a complete B2B profile nor the secure handoff was ready. This is a fail-closed configuration finding, not successful provider validation. For ordinary local SQLite use, override `MFU_IAM_ENABLED=false`. For preproduction, configure the approved v3.91 one-time-code handoff privately and require `run_v396_preproduction_preflight --require-accepted` to pass. Do not copy any credential value into this document or a support message.
+
+## v5.53 Evidence Contract
+
+v5.53 adds an expiring private `mfu-iam-acceptance.json` contract. It must be
+bound to the tested environment and record real owner-confirmed checks for
+school-account login, issuer/audience, analyst mapping, explicit admin-group
+mapping, provider 2FA, expiry, logout, recovery, and deprovisioning. The API and
+CLI expose only aggregate pass/missing status.
+
+Configuration alone never closes this gate. Missing, malformed, expired,
+replayed, symlinked, oversized, or unsafe-key evidence fails closed. Store the
+contract only under `ATDR_ACCEPTANCE_EVIDENCE_ROOT`; never commit it. The current
+local profile still needs the university-approved admin group identifier.

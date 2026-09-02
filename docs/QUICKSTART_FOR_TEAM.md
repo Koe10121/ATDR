@@ -194,3 +194,21 @@ Do not migrate ATDR to MongoDB as part of teammate setup; the shell and ATDR int
 - v4.5 reproducible baseline: `docs/V4_5_REPRODUCIBLE_PRODUCT_BASELINE.md`
 - IAM acceptance boundary: `docs/security/ATDR_MFU_IAM_PREPROD_VALIDATION.md`
 - v5.38 reliability lock: `docs/V5_38_PRODUCT_RELIABILITY_AND_FAILURE_MODE_LOCK.md`
+- v5.53 release-readiness status: `docs/V5_53_MFU_IAM_AND_SHARED_DEPLOYMENT_READINESS.md`
+
+## Physical Teammate Acceptance
+
+After the repository baseline is committed and clean, a teammate can run a
+read-only source preflight from their clone:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v553_team_runtime_acceptance `
+  --template-root "C:\Path\To\Approved-MFU-Shell" `
+  --pretty
+```
+
+The disposable full exercise requires the exact confirmation printed by the
+CLI. It copies into temporary storage, starts and checks the shell-first stack,
+stops only processes it owns, and cleans up. It deliberately does not mark the
+physical-machine acceptance contract as passed; the teammate must retain the
+real, private evidence and follow the v5.53 manifest guide.

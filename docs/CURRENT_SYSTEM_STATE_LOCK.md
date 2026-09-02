@@ -802,3 +802,27 @@ Controlled QA passes `20/20`; configured Gemini minimal/full synthetic probes
 pass with redaction enabled, raw logs excluded, secrets hidden, and zero
 authoritative writes. Institutional provider approval and independent field/
 usability evidence remain external. Two substantial shared-lab phases remain.
+
+## v5.53 IAM And Shared Deployment Readiness Update
+
+ATDR now exposes one admin-only, aggregate release-readiness contract covering
+the MFU shell, approved-host deployment, Assistant-provider governance,
+physical teammate acceptance, and repository security. Configuration is not
+treated as acceptance: expiring private manifests must record real owner-backed
+tests, and missing, malformed, replayed, unsafe, or expired evidence fails
+closed without exposing paths, values, identities, or provider payloads.
+
+The normal entry remains the MFU template shell. Explicit CORS, HTTPS/origin,
+secure-cookie, callback/return-path, analyst-default-role, admin-group, mock-mode,
+and private-evidence-root rules are validated at startup. Local SQLite remains
+supported; PostgreSQL, workers, monitoring, backup/restore, reverse proxy, and
+recovery remain the shared-host path. Python and npm audits currently report no
+known findings, source secret scanning passes, and a CycloneDX source SBOM is
+generated only in ignored temporary storage.
+
+Local implementation is complete, but external acceptance is not: MFU lifecycle
+and group mapping, an approved shared host, institutional Gemini governance, a
+separate physical teammate run, and independent field evidence still require
+their real owners. `production_ready` remains false. Rules remain authoritative,
+ML remains advisory in `shadow_observation`, the Assistant remains read-only,
+and automatic response and real blocking remain disabled.

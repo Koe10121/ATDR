@@ -8,6 +8,8 @@ from atdr.app.db.database import get_db
 from atdr.app.db.models import User
 from atdr.app.services.metrics_service import render_prometheus_metrics
 from atdr.app.services.observability_service import build_operations_health
+from atdr.app.schemas.operations import ReleaseReadinessRead
+from atdr.app.services.v553_release_readiness_service import build_v553_release_readiness_report
 
 
 router = APIRouter(tags=["operations"])
@@ -29,3 +31,11 @@ def operations_health(
     current_user: User = Depends(require_admin),
 ) -> dict:
     return build_operations_health(db, settings)
+
+
+@router.get("/api/operations/release-readiness", response_model=ReleaseReadinessRead)
+def release_readiness(
+    settings: Settings = Depends(get_settings),
+    current_user: User = Depends(require_admin),
+) -> dict:
+    return build_v553_release_readiness_report(settings)

@@ -134,3 +134,12 @@ Stop only processes recorded by the launcher:
 ## Honest Scope
 
 The versioned shell-to-ATDR package contract and clean-machine installation are verified. Real MFU provider authentication, provider-managed 2FA, approved group mapping, recovery, and deprovisioning still require authorized university environment validation. Response automation and real firewall blocking remain disabled.
+
+## v5.53 Acceptance Boundary
+
+`setup_team.cmd` and `start_system.cmd` remain the supported setup/start path.
+They prove local orchestration, not university IAM or physical-machine
+acceptance. After a clean v5.53 baseline is published, run the private,
+disposable teammate acceptance described in `docs/QUICKSTART_FOR_TEAM.md` on a
+separate machine. Do not copy `.env` files between machines and do not mark the
+acceptance manifest complete from a same-machine rehearsal.
