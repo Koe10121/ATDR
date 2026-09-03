@@ -2,15 +2,15 @@
 
 | Field | Value |
 | --- | --- |
-| Date | 2026-09-01 |
+| Date | 2026-09-03 |
 | Project | MFU AI-Driven Log-Based Threat Detection and Response System |
-| Module / Feature | v5.53 MFU IAM And Shared Deployment Readiness |
-| Requirement | Finish locally controllable shell-first IAM, approved-host evidence, provider governance, teammate-runtime, and software-supply-chain controls while every external acceptance gate remains fail closed. |
-| Active Change Record | `docs/V5_53_MFU_IAM_AND_SHARED_DEPLOYMENT_READINESS.md`, `docs/changes/T1_T20_V5_53_MFU_IAM_AND_SHARED_DEPLOYMENT_READINESS.md` |
+| Module / Feature | v5.54 Release Candidate Truth Lock And Operator Handoff |
+| Requirement | Finish all locally controllable release-candidate work, prove the supported lifecycle and recovery profiles, consolidate current truth, and hand five real acceptance tracks to named external owners. |
+| Active Change Record | `docs/V5_54_RELEASE_CANDIDATE_TRUTH_LOCK.md`, `docs/changes/T1_T20_V5_54_RELEASE_CANDIDATE_TRUTH_LOCK.md` |
 | Current Checkpoint Records | `docs/V4_1_SCHEMA_AWARE_SOC_QUEUE_MODEL_REDESIGN.md`, `docs/V4_2_PRESENTATION_READY_SOC_ASSISTANT.md`, `docs/V4_3_PORTABLE_MFU_SHELL_RUNTIME.md`, `docs/CURRENT_SYSTEM_STATE_LOCK.md` |
-| Overall Status | v5.53 local implementation and complete closure verification pass; MFU, shared-host, provider, physical-teammate, and field acceptance remain external. |
-| Overall Progress | Fail-closed readiness contracts, explicit shell security, aggregate Admin/AI Governance views, teammate runner, dependency repair, security CI, full verification, governance, and exact cumulative allowlist are complete. |
-| Progress Type | IAM/deployment/security readiness with explicit local-versus-external evidence. No protected evidence access, configured-data reset, model activation, alert-authority change, automatic response, or real blocking. |
+| Overall Status | v5.54 decision `local_release_candidate_ready`; `production_ready=false`; five owner-backed external acceptance tracks remain. |
+| Overall Progress | Capture-safe 11-stage disposable lifecycle, restart/recovery, explicit readiness states, current-state consolidation, operator handoff, owner checklists, full verification, security, and exact hygiene are complete. |
+| Progress Type | Local release-candidate truth lock and operator handoff. No protected evidence access, configured-data reset, model activation, alert-authority change, automatic response, or real blocking. |
 | v3.98 Change Record | `docs/V3_98_INDEPENDENT_DETECTION_ML_HOLDOUT_VALIDATION.md`, `docs/changes/T1_T20_V3_98_INDEPENDENT_DETECTION_ML_HOLDOUT_VALIDATION.md`, `atdr/tests/test_v398_independent_holdout_validation.py`, `atdr/scripts/run_v398_independent_holdout_validation.py` |
 | v3.99 Change Record | `docs/V3_99_INDEPENDENT_MULTI_SOURCE_EVIDENCE_AND_FROZEN_REVALIDATION.md`, `docs/changes/T1_T20_V3_99_INDEPENDENT_MULTI_SOURCE_EVIDENCE.md`, `atdr/tests/test_v399_multisource_frozen_revalidation.py`, `atdr/scripts/run_v399_multisource_frozen_revalidation.py` |
 | v4.0 Change Record | `docs/V4_0_PROVIDER_BLINDED_EXTERNAL_EVIDENCE_AND_FROZEN_VALIDATION.md`, `docs/changes/T1_T20_V4_0_PROVIDER_BLINDED_EXTERNAL_EVIDENCE.md`, `atdr/tests/test_v400_provider_blinded_external_validation.py`, `atdr/scripts/run_v400_provider_blinded_external_validation.py` |
@@ -2402,3 +2402,38 @@ One locally controllable phase remains: v5.54 Release Candidate Truth Lock And
 Operator Handoff. Rules remain alert-authoritative, ML stays
 `shadow_observation`, the Assistant stays read-only, and automatic response and
 real blocking remain disabled.
+
+### v5.54 Decision Update
+
+ATDR now has one concise current-state truth lock and operator handoff. A proven
+Windows lifecycle defect was repaired so long-lived shell/backend/frontend
+processes cannot keep captured pipes open and make successful startup appear
+hung. The disposable clean-baseline exercise passes `11/11` stages across
+package validation, setup, start, health, secure login handoff, stop, restart,
+repeated checks, and explicit local-recovery login.
+
+Release readiness now distinguishes locally verified, externally accepted,
+externally pending, unavailable, and failed states. The current aggregate is
+`local_controls_ready_external_evidence_required`; local IAM, deployment,
+Assistant, runtime, and repository-security controls pass, while MFU, approved
+host, Gemini governance, physical teammate, and independent detection field
+evidence remain external. Configuration does not count as acceptance and
+`production_ready=false`.
+
+Controlled source `4/4`, deterministic detection `24/24`, layered detection
+`288/288`, Assistant QA `20/20`, configured Gemini safety probes, performance,
+repository scan, Python/npm audits, and deployment validation pass. The final
+post-documentation backend passes `1052/1`, Playwright passes `38/1`, and the
+taskboard standard passes. The independent release gate passes with `ok=true`
+and no failed required checks. Final hygiene passes with exactly 27 allowlisted
+paths, empty staging, clean diff check, zero tracked-source findings, and no
+private/generated evidence tracked.
+
+Rules remain alert-authoritative, supervised lifecycle stays
+`shadow_observation` with no candidate, the Assistant remains read-only, raw
+provider logs remain disabled, and automatic response and real blocking remain
+disabled. After local closure, remaining work is five owner-backed acceptance
+tracks rather than another broad local feature phase.
+
+Final decision: `local_release_candidate_ready`. This is a controlled-lab
+release-candidate statement only; `production_ready=false` remains mandatory.

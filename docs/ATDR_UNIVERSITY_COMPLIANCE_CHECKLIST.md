@@ -988,3 +988,15 @@ status/change documents.
 | AI and response safety | Gemini remains read-only; raw logs disabled; rules authoritative; ML advisory; no automatic response or blocking | Satisfied; no authority change. |
 | Process governance | v5.53 status, manifest guide, T1-T20, PRD, traceability, taskboard, verification, and exact allowlist | Satisfied locally after final verification; commit/push require separate approval. |
 | Production claim | `production_ready=false` is invariant; absent university, provider, host, teammate, and field evidence stays visible | Correctly blocked; do not relabel configuration as acceptance. |
+
+## v5.54 Release Candidate Truth Lock Compliance Status
+
+| University / ATDR rule | v5.54 evidence | Current status / next action |
+| --- | --- | --- |
+| Source evidence before claims | Published v5.53 source/CI plus measured v5.54 lifecycle and verification | Satisfied locally; external owners must supply their own evidence. |
+| Reproducible workflow | Package/setup/start/health/handoff/stop/restart/recovery passed `11/11` in disposable storage | Satisfied locally; repeat on a teammate's physical machine. |
+| Honest readiness | UI/API distinguish locally verified, externally accepted/pending, unavailable, and failed | Satisfied; configuration is never acceptance. |
+| No guessing / privacy | Current docs use aggregate facts only; protected rows, identities, paths, fingerprints, provider payloads, and secrets remain private | Satisfied by scope and scans. |
+| AI/detection/response authority | Rules authoritative; no supervised candidate; Assistant read-only; response simulation only | Satisfied; no activation, automation, or real blocking. |
+| T1-T20 / taskboard / traceability | Truth lock, handoffs, PRD, traceability, checklist, taskboard, and exact allowlist | Satisfied after final verification; publication needs separate approval. |
+| Production claim | `local_release_candidate_ready` is not `production_ready` | Five real owner-backed acceptance tracks remain. |

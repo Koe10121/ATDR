@@ -19,6 +19,8 @@ ATDR continues to use SQLite by default. MongoDB is required only by the separat
 - Python 3.11.
 - Node.js `20.19.0` or newer and npm. Node 16 and Node 20 releases below 20.19 are unsupported by the current Vite/Playwright toolchain.
 - MongoDB Community Server for the shell.
+- Redis is optional for local use because the shell rate limiter has an
+  in-memory fallback. A shared deployment should use its approved cache service.
 - Git, or a GitHub zip download.
 - The approved `mfu-atdr-shell-1.4.0-atdr.1.zip` companion archive and separately controlled private backend/frontend environment files.
 - One approved Google OAuth Web client ID supplied through the university channel.
@@ -145,8 +147,14 @@ The shell-first launcher is the normal user workflow. For an authorized recovery
 ```powershell
 python -m atdr.scripts.check_dev_environment
 python -m atdr.scripts.seed_users
+python -m uvicorn atdr.app.main:app --host 127.0.0.1 --port 8000
+```
+
+In a second terminal:
+
+```powershell
 cd frontend
-npm.cmd run dev
+npm.cmd run dev -- --host 127.0.0.1
 ```
 
 The direct React component URL is `http://127.0.0.1:5173`. It is not the normal authentication entry in `template_shell` mode.
@@ -174,6 +182,7 @@ Do not migrate ATDR to MongoDB as part of teammate setup; the shell and ATDR int
 | Shell package not found or rejected | Obtain the approved archive and use `-ShellPackage`. Do not rename, edit, or re-zip it. |
 | Windows extraction reports a long path | Move the clone to a shorter location such as `C:\ATDR Team\ATDR`; spaces are supported. |
 | MongoDB unavailable | Start the MongoDB service, then run `check_system.cmd`. |
+| Shell log shows a Redis timeout | Local fallback is supported; wait for `/healthz` and run `check_system.cmd`. Configure an approved Redis service only for shared operation. |
 | Port 8000/5173/8214/8080 busy | Run `stop_system.cmd`; stop any non-launcher process using the reported port. |
 | Configuration incomplete | Run `check_system.cmd` and correct only the named fields in private configuration. |
 | `frontend_client_not_configured` | Set `VUE_APP_CLIENTID` in ignored `frontend-vue/.env.localdev`. |
@@ -195,6 +204,8 @@ Do not migrate ATDR to MongoDB as part of teammate setup; the shell and ATDR int
 - IAM acceptance boundary: `docs/security/ATDR_MFU_IAM_PREPROD_VALIDATION.md`
 - v5.38 reliability lock: `docs/V5_38_PRODUCT_RELIABILITY_AND_FAILURE_MODE_LOCK.md`
 - v5.53 release-readiness status: `docs/V5_53_MFU_IAM_AND_SHARED_DEPLOYMENT_READINESS.md`
+- v5.54 operator handoff: `docs/V5_54_OPERATOR_HANDOFF.md`
+- v5.54 external owner acceptance: `docs/V5_54_EXTERNAL_OWNER_ACCEPTANCE.md`
 
 ## Physical Teammate Acceptance
 
@@ -209,6 +220,6 @@ read-only source preflight from their clone:
 
 The disposable full exercise requires the exact confirmation printed by the
 CLI. It copies into temporary storage, starts and checks the shell-first stack,
-stops only processes it owns, and cleans up. It deliberately does not mark the
+stops, restarts, verifies explicit local recovery, and cleans up. It deliberately does not mark the
 physical-machine acceptance contract as passed; the teammate must retain the
 real, private evidence and follow the v5.53 manifest guide.

@@ -2352,3 +2352,25 @@ the private manifest schemas in
 ignored private storage and mark checks true only after the named owner performs
 the real test. The normal entry remains the MFU shell, local recovery remains
 explicit only, and response automation/real blocking remain disabled.
+
+## v5.54 Release Candidate Operator Check
+
+Use `docs/V5_54_OPERATOR_HANDOFF.md` as the concise current operator guide.
+The normal lifecycle remains:
+
+```powershell
+.\scripts\start_system.cmd
+.\scripts\check_system.cmd
+.\scripts\stop_system.cmd
+```
+
+The clean disposable v5.54 acceptance covers setup, start, health, secure login
+handoff, stop, restart, repeated checks, and explicit local-recovery login. It
+passed all `11/11` stages without touching the configured database or creating
+an external acceptance manifest.
+
+MongoDB is required for the local MFU shell. Redis is optional locally and may
+fall back to process memory. PostgreSQL remains optional for local SQLite use.
+Use `docs/V5_54_EXTERNAL_OWNER_ACCEPTANCE.md` for the five checks that cannot be
+completed on the developer machine. Do not treat local success as MFU,
+provider, shared-host, teammate, or field acceptance.

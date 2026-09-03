@@ -230,6 +230,12 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
         approved_host_ready: false,
         shared_lab_ready: false,
         production_ready: false,
+        readiness_states: {
+          local_controls: "locally_verified",
+          external_evidence: "externally_pending",
+          approved_host: "externally_pending",
+          shared_lab: "externally_pending"
+        },
         sections: {
           deployment: {
             database_profile: "local SQLite",
@@ -4648,7 +4654,8 @@ test("admin settings shows external IAM groundwork", async ({ page }) => {
   const releaseReadiness = page.getByTestId("release-readiness-panel");
   await expect(releaseReadiness).toContainText("Shared-lab acceptance");
   await expect(releaseReadiness).toContainText("Local controls");
-  await expect(releaseReadiness).toContainText("Accepted");
+  await expect(releaseReadiness).toContainText("Locally Verified");
+  await expect(releaseReadiness).toContainText("Externally Pending");
   await expect(releaseReadiness).toContainText("External acceptance required");
   await expect(releaseReadiness).toContainText("MFU provider lifecycle acceptance");
   await expect(releaseReadiness).toContainText("Production Not Claimed");

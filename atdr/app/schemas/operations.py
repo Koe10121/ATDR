@@ -108,6 +108,7 @@ class ReleaseReadinessRead(BaseModel):
     approved_host_ready: bool
     shared_lab_ready: bool
     production_ready: bool = False
+    readiness_states: dict[str, str] = Field(default_factory=dict)
     sections: dict[str, Any] = Field(default_factory=dict)
     remaining_external_actions: list[str] = Field(default_factory=list)
     runtime_issue_count: int = 0

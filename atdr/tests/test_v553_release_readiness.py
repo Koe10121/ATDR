@@ -113,6 +113,12 @@ def test_release_readiness_separates_local_controls_from_external_acceptance(tmp
     assert incomplete["local_controls_ready"] is True
     assert incomplete["shared_lab_ready"] is False
     assert incomplete["production_ready"] is False
+    assert incomplete["readiness_states"] == {
+        "local_controls": "locally_verified",
+        "external_evidence": "unavailable",
+        "approved_host": "externally_pending",
+        "shared_lab": "unavailable",
+    }
     assert incomplete["response_automation_allowed"] is False
     assert incomplete["model_activation_performed"] is False
 
@@ -148,6 +154,12 @@ def test_release_readiness_separates_local_controls_from_external_acceptance(tmp
     assert accepted["approved_host_ready"] is True
     assert accepted["shared_lab_ready"] is True
     assert accepted["production_ready"] is False
+    assert accepted["readiness_states"] == {
+        "local_controls": "locally_verified",
+        "external_evidence": "externally_accepted",
+        "approved_host": "externally_accepted",
+        "shared_lab": "externally_accepted",
+    }
     assert accepted["secrets_exposed"] is False
     deployment = accepted["sections"]["deployment"]
     assert deployment["database_profile"] == "shared PostgreSQL"
@@ -157,6 +169,45 @@ def test_release_readiness_separates_local_controls_from_external_acceptance(tmp
     assert deployment["https_ready"] is True
     assert deployment["managed_secrets_ready"] is True
     assert deployment["recovery_evidence_ready"] is True
+
+
+def test_external_admin_group_does_not_fail_local_engineering_controls(tmp_path):
+    settings = _settings(tmp_path, MFU_IAM_ADMIN_GROUPS="")
+    report = build_v553_release_readiness_report(
+        settings,
+        preproduction_report={"accepted": False, "checks": [], "resource_availability": {}},
+    )
+    assert report["local_controls_ready"] is True
+    assert report["sections"]["iam"]["ready"] is True
+    assert report["sections"]["iam"]["admin_group_mapping_configured"] is False
+    assert report["external_evidence_complete"] is False
+    assert "MFU provider lifecycle acceptance" in report["remaining_external_actions"]
+
+
+def test_release_readiness_distinguishes_pending_unavailable_and_failed_evidence(tmp_path):
+    settings = _settings(tmp_path)
+    root = tmp_path / "acceptance"
+    root.mkdir()
+    pending = build_v553_release_readiness_report(
+        settings,
+        preproduction_report={"accepted": False, "checks": [], "resource_availability": {}},
+    )
+    assert pending["sections"]["iam"]["external_evidence"]["acceptance_state"] == "externally_pending"
+
+    _write_manifest(root, "mfu_iam", expires_at="invalid-timestamp")
+    failed = build_v553_release_readiness_report(
+        settings,
+        preproduction_report={"accepted": False, "checks": [], "resource_availability": {}},
+    )
+    assert failed["sections"]["iam"]["external_evidence"]["acceptance_state"] == "failed"
+    assert failed["readiness_states"]["external_evidence"] == "failed"
+
+    unavailable_settings = _settings(tmp_path, ATDR_ACCEPTANCE_EVIDENCE_ROOT=str(tmp_path / "absent"))
+    unavailable = build_v553_release_readiness_report(
+        unavailable_settings,
+        preproduction_report={"accepted": False, "checks": [], "resource_availability": {}},
+    )
+    assert unavailable["readiness_states"]["external_evidence"] == "unavailable"
 
 
 def test_invalid_origins_admin_default_and_relative_evidence_root_fail_runtime_validation(tmp_path):
@@ -343,3 +394,49 @@ def test_team_rehearsal_preflight_is_path_safe_and_never_executes(monkeypatch, t
     assert report["configured_database_accessed"] is False
     assert report["configured_shell_modified"] is False
     assert str(template) not in encoded
+
+
+def test_team_rehearsal_handoff_contract_requires_safe_shell_status():
+    report = {
+        "ok": True,
+        "all_services_ready": True,
+        "configuration": {
+            "auth_mode": "template_shell",
+            "response_simulation": True,
+            "secrets_exposed": False,
+        },
+        "identity_provider": {
+            "iam_proxy_configured": True,
+            "google_auth_ready": True,
+            "acceptance_requires_real_sign_in": True,
+            "account_scope_acceptance": "not_validated",
+            "secrets_exposed": False,
+        },
+        "secrets_exposed": False,
+    }
+    assert team_rehearsal._login_handoff_contract_ready(report) is True
+    report["identity_provider"]["account_scope_acceptance"] = "accepted_without_real_sign_in"
+    assert team_rehearsal._login_handoff_contract_ready(report) is False
+
+
+def test_team_rehearsal_start_stage_can_avoid_inherited_capture_handles(monkeypatch, tmp_path):
+    recorded: dict[str, object] = {}
+
+    class Result:
+        returncode = 0
+
+    def fake_run(*args, **kwargs):
+        recorded.update(kwargs)
+        return Result()
+
+    monkeypatch.setattr(team_rehearsal.subprocess, "run", fake_run)
+    assert team_rehearsal._run_stage(
+        "powershell.exe",
+        ["-File", "start_system.ps1"],
+        cwd=tmp_path,
+        timeout=10,
+        capture_output=False,
+    ) is True
+    assert recorded["stdout"] is team_rehearsal.subprocess.DEVNULL
+    assert recorded["stderr"] is team_rehearsal.subprocess.DEVNULL
+    assert "capture_output" not in recorded

@@ -4,7 +4,7 @@
 | --- | --- |
 | Product | MFU AI-Driven Log-Based Threat Detection and Response System |
 | Short name | ATDR |
-| Current stage | v5.49b governed supervised revalidation published; v5.50 current-state truth lock in progress; external field/IAM/provider/deployment gates remain open |
+| Current stage | v5.54 local release-candidate truth lock; five owner-backed external acceptance tracks remain open |
 | Production claim | None. ATDR is not certified production software. |
 | Main workflow doc | `docs/ATDR_AI_WORKFLOW.md` |
 | Agent model | `docs/agents/ATDR_AGENT_OPERATING_MODEL.md` |
@@ -311,14 +311,19 @@ ATDR adapts the university IAM requirement as local authentication, authorizatio
 
 Current limitations:
 
-- No full external SSO/OAuth/SAML/LDAP browser flow.
-- No enterprise identity provider.
-- MFU outer-shell secure handoff is implemented in source, but exact preproduction origins, group identifiers, provider lifecycle policy, and live validation still require approved private configuration.
+- The approved MFU companion shell provides the normal Google/MFU browser
+  sign-in and secure one-time ATDR handoff. ATDR does not implement a second
+  competing registration or external-browser identity flow.
+- Exact preproduction origins, an approved admin group, provider lifecycle
+  policy, and live university acceptance still require owner-backed evidence.
 - No viewer/read-only role.
-- Demo JWT secret must be replaced before shared lab or real deployment.
-- Current role model is suitable for lab prototype validation, not production IAM.
+- Private JWT, cookie, handoff, provider, and database secrets require managed
+  secret custody and rotation on an approved shared host.
+- The current admin/analyst model is locally verified but not institutionally
+  accepted as production IAM.
 - Role permissions must be fully reviewed before real deployment or response connector implementation.
-- v3.14 email verification does not block login by default and does not implement real SMTP or external school SSO.
+- Local email verification remains a recovery/supporting foundation; it does
+  not replace provider-managed MFU identity, 2FA, or account lifecycle.
 - The v4.6 team profile installs a checksum-locked MFU shell companion release, selects it by default, and blocks direct local login. Real provider-backed MFU authentication, approved group mapping, provider-managed 2FA, recovery, and deprovisioning still require university environment acceptance.
 
 ## University Template Alignment
@@ -1882,3 +1887,21 @@ future validation remain prerequisites for any activation decision.
   approved host before a shared-deployment claim is allowed.
 - v5.53 shall not alter detector authority, activate/promote a model, allow raw
   log provider context, enable automatic response, or enable real blocking.
+
+## v5.54 Release Candidate Truth Lock Requirements
+
+- **FR-ATDR-112:** The supported local lifecycle shall verify setup, start,
+  health, secure shell-to-ATDR handoff, stop, restart, and explicit local
+  recovery without accessing or modifying the configured database.
+- **FR-ATDR-113:** Release status shall distinguish `locally_verified`,
+  `externally_accepted`, `externally_pending`, `unavailable`, and `failed`.
+  Configuration alone shall never satisfy an external acceptance gate.
+- **FR-ATDR-114:** The release handoff shall document the supported shell-first
+  SQLite, explicit local-recovery, teammate-package, and shared PostgreSQL
+  profiles with one unambiguous operator path for each.
+- **FR-ATDR-115:** `production_ready` shall remain false until MFU IAM,
+  approved-host, provider-governance, physical-teammate, and independent field-
+  evidence owners provide real acceptance evidence.
+- v5.54 shall not access or rerun consumed v5.49b evidence, activate/promote a
+  model, change rule authority, allow raw-log provider context, enable
+  automatic response, or enable real blocking.

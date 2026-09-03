@@ -156,6 +156,27 @@ def _parse_timestamp(value: object) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
+def _external_acceptance_state(evidence: dict[str, Any]) -> str:
+    if evidence.get("valid") is True:
+        return "externally_accepted"
+    status = str(evidence.get("status") or "")
+    if status in {"evidence_root_not_configured", "evidence_missing"}:
+        return "externally_pending"
+    if status == "evidence_root_unavailable":
+        return "unavailable"
+    return "failed"
+
+
+def _aggregate_external_state(states: list[str]) -> str:
+    if states and all(state == "externally_accepted" for state in states):
+        return "externally_accepted"
+    if "failed" in states:
+        return "failed"
+    if "unavailable" in states:
+        return "unavailable"
+    return "externally_pending"
+
+
 def validate_acceptance_manifest(
     settings: Settings,
     evidence_type: str,
@@ -333,7 +354,6 @@ def build_v553_release_readiness_report(
             "secure_handoff_ready": bool(iam_status["handoff_ready"]),
             "school_domain_configured": bool(iam_status["allowed_domains"]),
             "default_role_analyst": settings.mfu_iam_default_role == "analyst",
-            "admin_group_mapping": bool(iam_status["admin_group_mapping_configured"]),
             "mock_disabled": not settings.mfu_iam_mock_enabled,
             "secure_cookie_for_shared_profile": not shared_profile or settings.mfu_iam_handoff_cookie_secure,
             "runtime_configuration_valid": not runtime_issues,
@@ -427,9 +447,24 @@ def build_v553_release_readiness_report(
         "assistant_provider": assistant_evidence,
         "team_runtime": team_evidence,
     }
+    for evidence in external_evidence.values():
+        evidence["acceptance_state"] = _external_acceptance_state(evidence)
     external_evidence_complete = all(item["valid"] for item in external_evidence.values())
     approved_host_ready = bool(host_report.get("accepted"))
     shared_lab_ready = local_ready and external_evidence_complete and approved_host_ready
+    external_state = _aggregate_external_state(
+        [str(item["acceptance_state"]) for item in external_evidence.values()]
+    )
+    host_state = "externally_accepted" if approved_host_ready else "externally_pending"
+    shared_lab_state = (
+        "externally_accepted"
+        if shared_lab_ready
+        else "failed"
+        if not local_ready or external_state == "failed"
+        else "unavailable"
+        if external_state == "unavailable"
+        else "externally_pending"
+    )
     status = (
         "shared_lab_acceptance_complete"
         if shared_lab_ready
@@ -445,10 +480,17 @@ def build_v553_release_readiness_report(
         "approved_host_ready": approved_host_ready,
         "shared_lab_ready": shared_lab_ready,
         "production_ready": False,
+        "readiness_states": {
+            "local_controls": "locally_verified" if local_ready else "failed",
+            "external_evidence": external_state,
+            "approved_host": host_state,
+            "shared_lab": shared_lab_state,
+        },
         "sections": {
             "iam": {
                 **iam_local,
                 "mode": iam_status["mode"],
+                "admin_group_mapping_configured": bool(iam_status["admin_group_mapping_configured"]),
                 "external_evidence": iam_evidence,
             },
             "deployment": {

@@ -1,172 +1,112 @@
 # ATDR Deployment Guide
 
-This guide covers two supported deployment modes for the MFU ATDR prototype.
+ATDR has four supported profiles. Only the first three are locally
+reproducible today; the shared-host profile remains externally pending until an
+authorized deployment owner supplies real acceptance evidence.
 
-Before choosing a mode, read `docs/ENVIRONMENT_GUIDE.md`.
-Before handing off a release candidate, run the gate in `docs/RELEASE_CHECKLIST.md`.
+## 1. MFU Shell-First Local SQLite
 
-## Mode 1: Local SQLite Demo
-
-Use this mode for presentation, development, and quick testing.
-
-```powershell
-Copy-Item .env.example .env
-python -m atdr.scripts.config_doctor --pretty
-python -m atdr.scripts.verify_release --pretty
-python -m atdr.scripts.seed_users
-.\.venv\Scripts\python.exe -m uvicorn atdr.app.main:app --host 127.0.0.1 --port 8000 --reload
-cd frontend
-npm.cmd install
-npm.cmd run dev
-```
-
-Recommended settings:
-
-```text
-ENVIRONMENT=development
-DATABASE_URL=sqlite:///./atdr.db
-AUTO_CREATE_TABLES=true
-RESPONSE_SIMULATION=true
-RESPONSE_PROVIDER=simulation
-SYSLOG_HOST=127.0.0.1
-SYSLOG_PORT=5514
-```
-
-## Mode 2: PostgreSQL Lab Pilot
-
-Use this mode for a more realistic lab deployment.
+This is the normal laptop workflow. Obtain the approved shell package and its
+private configuration through the authorized channel, then run:
 
 ```powershell
-Copy-Item .env.lab.example .env
-python -m atdr.scripts.config_doctor --pretty
-docker compose --profile postgres up -d postgres
-docker compose --profile postgres run --rm migrate
-docker compose --profile postgres up --build api dashboard
-python -m atdr.scripts.lab_smoke_check
-python -m atdr.scripts.verify_release --include-smoke --require-docker --pretty
+.\scripts\setup_team.cmd `
+  -ShellPackage "D:\Approved Artifacts\mfu-atdr-shell-1.4.0-atdr.1.zip" `
+  -ShellPrivateConfigRoot "D:\Private MFU Configuration"
+.\scripts\start_system.cmd
 ```
 
-Recommended settings:
+The only normal user entry is:
 
 ```text
-ENVIRONMENT=production
-DATABASE_URL=postgresql+psycopg2://atdr:<strong-password>@postgres:5432/atdr
+http://localhost:8080/#/pages/login
+```
+
+The launcher coordinates FastAPI `8000`, React `5173`, the MFU shell backend
+`8214`, and the MFU shell frontend `8080`. SQLite remains ATDR's local database;
+MongoDB belongs only to the companion shell.
+
+## 2. Explicit Local Recovery
+
+Use local recovery only for authorized diagnosis when MFU sign-in is
+unavailable. Select `ATDR_AUTH_MODE=local_recovery` in the ignored private
+environment and follow the component commands in `docs/OPERATIONS_RUNBOOK.md`.
+Local recovery must never activate automatically or be presented as MFU IAM.
+
+## 3. Teammate Shell Distribution
+
+Each teammate uses their own clone and private configuration. Do not copy
+`.env`, database files, API keys, or review evidence between machines. Setup
+accepts either the checksum-locked shell package or an explicitly approved
+source directory:
+
+```powershell
+.\scripts\setup_team.cmd -ShellPackage "D:\Approved Artifacts\mfu-atdr-shell-1.4.0-atdr.1.zip"
+.\scripts\check_system.cmd
+.\scripts\start_system.cmd
+```
+
+The teammate must independently prove clean setup, login entry, secure handoff,
+health, shutdown, restart, and private-data exclusion. A same-machine
+disposable rehearsal does not replace that physical-machine acceptance.
+
+## 4. Shared PostgreSQL Deployment
+
+This profile keeps FastAPI/React and uses PostgreSQL, durable workers, a reverse
+proxy, managed secrets, monitoring, and external backup storage. Reference
+assets are under:
+
+- `deploy/nginx/`
+- `deploy/systemd/`
+- `deploy/monitoring/`
+- `deploy/secrets/`
+
+Start from `.env.production.example` or `.env.lab.example` without committing
+the resulting private file. Required boundaries include:
+
+```text
+ENVIRONMENT=preproduction
 AUTO_CREATE_TABLES=false
 RESPONSE_SIMULATION=true
 RESPONSE_PROVIDER=simulation
-JWT_SECRET_KEY=<long-random-secret>
-CORS_ALLOWED_ORIGINS=https://atdr.example.local
+ASSISTANT_ALLOW_RAW_LOG_CONTEXT=false
 ```
 
-The application intentionally fails startup in production if unsafe defaults are used.
+The private `DATABASE_URL`, JWT secret, handoff secret, provider credentials,
+hostnames, and TLS key must come from the deployment owner's managed secret
+channel. Never paste them into tickets, documentation, command output, or
+acceptance manifests.
 
-If Docker is not installed on the current Windows machine, record that as a local tooling blocker and run the same commands on a Docker-capable host. The local script reports this condition clearly:
-
-```powershell
-python -m atdr.scripts.lab_smoke_check
-```
-
-## Live Syslog Receiver
-
-Live UDP ingestion is intended for a lab network only.
-
-Default safe mode binds to localhost:
+Validate repository-side assets:
 
 ```powershell
-python -m atdr.scripts.run_syslog_receiver --host 127.0.0.1 --port 5514
-```
-
-To test locally, send one syslog line to UDP port `5514`. ATDR stores the raw line first, then attempts Palo Alto parsing. Malformed lines are preserved as evidence and do not crash ingestion.
-
-Harmless local sender:
-
-```powershell
-python -m atdr.scripts.send_sample_syslog --host 127.0.0.1 --port 5514 --count 3
-```
-
-Verification checklist:
-
-- Confirm the receiver prints or logs accepted datagrams.
-- Open React Investigation and check for new normalized rows.
-- Open AI Governance and review Data Quality for latest ingestion time, parse errors, missing fields, and parser error examples.
-- Run detection on new logs only after confirming raw evidence was preserved.
-
-Do not bind the receiver to `0.0.0.0` unless the host firewall and network scope are understood.
-
-## Production Safety Checklist
-
-- Replace all demo passwords.
-- Use a strong `JWT_SECRET_KEY`.
-- Set `CORS_ALLOWED_ORIGINS` to the exact dashboard origin.
-- For local React preview, include `http://127.0.0.1:5173` and `http://localhost:5173`; remove these from hardened production configs unless used behind the approved reverse proxy.
-- Keep response actions simulated until firewall enforcement is approved. Disabling simulation before a connector exists records actions as `pending_connector`, not real enforcement.
-- Run Alembic migrations explicitly.
-- Back up PostgreSQL and model artifacts.
-- Restrict API/dashboard access to trusted networks.
-- Monitor structured API logs and audit logs.
-- Review suppression rules regularly.
-- Review watchlist matches and ownership regularly.
-- Train ML only on reviewed baseline traffic.
-
-## Backup And Cleanup Utilities
-
-SQLite demo archive:
-
-```powershell
-python -m atdr.scripts.backup_demo --dry-run
-python -m atdr.scripts.backup_demo
-```
-
-PostgreSQL logical backup:
-
-```powershell
-python -m atdr.scripts.backup_postgres --dry-run
-python -m atdr.scripts.backup_postgres
-```
-
-Old demo export cleanup is dry-run by default:
-
-```powershell
-python -m atdr.scripts.cleanup_exports --older-than-days 14
-python -m atdr.scripts.cleanup_exports --older-than-days 14 --execute
-```
-
-For HTTPS, reverse proxy, backup, retention, and recovery procedures, use `docs/OPERATIONS_RUNBOOK.md`.
-For release candidate validation, use `docs/RELEASE_CHECKLIST.md`.
-
-## v3.0 Production-Readiness Track
-
-ATDR is not production ready. v3.0 adds non-destructive validation commands for the next lab-hardening track:
-
-```powershell
-python -m atdr.scripts.production_readiness_doctor --pretty
-python -m atdr.scripts.run_v30_real_source_pilot_validation --pretty
-python -m atdr.scripts.run_postgres_lab_validation --pretty
-python -m atdr.scripts.run_real_source_ml_monitoring --pretty
-```
-
-Use:
-
-- `docs/V3_0_PRODUCTION_READINESS_GAP_ASSESSMENT.md`
-- `docs/V3_0_REAL_DEVICE_SYSLOG_PILOT_PLAN.md`
-- `docs/V3_0_POSTGRESQL_LAB_DEPLOYMENT_VALIDATION.md`
-- `docs/V3_0_PRODUCTION_READINESS_TRACK.md`
-
-The v3.0 track keeps response simulation enabled and does not activate a model or enable real firewall blocking.
-
-## v5.53 Approved-Host Acceptance Boundary
-
-The repository contains the PostgreSQL, worker, reverse-proxy, health,
-monitoring, backup/restore, and recovery building blocks for a shared host. A
-deployment is not accepted until the private v5.53 contract records real checks
-for migrations, worker ownership, HTTPS, managed secrets, monitoring, load,
-backup/restore, measured RPO/RTO, rollback, and disaster recovery on the named
-environment.
-
-```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.validate_deployment_operations --pretty
 .\.venv\Scripts\python.exe -m atdr.scripts.run_v553_release_readiness --pretty
 ```
 
-Local SQLite remains the supported laptop profile. Do not put a database URL,
-credential, host identity, or recovery artifact in tracked documentation or an
-acceptance API response.
+The host owner must separately prove migrations at head, PostgreSQL
+connectivity, worker concurrency, shared staging/storage, HTTPS, trusted proxy
+handling, managed secrets, monitoring alerts, backup/restore, measured RPO/RTO,
+rollback, disaster recovery, and load behavior. Until then, shared deployment
+is externally pending and `production_ready=false`.
+
+## Live Source Boundary
+
+UDP syslog is suitable only for an approved lab network. The safe default is
+loopback:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_syslog_receiver --host 127.0.0.1 --port 5514
+```
+
+Binding to another interface requires the network owner to approve firewall
+rules, sender identity, retention, and transport risk. UDP syslog is neither
+authenticated nor encrypted. Real-source acceptance still requires a physical
+sender and independent field verification.
+
+## Deployment Decision
+
+Repository assets and local rehearsal prove implementation, not owner
+acceptance. See `docs/V5_54_OPERATOR_HANDOFF.md` for operator steps and
+`docs/V5_54_EXTERNAL_OWNER_ACCEPTANCE.md` for the five remaining external
+evidence tracks.

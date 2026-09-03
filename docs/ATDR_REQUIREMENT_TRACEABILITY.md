@@ -940,3 +940,14 @@ This document maps major ATDR requirements to implementation evidence, tests, do
 | Disposable teammate acceptance | Implemented; physical run pending | `run_v553_team_runtime_acceptance.py` | safe preflight and source/path validation | team quickstart/runbook | Clean clone on a separate physical machine after publication. |
 | Software supply-chain controls | Implemented locally | security service/CLI; CI; CodeQL workflow; hashed Python lock | secret scan, SBOM, pip audit, npm audit, full regression | v5.53 status/T1-T20 | CodeQL execution occurs after separately approved publication. |
 | Detection/response authority | Preserved | existing rule, ML, Assistant, and response controls | zero side-effect assertions | current state and AI status | Independent field evidence remains external; no authority expansion is permitted. |
+
+## v5.54 Release Candidate Truth Lock Addendum
+
+| Requirement | Status | Source | Test evidence | Documentation | Remaining gap |
+| --- | --- | --- | --- | --- | --- |
+| Capture-safe Windows lifecycle | Implemented | `run_v553_team_runtime_acceptance.py` | inherited-handle regression and clean disposable run | v5.54 truth lock/operator handoff | Physical teammate run remains external. |
+| Complete local lifecycle | Locally verified | setup/start/check/stop scripts and disposable recovery smoke | all `11/11` stages pass | v5.54 operator handoff | Real MFU account lifecycle remains external. |
+| Honest readiness states | Implemented | readiness service/schema; User Admin badges | backend state-mapping and Playwright tests | v5.54 truth lock | Owner manifests remain pending. |
+| Current source truth | Consolidated | README, current state, current AI/ML status, PRD, runbooks | full documentation/release matrix | v5.54 docs | Historical phase docs remain evidence only. |
+| Security/privacy/authority | Preserved | existing config, Assistant, model, response, and repository controls | secret scan, dependency audits, no-side-effect suites | v5.54 T1-T20 | Environment penetration and owner governance remain external. |
+| Release decision | Local release candidate only | aggregate readiness plus verification evidence | complete local matrix | v5.54 truth lock | `production_ready=false` until five external tracks close. |

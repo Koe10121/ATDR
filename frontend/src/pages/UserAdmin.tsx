@@ -81,6 +81,18 @@ export function UserAdmin() {
       ? "Failed"
       : "Not run";
   const deploymentReadiness = releaseReadiness.data?.sections.deployment;
+  const readinessLabel = (state?: string) => {
+    if (releaseReadiness.isError) return "Unavailable";
+    if (releaseReadiness.isLoading) return "Unavailable";
+    const labels: Record<string, string> = {
+      locally_verified: "Locally Verified",
+      externally_accepted: "Externally Accepted",
+      externally_pending: "Externally Pending",
+      unavailable: "Unavailable",
+      failed: "Failed"
+    };
+    return labels[state ?? ""] ?? "Unavailable";
+  };
 
   return (
     <div className="space-y-5">
@@ -236,14 +248,14 @@ export function UserAdmin() {
         </div>
         <dl className="mt-4 grid min-w-0 gap-x-4 gap-y-3 border-y border-line py-4 sm:grid-cols-2 xl:grid-cols-4">
           {[
-            ["Local controls", releaseReadiness.data?.local_controls_ready],
-            ["External evidence", releaseReadiness.data?.external_evidence_complete],
-            ["Approved host", releaseReadiness.data?.approved_host_ready],
-            ["Shared lab", releaseReadiness.data?.shared_lab_ready]
-          ].map(([label, ready]) => (
+            ["Local controls", releaseReadiness.data?.readiness_states?.local_controls],
+            ["External evidence", releaseReadiness.data?.readiness_states?.external_evidence],
+            ["Approved host", releaseReadiness.data?.readiness_states?.approved_host],
+            ["Shared lab", releaseReadiness.data?.readiness_states?.shared_lab]
+          ].map(([label, state]) => (
             <div className="min-w-0" key={String(label)}>
               <dt className="text-xs font-extrabold uppercase tracking-wide text-muted">{String(label)}</dt>
-              <dd className="mt-1 font-bold">{ready ? "Accepted" : "Pending"}</dd>
+              <dd className="mt-1"><Badge value={readinessLabel(state)} /></dd>
             </div>
           ))}
         </dl>

@@ -367,6 +367,7 @@ export interface ReleaseReadinessResponse {
   approved_host_ready: boolean;
   shared_lab_ready: boolean;
   production_ready: boolean;
+  readiness_states: Record<string, "locally_verified" | "externally_accepted" | "externally_pending" | "unavailable" | "failed" | string>;
   sections: Record<string, Record<string, unknown>>;
   remaining_external_actions: string[];
   runtime_issue_count: number;

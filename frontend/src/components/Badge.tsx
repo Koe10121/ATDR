@@ -49,7 +49,12 @@ const statusClass: Record<string, string> = {
   "Shadow Scoring Enabled": "border-success/30 bg-success/10 text-success",
   "Shadow Scoring Disabled": "border-slate-400/30 bg-slate-400/10 text-slate-600",
   "Candidate Contract Matched": "border-success/30 bg-success/10 text-success",
-  "Candidate Contract Mismatched": "border-danger/40 bg-danger/10 text-danger"
+  "Candidate Contract Mismatched": "border-danger/40 bg-danger/10 text-danger",
+  "Locally Verified": "border-success/30 bg-success/10 text-success",
+  "Externally Accepted": "border-success/30 bg-success/10 text-success",
+  "Externally Pending": "border-amber/30 bg-amber/10 text-amber",
+  Unavailable: "border-slate-400/30 bg-slate-400/10 text-slate-600",
+  Failed: "border-danger/40 bg-danger/10 text-danger"
 };
 
 export function Badge({ value, kind = "status" }: { value?: string | null; kind?: "severity" | "status" }) {

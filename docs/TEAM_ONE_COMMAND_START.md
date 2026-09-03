@@ -143,3 +143,15 @@ acceptance. After a clean v5.53 baseline is published, run the private,
 disposable teammate acceptance described in `docs/QUICKSTART_FOR_TEAM.md` on a
 separate machine. Do not copy `.env` files between machines and do not mark the
 acceptance manifest complete from a same-machine rehearsal.
+
+## v5.54 Local Release-Candidate Boundary
+
+The disposable lifecycle now verifies setup, start, health, secure handoff,
+stop, restart, and explicit local-recovery authentication in `11/11` stages.
+The Windows runner does not capture long-lived child-process pipes, preventing
+successful startup from appearing hung.
+
+MongoDB remains required by the local MFU shell. Redis is optional locally and
+falls back to an in-process rate-limit store if unavailable. This same-machine
+result is local engineering evidence only; a teammate must still perform the
+workflow on a separate physical machine before that external gate is accepted.

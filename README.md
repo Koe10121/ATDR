@@ -1,673 +1,298 @@
-# MFU AI-Driven Log-Based Threat Detection and Response System
+# MFU AI-Driven Log-Based Threat Detection And Response
 
-ATDR is a defensive SOC platform under controlled productization for AI-assisted firewall log monitoring. It imports Palo Alto firewall/syslog logs, preserves raw evidence, normalizes investigation fields, generates explainable SOC-style alerts, supports analyst review, and records simulated analyst-approved response actions with audit trails.
+ATDR is a defensive SOC platform for collecting firewall/syslog records,
+preserving and normalizing evidence, running explainable detection, presenting
+analyst-ready alerts, and supporting investigations with a read-only AI
+Assistant.
 
-ATDR is lab-ready for controlled small-office validation. It is not certified production software, does not perform real firewall blocking, and does not trigger automatic response actions.
+ATDR is a controlled release candidate, not certified production software.
+Deterministic rules remain alert-authoritative. Supervised ML and anomaly
+scores are advisory. Response is simulated and analyst-confirmed; automatic
+response and real firewall blocking are disabled.
 
-## Current Reproducible Baseline
+## Current Truth
 
-The published baseline is commit
-`1866086e6ba9d0e6ac752e4b44e2b54a2acd6fb0` (`v5.49b`). GitHub Actions run
-`33348242534` passed the backend release gate, React dashboard, and disposable
-PostgreSQL persistence jobs. The governed supervised revalidation consumed its
-fixed protocol exactly once, evaluated all eight locked strategies, and
-selected no candidate. Deterministic rules remain alert-authoritative,
-supervised lifecycle remains `shadow_observation`, and response automation
-remains disabled. This is a controlled-lab baseline, not a production SLA or
-production-accuracy claim. See:
+The published baseline is:
 
-- `docs/V4_7_LARGE_SQLITE_PERFORMANCE_STABILIZATION.md`
-- `docs/V4_8_END_TO_END_PRODUCT_ACCEPTANCE.md`
-- `docs/CURRENT_SYSTEM_STATE_LOCK.md`
-- `docs/CURRENT_AI_ML_PRODUCT_STATUS.md`
-- `docs/V4_9_DETECTION_ML_RELIABILITY_LOCK.md`
-- `docs/V5_1_SUPERVISED_SHADOW_ACTIVATION.md`
-- `docs/V5_13_RUNTIME_PARSER_CONTRACT_AND_SOURCE_QUALITY.md`
-- `docs/V5_13_1_DETECTION_PARSER_PROGRAM_CONSOLIDATION.md`
-- `docs/V5_14_LARGE_FILE_RUNTIME_ACCEPTANCE.md`
-- `docs/V5_15_LONG_DURATION_RUNTIME_SOAK.md`
-- `docs/V5_16_FULL_SCALE_MEMORY_QUERY_STABILIZATION.md`
-- `docs/V5_17_POSTGRES_MULTIWORKER_CAPACITY_RECOVERY.md`
-- `docs/V5_18_POSTGRES_SCALE_QUALIFICATION.md`
-- `docs/V5_49B_IMMUTABLE_COMBINED_PROTOCOL_AND_ONE_SHOT_REVALIDATION.md`
-- `docs/V5_50_CURRENT_STATE_TRUTH_LOCK.md`
-- `docs/V5_51_DETECTION_PIPELINE_FIELD_QUALIFICATION.md`
+- v5.53 implementation: `825e29dde7430cee191ab86068c05e7c5ae30bf5`;
+- narrow CI repair: `b5761a953cf541e744fc437d4fb07be2adaec63f`;
+- GitHub Actions run `33585630166`: green;
+- CodeQL run `33585630219`: green.
 
-Installation is locally reproducible. Real MFU/Google sign-in still requires an
-approved OAuth Web client and account/group assignment from the university
-provider owner; authentication intentionally fails closed until those external
-inputs are supplied. Selected university template references are archived under
-`docs/reference/NewSystem/`; ATDR does not use the archived Node/Vue/Mongo
-runtime. The separately distributed MFU companion shell remains the required
-outer authentication shell.
+The current v5.54 worktree is consolidating the local release candidate and
+operator handoff. It is not committed or published. No external acceptance or
+production claim follows from local configuration.
 
-## Historical Academic Checkpoint
+Current governed ML truth:
 
-- Readiness: `final_controlled_validation_candidate`
-- Candidate: `independent_fpr_stabilized`
-- Fresh blind validation: 700 rows, 7 sources, 16 scenarios
-- Threat precision / recall / F1: `0.8906 / 0.9459 / 0.9174`
-- Benign-like false-positive rate: `0.1303`
-- Readiness v8: 22/22 checks
-- Production promoted: false
-- Model activated: false
-- Response automation: disabled
-- Real firewall blocking: disabled
+- the immutable v5.49b protocol consumed 180 genuine protected decisions once;
+- all eight fixed strategies were evaluated;
+- zero supervised candidates qualified;
+- no artifact was activated or promoted;
+- lifecycle remains `shadow_observation`;
+- consumed protected evidence must never be rerun or tuned.
 
-This checkpoint validates controlled lab SOC triage behavior. It does not claim
-production accuracy or deployment readiness.
+See [Current System State](docs/CURRENT_SYSTEM_STATE_LOCK.md), [Current AI/ML
+Status](docs/CURRENT_AI_ML_PRODUCT_STATUS.md), and [v5.54 Operator
+Handoff](docs/V5_54_OPERATOR_HANDOFF.md).
 
-## Current Supervised Runtime
+## What ATDR Does
 
-No supervised candidate currently qualifies for activation or promotion. The
-immutable v5.49b evaluation bound 180 genuine protected decisions with class
-support `95/39/27`, evaluated eight fixed strategies once, and selected zero
-candidates because the evaluation role had no suspicious support and every
-strategy failed the fixed confidence-gap gate. Existing registry artifacts are
-historical or have incomplete metadata; they are not a current qualified
-model. Supervised output remains advisory in `shadow_observation` and cannot
-create or suppress alerts, change severity, or execute response. See
-`docs/CURRENT_AI_ML_PRODUCT_STATUS.md`.
+1. **Collects logs:** file import, API import, durable large-file jobs, replay,
+   and a lab UDP syslog receiver.
+2. **Preserves evidence:** raw records are stored before parsing; malformed
+   records remain available with parser warnings.
+3. **Parses and normalizes:** PAN-OS TRAFFIC, THREAT, and SYSTEM layouts plus
+   generic syslog and raw fallback produce consistent investigation fields.
+4. **Detects threats:** a versioned deterministic rule catalog performs
+   source/time correlation, grouping, scoring, and deduplication.
+5. **Adds advisory AI/ML:** IsolationForest and governed supervised strategies
+   can rank or enrich evidence but cannot create or suppress authoritative
+   alerts.
+6. **Explains findings:** alerts show why they were flagged, evidence strength,
+   related logs, parser caveats, ATT&CK-style context, and recommended checks.
+7. **Assists analysts:** deterministic retrieval and optional Gemini synthesis
+   provide concise, cited, read-only answers over bounded ATDR context.
+8. **Records decisions:** assignments, notes, labels, simulated response
+   requests, and account/security events are audited.
 
-## v5.51 Detection Field Qualification
+## Architecture
 
-ATDR now provides one disposable, fail-closed qualification command for local
-transport, PAN-OS parser contracts, deterministic-rule diagnostics, and fresh
-evidence custody:
+| Surface | Technology | Role |
+| --- | --- | --- |
+| ATDR API | FastAPI / Python 3.11 | Auth, ingestion, detection, investigation, Assistant, operations |
+| ATDR UI | React / TypeScript / Vite | SOC dashboard and analyst workflows |
+| Persistence | SQLAlchemy / Alembic | SQLite locally; PostgreSQL for approved shared deployment |
+| Detection | Python rule engine | Alert-authoritative explainable detection |
+| ML | scikit-learn | Advisory anomaly and supervised evaluation |
+| Authentication shell | Approved MFU Node/Vue companion | School sign-in and secure one-time handoff |
 
-```powershell
-.\.venv\Scripts\python.exe -m atdr.scripts.run_v551_detection_field_qualification --use-temp-db --preflight-only --pretty
-```
+The companion shell uses MongoDB for its own state. ATDR does not use MongoDB
+and has not migrated to the shell's Node/Vue architecture. Archived university
+reference material under `docs/reference/NewSystem/` is reference-only.
 
-The controlled local preflight passes, but current aggregate readiness is
-`hardware_required`. A real non-loopback firewall/router run, a second physical
-source, human-confirmed parser fields, prediction-blind rule review, and fresh
-post-boundary windows remain required. The command never modifies the
-configured database and never returns raw logs, addresses, private paths,
-identities, fingerprints, or secrets. See
-`docs/detection/V5_51_FIELD_QUALIFICATION_CONTRACT.md`.
+The React source is under `frontend/`. Its primary analyst routes include
+Overview, Alerts, Log Explorer, SOC Assistant, AI Governance, Response & Audit,
+Threat Controls, Detection Tuning, Evidence Review, and User Admin.
 
-## v5.52 Analyst Experience And SOC Assistant Closure
+## Supported Profiles
 
-Alert, log, source, and case conversations now retain one explicit primary
-entity across dashboard navigation. Reset prompts and explicit entity switches
-start a clean thread, while at most four sanitized turns persist in the current
-browser tab. Every answer shows whether it came from ATDR deterministic
-analysis or external LLM synthesis, which evidence scopes were used, and that
-rules remain authoritative while ML remains advisory.
+| Profile | Status | Normal use |
+| --- | --- | --- |
+| MFU shell-first + local SQLite | Locally reproducible | Primary laptop/team workflow |
+| Explicit local recovery | Locally reproducible | Authorized diagnosis only |
+| Versioned teammate shell package | Locally validated contract | Requires separate physical teammate acceptance |
+| Shared PostgreSQL deployment | Repository assets implemented | Requires approved host and owner evidence |
 
-Controlled Assistant QA passes `20/20` with a `1.0000` required-citation pass
-rate, `60.9` average words, and `110` maximum words. The configured Gemini
-minimal probe and full synthetic chat pass with raw-log context disabled, IP
-redaction enabled, secrets hidden, and zero label/model/detection/response
-writes. This is bounded adapter and workflow evidence, not institutional
-provider approval or universal answer accuracy. See
-`docs/V5_52_ANALYST_EXPERIENCE_AND_SOC_ASSISTANT_CLOSURE.md`.
+## First Setup
 
-## v5.53 IAM And Shared Deployment Readiness
+Requirements:
 
-ATDR now distinguishes configured controls from real acceptance across the MFU
-shell, shared deployment, Gemini governance, teammate runtime, and repository
-security. The admin-only readiness view is aggregate and fail closed; it never
-returns credentials, private paths, identities, provider payloads, or raw logs.
-Normal authentication still begins in the approved MFU template shell.
+- Windows 10 or 11 with PowerShell;
+- Python 3.11;
+- Node.js 20.19 or newer and npm;
+- MongoDB running on `127.0.0.1:27017` for the MFU shell;
+- approved `mfu-atdr-shell-1.4.0-atdr.1.zip`;
+- private shell configuration supplied through the approved channel.
+
+From the repository root:
 
 ```powershell
-.\.venv\Scripts\python.exe -m atdr.scripts.run_v553_release_readiness --pretty
-.\.venv\Scripts\python.exe -m atdr.scripts.run_v553_security_acceptance --pretty
+.\scripts\setup_team.cmd `
+  -ShellPackage "D:\Approved Artifacts\mfu-atdr-shell-1.4.0-atdr.1.zip" `
+  -ShellPrivateConfigRoot "D:\Private MFU Configuration"
 ```
 
-Local controls, dependency audits, secret scanning, and SBOM generation are
-implemented. MFU lifecycle/group acceptance, an approved shared host,
-institutional Gemini governance, a separate physical teammate run, and
-independent field evidence remain external. `production_ready` remains false.
-See `docs/V5_53_MFU_IAM_AND_SHARED_DEPLOYMENT_READINESS.md`.
+Setup verifies the package, creates the Python environment, installs backend
+and frontend dependencies, creates ignored private ATDR configuration, backs
+up SQLite before migration, and applies additive Alembic migrations. It never
+resets the configured database.
 
-## v3.0 Production-Readiness Track
-
-The next track is real-source and lab-deployment hardening, not production approval. It adds:
-
-- production-readiness gap assessment
-- real-device/syslog pilot plan
-- PostgreSQL lab validation plan
-- observability and operations plan
-- real-source ML monitoring plan
-- conservative readiness gate v9
-- v3.5 read-only real-source/syslog pilot checker and safe evidence export
-
-Key docs:
-
-- `docs/V3_0_PRODUCTION_READINESS_TRACK.md`
-- `docs/V3_0_PRODUCTION_READINESS_GAP_ASSESSMENT.md`
-- `docs/V3_0_REAL_DEVICE_SYSLOG_PILOT_PLAN.md`
-- `docs/V3_0_POSTGRESQL_LAB_DEPLOYMENT_VALIDATION.md`
-- `docs/V3_0_OBSERVABILITY_AND_OPERATIONS_PLAN.md`
-- `docs/V3_0_REAL_SOURCE_ML_MONITORING_PLAN.md`
-- `docs/V3_1_PERFORMANCE_STABILIZATION_PLAN.md`
-- `docs/V3_1_POSTGRESQL_PERFORMANCE_VALIDATION_PLAN.md`
-- `docs/V3_2_NO_HARDWARE_SOURCE_PILOT.md`
-- `docs/V3_3_POSTGRESQL_SHARED_LAB_READINESS.md`
-- `docs/V3_3_BACKUP_RESTORE_AND_RETENTION_PLAN.md`
-- `docs/V3_3_DOCKER_POSTGRES_LAB_RUNBOOK.md`
-- `docs/V3_4_SHARED_LAB_READINESS.md`
-- `docs/V3_5_REAL_SOURCE_SYSLOG_PILOT.md`
-
-Useful commands:
+For a source directory explicitly approved by the advisor/team owner:
 
 ```powershell
-.\.venv\Scripts\python.exe -m atdr.scripts.production_readiness_doctor --pretty
-.\.venv\Scripts\python.exe -m atdr.scripts.run_v30_real_source_pilot_validation --pretty
-.\.venv\Scripts\python.exe -m atdr.scripts.run_postgres_lab_validation --pretty
-.\.venv\Scripts\python.exe -m atdr.scripts.database_portability_audit --pretty
-.\.venv\Scripts\python.exe -m atdr.scripts.run_real_source_ml_monitoring --pretty
-.\.venv\Scripts\python.exe -m atdr.scripts.performance_smoke --pretty
-.\.venv\Scripts\python.exe -m atdr.scripts.run_v32_no_hardware_source_pilot --pretty
-.\.venv\Scripts\python.exe -m atdr.scripts.run_v34_shared_lab_readiness --pretty
-.\.venv\Scripts\python.exe -m atdr.scripts.run_backup_restore_drill --dry-run --pretty
-.\.venv\Scripts\python.exe -m atdr.scripts.profile_dashboard_summary --pretty
-.\.venv\Scripts\python.exe -m atdr.scripts.run_v35_real_source_pilot_check --pretty
-.\.venv\Scripts\python.exe -m atdr.scripts.export_real_source_pilot_evidence --pretty
+.\scripts\setup_team.cmd -TemplateRoot "D:\Approved MFU Shell"
 ```
 
-These commands are non-destructive. They do not enable automatic response, real firewall blocking, model activation, or production promotion.
+Do not use placeholder paths such as `C:\Path\To\ATDR`. Do not copy another
+person's `.env`, database, API key, or protected evidence.
 
-Final presentation material:
-
-- `docs/PROGRESS_PRESENTATION_STATUS.md`
-- `docs/PROGRESS_PRESENTATION_SCRIPT.md`
-- `docs/PROGRESS_PRESENTATION_DEMO_FLOW.md`
-- `docs/PROGRESS_PRESENTATION_REPO_TALKING_POINTS.md`
-- `docs/FINAL_REPORT_OUTLINE.md`
-- `docs/FINAL_REPORT_DRAFT.md`
-- `docs/FINAL_PRESENTATION_SLIDE_CONTENT.md`
-- `docs/FINAL_PRESENTATION_DESIGN_GUIDE.md`
-- `docs/FINAL_SCREENSHOT_CAPTURE_PLAN.md`
-- `docs/FINAL_REHEARSAL_CHECKLIST.md`
-- `docs/FINAL_5_MINUTE_SCRIPT.md`
-- `docs/FINAL_10_MINUTE_SCRIPT.md`
-- `docs/FINAL_ONE_PAGE_SUMMARY.md`
-- `docs/FINAL_SLIDE_ASSET_GUIDE.md`
-- `docs/FINAL_DEMO_SCRIPT.md`
-- `docs/FINAL_DEFENSE_QA.md`
-- `docs/FINAL_EVIDENCE_CHECKLIST.md`
-- `docs/SUPERVISOR_FINAL_STATUS_SUMMARY.md`
-- `docs/FINAL_DEMO_RUNBOOK.md`
-- `docs/FINAL_DEFENSE_TALKING_POINTS.md`
-- `docs/FINAL_ACCEPTANCE_CHECKLIST.md`
-- `docs/FINAL_SYSTEM_STATUS.md`
-- `docs/FINAL_ENGINEERING_VALIDATION_SUMMARY.md`
-
-## Current Lab Snapshot
-
-- FastAPI backend with JWT auth, admin/analyst RBAC, SQLAlchemy/Alembic, and SQLite by default.
-- Local account management supports username/password plus optional school-email fields, verified-email status, and email login for local users.
-- React-first SOC dashboard with Overview, Alerts, Investigation / Log Explorer, AI Governance, Response & Audit, Threat Controls, Detection Tuning, User Admin, and Demo Controls.
-- Palo Alto parser with raw evidence preservation, plus parser profiles for `palo_alto`, `generic_syslog`, and `raw_fallback`.
-- Log source management with source health, source-level data quality, replay/syslog lab support, and source-scoped detection.
-- Rule-based detection, alert deduplication, lightweight case grouping, ATT&CK-style mapping, and "Why flagged?" explanations.
-- IsolationForest anomaly scoring and supervised ML decision support with AI Governance, labeling workflow, active learning, and model validation gates.
-- Simulated response actions with confirmation, protected-IP safeguards, justification notes, and audit logs.
-- The approved MFU application is the normal identity outer shell. A short-lived, single-use code is exchanged server-to-server; ATDR never receives a school credential in a browser URL. New external users default to analyst, admin requires an approved IAM group, and direct local login is reserved for an explicit recovery profile.
-- Supervisor-template integration is a controlled outer-shell handoff, not a migration to the template's Node/Vue/MongoDB runtime. See `docs/V3_91_MFU_OUTER_SHELL_SECURE_HANDOFF.md` and `docs/security/ATDR_MFU_IAM_PREPROD_VALIDATION.md`.
-- The SOC Assistant has an optional private-config Gemini path with validated structured answers, bounded conversation context, citations, redaction, retries, rate limits, and deterministic fallback. It remains read-only, excludes raw logs by default, and cannot execute ATDR actions. See `docs/V3_87_REAL_LLM_SOC_ASSISTANT.md`.
-- Safe synthetic scenario validation under `data/samples/scenarios/`.
-- Release gate, performance smoke, onboarding docs, IAM/RBAC docs, PRD, traceability, and university workflow documentation.
-
-The v3.88 checkpoint consolidates the template-shell and assistant work into one reviewed commit set before PostgreSQL, durable workers, or further model productization. See `docs/V3_88_PRODUCT_BASELINE_CHECKPOINT.md`.
-
-The v3.89 shared-lab persistence foundation keeps SQLite as the normal local workflow and adds isolated backup/restore validation, checksum manifests, optional PostgreSQL pool settings, and an ephemeral PostgreSQL CI drill. See `docs/V3_89_SHARED_LAB_PERSISTENCE_AND_BACKUP_RESTORE.md`.
-
-v3.90 adds an opt-in durable operation queue for selected long-running imports, detection, ML, and report actions. The API never starts a worker automatically; a separately launched worker records heartbeats, leases, safe retries, and audit events. See `docs/V3_90_DURABLE_BACKGROUND_JOBS.md`.
-
-## Safety And Scope
-
-- Real or large firewall logs must stay outside Git, for example in `Downloads`, `data/private/`, or `real_logs/`.
-- `.env`, DB files, model artifacts, generated CSVs/reports, `ml_baseline_reviews/`, and `demo_exports/` must not be committed.
-- Response mode remains simulation unless a future approved connector is implemented.
-- ML is analyst decision support only; weak-label metrics are not production accuracy.
-- Docker/PostgreSQL is optional future/lab deployment work, not required for normal local testing.
-
-## Quick Start
-
-For a beginner-friendly Windows setup from a fresh clone or GitHub zip download, use:
-
-- `docs/QUICKSTART_FOR_TEAM.md`
-- `docs/TEAM_ONE_COMMAND_START.md`
-
-Requirements include Python 3.11 and Node.js `20.19.0` or newer. Obtain the approved, checksum-locked MFU companion archive through the authorized team channel, then run setup once from the ATDR root:
-
-```powershell
-.\scripts\setup_team.cmd -ShellPackage "D:\Approved Artifacts\mfu-atdr-shell-1.4.0-atdr.1.zip"
-```
-
-Setup verifies the package version, checksum, source manifest, and absence of private configuration before installing it under ignored runtime storage. It can install and migrate ATDR before provider configuration is available, and reports provider readiness separately. Normal startup remains fail-closed until the approved private shell configuration contains a matching university OAuth Web client and the required IAM profile.
-
-Then start all four components and open the MFU sign-in page:
+## Start The System
 
 ```powershell
 .\scripts\start_system.cmd
 ```
 
-Normal entry point:
+Wait for `All components are ready`, then use the mandatory entry:
 
 ```text
 http://localhost:8080/#/pages/login
 ```
 
-Internal component addresses are FastAPI `http://127.0.0.1:8000` and React `http://127.0.0.1:5173`; users still enter React through the shell handoff.
+The launcher starts:
 
-Configuration profiles are documented in `.env.example`, `.env.shell.example`, `.env.lab.example`, and `.env.production.example`. Private `.env` files are ignored and must never be committed.
+- FastAPI: `http://127.0.0.1:8000`;
+- React: `http://127.0.0.1:5173`;
+- MFU shell API: `http://127.0.0.1:8214`;
+- MFU shell UI: `http://localhost:8080`.
 
-Use `.\scripts\check_system.cmd` for secret-free installation, package-integrity, and provider diagnostics. See `docs/V4_6_VERSIONED_MFU_SHELL_DISTRIBUTION.md` and `docs/V4_4_MFU_AUTH_STABILIZATION.md` for distribution and provider acceptance boundaries.
-
-Prepare the bundled synthetic dashboard scenario without touching existing data:
-
-```powershell
-.\.venv\Scripts\python.exe -m atdr.scripts.prepare_safe_demo --pretty
-```
-
-Check or stop the complete system:
+Check or stop the tracked processes:
 
 ```powershell
 .\scripts\check_system.cmd
 .\scripts\stop_system.cmd
 ```
 
-The launcher keeps ATDR's existing FastAPI and React commands intact internally. Direct component startup and `ATDR_AUTH_MODE=local_recovery` are development/recovery tools, not the normal user path. SQLite remains the default ATDR database; MongoDB is required only by the separate MFU shell.
+To restart, stop and start. Use the `.cmd` wrappers when PowerShell execution
+policy blocks direct `.ps1` execution.
 
-## Import Or Replay Logs
+Real MFU/Google sign-in still depends on the approved Web client, account
+scope, IAM group mapping, provider-managed 2FA, recovery, and deprovisioning.
+The application fails closed rather than bypassing those checks.
 
-Keep private logs outside Git and pass an absolute path when importing real data:
+## Local Recovery
 
-```powershell
-python -m atdr.scripts.import_logs "D:\Private Logs\paloalto-firewall.log" --limit 5000
-```
+`ATDR_AUTH_MODE=local_recovery` is an explicit private recovery/development
+profile. It is never selected by the normal launcher. Stop the shell-first
+runtime and follow [Operations Runbook](docs/OPERATIONS_RUNBOOK.md) for direct
+FastAPI/React startup. Return to `template_shell` before normal operation.
 
-Run detection:
+## Configuration References
 
-```powershell
-Invoke-RestMethod -Method Post "http://127.0.0.1:8000/api/detection/run?limit=5000&use_ml=false"
-```
+- `.env.shell.example`: normal MFU shell-first local profile;
+- `.env.example`: explicit local-recovery/development profile;
+- `.env.lab.example`: optional PostgreSQL shared-lab profile;
+- `.env.production.example`: fail-closed shared-host reference;
+- `frontend/.env.example`: direct React component configuration.
 
-Safe replay dry-run:
+Create only ignored private copies. Never place real values in the examples.
 
-```powershell
-python -m atdr.scripts.replay_logs --dry-run --limit 20 --rate 5 --pretty
-```
+## Import And Detect
 
-For an explicitly queued operation, start one manual worker cycle after submitting a queued job:
-
-```powershell
-.\.venv\Scripts\python.exe -m atdr.scripts.run_operation_worker --once --pretty
-```
-
-The worker is opt-in, read from the database queue, and never starts with the backend command. It cannot execute response actions, real firewall changes, user changes, label changes, or model activation.
-
-Register a lab source and replay as that source:
+Keep private or large logs outside Git. Import through the dashboard or CLI:
 
 ```powershell
-python -m atdr.scripts.register_log_source --name lab-firewall-1 --source-type firewall --parser-profile palo_alto --host 192.0.2.10 --port 514 --pretty
-python -m atdr.scripts.replay_logs --send-to direct --source-name lab-firewall-1 --source-type firewall --source-host 192.0.2.10 --source-port 514 --limit 100 --rate 1 --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.import_logs "D:\Private Logs\firewall.log" --limit 5000
 ```
 
-## Controlled Threat Detection Validation
-
-Synthetic scenario files live under `data/samples/scenarios/`. They validate normal traffic, negative controls, mixed small-subnet traffic, scanning-like traffic, brute-force-like service attempts, C2/beaconing-like activity, data exfiltration suspicion, connection flood behavior, deduplication, parser fallback, and policy/suspicious-app behavior without using private logs or offensive tooling.
-
-Run the full v0.7 validation suite safely against a temporary database:
+Safe replay preview:
 
 ```powershell
-python -m atdr.scripts.run_detection_validation_suite --all --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.replay_logs --dry-run --limit 20 --rate 5 --pretty
 ```
 
-The suite writes ignored JSON/Markdown reports plus a risk-calibration report under `demo_exports/detection_validation/`. The React Overview page shows a compact latest validation summary, but generated reports should not be committed.
-
-Run the v0.8 generalization suite to generate safe synthetic variants and check for false positives/false negatives without touching the current database:
+Live loopback receiver:
 
 ```powershell
-python -m atdr.scripts.run_detection_generalization_suite --all --variants 5 --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_syslog_receiver --host 127.0.0.1 --port 5514
 ```
 
-Generalization reports are written under ignored `demo_exports/detection_generalization/`, and generated variants are written under ignored `demo_exports/detection_variants/`.
+Run detection from the dashboard after reviewing source and parser health.
+Production-like non-loopback forwarding requires network-owner approval and a
+real physical-source qualification.
 
-Run the v0.9 layered detection validation suite to compare rules, anomaly scoring, supervised SOC triage, and hybrid scoring:
+## Detection And ML Status
 
-```powershell
-python -m atdr.scripts.run_layered_detection_validation --all --variants 3 --pretty
-```
+The deterministic detector has 19 versioned rules and controlled coverage for
+benign traffic, port/service probing, brute-force patterns, C2-like beaconing,
+exfiltration suspicion, floods, policy violations, parser fallbacks, and
+deduplication. The controlled suites are regression evidence, not real-world
+accuracy claims.
 
-Layered reports are written under ignored `demo_exports/layered_detection/`.
+Supervised ML is deliberately not active. v5.49b selected no candidate due
+insufficient evaluation-role support and calibration-gate failures. A second
+physical source, fresh untouched future windows, prediction-blind human labels,
+stable performance, and separate activation approval remain mandatory.
 
-Run the v1.0 end-to-end workflow validation suite to prove safe ingestion, parsing, source health, detection, alert explanation, investigation evidence, optional simulated response checks, audit trail, and report generation:
+IsolationForest remains an unusual-behavior signal only. It is not an
+authoritative threat detector.
 
-```powershell
-python -m atdr.scripts.run_e2e_workflow_validation --pretty
-python -m atdr.scripts.run_e2e_workflow_validation --scenario port_scan_like_traffic --simulate-response --pretty
-```
+## SOC Assistant
 
-End-to-end reports are written under ignored `demo_exports/e2e_validation/`. The default mode uses a temporary database and does not modify current dashboard data.
+Assistant context is assembled from bounded ATDR records through the service
+layer: alert details, related normalized logs, source health, operation/jobs,
+AI governance, and approved runbook guidance. Answers include citations and
+provenance.
 
-Run the v1.1 detection reliability baseline to aggregate scenario validation, generalization, layered detection, E2E workflow, false-positive/false-negative counts, risk/severity distribution, and detection layer contribution:
+Gemini is supported through private configuration. ATDR sends only bounded,
+redacted context; raw logs are excluded by default and IP redaction is enabled.
+The key is never returned to the UI or audit log. Deterministic fallback remains
+available if the provider fails.
 
-```powershell
-python -m atdr.scripts.run_detection_reliability_baseline --pretty
-```
+The Assistant cannot run detection, create response actions, alter labels,
+activate models, modify users, or delete data.
 
-v1.1 reliability, benchmark, error-analysis, calibration, drift, ML reliability, and stress reports are written under ignored `demo_exports/detection_reliability/`.
+## Safety And Repository Hygiene
 
-For larger benchmark-style CSVs, v1.2 adds sanitized benchmark snapshot preparation, multi-mode detection benchmarking, benchmark ML experiments, layered rule/ML/hybrid comparison, and readiness gate v2:
+Never commit:
 
-```powershell
-python -m atdr.scripts.prepare_benchmark_dataset --input-csv C:\path\to\benchmark.csv --mapping-config data\samples\benchmarks\example_firewall_mapping.json --label-config data\samples\benchmarks\example_label_mapping.json --limit 5000 --pretty
-python -m atdr.scripts.run_detection_benchmark --prepared-snapshot demo_exports\benchmarks\benchmark_snapshot_<id>.json --detection-mode hybrid --pretty
-python -m atdr.scripts.run_benchmark_ml_experiment --prepared-snapshot demo_exports\benchmarks\benchmark_snapshot_<id>.json --split time --test-size 0.3 --pretty
-```
+- `.env` files or credentials;
+- database files;
+- private/real logs or processed evidence;
+- protected review decisions or labels;
+- model artifacts;
+- `ml_baseline_reviews/` or `demo_exports/`;
+- generated reports, provider payloads, SBOMs, or acceptance manifests.
 
-v1.2 reports are ignored under `demo_exports/benchmarks/` and `ml_baseline_reviews/benchmark_ml_experiments/`. Benchmark metrics stay separate from local firewall-log metrics and are not production accuracy.
-
-Run the safe v1.5 internal AI-readiness benchmark:
-
-```powershell
-python -m atdr.scripts.build_internal_ai_readiness_benchmark --dry-run --pretty
-python -m atdr.scripts.run_v15_ai_readiness_validation --pretty
-```
-
-The 240-row benchmark is generated from a small committed manifest. Generated data and reports remain ignored. A `benchmark_validated_candidate` result strengthens analyst-review evidence only; it does not activate or production-promote a model.
-
-Run the v1.6 fixed unseen-holdout transfer check:
-
-```powershell
-python -m atdr.scripts.build_fixed_unseen_holdout --dry-run --pretty
-python -m atdr.scripts.run_external_benchmark_validation --holdout-from-current-data --pretty
-```
-
-The 320-row holdout uses separate synthetic sources and scenarios. The original
-v1.6 transfer result exposed a meaningful internal-to-unseen generalization
-gap; v1.8 now reports the reviewed benchmark candidate separately. No model or
-response action is activated.
-
-Run the v1.7 external generalization improvement pass:
-
-```powershell
-python -m atdr.scripts.run_v17_external_generalization --review-limit 300 --pretty
-```
-
-v1.7 compares external profiles, reduces noisy benign false positives, exports a boundary review sample, and keeps readiness conservative. No model is activated and no response action is automated.
-
-Reviewed v1.7 benchmark files use `benchmark_row_id`, not database log IDs. Import them through the dedicated workflow:
-
-```powershell
-python -m atdr.scripts.import_benchmark_review_csv --input-csv "C:\path\to\v1_7_external_boundary_review_sample_REVIEWED.csv" --benchmark-kind external_holdout --pretty
-```
-
-See `docs/V1_7B_BENCHMARK_REVIEW_IMPORT.md`.
-
-Run the v1.8 external benchmark finalization and confidence calibration pass:
-
-```powershell
-python -m atdr.scripts.run_v18_external_benchmark_finalization --pretty
-```
-
-v1.8 uses behavior-window evidence and out-of-fold confidence calibration to
-evaluate an external benchmark candidate. Passing the benchmark gate does not
-activate or production-promote a model, and response automation stays disabled.
-
-Run the v1.9 independent and controlled-source validation:
-
-```powershell
-python -m atdr.scripts.build_independent_holdout --pretty
-python -m atdr.scripts.run_controlled_real_source_validation --pretty
-python -m atdr.scripts.run_v19_independent_revalidation --pretty
-```
-
-v1.9 keeps the external benchmark, new independent holdout, and controlled
-source evidence separate. Current readiness remains decision support only:
-production promotion, model activation, automatic response, and real firewall
-blocking are disabled.
-
-Run the v1.9b identity-independent FPR stabilization comparison:
-
-```powershell
-python -m atdr.scripts.run_v19b_independent_fpr_stabilization --pretty
-```
-
-v1.9b routes unresolved allowed high-port services to analyst review only when
-they lack rule and behavior-window threat evidence. The current candidate
-passes readiness v7b, but it remains decision support and requires confirmation
-on a fresh future holdout.
-
-Run the v2.0 frozen-candidate blind and final controlled validation:
-
-```powershell
-python -m atdr.scripts.lock_v20_candidate --pretty
-python -m atdr.scripts.build_fresh_blind_holdout --pretty
-python -m atdr.scripts.run_v20_fresh_blind_revalidation --pretty
-python -m atdr.scripts.run_final_controlled_source_acceptance --pretty
-```
-
-The 700-row fresh blind holdout passes without threshold tuning. Readiness v8
-reports `final_controlled_validation_candidate`. This is controlled
-decision-support evidence, not production promotion or deployment approval.
-
-Run a scenario against a temporary database:
-
-```powershell
-python -m atdr.scripts.run_source_scenario --scenario port_scan_like_traffic --use-temp-db --run-detection --pretty
-```
-
-Run a scenario into the current dashboard intentionally:
-
-```powershell
-python -m atdr.scripts.run_source_scenario --scenario port_scan_like_traffic --source-name scenario-lab-firewall-1 --run-detection --pretty
-```
-
-Validate a controlled replay source and export advisor-friendly JSON/Markdown reports:
-
-```powershell
-python -m atdr.scripts.validate_live_source --source-name scenario-lab-firewall-1 --source-type firewall --parser-profile palo_alto --duration 0 --run-detection --pretty
-python -m atdr.scripts.export_lab_validation_report --source-name scenario-lab-firewall-1 --format both --pretty
-```
-
-Real firewall/router hardware validation remains future work. ATDR is intended for controlled small-subnet/lab-scale validation, not production certification.
-
-## ML And AI Governance
-
-ATDR combines:
-
-- rule-based detection as the primary explainable signal
-- IsolationForest anomaly scoring as assistive unsupervised ML
-- supervised classifier output trained from reviewed/assisted labels
-- hybrid risk scoring for analyst triage
-
-Supervised outputs remain SOC triage decision support. v5.49b selected no
-candidate, the legacy artifact has incomplete registration metadata, and no
-model is production-promoted. Response Automation remains disabled regardless
-of model output.
-
-Useful commands:
-
-```powershell
-python -m atdr.scripts.generate_assisted_labels --dry-run --limit 1000 --pretty
-python -m atdr.scripts.export_active_learning_review_sample --limit 200
-python -m atdr.scripts.train_supervised_model --split time --test-size 0.3 --min-samples 6
-```
-
-See `docs/CURRENT_AI_ML_PRODUCT_STATUS.md`, `docs/AI_TRAINING_RUNBOOK.md`, and
-`docs/ML_BASELINE_TUNING.md`.
+`RESPONSE_SIMULATION=true` and `RESPONSE_PROVIDER=simulation` must remain set.
+No real firewall connector is enabled.
 
 ## Verification
 
-Backend:
+Core local checks:
 
 ```powershell
+node scripts/render-tasklist-progress-html.js .
+node scripts/check-tasklist-progress-standard.js .
+.\.venv\Scripts\python.exe -m ruff check .
 .\.venv\Scripts\python.exe -m compileall -q atdr migrations
-.\.venv\Scripts\python.exe -m pytest atdr\tests -q
+.\.venv\Scripts\python.exe -m pytest atdr/tests -q
 .\.venv\Scripts\alembic.exe check
-```
-
-Frontend:
-
-```powershell
-cd frontend
+Set-Location frontend
 npm.cmd run lint
 npm.cmd run build
 npm.cmd run test:e2e
 ```
 
-Release checks:
+Release/security/deployment checks are documented in [v5.54 Operator
+Handoff](docs/V5_54_OPERATOR_HANDOFF.md). CI also validates PostgreSQL,
+dependency audits, SBOM generation, deployment references, disaster recovery,
+and CodeQL.
+
+Run the release gate from the repository root:
 
 ```powershell
-.\.venv\Scripts\python.exe -m atdr.scripts.replay_logs --dry-run --limit 20 --rate 5 --pretty
-.\.venv\Scripts\python.exe -m atdr.scripts.performance_smoke --pretty
-.\.venv\Scripts\python.exe -m atdr.scripts.verify_release
+python -m atdr.scripts.verify_release --pretty
 ```
 
-Equivalent release-gate command from an activated virtual environment:
+Set `ATDR_RUN_PLAYWRIGHT=1` only when intentionally asking the release gate to
+include its optional browser smoke path; normal frontend verification uses
+`npm.cmd run test:e2e` directly.
 
-```powershell
-python -m atdr.scripts.verify_release
-```
+## Active Documentation
 
-Optional browser smoke flag for legacy Python-driven dashboard smoke checks:
+- [Quick Start For Team](docs/QUICKSTART_FOR_TEAM.md)
+- [Operator Handoff](docs/V5_54_OPERATOR_HANDOFF.md)
+- [Operations Runbook](docs/OPERATIONS_RUNBOOK.md)
+- [Deployment Guide](docs/DEPLOYMENT_GUIDE.md)
+- [External Owner Acceptance](docs/V5_54_EXTERNAL_OWNER_ACCEPTANCE.md)
+- [Current System State](docs/CURRENT_SYSTEM_STATE_LOCK.md)
+- [Current AI/ML Product Status](docs/CURRENT_AI_ML_PRODUCT_STATUS.md)
+- [Product Requirements](docs/prd/PRD-ATDR.md)
+- [Requirement Traceability](docs/ATDR_REQUIREMENT_TRACEABILITY.md)
+- [University Compliance Checklist](docs/ATDR_UNIVERSITY_COMPLIANCE_CHECKLIST.md)
+- [AI Documentation Index](docs/AI-DOCS-INDEX.md)
 
-```powershell
-$env:ATDR_RUN_PLAYWRIGHT="1"
-```
+## Remaining External Gates
 
-## Documentation Map
+The release candidate remains externally constrained by:
 
-Start here:
+1. MFU IAM lifecycle and real group-role acceptance;
+2. an approved shared PostgreSQL/HTTPS host and operations evidence;
+3. institutional Gemini privacy, retention, quota, cost, and key governance;
+4. a separate physical teammate clean-clone/sign-in exercise;
+5. independent physical-source detection evidence and future blind labels.
 
-- `docs/CURRENT_SYSTEM_STATE_LOCK.md` - current source-backed product and safety checkpoint.
-- `docs/CURRENT_AI_ML_PRODUCT_STATUS.md` - current rules, IsolationForest, supervised-candidate, registry, and Gemini boundaries.
-- `docs/V5_53_MFU_IAM_AND_SHARED_DEPLOYMENT_READINESS.md` - current local readiness controls and external-owner acceptance ledger.
-- `docs/V4_8_END_TO_END_PRODUCT_ACCEPTANCE.md` - disposable 50,000-log integrated acceptance evidence.
-- `docs/V4_8_1_REPOSITORY_CONSOLIDATION_REPORT.md` - uncommitted repository consolidation decision and protected-file boundary.
-- `docs/QUICKSTART_FOR_TEAM.md` - Windows setup for teammates using clone or zip download.
-- `docs/LAB_RUNBOOK.md` - lab operations, replay, syslog, source validation, and troubleshooting.
-- `docs/FINAL_REPORT_OUTLINE.md` - complete ATDR-specific senior-project report structure.
-- `docs/FINAL_REPORT_DRAFT.md` - academic draft covering architecture, detection, validation, limitations, and conclusion.
-- `docs/FINAL_PRESENTATION_SLIDE_CONTENT.md` - slide-by-slide final defense content, visuals, and speaker notes.
-- `docs/FINAL_PRESENTATION_DESIGN_GUIDE.md` - PowerPoint visual system, slide layouts, screenshot placement, and final QA.
-- `docs/FINAL_SCREENSHOT_CAPTURE_PLAN.md` - slide-mapped, privacy-safe evidence capture instructions.
-- `docs/FINAL_REHEARSAL_CHECKLIST.md` - presentation-day setup, timing, recovery, and cleanup checklist.
-- `docs/FINAL_5_MINUTE_SCRIPT.md` - concise academic defense script.
-- `docs/FINAL_10_MINUTE_SCRIPT.md` - expanded academic defense script.
-- `docs/FINAL_ONE_PAGE_SUMMARY.md` - committee-ready project overview and final status.
-- `docs/FINAL_SLIDE_ASSET_GUIDE.md` - recommended diagrams, screenshots, metrics, and local asset organization.
-- `docs/FINAL_DEMO_SCRIPT.md` - exact commands, clicks, expected results, and spoken demonstration sequence.
-- `docs/FINAL_DEFENSE_QA.md` - likely committee questions with concise, defensible answers.
-- `docs/FINAL_EVIDENCE_CHECKLIST.md` - screenshot, metric, safety, verification, and submission evidence checklist.
-- `docs/SUPERVISOR_FINAL_STATUS_SUMMARY.md` - concise final academic status for supervisor review.
-- `docs/FINAL_DEMO_RUNBOOK.md` - final dashboard demonstration sequence and safe scenario.
-- `docs/FINAL_DEFENSE_TALKING_POINTS.md` - academic defense narrative, architecture, metrics, safety, and limitations.
-- `docs/FINAL_ACCEPTANCE_CHECKLIST.md` - final manual and automated sign-off checklist.
-- `docs/FINAL_SYSTEM_STATUS.md` - concise v2.0 capability, metrics, safety, and future-work status.
-- `docs/V0_6_THREAT_DETECTION_VALIDATION.md` - active controlled threat detection validation plan.
-- `docs/V0_8_DETECTION_GENERALIZATION.md` - synthetic variant validation and anti-overfitting checks.
-- `docs/V0_9_LAYERED_DETECTION_VALIDATION.md` - layered rules/anomaly/ML/hybrid contribution validation.
-- `docs/V1_0_E2E_WORKFLOW_VALIDATION.md` - controlled ingestion-to-investigation workflow validation with optional simulated response/audit checks.
-- `docs/V1_1_DETECTION_RELIABILITY_AND_BENCHMARKING.md` - reliability baselines, generic benchmark adapter, error analysis, risk calibration, drift, ML reliability, and stress testing.
-- `docs/V1_2_REALISTIC_BENCHMARK_AND_ML_STRENGTHENING.md` - sanitized benchmark snapshots, benchmark detection/ML experiments, layered comparison, and readiness gate v2.
-- `docs/V1_3_LARGER_LABELED_DATA_AND_AI_TRAINING.md` - reviewed-label audit, class targets, larger review samples, candidate training, error analysis, and readiness gate v3.
-- `docs/V1_4_FALSE_POSITIVE_REDUCTION_AND_CONFIDENCE_CALIBRATION.md` - low-noise SOC queue experiments, hard-gated thresholds, confidence calibration, and targeted false-positive review.
-- `docs/V1_4B_FALSE_POSITIVE_MITIGATION.md` - actionable review sampling and evidence-aware normal QUIC/443 false-positive mitigation.
-- `docs/V1_4C_MALICIOUS_RECALL_RECOVERY_AND_CALIBRATION.md` - malicious-recall boundary analysis, low-noise recovery profiles, and held-out confidence calibration.
-- `docs/V1_5_AI_READINESS_BENCHMARK_VALIDATION.md` - safe internal benchmark generation, layered/ML comparison, readiness gate v4, and final decision-support status.
-- `docs/V1_6_EXTERNAL_BENCHMARK_VALIDATION.md` - unseen holdout transfer metrics, calibration, overfitting analysis, and readiness gate v5.
-- `docs/V1_7_EXTERNAL_GENERALIZATION_IMPROVEMENT.md` - external boundary profiles, error analysis, calibration, and review sampling.
-- `docs/V1_7B_BENCHMARK_REVIEW_IMPORT.md` - dedicated `benchmark_row_id` review import kept separate from `ml_labels`.
-- `docs/V1_8_EXTERNAL_BENCHMARK_FINALIZATION.md` - external miss recovery, fixed profile comparison, out-of-fold calibration, and readiness v6.
-- `docs/V1_9_INDEPENDENT_REVALIDATION_AND_REAL_SOURCE_VALIDATION.md` - new independent holdout, controlled source workflow, and readiness v7.
-- `docs/V1_9B_INDEPENDENT_FPR_STABILIZATION.md` - identity-independent benign-boundary stabilization, profile comparison, and readiness v7b.
-- `docs/FINAL_ENGINEERING_VALIDATION_SUMMARY.md` - v0.7-v2.0 evidence chain, fresh blind metrics, final controlled acceptance, safety posture, and remaining production work.
-- `docs/V0_5_SIMULATION_DEMO_PLAN.md` - earlier controlled replay validation plan.
-- `docs/V0_5_REAL_SOURCE_VALIDATION_PLAN.md` - future controlled hardware source validation plan.
-- `docs/V0_3_RELEASE_CANDIDATE.md` - current release-candidate summary.
-- `docs/V0_4_STATUS.md` - current dashboard/IAM/performance checkpoint.
-- `docs/V0_3_STATUS.md` - detailed current v0.3 status.
-- `docs/V0_3_PLAN.md` - v0.3 source-management and scenario-validation plan.
-- `docs/V3_6_BACKGROUND_JOB_HARDENING.md` - operation job tracking and long-running operation visibility.
-- `docs/V3_7_OPERATION_RETENTION_AND_JOB_RECOVERY.md` - stale job recovery and retention maintenance.
-- `docs/V3_8_ANALYST_ASSISTANT_MVP.md` - read-only SOC Assistant MVP with external LLM disabled by default.
-- `docs/V3_9_ASSISTANT_HARDENING.md` - assistant presets, audit-backed history, citations, and safe deterministic intents.
-- `docs/V3_10_CONFIG_SAFETY_HARDENING.md` - local/shared-lab configuration safety and database diagnostics.
-- `docs/V3_11_DETECTION_EXPLAINABILITY_HARDENING.md` - log-level triage explanations and validation checks.
-- `docs/V3_12_DETECTION_RULE_QUALITY.md` - detection rule quality and alert-noise reduction.
-- `docs/V3_13_SOC_ASSISTANT_ALERT_EXPLAINER.md` - alert explainer handoff for the read-only SOC Assistant.
-- `docs/V3_14_EMAIL_VERIFICATION_AND_ACCOUNT_NOTIFICATIONS.md` - disabled-by-default local email verification and admin dev-outbox foundation.
-- `docs/V3_15_ACCOUNT_LIFECYCLE_AND_EMAIL_VERIFICATION_UX.md` - account lifecycle and email verification status UX hardening.
-- `docs/V3_63_REAL_LLM_ASSISTANT_ADAPTER.md` - disabled-by-default real LLM provider adapter with deterministic fallback and read-only safety.
-
-Governance and university workflow:
-
-- `docs/AI-DOCS-INDEX.md` - active ATDR documentation index and reference-only NewSystem boundary.
-- `docs/ATDR_AI_WORKFLOW.md` - no-guessing, source-evidence, testing, PRD-update, safety, and handoff workflow.
-- `docs/ATDR_NEWSYSTEM_TEMPLATE_ALIGNMENT.md` - how ATDR adapts the university NewSystem template without copying Node/Vue/Mongo implementation.
-- `docs/reference/NewSystem/REFERENCE_SCOPE.md` - preserved reference-only template evidence and authority boundary.
-- `docs/ATDR_TEMPLATE_MANIFEST.json` - ATDR-specific template manifest with env keys, permission paths, validation commands, and safety constraints.
-- `docs/prd/PRD-ATDR.md` - real ATDR PRD.
-- `docs/tasks/README.md` - ATDR tasklist/progress-board rules.
-- `docs/tasks/tasklist-progress.md` - canonical editable system progress board.
-- `docs/tasks/tasklist-progress.html` - generated progress board view.
-- `docs/security/ATDR_IAM_RBAC_MATRIX.md` - admin/analyst permission matrix and IAM limitations.
-- `docs/security/ATDR_EXTERNAL_IAM_PLAN.md` - disabled-by-default OIDC groundwork for future school-email login.
-- `docs/security/ATDR_MFU_IAM_ADAPTER_PLAN.md` - safe MFU IAM / Google SSO adapter plan based on supervisor template guidance.
-- `docs/V3_91_MFU_OUTER_SHELL_SECURE_HANDOFF.md` - canonical secure MFU outer-shell handoff architecture and local configuration guide.
-- `docs/security/ATDR_MFU_IAM_PREPROD_VALIDATION.md` - preproduction validation and rollback checklist for the secure handoff.
-- `docs/security/MFU_IAM_PROVIDER_DETAILS_CHECKLIST.md` - provider questions needed before real external IAM work.
-- `docs/security/ATDR_PERMISSION_PATHS.md` - NewSystem-style ATDR permission path registry.
-- `docs/security/ATDR_OWASP_LAB_SECURITY_REVIEW.md` - lab security review baseline and remaining hardening gaps.
-- `docs/ATDR_REQUIREMENT_TRACEABILITY.md` - source-backed mapping from requirements to code, tests, docs, and gaps.
-- `docs/agents/ATDR_AGENT_OPERATING_MODEL.md` - ATDR agent roles and handoff responsibilities.
-- `docs/templates/ATDR_T1_T20_CHANGE_DOCUMENT.md` - ATDR change document template.
-- `docs/changes/T1_T20_IAM_RBAC_COMPLIANCE.md` - completed change-document example.
-
-Other useful docs:
-
-- `docs/ACCEPTANCE_TEST_CHECKLIST.md`
-- `docs/ARCHITECTURE.md`
-- `docs/DEMO_DAY_RUNBOOK.md`
-- `docs/DASHBOARD_PRODUCTION_PATH.md`
-- `docs/ENVIRONMENT_GUIDE.md`
-- `docs/DEPLOYMENT_GUIDE.md`
-- `docs/OPERATIONS_RUNBOOK.md`
-- `docs/LIMITATIONS_AND_FUTURE_WORK.md`
-
-## Project Layout
-
-```text
-atdr/
-  app/
-    main.py
-    core/
-    db/
-    parsers/
-    detection/
-    ml/
-    routers/
-    services/
-    schemas/
-  dashboard/        legacy Streamlit continuity
-  scripts/
-  tests/
-data/samples/       safe synthetic/demo samples only
-frontend/           React SOC dashboard
-migrations/         Alembic migrations
-docs/               runbooks, PRD, governance, status, release docs
-  reference/NewSystem/ selected reference-only university template evidence
-```
-
-## Current Limitations
-
-- Real firewall blocking is not implemented.
-- Automatic response is not enabled.
-- Real router/firewall syslog forwarding still needs controlled lab validation.
-- SQLite remains the supported local profile. PostgreSQL compatibility,
-  multi-worker coordination, scale qualification, and backup/restore are
-  implemented and CI-tested; an approved shared deployment is still external.
-- Supervised lifecycle remains `shadow_observation` with no qualified current
-  candidate. The consumed v5.49b evidence cannot be retuned; fresh development
-  evidence, a second physical source, and an untouched future evaluation remain
-  blockers.
-- Case grouping is lightweight and not a full incident-management/ticketing platform.
+Exact owner actions are in
+[v5.54 External Owner Acceptance](docs/V5_54_EXTERNAL_OWNER_ACCEPTANCE.md).
+Until they are satisfied, `production_ready=false`.

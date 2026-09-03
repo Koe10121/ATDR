@@ -4,6 +4,13 @@ This index defines the active ATDR documentation set for AI/Codex-assisted work.
 
 ## Current Baseline
 
+- `docs/V5_54_RELEASE_CANDIDATE_TRUTH_LOCK.md`: current local release-candidate
+  decision, supported profiles, measured evidence, and external finish gates.
+- `docs/V5_54_OPERATOR_HANDOFF.md`: concise installation, operation,
+  investigation, Assistant, recovery, troubleshooting, and safety guide.
+- `docs/V5_54_EXTERNAL_OWNER_ACCEPTANCE.md`: owner-specific MFU, host, Gemini,
+  teammate, and detection-field acceptance checklists.
+
 - `docs/V5_50_CURRENT_STATE_TRUTH_LOCK.md`: canonical v5.50 baseline,
   completion matrix, external-gate ledger, and shortest finish roadmap.
 - `docs/V5_51_DETECTION_PIPELINE_FIELD_QUALIFICATION.md`: current field
@@ -39,7 +46,7 @@ This index defines the active ATDR documentation set for AI/Codex-assisted work.
   lifecycle and failure-mode reliability evidence.
 
 Earlier versioned documents remain historical change evidence. They do not
-override the current v5.50 truth lock when candidate, baseline, or readiness
+override the current v5.54 truth lock when candidate, baseline, or readiness
 wording differs.
 
 ## Active Control Documents
