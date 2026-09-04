@@ -325,6 +325,12 @@ function guardReasonLabel(reason?: string | null) {
       return "Provider answer was guarded because it was too short for the available evidence.";
     case "provider_answer_implies_action_execution":
       return "Provider answer was guarded because it implied action execution.";
+    case "provider_answer_recommends_unsafe_action":
+      return "Provider answer recommended a prohibited action, so ATDR kept the deterministic fallback.";
+    case "provider_answer_contains_unredacted_ip":
+      return "Provider answer contained an unredacted IP address, so ATDR kept the deterministic fallback.";
+    case "ip_redaction_required_for_llm":
+      return "External synthesis requires IP redaction, so ATDR used the deterministic answer.";
     case "provider_answer_lost_alert_context":
       return "Provider answer was guarded because it did not preserve the alert context.";
     case "provider_answer_contains_unsupported_alert_id":
@@ -338,6 +344,10 @@ function guardReasonLabel(reason?: string | null) {
       return "Provider answer omitted required investigation-brief evidence.";
     case "provider_answer_exceeds_response_budget":
       return "Provider answer exceeded the concise response limit.";
+    case "provider_response_oversized":
+      return "Provider output exceeded the bounded response contract, so ATDR used the concise deterministic answer.";
+    case "provider_answer_contains_unsupported_citation":
+      return "Provider output cited evidence outside the ATDR allowlist, so ATDR kept the deterministic answer.";
     case "provider_answer_lost_primary_alert_citation":
       return "Provider answer did not retain the primary alert citation.";
     case "empty_provider_answer":
@@ -522,6 +532,9 @@ export function AssistantPage() {
     }
     return "Local Evidence Assistant";
   }, [response, status.data]);
+  const providerOperations = status.data?.llm_operational;
+  const providerTotalTokens = providerOperations?.token_usage?.total_tokens ?? 0;
+  const providerUsageThreshold = providerOperations?.usage_warning_threshold_tokens ?? 0;
   const activeContextLabel = useMemo(() => {
     if (lastContext.primary === "alert" && lastContext.alertId) return `Using alert #${lastContext.alertId}`;
     if (lastContext.primary === "log" && lastContext.logId) return `Using log #${lastContext.logId}`;
@@ -848,10 +861,11 @@ export function AssistantPage() {
         </div>
         <div className="metric-card">
           <div className="metric-label">Provider Health</div>
-          <div className="metric-value text-lg capitalize">{status.data?.llm_operational?.status?.replaceAll("_", " ") ?? "Idle"}</div>
+          <div className="metric-value text-lg capitalize">{providerOperations?.status?.replaceAll("_", " ") ?? "Idle"}</div>
           <div className="metric-help">
-            {status.data?.llm_operational?.calls_failed ?? 0} failures / {status.data?.llm_operational?.fallbacks ?? 0} fallbacks
+            {providerOperations?.calls_succeeded ?? 0} successful / {providerOperations?.calls_failed ?? 0} failed / {providerOperations?.fallbacks ?? 0} fallback
           </div>
+          <div className="metric-help">Avg {providerOperations?.average_latency_ms ?? 0} ms / {providerTotalTokens.toLocaleString()} tokens</div>
         </div>
         <div className="metric-card">
           <div className="metric-label">Raw Log Context</div>
@@ -864,6 +878,16 @@ export function AssistantPage() {
           <div className="metric-help">Applied before external provider context.</div>
         </div>
       </section>
+
+      {providerOperations?.usage_warning ? (
+        <div
+          className="rounded-lg border border-amber/50 bg-amber/10 px-4 py-3 text-sm font-bold text-amber"
+          data-testid="assistant-provider-usage-warning"
+          role="status"
+        >
+          Provider usage reached the configured {providerUsageThreshold.toLocaleString()} token warning threshold. Review quota and cost ownership.
+        </div>
+      ) : null}
 
       {status.isLoading ? <LoadingPanel label="Loading assistant status" /> : null}
       {status.isError ? <ErrorBanner error={status.error} fallback="Unable to load assistant status." /> : null}

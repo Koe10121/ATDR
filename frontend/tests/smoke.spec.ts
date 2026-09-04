@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 
 async function seedSession(page: Page, role: "admin" | "analyst" = "admin") {
   await page.addInitScript((userRole) => {
@@ -3292,6 +3293,43 @@ test("login page loads", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Sign in for recovery", exact: true })).toBeVisible();
 });
 
+test("login entry has no automated WCAG A or AA violations", async ({ page }) => {
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({ status: 401, json: { detail: "Not authenticated" } })
+  );
+  await page.route("**/api/auth/mfu-iam/public-status", (route) =>
+    route.fulfill({
+      json: {
+        auth_mode: "local_recovery",
+        local_login_enabled: true,
+        template_shell_required: false,
+        enabled: false,
+        b2b_ready: false,
+        mock_enabled: false,
+        google_sso_enabled: false,
+        google_client_id_configured: false,
+        allowed_domains: [],
+        domain_hints: [],
+        default_role: "analyst",
+        auth_require_2fa: false,
+        mode: "local_recovery",
+        secrets_exposed: false
+      }
+    })
+  );
+
+  await page.goto("/login");
+  await expect(page.getByRole("main")).toBeVisible();
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze();
+  const violations = results.violations.map((violation) => ({
+    id: violation.id,
+    nodes: violation.nodes.length
+  }));
+  expect(violations, `Accessibility violations: ${JSON.stringify(violations)}`).toEqual([]);
+});
+
 test("legacy browser credential query is blocked and removed", async ({ page }) => {
   await page.route("**/api/auth/me", (route) => route.fulfill({ status: 401, json: { detail: "Not authenticated" } }));
   await page.route("**/api/auth/mfu-iam/public-status", async (route) =>
@@ -4372,6 +4410,46 @@ test("deep-linked alert and log drawers render", async ({ page }) => {
   await expect(page.getByText("Raw Evidence", { exact: true })).toBeVisible();
 });
 
+test("keyboard navigation, route focus, and detail drawer focus remain predictable", async ({ page }) => {
+  await mockApi(page);
+  await seedSession(page);
+  await page.goto("/overview");
+
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await page.keyboard.press("Tab");
+  const skipLink = page.getByRole("link", { name: "Skip to main content" });
+  await expect(skipLink).toBeVisible();
+  await expect(skipLink).toBeFocused();
+  await skipLink.press("Enter");
+  await expect(page.locator("#main-content")).toBeFocused();
+
+  await page.getByRole("link", { name: "Alerts", exact: true }).first().click();
+  await expect(page).toHaveURL(/\/alerts$/);
+  await expect.poll(() => page.locator("#main-content").evaluate((node) => document.activeElement === node)).toBe(true);
+  const severityFilter = page.getByRole("button", { name: "Alert severity filter" });
+  await severityFilter.focus();
+  await severityFilter.press("ArrowDown");
+  await expect(page.getByRole("option", { name: "All severities" })).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByRole("option", { name: "Critical", exact: true })).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(severityFilter).toContainText("Critical");
+
+  await page.goto("/overview");
+  const sourceButton = page.getByRole("button", { name: /local_import file_import/ });
+  await sourceButton.focus();
+  await sourceButton.click();
+  const drawer = page.getByRole("dialog", { name: /local_import/i });
+  await expect(drawer).toBeVisible();
+  await expect(page.getByRole("button", { name: "Close details" })).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(drawer.locator(":focus")).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  await expect(drawer).not.toBeVisible();
+  await expect(sourceButton).toBeFocused();
+});
+
 test("alert detail shows supervised schema abstention without a false score", async ({ page }) => {
   await mockApi(page);
   await seedSession(page);
@@ -5225,6 +5303,70 @@ test("SOC assistant labels Gemini only after an answer uses the provider", async
   await expect(page.getByText("ASSISTANT_LLM_API_KEY")).toHaveCount(0);
 });
 
+test("SOC assistant shows aggregate provider health and usage warnings without secrets", async ({ page }) => {
+  await mockApi(page);
+  await page.route("**/api/assistant/status", async (route) =>
+    route.fulfill({
+      json: {
+        available: true,
+        mode: "external_llm_configured",
+        external_provider_configured: true,
+        external_provider_used_by_default: false,
+        provider: "gemini",
+        model_configured: true,
+        llm_enabled: true,
+        llm_provider_configured: true,
+        llm_provider_name: "gemini",
+        llm_ready: true,
+        llm_model_configured: true,
+        llm_secret_configured: true,
+        llm_base_url_configured: false,
+        llm_timeout_seconds: 15,
+        llm_max_retries: 2,
+        llm_max_prompt_chars: 12000,
+        llm_max_output_tokens: 800,
+        llm_max_visible_chars: 4000,
+        llm_circuit_breaker_failures: 3,
+        llm_circuit_breaker_cooldown_seconds: 60,
+        llm_usage_warning_tokens: 100000,
+        llm_operational: {
+          status: "degraded",
+          calls_attempted: 5,
+          calls_succeeded: 4,
+          calls_failed: 1,
+          fallbacks: 1,
+          circuit_open: false,
+          average_latency_ms: 240,
+          token_usage: { input_tokens: 80000, output_tokens: 40000, total_tokens: 120000 },
+          usage_warning_threshold_tokens: 100000,
+          usage_warning: true,
+          usage_status: "threshold_reached",
+          usage_remaining_tokens: 0,
+          estimated_cost_usd: 0.02,
+          secrets_exposed: false
+        },
+        conversation_history_turns: 4,
+        rate_limit_requests: 30,
+        rate_limit_window_seconds: 60,
+        llm_secrets_exposed: false,
+        redaction_enabled: true,
+        raw_log_context_allowed: false,
+        max_context_rows: 20,
+        safety: ["Read Only", "Decision Support Only", "Response Automation Disabled"]
+      }
+    })
+  );
+  await seedSession(page);
+  await page.goto("/assistant");
+
+  await expect(page.getByText("degraded", { exact: true })).toBeVisible();
+  await expect(page.getByText("4 successful / 1 failed / 1 fallback", { exact: true })).toBeVisible();
+  await expect(page.getByText("Avg 240 ms / 120,000 tokens", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("assistant-provider-usage-warning")).toContainText("100,000 token warning threshold");
+  await expect(page.getByText("ASSISTANT_LLM_API_KEY")).toHaveCount(0);
+  await expect(page.getByText("private-v556-test-key")).toHaveCount(0);
+});
+
 test("SOC assistant follow-up questions keep the previous alert context", async ({ page }) => {
   const assistantRequests: Array<Record<string, unknown>> = [];
   await mockApi(page);
@@ -5702,13 +5844,15 @@ test("demo import strips copy-as-path quotes before sending sample path", async 
   expect(postedPath).toBe("D:\\Synthetic\\paloalto-firewall.log");
 });
 
-test("core SOC pages fit projector, laptop, and mobile viewports", async ({ page }, testInfo) => {
-  test.setTimeout(90_000);
+test("core SOC pages fit desktop, tablet, and mobile viewports", async ({ page }, testInfo) => {
+  test.setTimeout(150_000);
   await seedSession(page);
   await mockApi(page);
   const viewports = [
     { name: "projector", width: 1920, height: 1080 },
+    { name: "desktop", width: 1440, height: 900 },
     { name: "laptop", width: 1366, height: 768 },
+    { name: "tablet", width: 768, height: 1024 },
     { name: "mobile", width: 390, height: 844 }
   ];
   const routes = ["overview", "alerts", "logs", "assistant", "ml", "evidence-review", "response", "users"];
@@ -5784,4 +5928,28 @@ test("core SOC pages fit projector, laptop, and mobile viewports", async ({ page
       await page.evaluate(() => window.scrollTo(0, 0));
     }
   }
+});
+
+test("core analyst routes have no automated WCAG A or AA violations", async ({ page }) => {
+  test.setTimeout(120_000);
+  await seedSession(page);
+  await mockApi(page);
+
+  const routes = ["overview", "alerts", "logs", "assistant", "response", "audit", "ml", "evidence-review"];
+  const routeViolations: Array<{ route: string; id: string; nodes: number }> = [];
+  for (const routeName of routes) {
+    await page.goto(`/${routeName}`);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    const results = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+      .analyze();
+    routeViolations.push(
+      ...results.violations.map((violation) => ({
+        route: routeName,
+        id: violation.id,
+        nodes: violation.nodes.length
+      }))
+    );
+  }
+  expect(routeViolations, `Accessibility violations: ${JSON.stringify(routeViolations)}`).toEqual([]);
 });

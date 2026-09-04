@@ -4,6 +4,12 @@ This index defines the active ATDR documentation set for AI/Codex-assisted work.
 
 ## Current Baseline
 
+- `docs/V5_57_END_TO_END_ANALYST_WORKFLOW_ACCESSIBILITY_STARTUP.md`: current
+  integrated analyst-workflow, automated accessibility, responsive-layout,
+  startup/recovery, privacy, and remaining external-acceptance evidence.
+- `docs/V5_56_SOC_ASSISTANT_OPERATIONAL_RELIABILITY.md`: post-v5.54 local
+  Assistant reliability, concise-answer, request-bound citation, provider
+  telemetry, fallback, corpus, privacy, and external-governance evidence.
 - `docs/V5_54_RELEASE_CANDIDATE_TRUTH_LOCK.md`: current local release-candidate
   decision, supported profiles, measured evidence, and external finish gates.
 - `docs/V5_54_OPERATOR_HANDOFF.md`: concise installation, operation,
@@ -46,8 +52,9 @@ This index defines the active ATDR documentation set for AI/Codex-assisted work.
   lifecycle and failure-mode reliability evidence.
 
 Earlier versioned documents remain historical change evidence. They do not
-override the current v5.54 truth lock when candidate, baseline, or readiness
-wording differs.
+override the current v5.54 release truth lock when candidate, baseline, or
+readiness wording differs. v5.56 and v5.57 are local reliability improvements
+and do not change the release decision or close external acceptance.
 
 ## Active Control Documents
 
@@ -64,6 +71,8 @@ wording differs.
 | `docs/agents/ATDR_AGENT_OPERATING_MODEL.md` | ATDR agent roles, responsibilities, and verification responsibilities. |
 | `docs/ATDR_REQUIREMENT_TRACEABILITY.md` | Requirement-to-source/test/docs/gap traceability. |
 | `docs/ATDR_UNIVERSITY_COMPLIANCE_CHECKLIST.md` | University process compliance status and remaining gaps. |
+| `docs/V5_57_END_TO_END_ANALYST_WORKFLOW_ACCESSIBILITY_STARTUP.md` | Current end-to-end analyst workflow, accessibility, responsive-layout, startup, and recovery reliability evidence. |
+| `docs/V5_56_SOC_ASSISTANT_OPERATIONAL_RELIABILITY.md` | Current Assistant operational reliability, corpus, provider, fallback, privacy, and local quality evidence. |
 | `docs/V5_50_CURRENT_STATE_TRUTH_LOCK.md` | Canonical current baseline, completion classification, ownership ledger, and shortest remaining roadmap. |
 | `docs/V5_51_DETECTION_PIPELINE_FIELD_QUALIFICATION.md` | Current local field-qualification implementation and aggregate readiness. |
 | `docs/V5_52_ANALYST_EXPERIENCE_AND_SOC_ASSISTANT_CLOSURE.md` | Current bounded conversation, answer provenance, concision, Gemini, privacy, and analyst UX closure. |

@@ -13,11 +13,11 @@ export default {
         text: "#243047",
         cyan: "#8c1515",
         teal: "#0f766e",
-        amber: "#b86b18",
+        amber: "#8a460f",
         gold: "#c77f28",
         goldSoft: "#fff4df",
         danger: "#8c1515",
-        success: "#16a34a"
+        success: "#166534"
       },
       fontFamily: {
         sans: ["Inter", "Segoe UI", "Arial", "sans-serif"]

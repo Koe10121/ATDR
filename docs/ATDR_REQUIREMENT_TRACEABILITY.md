@@ -951,3 +951,25 @@ This document maps major ATDR requirements to implementation evidence, tests, do
 | Current source truth | Consolidated | README, current state, current AI/ML status, PRD, runbooks | full documentation/release matrix | v5.54 docs | Historical phase docs remain evidence only. |
 | Security/privacy/authority | Preserved | existing config, Assistant, model, response, and repository controls | secret scan, dependency audits, no-side-effect suites | v5.54 T1-T20 | Environment penetration and owner governance remain external. |
 | Release decision | Local release candidate only | aggregate readiness plus verification evidence | complete local matrix | v5.54 truth lock | `production_ready=false` until five external tracks close. |
+
+## v5.56 SOC Assistant Operational Reliability Addendum
+
+| Requirement | Status | Source | Test evidence | Documentation | Remaining gap |
+| --- | --- | --- | --- | --- | --- |
+| Intent-specific concise answers | Implemented | `assistant_service.py`; `assistant_response_contracts.py` | v5.56 corpus `30/30`; four-turn sequence; focused regressions | v5.56 status/T1-T20 | Independent field-traffic usability remains external. |
+| Related evidence and next checks | Implemented | record-aware deduplication and explanation-derived checks | distinct-log, false-positive, source, governance, and next-step tests | v5.56 status | Asset/business context remains outside current evidence. |
+| Provider hard limit and fallback | Implemented | central provider renderer and failure classifier | timeout, rate-limit, malformed, unsafe, IP, citation, and oversized tests | real-LLM plan | Provider availability is external and variable. |
+| Request-bound Gemini citations | Implemented | dynamic response schema plus post-response allowlist guard | schema, alias, ambiguity, and private full-chat checks | v5.56 status | Institutional provider acceptance remains pending. |
+| Aggregate operational telemetry | Implemented locally | Assistant status schema/service and React health band | token warning, counters, latency, secret-hiding, and Playwright tests | v5.56 status | Counters are process-local; approved persistent monitoring is external. |
+| Privacy and authority | Preserved | redaction precondition, raw-log exclusion, read-only services | zero labels/models/detections/responses; no raw line/key exposure | current AI status | MFU privacy/retention approval is not established. |
+
+## v5.57 End-to-End Workflow, Accessibility, And Startup Addendum
+
+| Requirement | Status | Source | Test evidence | Documentation | Remaining gap |
+| --- | --- | --- | --- | --- | --- |
+| Disposable analyst journey | Implemented | `run_e2e_workflow_validation.py`; `run_v557_analyst_workflow_acceptance.py` | integrated `24/24` checks; privacy-safe output regressions | v5.57 status/T1-T20 | Controlled synthetic evidence does not establish field accuracy. |
+| Assistant follow-up continuity | Implemented | Assistant response contracts and workflow validator | alert reason -> related logs -> safe next step plus case handoff | v5.57 status | Independent representative analyst evaluation remains external. |
+| Accessible route and common-control behavior | Implemented locally | `AppShell`, `DetailDrawer`, `SafeSelect`, loading, forms, progress, styles | axe login/core routes; keyboard route/select/drawer regression | v5.57 status | Formal WCAG and assistive-technology acceptance remains external. |
+| Five-viewport layout | Implemented locally | responsive React pages and common components | desktop/tablet/mobile overflow regression | v5.57 status | Independent device/browser usability remains external. |
+| Idempotent startup and actionable recovery | Implemented | start/check/stop/setup/common scripts | state-classification tests and measured four-service lifecycle | v5.57 status/runbook | Physical teammate setup and MFU account acceptance remain external. |
+| Privacy and authority | Preserved | aggregate acceptance and sanitized diagnostics | no paths/secrets/raw logs; zero authoritative Assistant deltas | current state/v5.57 | External owner tracks remain open. |

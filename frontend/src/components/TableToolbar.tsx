@@ -55,8 +55,9 @@ export function TableToolbar<T>({
         />
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <input className="input w-48" placeholder="View name" value={name} onChange={(event) => setName(event.target.value)} />
+        <input aria-label="Saved view name" className="input w-48" placeholder="View name" value={name} onChange={(event) => setName(event.target.value)} />
         <button
+          type="button"
           className="btn-secondary"
           onClick={() => {
             if (name.trim()) {
@@ -68,7 +69,7 @@ export function TableToolbar<T>({
           Save view
         </button>
         {safeSavedViews.length ? (
-          <button className="btn-secondary" onClick={() => onDeleteView(safeSavedViews[safeSavedViews.length - 1].name)}>
+          <button type="button" className="btn-secondary" onClick={() => onDeleteView(safeSavedViews[safeSavedViews.length - 1].name)}>
             Delete last
           </button>
         ) : null}

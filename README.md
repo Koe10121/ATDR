@@ -14,14 +14,14 @@ response and real firewall blocking are disabled.
 
 The published baseline is:
 
-- v5.53 implementation: `825e29dde7430cee191ab86068c05e7c5ae30bf5`;
-- narrow CI repair: `b5761a953cf541e744fc437d4fb07be2adaec63f`;
+- v5.54 local release-candidate handoff:
+  `1b45ce03755cd8afa9a9803706c1c60ff454544e`;
 - GitHub Actions run `33585630166`: green;
 - CodeQL run `33585630219`: green.
 
-The current v5.54 worktree is consolidating the local release candidate and
-operator handoff. It is not committed or published. No external acceptance or
-production claim follows from local configuration.
+The current uncommitted worktree adds v5.56 Assistant operational reliability
+and v5.57 workflow, accessibility, responsive-layout, and startup hardening.
+No external acceptance or production claim follows from these local changes.
 
 Current governed ML truth:
 
@@ -128,6 +128,11 @@ Wait for `All components are ready`, then use the mandatory entry:
 ```text
 http://localhost:8080/#/pages/login
 ```
+
+Running the same start command again while all four launcher-owned components
+are healthy is safe: it reports the existing healthy runtime and does not
+start duplicates. If runtime state is partial, follow the printed check and
+stop commands before retrying.
 
 The launcher starts:
 

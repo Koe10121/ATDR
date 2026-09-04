@@ -4,11 +4,18 @@ This runbook covers the portable MFU-shell team profile and deeper lab checks. S
 
 ## Normal Team Workflow
 
-Run setup once with the separately approved shell path:
+Run setup once with the checksum-locked shell package and separately controlled
+private configuration:
 
 ```powershell
-.\scripts\setup_team.cmd -TemplateRoot "<MFU_SHELL_ROOT>"
+.\scripts\setup_team.cmd `
+  -ShellPackage "D:\Approved Artifacts\mfu-atdr-shell-1.4.0-atdr.1.zip" `
+  -ShellPrivateConfigRoot "D:\Private MFU Configuration"
 ```
+
+The legacy `-TemplateRoot` input remains available only when the advisor or
+team owner explicitly approves that source directory. The versioned package is
+the normal teammate distribution.
 
 Start all components:
 
@@ -2374,3 +2381,69 @@ fall back to process memory. PostgreSQL remains optional for local SQLite use.
 Use `docs/V5_54_EXTERNAL_OWNER_ACCEPTANCE.md` for the five checks that cannot be
 completed on the developer machine. Do not treat local success as MFU,
 provider, shared-host, teammate, or field acceptance.
+
+## v5.56 SOC Assistant Operational Check
+
+Run deterministic quality evaluation without an external provider call:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.evaluate_assistant_qa --pretty
+```
+
+Expected controlled result is `30/30` independent questions, one passing
+four-turn alert sequence, citation rate `1.0000`, average/max response length
+within the recorded v5.56 budgets, and zero authoritative side effects.
+
+Check private provider configuration without making a call, then run bounded
+synthetic probes only when private configuration intentionally enables Gemini:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.test_assistant_llm_provider --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.test_assistant_llm_provider --execute --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.test_assistant_chat_provider --execute --pretty
+```
+
+Require `raw_log_context_allowed=false`,
+`raw_log_context_included=false`, `redaction_enabled=true`,
+`secrets_exposed=false`, and zero detection, label, model, and response
+mutations. Never paste provider output or API keys into documentation.
+
+The Assistant page shows aggregate provider success/failure/fallback counts,
+average latency, total tokens, and the configured usage-warning state. These
+counters reset when the backend restarts. A warning is an operator signal to
+check quota and cost ownership; it does not disable deterministic fallback or
+authorize any action.
+
+Unknown citations, output over the absolute provider ceiling, malformed JSON,
+unsafe instructions, unredacted IPs, timeout, quota, rate limit, or provider
+outage must return the deterministic answer. Institutional privacy approval,
+persistent monitoring, key rotation, billing, and representative field
+evaluation remain external.
+
+## v5.57 Analyst Workflow And Startup Check
+
+Run the complete controlled analyst sequence against temporary in-memory
+SQLite and deterministic Assistant mode:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v557_analyst_workflow_acceptance --pretty
+```
+
+Require `ok=true`, `24/24` checks, all workflow stages passing, zero
+authoritative Assistant row deltas, response simulation only, no external
+provider use, no raw-log context, and no configured-database access.
+
+The normal lifecycle remains:
+
+```powershell
+.\scripts\start_system.cmd
+.\scripts\check_system.cmd -RequireReady
+.\scripts\stop_system.cmd
+```
+
+Calling `start_system.cmd` again while all four tracked services are healthy is
+an idempotent status operation. Partial state fails closed and instructs the
+operator to check and stop before retrying. JSON diagnostics report whether
+the roots are configured but do not return their machine-specific values or
+any secret. Automated axe, keyboard, and viewport tests are a local engineering
+baseline, not formal accessibility or teammate-machine acceptance.

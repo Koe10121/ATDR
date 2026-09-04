@@ -39,7 +39,7 @@ function Read-TeamConfig {
         return Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
     }
     catch {
-        throw "Private team configuration is invalid. Run .\scripts\setup_team.ps1 again."
+        throw "Private team configuration is invalid. Run .\scripts\setup_team.cmd again."
     }
 }
 
@@ -85,7 +85,7 @@ function Resolve-TemplateRoot {
     if ($null -ne $config -and -not [string]::IsNullOrWhiteSpace([string]$config.template_root)) {
         return [System.IO.Path]::GetFullPath([string]$config.template_root)
     }
-    throw "MFU supervisor shell path is not configured. Run .\scripts\setup_team.ps1 -TemplateRoot <path>."
+    throw "MFU supervisor shell path is not configured. Run .\scripts\setup_team.cmd -TemplateRoot <path>."
 }
 
 function Test-TemplateShellStructure {
@@ -271,6 +271,43 @@ function Test-TrackedProcessRecordActive {
     }
     catch {
         return $false
+    }
+}
+
+function Get-TrackedSystemRuntimeClassification {
+    param(
+        [string[]]$TrackedNames = @(),
+        [string[]]$ActiveNames = @(),
+        [hashtable]$ServiceReadiness = @{}
+    )
+
+    $expected = @("atdr-backend", "atdr-frontend", "shell-backend", "shell-frontend")
+    $tracked = @($TrackedNames | ForEach-Object { [string]$_ })
+    $active = @($ActiveNames | ForEach-Object { [string]$_ })
+    $unexpected = @($tracked | Where-Object { $_ -notin $expected })
+    $missingTracked = @($expected | Where-Object { $_ -notin $tracked })
+    $missingActive = @($expected | Where-Object { $_ -notin $active })
+    $readyCount = @($ServiceReadiness.Values | Where-Object { [bool]$_ }).Count
+
+    $state = if ($active.Count -eq 0) {
+        "stale"
+    }
+    elseif ($unexpected.Count -eq 0 -and $missingTracked.Count -eq 0 -and $missingActive.Count -eq 0 -and $readyCount -eq 4) {
+        "healthy"
+    }
+    else {
+        "partial"
+    }
+
+    return [pscustomobject]@{
+        state = $state
+        tracked_count = $tracked.Count
+        active_count = $active.Count
+        ready_count = $readyCount
+        missing_tracked = $missingTracked
+        missing_active = $missingActive
+        unexpected_tracked = $unexpected
+        secrets_exposed = $false
     }
 }
 
@@ -485,7 +522,7 @@ function Get-TemplateGoogleClientAction {
         "frontend_client_not_configured" { return "Set VUE_APP_CLIENTID in frontend-vue/.env.localdev using the approved Google OAuth Web client." }
         "backend_client_not_configured" { return "Set GOOGLE_CLIENT_ID in backend-node/.env.local to the same approved Google OAuth Web client." }
         "client_id_mismatch" { return "Make VUE_APP_CLIENTID and GOOGLE_CLIENT_ID identical. Do not paste either value into source control." }
-        "legacy_fallback_present" { return "Run setup_team again so the legacy source fallback can be removed safely." }
+        "legacy_fallback_present" { return "Run .\scripts\setup_team.cmd again so the legacy source fallback can be removed safely." }
         default { return "No Google client configuration action is required." }
     }
 }

@@ -149,6 +149,7 @@ class AssistantStatusResponse(BaseModel):
     llm_max_visible_chars: int = 4000
     llm_circuit_breaker_failures: int = 3
     llm_circuit_breaker_cooldown_seconds: int = 60
+    llm_usage_warning_tokens: int = 100000
     llm_operational: dict[str, Any] = Field(default_factory=dict)
     conversation_history_turns: int = 4
     rate_limit_requests: int = 30

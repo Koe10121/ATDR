@@ -83,12 +83,24 @@ try {
     }
     $ok = $installationReady
     if ($RequireReady) { $ok = $installationReady -and $providerReady -and $allServicesReady }
+    $recommendedAction = if (-not $installationReady) {
+        "Run .\scripts\setup_team.cmd with the approved MFU shell source, then rerun this check."
+    }
+    elseif (-not $providerReady) {
+        $providerBlocker
+    }
+    elseif (-not $allServicesReady) {
+        "Run .\scripts\start_system.cmd. If launcher-managed processes are partial, run .\scripts\stop_system.cmd first."
+    }
+    else {
+        "Open http://localhost:8080/#/pages/login."
+    }
 
     $report = [ordered]@{
         ok = $ok
-        project_root = $root
-        template_root = $resolvedTemplate
-        template_error = $templateError
+        project_root_configured = $true
+        template_root_configured = [bool]$resolvedTemplate
+        template_error = $(if ($templateError) { "template_root_unavailable" } else { $null })
         template_structure_valid = $structure.valid
         template_missing_files = @($structure.missing)
         shell_distribution = [ordered]@{
@@ -136,6 +148,7 @@ try {
         services = $services
         all_services_ready = $allServicesReady
         runtime_metadata_exists = (Test-Path -LiteralPath (Join-Path (Get-AtdrRuntimeDirectory) "system-processes.json"))
+        recommended_action = $recommendedAction
         secrets_exposed = $false
     }
 
@@ -162,6 +175,7 @@ try {
         if (-not $providerReady) { Write-Host "  Provider blocker: $providerBlocker" -ForegroundColor Yellow }
         Write-Host "  Running services: $(@($services.Values | Where-Object reachable).Count)/4"
         Write-Host "  Preflight: $(if ($ok) { 'PASS' } else { 'NEEDS ATTENTION' })" -ForegroundColor $(if ($ok) { 'Green' } else { 'Yellow' })
+        Write-Host "  Next action: $recommendedAction"
     }
     if (-not $ok) { exit 1 }
 }

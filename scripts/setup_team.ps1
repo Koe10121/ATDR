@@ -316,7 +316,7 @@ try {
 
     $mongoReady = Test-TcpEndpoint -Port 27017
     Write-Step "Installation setup complete."
-    Write-Host "  Start: .\scripts\start_system.ps1" -ForegroundColor Green
+    Write-Host "  Start: .\scripts\start_system.cmd" -ForegroundColor Green
     if (-not $mongoReady) {
         Write-Host "  Before start: install/start MongoDB on 127.0.0.1:27017 for the MFU shell." -ForegroundColor Yellow
     }

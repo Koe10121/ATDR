@@ -8,7 +8,9 @@ $ErrorActionPreference = "Stop"
 try {
     $metadataPath = Join-Path (Get-AtdrRuntimeDirectory) "system-processes.json"
     if (-not (Test-Path -LiteralPath $metadataPath)) {
-        Write-Host "No ATDR launcher process metadata exists. Nothing was stopped."
+        Write-Host "No ATDR launcher-managed processes are recorded. Nothing was stopped."
+        Write-Host "  Status: .\scripts\check_system.cmd"
+        Write-Host "  Start: .\scripts\start_system.cmd"
         exit 0
     }
     $metadata = Get-Content -LiteralPath $metadataPath -Raw | ConvertFrom-Json
@@ -30,6 +32,7 @@ try {
     }
     Remove-Item -LiteralPath $metadataPath -Force
     Write-Host "ATDR system stop complete. Processes stopped: $stopped" -ForegroundColor Green
+    Write-Host "  Restart: .\scripts\start_system.cmd"
 }
 catch {
     [Console]::Error.WriteLine("ATDR shutdown failed safely: $($_.Exception.Message)")

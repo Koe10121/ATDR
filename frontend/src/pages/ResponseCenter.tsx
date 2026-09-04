@@ -56,8 +56,8 @@ export function ResponseCenter() {
             <div className="text-sm font-extrabold uppercase tracking-wide text-muted">Simulated Response Approval</div>
             <Badge value={responseMode === "simulation" ? "ready" : "blocked"} />
           </div>
-          <input className="input" placeholder="IP address" value={targetIp} onChange={(event) => setTargetIp(event.target.value)} disabled={!isAdmin} />
-          <textarea className="input mt-3 min-h-24" value={reason} onChange={(event) => setReason(event.target.value)} disabled={!isAdmin} />
+          <input aria-label="Simulated response IP address" className="input" placeholder="IP address" value={targetIp} onChange={(event) => setTargetIp(event.target.value)} disabled={!isAdmin} />
+          <textarea aria-label="Response justification" className="input mt-3 min-h-24" value={reason} onChange={(event) => setReason(event.target.value)} disabled={!isAdmin} />
           <div className="mt-2 text-xs text-muted">A justification note is required. Internal/management ranges are protected from simulated blocks.</div>
           <button className="btn-primary mt-4 w-full" disabled={!isAdmin || blockIp.isPending || !targetIp.trim() || reason.trim().length < 8}>
             {blockIp.isPending ? "Recording..." : "Record simulated block"}

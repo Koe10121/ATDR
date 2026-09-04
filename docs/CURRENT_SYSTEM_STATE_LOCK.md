@@ -6,14 +6,15 @@ Date: 2026-09-03
 
 The published source baseline is:
 
-- v5.53 feature commit: `825e29dde7430cee191ab86068c05e7c5ae30bf5`
-- CI repair commit: `b5761a953cf541e744fc437d4fb07be2adaec63f`
+- v5.54 release-candidate commit:
+  `1b45ce03755cd8afa9a9803706c1c60ff454544e`
 - GitHub Actions run `33585630166`: passed
 - CodeQL run `33585630219`: passed
 
-v5.54 is an uncommitted release-candidate truth-lock change. It fixes one
-Windows disposable-lifecycle defect, clarifies readiness semantics, and
-consolidates operator documentation. It does not certify production use.
+v5.56 and v5.57 are uncommitted local reliability changes. They strengthen
+Assistant output/provider operations, the integrated analyst workflow,
+accessibility, responsive behavior, and startup/recovery. They do not certify
+production use or close an external owner gate.
 
 ## Product Decision
 
@@ -93,18 +94,25 @@ evidence that an approved shared environment exists.
 - Controlled source validation: `4/4` scenarios and `10/10` checks passed.
 - Deterministic detection: `24/24` scenarios passed.
 - Layered detection: `288/288` governed checks passed.
-- SOC Assistant: `20/20` deterministic questions passed with citation rate
-  `1.0`; average/max response length is `60.9/110` words.
+- SOC Assistant: v5.56 passes `30/30` deterministic questions plus a passing
+  contextual sequence with citation rate `1.0` and average/max response length
+  `56.0/110` words.
+- Integrated analyst workflow: v5.57 passes `24/24` disposable checks from
+  ingestion through audit, including three contextual Assistant turns, case
+  handoff, simulated-response guards, and zero authoritative Assistant writes.
+- Accessibility: automated WCAG A/AA rules pass on login and eight primary
+  analyst routes; keyboard and five-viewport regressions pass.
 - Gemini: private minimal and full synthetic probes passed with redaction,
   raw-log exclusion, structured output, and zero authoritative mutations.
-- Large SQLite: `145,232` normalized logs and `3,231` alerts; all measured
-  performance budgets passed, including a `0.0116s` cached Overview path.
-- Repository security: zero tracked-source findings; Python and npm dependency
-  audits found zero known vulnerabilities.
+- Large SQLite: `145,232` normalized logs and `3,231` alerts; the read-only
+  smoke passes with a `0.0163s` cached Overview path and one soft cold-Overview
+  warning (`1.0875s` against the `1.0s` local target).
+- Repository security: zero findings across `1,376` tracked or intended text
+  paths; Python and npm dependency audits found zero known vulnerabilities.
 - Deployment source validation passed while preserving
   `production_ready=false`.
 
-Full backend passes `1052/1`; Playwright passes `38/1`; taskboard checks pass;
+Full backend passes `1067/1`; Playwright passes `42/1`; taskboard checks pass;
 and the independent release gate passes with `ok=true` and no failed required
 checks.
 
@@ -119,7 +127,7 @@ checks.
 | IsolationForest | Advisory only | Evidence does not support detector authority |
 | Alert explanations | Locally verified | Asset/business context and external incident-management integration |
 | SOC Assistant | Locally verified and read-only | Institutional Gemini governance and representative field evaluation |
-| Dashboard | Locally verified by automated browser coverage | Independent analyst and assistive-technology acceptance |
+| Dashboard | Locally verified by automated browser, axe, keyboard, and five-viewport coverage | Independent analyst and assistive-technology acceptance |
 | MFU IAM | Local integration controls verified | University lifecycle, admin group, 2FA, recovery, and deprovisioning acceptance |
 | Shared deployment | Source and disposable controls verified | Approved host, TLS/DNS, managed secrets, monitoring, RPO/RTO, DR, and load evidence |
 | Security and recovery | Local scans/audits/tooling verified | Environment DAST/penetration testing and scheduled owner drills |
@@ -174,6 +182,7 @@ Exact checklists are in `docs/V5_54_EXTERNAL_OWNER_ACCEPTANCE.md`.
 ## Active References
 
 - `README.md`
+- `docs/V5_57_END_TO_END_ANALYST_WORKFLOW_ACCESSIBILITY_STARTUP.md`
 - `docs/V5_54_RELEASE_CANDIDATE_TRUTH_LOCK.md`
 - `docs/V5_54_OPERATOR_HANDOFF.md`
 - `docs/V5_54_EXTERNAL_OWNER_ACCEPTANCE.md`

@@ -429,6 +429,7 @@ def _llm_answer_guard_reason(
     citations: list[dict[str, Any]] | None = None,
     structured_answer: dict[str, Any] | None = None,
     forbidden_values: list[str] | None = None,
+    reject_ip_addresses: bool = True,
 ) -> str | None:
     """Reject unsupported record claims or implied actions without penalizing brevity."""
     answer = (provider_answer or "").strip()
@@ -450,6 +451,35 @@ def _llm_answer_guard_reason(
     ]
     if any(phrase in lowered for phrase in unsafe_action_phrases):
         return "provider_answer_implies_action_execution"
+
+    unsafe_recommendation = re.compile(
+        r"^(?:please\s+)?(?:block|unblock|delete|activate|promote|disable|enable|"
+        r"run\s+detection|change\s+(?:the\s+)?label)\b",
+        re.IGNORECASE,
+    )
+    for line in answer.splitlines():
+        clean_line = re.sub(r"^(?:[-*]|\d+[.)])\s*", "", line.strip())
+        lowered_line = clean_line.lower()
+        if any(
+            boundary in lowered_line
+            for boundary in (
+                "do not ",
+                "don't ",
+                "cannot ",
+                "can't ",
+                "must not ",
+                "never ",
+                " is disabled",
+                " remains disabled",
+                "not permitted",
+            )
+        ):
+            continue
+        if unsafe_recommendation.search(clean_line):
+            return "provider_answer_recommends_unsafe_action"
+
+    if reject_ip_addresses and IP_PATTERN.search(answer):
+        return "provider_answer_contains_unredacted_ip"
 
     for secret in forbidden_values or []:
         clean_secret = secret.strip()
@@ -483,6 +513,8 @@ def _llm_answer_guard_reason(
                 return f"provider_answer_contains_unsupported_{reference_type}_id"
 
     structured = structured_answer or {}
+    if int(structured.get("_unsupported_citation_count") or 0) > 0:
+        return "provider_answer_contains_unsupported_citation"
     provider_steps = structured.get("next_steps") or structured.get("analyst_checks") or []
     provider_evidence = structured.get("key_evidence") or structured.get("evidence") or []
     if response_mode in {"safe_next_step", "how_to"} and not provider_steps:
@@ -552,6 +584,7 @@ def assistant_status(settings: Settings) -> dict[str, Any]:
         "llm_max_visible_chars": settings.assistant_llm_max_visible_chars,
         "llm_circuit_breaker_failures": settings.assistant_llm_circuit_breaker_failures,
         "llm_circuit_breaker_cooldown_seconds": settings.assistant_llm_circuit_breaker_cooldown_seconds,
+        "llm_usage_warning_tokens": settings.assistant_llm_usage_warning_tokens,
         "llm_operational": assistant_llm_operational_status(settings),
         "conversation_history_turns": settings.assistant_conversation_history_turns,
         "rate_limit_requests": settings.assistant_rate_limit_requests,
@@ -1059,6 +1092,7 @@ def answer_assistant_question(
         citations=response["citations"],
         structured_answer=llm_result.structured_answer,
         forbidden_values=[settings.assistant_llm_api_key, settings.assistant_api_key],
+        reject_ip_addresses=redacted,
     ) if llm_result.used else None
     provider_called = bool(
         llm_result.provider_called
@@ -1944,6 +1978,7 @@ References
                         f"Anomaly evidence: {'present' if anomaly.get('present') else 'not present'}; count {anomaly.get('count', 0)}.",
                         f"Supervised signal: {supervised.get('predicted_label') or 'not available'}; confidence {supervised.get('confidence', 0.0)}.",
                     ],
+                    "related_context": related_log_points,
                     "risk_interpretation": [
                         *risk_interpretation,
                         *[f"Possible false-positive factor: {item}" for item in false_positive_notes[:4]],
@@ -2768,15 +2803,21 @@ def _answer_ml_question(db: Session, *, redacted: bool) -> AssistantResult:
     latest_run = supervised.get("latest_run") or {}
     promotion_gate = latest_run.get("promotion_gate") or {}
     lifecycle = supervised.get("governed_lifecycle") or {}
+    anomaly_artifact = bool(ml.get("model_status", {}).get("artifact_exists"))
+    lifecycle_state = lifecycle.get("lifecycle_state", "inactive")
+    production_promoted = bool(promotion_gate.get("production_promoted", False))
+    response_automation_allowed = bool(
+        promotion_gate.get("response_automation_allowed", False)
+    )
     answer = (
         "AI Governance summary: ML is decision support only. "
-        f"Anomaly model artifact is {'present' if ml.get('model_status', {}).get('artifact_exists') else 'missing'}, "
+        f"Anomaly model artifact is {'present' if anomaly_artifact else 'missing'}, "
         f"current anomaly rate is {ml.get('anomaly_rate', '-')}. "
         f"Supervised label count is {supervised.get('label_count', 0)}. "
-        f"Governed supervised lifecycle is {lifecycle.get('lifecycle_state', 'inactive')}; "
+        f"Governed supervised lifecycle is {lifecycle_state}; "
         f"model version is {lifecycle.get('model_version') or 'not active'}. "
-        f"Production promoted: {bool(promotion_gate.get('production_promoted', False))}. "
-        f"Response automation allowed: {bool(promotion_gate.get('response_automation_allowed', False))}."
+        f"Production promoted: {production_promoted}. "
+        f"Response automation allowed: {response_automation_allowed}."
     )
     return AssistantResult(
         answer=_text(answer, redacted=redacted),
@@ -2807,6 +2848,27 @@ def _answer_ml_question(db: Session, *, redacted: bool) -> AssistantResult:
                 },
                 enabled=redacted,
             ),
+            "answer_sections": {
+                "summary": [
+                    "ML remains advisory decision support; deterministic rules are alert-authoritative.",
+                    f"Supervised lifecycle: {lifecycle_state}; production promoted: {production_promoted}.",
+                ],
+                "evidence": [
+                    f"Anomaly artifact: {'present' if anomaly_artifact else 'missing'}; current anomaly rate: {ml.get('anomaly_rate', '-')}.",
+                    f"Supervised label count: {supervised.get('label_count', 0)}.",
+                    f"Response automation allowed: {response_automation_allowed}.",
+                ],
+                "risk_interpretation": [
+                    "No supervised model is allowed to create or suppress authoritative alerts.",
+                    "Current anomaly and supervised outputs support analyst review only.",
+                ],
+                "limitations": [
+                    "A separate governed validation and activation decision is required before any stronger lifecycle state."
+                ],
+                "what_to_check_next": [
+                    "Use rule evidence as the alert decision and treat ML output only as supporting context."
+                ],
+            },
         },
         suggested_followups=["Why is the model not production promoted?", "How do I import reviewed labels?"],
     )
@@ -3124,7 +3186,7 @@ def _answer_scenario_help(*, redacted: bool) -> AssistantResult:
     answer = (
         "Run controlled validation scenarios with `.\\.venv\\Scripts\\python.exe -m atdr.scripts.run_source_scenario --scenario port_scan_like_traffic --source-name lab-scenario --source-type firewall --parser-profile palo_alto --run-detection --pretty`. "
         "Use `--use-temp-db` for isolated validation when you do not want to write to the current DB. "
-        "Expected scenario output includes logs parsed, alerts created/deduplicated, cases affected, source health, and confirmation that no automatic response was triggered."
+        "Expected scenario output includes logs parsed, alerts created/deduplicated, cases affected, source health, and confirmation that automatic response remains disabled."
     )
     return AssistantResult(
         answer=_text(answer, redacted=redacted),
@@ -3164,19 +3226,28 @@ def _answer_safe_next_steps(db: Session, question: str, *, alert_id: int | None,
             }
         }
     else:
+        detection_summary = build_alert_detection_summary(db, alert)
         checklist = [
-            "Open the alert detail and read Why flagged before deciding status.",
-            "Review related logs, source health, parser notes, and case/group context.",
-            "Check whether the traffic matches expected business activity or noisy parser/source behavior.",
-            "Add an analyst note and move status to Investigating if more context is needed.",
-            "Use simulated response only after confirmation, justification, and protected-IP checks.",
-        ]
+            str(item)
+            for item in detection_summary.get("prioritized_analyst_checks") or []
+            if str(item).strip()
+        ][:3]
+        if not checklist:
+            checklist = [
+                "Open the alert detail and read Why flagged before deciding status.",
+                "Review related logs, source health, parser notes, and case/group context.",
+                "Check whether the traffic matches expected business activity or noisy parser/source behavior.",
+            ]
         answer = (
             f"Safe next steps for alert #{alert.id}\n"
             + _markdown_list(checklist)
             + "\n\nSafety note\n- Do not treat ML output as final truth.\n- No response action was executed by the assistant."
         )
-        citations = [Citation("Alert detail", "/api/alerts/{alert_id}", str(alert.id)), Citation("Response safety", "atdr/app/services/response_service.py")]
+        citations = [
+            Citation("Alert detail", "/api/alerts/{alert_id}", str(alert.id)),
+            Citation("Detection explanation", "atdr/app/detection/explanations.py"),
+            Citation("Response safety", "atdr/app/services/response_service.py"),
+        ]
         details = {
             "alert": {"id": alert.id, "severity": alert.severity, "status": alert.status, "alert_type": alert.alert_type},
             "answer_sections": {

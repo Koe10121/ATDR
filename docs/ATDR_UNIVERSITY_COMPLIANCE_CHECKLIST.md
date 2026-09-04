@@ -1000,3 +1000,28 @@ status/change documents.
 | AI/detection/response authority | Rules authoritative; no supervised candidate; Assistant read-only; response simulation only | Satisfied; no activation, automation, or real blocking. |
 | T1-T20 / taskboard / traceability | Truth lock, handoffs, PRD, traceability, checklist, taskboard, and exact allowlist | Satisfied after final verification; publication needs separate approval. |
 | Production claim | `local_release_candidate_ready` is not `production_ready` | Five real owner-backed acceptance tracks remain. |
+
+## v5.56 SOC Assistant Operational Reliability Compliance Status
+
+| University / ATDR rule | v5.56 evidence | Current status / next action |
+| --- | --- | --- |
+| Source-backed answers | Intent contracts use bounded ATDR database, rule, operations, ML-governance, and runbook context with request-bound citations | Satisfied for controlled QA; Gemini is synthesis rather than a fact source. |
+| Concision and relevance | Synthetic suite passes `30/30`, contextual sequence `4/4`, citation rate `1.0000`, average/max `56.0/110` words | Satisfied locally; independent analyst field review remains external. |
+| Provider failure safety | Timeout, quota/rate limit, outage, malformed, unsupported citation, oversized, unsafe, and unredacted output fall back deterministically | Implemented and regression tested. |
+| Privacy and least disclosure | Redaction is mandatory; raw logs, prompts, answers, keys, identities, and provider payloads are excluded from status and Git | Satisfied by source/tests; institutional data-sharing approval remains pending. |
+| Operational visibility | Aggregate counters, latency, named failure events, circuit state, token usage, and threshold warning are visible | Locally implemented; persistent monitoring and billing ownership remain external. |
+| AI and response authority | Assistant writes zero labels, model runs, detections, responses, users, or deletions; rules remain authoritative | Satisfied; ML shadow, automation off, and real blocking off. |
+| Process governance | v5.56 status, T1-T20, PRD, traceability, compliance, runbook, taskboard, corpus, tests, and exact allowlist | Complete after final verification; publication requires separate approval. |
+| Production claim | Provider connectivity and controlled QA do not imply institutional or production acceptance | `production_ready=false`; five v5.54 external tracks remain open. |
+
+## v5.57 Workflow, Accessibility, And Startup Compliance Status
+
+| University / ATDR rule | v5.57 evidence | Current status / next action |
+| --- | --- | --- |
+| Source evidence before claims | Disposable workflow reports measured stage/check counts; startup claims use an actual local four-service lifecycle | Satisfied locally; controlled evidence is not field or production evidence. |
+| Reproducible analyst workflow | Ingestion through audit passes `24/24` in temporary SQLite with deterministic Assistant mode | Satisfied locally; repeat with approved real sources and users. |
+| Accessibility and usability | Login plus eight core routes pass automated WCAG A/AA rules; keyboard and five-viewport regressions pass | Engineering baseline satisfied; formal independent acceptance remains external. |
+| Safe startup diagnostics | Healthy repeated start is idempotent; partial state fails closed; JSON omits machine paths and secret values | Satisfied by source, tests, and measured local lifecycle. |
+| AI/detection/response authority | Rules authoritative, ML advisory, Assistant read-only, raw provider logs off, response simulated | Satisfied; no activation, automation, or real blocking. |
+| T1-T20 / PRD / traceability | v5.57 status, change record, PRD, traceability, checklist, runbook, taskboard, and exact allowlist | Complete after final verification; publication requires separate approval. |
+| Production claim | Accessibility automation and local startup do not close MFU, provider, field, teammate, or host acceptance | `production_ready=false`; external tracks remain open. |

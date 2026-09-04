@@ -26,6 +26,7 @@
     "recharts": "^2.15.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.49.1",
     "@types/node": "^25.9.1",

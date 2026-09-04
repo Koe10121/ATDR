@@ -4,7 +4,7 @@
 | --- | --- |
 | Product | MFU AI-Driven Log-Based Threat Detection and Response System |
 | Short name | ATDR |
-| Current stage | v5.54 local release-candidate truth lock; five owner-backed external acceptance tracks remain open |
+| Current stage | v5.54 local release candidate plus v5.56 Assistant and v5.57 workflow/accessibility/startup reliability hardening; five owner-backed external acceptance tracks remain open |
 | Production claim | None. ATDR is not certified production software. |
 | Main workflow doc | `docs/ATDR_AI_WORKFLOW.md` |
 | Agent model | `docs/agents/ATDR_AGENT_OPERATING_MODEL.md` |
@@ -1905,3 +1905,50 @@ future validation remain prerequisites for any activation decision.
 - v5.54 shall not access or rerun consumed v5.49b evidence, activate/promote a
   model, change rule authority, allow raw-log provider context, enable
   automatic response, or enable real blocking.
+
+## v5.56 SOC Assistant Operational Reliability Requirements
+
+- **FR-ATDR-116:** Assistant responses shall lead with the requested answer,
+  remain intent-specific, preserve distinct evidence record IDs, and show at
+  most three prioritized findings and three recommended checks.
+- Answers shall target 40-100 words and shall not exceed 120 words unless a
+  separately governed structured investigation-brief contract permits more.
+  Raw JSON and duplicated evidence shall not be shown.
+- **FR-ATDR-117:** Gemini structured output shall be limited to citations
+  supplied by ATDR for the current request. Unknown or ambiguous citations,
+  malformed output, unsafe instructions, unredacted IPs, and oversized output
+  shall fail to the deterministic answer.
+- **FR-ATDR-118:** Authenticated Assistant status shall expose only aggregate
+  provider attempts, successes, failures, fallbacks, latency, named failure
+  counts, circuit state, token usage, and configured usage-warning state. It
+  shall not expose prompts, answers, keys, identities, raw evidence, or
+  provider payloads.
+- **FR-ATDR-119:** A versioned synthetic privacy-safe corpus shall cover alert,
+  related-log, false-positive, next-step, source, job, AI-governance, brief,
+  follow-up, and malicious-action intents and shall prove zero authoritative
+  side effects.
+- v5.56 shall not change detection or alert authority, activate/promote a
+  model, modify IAM, create response actions, enable automatic response, allow
+  provider raw-log context, or enable real blocking.
+
+## v5.57 Analyst Workflow, Accessibility, And Startup Requirements
+
+- **FR-ATDR-120:** A disposable acceptance shall exercise ingestion, parsing,
+  deterministic detection, alert explanation, related evidence, case handoff,
+  contextual Assistant follow-up, simulated response safety, and audit without
+  accessing the configured database.
+- **FR-ATDR-121:** Login and primary analyst routes shall provide valid main
+  landmarks, accessible names, visible keyboard focus, reduced-motion support,
+  non-color status information, and automated WCAG A/AA regression coverage.
+- **FR-ATDR-122:** Custom selects and detail drawers shall support keyboard-only
+  operation, including predictable initial focus, containment, close behavior,
+  and focus restoration.
+- **FR-ATDR-123:** Primary SOC routes shall avoid page-level horizontal
+  overflow at `1920x1080`, `1440x900`, `1366x768`, tablet, and mobile
+  viewports.
+- **FR-ATDR-124:** The supported launcher shall treat a fully healthy existing
+  four-service runtime as success, fail partial state closed with actionable
+  recovery, and omit machine paths and secret values from status diagnostics.
+- v5.57 shall not change rule authority, activate/promote ML, access protected
+  reviews, rerun consumed evaluation, send raw logs to a provider, enable
+  automatic response, or enable real firewall blocking.

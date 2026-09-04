@@ -88,12 +88,12 @@ export function AuditLogPage() {
       </section>
 
       <section className="panel grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-        <input className="input" placeholder="Actor" value={safeFilters.actor} onChange={(event) => updateFilter("actor", event.target.value)} />
-        <input className="input" placeholder="Action" value={safeFilters.action} onChange={(event) => updateFilter("action", event.target.value)} />
-        <input className="input" placeholder="Target type" value={safeFilters.target_type} onChange={(event) => updateFilter("target_type", event.target.value)} />
-        <input className="input" placeholder="Target value" value={safeFilters.target_value} onChange={(event) => updateFilter("target_value", event.target.value)} />
-        <input className="input" type="datetime-local" value={safeFilters.created_from} onChange={(event) => updateFilter("created_from", event.target.value)} />
-        <input className="input" type="datetime-local" value={safeFilters.created_to} onChange={(event) => updateFilter("created_to", event.target.value)} />
+        <input aria-label="Audit actor" className="input" placeholder="Actor" value={safeFilters.actor} onChange={(event) => updateFilter("actor", event.target.value)} />
+        <input aria-label="Audit action" className="input" placeholder="Action" value={safeFilters.action} onChange={(event) => updateFilter("action", event.target.value)} />
+        <input aria-label="Audit target type" className="input" placeholder="Target type" value={safeFilters.target_type} onChange={(event) => updateFilter("target_type", event.target.value)} />
+        <input aria-label="Audit target value" className="input" placeholder="Target value" value={safeFilters.target_value} onChange={(event) => updateFilter("target_value", event.target.value)} />
+        <input aria-label="Created from" className="input" type="datetime-local" value={safeFilters.created_from} onChange={(event) => updateFilter("created_from", event.target.value)} />
+        <input aria-label="Created to" className="input" type="datetime-local" value={safeFilters.created_to} onChange={(event) => updateFilter("created_to", event.target.value)} />
       </section>
 
       {audit.isError ? <ErrorBanner error={audit.error} /> : null}

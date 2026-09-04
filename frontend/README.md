@@ -8,7 +8,7 @@ Streamlit remains in the repository only as legacy/demo continuity while React i
 
 The React dashboard is the primary SOC console for ATDR. It includes role-aware navigation, admin route protection, optional supervisor-template school-email handoff, source-aware investigation, an optional Gemini-backed read-only assistant with deterministic fallback, AI Governance, simulated response controls, audit visibility, and Playwright regression coverage.
 
-ATDR remains a lab prototype, not certified production software. Response actions are simulated and analyst-approved only.
+ATDR is a locally verified release candidate for a controlled SOC lab, not certified production software. Response actions are simulated and analyst-approved only.
 
 ## Requirements
 
@@ -23,11 +23,13 @@ Node 16 is unsupported, and Node 20 releases older than 20.19 may emit engine wa
 From the ATDR repository root, use the portable lifecycle commands:
 
 ```powershell
-.\scripts\setup_team.cmd -TemplateRoot "D:\Path To\mfu-ai-driven-log-based-threat-detection-and-response"
+.\scripts\setup_team.cmd `
+  -ShellPackage "D:\Approved Artifacts\mfu-atdr-shell-1.4.0-atdr.1.zip" `
+  -ShellPrivateConfigRoot "D:\Private MFU Configuration"
 .\scripts\start_system.cmd
 ```
 
-The browser opens the MFU shell at `http://127.0.0.1:8080/#/pages/login`. After shell authentication, **Open ATDR SOC Dashboard** establishes an HttpOnly ATDR session through a one-time server-side exchange.
+The browser opens the MFU shell at `http://localhost:8080/#/pages/login`. After shell authentication, **Open ATDR SOC Dashboard** establishes an HttpOnly ATDR session through a one-time server-side exchange. The approved Google OAuth origin uses `localhost`, not `127.0.0.1`.
 
 See `docs/TEAM_ONE_COMMAND_START.md` for prerequisites and troubleshooting.
 

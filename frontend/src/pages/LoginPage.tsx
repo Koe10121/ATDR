@@ -102,7 +102,7 @@ export function LoginPage() {
   }
 
   if (!isReady || !statusReady) {
-    return <div className="flex min-h-screen items-center justify-center bg-shell text-sm font-bold text-muted">Checking secure session...</div>;
+    return <div role="status" aria-live="polite" className="flex min-h-screen items-center justify-center bg-shell text-sm font-bold text-muted">Checking secure session...</div>;
   }
 
   async function onSubmit(event: FormEvent) {
@@ -120,7 +120,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-shell p-6 text-text">
+    <main className="flex min-h-screen items-center justify-center bg-shell p-6 text-text">
       <div className="grid w-full max-w-5xl gap-6 lg:grid-cols-[1.1fr_0.9fr]">
         <section className="rounded-lg border border-line bg-panel p-8 shadow-panel">
           <div className="mb-8 inline-flex rounded-full border border-cyan/30 bg-cyan/10 p-3 text-cyan">
@@ -147,9 +147,9 @@ export function LoginPage() {
               ? "Recovery/development profile is explicitly enabled."
               : "Authentication is owned by the approved MFU application shell."}
           </div>
-          {error ? <div className="mt-4 rounded-lg border border-danger/40 bg-danger/10 p-3 text-sm text-danger">{error}</div> : null}
+          {error ? <div role="alert" className="mt-4 rounded-lg border border-danger/40 bg-danger/10 p-3 text-sm text-danger">{error}</div> : null}
           {!mfuStatus ? (
-            <div className="mt-6 rounded-lg border border-danger/40 bg-danger/10 p-4 text-sm text-danger">
+            <div role="alert" className="mt-6 rounded-lg border border-danger/40 bg-danger/10 p-4 text-sm text-danger">
               Authentication status is unavailable. Check that the ATDR API is running.
             </div>
           ) : null}
@@ -177,7 +177,7 @@ export function LoginPage() {
           ) : null}
           {localRecovery ? (
             <form onSubmit={onSubmit} className="mt-6">
-              <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm font-semibold text-warning">
+              <div className="rounded-lg border border-amber/40 bg-amber/10 p-3 text-sm font-semibold text-amber">
                 Recovery mode is not the normal user entry path.
               </div>
               <label className="mt-5 block text-sm font-bold text-muted">
@@ -188,13 +188,13 @@ export function LoginPage() {
                 Password
                 <input className="input mt-2" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" />
               </label>
-              <button className="btn-primary mt-6 w-full" disabled={loading || !username || !password}>
+              <button type="submit" className="btn-primary mt-6 w-full" disabled={loading || !username || !password}>
                 {loading ? "Signing in..." : "Sign in for recovery"}
               </button>
             </form>
           ) : null}
         </section>
       </div>
-    </div>
+    </main>
   );
 }

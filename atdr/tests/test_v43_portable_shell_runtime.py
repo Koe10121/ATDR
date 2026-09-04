@@ -314,3 +314,83 @@ def test_stop_script_removes_stale_pid_metadata_without_killing_process(tmp_path
 
     assert result.returncode == 0, result.stderr
     assert not (runtime / "system-processes.json").exists()
+
+
+def test_runtime_classification_distinguishes_healthy_partial_and_stale_states():
+    root = Path(__file__).resolve().parents[2]
+    common = str(root / "scripts/system_common.ps1").replace("'", "''")
+    expected = "@('atdr-backend','atdr-frontend','shell-backend','shell-frontend')"
+
+    def classify(active: str, readiness: str) -> dict[str, object]:
+        command = (
+            f". '{common}'; "
+            f"$result = Get-TrackedSystemRuntimeClassification -TrackedNames {expected} "
+            f"-ActiveNames {active} -ServiceReadiness {readiness}; "
+            "$result | ConvertTo-Json -Compress"
+        )
+        result = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        assert result.returncode == 0, result.stderr
+        return json.loads(result.stdout)
+
+    all_ready = "@{a=$true;b=$true;c=$true;d=$true}"
+    healthy = classify(expected, all_ready)
+    partial = classify("@('atdr-backend','atdr-frontend')", all_ready)
+    stale = classify("@()", "@{a=$false;b=$false;c=$false;d=$false}")
+
+    assert healthy["state"] == "healthy"
+    assert healthy["active_count"] == 4
+    assert healthy["ready_count"] == 4
+    assert healthy["secrets_exposed"] is False
+    assert partial["state"] == "partial"
+    assert partial["missing_active"] == ["shell-backend", "shell-frontend"]
+    assert stale["state"] == "stale"
+
+
+def test_startup_diagnostics_use_supported_commands_and_hide_machine_paths(tmp_path):
+    root = Path(__file__).resolve().parents[2]
+    scripts = tmp_path / "portable startup" / "scripts"
+    scripts.mkdir(parents=True)
+    for name in ("system_common.ps1", "check_system.ps1"):
+        shutil.copy2(root / "scripts" / name, scripts / name)
+
+    result = subprocess.run(
+        [
+            "powershell.exe",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(scripts / "check_system.ps1"),
+            "-Json",
+        ],
+        cwd=scripts.parent,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    report = json.loads(result.stdout)
+    encoded = json.dumps(report)
+
+    assert "project_root" not in report
+    assert "template_root" not in report
+    assert report["project_root_configured"] is True
+    assert report["template_root_configured"] is False
+    assert report["secrets_exposed"] is False
+    assert str(tmp_path) not in encoded
+    assert ".\\scripts\\setup_team.cmd" in report["recommended_action"]
+
+    startup_sources = "\n".join(
+        (root / "scripts" / name).read_text(encoding="utf-8")
+        for name in ("start_system.ps1", "check_system.ps1", "stop_system.ps1", "setup_team.ps1")
+    )
+    assert "already running and all four components are healthy" in startup_sources
+    assert ".\\scripts\\check_system.cmd" in startup_sources
+    assert ".\\scripts\\stop_system.cmd" in startup_sources
+    assert "Start: .\\scripts\\start_system.cmd" in startup_sources

@@ -24,8 +24,8 @@ a response action. Automatic response and real firewall blocking are disabled.
 | IsolationForest | Implemented, but noisy and weak on current evidence | Advisory only |
 | Supervised SOC queue | v5.49b selected no candidate; lifecycle `shadow_observation` | Advisory evidence only; no active candidate |
 | Legacy supervised artifact | Artifact exists with incomplete model/feature metadata | Unselected reference, not governed current truth |
-| Deterministic Assistant | `20/20` QA, citation rate `1.0`, average/max `60.9/110` words | Read-only explanation |
-| Gemini Assistant synthesis | Private safe probes pass; institutional acceptance pending | Read-only rephrasing/summarization |
+| Deterministic Assistant | v5.56 QA `30/30` plus a four-turn sequence; v5.57 integrated investigation passes `24/24`; citation rate `1.0`; average/max `56.0/110` words | Read-only explanation |
+| Gemini Assistant synthesis | v5.56 private structured minimal/full-chat probes pass; institutional acceptance pending | Read-only rephrasing/summarization |
 
 ## Detection Rules
 
@@ -120,8 +120,10 @@ questions. The provider output must satisfy the structured response contract.
 Current private checks confirm:
 
 - provider and model configured without exposing the API key;
-- minimal provider call succeeded with valid structured output;
-- full synthetic chat used Gemini and returned citations;
+- minimal provider call succeeded in one attempt with valid structured output,
+  `2,114 ms` latency, and `824` aggregate tokens;
+- full synthetic chat used Gemini in one attempt with `3,720 ms` latency,
+  `4,043` aggregate tokens, and six request-allowlisted citations;
 - IP redaction enabled;
 - raw-log context allowed/included: false/false;
 - secrets and raw lines exposed: false;
@@ -138,11 +140,38 @@ and representative field evaluation remain external.
 
 ## Assistant Quality
 
-The controlled 20-question suite passes all intent, citation, unsafe-request,
-concision, and no-side-effect checks. Current average/max answer size is
-`60.9/110` words, down from the historical `283.8/697` baseline. Contextual
-follow-ups preserve one explicit alert, log, source, or case; navigation keeps
-only bounded sanitized tab history and logout/reset clears it.
+The v5.56 controlled 30-question suite and four-step contextual sequence pass
+all relevance, grounding, citation, unsafe-request, concision,
+intent-differentiation, continuity, privacy, and no-side-effect checks. Current
+average/max answer size is `56.0/110` words, down from the historical
+`283.8/697` baseline. Contextual follow-ups preserve one explicit alert, log,
+source, or case; navigation keeps only bounded sanitized tab history and
+logout/reset clears it.
+
+The v5.57 disposable analyst journey independently exercises alert explanation,
+related-log retrieval, alert-specific next steps, case handoff, citations,
+auditing, and simulated response after ingestion and rule detection. It passes
+`24/24` checks with zero Assistant-created alerts, detection runs, labels,
+model runs, or response actions. This is controlled workflow evidence, not a
+representative field-traffic quality claim.
+
+Alert reasons now lead with matched evidence, related-log answers preserve
+distinct record IDs, next-step answers use alert-specific checks, and source,
+job, ML, and workflow questions retain separate response contracts. Provider
+content is centrally bounded and Gemini citations are constrained to the exact
+ATDR references supplied for that request.
+
+## Assistant Operational Visibility
+
+Authenticated status exposes aggregate request, success, failure, fallback,
+latency, named failure, circuit-breaker, token, warning-threshold, and optional
+cost-estimate fields. It never stores or returns prompts, answers, keys,
+identities, raw logs, or provider payloads. The dashboard shows this provider
+health outside the main answer.
+
+These counters are process-local and reset on backend restart. Persistent
+quota, cost, and service monitoring remains an approved-host/provider-owner
+responsibility rather than a completed production control.
 
 Controlled synthetic QA is not an independent usability study. Human analysts
 must still evaluate representative real alerts, clarity, usefulness, and

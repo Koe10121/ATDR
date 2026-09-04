@@ -224,7 +224,7 @@ export function AlertsTriage() {
       </div>
 
       <section className="panel space-y-3">
-        <input className="input" placeholder="Search title, source IP, destination IP, alert type, explanation" value={safeFilters.search} onChange={(event) => updateFilter("search", event.target.value)} />
+        <input aria-label="Search alerts" className="input" placeholder="Search title, source IP, destination IP, alert type, explanation" value={safeFilters.search} onChange={(event) => updateFilter("search", event.target.value)} />
         <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
           <SafeSelect
             value={safeFilters.severity}
@@ -252,9 +252,9 @@ export function AlertsTriage() {
             onChange={(next) => updateFilter("status", next)}
             ariaLabel="Alert status filter"
           />
-          <input className="input" placeholder="Source IP" value={safeFilters.src_ip} onChange={(event) => updateFilter("src_ip", event.target.value)} />
-          <input className="input" placeholder="Destination IP" value={safeFilters.dst_ip} onChange={(event) => updateFilter("dst_ip", event.target.value)} />
-          <input className="input" placeholder="Alert type" value={safeFilters.alert_type} onChange={(event) => updateFilter("alert_type", event.target.value)} />
+          <input aria-label="Alert source IP" className="input" placeholder="Source IP" value={safeFilters.src_ip} onChange={(event) => updateFilter("src_ip", event.target.value)} />
+          <input aria-label="Alert destination IP" className="input" placeholder="Destination IP" value={safeFilters.dst_ip} onChange={(event) => updateFilter("dst_ip", event.target.value)} />
+          <input aria-label="Alert type" className="input" placeholder="Alert type" value={safeFilters.alert_type} onChange={(event) => updateFilter("alert_type", event.target.value)} />
           <SafeSelect
             value={safeFilters.source_id}
             options={sourceOptions}
@@ -577,7 +577,7 @@ export function AlertsTriage() {
             <section className="rounded-lg border border-line bg-panel2 p-4">
               <div className="mb-3 text-sm font-extrabold uppercase tracking-wide text-muted">Notes</div>
               <form className="flex gap-2" onSubmit={addNote}>
-                <input className="input" placeholder="Add analyst note" value={note} onChange={(event) => setNote(event.target.value)} />
+                <input aria-label="Analyst note" className="input" placeholder="Add analyst note" value={note} onChange={(event) => setNote(event.target.value)} />
                 <button className="btn-primary" disabled={workflow.addNote.isPending}>Add</button>
               </form>
               <div className="mt-3 space-y-2">

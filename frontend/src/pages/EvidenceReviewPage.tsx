@@ -119,7 +119,14 @@ function ProgressPanel({ progress }: { progress: EvidenceReviewProgress | Manual
           </div>
           <Badge value={`${progress.progress_percent}%`} />
         </div>
-        <div className="mt-4 h-2 overflow-hidden rounded-full bg-line" aria-label={`${progress.progress_percent}% complete`}>
+        <div
+          className="mt-4 h-2 overflow-hidden rounded-full bg-line"
+          role="progressbar"
+          aria-label="Review progress"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={progress.progress_percent}
+        >
           <div className="h-full bg-teal transition-all" style={{ width: `${Math.min(100, progress.progress_percent)}%` }} />
         </div>
       </section>

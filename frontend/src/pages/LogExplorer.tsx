@@ -187,14 +187,14 @@ export function LogExplorer() {
       />
 
       <section className="panel space-y-3">
-        <input className="input" placeholder="Search IP, app, rule, action, protocol, or zone" value={search} onChange={(event) => setSearch(event.target.value)} />
+        <input aria-label="Search logs" className="input" placeholder="Search IP, app, rule, action, protocol, or zone" value={search} onChange={(event) => setSearch(event.target.value)} />
         <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-          <input className="input" type="datetime-local" value={safeFilters.generated_from} onChange={(event) => updateFilter("generated_from", event.target.value)} />
-          <input className="input" type="datetime-local" value={safeFilters.generated_to} onChange={(event) => updateFilter("generated_to", event.target.value)} />
-          <input className="input" placeholder="Source IP" value={safeFilters.src_ip} onChange={(event) => updateFilter("src_ip", event.target.value)} />
-          <input className="input" placeholder="Destination IP" value={safeFilters.dst_ip} onChange={(event) => updateFilter("dst_ip", event.target.value)} />
-          <input className="input" placeholder="Action" value={safeFilters.action} onChange={(event) => updateFilter("action", event.target.value)} />
-          <input className="input" placeholder="App/service" value={safeFilters.app} onChange={(event) => updateFilter("app", event.target.value)} />
+          <input aria-label="Generated from" className="input" type="datetime-local" value={safeFilters.generated_from} onChange={(event) => updateFilter("generated_from", event.target.value)} />
+          <input aria-label="Generated to" className="input" type="datetime-local" value={safeFilters.generated_to} onChange={(event) => updateFilter("generated_to", event.target.value)} />
+          <input aria-label="Log source IP" className="input" placeholder="Source IP" value={safeFilters.src_ip} onChange={(event) => updateFilter("src_ip", event.target.value)} />
+          <input aria-label="Log destination IP" className="input" placeholder="Destination IP" value={safeFilters.dst_ip} onChange={(event) => updateFilter("dst_ip", event.target.value)} />
+          <input aria-label="Log action" className="input" placeholder="Action" value={safeFilters.action} onChange={(event) => updateFilter("action", event.target.value)} />
+          <input aria-label="Log application or service" className="input" placeholder="App/service" value={safeFilters.app} onChange={(event) => updateFilter("app", event.target.value)} />
           <SafeSelect
             value={safeFilters.app_risk}
             options={[
@@ -212,10 +212,10 @@ export function LogExplorer() {
         <details className="rounded-lg border border-line bg-panel2 p-3">
           <summary className="cursor-pointer text-sm font-extrabold uppercase tracking-wide text-muted">Advanced filters and sorting</summary>
           <div className="mt-3 grid gap-3 md:grid-cols-3 xl:grid-cols-5">
-            <input className="input" placeholder="Protocol" value={safeFilters.protocol} onChange={(event) => updateFilter("protocol", event.target.value)} />
-            <input className="input" placeholder="Source zone" value={safeFilters.src_zone} onChange={(event) => updateFilter("src_zone", event.target.value)} />
-            <input className="input" placeholder="Destination zone" value={safeFilters.dst_zone} onChange={(event) => updateFilter("dst_zone", event.target.value)} />
-            <input className="input" placeholder="Country" value={safeFilters.country} onChange={(event) => updateFilter("country", event.target.value)} />
+            <input aria-label="Log protocol" className="input" placeholder="Protocol" value={safeFilters.protocol} onChange={(event) => updateFilter("protocol", event.target.value)} />
+            <input aria-label="Log source zone" className="input" placeholder="Source zone" value={safeFilters.src_zone} onChange={(event) => updateFilter("src_zone", event.target.value)} />
+            <input aria-label="Log destination zone" className="input" placeholder="Destination zone" value={safeFilters.dst_zone} onChange={(event) => updateFilter("dst_zone", event.target.value)} />
+            <input aria-label="Log country" className="input" placeholder="Country" value={safeFilters.country} onChange={(event) => updateFilter("country", event.target.value)} />
             <SafeSelect
               value={safeFilters.source_id}
               options={sourceOptions}

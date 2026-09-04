@@ -108,7 +108,7 @@ def _source_contracts() -> dict[str, Any]:
         and 'role="alert"' in error_banner,
         "assistant_session_navigation_covered": "browser history preserves the assistant investigation session" in smoke
         and "session storage is resilient" in smoke,
-        "responsive_core_routes_covered": "core SOC pages fit projector, laptop, and mobile viewports" in smoke,
+        "responsive_core_routes_covered": "core SOC pages fit desktop, tablet, and mobile viewports" in smoke,
         "assistant_failures_and_missing_refs_covered": "provider_transport_retries_transient_failure" in assistant_tests
         and "missing_source" in assistant_tests,
         "malformed_review_pack_covered": "malformed_assistant_pack_fails_closed" in review_tests,

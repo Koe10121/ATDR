@@ -92,7 +92,7 @@ def infer_response_mode(question: str, context_used: list[str]) -> AssistantResp
         ]
     ):
         return "safe_next_step"
-    if any(term in lowered for term in ["related log", "what logs", "show logs", "linked logs", "evidence logs"]):
+    if any(term in lowered for term in ["related log", "what logs", "which logs", "logs are related", "show logs", "linked logs", "evidence logs"]):
         return "related_logs"
     if any(term in lowered for term in ["how do i", "how to", "what command", "instructions", "run scenario", "import labels"]):
         return "how_to"
@@ -166,6 +166,19 @@ def _near_duplicate(left: str, right: str) -> bool:
     right_key = re.sub(r"\W+", " ", right.lower()).strip()
     if left_key == right_key:
         return True
+    record_pattern = re.compile(
+        r"\b(alert|log|source|case)\s*#?\s*([a-z0-9_-]+)",
+        re.IGNORECASE,
+    )
+    left_record = record_pattern.search(left)
+    right_record = record_pattern.search(right)
+    if (
+        left_record
+        and right_record
+        and left_record.group(1).lower() == right_record.group(1).lower()
+        and left_record.group(2).lower() != right_record.group(2).lower()
+    ):
+        return False
     left_tokens = _semantic_tokens(left)
     right_tokens = _semantic_tokens(right)
     if min(len(left_tokens), len(right_tokens)) < 4:
@@ -209,6 +222,47 @@ def _shorten(value: str, limit: int) -> str:
     if len(words) <= limit:
         return value
     return " ".join(words[:limit]).rstrip(" ,;:-") + "..."
+
+
+def _atomic_evidence(values: list[str]) -> list[str]:
+    """Prefer compact evidence statements over aggregate narrative sentences."""
+    compact = [
+        value
+        for value in values
+        if len(value.split()) <= 34
+        and value.count(";") <= 1
+        and not value.lower().startswith(("flagged by ", "this alert matters because "))
+    ]
+    return _dedupe(compact or values)
+
+
+def _focused_issue(values: list[str]) -> str | None:
+    clauses: list[str] = []
+    for value in values:
+        clauses.extend(
+            " ".join(item.split())
+            for item in re.split(r"[.;]\s+", value)
+            if item.strip()
+        )
+    priorities = (
+        "failure",
+        "warning",
+        "unknown",
+        "unresolved",
+        "noisy",
+        "noise",
+        "missing",
+        "stale",
+        "drift",
+        "unhealthy",
+        "degraded",
+        "critical",
+    )
+    for keyword in priorities:
+        match = next((item for item in clauses if keyword in item.lower()), None)
+        if match:
+            return match
+    return clauses[0] if clauses else None
 
 
 def _subject(active_context: dict[str, Any]) -> str:
@@ -278,17 +332,40 @@ def build_response_presentation(
     if mode == "alert_explanation":
         lowered = question.lower()
         if "false positive" in lowered or "noise" in lowered:
-            key_evidence = _dedupe(risk + evidence)[:2]
+            evidence_strength = next(
+                (item for item in risk if "evidence strength" in item.lower()),
+                "Evidence strength is not available.",
+            )
+            false_positive_factors = [
+                item
+                for item in risk
+                if "false-positive" in item.lower() or "noise" in item.lower()
+            ]
+            key_evidence = _dedupe([evidence_strength, *false_positive_factors])[:2]
+            strength_lower = evidence_strength.lower()
+            verdict = (
+                f"A false positive is plausible for {subject}; the available evidence is weak or incomplete."
+                if "low confidence" in strength_lower or "needs review" in strength_lower
+                else f"Do not mark {subject} as a false positive yet; the available rule evidence is material."
+            )
         elif "missing" in lowered:
             key_evidence = _dedupe(limitations + evidence)[:2]
+            verdict = (
+                f"Missing context for {subject}: {key_evidence[0]}"
+                if key_evidence
+                else f"No specific missing-evidence item is recorded for {subject}."
+            )
         else:
-            key_evidence = evidence[:2]
-        direct = summary[:1]
+            key_evidence = [
+                _shorten(item, 22) for item in _atomic_evidence(evidence)[:2]
+            ]
+            verdict = summary[0]
+        direct = [verdict]
+        answer = "Verdict: " + verdict
         if key_evidence:
-            direct.append(key_evidence[0])
-        answer = "Verdict: " + " ".join(direct)
-        if len(key_evidence) > 1:
-            answer += "\nKey evidence:\n" + "\n".join(f"- {item}" for item in key_evidence[1:2])
+            answer += "\nKey evidence:\n" + "\n".join(
+                f"- {item}" for item in key_evidence[:2]
+            )
         if next_steps:
             answer += f"\nNext check: {next_steps[0]}"
         sections.update(
@@ -302,7 +379,7 @@ def build_response_presentation(
             }
         )
     elif mode == "safe_next_step":
-        priorities = next_steps[:4] or fallback[:4]
+        priorities = next_steps[:3] or fallback[:3]
         intro = f"Prioritized checks for {subject}:"
         answer = intro + ("\n" + "\n".join(f"{index}. {item}" for index, item in enumerate(priorities, 1)) if priorities else " No grounded next step is available.")
         sections.update(
@@ -318,8 +395,11 @@ def build_response_presentation(
             item
             for item in _dedupe(evidence + related)
             if re.search(r"\blog\s*#?\d+", item, re.IGNORECASE)
-        ][:5]
-        count_summary = next((item for item in summary if "related log" in item.lower()), summary[0])
+        ][:3]
+        count_summary = next(
+            (item for item in summary if "related log" in item.lower()),
+            summary[0],
+        )
         answer = f"Related logs for {subject}: {count_summary}"
         if log_rows:
             answer += "\n" + "\n".join(f"- {item}" for item in log_rows)
@@ -334,7 +414,8 @@ def build_response_presentation(
             }
         )
     elif mode == "source_health":
-        issue = _dedupe(risk + limitations + evidence)[:1]
+        focused_issue = _focused_issue(risk + limitations + evidence)
+        issue = [_shorten(focused_issue, 24)] if focused_issue else []
         direct = summary[:2]
         answer = " ".join(direct)
         if issue:
@@ -431,9 +512,9 @@ def build_response_presentation(
             }
         )
     elif mode == "governance":
-        blocker = _dedupe(risk + limitations + evidence + fallback[1:])[:2]
+        blocker = _dedupe(limitations + risk)[:2]
         if not blocker:
-            blocker = fallback[:1] or summary[:1]
+            blocker = _dedupe(evidence + fallback[1:])[:1] or summary[:1]
         consequence = next_steps[:1]
         answer = " ".join(summary[:2])
         if blocker:

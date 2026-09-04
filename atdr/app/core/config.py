@@ -446,6 +446,10 @@ class Settings(BaseSettings):
         default=0.0,
         alias="ASSISTANT_LLM_OUTPUT_COST_PER_MILLION",
     )
+    assistant_llm_usage_warning_tokens: int = Field(
+        default=100_000,
+        alias="ASSISTANT_LLM_USAGE_WARNING_TOKENS",
+    )
     assistant_conversation_history_turns: int = Field(default=4, alias="ASSISTANT_CONVERSATION_HISTORY_TURNS")
     assistant_rate_limit_requests: int = Field(default=30, alias="ASSISTANT_RATE_LIMIT_REQUESTS")
     assistant_rate_limit_window_seconds: int = Field(default=60, alias="ASSISTANT_RATE_LIMIT_WINDOW_SECONDS")
@@ -841,6 +845,10 @@ def validate_runtime_settings(settings: Settings) -> list[str]:
             issues.append("ASSISTANT_LLM_INPUT_COST_PER_MILLION must not be negative.")
         if settings.assistant_llm_output_cost_per_million < 0:
             issues.append("ASSISTANT_LLM_OUTPUT_COST_PER_MILLION must not be negative.")
+        if not 0 <= settings.assistant_llm_usage_warning_tokens <= 100_000_000:
+            issues.append("ASSISTANT_LLM_USAGE_WARNING_TOKENS must be between zero and 100000000.")
+        if not settings.assistant_redact_ips:
+            issues.append("ASSISTANT_REDACT_IPS must remain true when ASSISTANT_LLM_ENABLED=true.")
         if settings.assistant_allow_raw_log_context:
             issues.append("ASSISTANT_ALLOW_RAW_LOG_CONTEXT must remain false for external LLM use by default.")
     if not 0 <= settings.assistant_conversation_history_turns <= 10:

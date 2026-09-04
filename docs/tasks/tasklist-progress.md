@@ -2,15 +2,15 @@
 
 | Field | Value |
 | --- | --- |
-| Date | 2026-09-03 |
+| Date | 2026-09-04 |
 | Project | MFU AI-Driven Log-Based Threat Detection and Response System |
-| Module / Feature | v5.54 Release Candidate Truth Lock And Operator Handoff |
-| Requirement | Finish all locally controllable release-candidate work, prove the supported lifecycle and recovery profiles, consolidate current truth, and hand five real acceptance tracks to named external owners. |
-| Active Change Record | `docs/V5_54_RELEASE_CANDIDATE_TRUTH_LOCK.md`, `docs/changes/T1_T20_V5_54_RELEASE_CANDIDATE_TRUTH_LOCK.md` |
+| Module / Feature | v5.57 End-to-End Analyst Workflow, Accessibility, And Startup Reliability Lock |
+| Requirement | Verify and repair the complete local analyst journey, accessibility, responsive behavior, and supported launcher lifecycle without expanding detection, ML, Assistant, or response authority. |
+| Active Change Record | `docs/V5_57_END_TO_END_ANALYST_WORKFLOW_ACCESSIBILITY_STARTUP.md`, `docs/changes/T1_T20_V5_57_END_TO_END_ANALYST_WORKFLOW_ACCESSIBILITY_STARTUP.md` |
 | Current Checkpoint Records | `docs/V4_1_SCHEMA_AWARE_SOC_QUEUE_MODEL_REDESIGN.md`, `docs/V4_2_PRESENTATION_READY_SOC_ASSISTANT.md`, `docs/V4_3_PORTABLE_MFU_SHELL_RUNTIME.md`, `docs/CURRENT_SYSTEM_STATE_LOCK.md` |
-| Overall Status | v5.54 decision `local_release_candidate_ready`; `production_ready=false`; five owner-backed external acceptance tracks remain. |
-| Overall Progress | Capture-safe 11-stage disposable lifecycle, restart/recovery, explicit readiness states, current-state consolidation, operator handoff, owner checklists, full verification, security, and exact hygiene are complete. |
-| Progress Type | Local release-candidate truth lock and operator handoff. No protected evidence access, configured-data reset, model activation, alert-authority change, automatic response, or real blocking. |
+| Overall Status | v5.57 is complete locally; independent physical and provider acceptance remains open. v5.54 remains `local_release_candidate_ready`; `production_ready=false`. |
+| Overall Progress | Disposable ingestion-to-audit acceptance, Assistant context continuity, axe/keyboard/five-viewport coverage, idempotent startup, safe diagnostics, complete verification, and exact 61-path hygiene reconciliation pass. |
+| Progress Type | Post-release-candidate local workflow/accessibility/startup hardening. No protected evidence access, configured-data reset, model activation, alert-authority change, automatic response, or real blocking. |
 | v3.98 Change Record | `docs/V3_98_INDEPENDENT_DETECTION_ML_HOLDOUT_VALIDATION.md`, `docs/changes/T1_T20_V3_98_INDEPENDENT_DETECTION_ML_HOLDOUT_VALIDATION.md`, `atdr/tests/test_v398_independent_holdout_validation.py`, `atdr/scripts/run_v398_independent_holdout_validation.py` |
 | v3.99 Change Record | `docs/V3_99_INDEPENDENT_MULTI_SOURCE_EVIDENCE_AND_FROZEN_REVALIDATION.md`, `docs/changes/T1_T20_V3_99_INDEPENDENT_MULTI_SOURCE_EVIDENCE.md`, `atdr/tests/test_v399_multisource_frozen_revalidation.py`, `atdr/scripts/run_v399_multisource_frozen_revalidation.py` |
 | v4.0 Change Record | `docs/V4_0_PROVIDER_BLINDED_EXTERNAL_EVIDENCE_AND_FROZEN_VALIDATION.md`, `docs/changes/T1_T20_V4_0_PROVIDER_BLINDED_EXTERNAL_EVIDENCE.md`, `atdr/tests/test_v400_provider_blinded_external_validation.py`, `atdr/scripts/run_v400_provider_blinded_external_validation.py` |
@@ -81,11 +81,16 @@
 | v5.51 Change Record | `docs/V5_51_DETECTION_PIPELINE_FIELD_QUALIFICATION.md`, `docs/detection/V5_51_FIELD_QUALIFICATION_CONTRACT.md`, `docs/detection/V5_51_FRESH_EVIDENCE_PROTOCOL.md`, `docs/changes/T1_T20_V5_51_DETECTION_PIPELINE_FIELD_QUALIFICATION.md`, disposable service/CLI, aggregate API/UI, tests, governance, and exact allowlist |
 | v5.52 Change Record | `docs/V5_52_ANALYST_EXPERIENCE_AND_SOC_ASSISTANT_CLOSURE.md`, `docs/changes/T1_T20_V5_52_ANALYST_EXPERIENCE_AND_SOC_ASSISTANT_CLOSURE.md`, Assistant backend/contracts, React persistence/provenance UI, tests, governance, and exact allowlist |
 | v5.53 Change Record | `docs/V5_53_MFU_IAM_AND_SHARED_DEPLOYMENT_READINESS.md`, `docs/security/V5_53_EXTERNAL_ACCEPTANCE_MANIFESTS.md`, `docs/changes/T1_T20_V5_53_MFU_IAM_AND_SHARED_DEPLOYMENT_READINESS.md`, fail-closed readiness service/API/CLI/UI, disposable teammate runner, security controls, tests, governance, and exact allowlist |
+| v5.54 Change Record | `docs/V5_54_RELEASE_CANDIDATE_TRUTH_LOCK.md`, `docs/V5_54_OPERATOR_HANDOFF.md`, `docs/V5_54_EXTERNAL_OWNER_ACCEPTANCE.md`, `docs/changes/T1_T20_V5_54_RELEASE_CANDIDATE_TRUTH_LOCK.md`, lifecycle repair/acceptance, readiness truth, handoff, verification, and exact allowlist |
+| v5.56 Change Record | `docs/V5_56_SOC_ASSISTANT_OPERATIONAL_RELIABILITY.md`, `docs/changes/T1_T20_V5_56_SOC_ASSISTANT_OPERATIONAL_RELIABILITY.md`, Assistant/provider/contracts/status/UI/corpus/tests, governance, and exact allowlist |
+| v5.57 Change Record | `docs/V5_57_END_TO_END_ANALYST_WORKFLOW_ACCESSIBILITY_STARTUP.md`, `docs/changes/T1_T20_V5_57_END_TO_END_ANALYST_WORKFLOW_ACCESSIBILITY_STARTUP.md`, integrated workflow, accessibility, viewport, launcher, tests, governance, and exact allowlist |
 
 ## T1. Source Evidence
 
 | Area | Source Evidence |
 | --- | --- |
+| v5.56 Assistant operational reliability evidence | Assistant configuration/schema/service/provider/response contracts; React health UI/API types; synthetic corpus; expanded evaluator; backend and Playwright regressions; secret-safe Gemini status/minimal/full-chat probes; v5.56 status/T1-T20/allowlist |
+| v5.57 workflow/accessibility/startup evidence | Disposable ingestion-to-audit runner; contextual Assistant and case sequence; React landmarks/focus/common controls; axe, keyboard, and five-viewport Playwright regressions; startup state classifier; measured start/repeated-start/check/stop lifecycle; v5.57 status/T1-T20/allowlist |
 | v5.53 IAM/deployment/security evidence | config/main/observability/readiness/security services; release/security/team CLIs; Admin and AI Governance projections; private manifest contract; env/deployment examples; CI/CodeQL; hashed dependency lock; focused tests; v5.53 status/T1-T20 |
 | v5.52 analyst and Assistant evidence | Assistant schema/service/LLM/response contracts; React Assistant/session/answer components; backend and Playwright regressions; `evaluate_assistant_qa`; configured Gemini status, minimal, and full synthetic probes; v5.52 status/T1-T20/allowlist |
 | v5.40 development-repair evidence | consumed v5.39 freeze/pack boundary; v5.2/v5.4/v5.5 dataset and partition helpers; `atdr/app/detection/v540_development_supervised_repair.py`; CLI/tests; measured ignored diagnostic; status/blind protocol/T1-T20/allowlist |
@@ -232,6 +237,8 @@
 
 | Readiness Area | Weight | Earned | Basis |
 | --- | ---: | ---: | --- |
+| v5.57 workflow, accessibility, and startup reliability completed | 0 | 0 | Local product-quality evidence improves release confidence without replacing independent usability, teammate, MFU, field, provider, or host acceptance. |
+| v5.56 Assistant operational reliability completed | 10 | 10 | Intent-specific response repairs, request-bound Gemini citations, aggregate provider telemetry, usage warnings, deterministic fallback, synthetic corpus, focused tests, and private safe probes pass; final complete verification is tracked below. |
 | Current-state lock completed | 20 | 20 | `docs/CURRENT_SYSTEM_STATE_LOCK.md` records current architecture, APIs, database, parser, detection, ML, assistant, IAM, response safety, limitations, and protected local artifacts. |
 | Supervisor-template gap analysis completed | 25 | 25 | `docs/PRODUCTIZATION_TEMPLATE_GAP_ANALYSIS.md` compares ATDR to the official template and documents what to adapt, avoid, keep, move, or delete later. |
 | Productization roadmap completed | 20 | 20 | `docs/ATDR_PRODUCTIZATION_ROADMAP.md` defines target backend, frontend, database, IAM, assistant, detection/ML, observability, deployment, testing, security, and privacy direction. |
@@ -327,6 +334,8 @@
 
 | Task ID | Task | Agent | Owner | Depends On | Status | Progress % | Progress Basis | Source Evidence | Tests Evidence | Blocker | Next Action | Output |
 | --- | --- | --- | --- | --- | --- | ---: | --- | --- | --- | --- | --- | --- |
+| ATDR-V557-001 | v5.57 End-to-End Analyst Workflow, Accessibility, And Startup Reliability Lock | Orchestrator / Backend / Frontend / Accessibility / Operations / Security / QA / Docs | Codex plus future teammate/MFU/provider/field/host/usability owners | published v5.54; local v5.56 work; existing controlled workflow and launcher | complete locally; external acceptance open | 100 | Integrated workflow, context repair, accessible controls, five viewports, idempotent startup, safe diagnostics, focused and complete local verification, governance, and exact hygiene pass. | v5.57 runtime/UI/CLI/tests/status/T1-T20 | Integrated `24/24`; focused backend `34/34`; axe login plus eight routes; Playwright `42/1`; measured start/repeated-start/check/stop `4/4`; complete matrix recorded in T4. | Physical teammate, formal accessibility/usability, MFU lifecycle, field evidence, provider governance, and approved host remain external. | Preserve local controls and pursue owner-backed acceptance or a separately scoped detection-operations improvement. | Reliable local analyst journey, accessibility baseline, startup recovery, tests, docs, and exact cumulative boundary. |
+| ATDR-V556-001 | v5.56 SOC Assistant Operational Reliability And Analyst Quality Lock | Orchestrator / Backend / Frontend / Assistant / Security / QA / Docs | Codex plus future provider/university/usability owners | published v5.54; configured private Gemini; v5.52 Assistant contracts | complete locally; external acceptance open | 100 | Response defects, provider ceilings/citations, telemetry, UI, corpus, complete verification, and exact hygiene pass. | v5.56 runtime/UI/corpus/tests/status/T1-T20 | QA `30/30`; sequence `4/4`; backend/release `1062/1`; Playwright `39/1`; controlled source `4/4`; deterministic `24/24`; layered `288/288`; Gemini, security, replay, performance, and release pass. | Institutional privacy/quota/key custody, persistent monitoring, and representative field usability remain external. | Preserve the read-only controls; seek separate publication approval or begin the next locally controlled closure phase. | Concise grounded Assistant, safe provider operations, tests, docs, and exact 28-path boundary. |
 | ATDR-V553-001 | v5.53 MFU IAM And Shared Deployment Readiness | Orchestrator / IAM / Backend / Frontend / Operations / Security / QA / Docs | Codex plus future university/provider/deployment/teammate owners | published v5.52; shell-first runtime; existing PostgreSQL/operations/provider controls | done locally; external acceptance open | 100 | Fail-closed contracts, explicit configuration rules, aggregate UI/API, teammate runner, security CI, dependency repair, complete verification, and governance closure pass. | v5.53 runtime/UI/CLI/tests/status/manifest/T1-T20/allowlist | Focused `8/8`; backend/release `1048 passed, 1 skipped`; Playwright `38/1`; source/detection/layered/Assistant `4/4`, `24/24`, `288/288`, `20/20`; Gemini, replay, performance, deployment, audits, scans, and SBOMs pass. | MFU group/lifecycle, approved host, institutional Gemini governance, physical teammate run, and field evidence require external owners. | Preserve the controls; seek separate publication approval, then run v5.54 operator handoff without inventing external evidence. | Fail-closed release-readiness foundation; no production, IAM, provider, model, or response acceptance fabricated. |
 | ATDR-V552-001 | v5.52 Analyst Experience And SOC Assistant Closure | Orchestrator / Backend / Frontend / Assistant / Security / Accessibility / QA / Docs | Codex plus future provider/university/usability owners | published v5.49b; local v5.50-v5.51 baseline; configured private Gemini | done locally; external acceptance open | 100 | Context defects repaired; provenance and four-turn persistence implemented; response budgets tightened; Gemini and controlled QA pass; complete verification, privacy/hygiene checks, governance, and cumulative allowlist are closed. | Assistant runtime/UI/tests plus v5.52 status/T1-T20/allowlist | Backend/release `1040 passed, 1 skipped`; Playwright `38 passed, 1 skipped`; Assistant QA `20/20`; Gemini minimal/full synthetic probes pass; controlled source `4/4`; detection `24/24`; layered `288/288`; replay/performance/release pass. | Institutional provider approval and independent usability/field evidence remain external; they do not block local implementation closure. | Preserve read-only controls; proceed to v5.53 MFU IAM/shared deployment acceptance when external owners are available. | Concise grounded Assistant, persistent investigation context, explicit provenance, tests, docs, and exact 42-path cumulative allowlist. |
 | ATDR-V551-001 | v5.51 Detection Pipeline Field Qualification And Fresh Evidence | Orchestrator / Ingestion / Parser / Detection / Evidence Governance / Backend / Frontend / Security / QA / Docs | Codex plus future hardware and human owners | published v5.49b; v5.50 truth lock; v5.23 transport contract | local implementation complete; field gate open | 100 | Disposable local transport/parser/rule/safety pass; source and review inputs fail closed; fresh roles exclude protected-era/duplicate evidence; API/UI are aggregate-only; no authority write occurs. | v5.51 service/CLI/schema/route/UI, field contract, fresh protocol, status/T1-T20 | Focused backend `11/11`; full backend/release `1037 passed, 1 skipped`; Alembic, React lint/build, Playwright `37/1`, controlled `24/24`, layered `288/288`, Assistant `20/20`, replay, and performance pass. | Physical firewall/router, second source, four windows, human field expectations, and prediction-blind rule review are external. | Seek separate exact-path publication approval; collect genuine field evidence when external owners are available. | Fail-closed field harness, private evidence contracts, aggregate readiness, tests, governance, and allowlist. |
@@ -480,6 +489,8 @@
 
 | Command / Check | Result | Evidence |
 | --- | --- | --- |
+| v5.57 integrated workflow, accessibility, and startup | pass locally; external acceptance open | Disposable workflow `24/24`; focused backend `34/34`; v5.38 compatibility `8/8`; direct and release backend `1067 passed, 1 skipped`; Ruff/compileall/Alembic/lint/build pass; Playwright `42 passed, 1 live skip`; login plus eight route axe scans report zero tested WCAG A/AA violations; five viewports pass; controlled source `4/4` and `10/10`; deterministic `24/24`; layered `288/288`, FP/FN `0/0`; Assistant `30/30`; replay zero-write; security scan `1,376` paths and Python/npm audits zero findings; performance `ok=true` with cached Overview `0.0163s` and one soft cold warning; release `ok=true`; actual start/repeat/check/stop pass; exact `61/61` paths, empty staging, and diff/hygiene checks pass. |
+| v5.56 complete verification | pass; external acceptance open | Deterministic QA `30/30`, contextual sequence `4/4`, citation rate `1.0000`, average/max `56.0/110`; focused backend `76/76`, provider subset `62/62`, compatibility repair `11/11`, backend/release `1062 passed, 1 skipped`; React lint/build and Playwright `39/1`; private Gemini minimal/full chat; controlled source `4/4`; deterministic `24/24`; layered `288/288`; Alembic no drift; security scan zero findings; replay, performance, deployment operations, release, exact `28/28` paths, empty staging, and ignored-evidence checks pass. |
 | v5.53 complete closure verification | pass; external acceptance open | Taskboard, Ruff, compileall, focused `8/8`, backend/release `1048 passed, 1 skipped`, Alembic no drift, React lint/build, Playwright `38/1`, controlled source `4/4`, deterministic `24/24`, layered `288/288`, Assistant `20/20`, Gemini minimal/full synthetic probes, replay zero-write, all performance budgets, deployment artifact validation, Python/npm audits zero, source scan zero, source/frontend SBOM `395/276`, privacy/hygiene, exact allowlist, and release `ok: true` pass. Preproduction remains correctly unaccepted on the local Windows/SQLite profile; teammate full execution waits for a clean published baseline. |
 | v5.52 complete closure verification | pass | Taskboard render/check, Ruff, compileall, backend/release `1040 passed, 1 skipped`, Alembic no drift, React lint/build, Playwright `38 passed, 1 skipped`, controlled source `4/4`, controlled detection `24/24`, layered `288/288` with FP/FN `0/0`, Assistant QA `20/20`, required citations `1.0000`, average/max `60.9/110` words, configured Gemini status/minimal/full synthetic probes, raw logs false, redaction true, secrets false, authoritative side effects zero, replay zero-write, all performance budgets, release `ok: true`, and exact cumulative 42-path reconciliation. |
 | v5.51 full implementation, qualification, and closure verification | pass; external field gate open | Service/API `11/11`; full backend/release `1037 passed, 1 skipped`; Alembic no drift; React lint/build; Playwright `37 passed, 1 skipped`; controlled `24/24`; layered `288/288` with zero controlled FP/FN; Assistant QA `20/20`; replay dry-run; performance budgets pass. Local full qualification accounts for `5/5` UDP messages, parses `2/2` tracked rows with zero loss/failures, records one rule-eligible group, writes zero authoritative state, opens no protected v5.49b evidence, and returns `hardware_required`. |
@@ -1281,6 +1292,8 @@
 
 | ID | Type | Status | Evidence | Impact | Next Action |
 | --- | --- | --- | --- | --- | --- |
+| R-102 | v5.57 independent workflow/accessibility/startup acceptance | local engineering baseline complete; external acceptance open | Integrated disposable workflow, axe/keyboard/viewport checks, and actual launcher lifecycle pass. Automated and single-machine evidence cannot represent every user, assistive technology, teammate machine, or provider environment. | ATDR can claim a verified local workflow and accessibility engineering baseline, not formal WCAG certification, universal usability, or external runtime acceptance. | Have a teammate and independent analyst/assistive-technology user execute the published workflow; retain private acceptance evidence under the existing owner contracts. |
+| R-101 | v5.56 provider governance and persistent operations | local reliability implemented; external acceptance open | Request-bound citations, deterministic fallback, aggregate process telemetry, token warnings, and private synthetic probes pass. Counters reset on backend restart and no institutional provider contract is accepted. | ATDR can claim controlled Gemini-backed read-only synthesis, not approved data sharing, persistent service SLOs, budget ownership, or representative field accuracy. | Obtain MFU/provider privacy and retention approval, assign quota/billing/key-rotation owners, connect approved persistent monitoring, and run independent field usability acceptance. |
 | R-100 | v5.53 external acceptance ownership | local controls implemented; all external contracts remain open | Readiness projection distinguishes configuration from expiring owner-backed evidence. The current private profile lacks an explicit admin group, and no approved host/provider/physical teammate evidence was supplied. | ATDR can claim fail-closed readiness controls, not MFU IAM, shared-host, institutional Gemini, teammate, field, or production acceptance. | Obtain the real MFU group/lifecycle evidence, approved host/recovery exercise, provider governance, separate-machine run, and independent field evidence; never mark checks true from configuration alone. |
 | R-099 | v5.52 external provider and usability acceptance | local implementation passed; external governance open | Gemini bounded probes and controlled QA pass, but MFU privacy/quota/key custody and independent assistive-technology/analyst acceptance were not supplied. | ATDR can claim a controlled read-only Assistant workflow, not institutional provider approval or universal semantic accuracy. | Obtain MFU/provider approval and run representative field-traffic plus independent usability/accessibility acceptance without weakening safety guards. |
 | R-098 | v5.51 field qualification evidence | local harness complete; hardware/reviewer gate open | Preflight and local full run pass with `5/5` UDP accounting and `2/2` parser rows; readiness remains `hardware_required`; fresh source/window/row counts are `0/0/0`; rule metrics are withheld. | ATDR can prove its local acceptance path but cannot claim field transport, parser accuracy, rule FP/FN, source generalization, or supervised readiness. | Run the versioned private contract with two physical devices, four fresh windows, genuine field expectations, and prediction-blind review; do not substitute synthetic or assisted evidence. |
@@ -2437,3 +2450,53 @@ tracks rather than another broad local feature phase.
 
 Final decision: `local_release_candidate_ready`. This is a controlled-lab
 release-candidate statement only; `production_ready=false` remains mandatory.
+
+### v5.56 Decision Update
+
+ATDR now distinguishes alert reason, related logs, false-positive assessment,
+alert-specific next checks, source health, jobs, AI governance, workflow help,
+and investigation briefs with focused response contracts. Explicit related
+record IDs survive deduplication, while findings and checks remain bounded.
+
+The provider path now separates intent targets from the absolute 120-word
+safety ceiling, centrally renders accepted output, constrains Gemini citations
+to the request-specific ATDR allowlist, and preserves deterministic fallback
+for malformed, unsupported, unsafe, unredacted, unavailable, or oversized
+output. Authenticated status and the Assistant UI expose aggregate provider
+counts, latency, named failure events, circuit state, tokens, and warning state
+without prompts, answers, keys, identities, raw evidence, or payloads.
+
+The synthetic evaluation passes `30/30` questions and a `4/4` follow-up
+sequence with citation rate `1.0000`, average/max `56.0/110` words, and zero
+authoritative side effects. Private Gemini minimal and full-chat probes pass
+with one attempt each, raw logs excluded, redaction enabled, secrets hidden,
+and zero detection, label, model, or response writes.
+
+The release decision remains v5.54 `local_release_candidate_ready`; v5.56 is a
+post-baseline local reliability improvement. Telemetry is process-local and
+the five MFU, host, provider, teammate, and field-evidence tracks remain
+external. Rules stay alert-authoritative, supervised ML stays in
+`shadow_observation`, the Assistant stays read-only, and automatic response
+and real blocking remain disabled.
+
+### v5.57 Decision Update
+
+ATDR now has one disposable `24/24` ingestion-to-audit acceptance that includes
+alert explanation, related evidence, a computed case, three context-preserving
+Assistant turns, case handoff, guarded simulated response, auditing, privacy,
+and zero authoritative Assistant row deltas.
+
+Login and eight primary analyst routes pass the tested automated WCAG A/AA
+rules. Keyboard regression covers skip/route focus, custom selects, and drawer
+focus containment/restoration; responsive checks cover three desktop sizes,
+tablet, and mobile. This is an engineering baseline, not formal accessibility
+certification.
+
+The normal `.\scripts\start_system.cmd` lifecycle now treats four healthy
+launcher-owned services as an idempotent success, reports partial state with
+supported recovery commands, and omits absolute roots and secrets from JSON
+diagnostics. A measured local start, repeat, ready check, and four-process stop
+passed. The full direct and release-gate backend runs each pass `1067/1`, the
+frontend suite passes `42/1`, and the complete controlled, security,
+performance, release, and `61/61` hygiene matrix passes. The v5.54 release
+decision and every external owner gate remain unchanged.

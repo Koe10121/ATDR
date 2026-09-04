@@ -8,11 +8,12 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from atdr.app.core.config import PROJECT_ROOT
+from atdr.app.core.config import PROJECT_ROOT, Settings
 from atdr.app.db.database import SessionLocal, init_db
-from atdr.app.db.models import Alert, AlertEvidence, AuditLog, NormalizedLog, RawLog, ResponseAction
+from atdr.app.db.models import Alert, AlertEvidence, AuditLog, DetectionRun, MLLabel, MLModelRun, NormalizedLog, RawLog, ResponseAction
 from atdr.app.detection.explanations import build_alert_detection_summary
 from atdr.app.services.alert_service import list_alerts
+from atdr.app.services.assistant_service import answer_assistant_question
 from atdr.app.services.case_service import list_alert_cases
 from atdr.app.services.detection_service import run_detection
 from atdr.app.services.log_service import count_nonblank_log_lines, import_log_file
@@ -170,6 +171,174 @@ def _simulate_response_checks(db: Session, *, alert_rows: list[dict[str, Any]], 
     }
 
 
+def _authoritative_counts(db: Session) -> dict[str, int]:
+    return {
+        "alerts": int(db.query(Alert).count()),
+        "detection_runs": int(db.query(DetectionRun).count()),
+        "labels": int(db.query(MLLabel).count()),
+        "model_runs": int(db.query(MLModelRun).count()),
+        "response_actions": int(db.query(ResponseAction).count()),
+    }
+
+
+def _assistant_workflow_checks(
+    db: Session,
+    *,
+    alert_rows: list[dict[str, Any]],
+    cases: list[dict[str, Any]],
+    actor: str,
+) -> dict[str, Any]:
+    primary_alert_id = next((int(row["alert_id"]) for row in alert_rows if row.get("alert_id")), None)
+    if primary_alert_id is None:
+        return {
+            "exercised": False,
+            "passed": False,
+            "reason": "No alert was available for the Assistant investigation sequence.",
+            "checks": [],
+        }
+
+    settings = Settings(
+        _env_file=None,
+        ASSISTANT_ENABLED=False,
+        ASSISTANT_PROVIDER="disabled",
+        ASSISTANT_API_KEY="",
+        ASSISTANT_LLM_ENABLED=False,
+        ASSISTANT_LLM_PROVIDER="",
+        ASSISTANT_LLM_MODEL="",
+        ASSISTANT_LLM_API_KEY="",
+        ASSISTANT_MAX_CONTEXT_ROWS=20,
+        ASSISTANT_REDACT_IPS=True,
+        ASSISTANT_ALLOW_RAW_LOG_CONTEXT=False,
+        ASSISTANT_CONVERSATION_HISTORY_TURNS=4,
+        ASSISTANT_RATE_LIMIT_REQUESTS=100,
+        ASSISTANT_RATE_LIMIT_WINDOW_SECONDS=60,
+    )
+    conversation_id = f"e2e-alert-{primary_alert_id}"
+    before = _authoritative_counts(db)
+    audit_before = int(db.query(AuditLog).count())
+    responses = [
+        answer_assistant_question(
+            db,
+            question=f"Why was alert {primary_alert_id} flagged?",
+            actor=actor,
+            settings=settings,
+            alert_id=primary_alert_id,
+            conversation_id=conversation_id,
+        ),
+        answer_assistant_question(
+            db,
+            question="Which logs are related?",
+            actor=actor,
+            settings=settings,
+            conversation_id=conversation_id,
+        ),
+        answer_assistant_question(
+            db,
+            question="What should an analyst verify before response?",
+            actor=actor,
+            settings=settings,
+            conversation_id=conversation_id,
+        ),
+    ]
+    case_response = None
+    if cases:
+        case_response = answer_assistant_question(
+            db,
+            question="Summarize this case for analyst handoff.",
+            actor=actor,
+            settings=settings,
+            case_id=str(cases[0]["case_id"]),
+            conversation_id=f"e2e-case-{primary_alert_id}",
+        )
+    after = _authoritative_counts(db)
+    audit_after = int(db.query(AuditLog).count())
+
+    expected_modes = ["alert_explanation", "related_logs", "safe_next_step"]
+    alert_context_preserved = all(
+        int((response.get("active_context") or {}).get("alert_id") or 0) == primary_alert_id
+        for response in responses
+    )
+    source_addresses = {
+        str(value)
+        for row in alert_rows
+        for value in (row.get("src_ip"), row.get("dst_ip"))
+        if value
+    }
+    rendered_answers = "\n".join(str(response.get("answer") or "") for response in responses)
+    if case_response:
+        rendered_answers += "\n" + str(case_response.get("answer") or "")
+    checks = [
+        {
+            "name": "assistant_modes_are_intent_specific",
+            "passed": [response.get("response_mode") for response in responses] == expected_modes,
+            "detail": f"Modes: {[response.get('response_mode') for response in responses]}.",
+        },
+        {
+            "name": "assistant_followup_context_preserved",
+            "passed": alert_context_preserved,
+            "detail": "All alert follow-ups remained bound to the explicitly selected alert.",
+        },
+        {
+            "name": "assistant_answers_are_grounded",
+            "passed": all(response.get("citations") for response in responses),
+            "detail": "Every alert-sequence answer returned at least one ATDR citation.",
+        },
+        {
+            "name": "case_handoff_available",
+            "passed": case_response is not None and case_response.get("response_mode") == "case_handoff",
+            "detail": "Computed case context was summarized using the case-handoff response contract.",
+        },
+        {
+            "name": "assistant_privacy_boundary",
+            "passed": all(
+                response.get("redaction_applied") is True
+                and response.get("raw_log_context_included") is False
+                and response.get("external_provider_used") is False
+                for response in [*responses, *([case_response] if case_response else [])]
+            )
+            and not any(address in rendered_answers for address in source_addresses),
+            "detail": "Deterministic mode used IP redaction and excluded raw logs and external provider calls.",
+        },
+        {
+            "name": "assistant_has_no_authoritative_side_effects",
+            "passed": before == after,
+            "detail": f"Authoritative row deltas: { {key: after[key] - before[key] for key in before} }.",
+        },
+        {
+            "name": "assistant_questions_are_audited",
+            "passed": audit_after - audit_before == 3 + int(case_response is not None),
+            "detail": f"Assistant audit rows created: {audit_after - audit_before}.",
+        },
+    ]
+    compact_responses = [
+        {
+            "response_mode": response.get("response_mode"),
+            "active_context": response.get("active_context"),
+            "citation_count": len(response.get("citations") or []),
+            "external_provider_used": bool(response.get("external_provider_used")),
+            "raw_log_context_included": bool(response.get("raw_log_context_included")),
+            "redaction_applied": bool(response.get("redaction_applied")),
+            "word_count": int((((response.get("details") or {}).get("response_contract") or {}).get("word_count") or 0)),
+        }
+        for response in responses
+    ]
+    return {
+        "exercised": True,
+        "passed": all(check["passed"] for check in checks),
+        "conversation_turns": len(responses),
+        "responses": compact_responses,
+        "case_handoff": {
+            "available": case_response is not None,
+            "response_mode": case_response.get("response_mode") if case_response else None,
+            "citation_count": len(case_response.get("citations") or []) if case_response else 0,
+        },
+        "authoritative_row_deltas": {key: after[key] - before[key] for key in before},
+        "audit_rows_created": audit_after - audit_before,
+        "action_executed": False,
+        "checks": checks,
+    }
+
+
 def _check_scenario(
     *,
     scenario: str,
@@ -181,6 +350,7 @@ def _check_scenario(
     cases: list[dict[str, Any]],
     evidence: dict[str, Any],
     response_summary: dict[str, Any],
+    assistant_summary: dict[str, Any],
     raw_count: int,
     normalized_count: int,
 ) -> list[dict[str, Any]]:
@@ -274,6 +444,9 @@ def _check_scenario(
         )
     else:
         add("no_automatic_response", True, "Response simulation was not requested and no response workflow was executed.")
+    if assistant_summary.get("exercised"):
+        for check in assistant_summary.get("checks", []):
+            add(str(check["name"]), bool(check["passed"]), str(check["detail"]))
     return checks
 
 
@@ -283,6 +456,7 @@ def run_e2e_workflow_validation(
     source_name: str = "e2e-validation-source",
     use_temp_db: bool = True,
     simulate_response: bool = False,
+    exercise_assistant: bool = False,
     response_reason: str = "E2E validation simulated analyst approval.",
     write_output: bool = True,
     output_dir: Path = DEFAULT_OUTPUT_DIR,
@@ -362,6 +536,14 @@ def run_e2e_workflow_validation(
                 alerts, alert_rows, _summaries = _alert_rows(db, source.id)
                 cases = list_alert_cases(db, source_id=source.id, active_only=False, limit=20)
                 evidence = _evidence_summary(db, alerts)
+                assistant_summary: dict[str, Any] = {"exercised": False, "passed": True, "checks": []}
+                if exercise_assistant:
+                    assistant_summary = _assistant_workflow_checks(
+                        db,
+                        alert_rows=alert_rows,
+                        cases=cases,
+                        actor="e2e_workflow_validation",
+                    )
                 response_summary: dict[str, Any] = {
                     "simulate_response": False,
                     "response_actions_created": int(db.query(ResponseAction).count()) - response_actions_before,
@@ -388,6 +570,7 @@ def run_e2e_workflow_validation(
                     cases=cases,
                     evidence=evidence,
                     response_summary=response_summary,
+                    assistant_summary=assistant_summary,
                     raw_count=raw_count,
                     normalized_count=normalized_count,
                 )
@@ -411,6 +594,7 @@ def run_e2e_workflow_validation(
                         "cases": cases,
                         "case_count": len(cases),
                         "investigation_evidence": evidence,
+                        "assistant": assistant_summary,
                         "response_safety": response_summary,
                         "audit_summary": {
                             "response_actions_before": response_actions_before,
@@ -435,6 +619,7 @@ def run_e2e_workflow_validation(
         "validation_scope": "controlled end-to-end ATDR workflow validation",
         "use_temp_db": use_temp_db,
         "simulate_response": simulate_response,
+        "exercise_assistant": exercise_assistant,
         "scenario_count": len(scenario_results),
         "passed_count": sum(1 for item in scenario_results if item["passed"]),
         "failed_count": sum(1 for item in scenario_results if not item["passed"]),
@@ -547,6 +732,7 @@ def main() -> None:
     parser.add_argument("--use-temp-db", action="store_true", default=True, help="Use temporary in-memory SQLite; default true.")
     parser.add_argument("--write-to-current-db", action="store_true", help="Opt in to writing validation rows to the current local DB.")
     parser.add_argument("--simulate-response", action="store_true", help="Exercise safe simulated response approval and denial checks.")
+    parser.add_argument("--exercise-assistant", action="store_true", help="Exercise deterministic Assistant context and case handoff checks.")
     parser.add_argument("--response-reason", default="E2E validation simulated analyst approval.")
     parser.add_argument("--no-report", action="store_true")
     parser.add_argument("--output-dir", default=None)
@@ -558,6 +744,7 @@ def main() -> None:
         source_name=args.source_name,
         use_temp_db=not args.write_to_current_db,
         simulate_response=args.simulate_response,
+        exercise_assistant=args.exercise_assistant,
         response_reason=args.response_reason,
         write_output=not args.no_report,
         output_dir=Path(args.output_dir) if args.output_dir else DEFAULT_OUTPUT_DIR,

@@ -332,6 +332,7 @@ export interface AssistantStatusResponse {
   llm_max_visible_chars: number;
   llm_circuit_breaker_failures: number;
   llm_circuit_breaker_cooldown_seconds: number;
+  llm_usage_warning_tokens: number;
   llm_operational: {
     status?: string;
     calls_attempted?: number;
@@ -343,7 +344,17 @@ export interface AssistantStatusResponse {
     circuit_open_count?: number;
     cooldown_remaining_seconds?: number;
     average_latency_ms?: number;
+    last_latency_ms?: number;
+    max_latency_ms?: number;
+    timeout_events?: number;
+    rate_limit_events?: number;
+    quota_events?: number;
+    provider_unavailable_events?: number;
     token_usage?: { input_tokens?: number; output_tokens?: number; total_tokens?: number };
+    usage_warning_threshold_tokens?: number;
+    usage_warning?: boolean;
+    usage_status?: string;
+    usage_remaining_tokens?: number | null;
     estimated_cost_usd?: number;
     cost_rates_configured?: boolean;
     last_outcome?: string;

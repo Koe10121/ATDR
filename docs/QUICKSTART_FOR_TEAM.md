@@ -98,6 +98,11 @@ The launcher checks configuration and ports, starts all four services, waits for
 http://localhost:8080/#/pages/login
 ```
 
+The start command is idempotent when all four launcher-owned services are
+already healthy: it reports their status and exits successfully without
+starting duplicates. A partial runtime fails closed and prints the exact
+`check_system.cmd` and `stop_system.cmd` recovery commands.
+
 Sign in through the MFU shell. After authentication, choose **Open ATDR SOC Dashboard**. The shell issues a short-lived one-time code, ATDR exchanges it server-to-server, and the browser receives an HttpOnly ATDR session cookie.
 
 ## 5. Check Or Stop
@@ -107,7 +112,9 @@ Sign in through the MFU shell. After authentication, choose **Open ATDR SOC Dash
 .\scripts\stop_system.cmd
 ```
 
-The check command reports readiness and missing field names without secret values. The stop command acts only on launcher-recorded processes.
+The check command reports readiness and missing field names without secret
+values or machine-specific project/template paths. The stop command acts only
+on launcher-recorded processes.
 
 ## First Safe Validation
 

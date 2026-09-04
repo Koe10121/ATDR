@@ -63,6 +63,36 @@ function Restore-TemporaryEnvironment {
 $started = [System.Collections.Generic.List[object]]::new()
 try {
     $root = Get-AtdrProjectRoot
+    $runtime = Get-AtdrRuntimeDirectory
+    $metadataPath = Join-Path $runtime "system-processes.json"
+    if (Test-Path -LiteralPath $metadataPath) {
+        $metadata = Get-Content -LiteralPath $metadataPath -Raw | ConvertFrom-Json
+        $records = @($metadata.processes)
+        $active = @($records | Where-Object { Test-TrackedProcessRecordActive $_ })
+        if ($active.Count) {
+            $serviceReadiness = @{
+                atdr_backend = (Test-HttpEndpoint "http://127.0.0.1:8000/health/live").reachable
+                atdr_frontend = (Test-HttpEndpoint "http://127.0.0.1:5173").reachable
+                shell_backend = (Test-HttpEndpoint "http://127.0.0.1:8214/healthz").reachable
+                shell_frontend = (Test-HttpEndpoint -Url "http://localhost:8080" -TimeoutSeconds 10).reachable
+            }
+            $runtimeState = Get-TrackedSystemRuntimeClassification `
+                -TrackedNames @($records | ForEach-Object { [string]$_.name }) `
+                -ActiveNames @($active | ForEach-Object { [string]$_.name }) `
+                -ServiceReadiness $serviceReadiness
+            if ($runtimeState.state -eq "healthy") {
+                Write-Host "ATDR is already running and all four components are healthy." -ForegroundColor Green
+                Write-Host "  MFU sign in: http://localhost:8080/#/pages/login"
+                Write-Host "  Status: .\scripts\check_system.cmd -RequireReady"
+                Write-Host "  Stop: .\scripts\stop_system.cmd"
+                if (-not $NoBrowser -and -not $DryRun) { Start-Process "http://localhost:8080/#/pages/login" | Out-Null }
+                exit 0
+            }
+            throw "ATDR has a partial or unhealthy launcher-managed runtime ($($runtimeState.active_count)/4 processes, $($runtimeState.ready_count)/4 services ready). Run .\scripts\check_system.cmd -Json, then .\scripts\stop_system.cmd before retrying."
+        }
+        Remove-Item -LiteralPath $metadataPath -Force
+    }
+
     $template = Resolve-TemplateRoot $TemplateRoot
     $structure = Test-TemplateShellStructure $template
     if (-not $structure.valid) { throw "MFU shell is incomplete. Missing: $($structure.missing -join ', ')" }
@@ -73,19 +103,10 @@ try {
         throw "Versioned MFU shell integrity check failed ($($packageStatus.diagnosis)). Rerun setup with the approved package."
     }
 
-    $runtime = Get-AtdrRuntimeDirectory
-    $metadataPath = Join-Path $runtime "system-processes.json"
-    if (Test-Path -LiteralPath $metadataPath) {
-        $metadata = Get-Content -LiteralPath $metadataPath -Raw | ConvertFrom-Json
-        $active = @($metadata.processes | Where-Object { Test-TrackedProcessRecordActive $_ })
-        if ($active.Count) { throw "ATDR system processes are already running. Use .\scripts\check_system.ps1 or .\scripts\stop_system.ps1." }
-        Remove-Item -LiteralPath $metadataPath -Force
-    }
-
     $envPath = Join-Path $root ".env"
     $envValues = Read-DotEnvFile $envPath
     $missingAuth = @(Get-MissingShellAuthFields $envValues)
-    if ($missingAuth.Count) { throw "Shell authentication configuration is incomplete. Run setup again. Missing: $($missingAuth -join ', ')" }
+    if ($missingAuth.Count) { throw "Shell authentication configuration is incomplete. Run .\scripts\setup_team.cmd again. Missing: $($missingAuth -join ', ')" }
     if (-not $envValues.Contains("RESPONSE_SIMULATION") -or ([string]$envValues["RESPONSE_SIMULATION"]).ToLowerInvariant() -ne "true") {
         throw "RESPONSE_SIMULATION must remain true before the system can start."
     }
@@ -96,7 +117,7 @@ try {
     $shellFrontendValues = Read-DotEnvFile $shellFrontendEnvPath
     $missingProvider = @(Get-MissingTemplateProviderFields $shellValues)
     if ($missingProvider.Count) {
-        throw "MFU shell private provider configuration is not installed ($($missingProvider.Count) required fields). Add the approved backend-node/.env.local outside Git, then run .\scripts\check_system.ps1 -Json for the missing field names."
+        throw "MFU shell private provider configuration is not installed ($($missingProvider.Count) required fields). Add the approved backend-node/.env.local outside Git, then run .\scripts\check_system.cmd -Json for the missing field names."
     }
     $googleStatus = Get-TemplateGoogleClientStatus $template
     if (-not $googleStatus.ready) {
@@ -108,7 +129,7 @@ try {
 
     $python = Join-Path $root ".venv\Scripts\python.exe"
     $node = Get-CommandPathSafe "node"
-    if (-not (Test-Path -LiteralPath $python)) { throw "Python virtual environment is missing. Run .\scripts\setup_team.ps1 first." }
+    if (-not (Test-Path -LiteralPath $python)) { throw "Python virtual environment is missing. Run .\scripts\setup_team.cmd first." }
     if (-not $node) { throw "Node.js is missing. Install Node.js 20.19 or newer and rerun setup." }
     $nodeVersion = & $node --version
     if (-not (Test-NodeVersionSupported $nodeVersion)) {
@@ -117,8 +138,8 @@ try {
 
     $reactCli = Join-Path $root "frontend\node_modules\vite\bin\vite.js"
     $vueCli = Join-Path $template "frontend-vue\node_modules\@vue\cli-service\bin\vue-cli-service.js"
-    if (-not (Test-Path -LiteralPath $reactCli)) { throw "ATDR frontend dependencies are missing. Run setup_team.ps1." }
-    if (-not (Test-Path -LiteralPath $vueCli)) { throw "MFU shell frontend dependencies are missing. Run setup_team.ps1." }
+    if (-not (Test-Path -LiteralPath $reactCli)) { throw "ATDR frontend dependencies are missing. Run .\scripts\setup_team.cmd." }
+    if (-not (Test-Path -LiteralPath $vueCli)) { throw "MFU shell frontend dependencies are missing. Run .\scripts\setup_team.cmd." }
 
     $ports = [ordered]@{ atdr_backend = 8000; atdr_frontend = 5173; shell_backend = 8214; shell_frontend = 8080 }
     $occupied = @($ports.GetEnumerator() | Where-Object { Test-TcpEndpoint -Port $_.Value } | ForEach-Object { "$($_.Key):$($_.Value)" })

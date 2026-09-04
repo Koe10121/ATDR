@@ -687,7 +687,14 @@ export function ExecutiveOverview() {
           </div>
           {latestJob ? (
             <div className="mt-3" data-testid="latest-job-progress">
-              <div className="h-2 overflow-hidden rounded-full bg-shell" aria-label={`Operation progress ${latestJob.progress_percentage ?? 0}%`}>
+              <div
+                className="h-2 overflow-hidden rounded-full bg-shell"
+                role="progressbar"
+                aria-label="Operation progress"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={latestJob.progress_percentage ?? 0}
+              >
                 <div
                   className="h-full rounded-full bg-cyan transition-[width] duration-300"
                   style={{ width: `${Math.max(0, Math.min(100, latestJob.progress_percentage ?? 0))}%` }}
@@ -816,7 +823,14 @@ export function ExecutiveOverview() {
                 <div>
                   Requested by {job.requested_by} | attempt {job.attempt_count ?? 0}/{job.max_attempts ?? 1} | progress {job.progress_current}/{job.progress_total || job.progress_current}
                 </div>
-                <div className="mt-2 h-2 overflow-hidden rounded-full bg-panel2" aria-label={`Job ${job.job_id} progress`}>
+                <div
+                  className="mt-2 h-2 overflow-hidden rounded-full bg-panel2"
+                  role="progressbar"
+                  aria-label={`Job ${job.job_id} progress`}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={job.progress_percentage ?? 0}
+                >
                   <div
                     className="h-full rounded-full bg-cyan transition-[width] duration-300"
                     style={{ width: `${Math.max(0, Math.min(100, job.progress_percentage ?? 0))}%` }}

@@ -4,7 +4,7 @@
 
 The SOC Assistant normally runs in deterministic local mode. It is read-only, audited, and cannot execute response actions, run detection, mutate labels, activate models, change accounts, or expose raw logs by default.
 
-v3.63 added provider adapters for Gemini, OpenAI-compatible APIs, Claude/Anthropic, and a mock provider. v3.65 added a command-line provider probe. v3.87 completes validated structured answers, bounded conversation context, retries, rate limiting, privacy filtering, safe audit telemetry, and full-service real-provider validation. External LLM calls remain disabled by default and require explicit private `.env` configuration.
+v3.63 added provider adapters for Gemini, OpenAI-compatible APIs, Claude/Anthropic, and a mock provider. v3.65 added a command-line provider probe. v3.87 completes validated structured answers, bounded conversation context, retries, rate limiting, privacy filtering, safe audit telemetry, and full-service real-provider validation. v5.56 adds request-bound Gemini citations, a provider hard ceiling, aggregate operational telemetry, usage warnings, and expanded deterministic QA. External LLM calls remain disabled by default and require explicit private `.env` configuration.
 
 ## Recommended Provider Strategy
 
@@ -25,6 +25,7 @@ ASSISTANT_LLM_MODEL=""
 ASSISTANT_LLM_API_KEY=""
 ASSISTANT_LLM_BASE_URL=""
 ASSISTANT_LLM_TIMEOUT_SECONDS=15
+ASSISTANT_LLM_USAGE_WARNING_TOKENS=100000
 ```
 
 These are separate from the existing deterministic assistant settings. Keep them disabled unless a provider, key handling policy, and data-sharing review are approved.
@@ -94,7 +95,7 @@ Gemini is the validated local provider candidate. ATDR must still keep determini
 - ATDR retrieves evidence and sends only bounded, sanitized structured context.
 - Raw log lines remain excluded by default.
 - IP redaction remains enabled by default.
-- Provider output must pass the current `soc_evidence_grounded_concise_v3` JSON contract.
+- Provider output must pass the current `soc_intent_aware_concise_v5` JSON contract.
 - Citations are limited to references supplied by ATDR.
 - Actor-scoped conversation context supports follow-ups without trusting client-only state.
 - Explicit global prompts clear stale alert/log/source/case context.
@@ -118,3 +119,25 @@ Run one minimal provider call only after configuring a private `.env` and settin
 ```
 
 The probe reports whether a provider/model/key are configured, but never prints API keys. It sends only bounded safety-policy context and does not include raw logs.
+
+## v5.56 Operational Reliability Addendum
+
+- Gemini receives a response schema whose citation enum contains only the
+  canonical ATDR citations supplied for that request.
+- A post-response guard still rejects unknown or ambiguous citations.
+- Provider content over 120 words, over the visible-character limit, malformed,
+  unsafe, unredacted, or ungrounded falls back to deterministic output.
+- Valid provider content is centrally rendered to the narrower intent budget.
+- Authenticated status exposes aggregate counts, latency, named failure events,
+  circuit state, token totals, threshold state, and optional configured-rate
+  cost estimates only.
+- Prompts, responses, identities, keys, provider payloads, and raw evidence are
+  never included in operational status.
+- Process-local counters reset on backend restart. Persistent monitoring,
+  billing, retention, and quota governance remain external acceptance work.
+
+The synthetic v5.56 corpus passes `30/30` independent questions and one
+four-turn follow-up sequence with citation rate `1.0000`, average/max response
+length `56.0/110` words, and zero authoritative side effects. Private minimal
+and full-chat Gemini probes pass with raw logs excluded, redaction enabled,
+secrets hidden, and no detection, label, model, or response mutations.
