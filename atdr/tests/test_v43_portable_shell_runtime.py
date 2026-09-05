@@ -375,6 +375,8 @@ def test_startup_diagnostics_use_supported_commands_and_hide_machine_paths(tmp_p
         timeout=30,
         check=False,
     )
+    assert result.returncode in (0, 1), result.stderr
+    assert result.stdout.strip(), result.stderr
     report = json.loads(result.stdout)
     encoded = json.dumps(report)
 

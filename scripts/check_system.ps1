@@ -9,11 +9,16 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "system_common.ps1")
 
+$projectRootConfigured = $false
+$templateRootConfigured = $false
+
 try {
     $root = Get-AtdrProjectRoot
+    $projectRootConfigured = $true
     $resolvedTemplate = $null
     $templateError = $null
     try { $resolvedTemplate = Resolve-TemplateRoot $TemplateRoot } catch { $templateError = $_.Exception.Message }
+    $templateRootConfigured = [bool]$resolvedTemplate
 
     $structure = if ($resolvedTemplate) { Test-TemplateShellStructure $resolvedTemplate } else { [pscustomobject]@{ valid = $false; missing = @("MFU_TEMPLATE_ROOT") } }
     $teamConfig = Read-TeamConfig
@@ -180,6 +185,22 @@ try {
     if (-not $ok) { exit 1 }
 }
 catch {
-    [Console]::Error.WriteLine("ATDR system check failed: $($_.Exception.Message)")
+    if ($Json) {
+        [ordered]@{
+            ok = $false
+            project_root_configured = $projectRootConfigured
+            template_root_configured = $templateRootConfigured
+            template_error = $(if ($templateRootConfigured) { $null } else { "template_root_unavailable" })
+            installation_ready = $false
+            provider_ready = $false
+            all_services_ready = $false
+            check_error = "system_check_failed"
+            recommended_action = "Run .\scripts\setup_team.cmd with the approved MFU shell source, then rerun this check."
+            secrets_exposed = $false
+        } | ConvertTo-Json -Depth 4
+    }
+    else {
+        [Console]::Error.WriteLine("ATDR system check failed. Run .\scripts\setup_team.cmd, then rerun this check.")
+    }
     exit 1
 }
