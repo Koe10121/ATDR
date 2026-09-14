@@ -1,6 +1,6 @@
 # ATDR Current AI And ML Product Status
 
-Date: 2026-09-03
+Date: 2026-09-05
 
 ## Decision Summary
 
@@ -9,7 +9,8 @@ separate layers:
 
 1. deterministic rules that may create and deduplicate alerts;
 2. IsolationForest anomaly scoring that may add advisory evidence;
-3. supervised classifiers under a governed `shadow_observation` lifecycle; and
+3. supervised classifiers whose governed runtime eligibility is checked and
+   currently fails closed as `unqualified`; and
 4. a read-only SOC Assistant with deterministic retrieval and optional Gemini
    synthesis.
 
@@ -22,8 +23,8 @@ a response action. Automatic response and real firewall blocking are disabled.
 | --- | --- | --- |
 | Nineteen deterministic rules | Locally verified: controlled `24/24`, layered `288/288` | May create/deduplicate alerts; cannot execute response |
 | IsolationForest | Implemented, but noisy and weak on current evidence | Advisory only |
-| Supervised SOC queue | v5.49b selected no candidate; lifecycle `shadow_observation` | Advisory evidence only; no active candidate |
-| Legacy supervised artifact | Artifact exists with incomplete model/feature metadata | Unselected reference, not governed current truth |
+| Supervised SOC queue | v5.49b selected no candidate; effective runtime `unqualified` | No inference or alert authority; historical lifecycle is not runtime authorization |
+| Legacy supervised artifact | Registered history exists but strict validation is not satisfied | Preserved history only; ordinary prediction refuses it |
 | Deterministic Assistant | v5.56 QA `30/30` plus a four-turn sequence; v5.57 integrated investigation passes `24/24`; citation rate `1.0`; average/max `56.0/110` words | Read-only explanation |
 | Gemini Assistant synthesis | v5.56 private structured minimal/full-chat probes pass; institutional acceptance pending | Read-only rephrasing/summarization |
 
@@ -65,12 +66,14 @@ label access, executed once, and compared eight locked strategies. No strategy
 qualified because the evaluation role lacked suspicious examples and every
 strategy failed the fixed confidence-gap gate.
 
-Consequences:
+Consequences under the v5.58 effective runtime contract:
 
 - candidate selected: no;
 - model activated or promoted: no;
 - active artifact written: no;
-- lifecycle: `shadow_observation`;
+- historical lifecycle: `shadow_observation`;
+- effective runtime: `unqualified`;
+- normal supervised inference: refused;
 - rules alert-authoritative: yes;
 - response automation allowed: no.
 
@@ -86,6 +89,32 @@ An older artifact can exist even when its metadata is incomplete. The dashboard
 must show **Active artifact metadata unknown** and keep it separate from
 candidate diagnostic runs. `unknown` is not a classifier family, and the
 existence of an artifact is not evidence of production promotion.
+
+## v5.58 Runtime Closure
+
+Normal ML-enabled detection now reports one bounded contract for rules,
+IsolationForest, supervised eligibility, hybrid triage, and response. Current
+measured local state is:
+
+- rules `active_authoritative`;
+- IsolationForest `active_advisory` while its artifact is available;
+- supervised `unqualified` because the latest decision selected no candidate;
+- hybrid `active_advisory` from available supporting evidence; and
+- response `simulation_only`.
+
+The supervised eligibility check runs on each normal ML-enabled detection job,
+but model inference runs only for `active_shadow`. Model metadata, provenance,
+strict validation, shadow safety, artifact checksum, latest qualified version,
+candidate freeze, protected-evidence exclusion, and private configuration must
+all pass. Status reads are non-executing. Ordinary alert prediction cannot
+silently fall back to the historical artifact.
+
+A development-only repair attempt compared the existing eight governed
+strategies using disposable processing and development evidence. Its diagnostic
+leader passed `0/3` strict views, no candidate was frozen, and IsolationForest
+also failed its reliability gate. This does not alter v5.49b, labels, registry
+state, alerts, or response. See
+`docs/V5_58_GOVERNED_HYBRID_DETECTION_RUNTIME.md`.
 
 ## Where Assistant Answers Come From
 
@@ -109,6 +138,8 @@ Primary source:
 - `atdr/app/services/assistant_llm.py`
 - `atdr/app/routers/assistant.py`
 - `frontend/src/pages/AssistantPage.tsx`
+- `atdr/app/detection/runtime_contract.py`
+- `GET /api/ml/runtime-status`
 
 ## Gemini Boundary
 

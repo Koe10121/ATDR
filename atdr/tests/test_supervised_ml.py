@@ -1491,6 +1491,11 @@ def test_legacy_supervised_candidate_cannot_bypass_governed_activation(tmp_path,
     assert active["trained"] is True
     assert candidate["save_candidate"] is True
     assert registry["response_automation_allowed"] is False
+    assert "active_model_path" not in registry
+    assert "active_artifact_sha256" not in registry
+    assert all("model_path" not in item for item in registry["models"])
+    assert all("artifact_sha256" not in item for item in registry["models"])
+    assert all("dataset_snapshot_id" not in item for item in registry["models"])
     assert activated["status"] == "failed_closed"
     assert activated["production_promoted"] is False
     assert rolled_back["status"] == "inactive"
@@ -1515,6 +1520,10 @@ def test_supervised_model_registry_marks_unregistered_active_artifact(tmp_path, 
     assert active["active_artifact_metadata_unknown"] is True
     assert active["is_active_path"] is False
     assert active["display_model_type"] == "Active artifact metadata unknown"
+    assert active["artifact_name"] == "active-supervised.joblib"
+    assert "model_path" not in active
+    assert "artifact_sha256" not in active
+    assert "dataset_snapshot_id" not in active
     assert active["production_promoted"] is False
     assert active["response_automation_allowed"] is False
 
@@ -1535,7 +1544,12 @@ def test_supervised_training_prediction_and_hybrid_score(tmp_path, monkeypatch):
         db.commit()
 
         result = supervised_detector.train_supervised_classifier(db, actor="tester", test_size=0.25, min_samples=6)
-        prediction = supervised_detector.predict_supervised_log(db, 1, rule_score=50)
+        prediction = supervised_detector.predict_supervised_log(
+            db,
+            1,
+            rule_score=50,
+            _allow_legacy_diagnostic=True,
+        )
         report_markdown = supervised_detector.supervised_report_markdown(db)
         hybrid = hybrid_risk_score(
             rule_score=70,

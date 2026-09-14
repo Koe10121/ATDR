@@ -1253,14 +1253,27 @@ def supervised_model_report(db: Session) -> dict:
     latest_metrics = (latest_report or {}).get("metrics") or {}
     try:
         from atdr.app.detection.v51_supervised_lifecycle import supervised_lifecycle_status
+        from atdr.app.detection.runtime_contract import supervised_runtime_status
 
         lifecycle = supervised_lifecycle_status(db)
+        effective_runtime = supervised_runtime_status(
+            db,
+            requested=True,
+            lifecycle_status=lifecycle,
+        )
     except Exception:
         lifecycle = {
             "lifecycle_state": "inactive",
             "production_promoted": False,
             "response_automation_allowed": False,
             "rule_detection_authoritative": True,
+        }
+        effective_runtime = {
+            "state": "unavailable",
+            "reason_code": "runtime_status_unavailable",
+            "scoring_allowed": False,
+            "production_promoted": False,
+            "response_automation_allowed": False,
         }
     return {
         "model_name": MODEL_NAME,
@@ -1296,6 +1309,7 @@ def supervised_model_report(db: Session) -> dict:
         },
         "decision_support_only": True,
         "governed_lifecycle": lifecycle,
+        "effective_runtime": effective_runtime,
     }
 
 
@@ -1449,7 +1463,14 @@ def supervised_report_markdown(db: Session) -> str:
     return _render_supervised_report(result)
 
 
-def predict_supervised_log(db: Session, log_id: int, *, rule_score: int = 0, asset_context_weight: int = 0) -> dict:
+def predict_supervised_log(
+    db: Session,
+    log_id: int,
+    *,
+    rule_score: int = 0,
+    asset_context_weight: int = 0,
+    _allow_legacy_diagnostic: bool = False,
+) -> dict:
     imports = _optional_imports()
     if imports is None:
         return {"predicted_label": None, "malicious_probability": 0.0, "confidence": 0.0, "top_contributing_features": []}
@@ -1469,6 +1490,8 @@ def predict_supervised_log(db: Session, log_id: int, *, rule_score: int = 0, ass
             "top_contributing_features": [],
             "schema_compatibility": schema_compatibility,
             "abstained": True,
+            "runtime_state": "abstained",
+            "reason_code": "schema_contract_not_satisfied",
             "abstention_reason_codes": schema_compatibility["abstention_reason_codes"],
             "missing_required_features": schema_compatibility["missing_required_features"],
             "confidence_limitations": [
@@ -1483,19 +1506,69 @@ def predict_supervised_log(db: Session, log_id: int, *, rule_score: int = 0, ass
             "used_for_suppression": False,
             "response_automation_allowed": False,
         }
-    try:
-        from atdr.app.detection.v51_supervised_lifecycle import (
-            score_governed_supervised_log,
-            supervised_lifecycle_status,
-        )
+    if not _allow_legacy_diagnostic:
+        from atdr.app.detection.runtime_contract import supervised_runtime_status
 
-        lifecycle = supervised_lifecycle_status(db)
-        if lifecycle.get("lifecycle_state") in {"shadow_observation", "decision_support"}:
-            return score_governed_supervised_log(db, log)
-    except Exception:
-        # Governed inference is assistive. Legacy/rule behavior remains available
-        # when the lifecycle service itself is unavailable.
-        pass
+        runtime = supervised_runtime_status(db, requested=True)
+        if not runtime.get("scoring_allowed"):
+            return {
+                "predicted_label": None,
+                "direct_predicted_label": None,
+                "queue_decision": None,
+                "queue_probability": None,
+                "malicious_probability": 0.0,
+                "confidence": 0.0,
+                "top_contributing_features": [],
+                "runtime_state": runtime.get("state", "unavailable"),
+                "reason_code": runtime.get("reason_code", "governed_model_unavailable"),
+                "lifecycle_state": runtime.get("historical_lifecycle_state", "inactive"),
+                "model_version": runtime.get("model_version"),
+                "feature_set_version": runtime.get("feature_set_version"),
+                "calibration_method": runtime.get("calibration_method"),
+                "schema_compatibility": schema_compatibility,
+                "abstained": False,
+                "abstention_reason_codes": [],
+                "missing_required_features": [],
+                "confidence_limitations": [
+                    "No supervised candidate is qualified for runtime scoring.",
+                    "Deterministic rules remain authoritative for alert creation.",
+                ],
+                "rule_detection_continues": True,
+                "decision_support_only": True,
+                "used_for_alert_creation": False,
+                "used_for_severity": False,
+                "used_for_suppression": False,
+                "response_automation_allowed": False,
+            }
+        try:
+            from atdr.app.detection.v51_supervised_lifecycle import (
+                score_governed_supervised_log,
+            )
+
+            prediction = score_governed_supervised_log(db, log)
+            prediction["runtime_state"] = "active_shadow"
+            prediction["reason_code"] = "governed_shadow_score_produced"
+            return prediction
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError) as exc:
+            return {
+                "predicted_label": None,
+                "queue_decision": None,
+                "queue_probability": None,
+                "malicious_probability": 0.0,
+                "confidence": 0.0,
+                "top_contributing_features": [],
+                "runtime_state": "unavailable",
+                "reason_code": "governed_shadow_scoring_failed",
+                "error_type": exc.__class__.__name__,
+                "schema_compatibility": schema_compatibility,
+                "abstained": False,
+                "rule_detection_continues": True,
+                "decision_support_only": True,
+                "used_for_alert_creation": False,
+                "used_for_severity": False,
+                "used_for_suppression": False,
+                "response_automation_allowed": False,
+            }
     path = supervised_model_path()
     if not path.exists():
         return {"predicted_label": None, "malicious_probability": 0.0, "confidence": 0.0, "top_contributing_features": []}
@@ -1529,6 +1602,8 @@ def predict_supervised_log(db: Session, log_id: int, *, rule_score: int = 0, ass
         "hybrid_risk": hybrid,
         "schema_compatibility": schema_compatibility,
         "abstained": False,
+        "runtime_state": "diagnostic_legacy",
+        "reason_code": "explicit_legacy_diagnostic_only",
         "abstention_reason_codes": [],
         "missing_required_features": [],
         "decision_support_only": True,

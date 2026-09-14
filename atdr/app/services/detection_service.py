@@ -12,6 +12,11 @@ from sqlalchemy.orm import Session, joinedload
 from atdr.app.core.config import get_settings
 from atdr.app.db.models import Alert, AuditLog, NormalizedLog, RawLog
 from atdr.app.detection.ml_detector import apply_model_to_db
+from atdr.app.detection.runtime_contract import (
+    anomaly_runtime_status,
+    detection_layer_contract,
+    score_supervised_runtime_batch,
+)
 from atdr.app.detection.rules import (
     DetectionResult,
     RuleMatch,
@@ -380,8 +385,33 @@ def run_detection(
     )
     bounded_rule_mode = bool(bounded_memory and not use_ml)
     try:
+        anomaly_results: dict[int, dict] | list[dict] = {}
+        anomaly_error_type: str | None = None
         if use_ml:
-            apply_model_to_db(db, limit=limit)
+            try:
+                anomaly_results = apply_model_to_db(db, limit=limit)
+            except Exception as exc:  # Advisory ML failure must not stop rule detection.
+                anomaly_error_type = exc.__class__.__name__
+
+        anomaly_rows = (
+            list(anomaly_results.values())
+            if isinstance(anomaly_results, dict)
+            else list(anomaly_results)
+        )
+        anomaly_runtime = anomaly_runtime_status(
+            requested=use_ml,
+            artifact_available=settings.resolved_model_path.exists(),
+            rows_scored=len(anomaly_rows),
+            anomaly_count=sum(
+                bool(row.get("is_anomaly")) for row in anomaly_rows
+            ),
+            error_type=anomaly_error_type,
+            score_values=(
+                float(row["anomaly_score"])
+                for row in anomaly_rows
+                if row.get("anomaly_score") is not None
+            ),
+        )
 
         if bounded_rule_mode:
             logs: list[NormalizedLog | DetectionLogRecord] = (
@@ -420,6 +450,13 @@ def run_detection(
             logs.reverse()
         _runtime_profile_sample(db, runtime_profile, "logs_loaded")
 
+        supervised_runtime = score_supervised_runtime_batch(
+            db,
+            [log for log in logs if isinstance(log, NormalizedLog)],
+            requested=use_ml,
+        )
+        _runtime_profile_sample(db, runtime_profile, "advisory_scoring_checked")
+
         context = build_detection_context(logs)
         _runtime_profile_sample(db, runtime_profile, "context_built")
         already_alerted = existing_evidence_log_ids(
@@ -432,6 +469,9 @@ def run_detection(
         watchlist_matches = 0
         advisory_anomaly_signals = 0
         advisory_only_logs = 0
+        authoritative_rule_signals = 0
+        matched_rule_ids: set[str] = set()
+        authoritative_matched_rule_ids: set[str] = set()
 
         for log in logs:
             evaluated += 1
@@ -456,10 +496,15 @@ def run_detection(
                 )
             if not matches:
                 continue
+            matched_rule_ids.update(match.code for match in matches)
             advisory_anomaly_signals += sum(
                 1 for match in matches if match.code in ADVISORY_EVIDENCE_RULES
             )
             authoritative_matches = _alert_authoritative_matches(matches)
+            authoritative_matched_rule_ids.update(
+                match.code for match in authoritative_matches
+            )
+            authoritative_rule_signals += len(authoritative_matches)
             if not authoritative_matches:
                 advisory_only_logs += 1
                 continue
@@ -554,6 +599,18 @@ def run_detection(
             insert_pending_alert_evidence_rows(db, pending_evidence)
         _runtime_profile_sample(db, runtime_profile, "alerts_built")
         run_attack_types = attack_type_counts_for_alerts(touched_alerts)
+        detection_layers = detection_layer_contract(
+            rules_evaluated=evaluated,
+            authoritative_rule_signals=authoritative_rule_signals,
+            anomaly=anomaly_runtime,
+            supervised=supervised_runtime,
+            response_simulation=settings.response_simulation,
+            matched_rule_ids=matched_rule_ids,
+            authoritative_matched_rule_ids=authoritative_matched_rule_ids,
+            candidate_logs=len(candidates),
+            alerts_created=created,
+            alerts_updated=deduplicated_alert_updates,
+        )
         run_details = {
             "evaluated": evaluated,
             "candidate_logs": len(candidates),
@@ -565,6 +622,7 @@ def run_detection(
             "advisory_anomaly_signals": advisory_anomaly_signals,
             "advisory_only_logs": advisory_only_logs,
             "rule_detection_authoritative": True,
+            "detection_layers": detection_layers,
             "limit": limit,
             "use_ml": use_ml,
             "source_id": source_id,

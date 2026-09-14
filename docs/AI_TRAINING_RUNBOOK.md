@@ -1104,10 +1104,11 @@ See `docs/FINAL_ENGINEERING_VALIDATION_SUMMARY.md`.
 
 ## v5.1 Governed Shadow Lifecycle
 
-The current governed supervised model is a calibrated ExtraTrees binary SOC
-review queue. It is operationally active in `shadow_observation`, not as an
-alert-authoritative detector. Rules remain authoritative and response automation
-remains disabled.
+This section records the historical v5.1 lifecycle workflow. It does not
+describe current runtime authorization. The latest v5.49b decision selected no
+candidate, and v5.58 therefore reports supervised runtime `unqualified` even
+though a historical calibrated ExtraTrees `shadow_observation` row exists.
+Rules remain authoritative and response automation remains disabled.
 
 Inspect the current lifecycle:
 
@@ -1150,6 +1151,11 @@ exists:
 These commands are audited and do not delete evidence or labels. See
 `docs/V5_1_SUPERVISED_SHADOW_ACTIVATION.md` for metrics, private-file shadow
 validation, and remaining gates.
+
+Do not use the historical activation command as current authorization. A later
+candidate must first pass the current development gates, be frozen by a new
+governance decision, preserve protected-evidence exclusion, and then receive a
+separate approved runtime change.
 
 ## v5.3 Temporal Generalization And OOD Evaluation
 
@@ -2391,3 +2397,29 @@ this evaluation. Start a new versioned cycle using fresh development evidence
 and a partition contract declared before labels are opened. Any future
 activation still requires a second physical source, a new untouched future
 window, all fixed gates, and separate human approval.
+
+## v5.58 Effective Hybrid Detection Runtime
+
+Inspect current runtime roles without scoring or writing data:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v558_governed_hybrid_runtime --require-safe --pretty
+```
+
+Interpret the result as follows:
+
+- `rules.state=active_authoritative`: rules may create/deduplicate alerts;
+- `anomaly.state=active_advisory`: IsolationForest scored supporting context;
+- `anomaly.state=unavailable|abstained`: rule detection continues;
+- `supervised.state=unqualified`: no candidate passed current governance;
+- `supervised.state=unavailable|abstained`: a qualified candidate could not
+  safely score this runtime/evidence;
+- `supervised.state=active_shadow`: bounded scoring only, never alert authority;
+- `response.state=simulation_only`: analyst-approved simulation only.
+
+The ordinary supervised prediction path refuses legacy fallback. The v5.58
+development repair selected no candidate (`0/3` strict views), so do not enable
+`GOVERNED_SHADOW_SCORING_ENABLED`. Do not rerun or tune on v5.49b. The next
+model cycle requires new development evidence and a new untouched evaluation.
+
+See `docs/V5_58_GOVERNED_HYBRID_DETECTION_RUNTIME.md`.

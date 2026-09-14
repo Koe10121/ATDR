@@ -1751,6 +1751,38 @@ export interface SupervisedModelReport {
     review_profiles: Array<Record<string, unknown>>;
   };
   decision_support_only: boolean;
+  effective_runtime?: DetectionRuntimeLayer;
+}
+
+export interface DetectionRuntimeLayer {
+  state: "active_authoritative" | "active_advisory" | "active_shadow" | "unqualified" | "unavailable" | "abstained" | "simulation_only" | "unsafe_configuration";
+  reason_code?: string;
+  invoked_by_normal_detection?: boolean;
+  scoring_allowed?: boolean;
+  artifact_available?: boolean;
+  metadata_complete?: boolean;
+  model_version?: string | null;
+  model_type?: string | null;
+  historical_lifecycle_state?: string;
+  decision_support_only?: boolean;
+  can_create_alerts?: boolean;
+  used_for_alert_creation?: boolean;
+  used_for_severity?: boolean;
+  used_for_suppression?: boolean;
+  [key: string]: unknown;
+}
+
+export interface DetectionRuntimeStatus {
+  ok: boolean;
+  contract_version: string;
+  rules: DetectionRuntimeLayer;
+  anomaly: DetectionRuntimeLayer;
+  supervised: DetectionRuntimeLayer;
+  hybrid: DetectionRuntimeLayer;
+  response: DetectionRuntimeLayer;
+  production_promoted: boolean;
+  response_automation_allowed: boolean;
+  secrets_exposed: boolean;
 }
 
 export interface SupervisedModelRegistryItem {
@@ -1761,9 +1793,8 @@ export interface SupervisedModelRegistryItem {
   operation: string;
   status: string;
   created_at?: string | null;
-  actor: string;
-  model_path: string;
-  artifact_sha256?: string | null;
+  artifact_name?: string | null;
+  artifact_checksum_recorded?: boolean;
   artifact_exists: boolean;
   is_active_path: boolean;
   active_artifact_metadata_status?: string | null;
@@ -1771,7 +1802,7 @@ export interface SupervisedModelRegistryItem {
   display_model_type?: string | null;
   display_feature_set?: string | null;
   feature_set_version?: string | null;
-  dataset_snapshot_id?: string | null;
+  training_provenance_recorded?: boolean;
   split_strategy?: string | null;
   metrics?: Record<string, unknown>;
   readiness_decision?: string | null;
@@ -1783,15 +1814,15 @@ export interface SupervisedModelRegistryItem {
   analyst_review_eligible: boolean;
   production_promoted: boolean;
   response_automation_allowed: boolean;
-  report_path?: string | null;
+  report_recorded?: boolean;
   message?: string | null;
 }
 
 export interface SupervisedModelRegistry {
   ok: boolean;
-  active_model_path: string;
+  active_artifact_name?: string | null;
   active_artifact_exists: boolean;
-  active_artifact_sha256?: string | null;
+  active_artifact_checksum_valid?: boolean;
   active_artifact_metadata_status?: string | null;
   active_artifact_metadata_unknown?: boolean;
   lifecycle_state?: string;
@@ -1804,7 +1835,7 @@ export interface SupervisedModelRegistry {
     model_type?: string | null;
     target_mode?: string | null;
     feature_set_version?: string | null;
-    dataset_fingerprint?: string | null;
+    dataset_provenance_recorded?: boolean;
     calibration_method?: string | null;
     calibration_status?: string;
     validation_status?: string;
@@ -2018,6 +2049,8 @@ export interface SupervisedModelRegistry {
     response_automation_allowed: boolean;
     rule_detection_authoritative: boolean;
   };
+  effective_runtime?: DetectionRuntimeLayer;
+  runtime_scoring_active?: boolean;
   legacy_artifact_exists?: boolean;
   legacy_artifact_selected?: boolean;
   models: SupervisedModelRegistryItem[];

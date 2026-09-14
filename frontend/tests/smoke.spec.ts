@@ -2803,6 +2803,49 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
       }
     })
   );
+  await page.route("**/api/ml/runtime-status", async (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        contract_version: "v5.58-governed-hybrid-runtime-v1",
+        rules: {
+          state: "active_authoritative",
+          invoked_by_normal_detection: true,
+          can_create_alerts: true
+        },
+        anomaly: {
+          state: "active_advisory",
+          reason_code: "artifact_ready_for_normal_detection_jobs",
+          invoked_by_normal_detection: true,
+          decision_support_only: true,
+          used_for_alert_creation: false
+        },
+        supervised: {
+          state: "unqualified",
+          reason_code: "latest_governance_decision_selected_no_candidate",
+          scoring_allowed: false,
+          historical_lifecycle_state: "shadow_observation",
+          invoked_by_normal_detection: false,
+          decision_support_only: true,
+          used_for_alert_creation: false
+        },
+        hybrid: {
+          state: "active_advisory",
+          invoked_by_normal_detection: true,
+          decision_support_only: true,
+          used_for_alert_creation: false
+        },
+        response: {
+          state: "simulation_only",
+          automatic_response_enabled: false,
+          real_firewall_blocking_enabled: false
+        },
+        production_promoted: false,
+        response_automation_allowed: false,
+        secrets_exposed: false
+      }
+    })
+  );
   await page.route("**/api/ml/supervised/shadow-observations/summary", async (route) =>
     route.fulfill({
       json: {
@@ -3623,9 +3666,16 @@ test("overview system health panel and ML governance wording render", async ({ p
   await page.getByText("Schema compatibility policy", { exact: true }).click();
   await expect(page.getByText("Incompatible evidence scored: no", { exact: true })).toBeVisible();
   const modelRegistry = page.getByTestId("supervised-model-registry");
+  const runtimeContract = page.getByTestId("detection-runtime-contract");
+  await expect(runtimeContract).toContainText("active authoritative");
+  await expect(runtimeContract).toContainText("active advisory");
+  await expect(runtimeContract).toContainText("unqualified");
+  await expect(runtimeContract).toContainText("simulation only");
+  await expect(runtimeContract).toContainText("Creates authoritative alerts");
+  expect(await runtimeContract.evaluate((element) => element.scrollWidth > element.clientWidth + 1)).toBe(false);
   await expect(modelRegistry.getByText("Metadata unknown", { exact: true })).toBeVisible();
-  await expect(modelRegistry.getByText("active metadata unavailable", { exact: true })).toBeVisible();
-  await expect(modelRegistry.getByText("Lifecycle", { exact: true })).toBeVisible();
+  await expect(modelRegistry.getByText("candidate unqualified", { exact: true })).toBeVisible();
+  await expect(modelRegistry.getByText("Effective Runtime", { exact: true })).toBeVisible();
   await expect(modelRegistry.getByText("Response Automation", { exact: true })).toBeVisible();
   await page.getByText("Artifact Metadata", { exact: true }).click();
   await expect(page.getByText("The v4.9 reliability-lock candidates are", { exact: false })).toBeVisible();
@@ -4264,7 +4314,8 @@ test("AI Governance shows governed supervised shadow status without selecting th
   );
   expect(blindEvidenceOverflow).toBe(false);
   const registry = page.getByTestId("supervised-model-registry");
-  await expect(registry.getByText("shadow active", { exact: true })).toBeVisible();
+  await expect(registry.getByText("candidate unqualified", { exact: true })).toBeVisible();
+  await registry.getByText("View candidate model registry", { exact: true }).click();
   await expect(registry.getByText("shadow observation", { exact: true }).first()).toBeVisible();
   await expect(registry.getByText("Calibrated ExtraTrees", { exact: true }).first()).toBeVisible();
   await expect(registry.getByText("v5.1-causal-soc-queue-features-v1", { exact: true }).first()).toBeVisible();
@@ -4373,7 +4424,7 @@ test("deep-linked alert and log drawers render", async ({ page }) => {
   await page.getByText("Detection layer detail", { exact: true }).click();
   await expect(page.getByText("Rule Authority")).toBeVisible();
   await expect(page.getByText("Anomaly Advisory")).toBeVisible();
-  await expect(page.getByText("Supervised Shadow")).toBeVisible();
+  await expect(page.getByText("Supervised Signal")).toBeVisible();
   await expect(page.getByText("Hybrid Interpretation")).toBeVisible();
   await expect(page.getByText("Review priority only; not automatic truth.")).toBeVisible();
   await expect(page.getByText("ML output is decision support.")).toBeVisible();
@@ -4505,7 +4556,7 @@ test("alert detail shows supervised schema abstention without a false score", as
 
   await page.goto("/alerts?alert=1");
   await page.getByText("Detection layer detail", { exact: true }).click();
-  const shadow = page.getByText("Supervised Shadow").locator("..");
+  const shadow = page.getByText("Supervised Signal").locator("..");
   await expect(shadow).toContainText("Abstained");
   await expect(shadow).toContainText("Schema incompatible_schema");
   await expect(shadow).toContainText("Missing: app, action");

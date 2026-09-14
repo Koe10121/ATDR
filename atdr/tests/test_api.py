@@ -1848,8 +1848,33 @@ def test_governed_supervised_lifecycle_api_is_readable_and_admin_controlled():
     try:
         unauthorized = client.get("/api/ml/supervised/lifecycle")
         assert unauthorized.status_code == 401
+        assert client.get("/api/ml/runtime-status").status_code == 401
 
         analyst_headers = _login(client, "analyst", "analyst123")
+        runtime = client.get("/api/ml/runtime-status", headers=analyst_headers)
+        assert runtime.status_code == 200
+        runtime_payload = runtime.json()
+        assert runtime_payload["rules"]["state"] == "active_authoritative"
+        assert runtime_payload["supervised"]["state"] == "unqualified"
+        assert runtime_payload["supervised"]["scoring_allowed"] is False
+        assert runtime_payload["response"]["state"] == "simulation_only"
+        assert runtime_payload["production_promoted"] is False
+        assert runtime_payload["response_automation_allowed"] is False
+        assert runtime_payload["secrets_exposed"] is False
+        assert "artifact_sha256" not in runtime.text.lower()
+        assert "client_secret" not in runtime.text.lower()
+        assert "api_key" not in runtime.text.lower()
+
+        registry = client.get("/api/ml/supervised/models", headers=analyst_headers)
+        assert registry.status_code == 200
+        registry_text = registry.text.lower()
+        assert "model_path" not in registry_text
+        assert "artifact_sha256" not in registry_text
+        assert "dataset_fingerprint" not in registry_text
+        assert "dataset_snapshot_id" not in registry_text
+        assert "c:\\" not in registry_text
+        assert "/users/" not in registry_text
+
         lifecycle = client.get("/api/ml/supervised/lifecycle", headers=analyst_headers)
         assert lifecycle.status_code == 200
         payload = lifecycle.json()

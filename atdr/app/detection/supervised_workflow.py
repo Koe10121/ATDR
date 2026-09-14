@@ -563,9 +563,8 @@ def _model_run_to_registry_item(
         "operation": run.operation,
         "status": run.status,
         "created_at": run.created_at,
-        "actor": run.actor,
-        "model_path": run.model_path,
-        "artifact_sha256": run.artifact_sha256,
+        "artifact_name": model_path.name,
+        "artifact_checksum_recorded": bool(run.artifact_sha256),
         "artifact_exists": model_path.exists(),
         "is_active_path": is_active,
         "active_artifact_metadata_status": "registered",
@@ -573,7 +572,7 @@ def _model_run_to_registry_item(
         "display_model_type": metrics.get("model_type", "random_forest"),
         "display_feature_set": (metrics.get("feature_set_metadata") or {}).get("feature_set_version"),
         "feature_set_version": (metrics.get("feature_set_metadata") or {}).get("feature_set_version"),
-        "dataset_snapshot_id": metrics.get("dataset_snapshot_id"),
+        "training_provenance_recorded": bool(metrics.get("dataset_snapshot_id")),
         "split_strategy": metrics.get("split_strategy"),
         "metrics": metrics.get("metrics", {}),
         "readiness_decision": (metrics.get("promotion_gate") or {}).get("decision", "candidate_only"),
@@ -585,15 +584,21 @@ def _model_run_to_registry_item(
         "analyst_review_eligible": bool((metrics.get("promotion_gate") or {}).get("analyst_review_eligible", False)),
         "production_promoted": False,
         "response_automation_allowed": False,
-        "report_path": metrics.get("report_path"),
+        "report_recorded": bool(metrics.get("report_path")),
         "message": run.message,
     }
 
 
 def list_supervised_models(db: Session, *, limit: int = 25) -> dict[str, Any]:
     from atdr.app.detection.v51_supervised_lifecycle import supervised_lifecycle_status
+    from atdr.app.detection.runtime_contract import supervised_runtime_status
 
     lifecycle = supervised_lifecycle_status(db)
+    runtime = supervised_runtime_status(
+        db,
+        requested=True,
+        lifecycle_status=lifecycle,
+    )
     active_model_run_id = lifecycle.get("model_run_id")
     active_model_run = db.get(MLModelRun, int(active_model_run_id)) if active_model_run_id is not None else None
     governed_active_path = Path(active_model_run.model_path) if active_model_run is not None else None
@@ -638,9 +643,8 @@ def list_supervised_models(db: Session, *, limit: int = 25) -> dict[str, Any]:
                 "operation": "active_artifact",
                 "status": "available",
                 "created_at": None,
-                "actor": "unknown",
-                "model_path": str(legacy_path),
-                "artifact_sha256": _artifact_hash(legacy_path),
+                "artifact_name": legacy_path.name,
+                "artifact_checksum_recorded": False,
                 "artifact_exists": True,
                 "is_active_path": False,
                 "active_artifact_metadata_status": "metadata_unknown",
@@ -648,14 +652,14 @@ def list_supervised_models(db: Session, *, limit: int = 25) -> dict[str, Any]:
                 "display_model_type": "Active artifact metadata unknown",
                 "display_feature_set": "Metadata unavailable",
                 "feature_set_version": None,
-                "dataset_snapshot_id": None,
+                "training_provenance_recorded": False,
                 "split_strategy": None,
                 "metrics": {},
                 "readiness_decision": "unknown_active_artifact",
                 "analyst_review_eligible": False,
                 "production_promoted": False,
                 "response_automation_allowed": False,
-                "report_path": None,
+                "report_recorded": False,
                 "message": (
                     "A legacy artifact exists but no matching MLModelRun registry row was found. "
                     "It is not selected by the governed v5.1 lifecycle."
@@ -663,17 +667,24 @@ def list_supervised_models(db: Session, *, limit: int = 25) -> dict[str, Any]:
             },
         )
     active_item = next((item for item in items if item.get("is_active_path")), None)
+    if active_item is not None:
+        active_item["effective_runtime_state"] = runtime["state"]
+        active_item["runtime_scoring_allowed"] = runtime["scoring_allowed"]
     governed_active = lifecycle.get("lifecycle_state") in {"shadow_observation", "decision_support"}
     active_metadata_unknown = bool(governed_active and active_item and active_item.get("active_artifact_metadata_unknown"))
     return {
         "ok": True,
-        "active_model_path": str(governed_active_path) if governed_active_path else "",
+        "active_artifact_name": governed_active_path.name if governed_active_path else None,
         "active_artifact_exists": bool((lifecycle.get("artifact") or {}).get("available")),
-        "active_artifact_sha256": (lifecycle.get("artifact") or {}).get("artifact_sha256"),
+        "active_artifact_checksum_valid": bool(
+            (lifecycle.get("artifact") or {}).get("checksum_valid")
+        ),
         "active_artifact_metadata_status": "metadata_unknown" if active_metadata_unknown else "registered" if governed_active else "inactive",
         "active_artifact_metadata_unknown": active_metadata_unknown,
         "lifecycle_state": lifecycle.get("lifecycle_state", "inactive"),
         "governed_lifecycle": lifecycle,
+        "effective_runtime": runtime,
+        "runtime_scoring_active": runtime["state"] == "active_shadow",
         "legacy_artifact_exists": legacy_path.exists(),
         "legacy_artifact_selected": False,
         "models": items,

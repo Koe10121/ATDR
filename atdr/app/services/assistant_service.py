@@ -2803,8 +2803,10 @@ def _answer_ml_question(db: Session, *, redacted: bool) -> AssistantResult:
     latest_run = supervised.get("latest_run") or {}
     promotion_gate = latest_run.get("promotion_gate") or {}
     lifecycle = supervised.get("governed_lifecycle") or {}
+    effective_runtime = supervised.get("effective_runtime") or {}
     anomaly_artifact = bool(ml.get("model_status", {}).get("artifact_exists"))
     lifecycle_state = lifecycle.get("lifecycle_state", "inactive")
+    runtime_state = effective_runtime.get("state", "unavailable")
     production_promoted = bool(promotion_gate.get("production_promoted", False))
     response_automation_allowed = bool(
         promotion_gate.get("response_automation_allowed", False)
@@ -2814,8 +2816,7 @@ def _answer_ml_question(db: Session, *, redacted: bool) -> AssistantResult:
         f"Anomaly model artifact is {'present' if anomaly_artifact else 'missing'}, "
         f"current anomaly rate is {ml.get('anomaly_rate', '-')}. "
         f"Supervised label count is {supervised.get('label_count', 0)}. "
-        f"Governed supervised lifecycle is {lifecycle_state}; "
-        f"model version is {lifecycle.get('model_version') or 'not active'}. "
+        f"Supervised runtime is {runtime_state}; historical lifecycle is {lifecycle_state}. "
         f"Production promoted: {production_promoted}. "
         f"Response automation allowed: {response_automation_allowed}."
     )
@@ -2840,6 +2841,7 @@ def _answer_ml_question(db: Session, *, redacted: bool) -> AssistantResult:
                     "label_count": supervised.get("label_count"),
                     "decision_support_only": supervised.get("decision_support_only"),
                     "governed_lifecycle": lifecycle,
+                    "effective_runtime": effective_runtime,
                     "latest_run": {
                         "status": latest_run.get("status"),
                         "split_strategy": latest_run.get("split_strategy"),
@@ -2851,7 +2853,7 @@ def _answer_ml_question(db: Session, *, redacted: bool) -> AssistantResult:
             "answer_sections": {
                 "summary": [
                     "ML remains advisory decision support; deterministic rules are alert-authoritative.",
-                    f"Supervised lifecycle: {lifecycle_state}; production promoted: {production_promoted}.",
+                    f"Supervised runtime: {runtime_state}; production promoted: {production_promoted}.",
                 ],
                 "evidence": [
                     f"Anomaly artifact: {'present' if anomaly_artifact else 'missing'}; current anomaly rate: {ml.get('anomaly_rate', '-')}.",
@@ -3088,6 +3090,7 @@ def _answer_model_promotion_question(db: Session, *, redacted: bool) -> Assistan
     readiness = latest_run.get("model_readiness_checklist") or supervised.get("model_readiness_checklist") or {}
     warnings = latest_run.get("validation_warnings") or supervised.get("validation_warnings") or []
     lifecycle = supervised.get("governed_lifecycle") or {}
+    effective_runtime = supervised.get("effective_runtime") or {}
     failed_items = [
         item
         for item in readiness.get("items", [])
@@ -3107,7 +3110,8 @@ def _answer_model_promotion_question(db: Session, *, redacted: bool) -> Assistan
     answer = (
         "The supervised model is not production promoted. "
         + (" ".join(reason_parts) if reason_parts else "No production promotion evidence is present.")
-        + f" Governed lifecycle: {lifecycle.get('lifecycle_state', 'inactive')}. "
+        + f" Effective runtime: {effective_runtime.get('state', 'unavailable')}; "
+        + f"historical lifecycle: {lifecycle.get('lifecycle_state', 'inactive')}. "
         + "Rules remain authoritative, and response automation is disabled."
     )
     return AssistantResult(
@@ -3121,6 +3125,7 @@ def _answer_model_promotion_question(db: Session, *, redacted: bool) -> Assistan
             "promotion_gate": _redact(promotion_gate, enabled=redacted),
             "readiness": _redact(readiness, enabled=redacted),
             "governed_lifecycle": _redact(lifecycle, enabled=redacted),
+            "effective_runtime": _redact(effective_runtime, enabled=redacted),
         },
         suggested_followups=["How do I import reviewed labels?", "Explain current ML model status."],
     )
@@ -3334,7 +3339,7 @@ def _answer_general_question(db: Session, *, limit: int, redacted: bool) -> Assi
     )
     answer = (
         f"ATDR currently tracks {log_count} normalized logs and {alert_count} alerts. "
-        "It ingests logs, preserves raw evidence, parses fields, runs rule/anomaly/supervised decision-support detection, groups alerts into cases, "
+        "It ingests logs, preserves raw evidence, parses fields, runs authoritative rules and advisory anomaly scoring, checks governed supervised eligibility, groups alerts into cases, "
         "and records simulated analyst-approved response actions. "
         f"Recent alerts: {alert_text or 'none in the current context.'}"
     )

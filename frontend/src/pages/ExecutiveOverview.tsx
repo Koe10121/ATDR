@@ -542,8 +542,12 @@ export function ExecutiveOverview() {
               <ResponsiveContainer>
                 <PieChart>
                   <Pie data={severityRows} dataKey="count" nameKey="name" innerRadius={72} outerRadius={108} paddingAngle={3}>
-                    {severityRows.map((_, index) => (
-                      <Cell key={index} fill={chartColors[index % chartColors.length]} />
+                    {severityRows.map((item, index) => (
+                      <Cell
+                        key={item.name}
+                        aria-label={`${item.name}: ${item.count} alerts`}
+                        fill={chartColors[index % chartColors.length]}
+                      />
                     ))}
                   </Pie>
                   <Tooltip contentStyle={{ background: "#0f151d", border: "1px solid #263445", color: "#e5edf6" }} />

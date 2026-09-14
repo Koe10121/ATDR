@@ -1,20 +1,22 @@
 # ATDR Current System State Lock
 
-Date: 2026-09-03
+Date: 2026-09-05
 
 ## Release Baseline
 
-The published source baseline is:
+The published source baseline before v5.58 is:
 
 - v5.54 release-candidate commit:
   `1b45ce03755cd8afa9a9803706c1c60ff454544e`
 - GitHub Actions run `33585630166`: passed
 - CodeQL run `33585630219`: passed
+- v5.57 analyst-workflow reliability commit:
+  `9cb22327f9543aeb974099563143616fd5fcb278`
+- subsequent narrow startup-diagnostics CI fix:
+  `5ff6734a1a34c9bf5daea9f704d0dc61026852a5`
 
-v5.56 and v5.57 are uncommitted local reliability changes. They strengthen
-Assistant output/provider operations, the integrated analyst workflow,
-accessibility, responsive behavior, and startup/recovery. They do not certify
-production use or close an external owner gate.
+v5.58 is the current uncommitted local detection-runtime closure. It adds no
+production claim and closes no external owner gate.
 
 ## Product Decision
 
@@ -30,8 +32,8 @@ The supported workflow is:
 1. collect logs by file/API, durable import job, replay, or UDP syslog;
 2. preserve raw evidence and parse/normalize supported PAN-OS or generic
    syslog records;
-3. apply source-scoped deterministic detection rules and advisory anomaly/ML
-   signals;
+3. apply source-scoped deterministic detection rules, bounded advisory
+   IsolationForest scoring, and a fail-closed supervised eligibility check;
 4. create deduplicated alerts and cases with evidence, explanations, and
    analyst recommendations;
 5. support investigation through the React dashboard and read-only SOC
@@ -47,7 +49,7 @@ The supported workflow is:
 | Frontend | React 18, TypeScript, Vite, React Router, TanStack Query/Table, Recharts |
 | Local persistence | SQLite; no Docker or PostgreSQL required for the local profile |
 | Shared persistence | PostgreSQL-compatible worker, migration, scale, backup, and recovery paths; approved-host acceptance pending |
-| Detection | Nineteen versioned deterministic rules are alert-authoritative; IsolationForest and supervised output are advisory |
+| Detection | Nineteen versioned rules are `active_authoritative`; IsolationForest is `active_advisory` when available; supervised runtime is currently `unqualified`; hybrid triage is advisory |
 | Assistant | Deterministic database-backed context with optional bounded Gemini synthesis and deterministic fallback |
 | Response | Analyst-approved simulation only; automatic response and real firewall blocking are disabled |
 
@@ -100,6 +102,10 @@ evidence that an approved shared environment exists.
 - Integrated analyst workflow: v5.57 passes `24/24` disposable checks from
   ingestion through audit, including three contextual Assistant turns, case
   handoff, simulated-response guards, and zero authoritative Assistant writes.
+- Detection runtime: the v5.58 read-only status check reports rules
+  `active_authoritative`, IsolationForest `active_advisory`, supervised
+  `unqualified`, hybrid `active_advisory`, response `simulation_only`, and zero
+  writes or authority changes.
 - Accessibility: automated WCAG A/AA rules pass on login and eight primary
   analyst routes; keyboard and five-viewport regressions pass.
 - Gemini: private minimal and full synthetic probes passed with redaction,
@@ -123,7 +129,7 @@ checks.
 | Ingestion and jobs | Locally verified | Real non-loopback forwarding and long-running field operation |
 | Parsing/normalization | Locally verified for supported contracts | More PAN-OS versions, second source, and device-backed field accuracy |
 | Deterministic detection | Locally verified in controlled regression | Independent real-traffic FP/FN evidence and environment baselines |
-| Supervised ML | No candidate; `shadow_observation` | Fresh development evidence, second source, untouched future evaluation, stable gates, approval |
+| Supervised ML | Effective runtime `unqualified`; historical lifecycle `shadow_observation`; no candidate | Fresh development evidence, second source, untouched future evaluation, stable gates, freeze, and separate approval |
 | IsolationForest | Advisory only | Evidence does not support detector authority |
 | Alert explanations | Locally verified | Asset/business context and external incident-management integration |
 | SOC Assistant | Locally verified and read-only | Institutional Gemini governance and representative field evaluation |
@@ -138,6 +144,13 @@ The immutable v5.49b evaluation bound 180 genuine protected decisions, ran
 eight fixed strategies exactly once, and selected no candidate. Protected
 rows, identities, fingerprints, labels, predictions, and claims remain private.
 No active supervised artifact was written.
+
+v5.58 makes that negative decision enforceable at runtime. A historical
+lifecycle row or artifact cannot authorize scoring. Normal detection checks
+eligibility and refuses supervised inference unless a later decision qualifies
+and freezes exactly one matching, fully validated candidate. The current
+development repair passed `0/3` strict views, so active shadow scoring remains
+off.
 
 Deterministic rules remain the only alert-authoritative detector. The legacy
 artifact with incomplete metadata is not a selected candidate. The dashboard
@@ -183,6 +196,8 @@ Exact checklists are in `docs/V5_54_EXTERNAL_OWNER_ACCEPTANCE.md`.
 
 - `README.md`
 - `docs/V5_57_END_TO_END_ANALYST_WORKFLOW_ACCESSIBILITY_STARTUP.md`
+- `docs/V5_58_GOVERNED_HYBRID_DETECTION_RUNTIME.md`
+- `docs/V5_59_REPOSITORY_CONSOLIDATION_PLAN.md`
 - `docs/V5_54_RELEASE_CANDIDATE_TRUTH_LOCK.md`
 - `docs/V5_54_OPERATOR_HANDOFF.md`
 - `docs/V5_54_EXTERNAL_OWNER_ACCEPTANCE.md`

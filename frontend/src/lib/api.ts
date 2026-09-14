@@ -38,6 +38,7 @@ import type {
   DashboardValidationSummary,
   DemoActionResult,
   DetectionMlProductizationEvaluation,
+  DetectionRuntimeStatus,
   DetectionReviewItem,
   DetectionReviewSaveRequest,
   DevEmailOutboxItem,
@@ -420,6 +421,7 @@ export const api = {
   mlEvidenceSnapshot: () => apiRequest<MLEvidenceSnapshot>("/api/ml/evidence-snapshot"),
   supervisedReport: () => apiRequest<SupervisedModelReport>("/api/ml/supervised/report"),
   supervisedModels: () => apiRequest<SupervisedModelRegistry>("/api/ml/supervised/models"),
+  detectionRuntimeStatus: () => apiRequest<DetectionRuntimeStatus>("/api/ml/runtime-status"),
   shadowObservationSummary: () =>
     apiRequest<ShadowObservationSummary>("/api/ml/supervised/shadow-observations/summary"),
   shadowOperationalAcceptance: () =>

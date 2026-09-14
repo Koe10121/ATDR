@@ -21,10 +21,10 @@ export function MetricCard({
   tone?: keyof typeof toneClass;
 }) {
   return (
-    <div className={clsx("panel min-h-28 border-l-4", toneClass[tone])}>
+    <div className={clsx("panel min-h-28 min-w-0 overflow-hidden border-l-4", toneClass[tone])}>
       <div className="text-xs font-extrabold uppercase tracking-wide text-muted">{label}</div>
-      <div className="mt-3 text-3xl font-black text-text">{value}</div>
-      {detail ? <div className="mt-2 text-sm text-muted">{detail}</div> : null}
+      <div className="mt-3 break-words text-2xl font-black text-text">{value}</div>
+      {detail ? <div className="mt-2 break-words text-sm text-muted">{detail}</div> : null}
     </div>
   );
 }

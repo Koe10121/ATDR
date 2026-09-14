@@ -1025,3 +1025,18 @@ status/change documents.
 | AI/detection/response authority | Rules authoritative, ML advisory, Assistant read-only, raw provider logs off, response simulated | Satisfied; no activation, automation, or real blocking. |
 | T1-T20 / PRD / traceability | v5.57 status, change record, PRD, traceability, checklist, runbook, taskboard, and exact allowlist | Complete after final verification; publication requires separate approval. |
 | Production claim | Accessibility automation and local startup do not close MFU, provider, field, teammate, or host acceptance | `production_ready=false`; external tracks remain open. |
+
+## v5.58 Governed Hybrid Detection Runtime Compliance Status
+
+| University / ATDR rule | v5.58 evidence | Current status / next action |
+| --- | --- | --- |
+| Source-backed implementation | Full ingestion-to-dashboard trace cites runtime, API, UI, tests, and governance | Satisfied locally. |
+| No misleading AI claim | Historical lifecycle is separate from effective `unqualified` runtime | Satisfied. |
+| Human-label integrity | v5.49b remains closed; no label is fabricated or overwritten | Satisfied. |
+| Model governance | Metadata, provenance, gates, freeze, checksum, and configuration precede `active_shadow` | Satisfied; current state fails closed. |
+| Decision authority | Rules create alerts; anomaly, supervised, and hybrid evidence are advisory | Satisfied. |
+| Safe failure | Advisory failure preserves rule evaluation and returns bounded state | Satisfied. |
+| Privacy and secrets | API/CLI/docs exclude paths, hashes, fingerprints, raw records, IPs, identities, payloads, and keys | Satisfied. |
+| Response safety | `simulation_only`; no automatic response or real blocking | Satisfied. |
+| Process evidence | Status, T1-T20, PRD, traceability, checklist, taskboard, runbook, and allowlist | Complete after final verification. |
+| Repository cleanup | v5.59 inventories keep/merge/archive/remove work; v5.58 deletes nothing | Planned next phase. |

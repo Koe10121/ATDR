@@ -28,6 +28,7 @@ import {
   useCandidateFreezeStatus,
   useCombinedFixedRevalidationStatus,
   useDetectionMlProductization,
+  useDetectionRuntimeStatus,
   useDevelopmentModelRepairStatus,
   useFieldQualificationStatus,
   useManualAnchorAcquisitionStatus,
@@ -83,6 +84,7 @@ export function MLGovernance() {
   const combinedFixedRevalidation = useCombinedFixedRevalidationStatus();
   const supervised = useSupervisedReport();
   const productization = useDetectionMlProductization();
+  const detectionRuntime = useDetectionRuntimeStatus();
   const supervisedModels = useSupervisedModels();
   const longitudinalShadow = useShadowObservationSummary();
   const shadowOperations = useShadowOperationalAcceptance();
@@ -231,10 +233,11 @@ export function MLGovernance() {
     : activeArtifactMetadataUnknown
       ? "Metadata unavailable"
       : activeRegistryModel?.display_feature_set ?? activeRegistryModel?.feature_set_version ?? "-";
-  const registryBadge = lifecycleState === "shadow_observation"
+  const supervisedRuntimeState = detectionRuntime.data?.supervised.state ?? registry?.effective_runtime?.state ?? "unavailable";
+  const registryBadge = supervisedRuntimeState === "active_shadow"
     ? "shadow active"
-    : lifecycleState === "decision_support"
-      ? "decision support active"
+    : supervisedRuntimeState === "unqualified"
+      ? "candidate unqualified"
       : activeArtifactMetadataUnknown
         ? "active metadata unavailable"
         : "supervised inactive";
@@ -430,6 +433,7 @@ export function MLGovernance() {
     void fieldQualification.refetch();
     void supervised.refetch();
     void productization.refetch();
+    void detectionRuntime.refetch();
     void supervisedModels.refetch();
     void longitudinalShadow.refetch();
     void shadowOperations.refetch();
@@ -468,6 +472,57 @@ export function MLGovernance() {
           fallback="AI Governance data is temporarily unavailable. No model state changed."
         />
       ) : null}
+
+      <section data-testid="detection-runtime-contract">
+        <div className="flex min-w-0 flex-wrap items-end justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-xs font-extrabold uppercase tracking-wide text-muted">Detection Runtime</div>
+            <div className="mt-1 text-sm text-muted">Effective authority and scoring state used by normal detection jobs.</div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Badge value="Rules Authoritative" />
+            <Badge value="Response Automation Disabled" />
+          </div>
+        </div>
+        {detectionRuntime.isError ? (
+          <div className="mt-3">
+            <ErrorBanner error={detectionRuntime.error} fallback="Detection runtime status is unavailable. Rule authority remains unchanged." />
+          </div>
+        ) : (
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <MetricCard
+              label="Rules"
+              value={metricText(detectionRuntime.data?.rules.state).replaceAll("_", " ")}
+              detail="Creates authoritative alerts"
+              tone="cyan"
+            />
+            <MetricCard
+              label="IsolationForest"
+              value={metricText(detectionRuntime.data?.anomaly.state).replaceAll("_", " ")}
+              detail="Advisory anomaly score"
+              tone={detectionRuntime.data?.anomaly.state === "active_advisory" ? "teal" : "amber"}
+            />
+            <MetricCard
+              label="Supervised"
+              value={metricText(detectionRuntime.data?.supervised.state).replaceAll("_", " ")}
+              detail={String(detectionRuntime.data?.supervised.reason_code ?? "No qualified runtime candidate").replaceAll("_", " ")}
+              tone={detectionRuntime.data?.supervised.state === "active_shadow" ? "teal" : "amber"}
+            />
+            <MetricCard
+              label="Hybrid Triage"
+              value={metricText(detectionRuntime.data?.hybrid.state).replaceAll("_", " ")}
+              detail="Never changes alert authority"
+              tone="slate"
+            />
+            <MetricCard
+              label="Response"
+              value={metricText(detectionRuntime.data?.response.state).replaceAll("_", " ")}
+              detail="Analyst-approved simulation only"
+              tone="danger"
+            />
+          </div>
+        )}
+      </section>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="IsolationForest" value={data?.model_status.artifact_exists ? "Ready" : "Missing"} detail="Assistive anomaly pipeline" tone="teal" />
@@ -1045,22 +1100,22 @@ export function MLGovernance() {
             <div>
               <div className="text-xs font-extrabold uppercase tracking-wide text-muted">Supervised Model Registry</div>
               <div className="mt-1 text-sm text-muted">
-                Active and candidate artifacts are tracked for decision support. Automation stays disabled.
+                Historical artifacts and candidates remain visible; the latest governed decision controls runtime scoring.
               </div>
             </div>
             <Badge value={registryBadge} />
           </div>
           <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
             <MetricCard
-              label="Lifecycle"
-              value={lifecycleState.replaceAll("_", " ")}
-              detail={governedLifecycle?.status_message ?? "Rules remain authoritative"}
+              label="Effective Runtime"
+              value={supervisedRuntimeState.replaceAll("_", " ")}
+              detail={`Historical lifecycle: ${lifecycleState.replaceAll("_", " ")}`}
               tone="cyan"
             />
             <MetricCard
               label="Model"
               value={activeModelTypeDisplay}
-              detail={governedLifecycle?.model_version ?? (!activeArtifactExists ? "No governed artifact" : "Registered artifact")}
+              detail={governedLifecycle?.model_version ?? (!activeArtifactExists ? "No governed artifact" : "Historical registered artifact")}
               tone="teal"
             />
             <MetricCard label="Feature Set" value={activeFeatureSetDisplay} detail="Leakage-controlled causal features" tone="teal" />

@@ -104,6 +104,12 @@ export function AlertsTriage() {
   const anomalySummary = detectionSummary?.anomaly;
   const supervisedSummary = detectionSummary?.supervised;
   const supervisedAbstained = supervisedSummary?.abstained === true;
+  const supervisedRuntimeState = String(
+    supervisedSummary?.runtime_state ?? (supervisedAbstained ? "abstained" : "unavailable")
+  );
+  const supervisedRuntimeLabel = supervisedRuntimeState
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase());
   const schemaCompatibility = (supervisedSummary?.schema_compatibility ?? {}) as Record<string, unknown>;
   const missingModelFields = Array.isArray(supervisedSummary?.missing_required_features)
     ? supervisedSummary.missing_required_features.map(String)
@@ -454,17 +460,25 @@ export function AlertsTriage() {
                     <div className="text-sm text-muted">Score {String(anomalySummary?.min_score ?? "-")} | No alert authority</div>
                   </div>
                   <div className="rounded border border-line bg-shell p-3">
-                    <div className="text-xs font-bold uppercase tracking-wide text-muted">Supervised Shadow</div>
-                    <div className="mt-1 font-bold text-text">{supervisedAbstained ? "Abstained" : String(supervisedSummary?.predicted_label ?? "not trained")}</div>
+                    <div className="text-xs font-bold uppercase tracking-wide text-muted">Supervised Signal</div>
+                    <div className="mt-1 font-bold text-text">
+                      {supervisedSummary?.predicted_label
+                        ? String(supervisedSummary.predicted_label)
+                        : supervisedRuntimeLabel}
+                    </div>
                     <div className="text-sm text-muted">
                       {supervisedAbstained
                         ? `Schema ${String(schemaCompatibility.status ?? "incompatible")}`
-                        : `Threat-positive score ${String(supervisedSummary?.malicious_probability ?? 0)}`}
+                        : supervisedSummary?.predicted_label
+                          ? `Threat-positive score ${String(supervisedSummary?.malicious_probability ?? 0)}`
+                          : String(supervisedSummary?.reason_code ?? "No qualified runtime candidate").replaceAll("_", " ")}
                     </div>
                     <div className="mt-1 text-xs text-muted">
                       {supervisedAbstained
                         ? missingModelFields.length ? `Missing: ${missingModelFields.join(", ")}` : "No model probability produced."
-                        : "Review priority only; not automatic truth."}
+                        : supervisedSummary?.predicted_label
+                          ? "Review priority only; not automatic truth."
+                          : "Rules remain authoritative; no supervised score was used."}
                     </div>
                   </div>
                   <div className="rounded border border-line bg-shell p-3">

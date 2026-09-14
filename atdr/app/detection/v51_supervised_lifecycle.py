@@ -1169,14 +1169,18 @@ def persist_supervised_telemetry_snapshot(db: Session, *, actor: str) -> dict[st
     }
 
 
-def supervised_lifecycle_status(db: Session) -> dict[str, Any]:
+def supervised_lifecycle_status(
+    db: Session,
+    *,
+    execute_shadow_runtime: bool = False,
+) -> dict[str, Any]:
     from atdr.app.services.v58_shadow_scoring_service import (
         governed_shadow_runtime_status,
     )
 
     governed_shadow_runtime = governed_shadow_runtime_status(
         db,
-        execute=True,
+        execute=execute_shadow_runtime,
     )
     lifecycle = _latest_lifecycle_run(db)
     if lifecycle is None or lifecycle.operation == "disable_supervised_governed":
@@ -1203,6 +1207,11 @@ def supervised_lifecycle_status(db: Session) -> dict[str, Any]:
     lifecycle_metrics = lifecycle.metrics_json or {}
     requested_state = str(lifecycle_metrics.get("lifecycle_state") or lifecycle.status or "inactive")
     artifact = _safe_artifact_state(model_run)
+    public_artifact = {
+        "available": bool(artifact.get("available")),
+        "checksum_valid": bool(artifact.get("checksum_valid")),
+        "artifact_name": artifact.get("artifact_name"),
+    }
     effective_state = requested_state if artifact["available"] and artifact["checksum_valid"] else "inactive"
     strict = metrics.get("strict_gates") or {}
     runtime = metrics.get("runtime_checks") or {}
@@ -1216,7 +1225,7 @@ def supervised_lifecycle_status(db: Session) -> dict[str, Any]:
         "model_type": metrics.get("model_type"),
         "target_mode": metrics.get("target_mode"),
         "feature_set_version": (metrics.get("feature_set_metadata") or {}).get("feature_set_version"),
-        "dataset_fingerprint": metrics.get("dataset_snapshot_id"),
+        "dataset_provenance_recorded": bool(metrics.get("dataset_snapshot_id")),
         "calibration_method": metrics.get("calibration_method"),
         "calibration_status": "passed_all_splits"
         if int((metrics.get("selected_strategy_summary") or {}).get("calibration_passed_splits") or 0)
@@ -1227,7 +1236,7 @@ def supervised_lifecycle_status(db: Session) -> dict[str, Any]:
         "shadow_safety_passed": bool(metrics.get("shadow_safety_passed")),
         "threshold": metrics.get("threshold"),
         "runtime_checks": runtime,
-        "artifact": artifact,
+        "artifact": public_artifact,
         "telemetry": process_telemetry,
         "durable_telemetry": _durable_telemetry_payload(
             _latest_durable_telemetry_run(db, model_run.model_version if model_run else None)

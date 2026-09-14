@@ -4,6 +4,12 @@ This index defines the active ATDR documentation set for AI/Codex-assisted work.
 
 ## Current Baseline
 
+- `docs/V5_58_GOVERNED_HYBRID_DETECTION_RUNTIME.md`: current effective
+  rule/anomaly/supervised/hybrid/response runtime contract and fail-closed
+  supervised decision.
+- `docs/V5_59_REPOSITORY_CONSOLIDATION_PLAN.md`: measured keep/merge/archive/
+  remove plan for historical docs, runbooks, scripts, and modules; it
+  authorizes no deletion.
 - `docs/V5_57_END_TO_END_ANALYST_WORKFLOW_ACCESSIBILITY_STARTUP.md`: current
   integrated analyst-workflow, automated accessibility, responsive-layout,
   startup/recovery, privacy, and remaining external-acceptance evidence.

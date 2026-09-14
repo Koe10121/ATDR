@@ -12,16 +12,22 @@ response and real firewall blocking are disabled.
 
 ## Current Truth
 
-The published baseline is:
+The published baseline before the current v5.58 work is:
 
 - v5.54 local release-candidate handoff:
   `1b45ce03755cd8afa9a9803706c1c60ff454544e`;
 - GitHub Actions run `33585630166`: green;
 - CodeQL run `33585630219`: green.
+- v5.57 analyst-workflow reliability:
+  `9cb22327f9543aeb974099563143616fd5fcb278`;
+- narrow startup-diagnostics fix:
+  `5ff6734a1a34c9bf5daea9f704d0dc61026852a5`.
 
-The current uncommitted worktree adds v5.56 Assistant operational reliability
-and v5.57 workflow, accessibility, responsive-layout, and startup hardening.
-No external acceptance or production claim follows from these local changes.
+The current uncommitted v5.58 work makes detection-layer runtime authority
+explicit. Rules are `active_authoritative`; IsolationForest is
+`active_advisory` when available; supervised runtime is `unqualified`; hybrid
+triage is advisory; response is `simulation_only`. No external acceptance or
+production claim follows from this local change.
 
 Current governed ML truth:
 
@@ -29,7 +35,8 @@ Current governed ML truth:
 - all eight fixed strategies were evaluated;
 - zero supervised candidates qualified;
 - no artifact was activated or promoted;
-- lifecycle remains `shadow_observation`;
+- historical lifecycle remains `shadow_observation`, but effective runtime is
+  `unqualified` and ordinary scoring is refused;
 - consumed protected evidence must never be rerun or tuned.
 
 See [Current System State](docs/CURRENT_SYSTEM_STATE_LOCK.md), [Current AI/ML
@@ -47,8 +54,9 @@ Handoff](docs/V5_54_OPERATOR_HANDOFF.md).
 4. **Detects threats:** a versioned deterministic rule catalog performs
    source/time correlation, grouping, scoring, and deduplication.
 5. **Adds advisory AI/ML:** IsolationForest and governed supervised strategies
-   can rank or enrich evidence but cannot create or suppress authoritative
-   alerts.
+   can rank or enrich evidence only when their runtime contracts allow it.
+   The current supervised contract fails closed and cannot create or suppress
+   authoritative alerts.
 6. **Explains findings:** alerts show why they were flagged, evidence strength,
    related logs, parser caveats, ATT&CK-style context, and recommended checks.
 7. **Assists analysts:** deterministic retrieval and optional Gemini synthesis
@@ -270,6 +278,12 @@ Run the release gate from the repository root:
 python -m atdr.scripts.verify_release --pretty
 ```
 
+Inspect the effective detection roles without changing data:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v558_governed_hybrid_runtime --require-safe --pretty
+```
+
 Set `ATDR_RUN_PLAYWRIGHT=1` only when intentionally asking the release gate to
 include its optional browser smoke path; normal frontend verification uses
 `npm.cmd run test:e2e` directly.
@@ -283,6 +297,8 @@ include its optional browser smoke path; normal frontend verification uses
 - [External Owner Acceptance](docs/V5_54_EXTERNAL_OWNER_ACCEPTANCE.md)
 - [Current System State](docs/CURRENT_SYSTEM_STATE_LOCK.md)
 - [Current AI/ML Product Status](docs/CURRENT_AI_ML_PRODUCT_STATUS.md)
+- [v5.58 Governed Detection Runtime](docs/V5_58_GOVERNED_HYBRID_DETECTION_RUNTIME.md)
+- [v5.59 Repository Consolidation Plan](docs/V5_59_REPOSITORY_CONSOLIDATION_PLAN.md)
 - [Product Requirements](docs/prd/PRD-ATDR.md)
 - [Requirement Traceability](docs/ATDR_REQUIREMENT_TRACEABILITY.md)
 - [University Compliance Checklist](docs/ATDR_UNIVERSITY_COMPLIANCE_CHECKLIST.md)

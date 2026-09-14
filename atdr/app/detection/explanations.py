@@ -404,12 +404,24 @@ def build_alert_detection_summary(db: Session, alert: Alert) -> dict[str, Any]:
     advisory_anomaly_matches = [rule for rule in rule_matches if rule.get("code") == "ml_anomaly_detected"]
     anomaly_logs = [log for log in evidence_logs if log.is_anomaly]
     anomaly_scores = [float(log.anomaly_score) for log in evidence_logs if log.anomaly_score is not None]
-    supervised: dict[str, Any] = {"predicted_label": None, "malicious_probability": 0.0, "confidence": 0.0}
+    supervised: dict[str, Any] = {
+        "predicted_label": None,
+        "malicious_probability": 0.0,
+        "confidence": 0.0,
+        "runtime_state": "unavailable",
+        "reason_code": "no_evidence_log",
+    }
     if primary_log is not None:
         try:
             supervised = predict_supervised_log(db, primary_log.id, rule_score=alert.threat_score)
         except Exception:
-            supervised = {"predicted_label": None, "malicious_probability": 0.0, "confidence": 0.0}
+            supervised = {
+                "predicted_label": None,
+                "malicious_probability": 0.0,
+                "confidence": 0.0,
+                "runtime_state": "unavailable",
+                "reason_code": "supervised_runtime_error",
+            }
     hybrid = supervised.get("hybrid_risk") if supervised.get("hybrid_risk") else hybrid_risk_score(
         rule_score=alert.threat_score,
         isolation_anomaly_score=primary_log.anomaly_score if primary_log else None,
@@ -496,6 +508,12 @@ def build_alert_detection_summary(db: Session, alert: Alert) -> dict[str, Any]:
         diagnostic_points.append(
             "Supervised scoring abstained: "
             f"{compatibility.get('message', 'evidence did not satisfy the governed model contract')}"
+        )
+    elif supervised.get("runtime_state") in {"unqualified", "unavailable"}:
+        diagnostic_points.append(
+            "Supervised scoring is "
+            f"{supervised.get('runtime_state')}: "
+            f"{str(supervised.get('reason_code') or 'no qualified runtime candidate').replace('_', ' ')}."
         )
 
     observed_evidence = [
@@ -654,6 +672,8 @@ def build_alert_detection_summary(db: Session, alert: Alert) -> dict[str, Any]:
             "model_version": supervised.get("model_version"),
             "feature_set_version": supervised.get("feature_set_version"),
             "lifecycle_state": supervised.get("lifecycle_state", "inactive"),
+            "runtime_state": supervised.get("runtime_state", "unavailable"),
+            "reason_code": supervised.get("reason_code"),
             "malicious_probability": supervised.get("malicious_probability", 0.0),
             "confidence": supervised.get("confidence", 0.0),
             "observed_signals": supervised.get("observed_signals", []),
@@ -686,6 +706,8 @@ def build_alert_detection_summary(db: Session, alert: Alert) -> dict[str, Any]:
             "model_version": supervised.get("model_version"),
             "feature_set_version": supervised.get("feature_set_version"),
             "lifecycle_state": supervised.get("lifecycle_state", "inactive"),
+            "runtime_state": supervised.get("runtime_state", "unavailable"),
+            "reason_code": supervised.get("reason_code"),
             "malicious_probability": supervised.get("malicious_probability", 0.0),
             "confidence": supervised.get("confidence", 0.0),
             "observed_signals": supervised.get("observed_signals", []),

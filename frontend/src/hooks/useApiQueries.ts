@@ -75,6 +75,7 @@ export const queryKeys = {
   mlEvidenceSnapshot: ["ml-evidence-snapshot"],
   supervisedReport: ["supervised-report"],
   supervisedModels: ["supervised-models"],
+  detectionRuntimeStatus: ["detection-runtime-status"],
   shadowObservationSummary: ["shadow-observation-summary"],
   shadowOperationalAcceptance: ["shadow-operational-acceptance"],
   shadowMonitoringDiagnostics: ["shadow-monitoring-diagnostics"],
@@ -667,6 +668,14 @@ export function useMlEvidenceSnapshot() {
 
 export function useSupervisedModels() {
   return useQuery({ queryKey: queryKeys.supervisedModels, queryFn: api.supervisedModels, ...mlGovernanceQueryOptions });
+}
+
+export function useDetectionRuntimeStatus() {
+  return useQuery({
+    queryKey: queryKeys.detectionRuntimeStatus,
+    queryFn: api.detectionRuntimeStatus,
+    ...mlGovernanceQueryOptions
+  });
 }
 
 export function useShadowObservationSummary() {

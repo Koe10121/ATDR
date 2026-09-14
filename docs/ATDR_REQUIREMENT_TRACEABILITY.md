@@ -973,3 +973,16 @@ This document maps major ATDR requirements to implementation evidence, tests, do
 | Five-viewport layout | Implemented locally | responsive React pages and common components | desktop/tablet/mobile overflow regression | v5.57 status | Independent device/browser usability remains external. |
 | Idempotent startup and actionable recovery | Implemented | start/check/stop/setup/common scripts | state-classification tests and measured four-service lifecycle | v5.57 status/runbook | Physical teammate setup and MFU account acceptance remain external. |
 | Privacy and authority | Preserved | aggregate acceptance and sanitized diagnostics | no paths/secrets/raw logs; zero authoritative Assistant deltas | current state/v5.57 | External owner tracks remain open. |
+
+## v5.58 Governed Hybrid Detection Runtime Traceability
+
+| Requirement | Status | Implementation Evidence | Test Evidence | Documentation Evidence | Remaining Gap |
+| --- | --- | --- | --- | --- | --- |
+| Rules have explicit runtime authority | Implemented | `atdr/app/detection/runtime_contract.py`, `atdr/app/services/detection_service.py` | v5.58 runtime, controlled, and layered suites | v5.58 status | Field accuracy still requires independent real-source review. |
+| IsolationForest is invoked but advisory | Implemented | `ml_detector.py`, `detection_service.py` | normal-runtime and failure-fallback tests | v5.58 status/current AI lock | Its reliability gate fails; it is not alert authority. |
+| Supervised scoring fails closed without a qualified candidate | Implemented | `runtime_contract.py`, `supervised_detector.py` | decision, metadata, gate, legacy-refusal, and schema/OOD tests | v5.58 status | New evidence and untouched independent validation are required. |
+| Status reads do not execute scoring | Implemented | `v51_supervised_lifecycle.py` | read-only lifecycle test | v5.58 T1-T20 | None for local behavior. |
+| Detection jobs expose bounded layer state | Implemented | `detection_service.py`, DetectionRun details/audit | v5.58 runtime/API suites | v5.58 runtime trace | Model quality remains evidence-dependent. |
+| Registry separates history from effective runtime | Implemented | `supervised_workflow.py`, AI Governance | registry/API/Playwright coverage | v5.58 status | No current qualified candidate. |
+| Alert and Assistant explanations reflect effective state | Implemented | `explanations.py`, `assistant_service.py`, React pages | supervised/Assistant/Playwright suites | v5.58 status | Institutional Gemini evaluation remains external. |
+| ML cannot alter alert or response authority | Implemented and locked | runtime contract, detection service, response guards | mutation-count and controlled suites | PRD v5.58 | Future authority is outside approved scope. |

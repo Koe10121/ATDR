@@ -18,6 +18,7 @@ from atdr.app.detection.supervised_detector import (
     train_supervised_classifier,
 )
 from atdr.app.detection.supervised_workflow import list_supervised_models, rollback_supervised_model
+from atdr.app.detection.runtime_contract import current_detection_runtime_status
 from atdr.app.detection.v51_supervised_lifecycle import (
     activate_governed_supervised_model,
     disable_governed_supervised_model,
@@ -619,6 +620,14 @@ def get_supervised_report(
     current_user: User = Depends(require_analyst_or_admin),
 ) -> dict:
     return supervised_model_report(db)
+
+
+@router.get("/runtime-status")
+def get_detection_runtime_status(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    return current_detection_runtime_status(db)
 
 
 @router.get("/supervised/models")

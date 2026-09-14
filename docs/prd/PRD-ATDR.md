@@ -4,7 +4,7 @@
 | --- | --- |
 | Product | MFU AI-Driven Log-Based Threat Detection and Response System |
 | Short name | ATDR |
-| Current stage | v5.54 local release candidate plus v5.56 Assistant and v5.57 workflow/accessibility/startup reliability hardening; five owner-backed external acceptance tracks remain open |
+| Current stage | v5.58 governed hybrid detection runtime closure on the v5.54 release-candidate baseline; one local consolidation phase and five owner-backed external acceptance tracks remain open |
 | Production claim | None. ATDR is not certified production software. |
 | Main workflow doc | `docs/ATDR_AI_WORKFLOW.md` |
 | Agent model | `docs/agents/ATDR_AGENT_OPERATING_MODEL.md` |
@@ -1952,3 +1952,41 @@ future validation remain prerequisites for any activation decision.
 - v5.57 shall not change rule authority, activate/promote ML, access protected
   reviews, rerun consumed evaluation, send raw logs to a provider, enable
   automatic response, or enable real firewall blocking.
+
+## v5.58 Governed Hybrid Detection Runtime Addendum
+
+- **FR-ATDR-125:** Normal detection shall report explicit effective states for
+  deterministic rules, IsolationForest, supervised scoring, hybrid triage, and
+  response.
+- Rules shall remain `active_authoritative` and the only layer allowed to
+  create or deduplicate alerts.
+- IsolationForest shall be `active_advisory`, `unavailable`, or `abstained` and
+  shall never create, suppress, close, or change an alert.
+- Supervised runtime shall be `active_shadow`, `unqualified`, `unavailable`, or
+  `abstained`. `active_shadow` requires one matching frozen candidate, complete
+  metadata/provenance/checksum, passed fixed development gates, protected-role
+  exclusion, and explicit private configuration.
+- Historical lifecycle or artifact presence shall not authorize inference.
+  Ordinary prediction shall not silently load a legacy artifact.
+- Hybrid output may support analyst prioritization but shall not change alert
+  eligibility, severity, status, or response.
+- Lifecycle/registry/status reads shall not execute scoring.
+- `GET /api/ml/runtime-status` shall require analyst/admin authentication and
+  return no secret, path, checksum, fingerprint, identity, IP, or raw evidence.
+- Detection runs shall persist a bounded layer contract in run and audit
+  details, and advisory model failure shall not stop rule evaluation.
+- Current supervised state is `unqualified`: v5.49b selected no candidate and
+  the latest development repair passed `0/3` strict views. No model is
+  activated or promoted.
+- Response remains `simulation_only`; automatic response and real firewall
+  blocking remain disabled.
+
+Evidence: `atdr/app/detection/runtime_contract.py`,
+`atdr/app/services/detection_service.py`,
+`atdr/app/detection/supervised_detector.py`,
+`atdr/app/detection/v51_supervised_lifecycle.py`,
+`atdr/app/detection/explanations.py`, `atdr/app/routers/ml.py`,
+`frontend/src/pages/MLGovernance.tsx`,
+`frontend/src/pages/AlertsTriage.tsx`,
+`atdr/tests/test_v558_governed_hybrid_runtime.py`, and
+`docs/V5_58_GOVERNED_HYBRID_DETECTION_RUNTIME.md`.
