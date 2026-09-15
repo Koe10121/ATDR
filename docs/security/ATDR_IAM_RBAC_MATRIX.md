@@ -12,11 +12,11 @@ ATDR is a controlled lab-ready prototype. The current IAM/RBAC model is suitable
 | Login, current-user, password-change routes | `atdr/app/routers/auth.py` |
 | External IAM groundwork plan | `docs/security/ATDR_EXTERNAL_IAM_PLAN.md` |
 | MFU IAM adapter plan and provider checklist | `docs/security/ATDR_MFU_IAM_ADAPTER_PLAN.md`, `docs/security/MFU_IAM_PROVIDER_DETAILS_CHECKLIST.md` |
-| Secure MFU outer-shell handoff | `docs/V3_91_MFU_OUTER_SHELL_SECURE_HANDOFF.md`, `docs/security/ATDR_MFU_IAM_PREPROD_VALIDATION.md`, `atdr/app/routers/auth.py`, `atdr/app/services/mfu_iam_service.py` |
+| Secure MFU outer-shell handoff | `docs/archive/phases/V3_91_MFU_OUTER_SHELL_SECURE_HANDOFF.md`, `docs/security/ATDR_MFU_IAM_PREPROD_VALIDATION.md`, `atdr/app/routers/auth.py`, `atdr/app/services/mfu_iam_service.py` |
 | User model and role field | `atdr/app/db/models.py` |
 | User lifecycle and demo users | `atdr/app/services/user_service.py` |
 | Email verification and dev outbox groundwork | `atdr/app/services/account_verification_service.py`, `atdr/app/services/email_service.py`, `atdr/app/routers/auth.py`, `atdr/app/routers/users.py` |
-| Account lifecycle and email verification UX | `frontend/src/components/AppShell.tsx`, `frontend/src/pages/UserAdmin.tsx`, `docs/V3_15_ACCOUNT_LIFECYCLE_AND_EMAIL_VERIFICATION_UX.md` |
+| Account lifecycle and email verification UX | `frontend/src/components/AppShell.tsx`, `frontend/src/pages/UserAdmin.tsx`, `docs/archive/phases/V3_15_ACCOUNT_LIFECYCLE_AND_EMAIL_VERIFICATION_UX.md` |
 | User admin routes | `atdr/app/routers/users.py` |
 | Log import and log investigation routes | `atdr/app/routers/logs.py` |
 | Alerts, cases, status, assignment, notes, timeline | `atdr/app/routers/alerts.py` |
@@ -43,10 +43,10 @@ ATDR is a controlled lab-ready prototype. The current IAM/RBAC model is suitable
 | --- | --- | --- | --- | --- |
 | Login and view own session | Supported now | Supported now | Future work | `atdr/app/routers/auth.py` |
 | Login by local username or email | Supported now | Supported now | Future work | `atdr/app/routers/auth.py`, `atdr/app/services/user_service.py` |
-| Open ATDR through approved MFU outer shell | Source implementation complete; preproduction validation pending | Source implementation complete; preproduction validation pending | Future work | `atdr/app/routers/auth.py`, `atdr/app/services/mfu_iam_service.py`, `docs/V3_91_MFU_OUTER_SHELL_SECURE_HANDOFF.md` |
+| Open ATDR through approved MFU outer shell | Source implementation complete; preproduction validation pending | Source implementation complete; preproduction validation pending | Future work | `atdr/app/routers/auth.py`, `atdr/app/services/mfu_iam_service.py`, `docs/archive/phases/V3_91_MFU_OUTER_SHELL_SECURE_HANDOFF.md` |
 | View OIDC status | Supported now | Supported now | Future work | `atdr/app/routers/auth.py`, `docs/security/ATDR_EXTERNAL_IAM_PLAN.md` |
 | View detailed MFU IAM adapter status | Supported now | Not allowed | Future work | `atdr/app/routers/auth.py`, `docs/security/ATDR_MFU_IAM_ADAPTER_PLAN.md` |
-| View email verification status | Supported now | Supported now | Future work | `atdr/app/routers/auth.py`, `docs/V3_14_EMAIL_VERIFICATION_AND_ACCOUNT_NOTIFICATIONS.md` |
+| View email verification status | Supported now | Supported now | Future work | `atdr/app/routers/auth.py`, `docs/archive/phases/V3_14_EMAIL_VERIFICATION_AND_ACCOUNT_NOTIFICATIONS.md` |
 | View account lifecycle/email status in dashboard | Supported now | Supported for own header status; full user list is admin-only | Future work | `frontend/src/components/AppShell.tsx`, `frontend/src/pages/UserAdmin.tsx` |
 | Request own email verification | Supported now | Supported now | Future work | `atdr/app/routers/auth.py`, `atdr/app/services/account_verification_service.py` |
 | Verify own email code | Supported now | Supported now | Future work | `atdr/app/routers/auth.py`, `atdr/app/services/account_verification_service.py` |

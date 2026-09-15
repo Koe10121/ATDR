@@ -1,22 +1,14 @@
 # ATDR Current System State Lock
 
-Date: 2026-09-05
+Date: 2026-09-14
 
 ## Release Baseline
 
-The published source baseline before v5.58 is:
-
-- v5.54 release-candidate commit:
-  `1b45ce03755cd8afa9a9803706c1c60ff454544e`
-- GitHub Actions run `33585630166`: passed
-- CodeQL run `33585630219`: passed
-- v5.57 analyst-workflow reliability commit:
-  `9cb22327f9543aeb974099563143616fd5fcb278`
-- subsequent narrow startup-diagnostics CI fix:
-  `5ff6734a1a34c9bf5daea9f704d0dc61026852a5`
-
-v5.58 is the current uncommitted local detection-runtime closure. It adds no
-production claim and closes no external owner gate.
+The published source baseline is v5.58 commit
+`e1dd0de18ed47c287c738a47b7cc2f78478945e5`, with GitHub Actions and CodeQL
+green. The current v5.59 work reorganizes documentation and adds read-only
+repository auditing. It changes no runtime, authority, or external acceptance
+state.
 
 ## Product Decision
 
@@ -177,7 +169,7 @@ write path for detection, labels, models, users, response, or deletion.
 5. **Detection field owners:** provide a second physical source, real
    non-loopback forwarding, independent labels, and an untouched future window.
 
-Exact checklists are in `docs/V5_54_EXTERNAL_OWNER_ACCEPTANCE.md`.
+Exact checklists are in `docs/EXTERNAL_ACCEPTANCE.md`.
 
 ## Safety And Privacy Invariants
 
@@ -195,19 +187,18 @@ Exact checklists are in `docs/V5_54_EXTERNAL_OWNER_ACCEPTANCE.md`.
 ## Active References
 
 - `README.md`
-- `docs/V5_57_END_TO_END_ANALYST_WORKFLOW_ACCESSIBILITY_STARTUP.md`
-- `docs/V5_58_GOVERNED_HYBRID_DETECTION_RUNTIME.md`
-- `docs/V5_59_REPOSITORY_CONSOLIDATION_PLAN.md`
-- `docs/V5_54_RELEASE_CANDIDATE_TRUTH_LOCK.md`
-- `docs/V5_54_OPERATOR_HANDOFF.md`
-- `docs/V5_54_EXTERNAL_OWNER_ACCEPTANCE.md`
 - `docs/CURRENT_AI_ML_PRODUCT_STATUS.md`
 - `docs/prd/PRD-ATDR.md`
 - `docs/OPERATIONS_RUNBOOK.md`
+- `docs/LAB_RUNBOOK.md`
+- `docs/AI_TRAINING_RUNBOOK.md`
 - `docs/DEPLOYMENT_GUIDE.md`
 - `docs/QUICKSTART_FOR_TEAM.md`
+- `docs/EXTERNAL_ACCEPTANCE.md`
+- `docs/ATDR_REQUIREMENT_TRACEABILITY.md`
+- `docs/ATDR_UNIVERSITY_COMPLIANCE_CHECKLIST.md`
 - `docs/tasks/tasklist-progress.md`
 
-Historical version documents remain immutable implementation evidence. They do
-not override this current-state lock when old readiness or model wording
-differs.
+Historical version documents under `docs/archive/` remain immutable
+implementation evidence. They do not override this current-state lock when old
+readiness or model wording differs.

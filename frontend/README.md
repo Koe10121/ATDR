@@ -31,7 +31,7 @@ From the ATDR repository root, use the portable lifecycle commands:
 
 The browser opens the MFU shell at `http://localhost:8080/#/pages/login`. After shell authentication, **Open ATDR SOC Dashboard** establishes an HttpOnly ATDR session through a one-time server-side exchange. The approved Google OAuth origin uses `localhost`, not `127.0.0.1`.
 
-See `docs/TEAM_ONE_COMMAND_START.md` for prerequisites and troubleshooting.
+See `docs/QUICKSTART_FOR_TEAM.md` for prerequisites and troubleshooting.
 
 ## Direct Frontend Development
 

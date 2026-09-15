@@ -29,7 +29,7 @@ checks fail closed.
 ## Workflow
 
 1. Generate empty false-by-default templates with the confirmed CLI command in
-   `docs/V5_53_MFU_IAM_AND_SHARED_DEPLOYMENT_READINESS.md`.
+`docs/archive/phases/V5_53_MFU_IAM_AND_SHARED_DEPLOYMENT_READINESS.md`.
 2. Store them only in ignored private storage.
 3. Have the responsible owner execute and retain the underlying evidence.
 4. Set a check true only after the real test passes.

@@ -1,5 +1,9 @@
 # v5.59 Repository Consolidation Plan
 
+Execution note: historical phase paths named below now resolve through the
+mapping in `docs/archive/V5_59_ARCHIVE_MANIFEST.md`. This plan remains the
+approved pre-execution record.
+
 Date: 2026-09-05
 
 ## Purpose
@@ -37,7 +41,7 @@ These counts are inventory evidence, not a deletion authorization.
 - `docs/ATDR_UNIVERSITY_COMPLIANCE_CHECKLIST.md`
 - `docs/AI-DOCS-INDEX.md`
 - `docs/QUICKSTART_FOR_TEAM.md`
-- `docs/V5_54_OPERATOR_HANDOFF.md` until merged into the quickstart/operations
+- `docs/archive/phases/V5_54_OPERATOR_HANDOFF.md` until merged into the quickstart/operations
   set
 - `docs/OPERATIONS_RUNBOOK.md`
 - `docs/LAB_RUNBOOK.md`

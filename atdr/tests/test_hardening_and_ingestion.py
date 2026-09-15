@@ -342,9 +342,10 @@ def test_dashboard_readiness_and_presentation_defaults_are_safe():
 
 def test_demo_docs_do_not_contain_mojibake():
     docs = [
-        Path("docs/FINAL_DEMO_SCRIPT.md"),
-        Path("docs/SCREENSHOT_CHECKLIST.md"),
-        Path("docs/DEMO_DAY_RUNBOOK.md"),
+        Path("docs/archive/presentations/FINAL_DEMO_SCRIPT.md"),
+        Path("docs/archive/presentations/SCREENSHOT_CHECKLIST.md"),
+        Path("docs/archive/presentations/DEMO_DAY_RUNBOOK.md"),
+        Path("docs/PRESENTATION_BRIEF.md"),
         Path("README.md"),
     ]
     bad_markers = ["â€œ", "â€", "Ã", "�"]

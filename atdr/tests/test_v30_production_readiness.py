@@ -96,9 +96,9 @@ def test_database_portability_audit_reports_sqlite_without_production_claim(tmp_
 
 def test_v33_docs_exist_and_reference_safe_commands():
     docs = {
-        "docs/V3_3_POSTGRESQL_SHARED_LAB_READINESS.md": "run_postgres_lab_validation",
-        "docs/V3_3_BACKUP_RESTORE_AND_RETENTION_PLAN.md": "backup_postgres --dry-run",
-        "docs/V3_3_DOCKER_POSTGRES_LAB_RUNBOOK.md": "AUTO_CREATE_TABLES=false",
+        "docs/archive/phases/V3_3_POSTGRESQL_SHARED_LAB_READINESS.md": "run_postgres_lab_validation",
+        "docs/archive/phases/V3_3_BACKUP_RESTORE_AND_RETENTION_PLAN.md": "backup_postgres --dry-run",
+        "docs/archive/phases/V3_3_DOCKER_POSTGRES_LAB_RUNBOOK.md": "AUTO_CREATE_TABLES=false",
     }
     for path, phrase in docs.items():
         text = (PROJECT_ROOT / path).read_text(encoding="utf-8")

@@ -80,7 +80,7 @@ def test_register_log_source_helper_is_idempotent_for_v32(monkeypatch):
 
 
 def test_v32_docs_have_safe_commands_and_no_production_claim():
-    doc = Path("docs/V3_2_NO_HARDWARE_SOURCE_PILOT.md")
+    doc = Path("docs/archive/phases/V3_2_NO_HARDWARE_SOURCE_PILOT.md")
     assert doc.exists()
     text = doc.read_text(encoding="utf-8")
 
@@ -89,4 +89,3 @@ def test_v32_docs_have_safe_commands_and_no_production_claim():
     assert "real_device_forwarding_validated=false" in text
     assert "production_ready=false" in text
     assert "does not claim production readiness" in text.lower()
-

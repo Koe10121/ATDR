@@ -1,100 +1,91 @@
 # ATDR Release Checklist
 
-ATDR is lab-pilot ready, not certified production software. Use this checklist before a supervisor demo, lab-pilot handoff, or release candidate tag.
+Use this checklist for a controlled local release-candidate handoff. It does
+not certify production readiness or close external acceptance.
 
-## Local Pre-Demo Gate
+## Repository And Configuration
 
-Run these from the project root after activating the virtual environment:
+- Working tree contains no unexpected or private files.
+- Private `.env`, database, logs, labels, reviews, models, provider payloads,
+  generated reports, and processed evidence remain ignored.
+- `python -m atdr.scripts.config_doctor --pretty` passes for the selected
+  profile without exposing values.
+- `RESPONSE_SIMULATION=true`; automatic response and real blocking are off.
+- Supervised runtime remains `unqualified`; no artifact was activated.
+
+## Backend And Data
 
 ```powershell
-python -m atdr.scripts.config_doctor --pretty
-python -m atdr.scripts.verify_release --pretty
-python -m atdr.scripts.backup_demo --dry-run
-python -m atdr.scripts.lab_smoke_check --skip-docker
+node scripts/render-tasklist-progress-html.js .
+node scripts/check-tasklist-progress-standard.js .
+.\.venv\Scripts\python.exe -m ruff check .
+.\.venv\Scripts\python.exe -m compileall -q atdr migrations
+.\.venv\Scripts\python.exe -m pytest atdr/tests -q
+.\.venv\Scripts\alembic.exe check
 ```
 
-Confirm:
+Do not reset the database to make a release check pass. Run destructive or
+stateful drills only against disposable/test storage.
 
-- Config Doctor has no critical issues.
-- Tests pass and Alembic reports no drift.
-- API and Streamlit are reachable.
-- Demo users are available only for local demo use.
-- Response mode remains simulated.
-- Demo evidence export still works from Demo Controls.
-
-## Lab-Pilot Release Gate
-
-Use `.env.lab.example` as the starting profile and replace all placeholders:
+## Frontend
 
 ```powershell
-Copy-Item .env.lab.example .env
-python -m atdr.scripts.config_doctor --pretty
+Set-Location frontend
+npm.cmd run lint
+npm.cmd run build
+npm.cmd run test:e2e
+Set-Location ..
+```
+
+Confirm login, Overview, Alerts, Investigation, SOC Assistant, AI Governance,
+Operations, Response & Audit, and User Admin behave at supported viewports.
+Set `ATDR_RUN_PLAYWRIGHT=1` only when the release gate should run the browser
+suite itself; the explicit `npm.cmd run test:e2e` command above remains the
+normal verification path.
+
+## Detection And Assistant
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_source_scenario --scenario port_scan_like_traffic --run-detection --use-temp-db --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_layered_detection_validation --all --variants 3 --no-report --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.evaluate_assistant_qa --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v558_governed_hybrid_runtime --require-safe --pretty
+```
+
+Require rules authoritative, advisory layers non-authoritative, Assistant
+read-only, and response simulation-only.
+
+## Security And Release Gate
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v553_security_acceptance --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.audit_repository_surface --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.performance_smoke --pretty
 python -m atdr.scripts.verify_release --pretty
+```
+
+Review GitHub Actions, dependency audits, and CodeQL after a separately
+approved push.
+
+## Shared-Host And Rollback Checks
+
+For an approved PostgreSQL host, confirm Alembic is at head and run the
+non-writing preflights:
+
+```powershell
 python -m atdr.scripts.backup_postgres --dry-run
 python -m atdr.scripts.lab_smoke_check
 ```
 
-Confirm:
+Docker/PostgreSQL validation is an external acceptance gate and is not required
+for ordinary local SQLite use. Before deployment, record a tested Rollback plan,
+backup location, restore owner, and recovery evidence in the release handoff.
 
-- PostgreSQL is configured.
-- `AUTO_CREATE_TABLES=false`.
-- Alembic migrations are applied with `alembic upgrade head`.
-- `JWT_SECRET_KEY` is long, random, and not a demo value.
-- `CORS_ALLOWED_ORIGINS` lists exact dashboard origins.
-- Syslog binds only to approved lab interfaces.
-- Response actions are still simulated.
+## External Acceptance
 
-## Docker And PostgreSQL Validation
+Production remains false until the owners listed in
+`docs/EXTERNAL_ACCEPTANCE.md` provide real, current IAM, provider, host,
+physical-device, teammate, and independent-evidence acceptance.
 
-This is the Docker/PostgreSQL validation step for a lab-capable host.
-
-Run this on a Docker-capable host:
-
-```powershell
-docker compose --profile postgres up -d postgres
-docker compose --profile postgres run --rm migrate
-docker compose --profile postgres up --build api dashboard
-python -m atdr.scripts.lab_smoke_check
-python -m atdr.scripts.verify_release --include-smoke --require-docker --pretty
-```
-
-If Docker is unavailable on the current Windows machine, record that as a local tooling blocker. Do not mark PostgreSQL lab validation complete until these commands pass on a Docker-capable host.
-
-## Optional Browser Smoke Tests
-
-Playwright checks are optional because browser dependencies are not always installed:
-
-```powershell
-$env:ATDR_RUN_PLAYWRIGHT="1"
-pytest atdr/tests/test_dashboard_playwright_smoke.py -q
-```
-
-Run them only after API and Streamlit are already running.
-
-## Backup And Retention
-
-Before lab-pilot changes:
-
-```powershell
-python -m atdr.scripts.backup_demo --dry-run
-python -m atdr.scripts.backup_postgres --dry-run
-python -m atdr.scripts.cleanup_exports --older-than-days 14
-```
-
-For real lab operation, schedule PostgreSQL logical backups, copy `models/`, and retain audit logs according to `docs/OPERATIONS_RUNBOOK.md`.
-
-## Rollback Notes
-
-- Keep a database backup from before each release candidate.
-- Keep a copy of the previous `.env`.
-- Roll back code with Git, then run `alembic downgrade` only if a future migration explicitly documents a safe downgrade path.
-- Restore `models/` artifacts if ML scoring behavior changes unexpectedly.
-- Keep response simulation enabled while investigating any release issue.
-
-## Known Blockers Before True Production
-
-- Docker/PostgreSQL validation must pass on a Docker-capable host.
-- HTTPS/reverse proxy setup must be validated on the target lab network.
-- Backup jobs and restore drills must be scheduled and tested.
-- Real firewall blocking remains unsupported until an approved connector, allowlist, dry-run preview, rollback process, and change approval flow exist.
-- ML thresholds require baseline tuning with reviewed campus/lab traffic.
+The superseded release checklist is retained at
+`docs/archive/runbooks/RELEASE_CHECKLIST_THROUGH_V5_58.md`.

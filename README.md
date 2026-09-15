@@ -12,22 +12,16 @@ response and real firewall blocking are disabled.
 
 ## Current Truth
 
-The published baseline before the current v5.58 work is:
+The published baseline is v5.58 at commit
+`e1dd0de18ed47c287c738a47b7cc2f78478945e5`, with GitHub Actions and CodeQL
+green. v5.58 makes detection-layer authority explicit: rules are
+`active_authoritative`; IsolationForest is `active_advisory` when available;
+supervised runtime is `unqualified`; hybrid triage is advisory; and response is
+`simulation_only`.
 
-- v5.54 local release-candidate handoff:
-  `1b45ce03755cd8afa9a9803706c1c60ff454544e`;
-- GitHub Actions run `33585630166`: green;
-- CodeQL run `33585630219`: green.
-- v5.57 analyst-workflow reliability:
-  `9cb22327f9543aeb974099563143616fd5fcb278`;
-- narrow startup-diagnostics fix:
-  `5ff6734a1a34c9bf5daea9f704d0dc61026852a5`.
-
-The current uncommitted v5.58 work makes detection-layer runtime authority
-explicit. Rules are `active_authoritative`; IsolationForest is
-`active_advisory` when available; supervised runtime is `unqualified`; hybrid
-triage is advisory; response is `simulation_only`. No external acceptance or
-production claim follows from this local change.
+The current v5.59 work reorganizes documentation and adds read-only repository
+auditing. It does not change runtime behavior, external acceptance, or
+production status.
 
 Current governed ML truth:
 
@@ -40,8 +34,8 @@ Current governed ML truth:
 - consumed protected evidence must never be rerun or tuned.
 
 See [Current System State](docs/CURRENT_SYSTEM_STATE_LOCK.md), [Current AI/ML
-Status](docs/CURRENT_AI_ML_PRODUCT_STATUS.md), and [v5.54 Operator
-Handoff](docs/V5_54_OPERATOR_HANDOFF.md).
+Status](docs/CURRENT_AI_ML_PRODUCT_STATUS.md), and the [Operations
+Runbook](docs/OPERATIONS_RUNBOOK.md).
 
 ## What ATDR Does
 
@@ -267,8 +261,8 @@ npm.cmd run build
 npm.cmd run test:e2e
 ```
 
-Release/security/deployment checks are documented in [v5.54 Operator
-Handoff](docs/V5_54_OPERATOR_HANDOFF.md). CI also validates PostgreSQL,
+Release/security/deployment checks are documented in the [Release
+Checklist](docs/RELEASE_CHECKLIST.md). CI also validates PostgreSQL,
 dependency audits, SBOM generation, deployment references, disaster recovery,
 and CodeQL.
 
@@ -291,14 +285,15 @@ include its optional browser smoke path; normal frontend verification uses
 ## Active Documentation
 
 - [Quick Start For Team](docs/QUICKSTART_FOR_TEAM.md)
-- [Operator Handoff](docs/V5_54_OPERATOR_HANDOFF.md)
 - [Operations Runbook](docs/OPERATIONS_RUNBOOK.md)
+- [Lab Runbook](docs/LAB_RUNBOOK.md)
+- [Release Checklist](docs/RELEASE_CHECKLIST.md)
 - [Deployment Guide](docs/DEPLOYMENT_GUIDE.md)
-- [External Owner Acceptance](docs/V5_54_EXTERNAL_OWNER_ACCEPTANCE.md)
+- [External Acceptance](docs/EXTERNAL_ACCEPTANCE.md)
 - [Current System State](docs/CURRENT_SYSTEM_STATE_LOCK.md)
 - [Current AI/ML Product Status](docs/CURRENT_AI_ML_PRODUCT_STATUS.md)
-- [v5.58 Governed Detection Runtime](docs/V5_58_GOVERNED_HYBRID_DETECTION_RUNTIME.md)
-- [v5.59 Repository Consolidation Plan](docs/V5_59_REPOSITORY_CONSOLIDATION_PLAN.md)
+- [AI And Model Governance](docs/AI_TRAINING_RUNBOOK.md)
+- [Detection Rule Catalog](docs/DETECTION_RULE_CATALOG.md)
 - [Product Requirements](docs/prd/PRD-ATDR.md)
 - [Requirement Traceability](docs/ATDR_REQUIREMENT_TRACEABILITY.md)
 - [University Compliance Checklist](docs/ATDR_UNIVERSITY_COMPLIANCE_CHECKLIST.md)
@@ -314,6 +309,5 @@ The release candidate remains externally constrained by:
 4. a separate physical teammate clean-clone/sign-in exercise;
 5. independent physical-source detection evidence and future blind labels.
 
-Exact owner actions are in
-[v5.54 External Owner Acceptance](docs/V5_54_EXTERNAL_OWNER_ACCEPTANCE.md).
+Exact owner actions are in [External Acceptance](docs/EXTERNAL_ACCEPTANCE.md).
 Until they are satisfied, `production_ready=false`.

@@ -203,16 +203,13 @@ Do not migrate ATDR to MongoDB as part of teammate setup; the shell and ATDR int
 
 ## More Detail
 
-- Full lifecycle: `docs/TEAM_ONE_COMMAND_START.md`
 - Lab operations: `docs/LAB_RUNBOOK.md`
-- v4.6 distribution and acceptance: `docs/V4_6_VERSIONED_MFU_SHELL_DISTRIBUTION.md`
-- v4.4 authentication stabilization: `docs/V4_4_MFU_AUTH_STABILIZATION.md`
-- v4.5 reproducible baseline: `docs/V4_5_REPRODUCIBLE_PRODUCT_BASELINE.md`
+- Daily operations and recovery: `docs/OPERATIONS_RUNBOOK.md`
+- Environment profiles: `docs/ENVIRONMENT_GUIDE.md`
+- Deployment boundary: `docs/DEPLOYMENT_GUIDE.md`
 - IAM acceptance boundary: `docs/security/ATDR_MFU_IAM_PREPROD_VALIDATION.md`
-- v5.38 reliability lock: `docs/V5_38_PRODUCT_RELIABILITY_AND_FAILURE_MODE_LOCK.md`
-- v5.53 release-readiness status: `docs/V5_53_MFU_IAM_AND_SHARED_DEPLOYMENT_READINESS.md`
-- v5.54 operator handoff: `docs/V5_54_OPERATOR_HANDOFF.md`
-- v5.54 external owner acceptance: `docs/V5_54_EXTERNAL_OWNER_ACCEPTANCE.md`
+- External owner actions: `docs/EXTERNAL_ACCEPTANCE.md`
+- Current product truth: `docs/CURRENT_SYSTEM_STATE_LOCK.md`
 
 ## Physical Teammate Acceptance
 

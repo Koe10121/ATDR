@@ -1,45 +1,45 @@
 # Limitations And Future Work
 
-ATDR is intentionally defensive and lab-pilot oriented. It is stronger than a simple senior-project prototype, but it is not yet a fully certified production SOC platform.
+ATDR is a controlled local release candidate, not certified production
+software.
 
 ## Current Limitations
 
-- Detection thresholds need validation against a longer MFU baseline window.
-- IsolationForest is unsupervised and should be treated as assistive evidence only.
-- Response actions are simulated and do not integrate with a real firewall API.
-- User management is local JWT-based auth, not campus SSO.
-- The Streamlit UI is suitable for prototype operations but not a hardened multi-tenant web frontend.
-- Live syslog ingestion is a lab service, not a high-availability collector.
-- PostgreSQL deployment is scaffolded but should be verified on the target Docker host.
-- PDF incident reports are available for presentation use, but should be reviewed before formal compliance reporting.
+- Real non-loopback firewall forwarding and long-running multi-device field
+  operation are not independently accepted.
+- Supported parser profiles need confirmation across additional PAN-OS versions
+  and genuine devices.
+- Controlled rule suites do not establish real-traffic false-positive and
+  false-negative rates.
+- IsolationForest is advisory and can be noisy on environment-specific traffic.
+- The latest immutable supervised evaluation selected no qualified candidate;
+  runtime therefore fails closed as `unqualified`.
+- Gemini is locally integrated but lacks institutional privacy, quota, billing,
+  retention, monitoring, and key-rotation acceptance.
+- MFU shell handoff is locally implemented but live groups, 2FA, recovery, and
+  deprovisioning require university acceptance.
+- Shared-host assets exist, but no approved host has supplied complete
+  PostgreSQL, TLS, monitoring, load, backup, RPO/RTO, and recovery evidence.
+- Automated accessibility checks do not replace an independent analyst and
+  assistive-technology study.
+- Response is intentionally simulated; no real firewall connector is enabled.
 
-## Production-Stage Roadmap
+## Remaining Product Work
 
-1. Validate PostgreSQL Docker Compose on the deployment host.
-2. Put FastAPI behind an HTTPS reverse proxy.
-3. Integrate with institutional identity management.
-4. Add password policy, session revocation, and persistent rate limiting.
-5. Add role-separated approval for real blocking.
-6. Build a firewall connector with allowlist protection, dry-run preview, and rollback.
-7. Add scheduled retention and backup jobs.
-8. Run dashboard smoke tests in CI or on a dedicated lab workstation.
-9. Add persistent SLA reporting and ticket-system integration.
-10. Add PDF incident report export.
+1. Acquire two-source chronological field evidence and measure rule/parser
+   quality with genuine prediction-blind review.
+2. Build a new supervised protocol from fresh development evidence and require
+   stable fixed gates before a separate activation decision.
+3. Complete MFU IAM lifecycle acceptance with university owners.
+4. Complete Gemini institutional governance and representative analyst review.
+5. Qualify an approved shared PostgreSQL/HTTPS deployment with monitoring,
+   backup, recovery, load, and security evidence.
+6. Complete a physical teammate clean-room setup and usability/accessibility
+   acceptance.
 
-## ML Maturity Roadmap
+The concrete owner actions and stop conditions are in
+`docs/EXTERNAL_ACCEPTANCE.md`. None may be replaced by synthetic evidence or a
+configuration flag.
 
-1. Define a baseline traffic window with supervisor approval.
-2. Train only on reviewed low-risk allowed traffic.
-3. Compare model versions over repeated scoring runs.
-4. Track drift signals for app, action, source zone, baseline size, and anomaly rate.
-5. Add a second model family for comparison, such as Local Outlier Factor or robust statistical baselines.
-6. Create a model acceptance checklist before using ML evidence in response decisions.
-
-## SOC Maturity Roadmap
-
-1. Review suppressions on a fixed schedule.
-2. Maintain watchlists for known risky or high-priority indicators.
-3. Expand computed SLA indicators into formal escalation reporting.
-4. Add ticket references and report exports to every confirmed incident.
-5. Add after-action notes for contained and resolved incidents.
-6. Measure false-positive rate and tune rules from review outcomes.
+The superseded roadmap is retained at
+`docs/archive/legacy/LIMITATIONS_AND_FUTURE_WORK_THROUGH_V5_58.md`.

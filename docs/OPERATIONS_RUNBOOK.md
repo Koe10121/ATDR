@@ -2,7 +2,7 @@
 
 This is the active operations reference for ATDR. Normal users enter through
 the approved MFU shell. ATDR remains a controlled release candidate: rules are
-alert-authoritative, supervised ML is shadow-only, the SOC Assistant is
+alert-authoritative, supervised runtime is unqualified, the SOC Assistant is
 read-only, response is simulated, and real firewall blocking is disabled.
 
 ## Supported Profiles
@@ -167,8 +167,8 @@ disaster-recovery evidence from the host owner.
 
 ## Release Checks
 
-Run `docs/V5_54_OPERATOR_HANDOFF.md` for the exact handoff sequence and
-`docs/V5_54_EXTERNAL_OWNER_ACCEPTANCE.md` for evidence that cannot be produced
-locally. Configuration alone is never external acceptance, and
+Use `docs/QUICKSTART_FOR_TEAM.md` for installation and
+`docs/EXTERNAL_ACCEPTANCE.md` for evidence that cannot be produced locally.
+Configuration alone is never external acceptance, and
 `production_ready` must remain false until every named owner has supplied real,
 current evidence.

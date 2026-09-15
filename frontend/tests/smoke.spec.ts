@@ -4758,7 +4758,7 @@ test("analyst cannot access admin routes", async ({ page }) => {
   await mockApi(page, "analyst");
   await seedSession(page, "analyst");
   await page.goto("/users");
-  await expect(page.getByText("Access denied")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Access denied" })).toBeVisible();
 });
 
 test("admin settings shows external IAM groundwork", async ({ page }) => {

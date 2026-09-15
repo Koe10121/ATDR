@@ -71,7 +71,7 @@ It does not expose `OIDC_CLIENT_SECRET`, `SMTP_PASSWORD`, or any assistant/email
 
 ## MFU IAM / Google SSO Adapter Groundwork
 
-> **Current path:** v3.91 implements an optional MFU outer-shell secure handoff. The template owns school sign-in and 2FA; ATDR accepts an opaque one-time code and exchanges it server-to-server. See `docs/V3_91_MFU_OUTER_SHELL_SECURE_HANDOFF.md` and `docs/security/ATDR_MFU_IAM_PREPROD_VALIDATION.md`. The fields below remain useful compatibility/reference groundwork, not a reason to build a second browser-token or direct callback flow.
+> **Current path:** v3.91 implements an optional MFU outer-shell secure handoff. The template owns school sign-in and 2FA; ATDR accepts an opaque one-time code and exchanges it server-to-server. See `docs/archive/phases/V3_91_MFU_OUTER_SHELL_SECURE_HANDOFF.md` and `docs/security/ATDR_MFU_IAM_PREPROD_VALIDATION.md`. The fields below remain useful compatibility/reference groundwork, not a reason to build a second browser-token or direct callback flow.
 
 The supervisor NewSystem template includes MFU IAM service integration, Google/MFU Mail login, OTP/2FA, account invites, permission-matrix concepts, and B2B token introspection. ATDR does not copy the NewSystem runtime stack, but it now documents a safe ATDR-specific adapter path:
 

@@ -15,7 +15,7 @@ Current implementation status:
 - New MFU users map to `analyst`; an approved IAM group is required for `admin`.
 - Response automation remains disabled.
 
-The canonical implementation and operating documents are `docs/V3_91_MFU_OUTER_SHELL_SECURE_HANDOFF.md` and `docs/security/ATDR_MFU_IAM_PREPROD_VALIDATION.md`. Earlier token/session handoff documents are historical evidence only.
+The preserved implementation record and active operating contract are `docs/archive/phases/V3_91_MFU_OUTER_SHELL_SECURE_HANDOFF.md` and `docs/security/ATDR_MFU_IAM_PREPROD_VALIDATION.md`. Earlier token/session handoff documents are historical evidence only.
 
 ## Source Evidence Reviewed
 

@@ -12,7 +12,7 @@ This document defines ATDR-specific AI/Codex agent responsibilities. It adapts t
 | React routes and pages | `frontend/src/App.tsx`, `frontend/src/pages/*` |
 | Frontend API/query layer | `frontend/src/lib/api.ts`, `frontend/src/hooks/*` |
 | Release and verification | `atdr/scripts/verify_release.py`, `atdr/tests/*`, `frontend/package.json` |
-| Lab runbooks and status | `docs/LAB_RUNBOOK.md`, `docs/V0_3_STATUS.md` |
+| Lab runbooks and status | `docs/LAB_RUNBOOK.md`, `docs/CURRENT_SYSTEM_STATE_LOCK.md` |
 | AI workflow | `docs/AI_TRAINING_RUNBOOK.md`, `docs/ML_BASELINE_TUNING.md` |
 | IAM/RBAC matrix and traceability | `docs/security/ATDR_IAM_RBAC_MATRIX.md`, `docs/ATDR_REQUIREMENT_TRACEABILITY.md` |
 
@@ -94,7 +94,7 @@ Source files to read:
 
 - `docs/prd/PRD-ATDR.md`
 - `README.md`
-- `docs/V0_3_STATUS.md`
+- `docs/CURRENT_SYSTEM_STATE_LOCK.md`
 - `docs/LAB_RUNBOOK.md`
 - Relevant frontend pages and backend routes.
 
@@ -353,7 +353,7 @@ Source files to read:
 
 - `docs/LAB_RUNBOOK.md`
 - `docs/RELEASE_CHECKLIST.md`
-- `docs/V0_3_STATUS.md`
+- `docs/CURRENT_SYSTEM_STATE_LOCK.md`
 - `atdr/scripts/verify_release.py`
 - `atdr/scripts/performance_smoke.py`
 - `atdr/scripts/run_source_scenario.py`

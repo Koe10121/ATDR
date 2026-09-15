@@ -1,6 +1,6 @@
 # ATDR Current AI And ML Product Status
 
-Date: 2026-09-05
+Date: 2026-09-14
 
 ## Decision Summary
 
@@ -47,7 +47,7 @@ Primary source:
 - `atdr/app/services/detection_service.py`
 - `atdr/app/detection/explanations.py`
 - `docs/DETECTION_RULE_CATALOG.md`
-- `docs/V5_31_DETECTION_EXPLAINABILITY_ADVERSARIAL_RELIABILITY.md`
+- `docs/archive/phases/V5_31_DETECTION_EXPLAINABILITY_ADVERSARIAL_RELIABILITY.md`
 
 ## IsolationForest
 
@@ -113,8 +113,9 @@ A development-only repair attempt compared the existing eight governed
 strategies using disposable processing and development evidence. Its diagnostic
 leader passed `0/3` strict views, no candidate was frozen, and IsolationForest
 also failed its reliability gate. This does not alter v5.49b, labels, registry
-state, alerts, or response. See
-`docs/V5_58_GOVERNED_HYBRID_DETECTION_RUNTIME.md`.
+state, alerts, or response. See the preserved decision at
+`docs/archive/phases/V5_58_GOVERNED_HYBRID_DETECTION_RUNTIME.md` and the active
+governance summary in `docs/AI_TRAINING_RUNBOOK.md`.
 
 ## Where Assistant Answers Come From
 

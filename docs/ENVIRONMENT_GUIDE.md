@@ -115,11 +115,12 @@ RESPONSE_PROVIDER=simulation
 
 Real firewall enforcement is unsupported until an approved connector, allowlist, dry-run preview, rollback process, and change approval flow exist. If simulation is disabled before a connector exists, ATDR records response actions as `pending_connector`.
 
-## v3.0 Validation Profiles
+## Validation References
 
-- Real-device/source pilot planning: `docs/V3_0_REAL_DEVICE_SYSLOG_PILOT_PLAN.md`
-- PostgreSQL lab validation: `docs/V3_0_POSTGRESQL_LAB_DEPLOYMENT_VALIDATION.md`
-- Observability plan: `docs/V3_0_OBSERVABILITY_AND_OPERATIONS_PLAN.md`
-- Real-source ML monitoring: `docs/V3_0_REAL_SOURCE_ML_MONITORING_PLAN.md`
+- Local and live-source workflow: `docs/LAB_RUNBOOK.md`
+- PostgreSQL/shared-host workflow: `docs/DEPLOYMENT_GUIDE.md`
+- Health, monitoring, backup, and recovery: `docs/OPERATIONS_RUNBOOK.md`
+- Model and drift governance: `docs/AI_TRAINING_RUNBOOK.md`
 
-SQLite remains the normal local workflow. PostgreSQL validation is optional and should be run only on a PostgreSQL/Docker-capable lab host.
+SQLite remains the normal local workflow. PostgreSQL validation is optional and
+should run only on an approved PostgreSQL-capable lab or deployment host.

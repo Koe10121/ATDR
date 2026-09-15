@@ -107,6 +107,5 @@ sender and independent field verification.
 ## Deployment Decision
 
 Repository assets and local rehearsal prove implementation, not owner
-acceptance. See `docs/V5_54_OPERATOR_HANDOFF.md` for operator steps and
-`docs/V5_54_EXTERNAL_OWNER_ACCEPTANCE.md` for the five remaining external
-evidence tracks.
+acceptance. Use `docs/OPERATIONS_RUNBOOK.md` for operator steps and
+`docs/EXTERNAL_ACCEPTANCE.md` for the remaining external evidence tracks.
