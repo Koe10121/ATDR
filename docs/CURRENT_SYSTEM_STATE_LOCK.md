@@ -1,14 +1,15 @@
 # ATDR Current System State Lock
 
-Date: 2026-09-14
+Date: 2026-09-15
 
 ## Release Baseline
 
-The published source baseline is v5.58 commit
-`e1dd0de18ed47c287c738a47b7cc2f78478945e5`, with GitHub Actions and CodeQL
-green. The current v5.59 work reorganizes documentation and adds read-only
-repository auditing. It changes no runtime, authority, or external acceptance
-state.
+The published source baseline is v5.59 commit
+`d020f1a973f005c192eba3256357f76618542cab`, with GitHub Actions and CodeQL
+green. v5.60 cloned that exact `origin/main` baseline into Windows temporary
+storage and passed all 27 clean-machine acceptance gates. The current v5.60
+changes add the reusable harness, focused tests, active documentation, and two
+reproducibility fixes; publication remains separately approval-gated.
 
 ## Product Decision
 
@@ -71,7 +72,9 @@ database.
 
 `setup_team.cmd` installs a versioned, integrity-checked shell package under
 ignored runtime storage and preserves private configuration outside Git.
-Physical clean-machine acceptance is still required from a teammate.
+Automated clean-machine acceptance now proves the published remote clone,
+versioned package, setup, lifecycle, recovery, and controlled analyst workflow.
+A real physical teammate and approved MFU-account sign-in remain external.
 
 ### Shared PostgreSQL Deployment
 
@@ -85,6 +88,14 @@ evidence that an approved shared environment exists.
 - Disposable team lifecycle: `11/11` stages passed, covering archive, setup,
   start, health, login handoff, stop, restart, repeated health/handoff/stop,
   and explicit local recovery.
+- Genuine v5.60 clean-machine acceptance: `27/27` stages passed from a new
+  `origin/main` clone with isolated dependencies and SQLite, provider-missing
+  fail-closed behavior, setup/start/stop/restart idempotence, stale-process and
+  occupied-port diagnostics, shell handoff contracts, recovery login, safe
+  workflow execution, and complete temporary cleanup.
+- v5.60 controlled clean-clone workflow: 10 records preserved and normalized,
+  one expected rule alert, three contextual deterministic Assistant turns with
+  citation counts `10/10/3`, zero response actions, and no model activation.
 - Controlled source validation: `4/4` scenarios and `10/10` checks passed.
 - Deterministic detection: `24/24` scenarios passed.
 - Layered detection: `288/288` governed checks passed.
@@ -118,7 +129,7 @@ checks.
 
 | Area | Current status | Remaining evidence |
 | --- | --- | --- |
-| Ingestion and jobs | Locally verified | Real non-loopback forwarding and long-running field operation |
+| Ingestion and jobs | Locally and clean-clone verified | Real non-loopback forwarding and long-running field operation |
 | Parsing/normalization | Locally verified for supported contracts | More PAN-OS versions, second source, and device-backed field accuracy |
 | Deterministic detection | Locally verified in controlled regression | Independent real-traffic FP/FN evidence and environment baselines |
 | Supervised ML | Effective runtime `unqualified`; historical lifecycle `shadow_observation`; no candidate | Fresh development evidence, second source, untouched future evaluation, stable gates, freeze, and separate approval |
@@ -126,7 +137,7 @@ checks.
 | Alert explanations | Locally verified | Asset/business context and external incident-management integration |
 | SOC Assistant | Locally verified and read-only | Institutional Gemini governance and representative field evaluation |
 | Dashboard | Locally verified by automated browser, axe, keyboard, and five-viewport coverage | Independent analyst and assistive-technology acceptance |
-| MFU IAM | Local integration controls verified | University lifecycle, admin group, 2FA, recovery, and deprovisioning acceptance |
+| MFU IAM | Local and packaged handoff controls verified | University lifecycle, real account, admin group, 2FA, recovery, and deprovisioning acceptance |
 | Shared deployment | Source and disposable controls verified | Approved host, TLS/DNS, managed secrets, monitoring, RPO/RTO, DR, and load evidence |
 | Security and recovery | Local scans/audits/tooling verified | Environment DAST/penetration testing and scheduled owner drills |
 
@@ -164,8 +175,9 @@ write path for detection, labels, models, users, response, or deletion.
    RPO/RTO/DR evidence.
 3. **Gemini/provider owner:** approve privacy/retention, billing/quota, key
    custody/rotation, monitoring, and representative evaluation.
-4. **Teammate:** perform the shell-first clean-clone lifecycle and login handoff
-   on a separate physical machine.
+4. **Teammate:** repeat the now-automated shell-first clean-clone lifecycle on a
+   separate physical machine and retain usability evidence; use a real MFU
+   account only with the approved private provider profile.
 5. **Detection field owners:** provide a second physical source, real
    non-loopback forwarding, independent labels, and an untouched future window.
 

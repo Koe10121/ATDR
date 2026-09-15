@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Product | MFU AI-Driven Log-Based Threat Detection and Response |
-| Baseline | v5.58 Governed Hybrid Detection Runtime Closure |
+| Baseline | v5.60 Clean-Machine Release Candidate Acceptance |
 | Status | Controlled local release candidate |
 | Production ready | No |
 | Primary users | SOC analyst, ATDR administrator, approved operator |
@@ -89,6 +89,9 @@ gates, and separate activation approval.
 - Migrations remain additive and Alembic reaches head without drift.
 - Supported startup remains reproducible through `scripts/setup_team.cmd` and
   `scripts/start_system.cmd`.
+- A genuine remote-clone acceptance must use isolated dependencies and storage,
+  reject missing provider configuration, verify shell handoff contracts, leave
+  no processes behind, and clean only its verified temporary directory.
 - Failures produce bounded diagnostics without secret disclosure.
 - Controlled detection and Assistant suites remain deterministic and green.
 - Large SQLite queries preserve bounded cold behavior and fast cached paths.

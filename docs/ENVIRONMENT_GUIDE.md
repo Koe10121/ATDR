@@ -1,22 +1,29 @@
 # ATDR Environment Guide
 
-ATDR has separate environment templates so demo, lab-pilot, and future production usage do not get mixed together.
+ATDR has separate environment templates so normal shell-first use, authorized
+recovery, shared-lab work, and future deployment planning do not get mixed.
 
 ## Which Env File Should I Use?
 
 | Scenario | File | Database | Purpose |
 | --- | --- | --- | --- |
-| Local supervisor demo | `.env.example` | SQLite | Fast local demo on one Windows machine |
+| Normal MFU shell-first local | `.env.shell.example` | SQLite | Complete four-service Windows workflow |
+| Explicit local recovery | `.env.example` | SQLite | Authorized component diagnosis only |
 | PostgreSQL lab pilot | `.env.lab.example` | PostgreSQL | Docker/PostgreSQL lab host with safer deployment defaults |
 | Future production | `.env.production.example` | PostgreSQL | Hardened template for reviewed deployment planning |
 
-Copy the correct file to `.env` before starting services.
+For normal use, do not manually copy an environment file. Run setup with the
+approved shell package; it creates ignored configuration and generated local
+secrets:
 
 ```powershell
-Copy-Item .env.example .env
+.\scripts\setup_team.cmd `
+  -ShellPackage "D:\Approved Artifacts\mfu-atdr-shell-1.4.0-atdr.1.zip" `
+  -ShellPrivateConfigRoot "D:\Private MFU Configuration"
 ```
 
-For lab pilot:
+Use `.env.example` only when explicitly selecting the recovery/development
+profile. For an optional lab pilot:
 
 ```powershell
 Copy-Item .env.lab.example .env
@@ -57,23 +64,28 @@ It checks:
 
 Config Doctor exits nonzero only when critical unsafe production settings are detected.
 
-## Local Demo Profile
+## Normal Local Profile
 
-Use `.env.example` for supervisor demo:
+The setup launcher derives the normal private profile from
+`.env.shell.example`. Its governing values include:
 
 ```text
 ENVIRONMENT=development
 DATABASE_URL=sqlite:///./atdr.db
 AUTO_CREATE_TABLES=true
+ATDR_AUTH_MODE=template_shell
 RESPONSE_SIMULATION=true
 RESPONSE_PROVIDER=simulation
-CORS_ALLOWED_ORIGINS=http://127.0.0.1:8501,http://localhost:8501,http://127.0.0.1:5173,http://localhost:5173
+ASSISTANT_ALLOW_RAW_LOG_CONTEXT=false
 SYSLOG_HOST=127.0.0.1
 ```
 
-Demo credentials and the demo JWT secret are intentionally easy to use locally and must not be reused for shared lab or production deployment.
+The normal entry is the MFU shell. Generated bridge/JWT keys remain private,
+and approved provider values are supplied separately. MongoDB stores only the
+companion shell state; ATDR still uses SQLite.
 
-The demo sample path points to a safe tiny sample in `data/samples/`. For real Palo Alto files, set `DEMO_SAMPLE_LOG_PATH` in your private `.env` to an absolute path outside Git, such as `<USER_HOME>/Downloads/paloalto-firewall(1).log`.
+The safe sample path points to `data/samples/`. Keep real Palo Alto files
+outside Git and pass their private path only at runtime.
 
 ## Lab Pilot Profile
 

@@ -18,6 +18,10 @@ The Node/Vue/MongoDB companion is the authentication shell only. The ATDR
 application remains FastAPI, React, SQLAlchemy/Alembic, and SQLite or
 PostgreSQL.
 
+The published v5.59 baseline has passed the v5.60 automated clean-machine
+acceptance from a genuine remote clone. This proves reproducible local wiring;
+it does not replace a real MFU sign-in or physical teammate usability record.
+
 ## Start, Check, Stop, Restart
 
 From the ATDR repository root:
@@ -166,6 +170,20 @@ disaster-recovery evidence from the host owner.
 | Import stalls/fails | Inspect operation job state, worker heartbeat, staging capacity, and source/parser warnings. |
 
 ## Release Checks
+
+Run the clean-machine preflight with the separately delivered approved shell
+archive:
+
+```powershell
+py -3.11 -m atdr.scripts.run_v560_clean_machine_acceptance `
+  --shell-package "D:\Approved Artifacts\mfu-atdr-shell-1.4.0-atdr.1.zip" `
+  --pretty
+```
+
+Execution requires `--execute --confirm DISPOSABLE_V560_CLEAN_MACHINE`. It is
+destructive only to its uniquely verified Windows temporary directory and its
+uniquely named synthetic shell database. It never reads the configured ATDR
+database or copies the current private environment.
 
 Use `docs/QUICKSTART_FOR_TEAM.md` for installation and
 `docs/EXTERNAL_ACCEPTANCE.md` for evidence that cannot be produced locally.

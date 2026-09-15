@@ -211,19 +211,25 @@ Do not migrate ATDR to MongoDB as part of teammate setup; the shell and ATDR int
 - External owner actions: `docs/EXTERNAL_ACCEPTANCE.md`
 - Current product truth: `docs/CURRENT_SYSTEM_STATE_LOCK.md`
 
-## Physical Teammate Acceptance
+## Clean-Machine Acceptance
 
-After the repository baseline is committed and clean, a teammate can run a
-read-only source preflight from their clone:
+An operator can preflight the genuine remote-clone acceptance from an installed
+development checkout without exposing the archive path in its report:
 
 ```powershell
-.\.venv\Scripts\python.exe -m atdr.scripts.run_v553_team_runtime_acceptance `
-  --template-root "C:\Path\To\Approved-MFU-Shell" `
+py -3.11 -m atdr.scripts.run_v560_clean_machine_acceptance `
+  --shell-package "D:\Approved Artifacts\mfu-atdr-shell-1.4.0-atdr.1.zip" `
   --pretty
 ```
 
-The disposable full exercise requires the exact confirmation printed by the
-CLI. It copies into temporary storage, starts and checks the shell-first stack,
-stops, restarts, verifies explicit local recovery, and cleans up. It deliberately does not mark the
-physical-machine acceptance contract as passed; the teammate must retain the
-real, private evidence and follow the v5.53 manifest guide.
+The full exercise requires `--execute --confirm
+DISPOSABLE_V560_CLEAN_MACHINE`. It clones `origin/main`, installs isolated
+Python/React/shell dependencies, proves missing-provider failure, uses a
+synthetic non-network profile for lifecycle wiring, checks handoff contracts,
+starts/stops/restarts all services, validates local recovery and a complete
+safe analyst workflow, and removes its verified temporary state.
+
+The v5.60 automated run passed `27/27`. A teammate should still repeat it on a
+second physical Windows machine. Real MFU sign-in must use the approved private
+provider profile and remains a separate university acceptance step; the
+synthetic profile is never an account-acceptance substitute.

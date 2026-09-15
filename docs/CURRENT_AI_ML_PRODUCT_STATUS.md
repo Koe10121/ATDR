@@ -1,6 +1,6 @@
 # ATDR Current AI And ML Product Status
 
-Date: 2026-09-14
+Date: 2026-09-15
 
 ## Decision Summary
 
@@ -57,6 +57,13 @@ meaningful benign noise and weak threat capture, so ATDR treats it only as
 supporting context. The performance smoke currently observes a high anomaly
 rate on the configured data; that is another reason not to promote anomaly
 scores to alert authority.
+
+The v5.60 genuine clean clone intentionally contains no ignored model artifact.
+Its rule workflow passes, while runtime status reports IsolationForest
+`unavailable` and hybrid `abstained` until a governed local advisory artifact
+exists. This is safer than copying a developer artifact or silently training on
+unknown evidence. It does not change the authoritative workspace, where the
+existing valid artifact remains advisory only.
 
 ## Supervised Model Decision
 
@@ -192,6 +199,11 @@ distinct record IDs, next-step answers use alert-specific checks, and source,
 job, ML, and workflow questions retain separate response contracts. Provider
 content is centrally bounded and Gemini citations are constrained to the exact
 ATDR references supplied for that request.
+
+The v5.60 remote-clone journey independently repeated the core investigation
+without an LLM key: three intent-specific turns retained alert context, returned
+`10/10/3` citations, excluded raw logs, applied redaction, and produced zero
+response, label, detection-run, or model-run mutations from the Assistant.
 
 ## Assistant Operational Visibility
 

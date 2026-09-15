@@ -14,6 +14,7 @@ available in archived phase and T1-T20 records.
 | Record non-trivial work with T1-T20 | Satisfied | current record under `docs/changes/`; history under `docs/archive/changes/` |
 | Preserve supervisor references without adopting the wrong stack | Satisfied | `docs/reference/` remains reference-only |
 | Keep exact approval-gated commit boundaries | Satisfied | current allowlist plus archived allowlists |
+| Prove clean-clone reproducibility | Satisfied locally | v5.60 genuine `origin/main` clone passed `27/27`; physical teammate repetition remains external |
 
 ## Product Integrity
 
@@ -31,7 +32,7 @@ available in archived phase and T1-T20 records.
 
 | Requirement | State | Remaining owner action |
 | --- | --- | --- |
-| MFU shell-first authentication | Locally implemented | university preproduction lifecycle acceptance |
+| MFU shell-first authentication | Packaged clean-clone controls verified | university preproduction and real-account lifecycle acceptance |
 | Least-privilege role mapping | Implemented fail closed | approved MFU admin group identifier |
 | Secret and private-evidence exclusion | Implemented | continue scanning every release |
 | Migration and database compatibility | Implemented | approved-host operational evidence |

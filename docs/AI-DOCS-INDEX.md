@@ -24,6 +24,7 @@ and do not define ATDR's runtime stack.
 | --- | --- |
 | `docs/CURRENT_SYSTEM_STATE_LOCK.md` | Current product truth and readiness boundary |
 | `docs/CURRENT_AI_ML_PRODUCT_STATUS.md` | Current detection, model, and Assistant authority |
+| `docs/V5_60_CLEAN_MACHINE_RELEASE_CANDIDATE_ACCEPTANCE.md` | Current clean-clone setup, lifecycle, workflow, and safety evidence |
 | `docs/prd/PRD-ATDR.md` | Current product requirements |
 | `docs/ATDR_REQUIREMENT_TRACEABILITY.md` | Requirement-to-source/test mapping |
 | `docs/ATDR_UNIVERSITY_COMPLIANCE_CHECKLIST.md` | Active university workflow and safety checklist |

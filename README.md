@@ -12,16 +12,18 @@ response and real firewall blocking are disabled.
 
 ## Current Truth
 
-The published baseline is v5.58 at commit
-`e1dd0de18ed47c287c738a47b7cc2f78478945e5`, with GitHub Actions and CodeQL
-green. v5.58 makes detection-layer authority explicit: rules are
+The published baseline is v5.59 at commit
+`d020f1a973f005c192eba3256357f76618542cab`, with GitHub Actions and CodeQL
+green. The current v5.60 clean-machine acceptance cloned that exact remote
+baseline and passed all 27 disposable setup, lifecycle, workflow, safety, and
+cleanup gates. Detection-layer authority remains explicit: rules are
 `active_authoritative`; IsolationForest is `active_advisory` when available;
 supervised runtime is `unqualified`; hybrid triage is advisory; and response is
 `simulation_only`.
 
-The current v5.59 work reorganizes documentation and adds read-only repository
-auditing. It does not change runtime behavior, external acceptance, or
-production status.
+v5.60 adds an acceptance harness and corrects clean-package verification and
+Windows long-path cleanup defects. It does not change detection, IAM, Assistant,
+database, or response authority and does not prove real MFU account acceptance.
 
 Current governed ML truth:
 
@@ -83,7 +85,7 @@ Threat Controls, Detection Tuning, Evidence Review, and User Admin.
 | --- | --- | --- |
 | MFU shell-first + local SQLite | Locally reproducible | Primary laptop/team workflow |
 | Explicit local recovery | Locally reproducible | Authorized diagnosis only |
-| Versioned teammate shell package | Locally validated contract | Requires separate physical teammate acceptance |
+| Versioned teammate shell package | Automated clean-clone lifecycle verified | Real account and physical teammate acceptance remain external |
 | Shared PostgreSQL deployment | Repository assets implemented | Requires approved host and owner evidence |
 
 ## First Setup
@@ -272,6 +274,21 @@ Run the release gate from the repository root:
 python -m atdr.scripts.verify_release --pretty
 ```
 
+Preview the genuine remote-clone acceptance using the separately supplied
+shell archive:
+
+```powershell
+py -3.11 -m atdr.scripts.run_v560_clean_machine_acceptance `
+  --shell-package "D:\Approved Artifacts\mfu-atdr-shell-1.4.0-atdr.1.zip" `
+  --pretty
+```
+
+The full run requires the exact confirmation printed by preflight. It clones
+`origin/main` into verified Windows temporary storage, uses only synthetic
+configuration for lifecycle checks, exercises the safe analyst workflow, and
+removes its temporary SQL, MongoDB, process, and filesystem state. It never
+copies the current `.env` or claims a real MFU sign-in succeeded.
+
 Inspect the effective detection roles without changing data:
 
 ```powershell
@@ -306,7 +323,7 @@ The release candidate remains externally constrained by:
 1. MFU IAM lifecycle and real group-role acceptance;
 2. an approved shared PostgreSQL/HTTPS host and operations evidence;
 3. institutional Gemini privacy, retention, quota, cost, and key governance;
-4. a separate physical teammate clean-clone/sign-in exercise;
+4. a separate physical teammate and real MFU-account sign-in exercise;
 5. independent physical-source detection evidence and future blind labels.
 
 Exact owner actions are in [External Acceptance](docs/EXTERNAL_ACCEPTANCE.md).
