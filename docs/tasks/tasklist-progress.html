@@ -60,14 +60,14 @@
 <th>Field</th><th>Value</th>
 </tr></thead>
 <tbody>
-<tr><td>Date</td><td>2026-09-15</td></tr>
+<tr><td>Date</td><td>2026-09-16</td></tr>
 <tr><td>Project</td><td>MFU AI-Driven Log-Based Threat Detection and Response System</td></tr>
-<tr><td>Module / Feature</td><td>v5.60 Clean-Machine End-to-End Release Candidate Acceptance</td></tr>
-<tr><td>Requirement</td><td>Prove a fresh Windows clone can install, start through the MFU shell, recover, run a safe analyst workflow, and clean up without private state.</td></tr>
-<tr><td>Active Change Record</td><td><code>docs/changes/T1_T20_V5_60_CLEAN_MACHINE_RELEASE_CANDIDATE_ACCEPTANCE.md</code></td></tr>
+<tr><td>Module / Feature</td><td>v5.61 Governed Advisory IsolationForest Bootstrap</td></tr>
+<tr><td>Requirement</td><td>Reproduce the optional anomaly capability explicitly on a clean clone without silent training, private evidence exposure, model authority, or committed artifacts.</td></tr>
+<tr><td>Active Change Record</td><td><code>docs/changes/T1_T20_V5_61_GOVERNED_ANOMALY_BOOTSTRAP.md</code></td></tr>
 <tr><td>Overall Status</td><td>complete_locally</td></tr>
 <tr><td>Overall Progress</td><td><div class="progress"><span>100%</span><b style="width:100%"></b></div></td></tr>
-<tr><td>Progress Type</td><td>Evidence-backed local release-candidate acceptance; not production certification</td></tr>
+<tr><td>Progress Type</td><td>Evidence-backed capability closure; not threat-accuracy or production certification</td></tr>
 </tbody>
 </table>
 </div></section>
@@ -87,16 +87,17 @@
 <th>Area</th><th>Source Evidence</th>
 </tr></thead>
 <tbody>
-<tr><td>Published baseline</td><td>v5.59 commit <code>d020f1a973f005c192eba3256357f76618542cab</code> from <code>origin/main</code></td></tr>
-<tr><td>Backend entry and API</td><td><code>atdr/app/main.py</code>, <code>atdr/app/routers/*.py</code></td></tr>
-<tr><td>Frontend entry and API client</td><td><code>frontend/src/App.tsx</code>, <code>frontend/src/lib/api.ts</code></td></tr>
-<tr><td>Clean-machine harness</td><td><code>atdr/app/services/v560_clean_machine_acceptance_service.py</code>, <code>atdr/scripts/run_v560_clean_machine_acceptance.py</code></td></tr>
-<tr><td>Lifecycle</td><td><code>scripts/setup_team.ps1</code>, <code>scripts/start_system.ps1</code>, <code>scripts/check_system.ps1</code>, <code>scripts/stop_system.ps1</code></td></tr>
-<tr><td>Shell contract</td><td><code>config/mfu-shell-contract.json</code>, approved versioned shell package, authenticated handoff tests</td></tr>
-<tr><td>Analyst workflow</td><td><code>atdr/scripts/run_e2e_workflow_validation.py</code>, v5.57 acceptance services</td></tr>
-<tr><td>Detection authority</td><td><code>atdr/app/detection/runtime_contract.py</code>, <code>atdr/scripts/run_v558_governed_hybrid_runtime.py</code></td></tr>
-<tr><td>Tests</td><td><code>atdr/tests/test_v560_clean_machine_acceptance.py</code>, backend and frontend regression suites</td></tr>
-<tr><td>Safety</td><td>repository surface audit, security acceptance, ignore policy, disposable storage checks</td></tr>
+<tr><td>Published baseline</td><td>v5.60 commit <code>da7c2434962eec10c0fd7c6bbd9266c5dbebf2c6</code> from <code>origin/main</code></td></tr>
+<tr><td>Backend entry</td><td><code>atdr/app/main.py</code>, ML router and schemas</td></tr>
+<tr><td>Frontend entry</td><td><code>frontend/src/App.tsx</code>, <code>frontend/src/lib/api.ts</code>, AI Governance page</td></tr>
+<tr><td>Anomaly training/scoring</td><td><code>atdr/app/detection/ml_detector.py</code>, <code>atdr/app/services/ml_service.py</code></td></tr>
+<tr><td>Governed bootstrap</td><td><code>atdr/app/services/v561_anomaly_bootstrap_service.py</code>, <code>atdr/scripts/run_v561_governed_anomaly_bootstrap.py</code></td></tr>
+<tr><td>Operator wrapper</td><td><code>scripts/bootstrap_advisory_anomaly.ps1</code>, <code>.cmd</code></td></tr>
+<tr><td>Runtime authority</td><td><code>atdr/app/services/detection_service.py</code>, <code>atdr/app/detection/runtime_contract.py</code></td></tr>
+<tr><td>Setup/start</td><td><code>scripts/setup_team.ps1</code>, <code>scripts/start_system.ps1</code></td></tr>
+<tr><td>Clean machine</td><td>v5.60 harness plus explicit v5.61 optional stages</td></tr>
+<tr><td>UI</td><td><code>frontend/src/pages/MLGovernance.tsx</code>, API types and Playwright</td></tr>
+<tr><td>Tests</td><td>v5.61 focused tests, v5.60 extension tests, API and frontend regression suites</td></tr>
 </tbody>
 </table>
 </div></div>
@@ -107,13 +108,13 @@
 <th>Readiness Area</th><th>Weight</th><th>Earned</th><th>Basis</th>
 </tr></thead>
 <tbody>
-<tr><td>Baseline and preflight</td><td><div class="progress"><span>10%</span><b style="width:10%"></b></div></td><td><div class="progress"><span>10%</span><b style="width:10%"></b></div></td><td>Published commit, remote, tools, package, ports, and provider prerequisites checked without secret output.</td></tr>
-<tr><td>Disposable harness and privacy</td><td><div class="progress"><span>20%</span><b style="width:20%"></b></div></td><td><div class="progress"><span>20%</span><b style="width:20%"></b></div></td><td>Genuine remote clone, pristine-state checks, synthetic profile, constrained cleanup, and redacted reporting passed.</td></tr>
-<tr><td>Setup and shell contract</td><td><div class="progress"><span>20%</span><b style="width:20%"></b></div></td><td><div class="progress"><span>20%</span><b style="width:20%"></b></div></td><td>First setup, provider-missing failure, repeat setup, four dependency trees, SQLite, and handoff contracts passed.</td></tr>
-<tr><td>Lifecycle and recovery</td><td><div class="progress"><span>20%</span><b style="width:20%"></b></div></td><td><div class="progress"><span>20%</span><b style="width:20%"></b></div></td><td>Start/check/idempotence/stop/restart/stale-state/occupied-port/local-recovery checks passed.</td></tr>
-<tr><td>Analyst workflow and safety</td><td><div class="progress"><span>15%</span><b style="width:15%"></b></div></td><td><div class="progress"><span>15%</span><b style="width:15%"></b></div></td><td>Ingest, normalize, detect, explain, related evidence, recommendations, Assistant follow-ups, and zero-side-effect gates passed.</td></tr>
-<tr><td>Verification, docs, and handoff</td><td><div class="progress"><span>15%</span><b style="width:15%"></b></div></td><td><div class="progress"><span>15%</span><b style="width:15%"></b></div></td><td>Full backend/frontend/detection/Assistant/security/performance/release matrix and current guidance completed.</td></tr>
-<tr><td><strong>Total</strong></td><td><strong>100</strong></td><td><strong>100</strong></td><td>v5.60 is complete locally; owner-backed external acceptance remains open.</td></tr>
+<tr><td>Source audit and contract</td><td><div class="progress"><span>10%</span><b style="width:10%"></b></div></td><td><div class="progress"><span>10%</span><b style="width:10%"></b></div></td><td>Training, status, authority, startup, clean-machine, and UI paths inspected.</td></tr>
+<tr><td>Safe evidence preflight</td><td><div class="progress"><span>20%</span><b style="width:20%"></b></div></td><td><div class="progress"><span>20%</span><b style="width:20%"></b></div></td><td>Schema, parser, support, duplicate, provenance, and privacy gates implemented.</td></tr>
+<tr><td>Explicit disposable bootstrap</td><td><div class="progress"><span>25%</span><b style="width:25%"></b></div></td><td><div class="progress"><span>25%</span><b style="width:25%"></b></div></td><td>Confirmation, temporary SQLite, deterministic manifest, ignored destinations, and rollback implemented.</td></tr>
+<tr><td>Runtime and UI honesty</td><td><div class="progress"><span>15%</span><b style="width:15%"></b></div></td><td><div class="progress"><span>15%</span><b style="width:15%"></b></div></td><td>Exact availability wording, corrective command, authority, and accuracy caveat implemented.</td></tr>
+<tr><td>Clean-machine extension</td><td><div class="progress"><span>10%</span><b style="width:10%"></b></div></td><td><div class="progress"><span>10%</span><b style="width:10%"></b></div></td><td>Default 27 stages preserved; five explicit v5.61 stages added.</td></tr>
+<tr><td>Tests, docs, and complete verification</td><td><div class="progress"><span>20%</span><b style="width:20%"></b></div></td><td><div class="progress"><span>20%</span><b style="width:20%"></b></div></td><td>Full local matrix passed; exact 31-path allowlist prepared.</td></tr>
+<tr><td><strong>Total</strong></td><td><strong>100</strong></td><td><strong>100</strong></td><td>Local implementation and verification are complete; publication remains separately controlled.</td></tr>
 </tbody>
 </table>
 </div></div>
@@ -124,7 +125,7 @@
 <th>Task ID</th><th>Task</th><th>Agent</th><th>Owner</th><th>Depends On</th><th>Status</th><th>Progress %</th><th>Progress Basis</th><th>Source Evidence</th><th>Tests Evidence</th><th>Blocker</th><th>Next Action</th><th>Output</th>
 </tr></thead>
 <tbody>
-<tr><td>ATDR-TASKLIST-001</td><td>v5.60 clean-machine release-candidate acceptance</td><td>Codex</td><td>Project owner</td><td>Published v5.59 baseline and approved shell package</td><td>complete</td><td><div class="progress"><span>100%</span><b style="width:100%"></b></div></td><td>All 27 harness gates and complete local verification passed</td><td>v5.60 service, CLI, test, status, and operator docs</td><td>27/27 clean-room; 1,091 backend; 42 Playwright; 288 layered; 30 Assistant cases</td><td>Real university/provider/hardware/shared-host acceptance remains external</td><td>Consider v5.61 advisory anomaly bootstrap; obtain separate approval before publication</td><td>v5.60 harness, status, T1-T20, taskboard, exact allowlist</td></tr>
+<tr><td>ATDR-TASKLIST-001</td><td>v5.61 governed advisory anomaly bootstrap</td><td>Codex</td><td>Project owner</td><td>Published v5.60 baseline</td><td>complete</td><td><div class="progress"><span>100%</span><b style="width:100%"></b></div></td><td>Runtime, CLI, wrapper, UI, clean-machine extension, tests, docs, and full local verification complete</td><td>v5.61 service/CLI/wrappers/status/UI/docs</td><td>1,102/1 backend, 43/1 Playwright, 288/288 layered, 30-case Assistant QA, 27/27 published clean-machine, and isolated bootstrap pass</td><td>Extended genuine remote-clone option requires separately approved publication; external accuracy evidence remains unavailable</td><td>Seek separate allowlist approval, then rerun the 32-stage option from published <code>origin/main</code></td><td>v5.61 capability closure and approval-ready handoff</td></tr>
 </tbody>
 </table>
 </div></div>
@@ -135,22 +136,16 @@
 <th>Command / Check</th><th>Result</th><th>Evidence</th>
 </tr></thead>
 <tbody>
-<tr><td>v5.60 focused and related tests</td><td><span class="badge done">pass</span></td><td>40 passed; seven directly exercise v5.60 boundaries</td></tr>
-<tr><td>genuine clean-machine harness</td><td><span class="badge done">pass</span></td><td>27/27 stages; remote clone, lifecycle, recovery, workflow, and cleanup</td></tr>
-<tr><td>backend Ruff and compileall</td><td><span class="badge done">pass</span></td><td>No lint or compilation failures</td></tr>
-<tr><td>full backend tests</td><td><span class="badge done">pass</span></td><td>1,091 passed, one skipped; known dependency/model warnings only</td></tr>
-<tr><td>Alembic drift</td><td><span class="badge done">pass</span></td><td>No new upgrade operations detected</td></tr>
-<tr><td>frontend lint and build</td><td><span class="badge done">pass</span></td><td>2,300 modules built successfully</td></tr>
-<tr><td>Playwright</td><td><span class="badge done">pass</span></td><td>42 passed; one intentionally skipped live-hardware scenario</td></tr>
-<tr><td>controlled source scenario</td><td><span class="badge done">pass</span></td><td>10 parsed, one expected port-scan alert, zero response actions</td></tr>
-<tr><td>layered detection validation</td><td><span class="badge done">pass</span></td><td>288/288 mode runs across 24 scenarios</td></tr>
-<tr><td>SOC Assistant QA</td><td><span class="badge done">pass</span></td><td>30/30 cases and one conversation sequence; 100% citation pass rate</td></tr>
-<tr><td>governed runtime inspection</td><td><span class="badge done">pass</span></td><td>Rules authoritative, anomaly/hybrid advisory, supervised unqualified, response simulation-only</td></tr>
-<tr><td>replay dry-run</td><td><span class="badge done">pass</span></td><td>Two sample rows parsed, zero writes or sends</td></tr>
-<tr><td>performance smoke</td><td>pass with observation</td><td>Overall gate passed; cold Overview 1.0477s versus 1.0s advisory budget, cached 0.014s</td></tr>
-<tr><td>repository and security audits</td><td><span class="badge done">pass</span></td><td>Zero broken links/commands/parse errors and zero tracked-secret findings</td></tr>
-<tr><td>release gate</td><td><span class="badge done">pass</span></td><td>Config, compile, 1,091-test rerun, Alembic, and deployment operations green</td></tr>
-<tr><td>repository hygiene</td><td><span class="badge done">pass</span></td><td>Staging empty; private/generated artifacts remain ignored; diff check clean</td></tr>
+<tr><td>committed synthetic preflight</td><td><span class="badge done">pass</span></td><td>45 unique rows parsed; 41 eligible; four unresolved-app rows excluded; zero writes</td></tr>
+<tr><td>v5.61 focused backend tests</td><td><span class="badge done">pass</span></td><td>confirmation, evidence gates, ignored paths, disposable execution, manifest, authority, cleanup, and redaction</td></tr>
+<tr><td>isolated explicit bootstrap</td><td><span class="badge done">pass</span></td><td>45 rows scored; two advisory signals; valid manifest; zero alerts, suppressions, labels, model/detection runs, or responses; outputs cleaned</td></tr>
+<tr><td>complete backend and release gate</td><td><span class="badge done">pass</span></td><td>1,102 passed, one skipped; config, migrations, and deployment checks passed</td></tr>
+<tr><td>frontend lint/build/Playwright</td><td><span class="badge done">pass</span></td><td>lint/build green; 43 passed, one skipped; availability, corrective command, and overflow contracts pass</td></tr>
+<tr><td>controlled and layered detection</td><td><span class="badge done">pass</span></td><td>source scenario passed; 288/288 layered checks, zero controlled FP/FN and response actions</td></tr>
+<tr><td>Assistant QA</td><td><span class="badge done">pass</span></td><td>30/30 cases plus contextual sequence; grounded, concise, read-only</td></tr>
+<tr><td>genuine published clean machine</td><td><span class="badge done">pass</span></td><td>27/27 stages; pristine anomaly unavailable; rules authoritative; complete cleanup</td></tr>
+<tr><td>repository/security/taskboard</td><td><span class="badge done">pass</span></td><td>1,425 intended paths, zero secret findings, no broken references, rendered board valid</td></tr>
+<tr><td>replay and performance</td><td><span class="badge done">pass</span></td><td>replay parsed two rows with zero writes; 145,232-row smoke met every budget</td></tr>
 </tbody>
 </table>
 </div></div>
@@ -161,18 +156,17 @@
 <th>ID</th><th>Type</th><th>Status</th><th>Evidence</th><th>Impact</th><th>Next Action</th>
 </tr></thead>
 <tbody>
-<tr><td>R-560-01</td><td>risk</td><td>mitigated</td><td>Clean clones intentionally contain no ignored IsolationForest artifact.</td><td>Anomaly reports unavailable and hybrid abstains until an artifact is governed locally.</td><td>v5.61 may add explicit operator-guided advisory bootstrap without committing an artifact.</td></tr>
-<tr><td>R-560-02</td><td>risk</td><td>observed</td><td>Cold Overview measured 1.0477s against a 1.0s advisory budget; cached path was 0.014s.</td><td>First dashboard load can vary slightly on the large local SQLite database.</td><td>Retain monitoring; no release-gate failure or urgent runtime change is justified.</td></tr>
-<tr><td>B-EXT-01</td><td>blocker</td><td><span class="badge blocked">open</span></td><td>Synthetic provider wiring is not a real MFU sign-in.</td><td>University IAM lifecycle is not production-accepted.</td><td>University owner validates account, groups, 2FA, recovery, and deprovisioning.</td></tr>
-<tr><td>B-EXT-02</td><td>blocker</td><td><span class="badge blocked">open</span></td><td>No second physical source or new prediction-blind future evidence.</td><td>Supervised runtime remains unqualified.</td><td>Detection owners acquire governed independent evidence.</td></tr>
-<tr><td>B-EXT-03</td><td>blocker</td><td><span class="badge blocked">open</span></td><td>Institutional Gemini approval and representative provider evaluation are absent.</td><td>External Assistant mode is not institutionally accepted.</td><td>Provider owner approves privacy, quota, billing, retention, and key rotation.</td></tr>
-<tr><td>B-EXT-04</td><td>blocker</td><td><span class="badge blocked">open</span></td><td>No approved shared host or physical teammate acceptance.</td><td>Shared deployment and independent usability remain unqualified.</td><td>Deployment/teammate owners run preserved acceptance procedures.</td></tr>
+<tr><td>R-561-01</td><td>risk</td><td>controlled</td><td>Current workspace has an ignored pre-v5.61 artifact without a governed manifest.</td><td>Capability is available locally but provenance is legacy.</td><td>Leave untouched unless owner deliberately runs replacement after preflight.</td></tr>
+<tr><td>R-561-02</td><td>risk</td><td>controlled</td><td>Synthetic bootstrap data contains no independent threat labels.</td><td>Capability success cannot support accuracy or maliciousness claims.</td><td>Keep anomaly advisory and obtain external evidence separately.</td></tr>
+<tr><td>R-561-03</td><td>risk</td><td>controlled</td><td>Extended 32-stage genuine remote-clone run needs v5.61 to exist on <code>origin/main</code>.</td><td>Pre-publication verification cannot execute the new CLI from a remote clone.</td><td>Run the opt-in extension after separately approved publication; local disposable execution and focused tests currently prove the contract.</td></tr>
+<tr><td>B-EXT-01</td><td>blocker</td><td><span class="badge blocked">open</span></td><td>No second physical source or untouched future evidence.</td><td>Supervised runtime remains unqualified and anomaly accuracy remains unvalidated.</td><td>Detection owners acquire governed independent evidence.</td></tr>
+<tr><td>B-EXT-02</td><td>blocker</td><td><span class="badge blocked">open</span></td><td>University/provider/shared-host acceptance remains pending.</td><td>Production certification is unavailable.</td><td>External owners complete the preserved acceptance tracks.</td></tr>
 </tbody>
 </table>
 </div></div>
     </section>
     <section class="panel"><h2 id="t6-decision">T6. Decision</h2>
-<p>v5.60 establishes a reproducible controlled local release candidate from a genuine remote clone. Normal startup remains the MFU shell, local recovery is explicit, rules remain <code>active_authoritative</code>, supervised ML remains <code>unqualified</code>, the Assistant remains read-only, response remains <code>simulation_only</code>, and no model, label, protected evidence, automatic response, or real block was created. No commit or push is authorized by this record.</p></section>
+<p>v5.61 implementation preserves deterministic rules as alert authority, supervised runtime as <code>unqualified</code>, IsolationForest/hybrid as advisory, response as <code>simulation_only</code>, and model training as an explicit operator action. No commit or push is authorized by this taskboard.</p></section>
   </main>
   <script>
     const buttons = Array.from(document.querySelectorAll('[data-tab]'));

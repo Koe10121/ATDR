@@ -1842,7 +1842,7 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
     route.fulfill({ json: { summary: {}, alert_type_pressure: [], suppression_candidates: [], false_positive_learning: {}, severity_distribution: [], status_distribution: [], ml: {}, production_readiness: [], recommendations: [] } })
   );
   await page.route("**/api/ml/report", async (route) =>
-    route.fulfill({ json: { model_status: { artifact_exists: true }, dataset_profile: { recommendations: [] }, scored_log_count: 0, anomaly_count: 0, anomaly_rate: 0, recommendations: [], drift_signals: [], top_anomalous_src_ips: [], top_anomalous_apps: [], top_anomalous_dst_ports: [] } })
+    route.fulfill({ json: { model_status: { artifact_exists: true, advisory_capability_state: "governed_advisory_ready", advisory_capability_label: "Advisory anomaly model available", bootstrap_required: false, governed_bootstrap_manifest_valid: true, decision_support_only: true, threat_accuracy_validated: false }, dataset_profile: { recommendations: [] }, scored_log_count: 0, anomaly_count: 0, anomaly_rate: 0, recommendations: [], drift_signals: [], top_anomalous_src_ips: [], top_anomalous_apps: [], top_anomalous_dst_ports: [] } })
   );
   await page.route("**/api/ml/supervised/report", async (route) =>
     route.fulfill({
@@ -3673,6 +3673,11 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(runtimeContract).toContainText("simulation only");
   await expect(runtimeContract).toContainText("Creates authoritative alerts");
   expect(await runtimeContract.evaluate((element) => element.scrollWidth > element.clientWidth + 1)).toBe(false);
+  const anomalyCapability = page.getByTestId("anomaly-capability-status");
+  await expect(anomalyCapability).toContainText("Advisory anomaly model available");
+  await expect(anomalyCapability).toContainText("Threat Accuracy Not Validated");
+  await expect(anomalyCapability).toContainText("Advisory decision support only");
+  expect(await anomalyCapability.evaluate((element) => element.scrollWidth > element.clientWidth + 1)).toBe(false);
   await expect(modelRegistry.getByText("Metadata unknown", { exact: true })).toBeVisible();
   await expect(modelRegistry.getByText("candidate unqualified", { exact: true })).toBeVisible();
   await expect(modelRegistry.getByText("Effective Runtime", { exact: true })).toBeVisible();
@@ -3714,6 +3719,46 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByText("Model remains decision support only.")).toBeVisible();
   await expect(page.getByText("Analyst Review Gate")).toBeVisible();
   await expect(page.getByText("Weak labels require analyst review before model claims.")).toBeVisible();
+});
+
+test("AI Governance explains a missing advisory anomaly capability without training it", async ({ page }) => {
+  await mockApi(page);
+  await page.unroute("**/api/ml/report");
+  await page.route("**/api/ml/report", async (route) =>
+    route.fulfill({
+      json: {
+        model_status: {
+          artifact_exists: false,
+          advisory_capability_state: "unavailable",
+          advisory_capability_label: "Advisory anomaly model unavailable",
+          bootstrap_required: true,
+          bootstrap_command: ".\\scripts\\bootstrap_advisory_anomaly.cmd -UseCommittedSyntheticSample",
+          governed_bootstrap_manifest_valid: false,
+          decision_support_only: true,
+          threat_accuracy_validated: false
+        },
+        dataset_profile: { recommendations: [] },
+        scored_log_count: 0,
+        anomaly_count: 0,
+        anomaly_rate: 0,
+        recommendations: [],
+        drift_signals: [],
+        top_anomalous_src_ips: [],
+        top_anomalous_apps: [],
+        top_anomalous_dst_ports: []
+      }
+    })
+  );
+
+  await page.goto("/ml");
+  const capability = page.getByTestId("anomaly-capability-status");
+  await expect(capability).toContainText("Advisory anomaly model unavailable");
+  await expect(capability).toContainText("Corrective Preflight");
+  await expect(capability).toContainText(
+    ".\\scripts\\bootstrap_advisory_anomaly.cmd -UseCommittedSyntheticSample"
+  );
+  await expect(capability.getByRole("button")).toHaveCount(0);
+  expect(await capability.evaluate((element) => element.scrollWidth > element.clientWidth + 1)).toBe(false);
 });
 
 test("AI Governance shows governed supervised shadow status without selecting the legacy artifact", async ({ page }) => {

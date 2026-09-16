@@ -18,9 +18,11 @@ The Node/Vue/MongoDB companion is the authentication shell only. The ATDR
 application remains FastAPI, React, SQLAlchemy/Alembic, and SQLite or
 PostgreSQL.
 
-The published v5.59 baseline has passed the v5.60 automated clean-machine
-acceptance from a genuine remote clone. This proves reproducible local wiring;
-it does not replace a real MFU sign-in or physical teammate usability record.
+The published v5.60 baseline passed its automated clean-machine acceptance
+from a genuine remote clone and is CI/CodeQL green. v5.61 adds explicit anomaly
+bootstrap capability without changing normal startup. This proves reproducible
+local wiring; it does not replace real MFU sign-in or physical teammate
+usability evidence.
 
 ## Start, Check, Stop, Restart
 
@@ -54,6 +56,22 @@ service.
    must remain disabled.
 6. Review audit events for failed logins, account changes, alert actions, and
    simulated response requests.
+
+## Advisory Anomaly Capability
+
+IsolationForest is optional supporting context. Its absence never prevents
+startup or deterministic rule detection. The launcher, `/health`, and AI
+Governance report `Advisory anomaly model unavailable` and show this read-only
+preflight:
+
+```powershell
+.\scripts\bootstrap_advisory_anomaly.cmd -UseCommittedSyntheticSample -Pretty
+```
+
+Only a reviewed, exact-confirmation run may train. It uses disposable SQLite
+and writes only an ignored artifact and sanitized manifest. Follow
+`docs/V5_61_GOVERNED_ANOMALY_BOOTSTRAP.md`; never copy a developer artifact to
+a teammate, commit it, or describe availability as validated threat accuracy.
 
 API liveness is `GET /health/live`; operational health is `GET /health`.
 Prometheus metrics are available only when the configured deployment profile

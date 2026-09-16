@@ -84,6 +84,14 @@ def test_login_and_me_api():
         if configured_database_kind == "sqlite":
             assert health.json()["checks"]["database"]["backup_tools"]["sqlite_backup_api"] is True
         assert health.json()["checks"]["database"]["secrets_exposed"] is False
+        anomaly_health = health.json()["checks"]["ml_model"]
+        assert anomaly_health["label"] in {
+            "Advisory anomaly model available",
+            "Advisory anomaly model unavailable",
+        }
+        assert anomaly_health["decision_support_only"] is True
+        assert anomaly_health["threat_accuracy_validated"] is False
+        assert anomaly_health["secrets_exposed"] is False
         headers = _login(client, "admin", "admin123")
 
         me = client.get("/api/auth/me", headers=headers)
@@ -1809,6 +1817,15 @@ def test_ml_governance_endpoints_are_secured_and_record_runs():
         assert status.status_code == 200
         assert status.json()["model_name"] == "isolation_forest"
         assert "feature_columns" in status.json()
+        assert status.json()["advisory_capability_label"] in {
+            "Advisory anomaly model available",
+            "Advisory anomaly model unavailable",
+        }
+        assert status.json()["decision_support_only"] is True
+        assert status.json()["threat_accuracy_validated"] is False
+        assert status.json()["bootstrap_command"].startswith(
+            ".\\scripts\\bootstrap_advisory_anomaly.cmd"
+        )
 
         profile = client.get("/api/ml/profile", headers=analyst_headers)
         assert profile.status_code == 200

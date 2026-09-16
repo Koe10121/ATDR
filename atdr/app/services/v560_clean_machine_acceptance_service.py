@@ -745,14 +745,8 @@ def _public_report_is_redacted(report: dict[str, Any]) -> bool:
     )
 
 
-def execute_clean_machine_acceptance(*, root: Path, shell_package: Path) -> dict[str, Any]:
-    root = root.resolve()
-    shell_package = shell_package.resolve()
-    preflight = build_clean_machine_preflight(root=root, shell_package=shell_package)
-    if not preflight["ok"]:
-        return preflight
-
-    stage_names = (
+def clean_machine_stage_names(*, exercise_anomaly_bootstrap: bool = False) -> tuple[str, ...]:
+    stage_names = [
         "remote_clone",
         "clone_hygiene",
         "setup_without_private_config",
@@ -780,6 +774,66 @@ def execute_clean_machine_acceptance(*, root: Path, shell_package: Path) -> dict
         "mongo_cleanup",
         "process_cleanup",
         "temporary_workspace_cleanup",
+    ]
+    if exercise_anomaly_bootstrap:
+        stage_names.extend(
+            (
+                "anomaly_unavailable_before_bootstrap",
+                "anomaly_no_silent_training",
+                "anomaly_bootstrap_preflight",
+                "anomaly_bootstrap_advisory_ready",
+                "anomaly_artifact_cleanup",
+            )
+        )
+    return tuple(stage_names)
+
+
+def _anomaly_bootstrap_contract_ready(
+    report: dict[str, Any] | None,
+    *,
+    artifact_path: Path,
+    manifest_path: Path,
+) -> bool:
+    capability = (report or {}).get("current_capability") or {}
+    acceptance = (report or {}).get("acceptance") or {}
+    return bool(
+        report
+        and report.get("status") == "governed_advisory_anomaly_bootstrap_complete"
+        and capability.get("state") == "governed_advisory_ready"
+        and capability.get("threat_accuracy_validated") is False
+        and capability.get("supervised_model_activated") is False
+        and acceptance.get("model_driven_alerts") == 0
+        and acceptance.get("model_driven_suppressions") == 0
+        and acceptance.get("labels_created") == 0
+        and acceptance.get("model_runs_created") == 0
+        and acceptance.get("detection_runs_created") == 0
+        and acceptance.get("response_actions_created") == 0
+        and acceptance.get("rules_alert_authoritative") is True
+        and acceptance.get("hybrid_decision_support_only") is True
+        and acceptance.get("model_only_alert_creation_allowed") is False
+        and acceptance.get("supervised_state") == "unqualified"
+        and acceptance.get("supervised_model_activated") is False
+        and acceptance.get("response_state") == "simulation_only"
+        and acceptance.get("real_firewall_blocking_enabled") is False
+        and artifact_path.is_file()
+        and manifest_path.is_file()
+    )
+
+
+def execute_clean_machine_acceptance(
+    *,
+    root: Path,
+    shell_package: Path,
+    exercise_anomaly_bootstrap: bool = False,
+) -> dict[str, Any]:
+    root = root.resolve()
+    shell_package = shell_package.resolve()
+    preflight = build_clean_machine_preflight(root=root, shell_package=shell_package)
+    if not preflight["ok"]:
+        return preflight
+
+    stage_names = clean_machine_stage_names(
+        exercise_anomaly_bootstrap=exercise_anomaly_bootstrap,
     )
     stages = {name: False for name in stage_names}
     metrics: dict[str, Any] = {}
@@ -956,6 +1010,16 @@ def execute_clean_machine_acceptance(*, root: Path, shell_package: Path) -> dict
         if counts_before is None:
             raise AcceptanceFailure("authoritative_state_unchanged", "disposable_database_count_snapshot_failed")
 
+        anomaly_artifact = clone / "atdr/models/isolation_forest.joblib"
+        anomaly_manifest = clone / "atdr/models/isolation_forest.bootstrap.json"
+        if exercise_anomaly_bootstrap:
+            if anomaly_artifact.exists() or anomaly_manifest.exists():
+                raise AcceptanceFailure(
+                    "anomaly_unavailable_before_bootstrap",
+                    "clean_clone_contains_anomaly_artifact",
+                )
+            stages["anomaly_unavailable_before_bootstrap"] = True
+
         start = _powershell_stage(
             powershell,
             clone / "scripts/start_system.ps1",
@@ -972,6 +1036,13 @@ def execute_clean_machine_acceptance(*, root: Path, shell_package: Path) -> dict
         if not _system_contract_ready(report):
             raise AcceptanceFailure("system_health", "four_component_health_contract_failed")
         stages["system_health"] = True
+        if exercise_anomaly_bootstrap:
+            if anomaly_artifact.exists() or anomaly_manifest.exists():
+                raise AcceptanceFailure(
+                    "anomaly_no_silent_training",
+                    "normal_start_created_anomaly_artifact",
+                )
+            stages["anomaly_no_silent_training"] = True
         if not _http_ready("http://localhost:8080", timeout=30) or not _http_ready("http://127.0.0.1:5173", timeout=30):
             raise AcceptanceFailure("entry_urls", "published_entry_url_unreachable")
         stages["entry_urls"] = True
@@ -1013,6 +1084,81 @@ def execute_clean_machine_acceptance(*, root: Path, shell_package: Path) -> dict
         if not repeated_stop.ok:
             raise AcceptanceFailure("stop_idempotence", "repeated_stop_failed")
         stages["stop_idempotence"] = True
+
+        if exercise_anomaly_bootstrap:
+            bootstrap_preflight_result = _run_command(
+                [
+                    str(python),
+                    "-m",
+                    "atdr.scripts.run_v561_governed_anomaly_bootstrap",
+                    "--use-committed-synthetic-sample",
+                ],
+                cwd=clone,
+                timeout=120,
+            )
+            bootstrap_preflight = _read_json_output(bootstrap_preflight_result)
+            if not (
+                bootstrap_preflight_result.ok
+                and bootstrap_preflight
+                and bootstrap_preflight.get("status") == "ready_for_explicit_bootstrap"
+                and bootstrap_preflight.get("executed") is False
+                and (bootstrap_preflight.get("evidence") or {}).get("passed") is True
+                and not anomaly_artifact.exists()
+            ):
+                raise AcceptanceFailure(
+                    "anomaly_bootstrap_preflight",
+                    "governed_anomaly_preflight_failed",
+                )
+            stages["anomaly_bootstrap_preflight"] = True
+
+            bootstrap_result = _run_command(
+                [
+                    str(python),
+                    "-m",
+                    "atdr.scripts.run_v561_governed_anomaly_bootstrap",
+                    "--use-committed-synthetic-sample",
+                    "--execute",
+                    "--confirm",
+                    "GOVERNED_ADVISORY_ANOMALY_BOOTSTRAP",
+                ],
+                cwd=clone,
+                timeout=300,
+            )
+            bootstrap_report = _read_json_output(bootstrap_result)
+            bootstrap_acceptance = (bootstrap_report or {}).get("acceptance") or {}
+            if not (
+                bootstrap_result.ok
+                and _anomaly_bootstrap_contract_ready(
+                    bootstrap_report,
+                    artifact_path=anomaly_artifact,
+                    manifest_path=anomaly_manifest,
+                )
+            ):
+                raise AcceptanceFailure(
+                    "anomaly_bootstrap_advisory_ready",
+                    "governed_anomaly_bootstrap_acceptance_failed",
+                )
+            metrics["anomaly_bootstrap"] = {
+                "evidence_rows": (bootstrap_report.get("evidence") or {}).get("observed_rows"),
+                "eligible_rows": (bootstrap_report.get("evidence") or {}).get("eligible_baseline_rows"),
+                "rows_scored": bootstrap_acceptance.get("rows_scored"),
+                "anomaly_signals": bootstrap_acceptance.get("anomaly_signals"),
+                "model_driven_alerts": 0,
+                "model_driven_suppressions": 0,
+                "detection_runs_created": 0,
+                "labels_created": 0,
+                "model_runs_created": 0,
+                "response_actions_created": 0,
+                "rules_alert_authoritative": True,
+                "hybrid_decision_support_only": True,
+                "model_only_alert_creation_allowed": False,
+                "supervised_state": "unqualified",
+                "supervised_model_activated": False,
+                "response_state": "simulation_only",
+                "real_firewall_blocking_enabled": False,
+                "state": "governed_advisory_ready",
+            }
+            stages["anomaly_bootstrap_advisory_ready"] = True
 
         metadata_path.write_text(
             json.dumps(
@@ -1122,6 +1268,10 @@ def execute_clean_machine_acceptance(*, root: Path, shell_package: Path) -> dict
             and (runtime.get("response") or {}).get("state") == "simulation_only"
             and runtime.get("model_activated") is False
             and int(runtime.get("response_actions_created") or 0) == 0
+            and (
+                not exercise_anomaly_bootstrap
+                or (runtime.get("anomaly") or {}).get("state") == "active_advisory"
+            )
         ):
             raise AcceptanceFailure("runtime_governance", "runtime_governance_contract_failed")
         metrics["runtime_governance"] = {
@@ -1157,6 +1307,23 @@ def execute_clean_machine_acceptance(*, root: Path, shell_package: Path) -> dict
             stages["mongo_cleanup"] = _drop_disposable_mongo(shell_root, provider)
         elif provider is None:
             stages["mongo_cleanup"] = True
+        if exercise_anomaly_bootstrap and clone:
+            cleanup_failed = False
+            for generated in (
+                clone / "atdr/models/isolation_forest.joblib",
+                clone / "atdr/models/isolation_forest.bootstrap.json",
+            ):
+                try:
+                    generated.unlink(missing_ok=True)
+                except OSError:
+                    cleanup_failed = True
+            stages["anomaly_artifact_cleanup"] = not cleanup_failed and not any(
+                generated.exists()
+                for generated in (
+                    clone / "atdr/models/isolation_forest.joblib",
+                    clone / "atdr/models/isolation_forest.bootstrap.json",
+                )
+            )
         if workspace:
             stages["temporary_workspace_cleanup"] = remove_verified_temp_workspace(workspace, temp_root=temp_root)
 
@@ -1194,6 +1361,7 @@ def execute_clean_machine_acceptance(*, root: Path, shell_package: Path) -> dict
             "private_paths_exposed": False,
             "secrets_exposed": False,
             "production_readiness_claim": False,
+            "anomaly_bootstrap_exercised": exercise_anomaly_bootstrap,
         },
         "limitations": [
             "Synthetic provider configuration validates lifecycle wiring, not MFU account acceptance.",

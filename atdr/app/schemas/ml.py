@@ -169,6 +169,13 @@ class MLStatusRead(BaseModel):
     total_logs: int
     current_anomaly_logs: int
     current_anomaly_rate: float
+    advisory_capability_state: str
+    advisory_capability_label: str
+    bootstrap_required: bool
+    bootstrap_command: str
+    governed_bootstrap_manifest_valid: bool
+    decision_support_only: bool
+    threat_accuracy_validated: bool
 
 
 class MLScoreStats(BaseModel):

@@ -8,7 +8,7 @@ Historical phase-by-phase traceability is preserved under `docs/archive/`.
 | FR-ING-01 ingestion | `atdr/app/routers/logs.py`, ingestion/job services, syslog receiver | backend ingestion, operation worker, large-file, and source scenario tests | Implemented locally; physical source pending |
 | FR-PAR-01 parsing | `atdr/app/parsers/`, parser-quality services | parser contract, drift, field-qualification, and layered tests | Implemented for governed profiles |
 | FR-DET-01 rules | `atdr/app/detection/`, detection service/router | controlled source and layered `288`-case validation | Implemented; real FP/FN evidence external |
-| FR-ML-01 anomaly | ML services and model governance routes | anomaly reliability and runtime-contract tests | Advisory only |
+| FR-ML-01 anomaly | v5.61 bootstrap service/CLI, ML status/health, runtime contract, and AI Governance UI | evidence-gate, confirmation, disposable training, no-write, clean-machine extension, API, and Playwright tests | Reproducible advisory capability; not threat-accuracy validated |
 | FR-ML-02 supervised | supervised lifecycle, registry, evidence, calibration, and decision services | v5.49b aggregate decision and v5.58 fail-closed runtime tests | `unqualified`; no active candidate |
 | FR-EXP-01 explanations | explanation, investigation, alert, and case services | explanation/adversarial and analyst-workflow tests | Implemented |
 | FR-AST-01 Assistant | assistant service, provider adapter, schemas, router | Assistant backend QA, provider-failure, privacy, and Playwright tests | Read-only; Gemini approval external |
@@ -31,6 +31,7 @@ Historical phase-by-phase traceability is preserved under `docs/archive/`.
 | Raw external LLM log context is off | Assistant config/status and provider tests |
 | Response remains simulated | config doctor, response service, release gate |
 | Consumed evaluation remains immutable | protected evidence and at-most-once protocol tests |
+| Anomaly training is explicit and isolated | v5.61 confirmation gate, ignored destination checks, disposable SQLite, and setup/start non-execution tests |
 
 ## External Trace
 

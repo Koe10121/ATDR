@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Product | MFU AI-Driven Log-Based Threat Detection and Response |
-| Baseline | v5.60 Clean-Machine Release Candidate Acceptance |
+| Baseline | v5.61 Governed Advisory IsolationForest Bootstrap |
 | Status | Controlled local release candidate |
 | Production ready | No |
 | Primary users | SOC analyst, ATDR administrator, approved operator |
@@ -36,7 +36,7 @@ traceability, safe failure, and analyst control over automated containment.
 | FR-ING-01 | File/API import, replay, durable large-file jobs, and UDP syslog ingestion | Implemented; physical-source acceptance external |
 | FR-PAR-01 | PAN-OS TRAFFIC/THREAT/SYSTEM, generic syslog, and raw-fallback normalization with warnings | Implemented; additional devices/versions external |
 | FR-DET-01 | Versioned, correlated, deduplicated, explainable rule detection | Implemented and alert-authoritative |
-| FR-ML-01 | Advisory IsolationForest scoring with governance visibility | Implemented; not authoritative |
+| FR-ML-01 | Reproducible, explicitly bootstrapped advisory IsolationForest scoring with governance visibility | Implemented; not authoritative or threat-accuracy validated |
 | FR-ML-02 | Governed supervised SOC queue with leakage, calibration, and activation gates | Implemented but runtime `unqualified` |
 | FR-EXP-01 | Explain why flagged, evidence strength, missing context, related logs, mappings, and next checks | Implemented |
 | FR-AST-01 | Read-only deterministic and optional Gemini Assistant over bounded cited context | Implemented; institutional provider approval external |
@@ -62,6 +62,8 @@ Node/Vue architecture.
 
 - Rules are `active_authoritative` and may create alerts.
 - IsolationForest is `active_advisory` when eligible.
+- Normal setup/start never trains IsolationForest. A missing artifact leaves
+  rules operational and exposes the governed preflight command.
 - Supervised runtime is `unqualified`; inference fails closed.
 - Hybrid triage is advisory.
 - Gemini can synthesize only bounded ATDR context and is not a source of facts.

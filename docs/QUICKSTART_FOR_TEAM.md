@@ -128,6 +128,19 @@ Safe CLI validation:
 
 No log is written during this dry run.
 
+A fresh clone intentionally reports `Advisory anomaly model unavailable`.
+Rules and alerts remain fully operational. To verify that the optional anomaly
+pipeline can be reproduced, run its write-free preflight:
+
+```powershell
+.\scripts\bootstrap_advisory_anomaly.cmd -UseCommittedSyntheticSample -Pretty
+```
+
+Do not execute training until you have read
+`docs/V5_61_GOVERNED_ANOMALY_BOOTSTRAP.md`. Setup and startup never train a
+model silently, and an available anomaly artifact remains decision support
+only rather than proof of threat accuracy.
+
 Run the bounded end-to-end reliability lock only against disposable storage:
 
 ```powershell

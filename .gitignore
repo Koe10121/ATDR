@@ -38,6 +38,8 @@ atdr/models/*.joblib
 atdr/models/*.report.md
 atdr/models/**/*.joblib
 atdr/models/**/*.report.md
+atdr/models/*.bootstrap.json
+atdr/models/**/*.bootstrap.json
 atdr/data/processed/*
 !**/.gitkeep
 .streamlit/

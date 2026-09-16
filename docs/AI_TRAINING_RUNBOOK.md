@@ -76,6 +76,32 @@ missingness, time-window, and queue-rate drift. Pay special attention to benign
 QUIC/443, incomplete/80, ping/ICMP, and unknown UDP/TCP patterns. Never tune an
 anomaly threshold against a consumed final window.
 
+### Governed Bootstrap
+
+A clean clone intentionally has no model artifact. Normal setup and startup do
+not train one. Preflight the committed synthetic capability sample without
+writing:
+
+```powershell
+.\scripts\bootstrap_advisory_anomaly.cmd -UseCommittedSyntheticSample -Pretty
+```
+
+After reviewing all gates, execute only with the exact confirmation:
+
+```powershell
+.\scripts\bootstrap_advisory_anomaly.cmd `
+  -UseCommittedSyntheticSample `
+  -Execute `
+  -Confirm GOVERNED_ADVISORY_ANOMALY_BOOTSTRAP `
+  -Pretty
+```
+
+Private evidence may be supplied through `-EvidencePath` at runtime. The
+command never returns that path, raw rows, IPs, or fingerprints. Training and
+acceptance use disposable SQLite; only the ignored configured artifact and
+sanitized `.bootstrap.json` manifest remain. This validates capability, not
+threat accuracy. See `docs/V5_61_GOVERNED_ANOMALY_BOOTSTRAP.md`.
+
 ## SOC Assistant Governance
 
 Assistant facts come from bounded ATDR services and approved runbook snippets.

@@ -1,15 +1,15 @@
 # ATDR Current System State Lock
 
-Date: 2026-09-15
+Date: 2026-09-16
 
 ## Release Baseline
 
-The published source baseline is v5.59 commit
-`d020f1a973f005c192eba3256357f76618542cab`, with GitHub Actions and CodeQL
-green. v5.60 cloned that exact `origin/main` baseline into Windows temporary
-storage and passed all 27 clean-machine acceptance gates. The current v5.60
-changes add the reusable harness, focused tests, active documentation, and two
-reproducibility fixes; publication remains separately approval-gated.
+The published source baseline is v5.60 commit
+`da7c2434962eec10c0fd7c6bbd9266c5dbebf2c6`, with GitHub Actions and CodeQL
+green. v5.60 passed all 27 clean-machine acceptance gates from a genuine
+`origin/main` clone. The current uncommitted v5.61 work adds an explicit,
+governed advisory IsolationForest bootstrap; publication remains separately
+approval-gated.
 
 ## Product Decision
 
@@ -42,7 +42,7 @@ The supported workflow is:
 | Frontend | React 18, TypeScript, Vite, React Router, TanStack Query/Table, Recharts |
 | Local persistence | SQLite; no Docker or PostgreSQL required for the local profile |
 | Shared persistence | PostgreSQL-compatible worker, migration, scale, backup, and recovery paths; approved-host acceptance pending |
-| Detection | Nineteen versioned rules are `active_authoritative`; IsolationForest is `active_advisory` when available; supervised runtime is currently `unqualified`; hybrid triage is advisory |
+| Detection | Nineteen versioned rules are `active_authoritative`; IsolationForest is explicitly bootstrapped and `active_advisory` when available; supervised runtime is `unqualified`; hybrid triage is advisory |
 | Assistant | Deterministic database-backed context with optional bounded Gemini synthesis and deterministic fallback |
 | Response | Analyst-approved simulation only; automatic response and real firewall blocking are disabled |
 
@@ -93,6 +93,11 @@ evidence that an approved shared environment exists.
   fail-closed behavior, setup/start/stop/restart idempotence, stale-process and
   occupied-port diagnostics, shell handoff contracts, recovery login, safe
   workflow execution, and complete temporary cleanup.
+- v5.61 anomaly bootstrap preflight accepts 41 of 45 committed synthetic rows,
+  excludes four unresolved-application rows, writes nothing by default, and
+  requires exact confirmation before disposable training. Acceptance proves
+  zero model-driven alerts, suppressions, labels, model runs, detection runs,
+  or response actions.
 - v5.60 controlled clean-clone workflow: 10 records preserved and normalized,
   one expected rule alert, three contextual deterministic Assistant turns with
   citation counts `10/10/3`, zero response actions, and no model activation.
@@ -114,14 +119,14 @@ evidence that an approved shared environment exists.
 - Gemini: private minimal and full synthetic probes passed with redaction,
   raw-log exclusion, structured output, and zero authoritative mutations.
 - Large SQLite: `145,232` normalized logs and `3,231` alerts; the read-only
-  smoke passes with a `0.0163s` cached Overview path and one soft cold-Overview
-  warning (`1.0875s` against the `1.0s` local target).
-- Repository security: zero findings across `1,376` tracked or intended text
+  smoke passes with a `0.0109s` cached Overview path and a `0.8501s` cold
+  Overview path, both within their local targets.
+- Repository security: zero findings across `1,425` tracked or intended text
   paths; Python and npm dependency audits found zero known vulnerabilities.
 - Deployment source validation passed while preserving
   `production_ready=false`.
 
-Full backend passes `1067/1`; Playwright passes `42/1`; taskboard checks pass;
+Full backend passes `1102/1`; Playwright passes `43/1`; taskboard checks pass;
 and the independent release gate passes with `ok=true` and no failed required
 checks.
 
@@ -133,7 +138,7 @@ checks.
 | Parsing/normalization | Locally verified for supported contracts | More PAN-OS versions, second source, and device-backed field accuracy |
 | Deterministic detection | Locally verified in controlled regression | Independent real-traffic FP/FN evidence and environment baselines |
 | Supervised ML | Effective runtime `unqualified`; historical lifecycle `shadow_observation`; no candidate | Fresh development evidence, second source, untouched future evaluation, stable gates, freeze, and separate approval |
-| IsolationForest | Advisory only | Evidence does not support detector authority |
+| IsolationForest | Reproducible through explicit governed bootstrap; advisory only | Evidence does not support threat-accuracy or detector-authority claims |
 | Alert explanations | Locally verified | Asset/business context and external incident-management integration |
 | SOC Assistant | Locally verified and read-only | Institutional Gemini governance and representative field evaluation |
 | Dashboard | Locally verified by automated browser, axe, keyboard, and five-viewport coverage | Independent analyst and assistive-technology acceptance |
@@ -159,6 +164,13 @@ Deterministic rules remain the only alert-authoritative detector. The legacy
 artifact with incomplete metadata is not a selected candidate. The dashboard
 must say that active metadata is unknown rather than presenting `unknown` as a
 model family.
+
+v5.61 also separates anomaly capability from anomaly accuracy. Clean clones
+remain operational without an artifact and show `Advisory anomaly model
+unavailable` plus a write-free preflight command. Explicit bootstrap trains in
+disposable SQLite, installs only ignored outputs, and records a sanitized
+manifest. `Advisory anomaly model available` never means threat accuracy has
+been validated.
 
 Gemini may rephrase a bounded deterministic answer only when private settings
 enable it. Raw log lines are excluded, IP redaction remains enabled, citations

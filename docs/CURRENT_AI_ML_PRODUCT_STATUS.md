@@ -1,6 +1,6 @@
 # ATDR Current AI And ML Product Status
 
-Date: 2026-09-15
+Date: 2026-09-16
 
 ## Decision Summary
 
@@ -22,7 +22,7 @@ a response action. Automatic response and real firewall blocking are disabled.
 | Layer | Status | Authority |
 | --- | --- | --- |
 | Nineteen deterministic rules | Locally verified: controlled `24/24`, layered `288/288` | May create/deduplicate alerts; cannot execute response |
-| IsolationForest | Implemented, but noisy and weak on current evidence | Advisory only |
+| IsolationForest | Explicitly reproducible through v5.61; noisy and weak on current evidence | Advisory only; not threat-accuracy validated |
 | Supervised SOC queue | v5.49b selected no candidate; effective runtime `unqualified` | No inference or alert authority; historical lifecycle is not runtime authorization |
 | Legacy supervised artifact | Registered history exists but strict validation is not satisfied | Preserved history only; ordinary prediction refuses it |
 | Deterministic Assistant | v5.56 QA `30/30` plus a four-turn sequence; v5.57 integrated investigation passes `24/24`; citation rate `1.0`; average/max `56.0/110` words | Read-only explanation |
@@ -64,6 +64,20 @@ Its rule workflow passes, while runtime status reports IsolationForest
 exists. This is safer than copying a developer artifact or silently training on
 unknown evidence. It does not change the authoritative workspace, where the
 existing valid artifact remains advisory only.
+
+v5.61 closes the reproducibility gap without changing that decision. The
+operator first runs a write-free evidence preflight. Training requires exact
+confirmation, occurs against disposable SQLite, and atomically installs only
+the configured Git-ignored artifact and sanitized `.bootstrap.json` manifest.
+The manifest contains aggregate evidence and governance fields only; it stores
+no source path, raw log, IP, fingerprint, identity, or secret.
+
+Normal `setup_team.cmd` and `start_system.cmd` never execute training. Missing
+state is reported as **Advisory anomaly model unavailable** with the corrective
+preflight command. Governed post-bootstrap state is **Advisory anomaly model
+available**, paired with **Threat Accuracy Not Validated** and **Rules
+Authoritative**. The existing local pre-v5.61 artifact is left untouched and
+is honestly classified as legacy advisory state until deliberately replaced.
 
 ## Supervised Model Decision
 
@@ -232,6 +246,10 @@ failure behavior under the approved provider policy.
 4. Complete institutional Gemini privacy, retention, cost/quota, monitoring,
    and key-rotation acceptance.
 5. Run representative analyst evaluation on real but privacy-approved records.
+
+IsolationForest bootstrap itself is no longer a Codex-owned implementation
+gap. Field accuracy and authority remain evidence questions and must not be
+inferred from successful capability bootstrap.
 
 Until those gates close, the honest state is locally verified decision support,
 not autonomous detection, autonomous response, or production-certified AI.

@@ -152,6 +152,22 @@ try {
     Write-Host "  MFU IAM proxy: configured (account acceptance still requires a real sign-in)"
     Write-Host "  Google OAuth client agreement: verified"
     Write-Host "  Response simulation: true"
+    $modelPathValue = if ($envValues.Contains("ML_MODEL_PATH") -and [string]$envValues["ML_MODEL_PATH"]) {
+        [string]$envValues["ML_MODEL_PATH"]
+    } else {
+        "atdr/models/isolation_forest.joblib"
+    }
+    $modelPath = if ([System.IO.Path]::IsPathRooted($modelPathValue)) {
+        $modelPathValue
+    } else {
+        Join-Path $root $modelPathValue
+    }
+    if (Test-Path -LiteralPath $modelPath -PathType Leaf) {
+        Write-Host "  Advisory anomaly model available (decision support only; threat accuracy not validated)"
+    } else {
+        Write-Host "  Advisory anomaly model unavailable" -ForegroundColor Yellow
+        Write-Host "    Preflight: .\scripts\bootstrap_advisory_anomaly.cmd -UseCommittedSyntheticSample"
+    }
     if ($DryRun) {
         Write-Host "Dry run complete. No process was started and no browser was opened." -ForegroundColor Cyan
         exit 0

@@ -21,6 +21,11 @@ def main() -> None:
     parser.add_argument("--shell-package", required=True, help="Approved versioned MFU shell companion archive.")
     parser.add_argument("--execute", action="store_true", help="Run the disposable clean-machine acceptance.")
     parser.add_argument("--confirm", default="", help="Exact execution confirmation shown by preflight.")
+    parser.add_argument(
+        "--exercise-anomaly-bootstrap",
+        action="store_true",
+        help="Also prove the optional v5.61 advisory anomaly bootstrap lifecycle.",
+    )
     parser.add_argument("--pretty", action="store_true")
     args = parser.parse_args()
 
@@ -35,7 +40,11 @@ def main() -> None:
             "secrets_exposed": False,
         }
     elif args.execute:
-        report = execute_clean_machine_acceptance(root=PROJECT_ROOT, shell_package=shell_package)
+        report = execute_clean_machine_acceptance(
+            root=PROJECT_ROOT,
+            shell_package=shell_package,
+            exercise_anomaly_bootstrap=args.exercise_anomaly_bootstrap,
+        )
     else:
         report = build_clean_machine_preflight(root=PROJECT_ROOT, shell_package=shell_package)
         report["required_execution_confirmation"] = EXECUTION_CONFIRMATION

@@ -2,85 +2,77 @@
 
 | Field | Value |
 | --- | --- |
-| Date | 2026-09-15 |
+| Date | 2026-09-16 |
 | Project | MFU AI-Driven Log-Based Threat Detection and Response System |
-| Module / Feature | v5.60 Clean-Machine End-to-End Release Candidate Acceptance |
-| Requirement | Prove a fresh Windows clone can install, start through the MFU shell, recover, run a safe analyst workflow, and clean up without private state. |
-| Active Change Record | `docs/changes/T1_T20_V5_60_CLEAN_MACHINE_RELEASE_CANDIDATE_ACCEPTANCE.md` |
+| Module / Feature | v5.61 Governed Advisory IsolationForest Bootstrap |
+| Requirement | Reproduce the optional anomaly capability explicitly on a clean clone without silent training, private evidence exposure, model authority, or committed artifacts. |
+| Active Change Record | `docs/changes/T1_T20_V5_61_GOVERNED_ANOMALY_BOOTSTRAP.md` |
 | Overall Status | complete_locally |
 | Overall Progress | 100% |
-| Progress Type | Evidence-backed local release-candidate acceptance; not production certification |
+| Progress Type | Evidence-backed capability closure; not threat-accuracy or production certification |
 
 ## T1. Source Evidence
 
 | Area | Source Evidence |
 | --- | --- |
-| Published baseline | v5.59 commit `d020f1a973f005c192eba3256357f76618542cab` from `origin/main` |
-| Backend entry and API | `atdr/app/main.py`, `atdr/app/routers/*.py` |
-| Frontend entry and API client | `frontend/src/App.tsx`, `frontend/src/lib/api.ts` |
-| Clean-machine harness | `atdr/app/services/v560_clean_machine_acceptance_service.py`, `atdr/scripts/run_v560_clean_machine_acceptance.py` |
-| Lifecycle | `scripts/setup_team.ps1`, `scripts/start_system.ps1`, `scripts/check_system.ps1`, `scripts/stop_system.ps1` |
-| Shell contract | `config/mfu-shell-contract.json`, approved versioned shell package, authenticated handoff tests |
-| Analyst workflow | `atdr/scripts/run_e2e_workflow_validation.py`, v5.57 acceptance services |
-| Detection authority | `atdr/app/detection/runtime_contract.py`, `atdr/scripts/run_v558_governed_hybrid_runtime.py` |
-| Tests | `atdr/tests/test_v560_clean_machine_acceptance.py`, backend and frontend regression suites |
-| Safety | repository surface audit, security acceptance, ignore policy, disposable storage checks |
+| Published baseline | v5.60 commit `da7c2434962eec10c0fd7c6bbd9266c5dbebf2c6` from `origin/main` |
+| Backend entry | `atdr/app/main.py`, ML router and schemas |
+| Frontend entry | `frontend/src/App.tsx`, `frontend/src/lib/api.ts`, AI Governance page |
+| Anomaly training/scoring | `atdr/app/detection/ml_detector.py`, `atdr/app/services/ml_service.py` |
+| Governed bootstrap | `atdr/app/services/v561_anomaly_bootstrap_service.py`, `atdr/scripts/run_v561_governed_anomaly_bootstrap.py` |
+| Operator wrapper | `scripts/bootstrap_advisory_anomaly.ps1`, `.cmd` |
+| Runtime authority | `atdr/app/services/detection_service.py`, `atdr/app/detection/runtime_contract.py` |
+| Setup/start | `scripts/setup_team.ps1`, `scripts/start_system.ps1` |
+| Clean machine | v5.60 harness plus explicit v5.61 optional stages |
+| UI | `frontend/src/pages/MLGovernance.tsx`, API types and Playwright |
+| Tests | v5.61 focused tests, v5.60 extension tests, API and frontend regression suites |
 
 ## T2. Progress Calculation
 
 | Readiness Area | Weight | Earned | Basis |
 | --- | ---: | ---: | --- |
-| Baseline and preflight | 10 | 10 | Published commit, remote, tools, package, ports, and provider prerequisites checked without secret output. |
-| Disposable harness and privacy | 20 | 20 | Genuine remote clone, pristine-state checks, synthetic profile, constrained cleanup, and redacted reporting passed. |
-| Setup and shell contract | 20 | 20 | First setup, provider-missing failure, repeat setup, four dependency trees, SQLite, and handoff contracts passed. |
-| Lifecycle and recovery | 20 | 20 | Start/check/idempotence/stop/restart/stale-state/occupied-port/local-recovery checks passed. |
-| Analyst workflow and safety | 15 | 15 | Ingest, normalize, detect, explain, related evidence, recommendations, Assistant follow-ups, and zero-side-effect gates passed. |
-| Verification, docs, and handoff | 15 | 15 | Full backend/frontend/detection/Assistant/security/performance/release matrix and current guidance completed. |
-| **Total** | **100** | **100** | v5.60 is complete locally; owner-backed external acceptance remains open. |
+| Source audit and contract | 10 | 10 | Training, status, authority, startup, clean-machine, and UI paths inspected. |
+| Safe evidence preflight | 20 | 20 | Schema, parser, support, duplicate, provenance, and privacy gates implemented. |
+| Explicit disposable bootstrap | 25 | 25 | Confirmation, temporary SQLite, deterministic manifest, ignored destinations, and rollback implemented. |
+| Runtime and UI honesty | 15 | 15 | Exact availability wording, corrective command, authority, and accuracy caveat implemented. |
+| Clean-machine extension | 10 | 10 | Default 27 stages preserved; five explicit v5.61 stages added. |
+| Tests, docs, and complete verification | 20 | 20 | Full local matrix passed; exact 31-path allowlist prepared. |
+| **Total** | **100** | **100** | Local implementation and verification are complete; publication remains separately controlled. |
 
 ## T3. Active Tasklist
 
 | Task ID | Task | Agent | Owner | Depends On | Status | Progress % | Progress Basis | Source Evidence | Tests Evidence | Blocker | Next Action | Output |
 | --- | --- | --- | --- | --- | --- | ---: | --- | --- | --- | --- | --- | --- |
-| ATDR-TASKLIST-001 | v5.60 clean-machine release-candidate acceptance | Codex | Project owner | Published v5.59 baseline and approved shell package | complete | 100 | All 27 harness gates and complete local verification passed | v5.60 service, CLI, test, status, and operator docs | 27/27 clean-room; 1,091 backend; 42 Playwright; 288 layered; 30 Assistant cases | Real university/provider/hardware/shared-host acceptance remains external | Consider v5.61 advisory anomaly bootstrap; obtain separate approval before publication | v5.60 harness, status, T1-T20, taskboard, exact allowlist |
+| ATDR-TASKLIST-001 | v5.61 governed advisory anomaly bootstrap | Codex | Project owner | Published v5.60 baseline | complete | 100 | Runtime, CLI, wrapper, UI, clean-machine extension, tests, docs, and full local verification complete | v5.61 service/CLI/wrappers/status/UI/docs | 1,102/1 backend, 43/1 Playwright, 288/288 layered, 30-case Assistant QA, 27/27 published clean-machine, and isolated bootstrap pass | Extended genuine remote-clone option requires separately approved publication; external accuracy evidence remains unavailable | Seek separate allowlist approval, then rerun the 32-stage option from published `origin/main` | v5.61 capability closure and approval-ready handoff |
 
 ## T4. Verification Log
 
 | Command / Check | Result | Evidence |
 | --- | --- | --- |
-| v5.60 focused and related tests | pass | 40 passed; seven directly exercise v5.60 boundaries |
-| genuine clean-machine harness | pass | 27/27 stages; remote clone, lifecycle, recovery, workflow, and cleanup |
-| backend Ruff and compileall | pass | No lint or compilation failures |
-| full backend tests | pass | 1,091 passed, one skipped; known dependency/model warnings only |
-| Alembic drift | pass | No new upgrade operations detected |
-| frontend lint and build | pass | 2,300 modules built successfully |
-| Playwright | pass | 42 passed; one intentionally skipped live-hardware scenario |
-| controlled source scenario | pass | 10 parsed, one expected port-scan alert, zero response actions |
-| layered detection validation | pass | 288/288 mode runs across 24 scenarios |
-| SOC Assistant QA | pass | 30/30 cases and one conversation sequence; 100% citation pass rate |
-| governed runtime inspection | pass | Rules authoritative, anomaly/hybrid advisory, supervised unqualified, response simulation-only |
-| replay dry-run | pass | Two sample rows parsed, zero writes or sends |
-| performance smoke | pass with observation | Overall gate passed; cold Overview 1.0477s versus 1.0s advisory budget, cached 0.014s |
-| repository and security audits | pass | Zero broken links/commands/parse errors and zero tracked-secret findings |
-| release gate | pass | Config, compile, 1,091-test rerun, Alembic, and deployment operations green |
-| repository hygiene | pass | Staging empty; private/generated artifacts remain ignored; diff check clean |
+| committed synthetic preflight | pass | 45 unique rows parsed; 41 eligible; four unresolved-app rows excluded; zero writes |
+| v5.61 focused backend tests | pass | confirmation, evidence gates, ignored paths, disposable execution, manifest, authority, cleanup, and redaction |
+| isolated explicit bootstrap | pass | 45 rows scored; two advisory signals; valid manifest; zero alerts, suppressions, labels, model/detection runs, or responses; outputs cleaned |
+| complete backend and release gate | pass | 1,102 passed, one skipped; config, migrations, and deployment checks passed |
+| frontend lint/build/Playwright | pass | lint/build green; 43 passed, one skipped; availability, corrective command, and overflow contracts pass |
+| controlled and layered detection | pass | source scenario passed; 288/288 layered checks, zero controlled FP/FN and response actions |
+| Assistant QA | pass | 30/30 cases plus contextual sequence; grounded, concise, read-only |
+| genuine published clean machine | pass | 27/27 stages; pristine anomaly unavailable; rules authoritative; complete cleanup |
+| repository/security/taskboard | pass | 1,425 intended paths, zero secret findings, no broken references, rendered board valid |
+| replay and performance | pass | replay parsed two rows with zero writes; 145,232-row smoke met every budget |
 
 ## T5. Blockers And Risks
 
 | ID | Type | Status | Evidence | Impact | Next Action |
 | --- | --- | --- | --- | --- | --- |
-| R-560-01 | risk | mitigated | Clean clones intentionally contain no ignored IsolationForest artifact. | Anomaly reports unavailable and hybrid abstains until an artifact is governed locally. | v5.61 may add explicit operator-guided advisory bootstrap without committing an artifact. |
-| R-560-02 | risk | observed | Cold Overview measured 1.0477s against a 1.0s advisory budget; cached path was 0.014s. | First dashboard load can vary slightly on the large local SQLite database. | Retain monitoring; no release-gate failure or urgent runtime change is justified. |
-| B-EXT-01 | blocker | open | Synthetic provider wiring is not a real MFU sign-in. | University IAM lifecycle is not production-accepted. | University owner validates account, groups, 2FA, recovery, and deprovisioning. |
-| B-EXT-02 | blocker | open | No second physical source or new prediction-blind future evidence. | Supervised runtime remains unqualified. | Detection owners acquire governed independent evidence. |
-| B-EXT-03 | blocker | open | Institutional Gemini approval and representative provider evaluation are absent. | External Assistant mode is not institutionally accepted. | Provider owner approves privacy, quota, billing, retention, and key rotation. |
-| B-EXT-04 | blocker | open | No approved shared host or physical teammate acceptance. | Shared deployment and independent usability remain unqualified. | Deployment/teammate owners run preserved acceptance procedures. |
+| R-561-01 | risk | controlled | Current workspace has an ignored pre-v5.61 artifact without a governed manifest. | Capability is available locally but provenance is legacy. | Leave untouched unless owner deliberately runs replacement after preflight. |
+| R-561-02 | risk | controlled | Synthetic bootstrap data contains no independent threat labels. | Capability success cannot support accuracy or maliciousness claims. | Keep anomaly advisory and obtain external evidence separately. |
+| R-561-03 | risk | controlled | Extended 32-stage genuine remote-clone run needs v5.61 to exist on `origin/main`. | Pre-publication verification cannot execute the new CLI from a remote clone. | Run the opt-in extension after separately approved publication; local disposable execution and focused tests currently prove the contract. |
+| B-EXT-01 | blocker | open | No second physical source or untouched future evidence. | Supervised runtime remains unqualified and anomaly accuracy remains unvalidated. | Detection owners acquire governed independent evidence. |
+| B-EXT-02 | blocker | open | University/provider/shared-host acceptance remains pending. | Production certification is unavailable. | External owners complete the preserved acceptance tracks. |
 
 ## T6. Decision
 
-v5.60 establishes a reproducible controlled local release candidate from a
-genuine remote clone. Normal startup remains the MFU shell, local recovery is
-explicit, rules remain `active_authoritative`, supervised ML remains
-`unqualified`, the Assistant remains read-only, response remains
-`simulation_only`, and no model, label, protected evidence, automatic response,
-or real block was created. No commit or push is authorized by this record.
+v5.61 implementation preserves deterministic rules as alert authority,
+supervised runtime as `unqualified`, IsolationForest/hybrid as advisory,
+response as `simulation_only`, and model training as an explicit operator
+action. No commit or push is authorized by this taskboard.

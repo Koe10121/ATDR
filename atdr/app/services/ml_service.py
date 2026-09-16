@@ -209,6 +209,8 @@ def model_status(
     *,
     _aggregate: dict | None = None,
 ) -> dict:
+    from atdr.app.services.v561_anomaly_bootstrap_service import anomaly_bootstrap_status
+
     settings = get_settings()
     artifact = _artifact_metadata(settings.resolved_model_path)
     latest_train = latest_model_run(db, operation="train")
@@ -216,6 +218,9 @@ def model_status(
     aggregate = _aggregate or _traffic_aggregate(db)
     total_logs = int(aggregate["total_logs"])
     anomaly_logs = int(aggregate["anomaly_logs"])
+    capability = anomaly_bootstrap_status(
+        artifact_path=settings.resolved_model_path,
+    )
     return {
         "model_name": MODEL_NAME,
         "model_path": str(settings.resolved_model_path),
@@ -229,6 +234,13 @@ def model_status(
         "total_logs": total_logs,
         "current_anomaly_logs": anomaly_logs,
         "current_anomaly_rate": _anomaly_rate(anomaly_logs, total_logs),
+        "advisory_capability_state": capability["state"],
+        "advisory_capability_label": capability["label"],
+        "bootstrap_required": capability["bootstrap_required"],
+        "bootstrap_command": capability["preflight_command"],
+        "governed_bootstrap_manifest_valid": capability["governed_manifest_valid"],
+        "decision_support_only": True,
+        "threat_accuracy_validated": False,
     }
 
 
@@ -668,7 +680,10 @@ def evaluation_report(db: Session) -> dict:
 
     recommendations: list[str] = []
     if not status["artifact_exists"]:
-        recommendations.append("Train a baseline model before relying on ML-assisted anomaly scoring.")
+        recommendations.append(
+            "Advisory anomaly scoring is unavailable. Run the governed bootstrap preflight: "
+            f"{status['bootstrap_command']}"
+        )
     if scored_logs == 0:
         recommendations.append("Apply ML scoring after training so anomaly evidence appears in logs and dashboards.")
     if anomaly_rate > 10:

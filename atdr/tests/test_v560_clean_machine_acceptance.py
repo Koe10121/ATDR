@@ -184,3 +184,84 @@ def test_public_report_redaction_rejects_paths_addresses_and_secret_field_names(
     assert acceptance._public_report_is_redacted({"path": "C:\\Users\\Person\\private"}) is False
     assert acceptance._public_report_is_redacted({"address": "192.0.2.1"}) is False
     assert acceptance._public_report_is_redacted({"client_secret": "hidden"}) is False
+
+
+def test_v561_anomaly_bootstrap_extension_is_explicit_and_preserves_v560_default():
+    default_stages = acceptance.clean_machine_stage_names()
+    extended_stages = acceptance.clean_machine_stage_names(
+        exercise_anomaly_bootstrap=True,
+    )
+
+    assert len(default_stages) == 27
+    assert len(extended_stages) == 32
+    assert "anomaly_unavailable_before_bootstrap" not in default_stages
+    assert "anomaly_no_silent_training" in extended_stages
+    assert "anomaly_bootstrap_preflight" in extended_stages
+    assert "anomaly_bootstrap_advisory_ready" in extended_stages
+    assert "anomaly_artifact_cleanup" in extended_stages
+
+
+def test_v561_clean_machine_contract_requires_every_advisory_safety_invariant(
+    tmp_path: Path,
+):
+    artifact = tmp_path / "isolation_forest.joblib"
+    manifest = tmp_path / "isolation_forest.bootstrap.json"
+    artifact.write_bytes(b"disposable")
+    manifest.write_text("{}", encoding="utf-8")
+
+    def valid_report() -> dict:
+        return {
+            "status": "governed_advisory_anomaly_bootstrap_complete",
+            "current_capability": {
+                "state": "governed_advisory_ready",
+                "threat_accuracy_validated": False,
+                "supervised_model_activated": False,
+            },
+            "acceptance": {
+                "model_driven_alerts": 0,
+                "model_driven_suppressions": 0,
+                "labels_created": 0,
+                "model_runs_created": 0,
+                "detection_runs_created": 0,
+                "response_actions_created": 0,
+                "rules_alert_authoritative": True,
+                "hybrid_decision_support_only": True,
+                "model_only_alert_creation_allowed": False,
+                "supervised_state": "unqualified",
+                "supervised_model_activated": False,
+                "response_state": "simulation_only",
+                "real_firewall_blocking_enabled": False,
+            },
+        }
+
+    assert acceptance._anomaly_bootstrap_contract_ready(
+        valid_report(),
+        artifact_path=artifact,
+        manifest_path=manifest,
+    )
+
+    unsafe_variants = (
+        ("current_capability", "threat_accuracy_validated", True),
+        ("current_capability", "supervised_model_activated", True),
+        ("acceptance", "model_driven_alerts", 1),
+        ("acceptance", "model_driven_suppressions", 1),
+        ("acceptance", "labels_created", 1),
+        ("acceptance", "model_runs_created", 1),
+        ("acceptance", "detection_runs_created", 1),
+        ("acceptance", "response_actions_created", 1),
+        ("acceptance", "rules_alert_authoritative", False),
+        ("acceptance", "hybrid_decision_support_only", False),
+        ("acceptance", "model_only_alert_creation_allowed", True),
+        ("acceptance", "supervised_state", "active"),
+        ("acceptance", "supervised_model_activated", True),
+        ("acceptance", "response_state", "automatic"),
+        ("acceptance", "real_firewall_blocking_enabled", True),
+    )
+    for section, field, value in unsafe_variants:
+        report = valid_report()
+        report[section][field] = value
+        assert not acceptance._anomaly_bootstrap_contract_ready(
+            report,
+            artifact_path=artifact,
+            manifest_path=manifest,
+        )

@@ -1640,6 +1640,13 @@ export interface MLEvaluationReport {
     artifact_exists: boolean;
     model_path: string;
     contamination: number;
+    advisory_capability_state?: string;
+    advisory_capability_label?: string;
+    bootstrap_required?: boolean;
+    bootstrap_command?: string;
+    governed_bootstrap_manifest_valid?: boolean;
+    decision_support_only?: boolean;
+    threat_accuracy_validated?: boolean;
     latest_training?: Record<string, unknown> | null;
     latest_scoring?: Record<string, unknown> | null;
     total_logs: number;

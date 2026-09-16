@@ -35,6 +35,7 @@ from atdr.app.routers import (
     watchlists,
 )
 from atdr.app.services.observability_service import build_readiness
+from atdr.app.services.v561_anomaly_bootstrap_service import anomaly_bootstrap_status
 
 settings = get_settings()
 configure_logging(settings.log_level, settings.log_format)
@@ -121,11 +122,18 @@ app.add_middleware(
 def health(db: Session = Depends(get_db)) -> dict:
     database_check = check_database_connection(db)
     model_path = settings.resolved_model_path
+    anomaly_capability = anomaly_bootstrap_status(artifact_path=model_path)
     checks = {
         "database": database_check,
         "ml_model": {
             "status": "ready" if model_path.exists() else "missing",
             "artifact_exists": model_path.exists(),
+            "capability_state": anomaly_capability["state"],
+            "label": anomaly_capability["label"],
+            "decision_support_only": True,
+            "threat_accuracy_validated": False,
+            "corrective_command": anomaly_capability["preflight_command"],
+            "secrets_exposed": False,
         },
         "response_mode": {
             "status": "simulation" if settings.response_simulation else "pending_connector",

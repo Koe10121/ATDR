@@ -15,6 +15,7 @@ available in archived phase and T1-T20 records.
 | Preserve supervisor references without adopting the wrong stack | Satisfied | `docs/reference/` remains reference-only |
 | Keep exact approval-gated commit boundaries | Satisfied | current allowlist plus archived allowlists |
 | Prove clean-clone reproducibility | Satisfied locally | v5.60 genuine `origin/main` clone passed `27/27`; physical teammate repetition remains external |
+| Reproduce anomaly capability safely | Satisfied locally | v5.61 preflight, exact confirmation, disposable training, ignored provenance, and advisory-only acceptance |
 
 ## Product Integrity
 
@@ -23,7 +24,7 @@ available in archived phase and T1-T20 records.
 | Collect and preserve log evidence | Implemented locally | file/API/replay/syslog and durable ingestion services/tests |
 | Parse and normalize with quality visibility | Implemented for supported profiles | parser contracts, warnings, drift and field tests |
 | Explain deterministic detection | Implemented | rule catalog, explanations, related evidence, recommendations |
-| Keep AI/ML claims honest | Satisfied | rules authoritative; anomaly/hybrid advisory; supervised unqualified |
+| Keep AI/ML claims honest | Satisfied | rules authoritative; anomaly/hybrid advisory and not threat-accuracy validated; supervised unqualified |
 | Preserve human-label provenance | Satisfied | protected review, weak-label separation, no automated human claims |
 | Keep Assistant grounded and read-only | Satisfied locally | bounded context, citations, redaction, fallback, no-side-effect tests |
 | Keep response controlled | Satisfied | simulation only; no automatic response or real blocking |

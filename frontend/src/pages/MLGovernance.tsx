@@ -96,6 +96,12 @@ export function MLGovernance() {
   const reviewQueue = useMlReviewQueue({ limit: 25 });
   const labelMutations = useMlLabelMutations();
   const data = report.data;
+  const anomalyCapabilityLabel = data?.model_status.advisory_capability_label
+    ?? (data?.model_status.artifact_exists
+      ? "Advisory anomaly model available"
+      : "Advisory anomaly model unavailable");
+  const anomalyBootstrapCommand = data?.model_status.bootstrap_command
+    ?? ".\\scripts\\bootstrap_advisory_anomaly.cmd -UseCommittedSyntheticSample";
   const supervisedData = supervised.data;
   const supervisedMetrics = supervisedData?.latest_run?.metrics ?? {};
   const threatPositive = (supervisedMetrics.threat_positive ?? {}) as Record<string, unknown>;
@@ -524,8 +530,52 @@ export function MLGovernance() {
         )}
       </section>
 
+      <section className="panel" data-testid="anomaly-capability-status">
+        <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-xs font-extrabold uppercase tracking-wide text-muted">
+              IsolationForest Capability
+            </div>
+            <div className="mt-1 break-words text-lg font-black text-text">
+              {anomalyCapabilityLabel}
+            </div>
+            <p className="mt-1 text-sm text-muted">
+              Advisory decision support only. This state is not evidence of validated threat accuracy.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Badge value="Rules Authoritative" />
+            <Badge value="Threat Accuracy Not Validated" />
+            <Badge
+              value={data?.model_status.governed_bootstrap_manifest_valid
+                ? "Governed Bootstrap"
+                : "Bootstrap Provenance Incomplete"}
+            />
+          </div>
+        </div>
+        {data?.model_status.bootstrap_required ? (
+          <div className="mt-4 min-w-0 border-t border-line pt-3">
+            <div className="text-xs font-extrabold uppercase tracking-wide text-muted">
+              Corrective Preflight
+            </div>
+            <code className="mt-2 block max-w-full overflow-x-auto whitespace-pre-wrap break-all rounded border border-line bg-surface px-3 py-2 text-sm text-text">
+              {anomalyBootstrapCommand}
+            </code>
+          </div>
+        ) : null}
+      </section>
+
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="IsolationForest" value={data?.model_status.artifact_exists ? "Ready" : "Missing"} detail="Assistive anomaly pipeline" tone="teal" />
+        <MetricCard
+          label="IsolationForest"
+          value={data?.model_status.governed_bootstrap_manifest_valid
+            ? "Governed Advisory"
+            : data?.model_status.artifact_exists
+              ? "Legacy Advisory"
+              : "Unavailable"}
+          detail="Never creates or suppresses alerts"
+          tone={data?.model_status.artifact_exists ? "teal" : "amber"}
+        />
         <MetricCard label="Scored Logs" value={data?.scored_log_count ?? "-"} detail="Latest scored population" tone="cyan" />
         <MetricCard label="Anomalies" value={data?.anomaly_count ?? "-"} detail="Current anomaly flags" tone="amber" />
         <MetricCard label="Anomaly Rate" value={`${data?.anomaly_rate ?? "-"}%`} detail="Assistive signal rate" tone="cyan" />
