@@ -126,6 +126,19 @@ def qualification_client(
     paths = _prepare_workspace(tmp_path)
     monkeypatch.setattr(service, "_paths", lambda: paths)
     monkeypatch.setattr(
+        v562,
+        "validate_consumed_v549b_boundary",
+        lambda: {
+            "status": "immutable_consumed_negative_decision",
+            "execution_count": 1,
+            "combined_reviewed": v562.EXPECTED_CONSUMED_ROWS,
+            "candidate_selected": False,
+            "model_activated": False,
+            "rules_alert_authoritative": True,
+            "response_mode": "simulation_only",
+        },
+    )
+    monkeypatch.setattr(
         evidence_review_router,
         "get_public_v562_status",
         lambda: v562.get_public_v562_status(tmp_path),
