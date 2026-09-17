@@ -28,6 +28,8 @@ and do not define ATDR's runtime stack.
 | `docs/V5_61_GOVERNED_ANOMALY_BOOTSTRAP.md` | Explicit clean-clone IsolationForest preflight, bootstrap, privacy, and advisory authority contract |
 | `docs/V5_62_SUPERVISED_QUALIFICATION_CAMPAIGN.md` | Fresh supervised evidence lock, protected review, fixed gates, and qualification blockers |
 | `docs/V5_63_FRESH_COMPARABLE_EVIDENCE_EXPANSION.md` | Append-only 700-row expansion, batched review, second-source preflight, and current qualification gates |
+| `docs/V5_63_1_ADVISOR_DEMO_RELIABILITY_LOCK.md` | Current anomaly telemetry, candidate decision, Assistant/Gemini proof, and advisor acceptance |
+| `docs/ADVISOR_DEMO_RUNBOOK.md` | Five-minute advisor workflow, preflight, talking points, limitations, and recovery |
 | `docs/prd/PRD-ATDR.md` | Current product requirements |
 | `docs/ATDR_REQUIREMENT_TRACEABILITY.md` | Requirement-to-source/test mapping |
 | `docs/ATDR_UNIVERSITY_COMPLIANCE_CHECKLIST.md` | Active university workflow and safety checklist |

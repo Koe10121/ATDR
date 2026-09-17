@@ -218,6 +218,7 @@ def model_status(
     aggregate = _aggregate or _traffic_aggregate(db)
     total_logs = int(aggregate["total_logs"])
     anomaly_logs = int(aggregate["anomaly_logs"])
+    scored_logs = int(aggregate["scored_log_count"])
     capability = anomaly_bootstrap_status(
         artifact_path=settings.resolved_model_path,
     )
@@ -232,8 +233,12 @@ def model_status(
         "latest_training": run_to_dict(latest_train) if latest_train else None,
         "latest_scoring": run_to_dict(latest_score) if latest_score else None,
         "total_logs": total_logs,
+        "scored_log_count": scored_logs,
         "current_anomaly_logs": anomaly_logs,
-        "current_anomaly_rate": _anomaly_rate(anomaly_logs, total_logs),
+        "current_anomaly_rate": _anomaly_rate(anomaly_logs, scored_logs),
+        "anomaly_rate_basis": "scored_logs",
+        "scoring_coverage_percent": _anomaly_rate(scored_logs, total_logs),
+        "stored_anomaly_prevalence_percent": _anomaly_rate(anomaly_logs, total_logs),
         "advisory_capability_state": capability["state"],
         "advisory_capability_label": capability["label"],
         "bootstrap_required": capability["bootstrap_required"],
@@ -291,6 +296,9 @@ def _traffic_aggregate(db: Session, *, baseline_max_app_risk: int = 3) -> dict:
             _value_subquery(func.min(NormalizedLog.generated_time)).label("generated_time_min"),
             _value_subquery(func.max(NormalizedLog.generated_time)).label("generated_time_max"),
             _count_subquery(NormalizedLog.is_anomaly.is_(True)).label("anomaly_logs"),
+            _count_subquery(NormalizedLog.anomaly_score.is_not(None)).label(
+                "scored_log_count"
+            ),
             _count_subquery(lower_action.in_(["deny", "drop"])).label("deny_drop_logs"),
             _count_subquery(
                 lower_action.in_(["deny", "drop", "reset-both", "reset-client", "reset-server"])
@@ -361,6 +369,7 @@ def dataset_profile(
     distributions = _distributions or _dataset_distributions(db)
     total_logs = int(aggregate["total_logs"])
     anomaly_logs = int(aggregate["anomaly_logs"])
+    scored_logs = int(aggregate["scored_log_count"])
     deny_drop_logs = int(aggregate["deny_drop_logs"])
     high_risk_logs = int(aggregate["high_risk_logs"])
     unknown_app_logs = int(aggregate["unknown_app_logs"])
@@ -384,8 +393,12 @@ def dataset_profile(
         "total_logs": total_logs,
         "generated_time_min": aggregate["generated_time_min"],
         "generated_time_max": aggregate["generated_time_max"],
+        "scored_log_count": scored_logs,
         "current_anomaly_logs": anomaly_logs,
-        "current_anomaly_rate": _anomaly_rate(anomaly_logs, total_logs),
+        "current_anomaly_rate": _anomaly_rate(anomaly_logs, scored_logs),
+        "anomaly_rate_basis": "scored_logs",
+        "scoring_coverage_percent": _anomaly_rate(scored_logs, total_logs),
+        "stored_anomaly_prevalence_percent": _anomaly_rate(anomaly_logs, total_logs),
         "deny_drop_logs": deny_drop_logs,
         "deny_drop_rate": _anomaly_rate(deny_drop_logs, total_logs),
         "high_risk_logs": high_risk_logs,
@@ -459,6 +472,7 @@ def baseline_drift_report(
     distributions = _distributions or _dataset_distributions(db)
     total_logs = int(aggregate["total_logs"])
     anomaly_logs = int(aggregate["anomaly_logs"])
+    scored_logs = int(aggregate["scored_log_count"])
     deny_drop_reset_logs = int(aggregate["deny_drop_reset_logs"])
     unknown_app_logs = int(aggregate["unknown_app_logs"])
     scoring_runs = _latest_scoring_runs(db)
@@ -469,8 +483,12 @@ def baseline_drift_report(
         "unknown_app_rate": _anomaly_rate(unknown_app_logs, total_logs),
         "deny_drop_reset_count": deny_drop_reset_logs,
         "deny_drop_reset_rate": _anomaly_rate(deny_drop_reset_logs, total_logs),
+        "scored_log_count": scored_logs,
+        "scoring_coverage_percent": _anomaly_rate(scored_logs, total_logs),
         "anomaly_count": anomaly_logs,
-        "anomaly_rate": _anomaly_rate(anomaly_logs, total_logs),
+        "anomaly_rate": _anomaly_rate(anomaly_logs, scored_logs),
+        "anomaly_rate_basis": "scored_logs",
+        "stored_anomaly_prevalence_percent": _anomaly_rate(anomaly_logs, total_logs),
         "app_distribution": distributions["top_apps"],
         "action_distribution": distributions["action_distribution"],
         "top_source_ips": _count_group(db, NormalizedLog.src_ip),
@@ -701,6 +719,11 @@ def evaluation_report(db: Session) -> dict:
         "scored_log_count": scored_logs,
         "anomaly_count": anomaly_count,
         "anomaly_rate": anomaly_rate,
+        "anomaly_rate_basis": "scored_logs",
+        "scoring_coverage_percent": status["scoring_coverage_percent"],
+        "stored_anomaly_prevalence_percent": status[
+            "stored_anomaly_prevalence_percent"
+        ],
         "score_stats_all": score_stats_all,
         "score_stats_anomalies": _score_stats(db, anomalous_only=True),
         "run_comparison": run_comparison,

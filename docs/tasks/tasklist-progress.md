@@ -4,81 +4,80 @@
 | --- | --- |
 | Date | 2026-09-17 |
 | Project | MFU AI-Driven Log-Based Threat Detection and Response System |
-| Module / Feature | v5.63 Fresh Comparable Evidence Expansion |
-| Requirement | Reach the fixed 1,000-row selected capacity without changing v5.62 custody, exposing evaluation evidence, or running a model. |
-| Active Change Record | `docs/changes/T1_T20_V5_63_FRESH_COMPARABLE_EVIDENCE_EXPANSION.md` |
-| Overall Status | ready_for_batched_human_review |
-| Overall Progress | 100% implementation; 0/1,000 genuine review decisions |
-| Progress Type | Evidence capacity and protected workflow; not supervised qualification |
+| Module / Feature | v5.63.1 Controlled-Lab Detection and Advisor Demonstration Reliability Lock |
+| Requirement | Make the complete advisor-facing workflow accurate, safe, concise, and reproducible with currently available resources. |
+| Active Change Record | `docs/changes/T1_T20_V5_63_1_ADVISOR_DEMO_RELIABILITY_LOCK.md` |
+| Overall Status | complete_advisor_demo_ready |
+| Overall Progress | 100% |
+| Progress Type | Controlled-lab reliability and advisor acceptance; not production certification |
 
 ## T1. Source Evidence
 
 | Area | Source Evidence |
 | --- | --- |
-| Published baseline | v5.61 commit `df8f3b8` from `origin/main` |
-| Backend entry | `atdr/app/main.py`, evidence-review router, and v5.62-v5.63 campaign/review services |
-| Frontend entry | `frontend/src/App.tsx`, Evidence Review page, API client, and query hooks |
-| Original campaign | immutable v5.62 protocol, 300-row pack, consumed-evidence exclusion, and fixed gates |
-| Runtime authority | v5.58 rules-authoritative hybrid runtime and v5.61 advisory anomaly contract |
-| Expansion | `atdr/app/detection/v563_fresh_evidence_expansion.py` |
-| CLI | `atdr/scripts/run_v563_fresh_evidence_expansion.py` |
-| Protected review | v5.63 batch service, evidence-review router/schemas, and React panel |
-| Private preparation | 773,551 rows parsed in disposable SQLite; aggregate output only |
-| Tests | v5.63 custody/API/source tests and Playwright batched-review workflow |
+| Published baseline | v5.63 commit `cf106d6` from `origin/main` |
+| Backend entry | `atdr/app/main.py`, ML services, v5.63.1 evaluator, and disposable acceptance CLI |
+| Frontend entry | `frontend/src/App.tsx`, AI Governance, Detection Tuning, and SOC Assistant routes |
+| Detection authority | nineteen deterministic rules, v5.58 runtime contract, and layered detection suites |
+| Anomaly runtime | ignored legacy IsolationForest artifact, v5.61 bootstrap contract, ML service telemetry |
+| Private evaluation | CLI-only bounded PAN-OS input; aggregate output without path, raw records, addresses, identities, or fingerprints |
+| Assistant | bounded service context, deterministic fallback, Gemini adapter, QA corpus, contextual follow-up contract |
+| Advisor workflow | `atdr/scripts/run_v5631_advisor_demo_acceptance.py` with disposable in-memory storage |
+| Frontend | AI Governance and Detection Tuning pages with explicit anomaly denominator and coverage wording |
+| Safety | rules authoritative, anomaly/hybrid advisory, supervised unqualified, response simulation-only |
 
 ## T2. Progress Calculation
 
 | Readiness Area | Weight | Earned | Basis |
 | --- | ---: | ---: | --- |
-| v5.62 append-only custody | 15 | 15 | All 300 rows, roles, gates, and sealed evaluation evidence preserved. |
-| Fresh supplemental selection | 20 | 20 | 700 unique development-safe families selected; overlap and added evaluation rows both zero. |
-| Batched protected review | 20 | 20 | Seven owner-isolated 100-row batches support resume, validation, revisions, and immutable closure. |
-| Second-source intake readiness | 15 | 15 | CLI-only disposable preflight rejects same-device evidence and returns aggregates only. |
-| Aggregate gates and safety | 10 | 10 | All fixed gates shown honestly; no training/evaluation/activation or authoritative writes. |
-| Tests, docs, and verification | 20 | 20 | Focused checks pass; complete matrix is recorded in T4 after final execution. |
-| **Total** | **100** | **100** | v5.63 implementation is complete; human review and real second-source evidence remain external work. |
+| Anomaly telemetry correctness | 15 | 15 | Scored-row rate, database coverage, and all-row prevalence are separated. |
+| Development-only anomaly audit | 20 | 20 | Eight fixed variants compared; unqualified candidates refused. |
+| Assistant and Gemini reliability | 20 | 20 | Thirty intent cases, follow-up continuity, citations, privacy, and bounded live probe pass. |
+| Advisor end-to-end acceptance | 20 | 20 | Ten stages and 24 workflow checks pass in disposable storage. |
+| UI and analyst wording | 10 | 10 | Governance and tuning views name the anomaly denominator and advisory authority. |
+| Full verification and governance | 15 | 15 | Full backend/frontend, migration, scenario, security, performance, and release checks pass. |
+| **Total** | **100** | **100** | v5.63.1 implementation and local verification are complete. |
 
 ## T3. Active Tasklist
 
 | Task ID | Task | Agent | Owner | Depends On | Status | Progress % | Progress Basis | Source Evidence | Tests Evidence | Blocker | Next Action | Output |
 | --- | --- | --- | --- | --- | --- | ---: | --- | --- | --- | --- | --- | --- |
-| ATDR-TASKLIST-001 | v5.63 evidence expansion and intake readiness | Codex | Project owner | immutable v5.62 campaign | complete | 100 | Backend, CLI, API/UI, tests, private preparation, full verification, and governance complete | v5.63 source and status doc | backend `1114 passed, 1 skipped`; browser `45 passed, 1 skipped`; full matrix in T4 | none for implementation | Seek separate publication approval only when desired | approval-ready cumulative v5.62-v5.63 source baseline |
-| ATDR-TASKLIST-002 | Complete original protected review | Human analyst | Project owner | v5.62 workspace | ready | 0 | `0/300`, zero invalid, future evaluation sealed | private ignored v5.62 review state | owner/redaction/closure tests pass | genuine human judgment required | review and close 300 rows without forcing quotas | immutable original decisions |
-| ATDR-TASKLIST-003 | Complete supplemental review batches | Human analyst(s) | Project owner | v5.63 workspace | ready | 0 | `0/700`; seven batches open; zero invalid | private ignored v5.63 review state | owner/revision/batch-closure tests pass | genuine human judgment required | review and close all seven batches | immutable supplemental decisions |
-| ATDR-TASKLIST-004 | Prove second physical source | Hardware owner | Project owner / advisor | source device access | blocked_external | 0 | one real source versus fixed minimum two | aggregate v5.63 source gate | same-device rejection and distinct-device synthetic tests pass | second physical device unavailable | run guarded preflight on genuine new-device logs | independent source evidence |
+| ATDR-TASKLIST-001 | v5.63.1 advisor reliability lock | Codex | Project owner | published v5.63 baseline | complete | 100 | Runtime, UI, CLIs, tests, status, runbook, full verification, and exact allowlist complete | v5.63.1 source and status docs | backend `1119 passed, 1 skipped`; browser `45 passed, 1 skipped`; advisor acceptance `10/10`, workflow `24/24` | none | seek separate publication approval only when desired | approval-ready advisor reliability baseline |
+| ATDR-TASKLIST-002 | Window-aware anomaly redesign | Codex / future reviewer | Project owner | new development evidence | planned | 0 | Current candidates fail threat-capture gates | v5.63.1 reliability report | candidate decision is no-selection | trustworthy context features and independent evidence | collect new development windows under a new protocol | improved advisory candidate or honest no-candidate result |
+| ATDR-TASKLIST-003 | Governed supervised qualification | Human reviewer + Codex | Project owner | fresh review closure and second-source evidence | blocked_external | 0 | effective runtime remains `unqualified` | v5.62-v5.63 qualification campaign | fail-closed runtime and leakage tests pass | genuine labels and second source | complete review and external evidence without forcing quotas | separately approved shadow candidate decision |
 
 ## T4. Verification Log
 
 | Command / Check | Result | Evidence |
 | --- | --- | --- |
-| v5.62 boundary revalidation | pass | 300 rows and roles unchanged; 45 future rows sealed; decisions not accessed |
-| private v5.63 preparation | pass | 773,551 parsed, zero failures, 700 selected, zero original overlap, seven batches, zero writes |
-| focused backend v5.63 tests | pass | `6/6`; custody, overlap, auth, owner, revisions, closure, source identity, redaction, no-write |
-| focused frontend workflow | pass | React lint/build and Playwright qualification/expansion `2/2` |
-| taskboard render / standard check | pass | generated HTML is current and required ATDR sections validate |
-| Ruff / compileall / Alembic | pass | lint and bytecode checks clean; no new upgrade operations |
-| full backend suite | pass | `1114 passed, 1 skipped`; repeated successfully by release gate |
+| focused v5.61/v5.63.1 backend tests | pass | `14 passed`; telemetry, privacy, manifest, install refusal, acceptance composition |
+| private anomaly evidence preflight | pass | 50,000/50,000 parsed; 99.77% feature completeness; 30,832 eligible; output aggregate-only |
+| anomaly candidate comparison | pass with no candidate | eight variants evaluated; all failed fixed threat-capture gates; zero artifact install |
+| disposable advisor acceptance | pass | 10/10 stages; 24/24 workflow checks; configured database not accessed |
+| Assistant QA | pass | 30 cases plus follow-up continuity; average/max 56.1/110 words; zero authoritative writes |
+| bounded live Gemini probe | pass | external provider used; structured output valid; raw logs false; redaction true; secrets false |
+| taskboard / Ruff / compileall / Alembic | pass | board rendered and validated; lint/bytecode clean; no migration drift |
+| full backend suite | pass | `1119 passed, 1 skipped`; repeated successfully inside the release gate |
 | React lint / build / Playwright | pass | production build clean; `45 passed, 1 skipped` |
-| controlled source / layered detection | pass | source `10/10`; expected alert and zero responses; layered `288/288`, zero controlled FP/FN |
-| Assistant / governed hybrid | pass | 30 quality cases plus follow-ups; rules authoritative, anomaly advisory, supervised unqualified, response simulation-only |
-| replay / performance | pass | replay wrote zero rows; performance `ok: true`, no warnings, cached Overview `0.0105s` |
-| repository / security audit | pass | no broken/non-portable references; zero findings across 1,441 tracked text paths |
-| release gate | pass | config, compileall, backend, Alembic, and deployment-operations checks all pass |
+| controlled source / layered detection | pass | source workflow succeeded; layered `288/288`, zero controlled FP/FN |
+| replay / performance | pass | dry-run wrote zero rows; performance `ok: true`, anomaly rate 2.36%, no warnings |
+| repository / security audit | pass | no broken/non-portable references; zero findings across 1,449 scanned text paths |
+| release gate | pass | `ok: true`; config, compileall, backend, Alembic, and deployment operations all pass |
 
 ## T5. Blockers And Risks
 
 | ID | Type | Status | Evidence | Impact | Next Action |
 | --- | --- | --- | --- | --- | --- |
-| B-563-01 | human | open | combined review `0/1,000` | comparable and class-support gates fail | complete genuine review without forced labels |
-| B-563-02 | hardware | open | one verified physical source | provenance gate fails | obtain independently verified second source |
-| B-563-03 | evaluation | controlled | future labels remain sealed | no quality metric may be claimed | preserve seal until a candidate is frozen under a later protocol |
-| R-563-01 | integrity | controlled | large duplicate population exists | leakage if family locks change | keep immutable family/role exclusion records |
-| R-563-02 | interpretation | controlled | selected capacity equals 1,000 but reviewed count is zero | capacity could be mistaken for qualification | always report selected and reviewed counts separately |
+| R-5631-01 | anomaly quality | controlled | legacy benign anomaly rate 17.78%; suspicious/malicious capture 57.14%/50.00% | anomaly remains supporting evidence only | redesign with new development windows; do not install current candidates |
+| R-5631-02 | supervised evidence | deferred/external | effective runtime `unqualified`; v5.63 campaign not yet reviewed | no supervised runtime inference | finish genuine review and obtain second physical source later |
+| R-5631-03 | external acceptance | deferred by owner | MFU provider, real firewall, and shared host evidence unavailable | no production or field-certification claim | retain ready-to-test contracts and resume when owners/hardware exist |
+| R-5631-04 | provider governance | external | live Gemini adapter works; institutional privacy/quota/key acceptance pending | controlled demo only | obtain provider-owner acceptance before shared deployment |
 
 ## T6. Decision
 
-v5.63 is implementation-complete and ready for genuine batched human review.
-It reaches the selected 1,000-row capacity but does not qualify supervised ML.
-No training, evaluation, freeze, activation, promotion, authoritative alert
-change, automatic response, or real blocking occurred. No commit or push is
-authorized by this taskboard.
+ATDR is implementation-ready for a controlled advisor demonstration. Rules
+remain alert-authoritative, anomaly and hybrid output remain advisory,
+supervised runtime remains `unqualified`, and response remains
+`simulation_only`. The anomaly telemetry defect is corrected without changing
+predictions. No new candidate passed the fixed gates, so no model was installed.
+No commit or push is authorized by this taskboard.

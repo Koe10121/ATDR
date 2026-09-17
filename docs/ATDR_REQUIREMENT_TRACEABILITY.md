@@ -8,10 +8,10 @@ Historical phase-by-phase traceability is preserved under `docs/archive/`.
 | FR-ING-01 ingestion | `atdr/app/routers/logs.py`, ingestion/job services, syslog receiver | backend ingestion, operation worker, large-file, and source scenario tests | Implemented locally; physical source pending |
 | FR-PAR-01 parsing | `atdr/app/parsers/`, parser-quality services | parser contract, drift, field-qualification, and layered tests | Implemented for governed profiles |
 | FR-DET-01 rules | `atdr/app/detection/`, detection service/router | controlled source and layered `288`-case validation | Implemented; real FP/FN evidence external |
-| FR-ML-01 anomaly | v5.61 bootstrap service/CLI, ML status/health, runtime contract, and AI Governance UI | evidence-gate, confirmation, disposable training, no-write, clean-machine extension, API, and Playwright tests | Reproducible advisory capability; not threat-accuracy validated |
+| FR-ML-01 anomaly | v5.61 bootstrap plus v5.63.1 scored-row telemetry, private-safe reliability evaluator, fixed gates, and AI Governance wording | denominator, privacy, manifest, unqualified-install refusal, acceptance, API, and Playwright tests | Reproducible advisory capability; no replacement qualified; not threat-accuracy validated |
 | FR-ML-02 supervised | supervised lifecycle, registry, v5.62 consumed-evidence exclusion, v5.63 append-only 1,000-row capacity, protected batched review, and development preflight | v5.49b aggregate decision, v5.58 runtime tests, and v5.62-v5.63 backend/UI safety tests | 300+700 rows selected; `0/1,000` reviewed; one source; `unqualified`; no active candidate |
 | FR-EXP-01 explanations | explanation, investigation, alert, and case services | explanation/adversarial and analyst-workflow tests | Implemented |
-| FR-AST-01 Assistant | assistant service, provider adapter, schemas, router | Assistant backend QA, provider-failure, privacy, and Playwright tests | Read-only; Gemini approval external |
+| FR-AST-01 Assistant | assistant service, provider adapter, schemas, router, and v5.63.1 advisor acceptance | `30/30` quality cases, follow-up continuity, bounded live Gemini probe, provider-failure, privacy, no-side-effect, and Playwright tests | Read-only and demo-verified; Gemini institutional approval external |
 | FR-ALT-01 analyst workflow | alert/case/label/audit routes and React pages | end-to-end analyst journey, UI tests, and v5.60 remote-clone acceptance | Implemented locally and in clean clone |
 | FR-RSP-01 response | response service/router and safety config | response simulation and no-side-effect tests | `simulation_only` |
 | FR-IAM-01 identity | shell handoff, auth/security services, shell lifecycle scripts | auth, packaged handoff, fail-closed provider, startup, and browser tests | Clean-clone controls verified; MFU acceptance external |
@@ -36,6 +36,9 @@ Historical phase-by-phase traceability is preserved under `docs/archive/`.
 | Supplemental evidence is append-only | v5.63 original-pack preservation, overlap rejection, unique-family checks, and zero added evaluation rows |
 | Second-source identity is not fabricated | v5.63 same-device rejection, aggregate-only distinct-device preflight, and unchanged source gate |
 | Anomaly training is explicit and isolated | v5.61 confirmation gate, ignored destination checks, disposable SQLite, and setup/start non-execution tests |
+| Anomaly telemetry uses honest denominators | v5.63.1 scored-row rate, database coverage, all-row prevalence, API schemas, UI labels, and regression tests |
+| Unqualified anomaly replacement is refused | v5.63.1 fixed gates, private-safe comparison, manifest validation, atomic installer boundary, and no-install tests |
+| Advisor workflow does not mutate configured state | v5.63.1 disposable acceptance, 10/10 stages, 24/24 workflow checks, and explicit configured-DB exclusion |
 
 ## External Trace
 

@@ -1,6 +1,6 @@
 # ATDR Current AI And ML Product Status
 
-Date: 2026-09-16
+Date: 2026-09-17
 
 ## Decision Summary
 
@@ -22,11 +22,11 @@ a response action. Automatic response and real firewall blocking are disabled.
 | Layer | Status | Authority |
 | --- | --- | --- |
 | Nineteen deterministic rules | Locally verified: controlled `24/24`, layered `288/288` | May create/deduplicate alerts; cannot execute response |
-| IsolationForest | Explicitly reproducible through v5.61; noisy and weak on current evidence | Advisory only; not threat-accuracy validated |
+| IsolationForest | Explicitly reproducible; current scored-row rate 2.36% at 41.47% database coverage; controlled reliability remains weak | Advisory only; not threat-accuracy validated |
 | Supervised SOC queue | v5.49b selected no candidate; effective runtime `unqualified` | No inference or alert authority; historical lifecycle is not runtime authorization |
 | Legacy supervised artifact | Registered history exists but strict validation is not satisfied | Preserved history only; ordinary prediction refuses it |
-| Deterministic Assistant | v5.56 QA `30/30` plus a four-turn sequence; v5.57 integrated investigation passes `24/24`; citation rate `1.0`; average/max `56.0/110` words | Read-only explanation |
-| Gemini Assistant synthesis | v5.56 private structured minimal/full-chat probes pass; institutional acceptance pending | Read-only rephrasing/summarization |
+| Deterministic Assistant | v5.63.1 QA `30/30` plus context-preserving follow-up; advisor workflow `24/24`; average/max `56.1/110` words | Read-only explanation |
+| Gemini Assistant synthesis | v5.63.1 bounded live structured probe passes with raw logs excluded and redaction enabled; institutional acceptance pending | Read-only rephrasing/summarization |
 
 ## Detection Rules
 
@@ -54,9 +54,13 @@ Primary source:
 IsolationForest scores unusual behavior. It is not trained to prove malicious
 intent and cannot create an alert by itself. Current controlled audits show
 meaningful benign noise and weak threat capture, so ATDR treats it only as
-supporting context. The performance smoke currently observes a high anomaly
-rate on the configured data; that is another reason not to promote anomaly
-scores to alert authority.
+supporting context.
+
+v5.63.1 corrected an important telemetry ambiguity. The configured snapshot
+has 145,232 normalized rows, 60,230 scored rows, and 1,421 anomaly flags. The
+advisory anomaly rate is therefore 2.36% among scored rows, scoring coverage is
+41.47%, and all-row prevalence is 0.98%. The former 0.98 value was a percentage
+with an all-row denominator, not a 0.98 fraction and not a 98% anomaly rate.
 
 The v5.60 genuine clean clone intentionally contains no ignored model artifact.
 Its rule workflow passes, while runtime status reports IsolationForest
@@ -78,6 +82,21 @@ preflight command. Governed post-bootstrap state is **Advisory anomaly model
 available**, paired with **Threat Accuracy Not Validated** and **Rules
 Authoritative**. The existing local pre-v5.61 artifact is left untouched and
 is honestly classified as legacy advisory state until deliberately replaced.
+
+### v5.63.1 Reliability Decision
+
+A private-safe, development-only audit created chronological fit,
+calibration, and holdout roles in memory and compared eight fixed raw/robust
+feature variants at 1%, 2%, 3%, and 5% queue targets. The existing legacy
+artifact produced 17.78% controlled benign anomaly rate, 57.14% suspicious
+scenario capture, 50.00% malicious scenario capture, and 2.08% private
+eligible-holdout queue rate. New variants removed controlled benign flags but
+captured at most 28.57% of suspicious scenarios and 50% of malicious scenarios.
+
+No variant passed all fixed gates. No candidate was selected or installed, and
+the ignored legacy artifact was not changed. This is an intentional fail-closed
+decision: a quiet anomaly model that misses threat scenarios is not an
+improvement.
 
 ## Supervised Model Decision
 
@@ -222,6 +241,12 @@ Current private checks confirm:
 - secrets and raw lines exposed: false;
 - response actions, detection runs, labels, and model runs changed: `0`.
 
+The v5.63.1 bounded provider probe also passed with Gemini: provider/model/key
+configured booleans were true, structured output was valid, external provider
+use was true, raw-log context was false, redaction was true, and secrets were
+not exposed. No secret value or provider payload is retained in repository
+evidence.
+
 The provider is not allowed to run detection, alter labels, activate models,
 manage users, delete evidence, or execute response actions. If the call fails,
 is unsafe, lacks grounding, or violates the response budget, ATDR uses the
@@ -289,6 +314,8 @@ failure behavior under the approved provider policy.
 5. Complete institutional Gemini privacy, retention, cost/quota, monitoring,
    and key-rotation acceptance.
 6. Run representative analyst evaluation on real but privacy-approved records.
+7. Redesign anomaly evidence around stable time windows and behavior context
+   before considering any replacement of the current advisory artifact.
 
 IsolationForest bootstrap itself is no longer a Codex-owned implementation
 gap. Field accuracy and authority remain evidence questions and must not be

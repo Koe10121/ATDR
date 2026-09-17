@@ -323,6 +323,13 @@ def build_detection_tuning_report(db: Session) -> dict[str, Any]:
             "latest_training_log_count": latest_training.get("training_log_count"),
             "latest_scored_log_count": latest_scoring.get("scored_log_count"),
             "current_anomaly_rate": anomaly_rate,
+            "anomaly_rate_basis": ml_status.get("anomaly_rate_basis"),
+            "scoring_coverage_percent": ml_status.get(
+                "scoring_coverage_percent"
+            ),
+            "stored_anomaly_prevalence_percent": ml_status.get(
+                "stored_anomaly_prevalence_percent"
+            ),
             "expected_contamination_rate": expected_rate,
             "baseline_candidate_count": profile.get("baseline_candidate_count"),
             "high_risk_rate": profile.get("high_risk_rate"),

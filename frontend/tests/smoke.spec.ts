@@ -2360,7 +2360,7 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
     route.fulfill({ json: { summary: {}, alert_type_pressure: [], suppression_candidates: [], false_positive_learning: {}, severity_distribution: [], status_distribution: [], ml: {}, production_readiness: [], recommendations: [] } })
   );
   await page.route("**/api/ml/report", async (route) =>
-    route.fulfill({ json: { model_status: { artifact_exists: true, advisory_capability_state: "governed_advisory_ready", advisory_capability_label: "Advisory anomaly model available", bootstrap_required: false, governed_bootstrap_manifest_valid: true, decision_support_only: true, threat_accuracy_validated: false }, dataset_profile: { recommendations: [] }, scored_log_count: 0, anomaly_count: 0, anomaly_rate: 0, recommendations: [], drift_signals: [], top_anomalous_src_ips: [], top_anomalous_apps: [], top_anomalous_dst_ports: [] } })
+    route.fulfill({ json: { model_status: { artifact_exists: true, advisory_capability_state: "governed_advisory_ready", advisory_capability_label: "Advisory anomaly model available", bootstrap_required: false, governed_bootstrap_manifest_valid: true, decision_support_only: true, threat_accuracy_validated: false }, dataset_profile: { recommendations: [] }, scored_log_count: 600, anomaly_count: 18, anomaly_rate: 3, anomaly_rate_basis: "scored_logs", scoring_coverage_percent: 60, stored_anomaly_prevalence_percent: 1.8, recommendations: [], drift_signals: [], top_anomalous_src_ips: [], top_anomalous_apps: [], top_anomalous_dst_ports: [] } })
   );
   await page.route("**/api/ml/supervised/report", async (route) =>
     route.fulfill({
@@ -4196,6 +4196,8 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(anomalyCapability).toContainText("Threat Accuracy Not Validated");
   await expect(anomalyCapability).toContainText("Advisory decision support only");
   expect(await anomalyCapability.evaluate((element) => element.scrollWidth > element.clientWidth + 1)).toBe(false);
+  await expect(page.getByText("60% database coverage", { exact: true })).toBeVisible();
+  await expect(page.getByText("Among scored logs only", { exact: true })).toBeVisible();
   await expect(modelRegistry.getByText("Metadata unknown", { exact: true })).toBeVisible();
   await expect(modelRegistry.getByText("candidate unqualified", { exact: true })).toBeVisible();
   await expect(modelRegistry.getByText("Effective Runtime", { exact: true })).toBeVisible();
@@ -4259,6 +4261,9 @@ test("AI Governance explains a missing advisory anomaly capability without train
         scored_log_count: 0,
         anomaly_count: 0,
         anomaly_rate: 0,
+        anomaly_rate_basis: "scored_logs",
+        scoring_coverage_percent: 0,
+        stored_anomaly_prevalence_percent: 0,
         recommendations: [],
         drift_signals: [],
         top_anomalous_src_ips: [],

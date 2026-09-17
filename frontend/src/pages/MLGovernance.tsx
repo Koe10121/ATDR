@@ -576,9 +576,19 @@ export function MLGovernance() {
           detail="Never creates or suppresses alerts"
           tone={data?.model_status.artifact_exists ? "teal" : "amber"}
         />
-        <MetricCard label="Scored Logs" value={data?.scored_log_count ?? "-"} detail="Latest scored population" tone="cyan" />
+        <MetricCard
+          label="Scored Logs"
+          value={data?.scored_log_count ?? "-"}
+          detail={`${data?.scoring_coverage_percent ?? "-"}% database coverage`}
+          tone="cyan"
+        />
         <MetricCard label="Anomalies" value={data?.anomaly_count ?? "-"} detail="Current anomaly flags" tone="amber" />
-        <MetricCard label="Anomaly Rate" value={`${data?.anomaly_rate ?? "-"}%`} detail="Assistive signal rate" tone="cyan" />
+        <MetricCard
+          label="Anomaly Rate"
+          value={`${data?.anomaly_rate ?? "-"}%`}
+          detail="Among scored logs only"
+          tone="cyan"
+        />
       </div>
 
       <section className="panel overflow-hidden" data-testid="assistant-provider-governance">

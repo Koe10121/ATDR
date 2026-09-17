@@ -21,6 +21,8 @@ Assistant with optional Gemini synthesis.
 - Rules use normalized fields, time/source correlation, scoring, grouping, and
   deduplication.
 - IsolationForest highlights unusual behavior but does not prove a threat.
+- The current anomaly rate is 2.36% among scored rows; 41.47% of stored rows
+  have scores. The older 0.98% figure was all-row prevalence, not 98%.
 - The supervised pipeline is implemented and rigorously governed, but the
   latest immutable evaluation selected no qualified candidate.
 - Supervised runtime therefore fails closed as `unqualified`.
@@ -42,12 +44,24 @@ failure. The Assistant cannot execute actions.
 
 ## Safe Demonstration
 
+Preflight the complete disposable workflow:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v5631_advisor_demo_acceptance --use-temp-db --execute-provider-probe --pretty
+```
+
+Require 10/10 stages and 24/24 workflow checks.
+
 1. Start with `scripts/start_system.cmd` and sign in through the MFU shell.
 2. Show Overview and source/parser health.
 3. Open an alert and explain its evidence and next checks.
 4. Ask the SOC Assistant why the alert was flagged, then ask a scoped follow-up.
 5. Show AI Governance: rules authoritative, ML advisory/unqualified.
 6. Show Response & Audit: simulation only and analyst-confirmed.
+
+Current proof points: deterministic scenarios `24/24`, layered detection
+`288/288`, Assistant QA `30/30` plus follow-up continuity, and a bounded live
+Gemini structured probe with raw-log context disabled.
 
 ## Honest Finish Line
 

@@ -1625,6 +1625,9 @@ export interface DetectionTuningReport {
     latest_training_log_count?: number | null;
     latest_scored_log_count?: number | null;
     current_anomaly_rate: number;
+    anomaly_rate_basis?: string;
+    scoring_coverage_percent?: number;
+    stored_anomaly_prevalence_percent?: number;
     expected_contamination_rate: number;
     baseline_candidate_count?: number | null;
     high_risk_rate?: number | null;
@@ -1650,8 +1653,12 @@ export interface MLEvaluationReport {
     latest_training?: Record<string, unknown> | null;
     latest_scoring?: Record<string, unknown> | null;
     total_logs: number;
+    scored_log_count: number;
     current_anomaly_logs: number;
     current_anomaly_rate: number;
+    anomaly_rate_basis: string;
+    scoring_coverage_percent: number;
+    stored_anomaly_prevalence_percent: number;
   };
   dataset_profile: {
     total_logs: number;
@@ -1679,6 +1686,9 @@ export interface MLEvaluationReport {
   scored_log_count: number;
   anomaly_count: number;
   anomaly_rate: number;
+  anomaly_rate_basis: string;
+  scoring_coverage_percent: number;
+  stored_anomaly_prevalence_percent: number;
   recommendations: string[];
   drift_signals: Array<Record<string, unknown>>;
   baseline_drift_report?: {

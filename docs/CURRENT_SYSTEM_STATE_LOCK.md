@@ -4,11 +4,12 @@ Date: 2026-09-17
 
 ## Release Baseline
 
-The published source baseline is v5.61 commit `df8f3b8`, which adds the
-explicit governed advisory IsolationForest bootstrap. The current uncommitted
-v5.62-v5.63 work adds a fresh supervised qualification campaign, expands its
-selected capacity to 1,000 rows, and provides protected batched review.
-Publication remains separately approval-gated.
+The published source baseline is v5.63 at commit `cf106d6`. It contains the
+governed advisory IsolationForest bootstrap and the fresh 1,000-row supervised
+qualification campaign with protected batched review. The current uncommitted
+v5.63.1 work corrects anomaly telemetry, adds a development-only reliability
+audit, and locks a disposable advisor-demonstration acceptance. Publication
+remains separately approval-gated.
 
 ## Product Decision
 
@@ -107,6 +108,16 @@ evidence that an approved shared environment exists.
   added future-evaluation rows. Seven protected 100-row batches are ready;
   combined review remains `0/1,000`, 19 windows and one source are present,
   and no model operation is allowed.
+- v5.63.1 corrects anomaly-rate semantics: the configured database contains
+  60,230 scored rows and 1,421 anomaly flags, so the advisory anomaly rate is
+  2.36% among scored rows, scoring coverage is 41.47%, and stored-row
+  prevalence is 0.98%. No prediction or artifact changed.
+- A private-safe, development-only comparison evaluated eight fixed anomaly
+  variants. Every variant failed the controlled threat-capture gates, so no
+  candidate was selected and the legacy advisory artifact remained untouched.
+- The disposable advisor acceptance passes 10/10 stages and 24/24 workflow
+  checks, including rule detection, explanation, follow-up continuity,
+  simulated-response safety, and one bounded live Gemini probe.
 - v5.60 controlled clean-clone workflow: 10 records preserved and normalized,
   one expected rule alert, three contextual deterministic Assistant turns with
   citation counts `10/10/3`, zero response actions, and no model activation.
@@ -128,17 +139,16 @@ evidence that an approved shared environment exists.
 - Gemini: private minimal and full synthetic probes passed with redaction,
   raw-log exclusion, structured output, and zero authoritative mutations.
 - Large SQLite: `145,232` normalized logs and `3,231` alerts; the read-only
-  smoke passes overall with a `0.0150s` cached Overview path. The current
-  `1.1947s` cold Overview measurement carries a non-failing warning against
-  the aggressive `1.0s` local target.
-- Repository security: zero findings across `1,433` tracked or intended text
+  smoke passes with a `0.3343s` uncached Overview path and `0.0185s` cached
+  path, both within their local budgets and with no warnings.
+- Repository security: zero findings across `1,449` tracked or intended text
   paths; Python and npm dependency audits found zero known vulnerabilities.
 - Deployment source validation passed while preserving
   `production_ready=false`.
 
-Full backend passes `1108 passed, 1 skipped`; Playwright passes `44 passed, 1
-skipped`; taskboard checks pass; and the independent release gate passes with
-`ok=true` and no failed required checks.
+Full backend passes `1119 passed, 1 skipped`; Playwright passes `45 passed, 1
+skipped`; taskboard checks pass; layered detection passes `288/288`; and the
+independent release gate passes with `ok=true` and no failed required checks.
 
 ## Product Status By Area
 
@@ -148,7 +158,7 @@ skipped`; taskboard checks pass; and the independent release gate passes with
 | Parsing/normalization | Locally verified for supported contracts | More PAN-OS versions, second source, and device-backed field accuracy |
 | Deterministic detection | Locally verified in controlled regression | Independent real-traffic FP/FN evidence and environment baselines |
 | Supervised ML | v5.62-v5.63 fresh campaign prepared with 1,000 selected rows; effective runtime `unqualified`; no candidate | Complete 300 original and 700 supplemental reviews, obtain second source, preserve untouched evaluation, pass fixed gates, freeze, and separately approve |
-| IsolationForest | Reproducible through explicit governed bootstrap; advisory only | Evidence does not support threat-accuracy or detector-authority claims |
+| IsolationForest | Reproducible through explicit governed bootstrap; scored-row rate and coverage are explicit; advisory only | New candidates failed controlled threat-capture gates; evidence does not support detector authority |
 | Alert explanations | Locally verified | Asset/business context and external incident-management integration |
 | SOC Assistant | Locally verified and read-only | Institutional Gemini governance and representative field evaluation |
 | Dashboard | Locally verified by automated browser, axe, keyboard, and five-viewport coverage | Independent analyst and assistive-technology acceptance |
@@ -181,6 +191,13 @@ unavailable` plus a write-free preflight command. Explicit bootstrap trains in
 disposable SQLite, installs only ignored outputs, and records a sanitized
 manifest. `Advisory anomaly model available` never means threat accuracy has
 been validated.
+
+v5.63.1 also separates the percentage of scored rows flagged from database
+coverage. The current 2.36% value is measured only across scored rows; 41.47%
+of stored normalized rows currently have a score. The older 0.98% figure was
+stored-row prevalence, not a 98% anomaly rate. The controlled reliability audit
+selected no replacement because lower-noise variants lost too much suspicious
+and malicious scenario capture.
 
 v5.62 prepares a new supervised path without weakening that boundary. All
 v5.49b evidence is excluded, roles are assigned chronologically, duplicate

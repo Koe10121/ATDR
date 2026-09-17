@@ -97,8 +97,12 @@ class MLDatasetProfileRead(BaseModel):
     total_logs: int
     generated_time_min: datetime | None = None
     generated_time_max: datetime | None = None
+    scored_log_count: int
     current_anomaly_logs: int
     current_anomaly_rate: float
+    anomaly_rate_basis: str
+    scoring_coverage_percent: float
+    stored_anomaly_prevalence_percent: float
     deny_drop_logs: int
     deny_drop_rate: float
     high_risk_logs: int
@@ -167,8 +171,12 @@ class MLStatusRead(BaseModel):
     latest_training: MLModelRunRead | None = None
     latest_scoring: MLModelRunRead | None = None
     total_logs: int
+    scored_log_count: int
     current_anomaly_logs: int
     current_anomaly_rate: float
+    anomaly_rate_basis: str
+    scoring_coverage_percent: float
+    stored_anomaly_prevalence_percent: float
     advisory_capability_state: str
     advisory_capability_label: str
     bootstrap_required: bool
@@ -214,6 +222,9 @@ class MLEvaluationReportRead(BaseModel):
     scored_log_count: int
     anomaly_count: int
     anomaly_rate: float
+    anomaly_rate_basis: str
+    scoring_coverage_percent: float
+    stored_anomaly_prevalence_percent: float
     score_stats_all: MLScoreStats
     score_stats_anomalies: MLScoreStats
     run_comparison: MLRunComparison

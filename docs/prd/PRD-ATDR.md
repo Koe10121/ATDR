@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Product | MFU AI-Driven Log-Based Threat Detection and Response |
-| Baseline | v5.61 Governed Advisory IsolationForest Bootstrap |
+| Baseline | v5.63 published; v5.63.1 advisor reliability lock pending publication |
 | Status | Controlled local release candidate |
 | Production ready | No |
 | Primary users | SOC analyst, ATDR administrator, approved operator |
@@ -36,7 +36,7 @@ traceability, safe failure, and analyst control over automated containment.
 | FR-ING-01 | File/API import, replay, durable large-file jobs, and UDP syslog ingestion | Implemented; physical-source acceptance external |
 | FR-PAR-01 | PAN-OS TRAFFIC/THREAT/SYSTEM, generic syslog, and raw-fallback normalization with warnings | Implemented; additional devices/versions external |
 | FR-DET-01 | Versioned, correlated, deduplicated, explainable rule detection | Implemented and alert-authoritative |
-| FR-ML-01 | Reproducible, explicitly bootstrapped advisory IsolationForest scoring with governance visibility | Implemented; not authoritative or threat-accuracy validated |
+| FR-ML-01 | Reproducible advisory IsolationForest scoring with explicit scored-row rate, coverage, and fail-closed reliability gates | Implemented; no v5.63.1 replacement candidate qualified; not authoritative |
 | FR-ML-02 | Governed supervised SOC queue with leakage, calibration, and activation gates | Implemented but runtime `unqualified` |
 | FR-EXP-01 | Explain why flagged, evidence strength, missing context, related logs, mappings, and next checks | Implemented |
 | FR-AST-01 | Read-only deterministic and optional Gemini Assistant over bounded cited context | Implemented; institutional provider approval external |
@@ -62,6 +62,8 @@ Node/Vue architecture.
 
 - Rules are `active_authoritative` and may create alerts.
 - IsolationForest is `active_advisory` when eligible.
+- Anomaly rate uses scored rows as its denominator and is shown beside scoring
+  coverage and all-row prevalence.
 - Normal setup/start never trains IsolationForest. A missing artifact leaves
   rules operational and exposes the governed preflight command.
 - Supervised runtime is `unqualified`; inference fails closed.
@@ -71,6 +73,8 @@ Node/Vue architecture.
 - Hybrid triage is advisory.
 - Gemini can synthesize only bounded ATDR context and is not a source of facts.
 - The Assistant cannot perform actions.
+- Advisor acceptance uses disposable storage and verifies the full workflow
+  without accessing or resetting the configured database.
 - Response is `simulation_only` and requires an analyst decision.
 
 The consumed v5.49b evaluation selected no supervised candidate. Future work

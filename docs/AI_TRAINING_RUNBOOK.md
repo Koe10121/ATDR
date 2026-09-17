@@ -92,6 +92,27 @@ missingness, time-window, and queue-rate drift. Pay special attention to benign
 QUIC/443, incomplete/80, ping/ICMP, and unknown UDP/TCP patterns. Never tune an
 anomaly threshold against a consumed final window.
 
+### Interpreting Runtime Telemetry
+
+`current_anomaly_rate` is the percentage of **scored rows** currently flagged.
+`scoring_coverage_percent` is the percentage of stored normalized rows that
+have an anomaly score. `stored_anomaly_prevalence_percent` is the percentage of
+all stored rows currently flagged. Never present one denominator as another.
+
+Run the development-only v5.63.1 reliability comparison without installing:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v5631_anomaly_reliability `
+  --sample-path "<private-log-file>" `
+  --limit 50000 `
+  --pretty
+```
+
+The private path is an input only. Output must not contain paths, raw records,
+network addresses, identities, row fingerprints, or secrets. Install remains
+fail-closed unless one candidate passes every fixed gate and the operator gives
+the exact confirmation. v5.63.1 selected and installed no candidate.
+
 ### Governed Bootstrap
 
 A clean clone intentionally has no model artifact. Normal setup and startup do
@@ -136,6 +157,19 @@ Run controlled quality checks with disposable data:
 .\.venv\Scripts\python.exe -m atdr.scripts.evaluate_assistant_qa --pretty
 .\.venv\Scripts\python.exe -m atdr.scripts.test_assistant_chat_provider --execute --pretty
 ```
+
+Before an advisor demonstration, exercise the whole bounded workflow with:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v5631_advisor_demo_acceptance `
+  --use-temp-db `
+  --execute-provider-probe `
+  --pretty
+```
+
+The acceptance command must not access the configured database. A provider
+failure may fall back deterministically, but a live-provider claim requires
+the explicit probe to pass.
 
 ## Reporting Rules
 

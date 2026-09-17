@@ -12,18 +12,19 @@ response and real firewall blocking are disabled.
 
 ## Current Truth
 
-The published baseline is v5.59 at commit
-`d020f1a973f005c192eba3256357f76618542cab`, with GitHub Actions and CodeQL
-green. The current v5.60 clean-machine acceptance cloned that exact remote
-baseline and passed all 27 disposable setup, lifecycle, workflow, safety, and
-cleanup gates. Detection-layer authority remains explicit: rules are
+The published baseline is v5.63 at commit `cf106d6`. The current uncommitted
+v5.63.1 reliability lock adds corrected anomaly telemetry, a private-safe
+development comparison, and a disposable advisor acceptance command.
+Detection-layer authority remains explicit: rules are
 `active_authoritative`; IsolationForest is `active_advisory` when available;
 supervised runtime is `unqualified`; hybrid triage is advisory; and response is
 `simulation_only`.
 
-v5.60 adds an acceptance harness and corrects clean-package verification and
-Windows long-path cleanup defects. It does not change detection, IAM, Assistant,
-database, or response authority and does not prove real MFU account acceptance.
+The previously reported anomaly value of 0.98 was all-row prevalence in
+percent, not a 98% anomaly rate. Current telemetry reports 2.36% among scored
+rows and 41.47% scoring coverage. No candidate replacement passed the fixed
+controlled reliability gates, so the existing advisory artifact was not
+changed.
 
 Current governed ML truth:
 
@@ -216,6 +217,18 @@ stable performance, and separate activation approval remain mandatory.
 IsolationForest remains an unusual-behavior signal only. It is not an
 authoritative threat detector.
 
+Before an advisor demonstration, run the complete disposable acceptance:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v5631_advisor_demo_acceptance `
+  --use-temp-db `
+  --execute-provider-probe `
+  --pretty
+```
+
+The current run passes 10/10 stages and 24/24 workflow checks. It does not
+access or reset the configured database.
+
 ## SOC Assistant
 
 Assistant context is assembled from bounded ATDR records through the service
@@ -309,6 +322,7 @@ include its optional browser smoke path; normal frontend verification uses
 - [External Acceptance](docs/EXTERNAL_ACCEPTANCE.md)
 - [Current System State](docs/CURRENT_SYSTEM_STATE_LOCK.md)
 - [Current AI/ML Product Status](docs/CURRENT_AI_ML_PRODUCT_STATUS.md)
+- [Advisor Demonstration Runbook](docs/ADVISOR_DEMO_RUNBOOK.md)
 - [AI And Model Governance](docs/AI_TRAINING_RUNBOOK.md)
 - [Detection Rule Catalog](docs/DETECTION_RULE_CATALOG.md)
 - [Product Requirements](docs/prd/PRD-ATDR.md)

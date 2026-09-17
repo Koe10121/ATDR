@@ -39,6 +39,7 @@ from atdr.app.services.log_service import import_log_file
 
 
 VERSION = "v5.61-governed-anomaly-bootstrap-v1"
+RELIABILITY_PROTOCOL_VERSION = "v5.63.1-advisor-demo-anomaly-reliability-v1"
 EXECUTION_CONFIRMATION = "GOVERNED_ADVISORY_ANOMALY_BOOTSTRAP"
 MINIMUM_ELIGIBLE_ROWS = 20
 MINIMUM_PARSE_RATE = 0.95
@@ -103,8 +104,9 @@ def _manifest_is_valid(payload: object) -> bool:
     validation = payload.get("validation")
     governance = payload.get("governance")
     privacy = payload.get("privacy")
-    return bool(
-        payload.get("protocol_version") == VERSION
+    protocol_version = payload.get("protocol_version")
+    base_valid = bool(
+        protocol_version in {VERSION, RELIABILITY_PROTOCOL_VERSION}
         and payload.get("model_family") == "IsolationForest"
         and payload.get("capability_role") == "advisory_anomaly_scoring"
         and isinstance(evidence, dict)
@@ -149,6 +151,27 @@ def _manifest_is_valid(payload: object) -> bool:
         and privacy.get("network_addresses_recorded") is False
         and privacy.get("row_fingerprints_recorded") is False
     )
+    if not base_valid:
+        return False
+    if protocol_version == VERSION:
+        return True
+    reliability = payload.get("reliability")
+    return bool(
+        isinstance(reliability, dict)
+        and reliability.get("fixed_gates_passed") is True
+        and reliability.get("development_only") is True
+        and reliability.get("independent_accuracy_validated") is False
+        and _is_number(reliability.get("controlled_benign_anomaly_rate"))
+        and _is_number(reliability.get("controlled_suspicious_scenario_recall"))
+        and _is_number(reliability.get("controlled_malicious_scenario_recall"))
+        and _is_number(reliability.get("private_holdout_queue_rate"))
+    )
+
+
+def anomaly_manifest_is_valid(payload: object) -> bool:
+    """Validate a public, sanitized anomaly capability manifest."""
+
+    return _manifest_is_valid(payload)
 
 
 def _read_manifest(path: Path) -> dict[str, Any] | None:
@@ -695,6 +718,25 @@ def _atomic_install(
         manifest_backup.unlink(missing_ok=True)
         pending_artifact.unlink(missing_ok=True)
         pending_manifest.unlink(missing_ok=True)
+
+
+def install_anomaly_artifact_atomically(
+    *,
+    pending_artifact: Path,
+    artifact_path: Path,
+    pending_manifest: Path,
+    manifest_path: Path,
+    replace_existing: bool,
+) -> None:
+    """Install an ignored advisory artifact with rollback-safe replacement."""
+
+    _atomic_install(
+        pending_artifact=pending_artifact,
+        artifact_path=artifact_path,
+        pending_manifest=pending_manifest,
+        manifest_path=manifest_path,
+        replace_existing=replace_existing,
+    )
 
 
 def run_governed_anomaly_bootstrap(

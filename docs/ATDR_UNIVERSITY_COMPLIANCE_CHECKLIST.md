@@ -19,6 +19,7 @@ available in archived phase and T1-T20 records.
 | Prepare fresh supervised qualification safely | Satisfied locally | v5.62 consumed-evidence exclusion, chronological locks, protected review, fixed gates, and zero-write preflight |
 | Expand supervised evidence without leakage | Satisfied locally | v5.63 preserves 300 rows, adds 700 unique development-only rows, seals evaluation evidence, and creates no authoritative writes |
 | Validate future second-source identity safely | Ready, externally blocked | v5.63 CLI rejects same-device evidence and returns aggregates only; a second real device is not yet available |
+| Lock advisor demonstration reliability | Satisfied locally | v5.63.1 disposable acceptance covers the complete analyst flow, safe Gemini probe, and zero authoritative Assistant/model effects |
 
 ## Product Integrity
 
@@ -28,6 +29,7 @@ available in archived phase and T1-T20 records.
 | Parse and normalize with quality visibility | Implemented for supported profiles | parser contracts, warnings, drift and field tests |
 | Explain deterministic detection | Implemented | rule catalog, explanations, related evidence, recommendations |
 | Keep AI/ML claims honest | Satisfied | rules authoritative; anomaly/hybrid advisory and not threat-accuracy validated; supervised unqualified |
+| Report anomaly telemetry honestly | Satisfied | scored-row anomaly rate, scoring coverage, and all-row prevalence are separate; unqualified replacement is refused |
 | Preserve human-label provenance | Satisfied | protected review, weak-label separation, no automated human claims |
 | Seal evaluation evidence from development | Satisfied | v5.62-v5.63 loaders exclude future evaluation and remain locked until all required review closures |
 | Keep Assistant grounded and read-only | Satisfied locally | bounded context, citations, redaction, fallback, no-side-effect tests |

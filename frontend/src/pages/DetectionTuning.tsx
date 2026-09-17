@@ -21,7 +21,12 @@ export function DetectionTuning() {
         <MetricCard label="Alert Pressure" value={data?.summary.alerts_per_1000_logs ?? "-"} detail="Alerts per 1,000 logs" tone="amber" />
         <MetricCard label="High/Critical" value={data?.summary.high_critical_open ?? "-"} detail="Active priority queue" tone="danger" />
         <MetricCard label="Unassigned Priority" value={data?.summary.high_critical_unassigned ?? "-"} detail="Needs owner" tone="amber" />
-        <MetricCard label="ML Anomaly Rate" value={`${data?.ml.current_anomaly_rate ?? "-"}%`} detail="Assistive signal" tone="cyan" />
+        <MetricCard
+          label="ML Anomaly Rate"
+          value={`${data?.ml.current_anomaly_rate ?? "-"}%`}
+          detail="Advisory flags among scored logs"
+          tone="cyan"
+        />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1fr_0.9fr]">
