@@ -26,6 +26,8 @@ and do not define ATDR's runtime stack.
 | `docs/CURRENT_AI_ML_PRODUCT_STATUS.md` | Current detection, model, and Assistant authority |
 | `docs/V5_60_CLEAN_MACHINE_RELEASE_CANDIDATE_ACCEPTANCE.md` | Current clean-clone setup, lifecycle, workflow, and safety evidence |
 | `docs/V5_61_GOVERNED_ANOMALY_BOOTSTRAP.md` | Explicit clean-clone IsolationForest preflight, bootstrap, privacy, and advisory authority contract |
+| `docs/V5_62_SUPERVISED_QUALIFICATION_CAMPAIGN.md` | Fresh supervised evidence lock, protected review, fixed gates, and qualification blockers |
+| `docs/V5_63_FRESH_COMPARABLE_EVIDENCE_EXPANSION.md` | Append-only 700-row expansion, batched review, second-source preflight, and current qualification gates |
 | `docs/prd/PRD-ATDR.md` | Current product requirements |
 | `docs/ATDR_REQUIREMENT_TRACEABILITY.md` | Requirement-to-source/test mapping |
 | `docs/ATDR_UNIVERSITY_COMPLIANCE_CHECKLIST.md` | Active university workflow and safety checklist |

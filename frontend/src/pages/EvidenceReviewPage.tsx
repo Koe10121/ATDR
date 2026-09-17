@@ -7,6 +7,8 @@ import { LoadingPanel } from "../components/LoadingPanel";
 import { MetricCard } from "../components/MetricCard";
 import { SafeSelect } from "../components/SafeSelect";
 import { SocPageHeader } from "../components/SocPageHeader";
+import { SupervisedEvidenceExpansionPanel } from "../components/SupervisedEvidenceExpansionPanel";
+import { SupervisedQualificationReviewPanel } from "../components/SupervisedQualificationReviewPanel";
 import {
   useAssistantReviewItem,
   useCloseManualAnchorReviewMutation,
@@ -1128,7 +1130,7 @@ function SupplementalThreatAnchorReviewPanel() {
   );
 }
 
-type ReviewTab = EvidenceReviewWorkspace | "manual_anchors" | "supplemental_threat_anchors";
+type ReviewTab = EvidenceReviewWorkspace | "manual_anchors" | "supplemental_threat_anchors" | "supervised_qualification";
 
 export function EvidenceReviewPage() {
   const [activeWorkspace, setActiveWorkspace] = useState<ReviewTab>("detection");
@@ -1213,7 +1215,7 @@ export function EvidenceReviewPage() {
       />
 
       <div className="flex gap-2 overflow-x-auto border-b border-line" role="tablist" aria-label="Evidence review workspace">
-        {(["manual_anchors", "supplemental_threat_anchors", "detection", "assistant"] as ReviewTab[]).map((workspace) => {
+        {(["supervised_qualification", "manual_anchors", "supplemental_threat_anchors", "detection", "assistant"] as ReviewTab[]).map((workspace) => {
           const workspaceProgress = workspace === "detection" || workspace === "assistant" ? status.data?.[workspace] : undefined;
           return (
             <button
@@ -1227,7 +1229,7 @@ export function EvidenceReviewPage() {
                 setWorkflowNotice("");
               }}
             >
-              <span>{workspace === "manual_anchors" ? "Manual Anchors" : workspace === "supplemental_threat_anchors" ? "Supplemental Threat Anchors" : workspace === "detection" ? "Detection Blind Review" : "Assistant Acceptance"}</span>
+              <span>{workspace === "supervised_qualification" ? "Supervised Qualification" : workspace === "manual_anchors" ? "Manual Anchors" : workspace === "supplemental_threat_anchors" ? "Supplemental Threat Anchors" : workspace === "detection" ? "Detection Blind Review" : "Assistant Acceptance"}</span>
               {workspaceProgress ? (
                 <span className="text-xs font-bold" data-testid={`${workspace}-tab-progress`}>
                   {workspaceProgress.reviewed}/{workspaceProgress.total}{workspaceProgress.closed ? " Closed" : ""}
@@ -1238,6 +1240,12 @@ export function EvidenceReviewPage() {
         })}
       </div>
 
+      {activeWorkspace === "supervised_qualification" ? (
+        <div className="space-y-6">
+          <SupervisedQualificationReviewPanel />
+          <SupervisedEvidenceExpansionPanel />
+        </div>
+      ) : null}
       {activeWorkspace === "manual_anchors" ? <ManualAnchorReviewPanel /> : null}
       {activeWorkspace === "supplemental_threat_anchors" ? <SupplementalThreatAnchorReviewPanel /> : null}
 

@@ -662,6 +662,352 @@ class SupplementalThreatAnchorReviewOperationResponse(BaseModel):
     response_action_performed: Literal[False] = False
 
 
+class SupervisedQualificationStatusResponse(BaseModel):
+    version: str
+    status: str
+    consumed_boundary: dict[str, Any] = Field(default_factory=dict)
+    protocol: dict[str, Any] = Field(default_factory=dict)
+    evidence: dict[str, Any] = Field(default_factory=dict)
+    review: dict[str, Any] = Field(default_factory=dict)
+    qualification_gates: dict[str, Any] = Field(default_factory=dict)
+    development_repair: dict[str, Any] = Field(default_factory=dict)
+    external_evidence_required: list[str] = Field(default_factory=list)
+    lifecycle_state: Literal["shadow_observation"] = "shadow_observation"
+    supervised_state: Literal["unqualified"] = "unqualified"
+    activation_allowed: Literal[False] = False
+    candidate_frozen: Literal[False] = False
+    model_activated: Literal[False] = False
+    model_promoted: Literal[False] = False
+    active_model_artifact_written: Literal[False] = False
+    rules_alert_authoritative: Literal[True] = True
+    anomaly_advisory_only: Literal[True] = True
+    hybrid_advisory_only: Literal[True] = True
+    response_mode: Literal["simulation_only"] = "simulation_only"
+    response_automation_allowed: Literal[False] = False
+    real_firewall_blocking_enabled: Literal[False] = False
+    automatic_import_performed: Literal[False] = False
+    human_reviewed_labels_created: Literal[0] = 0
+    evaluation_executed: Literal[False] = False
+    predictions_exposed: Literal[False] = False
+    model_scores_exposed: Literal[False] = False
+    rule_recommendations_exposed: Literal[False] = False
+    assisted_labels_exposed: Literal[False] = False
+    raw_logs_exposed: Literal[False] = False
+    ip_addresses_exposed: Literal[False] = False
+    source_identities_exposed: Literal[False] = False
+    fingerprints_exposed: Literal[False] = False
+    private_paths_exposed: Literal[False] = False
+    secrets_exposed: Literal[False] = False
+
+
+class SupervisedExpansionStatusResponse(BaseModel):
+    version: str
+    status: str
+    v562_boundary: dict[str, Any] = Field(default_factory=dict)
+    protocol: dict[str, Any] = Field(default_factory=dict)
+    evidence: dict[str, Any] = Field(default_factory=dict)
+    review: dict[str, Any] = Field(default_factory=dict)
+    qualification_gates: dict[str, Any] = Field(default_factory=dict)
+    second_source_intake: dict[str, Any] = Field(default_factory=dict)
+    development_training_can_begin: Literal[False] = False
+    development_blockers: list[str] = Field(default_factory=list)
+    lifecycle_state: Literal["shadow_observation"] = "shadow_observation"
+    supervised_state: Literal["unqualified"] = "unqualified"
+    training_allowed: Literal[False] = False
+    training_executed: Literal[False] = False
+    evaluation_executed: Literal[False] = False
+    candidate_frozen: Literal[False] = False
+    activation_allowed: Literal[False] = False
+    model_activated: Literal[False] = False
+    model_promoted: Literal[False] = False
+    active_model_artifact_written: Literal[False] = False
+    rules_alert_authoritative: Literal[True] = True
+    anomaly_advisory_only: Literal[True] = True
+    hybrid_advisory_only: Literal[True] = True
+    response_mode: Literal["simulation_only"] = "simulation_only"
+    response_automation_allowed: Literal[False] = False
+    real_firewall_blocking_enabled: Literal[False] = False
+    automatic_import_performed: Literal[False] = False
+    human_reviewed_labels_created: Literal[0] = 0
+    predictions_exposed: Literal[False] = False
+    model_scores_exposed: Literal[False] = False
+    rule_recommendations_exposed: Literal[False] = False
+    assisted_labels_exposed: Literal[False] = False
+    raw_logs_exposed: Literal[False] = False
+    ip_addresses_exposed: Literal[False] = False
+    source_identities_exposed: Literal[False] = False
+    fingerprints_exposed: Literal[False] = False
+    private_paths_exposed: Literal[False] = False
+    secrets_exposed: Literal[False] = False
+
+
+class SupervisedExpansionBatchProgress(BaseModel):
+    batch_id: str
+    total: int = 0
+    reviewed: int = 0
+    remaining: int = 0
+    invalid: int = 0
+    completed: bool = False
+    closed: bool = False
+    revision: int = 0
+    next_pending_index: int | None = None
+    owner_assigned: bool = False
+    owned_by_current_user: bool = False
+    can_review: bool = False
+
+
+class SupervisedExpansionReviewProgress(BaseModel):
+    workspace: Literal["supervised_qualification_expansion"] = (
+        "supervised_qualification_expansion"
+    )
+    available: bool
+    integrity_status: Literal["valid", "unavailable"]
+    total: int = 0
+    reviewed: int = 0
+    remaining: int = 0
+    invalid: int = 0
+    progress_percent: float = 0.0
+    completed: bool = False
+    closed: bool = False
+    closed_batch_count: int = 0
+    batch_count: int = 0
+    batches: list[SupervisedExpansionBatchProgress] = Field(default_factory=list)
+    role_progress: dict[str, dict[str, int]] = Field(default_factory=dict)
+    development_class_support: dict[str, int] = Field(default_factory=dict)
+    combined_total: int = 300
+    combined_reviewed: int = 0
+    qualification_gates: dict[str, Any] = Field(default_factory=dict)
+    development_training_can_begin: Literal[False] = False
+    message: str
+    predictions_exposed: Literal[False] = False
+    model_scores_exposed: Literal[False] = False
+    rule_recommendations_exposed: Literal[False] = False
+    assisted_labels_exposed: Literal[False] = False
+    raw_logs_exposed: Literal[False] = False
+    ip_addresses_exposed: Literal[False] = False
+    source_identities_exposed: Literal[False] = False
+    fingerprints_exposed: Literal[False] = False
+    private_paths_exposed: Literal[False] = False
+    reviewer_identity_exposed: Literal[False] = False
+    evaluation_class_support_sealed: Literal[True] = True
+    import_ready: Literal[False] = False
+    automatic_import_performed: Literal[False] = False
+    model_activation_performed: Literal[False] = False
+    response_action_performed: Literal[False] = False
+    training_executed: Literal[False] = False
+    evaluation_executed: Literal[False] = False
+    activation_allowed: Literal[False] = False
+    rules_alert_authoritative: Literal[True] = True
+    response_mode: Literal["simulation_only"] = "simulation_only"
+    secrets_exposed: Literal[False] = False
+
+
+class SupervisedExpansionBatchRequest(BaseModel):
+    batch_id: str = Field(min_length=1, max_length=40, pattern=r"^batch-\d{2}$")
+
+
+class SupervisedExpansionReviewItemResponse(BaseModel):
+    workspace: Literal["supervised_qualification_expansion"] = (
+        "supervised_qualification_expansion"
+    )
+    batch_id: str
+    row_index: int
+    display_position: int
+    total: int
+    revision: int
+    reviewed: bool
+    closed: bool
+    evidence_role: str
+    coverage_group: str
+    evidence: dict[str, str] = Field(default_factory=dict)
+    existing_review: ManualAnchorReviewExistingInput | None = None
+    next_pending_index: int | None = None
+    predictions_exposed: Literal[False] = False
+    model_scores_exposed: Literal[False] = False
+    rule_recommendations_exposed: Literal[False] = False
+    assisted_labels_exposed: Literal[False] = False
+    raw_logs_exposed: Literal[False] = False
+    ip_addresses_exposed: Literal[False] = False
+    source_identities_exposed: Literal[False] = False
+    fingerprints_exposed: Literal[False] = False
+    private_paths_exposed: Literal[False] = False
+    reviewer_identity_exposed: Literal[False] = False
+    evaluation_class_support_sealed: Literal[True] = True
+    import_ready: Literal[False] = False
+    automatic_import_performed: Literal[False] = False
+    model_activation_performed: Literal[False] = False
+    response_action_performed: Literal[False] = False
+    training_executed: Literal[False] = False
+    evaluation_executed: Literal[False] = False
+    activation_allowed: Literal[False] = False
+    rules_alert_authoritative: Literal[True] = True
+    response_mode: Literal["simulation_only"] = "simulation_only"
+    secrets_exposed: Literal[False] = False
+
+
+class SupervisedExpansionReviewListItem(BaseModel):
+    row_index: int
+    display_position: int
+    reviewed: bool
+    evidence_role: str
+    coverage_group: str
+    evidence: dict[str, str] = Field(default_factory=dict)
+
+
+class SupervisedExpansionReviewPageResponse(BaseModel):
+    workspace: Literal["supervised_qualification_expansion"] = (
+        "supervised_qualification_expansion"
+    )
+    batch_id: str
+    offset: int
+    limit: int
+    filtered_total: int
+    items: list[SupervisedExpansionReviewListItem] = Field(default_factory=list)
+    predictions_exposed: Literal[False] = False
+    raw_logs_exposed: Literal[False] = False
+    private_paths_exposed: Literal[False] = False
+    reviewer_identity_exposed: Literal[False] = False
+    evaluation_class_support_sealed: Literal[True] = True
+    secrets_exposed: Literal[False] = False
+
+
+class SupervisedExpansionReviewOperationResponse(BaseModel):
+    ok: bool = True
+    workspace: Literal["supervised_qualification_expansion"] = (
+        "supervised_qualification_expansion"
+    )
+    batch_id: str
+    status: str
+    revision: int
+    progress: SupervisedExpansionReviewProgress
+    next_item: SupervisedExpansionReviewItemResponse | None = None
+    authoritative_mutations: dict[str, int] = Field(default_factory=dict)
+    training_executed: Literal[False] = False
+    evaluation_executed: Literal[False] = False
+    import_performed: Literal[False] = False
+    model_activation_performed: Literal[False] = False
+    response_action_performed: Literal[False] = False
+
+
+class SupervisedQualificationReviewProgress(BaseModel):
+    workspace: Literal["supervised_qualification"] = "supervised_qualification"
+    available: bool
+    prepared: bool
+    integrity_status: Literal["valid", "not_prepared", "unavailable"]
+    total: int = 0
+    reviewed: int = 0
+    remaining: int = 0
+    invalid: int = 0
+    progress_percent: float = 0.0
+    revision: int = 0
+    owner_assigned: bool = False
+    owned_by_current_user: bool = False
+    can_review: bool = False
+    completed: bool = False
+    closed: bool = False
+    development_ready: bool = False
+    role_counts: dict[str, int] = Field(default_factory=dict)
+    role_progress: dict[str, dict[str, int]] = Field(default_factory=dict)
+    coverage_counts: dict[str, int] = Field(default_factory=dict)
+    coverage_groups: list[str] = Field(default_factory=list)
+    development_class_support: dict[str, int] = Field(default_factory=dict)
+    qualification_gates: dict[str, Any] = Field(default_factory=dict)
+    next_pending_index: int | None = None
+    message: str
+    predictions_exposed: Literal[False] = False
+    model_scores_exposed: Literal[False] = False
+    rule_recommendations_exposed: Literal[False] = False
+    assisted_labels_exposed: Literal[False] = False
+    raw_logs_exposed: Literal[False] = False
+    ip_addresses_exposed: Literal[False] = False
+    source_identities_exposed: Literal[False] = False
+    fingerprints_exposed: Literal[False] = False
+    private_paths_exposed: Literal[False] = False
+    reviewer_identity_exposed: Literal[False] = False
+    evaluation_class_support_sealed: Literal[True] = True
+    import_ready: Literal[False] = False
+    automatic_import_performed: Literal[False] = False
+    model_activation_performed: Literal[False] = False
+    response_action_performed: Literal[False] = False
+    activation_allowed: Literal[False] = False
+    rules_alert_authoritative: Literal[True] = True
+    response_mode: Literal["simulation_only"] = "simulation_only"
+    secrets_exposed: Literal[False] = False
+
+
+class SupervisedQualificationReviewItemResponse(BaseModel):
+    workspace: Literal["supervised_qualification"] = "supervised_qualification"
+    row_index: int
+    display_position: int
+    total: int
+    revision: int
+    reviewed: bool
+    closed: bool
+    evidence_role: str
+    coverage_group: str
+    evidence: dict[str, str] = Field(default_factory=dict)
+    existing_review: ManualAnchorReviewExistingInput | None = None
+    next_pending_index: int | None = None
+    predictions_exposed: Literal[False] = False
+    model_scores_exposed: Literal[False] = False
+    rule_recommendations_exposed: Literal[False] = False
+    assisted_labels_exposed: Literal[False] = False
+    raw_logs_exposed: Literal[False] = False
+    ip_addresses_exposed: Literal[False] = False
+    source_identities_exposed: Literal[False] = False
+    fingerprints_exposed: Literal[False] = False
+    private_paths_exposed: Literal[False] = False
+    reviewer_identity_exposed: Literal[False] = False
+    evaluation_class_support_sealed: Literal[True] = True
+    import_ready: Literal[False] = False
+    automatic_import_performed: Literal[False] = False
+    model_activation_performed: Literal[False] = False
+    response_action_performed: Literal[False] = False
+    activation_allowed: Literal[False] = False
+    rules_alert_authoritative: Literal[True] = True
+    response_mode: Literal["simulation_only"] = "simulation_only"
+    secrets_exposed: Literal[False] = False
+
+
+class SupervisedQualificationReviewListItem(BaseModel):
+    row_index: int
+    display_position: int
+    reviewed: bool
+    evidence_role: str
+    coverage_group: str
+    evidence: dict[str, str] = Field(default_factory=dict)
+
+
+class SupervisedQualificationReviewPageResponse(BaseModel):
+    workspace: Literal["supervised_qualification"] = "supervised_qualification"
+    offset: int
+    limit: int
+    filtered_total: int
+    items: list[SupervisedQualificationReviewListItem] = Field(
+        default_factory=list
+    )
+    predictions_exposed: Literal[False] = False
+    raw_logs_exposed: Literal[False] = False
+    private_paths_exposed: Literal[False] = False
+    reviewer_identities_exposed: Literal[False] = False
+    evaluation_class_support_sealed: Literal[True] = True
+    secrets_exposed: Literal[False] = False
+
+
+class SupervisedQualificationReviewOperationResponse(BaseModel):
+    ok: bool = True
+    workspace: Literal["supervised_qualification"] = "supervised_qualification"
+    status: str
+    revision: int
+    progress: SupervisedQualificationReviewProgress
+    next_item: SupervisedQualificationReviewItemResponse | None = None
+    authoritative_mutations: dict[str, int] = Field(default_factory=dict)
+    evaluation_executed: Literal[False] = False
+    import_performed: Literal[False] = False
+    model_activation_performed: Literal[False] = False
+    response_action_performed: Literal[False] = False
+
+
 class DetectionReviewExistingInput(BaseModel):
     decision_group: Literal["benign_like", "needs_context", "threat_positive"]
     decision: Literal[

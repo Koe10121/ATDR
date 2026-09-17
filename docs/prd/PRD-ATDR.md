@@ -65,6 +65,9 @@ Node/Vue architecture.
 - Normal setup/start never trains IsolationForest. A missing artifact leaves
   rules operational and exposes the governed preflight command.
 - Supervised runtime is `unqualified`; inference fails closed.
+- The governed qualification campaign has 1,000 selected prediction-blind rows
+  (300 original plus 700 append-only supplemental), but review is `0/1,000`,
+  only one physical source exists, and no supervised candidate is authorized.
 - Hybrid triage is advisory.
 - Gemini can synthesize only bounded ATDR context and is not a source of facts.
 - The Assistant cannot perform actions.

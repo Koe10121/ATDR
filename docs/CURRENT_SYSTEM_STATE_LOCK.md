@@ -1,15 +1,14 @@
 # ATDR Current System State Lock
 
-Date: 2026-09-16
+Date: 2026-09-17
 
 ## Release Baseline
 
-The published source baseline is v5.60 commit
-`da7c2434962eec10c0fd7c6bbd9266c5dbebf2c6`, with GitHub Actions and CodeQL
-green. v5.60 passed all 27 clean-machine acceptance gates from a genuine
-`origin/main` clone. The current uncommitted v5.61 work adds an explicit,
-governed advisory IsolationForest bootstrap; publication remains separately
-approval-gated.
+The published source baseline is v5.61 commit `df8f3b8`, which adds the
+explicit governed advisory IsolationForest bootstrap. The current uncommitted
+v5.62-v5.63 work adds a fresh supervised qualification campaign, expands its
+selected capacity to 1,000 rows, and provides protected batched review.
+Publication remains separately approval-gated.
 
 ## Product Decision
 
@@ -98,6 +97,16 @@ evidence that an approved shared environment exists.
   requires exact confirmation before disposable training. Acceptance proves
   zero model-driven alerts, suppressions, labels, model runs, detection runs,
   or response actions.
+- v5.62 private disposable preparation parses 773,551 records with zero parser
+  failures, retains 298,963 fresh eligible rows, rejects 228 consumed-overlap
+  rows, contains 52,881 near duplicates, and locks 300 prediction-blind review
+  rows across four chronological roles. Review remains `0/300`; one physical
+  source is present, so supervised runtime remains unqualified.
+- v5.63 revalidates that boundary, preserves all 300 rows, and selects 700
+  additional unique development-safe rows with zero original overlap and zero
+  added future-evaluation rows. Seven protected 100-row batches are ready;
+  combined review remains `0/1,000`, 19 windows and one source are present,
+  and no model operation is allowed.
 - v5.60 controlled clean-clone workflow: 10 records preserved and normalized,
   one expected rule alert, three contextual deterministic Assistant turns with
   citation counts `10/10/3`, zero response actions, and no model activation.
@@ -119,16 +128,17 @@ evidence that an approved shared environment exists.
 - Gemini: private minimal and full synthetic probes passed with redaction,
   raw-log exclusion, structured output, and zero authoritative mutations.
 - Large SQLite: `145,232` normalized logs and `3,231` alerts; the read-only
-  smoke passes with a `0.0109s` cached Overview path and a `0.8501s` cold
-  Overview path, both within their local targets.
-- Repository security: zero findings across `1,425` tracked or intended text
+  smoke passes overall with a `0.0150s` cached Overview path. The current
+  `1.1947s` cold Overview measurement carries a non-failing warning against
+  the aggressive `1.0s` local target.
+- Repository security: zero findings across `1,433` tracked or intended text
   paths; Python and npm dependency audits found zero known vulnerabilities.
 - Deployment source validation passed while preserving
   `production_ready=false`.
 
-Full backend passes `1102/1`; Playwright passes `43/1`; taskboard checks pass;
-and the independent release gate passes with `ok=true` and no failed required
-checks.
+Full backend passes `1108 passed, 1 skipped`; Playwright passes `44 passed, 1
+skipped`; taskboard checks pass; and the independent release gate passes with
+`ok=true` and no failed required checks.
 
 ## Product Status By Area
 
@@ -137,7 +147,7 @@ checks.
 | Ingestion and jobs | Locally and clean-clone verified | Real non-loopback forwarding and long-running field operation |
 | Parsing/normalization | Locally verified for supported contracts | More PAN-OS versions, second source, and device-backed field accuracy |
 | Deterministic detection | Locally verified in controlled regression | Independent real-traffic FP/FN evidence and environment baselines |
-| Supervised ML | Effective runtime `unqualified`; historical lifecycle `shadow_observation`; no candidate | Fresh development evidence, second source, untouched future evaluation, stable gates, freeze, and separate approval |
+| Supervised ML | v5.62-v5.63 fresh campaign prepared with 1,000 selected rows; effective runtime `unqualified`; no candidate | Complete 300 original and 700 supplemental reviews, obtain second source, preserve untouched evaluation, pass fixed gates, freeze, and separately approve |
 | IsolationForest | Reproducible through explicit governed bootstrap; advisory only | Evidence does not support threat-accuracy or detector-authority claims |
 | Alert explanations | Locally verified | Asset/business context and external incident-management integration |
 | SOC Assistant | Locally verified and read-only | Institutional Gemini governance and representative field evaluation |
@@ -171,6 +181,19 @@ unavailable` plus a write-free preflight command. Explicit bootstrap trains in
 disposable SQLite, installs only ignored outputs, and records a sanitized
 manifest. `Advisory anomaly model available` never means threat accuracy has
 been validated.
+
+v5.62 prepares a new supervised path without weakening that boundary. All
+v5.49b evidence is excluded, roles are assigned chronologically, duplicate
+families are isolated, future-evaluation labels are sealed, and development
+loading fails closed until genuine review closure. Only the time-window gate
+currently passes; source, label-support, comparable-row, and model-quality
+gates remain failed or blocked.
+
+v5.63 reaches the fixed selected capacity with 700 append-only supplemental
+rows, but it does not convert selection into human-reviewed evidence. The
+combined review remains `0/1,000`. The time-window gate passes at 19/2; the
+physical-source gate remains 1/2; class-support and quality gates remain failed
+or blocked. Untouched evaluation labels are still inaccessible.
 
 Gemini may rephrase a bounded deterministic answer only when private settings
 enable it. Raw log lines are excluded, IP redaction remains enabled, citations

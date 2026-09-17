@@ -11,6 +11,7 @@ import type {
   EvidenceReviewWorkspace,
   ManualAnchorReviewSaveRequest,
   SupplementalThreatAnchorReviewSaveRequest,
+  SupervisedQualificationReviewSaveRequest,
   MLLabelPayload,
   OperationImportSubmit
 } from "../types/api";
@@ -44,6 +45,14 @@ export const queryKeys = {
   supplementalThreatAnchorReviewStatus: ["supplemental-threat-anchor-review-status"],
   supplementalThreatAnchorReviewItems: (params?: Record<string, unknown>) => ["supplemental-threat-anchor-review-items", params ?? {}],
   supplementalThreatAnchorReviewItem: (rowIndex?: number | null) => ["supplemental-threat-anchor-review-item", rowIndex],
+  supervisedQualificationStatus: ["supervised-qualification-status"],
+  supervisedQualificationReviewStatus: ["supervised-qualification-review-status"],
+  supervisedQualificationReviewItems: (params?: Record<string, unknown>) => ["supervised-qualification-review-items", params ?? {}],
+  supervisedQualificationReviewItem: (rowIndex?: number | null) => ["supervised-qualification-review-item", rowIndex],
+  supervisedExpansionStatus: ["supervised-expansion-status"],
+  supervisedExpansionReviewStatus: ["supervised-expansion-review-status"],
+  supervisedExpansionReviewItems: (batchId?: string, params?: Record<string, unknown>) => ["supervised-expansion-review-items", batchId, params ?? {}],
+  supervisedExpansionReviewItem: (batchId?: string, rowIndex?: number | null) => ["supervised-expansion-review-item", batchId, rowIndex],
   frozenEvaluationStatus: ["evidence-review-evaluation-status"],
   detectionReviewItem: (rowIndex?: number | null) => ["evidence-review-detection-item", rowIndex],
   assistantReviewItem: (rowIndex?: number | null) => ["evidence-review-assistant-item", rowIndex],
@@ -225,6 +234,14 @@ function invalidateEvidenceReview(queryClient: QueryClient) {
   void queryClient.invalidateQueries({ queryKey: queryKeys.supplementalThreatAnchorReviewStatus });
   void queryClient.invalidateQueries({ queryKey: ["supplemental-threat-anchor-review-items"] });
   void queryClient.invalidateQueries({ queryKey: ["supplemental-threat-anchor-review-item"] });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.supervisedQualificationStatus });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.supervisedQualificationReviewStatus });
+  void queryClient.invalidateQueries({ queryKey: ["supervised-qualification-review-items"] });
+  void queryClient.invalidateQueries({ queryKey: ["supervised-qualification-review-item"] });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.supervisedExpansionStatus });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.supervisedExpansionReviewStatus });
+  void queryClient.invalidateQueries({ queryKey: ["supervised-expansion-review-items"] });
+  void queryClient.invalidateQueries({ queryKey: ["supervised-expansion-review-item"] });
   invalidateAudit(queryClient);
 }
 
@@ -393,6 +410,92 @@ export function useSupplementalThreatAnchorReviewItem(
   });
 }
 
+export function useSupervisedQualificationStatus() {
+  return useQuery({
+    queryKey: queryKeys.supervisedQualificationStatus,
+    queryFn: api.supervisedQualificationStatus,
+    retry: false,
+    staleTime: 10_000
+  });
+}
+
+export function useSupervisedQualificationReviewStatus() {
+  return useQuery({
+    queryKey: queryKeys.supervisedQualificationReviewStatus,
+    queryFn: api.supervisedQualificationReviewStatus,
+    retry: false,
+    staleTime: 5_000
+  });
+}
+
+export function useSupervisedQualificationReviewItems(
+  params: Params,
+  enabled = true
+) {
+  return useQuery({
+    queryKey: queryKeys.supervisedQualificationReviewItems(params),
+    queryFn: () => api.supervisedQualificationReviewItems(params),
+    enabled,
+    retry: false
+  });
+}
+
+export function useSupervisedQualificationReviewItem(
+  rowIndex?: number | null,
+  enabled = true
+) {
+  return useQuery({
+    queryKey: queryKeys.supervisedQualificationReviewItem(rowIndex),
+    queryFn: () => api.supervisedQualificationReviewItem(rowIndex as number),
+    enabled: enabled && rowIndex !== null && rowIndex !== undefined,
+    retry: false
+  });
+}
+
+export function useSupervisedExpansionStatus() {
+  return useQuery({
+    queryKey: queryKeys.supervisedExpansionStatus,
+    queryFn: api.supervisedExpansionStatus,
+    retry: false,
+    staleTime: 10_000
+  });
+}
+
+export function useSupervisedExpansionReviewStatus() {
+  return useQuery({
+    queryKey: queryKeys.supervisedExpansionReviewStatus,
+    queryFn: api.supervisedExpansionReviewStatus,
+    retry: false,
+    staleTime: 5_000
+  });
+}
+
+export function useSupervisedExpansionReviewItems(
+  batchId: string,
+  params: Params,
+  enabled = true
+) {
+  return useQuery({
+    queryKey: queryKeys.supervisedExpansionReviewItems(batchId, params),
+    queryFn: () => api.supervisedExpansionReviewItems(batchId, params),
+    enabled: enabled && Boolean(batchId),
+    retry: false
+  });
+}
+
+export function useSupervisedExpansionReviewItem(
+  batchId: string,
+  rowIndex?: number | null,
+  enabled = true
+) {
+  return useQuery({
+    queryKey: queryKeys.supervisedExpansionReviewItem(batchId, rowIndex),
+    queryFn: () => api.supervisedExpansionReviewItem(batchId, rowIndex as number),
+    enabled: enabled && Boolean(batchId) && rowIndex !== null && rowIndex !== undefined,
+    retry: false
+  });
+}
+
 export function useFrozenEvaluationStatus() {
   return useQuery({
     queryKey: queryKeys.frozenEvaluationStatus,
@@ -512,6 +615,70 @@ export function useCloseSupplementalThreatAnchorReviewMutation() {
   return useMutation({
     mutationFn: (revision: number) =>
       api.closeSupplementalThreatAnchorReview(revision),
+    onSuccess: () => invalidateEvidenceReview(queryClient)
+  });
+}
+
+export function useStartSupervisedQualificationReviewMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.startSupervisedQualificationReview,
+    onSuccess: () => invalidateEvidenceReview(queryClient)
+  });
+}
+
+export function useSaveSupervisedQualificationReviewMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      rowIndex,
+      payload
+    }: {
+      rowIndex: number;
+      payload: SupervisedQualificationReviewSaveRequest;
+    }) => api.saveSupervisedQualificationReviewItem(rowIndex, payload),
+    onSuccess: () => invalidateEvidenceReview(queryClient)
+  });
+}
+
+export function useCloseSupervisedQualificationReviewMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (revision: number) =>
+      api.closeSupervisedQualificationReview(revision),
+    onSuccess: () => invalidateEvidenceReview(queryClient)
+  });
+}
+
+export function useStartSupervisedExpansionReviewMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (batchId: string) => api.startSupervisedExpansionReview(batchId),
+    onSuccess: () => invalidateEvidenceReview(queryClient)
+  });
+}
+
+export function useSaveSupervisedExpansionReviewMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      batchId,
+      rowIndex,
+      payload
+    }: {
+      batchId: string;
+      rowIndex: number;
+      payload: SupervisedQualificationReviewSaveRequest;
+    }) => api.saveSupervisedExpansionReviewItem(batchId, rowIndex, payload),
+    onSuccess: () => invalidateEvidenceReview(queryClient)
+  });
+}
+
+export function useCloseSupervisedExpansionReviewMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ batchId, revision }: { batchId: string; revision: number }) =>
+      api.closeSupervisedExpansionReview(batchId, revision),
     onSuccess: () => invalidateEvidenceReview(queryClient)
   });
 }

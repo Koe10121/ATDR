@@ -51,20 +51,36 @@ Never change labels to satisfy a class quota or improve a metric.
 
 ## Future Supervised Qualification
 
-A future protocol must use fresh evidence not consumed by v5.49b:
+v5.62 provides the fresh protocol foundation. v5.63 preserves its 300 rows and
+adds 700 non-overlapping development-safe rows in seven protected batches,
+reaching 1,000 selected comparable rows. Selection is not human review. Check
+only safe aggregate status with:
 
-1. Acquire chronological native PAN-OS development windows with provenance and
-   duplicate groups.
-2. Obtain a second genuine physical source.
-3. Collect prediction-blind human labels with adequate benign-like,
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v562_supervised_qualification_campaign --status-only --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v563_fresh_evidence_expansion --status-only --pretty
+```
+
+Do not rerun preparation over either existing workspace. Use **Evidence Review
+-> Supervised Qualification** to complete the original workspace and each
+supplemental batch. Development code cannot load labels before every required
+closure and can never load the untouched future-evaluation role.
+
+Qualification still requires:
+
+1. Complete all 300 original and 700 supplemental decisions without forcing
+   class quotas.
+2. Close all seven supplemental batches to make decisions immutable.
+3. Obtain and safely preflight a second genuine physical source.
+4. Collect prediction-blind human labels with adequate benign-like,
    suspicious, and malicious support.
-4. Predeclare fit, calibration, threshold, and untouched future roles.
-5. Freeze features, strategies, gates, thresholds, and calibration before the
+5. Preserve the locked fit, calibration, threshold, and untouched future roles.
+6. Freeze features, strategies, gates, thresholds, and calibration before the
    final labels are accessed.
-6. Demonstrate stable precision, recall, FPR, class recall, queue rate,
+7. Demonstrate stable precision, recall, FPR, class recall, queue rate,
    calibration, and split behavior.
-7. Select at most one diagnostic candidate.
-8. Require separate human approval before any shadow activation.
+8. Select at most one diagnostic candidate.
+9. Require separate human approval before any shadow activation.
 
 Failure at any gate keeps supervised runtime `unqualified`. A historical model
 file or registry entry is not authorization.

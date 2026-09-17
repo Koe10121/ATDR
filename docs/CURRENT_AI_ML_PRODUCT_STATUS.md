@@ -104,6 +104,46 @@ future evaluation and a separate activation decision. Protected decisions,
 reviewer identities, fingerprints, predictions, and execution claims remain
 private.
 
+### v5.62 Fresh Qualification Campaign
+
+v5.62 reconstructs and excludes all 180 consumed review families before
+selecting any new evidence. Disposable streaming of private operator evidence
+parsed 773,551 records without parser failure, identified 298,963 fresh
+eligible rows, rejected 228 overlapping event rows, contained 52,881
+near-duplicate rows, and found 19 chronological windows from one physical
+source.
+
+The locked 300-row review pack contains 150 development-fit, 60 calibration,
+45 threshold-selection, and 45 untouched future-evaluation rows. Review is
+currently `0/300`; evaluation labels remain sealed. The eight strategy
+contracts, 40-feature schema, and all fixed qualification gates are unchanged.
+Development loading is refused until review closure, and evaluation-role rows
+are never returned to development code.
+
+This source is useful for development evidence but cannot independently
+qualify supervised ML. A second physical source and at least 1,000 comparable
+rows remain fixed requirements. Training, evaluation, candidate freeze,
+activation, promotion, and active-artifact writing remain false.
+
+### v5.63 Comparable Evidence Expansion
+
+v5.63 preserves the original 300-row pack exactly and adds 700 fresh,
+non-overlapping, duplicate-isolated rows from development-safe chronological
+roles. The combined selected capacity is now 1,000 rows: 300 original plus 700
+supplemental. Supplemental roles are 411 development-fit, 165 calibration, and
+124 threshold-selection; no future-evaluation row was added.
+
+The 700 rows are split into seven protected 100-row batches with independent
+owner binding, revisions, resumable progress, and immutable closure. Current
+review is `0/300` original plus `0/700` supplemental. Selected capacity is not
+reviewed evidence, so the 1,000-row qualification gate still reports zero
+valid reviewed rows.
+
+The second-source intake CLI is ready and fails closed for a repeated physical
+device. Current support remains one verified source and 19 time windows. A
+second real device is not fabricated. Training, evaluation, candidate freeze,
+activation, promotion, and active-artifact writing remain false.
+
 ## Registry Wording
 
 An older artifact can exist even when its metadata is incomplete. The dashboard
@@ -237,15 +277,18 @@ failure behavior under the approved provider policy.
 
 ## Remaining AI/ML Finish Gates
 
-1. Collect independently reviewed evidence from a second physical source and
-   a predeclared untouched future window.
-2. Repair supervised models only on fresh development roles, then require all
+1. Complete the v5.62 protected 300-row review and all seven v5.63 100-row
+   supplemental batches without forcing class quotas.
+2. Collect independently reviewed evidence from a second physical source and
+   preserve a predeclared untouched future window.
+3. Repair supervised models only after the development evidence gates pass,
+   then require all
    fixed FPR, recall, calibration, stability, and queue-rate gates.
-3. Obtain a separate human activation decision before writing or selecting any
+4. Obtain a separate human activation decision before writing or selecting any
    active artifact.
-4. Complete institutional Gemini privacy, retention, cost/quota, monitoring,
+5. Complete institutional Gemini privacy, retention, cost/quota, monitoring,
    and key-rotation acceptance.
-5. Run representative analyst evaluation on real but privacy-approved records.
+6. Run representative analyst evaluation on real but privacy-approved records.
 
 IsolationForest bootstrap itself is no longer a Codex-owned implementation
 gap. Field accuracy and authority remain evidence questions and must not be

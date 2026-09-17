@@ -3340,6 +3340,392 @@ export interface SupplementalThreatAnchorReviewOperation {
   response_action_performed: false;
 }
 
+export interface SupervisedQualificationStatus {
+  version: string;
+  status: string;
+  consumed_boundary: Record<string, unknown>;
+  protocol: {
+    version: string;
+    locked: boolean;
+    valid: boolean;
+    selected_rows: number;
+    roles: string[];
+    role_counts: Record<string, number>;
+    strategy_count: number;
+    feature_count: number;
+    gates_unchanged: boolean;
+    chronological: boolean;
+    duplicate_group_isolation: boolean;
+    evaluation_labels_sealed: true;
+    digest_exposed: false;
+  };
+  evidence: {
+    source_rows?: number;
+    fresh_rows_available?: number;
+    selected_rows?: number;
+    real_source_identities?: number;
+    independent_time_windows?: number;
+    role_counts?: Record<string, number>;
+    consumed_review_rows?: number;
+    excluded_event_rows?: number;
+    excluded_candidate_families?: number;
+  };
+  review: Record<string, unknown>;
+  qualification_gates: Record<
+    string,
+    { observed?: number | null; threshold?: number | string; status?: string; reason?: string } | Record<string, unknown>
+  >;
+  development_repair: Record<string, unknown>;
+  external_evidence_required: string[];
+  lifecycle_state: "shadow_observation";
+  supervised_state: "unqualified";
+  activation_allowed: false;
+  candidate_frozen: false;
+  model_activated: false;
+  model_promoted: false;
+  active_model_artifact_written: false;
+  rules_alert_authoritative: true;
+  anomaly_advisory_only: true;
+  hybrid_advisory_only: true;
+  response_mode: "simulation_only";
+  response_automation_allowed: false;
+  real_firewall_blocking_enabled: false;
+  automatic_import_performed: false;
+  human_reviewed_labels_created: 0;
+  evaluation_executed: false;
+  predictions_exposed: false;
+  model_scores_exposed: false;
+  rule_recommendations_exposed: false;
+  assisted_labels_exposed: false;
+  raw_logs_exposed: false;
+  ip_addresses_exposed: false;
+  source_identities_exposed: false;
+  fingerprints_exposed: false;
+  private_paths_exposed: false;
+  secrets_exposed: false;
+}
+
+export interface SupervisedQualificationReviewProgress {
+  workspace: "supervised_qualification";
+  available: boolean;
+  prepared: boolean;
+  integrity_status: "valid" | "not_prepared" | "unavailable";
+  total: number;
+  reviewed: number;
+  remaining: number;
+  invalid: number;
+  progress_percent: number;
+  revision: number;
+  owner_assigned: boolean;
+  owned_by_current_user: boolean;
+  can_review: boolean;
+  completed: boolean;
+  closed: boolean;
+  development_ready: boolean;
+  role_counts: Record<string, number>;
+  role_progress: Record<string, { total: number; reviewed: number }>;
+  coverage_counts: Record<string, number>;
+  coverage_groups: string[];
+  development_class_support: Record<string, number>;
+  qualification_gates: SupervisedQualificationStatus["qualification_gates"];
+  next_pending_index?: number | null;
+  message: string;
+  predictions_exposed: false;
+  model_scores_exposed: false;
+  rule_recommendations_exposed: false;
+  assisted_labels_exposed: false;
+  raw_logs_exposed: false;
+  ip_addresses_exposed: false;
+  source_identities_exposed: false;
+  fingerprints_exposed: false;
+  private_paths_exposed: false;
+  reviewer_identity_exposed: false;
+  evaluation_class_support_sealed: true;
+  import_ready: false;
+  automatic_import_performed: false;
+  model_activation_performed: false;
+  response_action_performed: false;
+  activation_allowed: false;
+  rules_alert_authoritative: true;
+  response_mode: "simulation_only";
+  secrets_exposed: false;
+}
+
+export interface SupervisedQualificationReviewItem {
+  workspace: "supervised_qualification";
+  row_index: number;
+  display_position: number;
+  total: number;
+  revision: number;
+  reviewed: boolean;
+  closed: boolean;
+  evidence_role: string;
+  coverage_group: string;
+  evidence: Record<string, string>;
+  existing_review?: ManualAnchorReviewInput | null;
+  next_pending_index?: number | null;
+  predictions_exposed: false;
+  model_scores_exposed: false;
+  rule_recommendations_exposed: false;
+  assisted_labels_exposed: false;
+  raw_logs_exposed: false;
+  ip_addresses_exposed: false;
+  source_identities_exposed: false;
+  fingerprints_exposed: false;
+  private_paths_exposed: false;
+  reviewer_identity_exposed: false;
+  evaluation_class_support_sealed: true;
+  import_ready: false;
+  automatic_import_performed: false;
+  model_activation_performed: false;
+  response_action_performed: false;
+  activation_allowed: false;
+  rules_alert_authoritative: true;
+  response_mode: "simulation_only";
+  secrets_exposed: false;
+}
+
+export interface SupervisedQualificationReviewListItem {
+  row_index: number;
+  display_position: number;
+  reviewed: boolean;
+  evidence_role: string;
+  coverage_group: string;
+  evidence: Record<string, string>;
+}
+
+export interface SupervisedQualificationReviewPage {
+  workspace: "supervised_qualification";
+  offset: number;
+  limit: number;
+  filtered_total: number;
+  items: SupervisedQualificationReviewListItem[];
+  predictions_exposed: false;
+  raw_logs_exposed: false;
+  private_paths_exposed: false;
+  reviewer_identities_exposed: false;
+  evaluation_class_support_sealed: true;
+  secrets_exposed: false;
+}
+
+export type SupervisedQualificationReviewSaveRequest = ManualAnchorReviewSaveRequest;
+
+export interface SupervisedQualificationReviewOperation {
+  ok: boolean;
+  workspace: "supervised_qualification";
+  status: string;
+  revision: number;
+  progress: SupervisedQualificationReviewProgress;
+  next_item?: SupervisedQualificationReviewItem | null;
+  authoritative_mutations: {
+    labels: number;
+    model_runs: number;
+    detection_runs: number;
+    alerts: number;
+    response_actions: number;
+  };
+  evaluation_executed: false;
+  import_performed: false;
+  model_activation_performed: false;
+  response_action_performed: false;
+}
+
+export interface SupervisedExpansionStatus {
+  version: string;
+  status: string;
+  v562_boundary: Record<string, unknown>;
+  protocol: {
+    version: string;
+    locked: boolean;
+    valid: boolean;
+    append_only: boolean;
+    original_rows: number;
+    supplemental_rows: number;
+    total_comparable_capacity: number;
+    batch_count: number;
+    batch_definitions?: Array<{
+      batch_id: string;
+      rows: number;
+      role_counts: Record<string, number>;
+      immutable_after_close: true;
+    }>;
+    role_counts: Record<string, number>;
+    gates_unchanged: boolean;
+    chronological?: boolean;
+    duplicate_group_isolation?: boolean;
+    development_roles_only?: true;
+    evaluation_labels_sealed: true;
+    digests_exposed: false;
+  };
+  evidence?: {
+    fresh_rows_available?: number;
+    original_rows_preserved?: number;
+    supplemental_rows_selected?: number;
+    total_comparable_capacity?: number;
+    real_source_identities?: number;
+    independent_time_windows?: number;
+    second_source_present?: boolean;
+    future_evaluation_rows_added?: number;
+  };
+  review: Record<string, unknown>;
+  qualification_gates: SupervisedQualificationStatus["qualification_gates"];
+  second_source_intake: Record<string, unknown>;
+  development_training_can_begin: false;
+  development_blockers: string[];
+  lifecycle_state: "shadow_observation";
+  supervised_state: "unqualified";
+  training_allowed: false;
+  training_executed: false;
+  evaluation_executed: false;
+  candidate_frozen: false;
+  activation_allowed: false;
+  model_activated: false;
+  model_promoted: false;
+  active_model_artifact_written: false;
+  rules_alert_authoritative: true;
+  anomaly_advisory_only: true;
+  hybrid_advisory_only: true;
+  response_mode: "simulation_only";
+  response_automation_allowed: false;
+  real_firewall_blocking_enabled: false;
+  predictions_exposed: false;
+  raw_logs_exposed: false;
+  private_paths_exposed: false;
+  secrets_exposed: false;
+}
+
+export interface SupervisedExpansionBatchProgress {
+  batch_id: string;
+  total: number;
+  reviewed: number;
+  remaining: number;
+  invalid: number;
+  completed: boolean;
+  closed: boolean;
+  revision: number;
+  next_pending_index?: number | null;
+  owner_assigned: boolean;
+  owned_by_current_user: boolean;
+  can_review: boolean;
+}
+
+export interface SupervisedExpansionReviewProgress {
+  workspace: "supervised_qualification_expansion";
+  available: boolean;
+  integrity_status: "valid" | "unavailable";
+  total: number;
+  reviewed: number;
+  remaining: number;
+  invalid: number;
+  progress_percent: number;
+  completed: boolean;
+  closed: boolean;
+  closed_batch_count: number;
+  batch_count: number;
+  batches: SupervisedExpansionBatchProgress[];
+  role_progress: Record<string, { total: number; reviewed: number }>;
+  development_class_support: Record<string, number>;
+  combined_total: number;
+  combined_reviewed: number;
+  qualification_gates: SupervisedQualificationStatus["qualification_gates"];
+  development_training_can_begin: false;
+  message: string;
+  predictions_exposed: false;
+  model_scores_exposed: false;
+  rule_recommendations_exposed: false;
+  assisted_labels_exposed: false;
+  raw_logs_exposed: false;
+  ip_addresses_exposed: false;
+  source_identities_exposed: false;
+  fingerprints_exposed: false;
+  private_paths_exposed: false;
+  reviewer_identity_exposed: false;
+  evaluation_class_support_sealed: true;
+  training_executed: false;
+  evaluation_executed: false;
+  activation_allowed: false;
+  rules_alert_authoritative: true;
+  response_mode: "simulation_only";
+  secrets_exposed: false;
+}
+
+export interface SupervisedExpansionReviewItem {
+  workspace: "supervised_qualification_expansion";
+  batch_id: string;
+  row_index: number;
+  display_position: number;
+  total: number;
+  revision: number;
+  reviewed: boolean;
+  closed: boolean;
+  evidence_role: string;
+  coverage_group: string;
+  evidence: Record<string, string>;
+  existing_review?: ManualAnchorReviewInput | null;
+  next_pending_index?: number | null;
+  predictions_exposed: false;
+  model_scores_exposed: false;
+  rule_recommendations_exposed: false;
+  assisted_labels_exposed: false;
+  raw_logs_exposed: false;
+  ip_addresses_exposed: false;
+  source_identities_exposed: false;
+  fingerprints_exposed: false;
+  private_paths_exposed: false;
+  reviewer_identity_exposed: false;
+  evaluation_class_support_sealed: true;
+  training_executed: false;
+  evaluation_executed: false;
+  activation_allowed: false;
+  rules_alert_authoritative: true;
+  response_mode: "simulation_only";
+  secrets_exposed: false;
+}
+
+export interface SupervisedExpansionReviewPage {
+  workspace: "supervised_qualification_expansion";
+  batch_id: string;
+  offset: number;
+  limit: number;
+  filtered_total: number;
+  items: Array<{
+    row_index: number;
+    display_position: number;
+    reviewed: boolean;
+    evidence_role: string;
+    coverage_group: string;
+    evidence: Record<string, string>;
+  }>;
+  predictions_exposed: false;
+  raw_logs_exposed: false;
+  private_paths_exposed: false;
+  reviewer_identity_exposed: false;
+  evaluation_class_support_sealed: true;
+  secrets_exposed: false;
+}
+
+export interface SupervisedExpansionReviewOperation {
+  ok: boolean;
+  workspace: "supervised_qualification_expansion";
+  batch_id: string;
+  status: string;
+  revision: number;
+  progress: SupervisedExpansionReviewProgress;
+  next_item?: SupervisedExpansionReviewItem | null;
+  authoritative_mutations: {
+    labels: number;
+    model_runs: number;
+    detection_runs: number;
+    alerts: number;
+    response_actions: number;
+  };
+  training_executed: false;
+  evaluation_executed: false;
+  import_performed: false;
+  model_activation_performed: false;
+  response_action_performed: false;
+}
+
 export interface FrozenEvidenceReviewSummary {
   available: boolean;
   total: number;

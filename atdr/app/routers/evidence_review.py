@@ -37,6 +37,17 @@ from atdr.app.schemas.evidence_review import (
     SupplementalThreatAnchorReviewPageResponse,
     SupplementalThreatAnchorReviewProgress,
     SupplementalThreatAnchorStatusResponse,
+    SupervisedExpansionBatchRequest,
+    SupervisedExpansionReviewItemResponse,
+    SupervisedExpansionReviewOperationResponse,
+    SupervisedExpansionReviewPageResponse,
+    SupervisedExpansionReviewProgress,
+    SupervisedExpansionStatusResponse,
+    SupervisedQualificationReviewItemResponse,
+    SupervisedQualificationReviewOperationResponse,
+    SupervisedQualificationReviewPageResponse,
+    SupervisedQualificationReviewProgress,
+    SupervisedQualificationStatusResponse,
     TemporalStabilityStatusResponse,
 )
 from atdr.app.detection.v541_governed_blind_evidence import (
@@ -75,6 +86,14 @@ from atdr.app.detection.v549b_combined_fixed_revalidation import (
     V549BRevalidationError,
     get_public_v549b_status,
 )
+from atdr.app.detection.v562_supervised_qualification_campaign import (
+    V562CampaignError,
+    get_public_v562_status,
+)
+from atdr.app.detection.v563_fresh_evidence_expansion import (
+    V563ExpansionError,
+    get_public_v563_status,
+)
 from atdr.app.services.v551_field_qualification_service import (
     V551QualificationError,
     get_public_v551_status,
@@ -110,6 +129,22 @@ from atdr.app.services.v549a_supplemental_threat_anchor_review_service import (
     save_supplemental_review_item,
     start_supplemental_review,
 )
+from atdr.app.services.v562_supervised_qualification_review_service import (
+    close_qualification_review,
+    get_qualification_review_item,
+    get_qualification_review_status,
+    list_qualification_review_items,
+    save_qualification_review_item,
+    start_qualification_review,
+)
+from atdr.app.services.v563_supervised_expansion_review_service import (
+    close_expansion_review_batch,
+    get_expansion_review_item,
+    get_expansion_review_status,
+    list_expansion_review_items,
+    save_expansion_review_item,
+    start_expansion_review_batch,
+)
 
 
 router = APIRouter(prefix="/api/evidence-review", tags=["evidence-review"])
@@ -122,6 +157,7 @@ def _audit(
     action: str,
     workspace: str,
     row_index: int | None = None,
+    batch_id: str | None = None,
     revision: int | None = None,
     reason_code: str | None = None,
 ) -> None:
@@ -136,6 +172,8 @@ def _audit(
     }
     if row_index is not None:
         details["row_index"] = row_index
+    if batch_id is not None:
+        details["batch_id"] = batch_id
     if revision is not None:
         details["revision"] = revision
     if reason_code:
@@ -159,6 +197,7 @@ def _raise_review_error(
     *,
     workspace: str,
     row_index: int | None = None,
+    batch_id: str | None = None,
 ) -> NoReturn:
     _audit(
         db,
@@ -170,6 +209,7 @@ def _raise_review_error(
         ),
         workspace=workspace,
         row_index=row_index,
+        batch_id=batch_id,
         reason_code=error.code,
     )
     raise HTTPException(
@@ -721,6 +761,442 @@ def close_supplemental_threat_anchor_workspace(
         current_user,
         action="supplemental_anchor_review_closed",
         workspace="supplemental_threat_anchors",
+        revision=int(result["revision"]),
+    )
+    return result
+
+
+@router.get(
+    "/supervised-qualification/status",
+    response_model=SupervisedQualificationStatusResponse,
+)
+def supervised_qualification_campaign_status(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    try:
+        result = get_public_v562_status()
+    except V562CampaignError as exc:
+        _audit(
+            db,
+            current_user,
+            action="evidence_review_integrity_failed",
+            workspace="supervised_qualification",
+            reason_code="qualification_campaign_status_invalid",
+        )
+        raise HTTPException(
+            status_code=409,
+            detail="The supervised qualification campaign failed integrity validation.",
+        ) from exc
+    _audit(
+        db,
+        current_user,
+        action="qualification_campaign_status_viewed",
+        workspace="supervised_qualification",
+    )
+    return result
+
+
+@router.get(
+    "/supervised-qualification/review-status",
+    response_model=SupervisedQualificationReviewProgress,
+)
+def supervised_qualification_review_status(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    try:
+        result = get_qualification_review_status(current_user)
+    except EvidenceReviewError as exc:
+        _raise_review_error(
+            db,
+            current_user,
+            exc,
+            workspace="supervised_qualification",
+        )
+    _audit(
+        db,
+        current_user,
+        action="qualification_review_status_viewed",
+        workspace="supervised_qualification",
+        revision=int(result["revision"]),
+    )
+    return result
+
+
+@router.post(
+    "/supervised-qualification/start",
+    response_model=SupervisedQualificationReviewOperationResponse,
+)
+def start_supervised_qualification_review(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    try:
+        result = start_qualification_review(current_user)
+    except EvidenceReviewError as exc:
+        _raise_review_error(
+            db,
+            current_user,
+            exc,
+            workspace="supervised_qualification",
+        )
+    _audit(
+        db,
+        current_user,
+        action="qualification_review_started",
+        workspace="supervised_qualification",
+        revision=int(result["revision"]),
+    )
+    return result
+
+
+@router.get(
+    "/supervised-qualification/items",
+    response_model=SupervisedQualificationReviewPageResponse,
+)
+def supervised_qualification_review_items(
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=20, ge=1, le=100),
+    evidence_role: str | None = Query(default=None, max_length=120),
+    coverage_group: str | None = Query(default=None, max_length=120),
+    review_state: Literal["all", "pending", "reviewed"] = "all",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    try:
+        return list_qualification_review_items(
+            current_user,
+            offset=offset,
+            limit=limit,
+            evidence_role=evidence_role,
+            coverage_group=coverage_group,
+            review_state=review_state,
+        )
+    except EvidenceReviewError as exc:
+        _raise_review_error(
+            db,
+            current_user,
+            exc,
+            workspace="supervised_qualification",
+        )
+
+
+@router.get(
+    "/supervised-qualification/items/{row_index}",
+    response_model=SupervisedQualificationReviewItemResponse,
+)
+def supervised_qualification_review_item(
+    row_index: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    try:
+        return get_qualification_review_item(current_user, row_index=row_index)
+    except EvidenceReviewError as exc:
+        _raise_review_error(
+            db,
+            current_user,
+            exc,
+            workspace="supervised_qualification",
+            row_index=row_index,
+        )
+
+
+@router.post(
+    "/supervised-qualification/items/{row_index}",
+    response_model=SupervisedQualificationReviewOperationResponse,
+)
+def save_supervised_qualification_review_item(
+    row_index: int,
+    request: ManualAnchorReviewSaveRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    try:
+        result = save_qualification_review_item(
+            current_user,
+            row_index=row_index,
+            expected_revision=request.expected_revision,
+            decision=request.decision,
+            attack_type=request.attack_type,
+            confidence=request.confidence,
+            rationale=request.rationale,
+        )
+    except EvidenceReviewError as exc:
+        _raise_review_error(
+            db,
+            current_user,
+            exc,
+            workspace="supervised_qualification",
+            row_index=row_index,
+        )
+    _audit(
+        db,
+        current_user,
+        action="qualification_review_saved",
+        workspace="supervised_qualification",
+        row_index=row_index,
+        revision=int(result["revision"]),
+    )
+    return result
+
+
+@router.post(
+    "/supervised-qualification/close",
+    response_model=SupervisedQualificationReviewOperationResponse,
+)
+def close_supervised_qualification_review(
+    request: ManualAnchorReviewCloseRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    try:
+        result = close_qualification_review(
+            current_user,
+            expected_revision=request.expected_revision,
+        )
+    except EvidenceReviewError as exc:
+        _raise_review_error(
+            db,
+            current_user,
+            exc,
+            workspace="supervised_qualification",
+        )
+    _audit(
+        db,
+        current_user,
+        action="qualification_review_closed",
+        workspace="supervised_qualification",
+        revision=int(result["revision"]),
+    )
+    return result
+
+
+@router.get(
+    "/supervised-qualification/expansion/status",
+    response_model=SupervisedExpansionStatusResponse,
+)
+def supervised_expansion_campaign_status(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    try:
+        result = get_public_v563_status()
+    except (V562CampaignError, V563ExpansionError) as exc:
+        _audit(
+            db,
+            current_user,
+            action="evidence_review_integrity_failed",
+            workspace="supervised_qualification_expansion",
+            reason_code="expansion_campaign_status_invalid",
+        )
+        raise HTTPException(
+            status_code=409,
+            detail="The supplemental qualification campaign failed integrity validation.",
+        ) from exc
+    _audit(
+        db,
+        current_user,
+        action="expansion_campaign_status_viewed",
+        workspace="supervised_qualification_expansion",
+    )
+    return result
+
+
+@router.get(
+    "/supervised-qualification/expansion/review-status",
+    response_model=SupervisedExpansionReviewProgress,
+)
+def supervised_expansion_review_status(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    try:
+        result = get_expansion_review_status(current_user)
+    except EvidenceReviewError as exc:
+        _raise_review_error(
+            db,
+            current_user,
+            exc,
+            workspace="supervised_qualification_expansion",
+        )
+    _audit(
+        db,
+        current_user,
+        action="expansion_review_status_viewed",
+        workspace="supervised_qualification_expansion",
+    )
+    return result
+
+
+@router.post(
+    "/supervised-qualification/expansion/start",
+    response_model=SupervisedExpansionReviewOperationResponse,
+)
+def start_supervised_expansion_review(
+    request: SupervisedExpansionBatchRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    try:
+        result = start_expansion_review_batch(
+            current_user,
+            batch_id=request.batch_id,
+        )
+    except EvidenceReviewError as exc:
+        _raise_review_error(
+            db,
+            current_user,
+            exc,
+            workspace="supervised_qualification_expansion",
+            batch_id=request.batch_id,
+        )
+    _audit(
+        db,
+        current_user,
+        action="expansion_review_batch_started",
+        workspace="supervised_qualification_expansion",
+        batch_id=request.batch_id,
+        revision=int(result["revision"]),
+    )
+    return result
+
+
+@router.get(
+    "/supervised-qualification/expansion/items",
+    response_model=SupervisedExpansionReviewPageResponse,
+)
+def supervised_expansion_review_items(
+    batch_id: str = Query(pattern=r"^batch-\d{2}$"),
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=20, ge=1, le=100),
+    evidence_role: str | None = Query(default=None, max_length=120),
+    coverage_group: str | None = Query(default=None, max_length=120),
+    review_state: Literal["all", "pending", "reviewed"] = "all",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    try:
+        return list_expansion_review_items(
+            current_user,
+            batch_id=batch_id,
+            offset=offset,
+            limit=limit,
+            evidence_role=evidence_role,
+            coverage_group=coverage_group,
+            review_state=review_state,
+        )
+    except EvidenceReviewError as exc:
+        _raise_review_error(
+            db,
+            current_user,
+            exc,
+            workspace="supervised_qualification_expansion",
+            batch_id=batch_id,
+        )
+
+
+@router.get(
+    "/supervised-qualification/expansion/items/{row_index}",
+    response_model=SupervisedExpansionReviewItemResponse,
+)
+def supervised_expansion_review_item(
+    row_index: int,
+    batch_id: str = Query(pattern=r"^batch-\d{2}$"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    try:
+        return get_expansion_review_item(
+            current_user,
+            batch_id=batch_id,
+            row_index=row_index,
+        )
+    except EvidenceReviewError as exc:
+        _raise_review_error(
+            db,
+            current_user,
+            exc,
+            workspace="supervised_qualification_expansion",
+            row_index=row_index,
+            batch_id=batch_id,
+        )
+
+
+@router.post(
+    "/supervised-qualification/expansion/items/{row_index}",
+    response_model=SupervisedExpansionReviewOperationResponse,
+)
+def save_supervised_expansion_review_item(
+    row_index: int,
+    request: ManualAnchorReviewSaveRequest,
+    batch_id: str = Query(pattern=r"^batch-\d{2}$"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    try:
+        result = save_expansion_review_item(
+            current_user,
+            batch_id=batch_id,
+            row_index=row_index,
+            expected_revision=request.expected_revision,
+            decision=request.decision,
+            attack_type=request.attack_type,
+            confidence=request.confidence,
+            rationale=request.rationale,
+        )
+    except EvidenceReviewError as exc:
+        _raise_review_error(
+            db,
+            current_user,
+            exc,
+            workspace="supervised_qualification_expansion",
+            row_index=row_index,
+            batch_id=batch_id,
+        )
+    _audit(
+        db,
+        current_user,
+        action="expansion_review_saved",
+        workspace="supervised_qualification_expansion",
+        row_index=row_index,
+        batch_id=batch_id,
+        revision=int(result["revision"]),
+    )
+    return result
+
+
+@router.post(
+    "/supervised-qualification/expansion/close",
+    response_model=SupervisedExpansionReviewOperationResponse,
+)
+def close_supervised_expansion_review(
+    request: ManualAnchorReviewCloseRequest,
+    batch_id: str = Query(pattern=r"^batch-\d{2}$"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    try:
+        result = close_expansion_review_batch(
+            current_user,
+            batch_id=batch_id,
+            expected_revision=request.expected_revision,
+        )
+    except EvidenceReviewError as exc:
+        _raise_review_error(
+            db,
+            current_user,
+            exc,
+            workspace="supervised_qualification_expansion",
+            batch_id=batch_id,
+        )
+    _audit(
+        db,
+        current_user,
+        action="expansion_review_batch_closed",
+        workspace="supervised_qualification_expansion",
+        batch_id=batch_id,
         revision=int(result["revision"]),
     )
     return result

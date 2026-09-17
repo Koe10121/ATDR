@@ -9,7 +9,7 @@ Historical phase-by-phase traceability is preserved under `docs/archive/`.
 | FR-PAR-01 parsing | `atdr/app/parsers/`, parser-quality services | parser contract, drift, field-qualification, and layered tests | Implemented for governed profiles |
 | FR-DET-01 rules | `atdr/app/detection/`, detection service/router | controlled source and layered `288`-case validation | Implemented; real FP/FN evidence external |
 | FR-ML-01 anomaly | v5.61 bootstrap service/CLI, ML status/health, runtime contract, and AI Governance UI | evidence-gate, confirmation, disposable training, no-write, clean-machine extension, API, and Playwright tests | Reproducible advisory capability; not threat-accuracy validated |
-| FR-ML-02 supervised | supervised lifecycle, registry, evidence, calibration, and decision services | v5.49b aggregate decision and v5.58 fail-closed runtime tests | `unqualified`; no active candidate |
+| FR-ML-02 supervised | supervised lifecycle, registry, v5.62 consumed-evidence exclusion, v5.63 append-only 1,000-row capacity, protected batched review, and development preflight | v5.49b aggregate decision, v5.58 runtime tests, and v5.62-v5.63 backend/UI safety tests | 300+700 rows selected; `0/1,000` reviewed; one source; `unqualified`; no active candidate |
 | FR-EXP-01 explanations | explanation, investigation, alert, and case services | explanation/adversarial and analyst-workflow tests | Implemented |
 | FR-AST-01 Assistant | assistant service, provider adapter, schemas, router | Assistant backend QA, provider-failure, privacy, and Playwright tests | Read-only; Gemini approval external |
 | FR-ALT-01 analyst workflow | alert/case/label/audit routes and React pages | end-to-end analyst journey, UI tests, and v5.60 remote-clone acceptance | Implemented locally and in clean clone |
@@ -31,6 +31,10 @@ Historical phase-by-phase traceability is preserved under `docs/archive/`.
 | Raw external LLM log context is off | Assistant config/status and provider tests |
 | Response remains simulated | config doctor, response service, release gate |
 | Consumed evaluation remains immutable | protected evidence and at-most-once protocol tests |
+| Fresh supervised evidence stays prediction blind | v5.62 owner isolation plus v5.63 per-batch isolation, redaction, sealed evaluation role, and no-write tests |
+| Fixed supervised gates cannot be weakened | v5.62-v5.63 protocol equality and fail-closed source/support checks |
+| Supplemental evidence is append-only | v5.63 original-pack preservation, overlap rejection, unique-family checks, and zero added evaluation rows |
+| Second-source identity is not fabricated | v5.63 same-device rejection, aggregate-only distinct-device preflight, and unchanged source gate |
 | Anomaly training is explicit and isolated | v5.61 confirmation gate, ignored destination checks, disposable SQLite, and setup/start non-execution tests |
 
 ## External Trace

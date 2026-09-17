@@ -16,6 +16,9 @@ available in archived phase and T1-T20 records.
 | Keep exact approval-gated commit boundaries | Satisfied | current allowlist plus archived allowlists |
 | Prove clean-clone reproducibility | Satisfied locally | v5.60 genuine `origin/main` clone passed `27/27`; physical teammate repetition remains external |
 | Reproduce anomaly capability safely | Satisfied locally | v5.61 preflight, exact confirmation, disposable training, ignored provenance, and advisory-only acceptance |
+| Prepare fresh supervised qualification safely | Satisfied locally | v5.62 consumed-evidence exclusion, chronological locks, protected review, fixed gates, and zero-write preflight |
+| Expand supervised evidence without leakage | Satisfied locally | v5.63 preserves 300 rows, adds 700 unique development-only rows, seals evaluation evidence, and creates no authoritative writes |
+| Validate future second-source identity safely | Ready, externally blocked | v5.63 CLI rejects same-device evidence and returns aggregates only; a second real device is not yet available |
 
 ## Product Integrity
 
@@ -26,6 +29,7 @@ available in archived phase and T1-T20 records.
 | Explain deterministic detection | Implemented | rule catalog, explanations, related evidence, recommendations |
 | Keep AI/ML claims honest | Satisfied | rules authoritative; anomaly/hybrid advisory and not threat-accuracy validated; supervised unqualified |
 | Preserve human-label provenance | Satisfied | protected review, weak-label separation, no automated human claims |
+| Seal evaluation evidence from development | Satisfied | v5.62-v5.63 loaders exclude future evaluation and remain locked until all required review closures |
 | Keep Assistant grounded and read-only | Satisfied locally | bounded context, citations, redaction, fallback, no-side-effect tests |
 | Keep response controlled | Satisfied | simulation only; no automatic response or real blocking |
 

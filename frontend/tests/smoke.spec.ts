@@ -21,6 +21,11 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
   let manualAnchorReviewReviewed = 0;
   let supplementalAnchorReviewRevision = 0;
   let supplementalAnchorReviewReviewed = 0;
+  let qualificationReviewRevision = 0;
+  let qualificationReviewReviewed = 0;
+  let expansionReviewRevision = 0;
+  let expansionReviewReviewed = 0;
+  let expansionStarted = false;
   const smokeAlert = {
     id: 1,
     title: "Critical: Smoke alert",
@@ -555,6 +560,253 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
     authoritative_mutations: { labels: 0, model_runs: 0, detection_runs: 0, alerts: 0, response_actions: 0 },
     evaluation_execution_count: 0,
     evaluation_claim_created: false,
+    import_performed: false,
+    model_activation_performed: false,
+    response_action_performed: false
+  });
+  const qualificationProgress = () => ({
+    workspace: "supervised_qualification",
+    available: true,
+    prepared: true,
+    integrity_status: "valid",
+    total: 300,
+    reviewed: qualificationReviewReviewed,
+    remaining: 300 - qualificationReviewReviewed,
+    invalid: 0,
+    progress_percent: (qualificationReviewReviewed / 300) * 100,
+    revision: qualificationReviewRevision,
+    owner_assigned: true,
+    owned_by_current_user: true,
+    can_review: true,
+    completed: qualificationReviewReviewed === 300,
+    closed: false,
+    development_ready: false,
+    role_counts: {
+      development_fit: 150,
+      calibration: 60,
+      threshold_selection: 45,
+      untouched_future_evaluation: 45
+    },
+    role_progress: {
+      development_fit: { total: 150, reviewed: qualificationReviewReviewed },
+      calibration: { total: 60, reviewed: 0 },
+      threshold_selection: { total: 45, reviewed: 0 },
+      untouched_future_evaluation: { total: 45, reviewed: 0 }
+    },
+    coverage_counts: {
+      web_transport_context: 45,
+      high_activity_context: 43,
+      unknown_transport_context: 42
+    },
+    coverage_groups: ["web_transport_context", "high_activity_context", "unknown_transport_context"],
+    development_class_support: { benign_like: qualificationReviewReviewed, needs_context: 0, suspicious: 0, malicious: 0 },
+    qualification_gates: {
+      real_source_identities: { observed: 1, threshold: 2, status: "fail" },
+      independent_time_windows: { observed: 19, threshold: 2, status: "pass" },
+      untouched_evaluation_class_support: { observed: null, threshold: "all required classes measurable", status: "blocked", reason: "evaluation_labels_sealed" }
+    },
+    next_pending_index: qualificationReviewReviewed < 300 ? qualificationReviewReviewed : null,
+    message: "Record independent human decisions using displayed evidence only.",
+    predictions_exposed: false,
+    model_scores_exposed: false,
+    rule_recommendations_exposed: false,
+    assisted_labels_exposed: false,
+    raw_logs_exposed: false,
+    ip_addresses_exposed: false,
+    source_identities_exposed: false,
+    fingerprints_exposed: false,
+    private_paths_exposed: false,
+    reviewer_identity_exposed: false,
+    evaluation_class_support_sealed: true,
+    import_ready: false,
+    automatic_import_performed: false,
+    model_activation_performed: false,
+    response_action_performed: false,
+    activation_allowed: false,
+    rules_alert_authoritative: true,
+    response_mode: "simulation_only",
+    secrets_exposed: false
+  });
+  const qualificationItem = (rowIndex: number) => ({
+    workspace: "supervised_qualification",
+    row_index: rowIndex,
+    display_position: rowIndex + 1,
+    total: 300,
+    revision: qualificationReviewRevision,
+    reviewed: rowIndex < qualificationReviewReviewed,
+    closed: false,
+    evidence_role: rowIndex >= 255 ? "untouched_future_evaluation" : "development_fit",
+    coverage_group: rowIndex % 2 ? "high_activity_context" : "web_transport_context",
+    evidence: {
+      evidence_role: rowIndex >= 255 ? "untouched_future_evaluation" : "development_fit",
+      event_time_utc: "2026-09-01T00:00:00+00:00",
+      log_type: "TRAFFIC",
+      application: rowIndex % 2 ? "unknown-udp" : "ssl",
+      action: rowIndex % 2 ? "deny" : "allow",
+      protocol: rowIndex % 2 ? "udp" : "tcp",
+      destination_port: rowIndex % 2 ? "4040" : "443",
+      source_zone: "untrust",
+      destination_zone: "trust",
+      source_event_count: rowIndex % 2 ? "20" : "2",
+      source_unique_destinations: rowIndex % 2 ? "10" : "1"
+    },
+    existing_review: null,
+    next_pending_index: qualificationReviewReviewed < 300 ? qualificationReviewReviewed : null,
+    predictions_exposed: false,
+    model_scores_exposed: false,
+    rule_recommendations_exposed: false,
+    assisted_labels_exposed: false,
+    raw_logs_exposed: false,
+    ip_addresses_exposed: false,
+    source_identities_exposed: false,
+    fingerprints_exposed: false,
+    private_paths_exposed: false,
+    reviewer_identity_exposed: false,
+    evaluation_class_support_sealed: true,
+    import_ready: false,
+    automatic_import_performed: false,
+    model_activation_performed: false,
+    response_action_performed: false,
+    activation_allowed: false,
+    rules_alert_authoritative: true,
+    response_mode: "simulation_only",
+    secrets_exposed: false
+  });
+  const qualificationOperation = (nextItem: ReturnType<typeof qualificationItem> | null) => ({
+    ok: true,
+    workspace: "supervised_qualification",
+    status: "qualification_review_saved",
+    revision: qualificationReviewRevision,
+    progress: qualificationProgress(),
+    next_item: nextItem,
+    authoritative_mutations: { labels: 0, model_runs: 0, detection_runs: 0, alerts: 0, response_actions: 0 },
+    evaluation_executed: false,
+    import_performed: false,
+    model_activation_performed: false,
+    response_action_performed: false
+  });
+  const expansionBatches = () => Array.from({ length: 7 }, (_, index) => {
+    const batchId = `batch-${String(index + 1).padStart(2, "0")}`;
+    const reviewed = index === 0 ? expansionReviewReviewed : 0;
+    return {
+      batch_id: batchId,
+      total: 100,
+      reviewed,
+      remaining: 100 - reviewed,
+      invalid: 0,
+      completed: reviewed === 100,
+      closed: false,
+      revision: index === 0 ? expansionReviewRevision : 0,
+      next_pending_index: index * 100 + reviewed,
+      owner_assigned: index === 0 && expansionStarted,
+      owned_by_current_user: index === 0 && expansionStarted,
+      can_review: true
+    };
+  });
+  const expansionProgress = () => ({
+    workspace: "supervised_qualification_expansion",
+    available: true,
+    integrity_status: "valid",
+    total: 700,
+    reviewed: expansionReviewReviewed,
+    remaining: 700 - expansionReviewReviewed,
+    invalid: 0,
+    progress_percent: (expansionReviewReviewed / 700) * 100,
+    completed: expansionReviewReviewed === 700,
+    closed: false,
+    closed_batch_count: 0,
+    batch_count: 7,
+    batches: expansionBatches(),
+    role_progress: {
+      development_fit: { total: 411, reviewed: expansionReviewReviewed },
+      calibration: { total: 165, reviewed: 0 },
+      threshold_selection: { total: 124, reviewed: 0 }
+    },
+    development_class_support: { benign_like: expansionReviewReviewed, needs_context: 0, suspicious: 0, malicious: 0 },
+    combined_total: 1000,
+    combined_reviewed: qualificationReviewReviewed + expansionReviewReviewed,
+    qualification_gates: qualificationProgress().qualification_gates,
+    development_training_can_begin: false,
+    message: "Review each prediction-blind batch independently, then close it.",
+    predictions_exposed: false,
+    model_scores_exposed: false,
+    rule_recommendations_exposed: false,
+    assisted_labels_exposed: false,
+    raw_logs_exposed: false,
+    ip_addresses_exposed: false,
+    source_identities_exposed: false,
+    fingerprints_exposed: false,
+    private_paths_exposed: false,
+    reviewer_identity_exposed: false,
+    evaluation_class_support_sealed: true,
+    import_ready: false,
+    automatic_import_performed: false,
+    model_activation_performed: false,
+    response_action_performed: false,
+    training_executed: false,
+    evaluation_executed: false,
+    activation_allowed: false,
+    rules_alert_authoritative: true,
+    response_mode: "simulation_only",
+    secrets_exposed: false
+  });
+  const expansionItem = (rowIndex: number, batchId = "batch-01") => ({
+    workspace: "supervised_qualification_expansion",
+    batch_id: batchId,
+    row_index: rowIndex,
+    display_position: (rowIndex % 100) + 1,
+    total: 100,
+    revision: expansionReviewRevision,
+    reviewed: rowIndex < expansionReviewReviewed,
+    closed: false,
+    evidence_role: rowIndex % 3 === 0 ? "calibration" : "development_fit",
+    coverage_group: rowIndex % 2 ? "high_activity_context" : "web_transport_context",
+    evidence: {
+      evidence_role: rowIndex % 3 === 0 ? "calibration" : "development_fit",
+      event_time_utc: "2026-09-02T00:00:00+00:00",
+      log_type: "TRAFFIC",
+      application: rowIndex % 2 ? "unknown-udp" : "ssl",
+      action: rowIndex % 2 ? "deny" : "allow",
+      protocol: rowIndex % 2 ? "udp" : "tcp",
+      destination_port: rowIndex % 2 ? "4040" : "443",
+      source_zone: "untrust",
+      destination_zone: "trust"
+    },
+    existing_review: null,
+    next_pending_index: expansionReviewReviewed < 100 ? expansionReviewReviewed : null,
+    predictions_exposed: false,
+    model_scores_exposed: false,
+    rule_recommendations_exposed: false,
+    assisted_labels_exposed: false,
+    raw_logs_exposed: false,
+    ip_addresses_exposed: false,
+    source_identities_exposed: false,
+    fingerprints_exposed: false,
+    private_paths_exposed: false,
+    reviewer_identity_exposed: false,
+    evaluation_class_support_sealed: true,
+    import_ready: false,
+    automatic_import_performed: false,
+    model_activation_performed: false,
+    response_action_performed: false,
+    training_executed: false,
+    evaluation_executed: false,
+    activation_allowed: false,
+    rules_alert_authoritative: true,
+    response_mode: "simulation_only",
+    secrets_exposed: false
+  });
+  const expansionOperation = (nextItem: ReturnType<typeof expansionItem> | null) => ({
+    ok: true,
+    workspace: "supervised_qualification_expansion",
+    batch_id: "batch-01",
+    status: "expansion_review_saved",
+    revision: expansionReviewRevision,
+    progress: expansionProgress(),
+    next_item: nextItem,
+    authoritative_mutations: { labels: 0, model_runs: 0, detection_runs: 0, alerts: 0, response_actions: 0 },
+    training_executed: false,
+    evaluation_executed: false,
     import_performed: false,
     model_activation_performed: false,
     response_action_performed: false
@@ -1137,6 +1389,272 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
   });
   await page.route("**/api/evidence-review/supplemental-threat-anchors/close", async (route) =>
     route.fulfill({ json: supplementalAnchorOperation(null) })
+  );
+  await page.route("**/api/evidence-review/supervised-qualification/status", async (route) =>
+    route.fulfill({
+      json: {
+        version: "v5.62-supervised-qualification-campaign-v1",
+        status: "ready_for_protected_review",
+        consumed_boundary: {
+          status: "immutable_consumed_negative_decision",
+          execution_count: 1,
+          combined_reviewed: 180,
+          candidate_selected: false,
+          model_activated: false,
+          rules_alert_authoritative: true,
+          response_mode: "simulation_only"
+        },
+        protocol: {
+          version: "v5.62-fresh-evidence-protocol-v1",
+          locked: true,
+          valid: true,
+          selected_rows: 300,
+          roles: ["development_fit", "calibration", "threshold_selection", "untouched_future_evaluation", "second_source_validation"],
+          role_counts: qualificationProgress().role_counts,
+          strategy_count: 8,
+          feature_count: 40,
+          gates_unchanged: true,
+          chronological: true,
+          duplicate_group_isolation: true,
+          evaluation_labels_sealed: true,
+          digest_exposed: false
+        },
+        evidence: {
+          source_rows: 773551,
+          fresh_rows_available: 298963,
+          selected_rows: 300,
+          real_source_identities: 1,
+          independent_time_windows: 19,
+          role_counts: qualificationProgress().role_counts,
+          consumed_review_rows: 180,
+          excluded_event_rows: 228,
+          excluded_candidate_families: 180
+        },
+        review: { reviewed: qualificationReviewReviewed, remaining: 300 - qualificationReviewReviewed },
+        qualification_gates: qualificationProgress().qualification_gates,
+        development_repair: {
+          status: "blocked_insufficient_fresh_development_support",
+          strategy_count: 8,
+          training_allowed: false,
+          training_executed: false,
+          evaluation_labels_accessed: false,
+          evaluation_rows_loaded: 0
+        },
+        external_evidence_required: ["second independently verified physical source"],
+        lifecycle_state: "shadow_observation",
+        supervised_state: "unqualified",
+        activation_allowed: false,
+        candidate_frozen: false,
+        model_activated: false,
+        model_promoted: false,
+        active_model_artifact_written: false,
+        rules_alert_authoritative: true,
+        anomaly_advisory_only: true,
+        hybrid_advisory_only: true,
+        response_mode: "simulation_only",
+        response_automation_allowed: false,
+        real_firewall_blocking_enabled: false,
+        automatic_import_performed: false,
+        human_reviewed_labels_created: 0,
+        evaluation_executed: false,
+        predictions_exposed: false,
+        model_scores_exposed: false,
+        rule_recommendations_exposed: false,
+        assisted_labels_exposed: false,
+        raw_logs_exposed: false,
+        ip_addresses_exposed: false,
+        source_identities_exposed: false,
+        fingerprints_exposed: false,
+        private_paths_exposed: false,
+        secrets_exposed: false
+      }
+    })
+  );
+  await page.route("**/api/evidence-review/supervised-qualification/review-status", async (route) =>
+    route.fulfill({ json: qualificationProgress() })
+  );
+  await page.route("**/api/evidence-review/supervised-qualification/start", async (route) =>
+    route.fulfill({ json: qualificationOperation(qualificationItem(qualificationReviewReviewed)) })
+  );
+  await page.route("**/api/evidence-review/supervised-qualification/items", async (route) => {
+    const url = new URL(route.request().url());
+    const offset = Number(url.searchParams.get("offset") ?? 0);
+    const limit = Number(url.searchParams.get("limit") ?? 20);
+    const reviewState = url.searchParams.get("review_state") ?? "all";
+    const evidenceRole = url.searchParams.get("evidence_role") ?? "";
+    const coverageGroup = url.searchParams.get("coverage_group") ?? "";
+    const candidates = Array.from({ length: 300 }, (_, rowIndex) => qualificationItem(rowIndex))
+      .filter((entry) => reviewState === "all" || (reviewState === "reviewed" ? entry.reviewed : !entry.reviewed))
+      .filter((entry) => !evidenceRole || entry.evidence_role === evidenceRole)
+      .filter((entry) => !coverageGroup || entry.coverage_group === coverageGroup);
+    return route.fulfill({
+      json: {
+        workspace: "supervised_qualification",
+        offset,
+        limit,
+        filtered_total: candidates.length,
+        items: candidates.slice(offset, offset + limit).map((entry) => ({
+          row_index: entry.row_index,
+          display_position: entry.display_position,
+          reviewed: entry.reviewed,
+          evidence_role: entry.evidence_role,
+          coverage_group: entry.coverage_group,
+          evidence: entry.evidence
+        })),
+        predictions_exposed: false,
+        raw_logs_exposed: false,
+        private_paths_exposed: false,
+        reviewer_identities_exposed: false,
+        evaluation_class_support_sealed: true,
+        secrets_exposed: false
+      }
+    });
+  });
+  await page.route("**/api/evidence-review/supervised-qualification/items/*", async (route) => {
+    const rowIndex = Number(new URL(route.request().url()).pathname.split("/").at(-1));
+    if (route.request().method() === "POST") {
+      qualificationReviewReviewed = Math.max(qualificationReviewReviewed, rowIndex + 1);
+      qualificationReviewRevision += 1;
+      return route.fulfill({ json: qualificationOperation(qualificationItem(qualificationReviewReviewed)) });
+    }
+    return route.fulfill({ json: qualificationItem(rowIndex) });
+  });
+  await page.route("**/api/evidence-review/supervised-qualification/close", async (route) =>
+    route.fulfill({ json: qualificationOperation(null) })
+  );
+  await page.route("**/api/evidence-review/supervised-qualification/expansion/status", async (route) =>
+    route.fulfill({
+      json: {
+        version: "v5.63-fresh-comparable-evidence-expansion-v1",
+        status: "ready_for_supplemental_review",
+        v562_boundary: {
+          protocol_valid: true,
+          selected_rows: 300,
+          roles_unchanged: true,
+          future_evaluation_rows_sealed: 45,
+          consumed_exclusion_locked: true,
+          digests_exposed: false,
+          review_tokens_exposed: false,
+          decisions_accessed: false
+        },
+        protocol: {
+          version: "v5.63-append-only-evidence-protocol-v1",
+          locked: true,
+          valid: true,
+          append_only: true,
+          original_rows: 300,
+          supplemental_rows: 700,
+          total_comparable_capacity: 1000,
+          batch_count: 7,
+          batch_definitions: expansionBatches().map((batch) => ({ batch_id: batch.batch_id, rows: 100, role_counts: {}, immutable_after_close: true })),
+          role_counts: { development_fit: 411, calibration: 165, threshold_selection: 124 },
+          gates_unchanged: true,
+          chronological: true,
+          duplicate_group_isolation: true,
+          development_roles_only: true,
+          evaluation_labels_sealed: true,
+          digests_exposed: false
+        },
+        evidence: {
+          fresh_rows_available: 298263,
+          original_rows_preserved: 300,
+          supplemental_rows_selected: 700,
+          total_comparable_capacity: 1000,
+          real_source_identities: 1,
+          independent_time_windows: 19,
+          second_source_present: false,
+          future_evaluation_rows_added: 0
+        },
+        review: { combined_total: 1000, combined_reviewed: qualificationReviewReviewed + expansionReviewReviewed },
+        qualification_gates: qualificationProgress().qualification_gates,
+        second_source_intake: { preflight_ready: true, independent_source_added: false, source_gate_updated: false, future_path_cli_only: true },
+        development_training_can_begin: false,
+        development_blockers: ["complete_and_close_all_supplemental_batches", "obtain_independent_second_physical_source"],
+        lifecycle_state: "shadow_observation",
+        supervised_state: "unqualified",
+        training_allowed: false,
+        training_executed: false,
+        evaluation_executed: false,
+        candidate_frozen: false,
+        activation_allowed: false,
+        model_activated: false,
+        model_promoted: false,
+        active_model_artifact_written: false,
+        rules_alert_authoritative: true,
+        anomaly_advisory_only: true,
+        hybrid_advisory_only: true,
+        response_mode: "simulation_only",
+        response_automation_allowed: false,
+        real_firewall_blocking_enabled: false,
+        automatic_import_performed: false,
+        human_reviewed_labels_created: 0,
+        predictions_exposed: false,
+        model_scores_exposed: false,
+        rule_recommendations_exposed: false,
+        assisted_labels_exposed: false,
+        raw_logs_exposed: false,
+        ip_addresses_exposed: false,
+        source_identities_exposed: false,
+        fingerprints_exposed: false,
+        private_paths_exposed: false,
+        secrets_exposed: false
+      }
+    })
+  );
+  await page.route("**/api/evidence-review/supervised-qualification/expansion/review-status", async (route) =>
+    route.fulfill({ json: expansionProgress() })
+  );
+  await page.route("**/api/evidence-review/supervised-qualification/expansion/start", async (route) => {
+    expansionStarted = true;
+    return route.fulfill({ json: expansionOperation(expansionItem(expansionReviewReviewed)) });
+  });
+  await page.route("**/api/evidence-review/supervised-qualification/expansion/items", async (route) => {
+    const url = new URL(route.request().url());
+    const offset = Number(url.searchParams.get("offset") ?? 0);
+    const limit = Number(url.searchParams.get("limit") ?? 20);
+    const batchId = url.searchParams.get("batch_id") ?? "batch-01";
+    const reviewState = url.searchParams.get("review_state") ?? "all";
+    const batchNumber = Math.max(0, Number(batchId.split("-")[1]) - 1);
+    const startIndex = batchNumber * 100;
+    const candidates = Array.from({ length: 100 }, (_, index) => expansionItem(startIndex + index, batchId))
+      .filter((entry) => reviewState === "all" || (reviewState === "reviewed" ? entry.reviewed : !entry.reviewed));
+    return route.fulfill({
+      json: {
+        workspace: "supervised_qualification_expansion",
+        batch_id: batchId,
+        offset,
+        limit,
+        filtered_total: candidates.length,
+        items: candidates.slice(offset, offset + limit).map((entry) => ({
+          row_index: entry.row_index,
+          display_position: entry.display_position,
+          reviewed: entry.reviewed,
+          evidence_role: entry.evidence_role,
+          coverage_group: entry.coverage_group,
+          evidence: entry.evidence
+        })),
+        predictions_exposed: false,
+        raw_logs_exposed: false,
+        private_paths_exposed: false,
+        reviewer_identity_exposed: false,
+        evaluation_class_support_sealed: true,
+        secrets_exposed: false
+      }
+    });
+  });
+  await page.route("**/api/evidence-review/supervised-qualification/expansion/items/*", async (route) => {
+    const url = new URL(route.request().url());
+    const rowIndex = Number(url.pathname.split("/").at(-1));
+    const batchId = url.searchParams.get("batch_id") ?? "batch-01";
+    if (route.request().method() === "POST") {
+      expansionReviewReviewed = Math.max(expansionReviewReviewed, (rowIndex % 100) + 1);
+      expansionReviewRevision += 1;
+      return route.fulfill({ json: expansionOperation(expansionItem(expansionReviewReviewed, batchId)) });
+    }
+    return route.fulfill({ json: expansionItem(rowIndex, batchId) });
+  });
+  await page.route("**/api/evidence-review/supervised-qualification/expansion/close", async (route) =>
+    route.fulfill({ json: expansionOperation(null) })
   );
   await page.route("**/api/evidence-review/detection/start", async (route) => route.fulfill({ json: operation("detection", detectionItem(detectionReviewReviewed)) }));
   await page.route("**/api/evidence-review/assistant/start", async (route) => route.fulfill({ json: operation("assistant", assistantItem(assistantReviewReviewed)) }));
@@ -5099,6 +5617,72 @@ test("supplemental threat-anchor workspace preserves custody and hides class sup
   const horizontalScroll = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(horizontalScroll).toBeLessThanOrEqual(1);
   await expect(page.getByRole("button", { name: /run detection|activate model|response action|import/i })).toHaveCount(0);
+});
+
+test("supervised qualification workspace is prediction-blind and keeps external gates honest", async ({ page }) => {
+  await mockApi(page);
+  await seedSession(page);
+  await page.goto("/evidence-review");
+  await page.getByRole("tab", { name: "Supervised Qualification" }).click();
+
+  const campaign = page.getByTestId("qualification-campaign-status");
+  await expect(campaign).toContainText("300");
+  await expect(campaign).toContainText("8");
+  await expect(campaign).toContainText("1 / 2 Required");
+  await expect(campaign).toContainText("19 / 2 Passed");
+  await expect(campaign).toContainText("Supervised Unqualified");
+  await expect(campaign).toContainText("Rules Authoritative");
+  await expect(page.getByTestId("supervised_qualification-review-metrics")).toContainText("0/300");
+  await expect(page.getByTestId("qualification-safety-contract")).toContainText("future-evaluation class support are withheld");
+
+  const evidence = page.getByTestId("qualification-approved-evidence");
+  await expect(evidence).toContainText("Predictions Withheld");
+  await expect(page.getByTestId("qualification-evidence-fields")).not.toContainText(/prediction|model score|review token|fingerprint|source ip|destination ip|raw log|class support|suggested label/i);
+
+  await chooseSafeSelect(page, "Supervised qualification final decision", "Benign");
+  await page.getByLabel("Confidence (1-100)").fill("91");
+  await page.getByLabel("Rationale").fill("Independent review supports routine encrypted web traffic.");
+  await page.getByText("I confirm this is my independent human decision based only on the approved evidence shown.").click();
+  await page.getByRole("button", { name: "Save and next" }).click();
+  await expect(page.getByTestId("supervised_qualification-review-metrics")).toContainText("1/300");
+
+  const horizontalScroll = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(horizontalScroll).toBeLessThanOrEqual(1);
+  await expect(page.getByRole("button", { name: /run evaluation|activate model|promote model|response action|import/i })).toHaveCount(0);
+});
+
+test("fresh evidence expansion is append-only, batched, and prediction-blind", async ({ page }) => {
+  await mockApi(page);
+  await seedSession(page);
+  await page.goto("/evidence-review");
+  await page.getByRole("tab", { name: "Supervised Qualification" }).click();
+
+  const panel = page.getByTestId("supervised-evidence-expansion-panel");
+  await expect(panel).toContainText("Fresh comparable evidence expansion");
+  await expect(panel).toContainText("1000");
+  await expect(panel).toContainText("700");
+  await expect(panel).toContainText("7");
+  await expect(panel).toContainText("1/2");
+  await expect(panel).toContainText("19");
+  await expect(panel).toContainText("Supervised Unqualified");
+  await expect(page.getByTestId("expansion-safety-contract")).toContainText("No prediction hints");
+
+  await panel.getByRole("button", { name: "Start protected batch" }).click();
+  const evidence = page.getByTestId("expansion-approved-evidence");
+  await expect(evidence).toContainText("Predictions Withheld");
+  await expect(page.getByTestId("expansion-evidence-fields")).not.toContainText(/prediction|model score|review token|fingerprint|source ip|destination ip|raw log|suggested label/i);
+
+  const form = page.getByTestId("expansion-review-form");
+  await chooseSafeSelect(page, "Supplemental qualification final decision", "Benign");
+  await form.getByLabel("Confidence (1-100)").fill("92");
+  await form.getByLabel("Rationale").fill("Independent review supports routine encrypted traffic.");
+  await form.getByText("I confirm this is my independent human decision based only on the approved evidence shown.").click();
+  await form.getByRole("button", { name: "Save and next" }).click();
+  await expect(page.getByTestId("expansion-batch-selector")).toContainText("1/100");
+
+  const horizontalScroll = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(horizontalScroll).toBeLessThanOrEqual(1);
+  await expect(panel.getByRole("button", { name: /train model|run evaluation|activate model|promote model|response action|import/i })).toHaveCount(0);
 });
 
 test("evidence review advances to Assistant acceptance after detection closes", async ({ page }) => {

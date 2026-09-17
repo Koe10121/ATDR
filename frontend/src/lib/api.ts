@@ -33,6 +33,17 @@ import type {
   SupplementalThreatAnchorReviewProgress,
   SupplementalThreatAnchorReviewSaveRequest,
   SupplementalThreatAnchorStatus,
+  SupervisedExpansionReviewItem,
+  SupervisedExpansionReviewOperation,
+  SupervisedExpansionReviewPage,
+  SupervisedExpansionReviewProgress,
+  SupervisedExpansionStatus,
+  SupervisedQualificationReviewItem,
+  SupervisedQualificationReviewOperation,
+  SupervisedQualificationReviewPage,
+  SupervisedQualificationReviewProgress,
+  SupervisedQualificationReviewSaveRequest,
+  SupervisedQualificationStatus,
   ClassTemporalCoverageReport,
   DashboardSummary,
   DashboardValidationSummary,
@@ -332,6 +343,95 @@ export const api = {
       "/api/evidence-review/supplemental-threat-anchors/close",
       {
         method: "POST",
+        body: JSON.stringify({
+          expected_revision: expectedRevision,
+          human_confirmed: true
+        })
+      }
+    ),
+  supervisedQualificationStatus: () =>
+    apiRequest<SupervisedQualificationStatus>(
+      "/api/evidence-review/supervised-qualification/status"
+    ),
+  supervisedQualificationReviewStatus: () =>
+    apiRequest<SupervisedQualificationReviewProgress>(
+      "/api/evidence-review/supervised-qualification/review-status"
+    ),
+  startSupervisedQualificationReview: () =>
+    apiRequest<SupervisedQualificationReviewOperation>(
+      "/api/evidence-review/supervised-qualification/start",
+      { method: "POST" }
+    ),
+  supervisedQualificationReviewItems: (params: Params = {}) =>
+    apiRequest<SupervisedQualificationReviewPage>(
+      "/api/evidence-review/supervised-qualification/items",
+      { params }
+    ),
+  supervisedQualificationReviewItem: (rowIndex: number) =>
+    apiRequest<SupervisedQualificationReviewItem>(
+      `/api/evidence-review/supervised-qualification/items/${rowIndex}`
+    ),
+  saveSupervisedQualificationReviewItem: (
+    rowIndex: number,
+    payload: SupervisedQualificationReviewSaveRequest
+  ) =>
+    apiRequest<SupervisedQualificationReviewOperation>(
+      `/api/evidence-review/supervised-qualification/items/${rowIndex}`,
+      { method: "POST", body: JSON.stringify(payload) }
+    ),
+  closeSupervisedQualificationReview: (expectedRevision: number) =>
+    apiRequest<SupervisedQualificationReviewOperation>(
+      "/api/evidence-review/supervised-qualification/close",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          expected_revision: expectedRevision,
+          human_confirmed: true
+        })
+      }
+    ),
+  supervisedExpansionStatus: () =>
+    apiRequest<SupervisedExpansionStatus>(
+      "/api/evidence-review/supervised-qualification/expansion/status"
+    ),
+  supervisedExpansionReviewStatus: () =>
+    apiRequest<SupervisedExpansionReviewProgress>(
+      "/api/evidence-review/supervised-qualification/expansion/review-status"
+    ),
+  startSupervisedExpansionReview: (batchId: string) =>
+    apiRequest<SupervisedExpansionReviewOperation>(
+      "/api/evidence-review/supervised-qualification/expansion/start",
+      { method: "POST", body: JSON.stringify({ batch_id: batchId }) }
+    ),
+  supervisedExpansionReviewItems: (batchId: string, params: Params = {}) =>
+    apiRequest<SupervisedExpansionReviewPage>(
+      "/api/evidence-review/supervised-qualification/expansion/items",
+      { params: { ...params, batch_id: batchId } }
+    ),
+  supervisedExpansionReviewItem: (batchId: string, rowIndex: number) =>
+    apiRequest<SupervisedExpansionReviewItem>(
+      `/api/evidence-review/supervised-qualification/expansion/items/${rowIndex}`,
+      { params: { batch_id: batchId } }
+    ),
+  saveSupervisedExpansionReviewItem: (
+    batchId: string,
+    rowIndex: number,
+    payload: SupervisedQualificationReviewSaveRequest
+  ) =>
+    apiRequest<SupervisedExpansionReviewOperation>(
+      `/api/evidence-review/supervised-qualification/expansion/items/${rowIndex}`,
+      {
+        method: "POST",
+        params: { batch_id: batchId },
+        body: JSON.stringify(payload)
+      }
+    ),
+  closeSupervisedExpansionReview: (batchId: string, expectedRevision: number) =>
+    apiRequest<SupervisedExpansionReviewOperation>(
+      "/api/evidence-review/supervised-qualification/expansion/close",
+      {
+        method: "POST",
+        params: { batch_id: batchId },
         body: JSON.stringify({
           expected_revision: expectedRevision,
           human_confirmed: true
