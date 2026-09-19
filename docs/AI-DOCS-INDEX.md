@@ -29,6 +29,7 @@ and do not define ATDR's runtime stack.
 | `docs/V5_62_SUPERVISED_QUALIFICATION_CAMPAIGN.md` | Fresh supervised evidence lock, protected review, fixed gates, and qualification blockers |
 | `docs/V5_63_FRESH_COMPARABLE_EVIDENCE_EXPANSION.md` | Append-only 700-row expansion, batched review, second-source preflight, and current qualification gates |
 | `docs/V5_63_1_ADVISOR_DEMO_RELIABILITY_LOCK.md` | Current anomaly telemetry, candidate decision, Assistant/Gemini proof, and advisor acceptance |
+| `docs/V5_64_WINDOW_AWARE_ADVISORY_ANOMALY_REDESIGN.md` | Chronological anomaly protocol, context/cohort comparison, drift/OOD findings, and no-candidate decision |
 | `docs/ADVISOR_DEMO_RUNBOOK.md` | Five-minute advisor workflow, preflight, talking points, limitations, and recovery |
 | `docs/prd/PRD-ATDR.md` | Current product requirements |
 | `docs/ATDR_REQUIREMENT_TRACEABILITY.md` | Requirement-to-source/test mapping |

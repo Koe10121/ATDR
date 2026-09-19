@@ -113,6 +113,21 @@ network addresses, identities, row fingerprints, or secrets. Install remains
 fail-closed unless one candidate passes every fixed gate and the operator gives
 the exact confirmation. v5.63.1 selected and installed no candidate.
 
+Run the stricter v5.64 chronology/context comparison with no installation path:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_v564_window_aware_anomaly_redesign `
+  --sample-path "<private-log-file>" `
+  --limit 50000 `
+  --pretty
+```
+
+v5.64 selected no candidate. Its best diagnostic reached 0% controlled benign
+anomaly, 85.71% suspicious scenario capture, and 50% malicious scenario
+capture, with 99.01% rule overlap. The untouched candidate holdout remained
+unused. Do not tune thresholds against it or treat rule-overlapping anomaly
+signals as independent threat evidence.
+
 ### Governed Bootstrap
 
 A clean clone intentionally has no model artifact. Normal setup and startup do
