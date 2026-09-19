@@ -62,7 +62,23 @@ _AI_REVIEWER_PATTERN = re.compile(
     r"(?:assistant|automated|bot|chatgpt|claude|codex|gemini|heuristic|llm|model|openai|synthetic)",
     re.IGNORECASE,
 )
-_IP_PATTERN = re.compile(r"(?<![\w.])(?:\d{1,3}\.){3}\d{1,3}(?![\w.])")
+_IPV6_CORE = (
+    r"(?:[0-9A-Fa-f]{1,4}:){7}[0-9A-Fa-f]{1,4}"
+    r"|(?:[0-9A-Fa-f]{1,4}:){1,7}:"
+    r"|(?:[0-9A-Fa-f]{1,4}:){1,6}:[0-9A-Fa-f]{1,4}"
+    r"|(?:[0-9A-Fa-f]{1,4}:){1,5}(?::[0-9A-Fa-f]{1,4}){1,2}"
+    r"|(?:[0-9A-Fa-f]{1,4}:){1,4}(?::[0-9A-Fa-f]{1,4}){1,3}"
+    r"|(?:[0-9A-Fa-f]{1,4}:){1,3}(?::[0-9A-Fa-f]{1,4}){1,4}"
+    r"|(?:[0-9A-Fa-f]{1,4}:){1,2}(?::[0-9A-Fa-f]{1,4}){1,5}"
+    r"|[0-9A-Fa-f]{1,4}:(?:(?::[0-9A-Fa-f]{1,4}){1,6})"
+    r"|:(?:(?::[0-9A-Fa-f]{1,4}){1,7}|:)"
+)
+# Matches assistant_llm.IP_PATTERN's coverage (IPv4 + IPv6); kept local since
+# this module has no existing dependency on the assistant services.
+_IP_PATTERN = re.compile(
+    r"(?<![\w.])(?:\d{1,3}\.){3}\d{1,3}(?![\w.])"
+    r"|(?<![0-9A-Za-z:])(?:" + _IPV6_CORE + r")(?:%[0-9A-Za-z]+)?(?![0-9A-Za-z:])"
+)
 _ALLOWED_EXPECTATION_FIELDS = frozenset(
     {
         "log_type",

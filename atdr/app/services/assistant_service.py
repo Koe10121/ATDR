@@ -18,6 +18,7 @@ from atdr.app.detection.explanations import build_alert_detection_summary, expla
 from atdr.app.services.case_service import list_alert_cases
 from atdr.app.services.alert_service import get_alert, list_alerts
 from atdr.app.services.assistant_llm import (
+    IP_PATTERN,
     AssistantLLMRequest,
     AssistantLLMResult,
     assistant_llm_operational_status,
@@ -38,7 +39,6 @@ from atdr.app.services.assistant_response_contracts import (
 from atdr.app.services.source_service import get_source, list_sources, source_to_dict
 
 
-IP_PATTERN = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 ALERT_ID_PATTERN = re.compile(r"(?:\balert(?:\s+id)?\s*#?\s*|(?<!\w)#)(\d{1,10})\b", re.IGNORECASE)
 LOG_ID_PATTERN = re.compile(r"\b(?:log|row|event)(?:\s+id)?\s*#?\s*(\d{1,10})\b", re.IGNORECASE)
 SOURCE_ID_PATTERN = re.compile(r"\b(?:source|sensor)(?:\s+id)?\s*#?\s*(\d{1,10})\b", re.IGNORECASE)

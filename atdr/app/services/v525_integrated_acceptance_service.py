@@ -12,6 +12,7 @@ from atdr.app.services.v523_live_source_acceptance_service import (
     run_v523_live_source_acceptance,
 )
 from atdr.app.services.v524_investigation_gemini_quality_service import (
+    IP_PATTERN,
     run_v524_quality_lock,
 )
 from atdr.scripts.run_e2e_workflow_validation import run_e2e_workflow_validation
@@ -24,7 +25,6 @@ DEFAULT_V524_EVIDENCE = DEFAULT_OUTPUT_DIR / "v5_24_investigation_gemini_quality
 _PRIVATE_PATH_PATTERN = re.compile(
     r"(?i)(?:[a-z]:[\\/](?:users|home)[\\/]|/(?:users|home)/|paloalto-firewall\(1\)\.log)"
 )
-_IP_PATTERN = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 
 
 def _all_true(values: dict[str, Any]) -> bool:
@@ -441,7 +441,7 @@ def build_v525_report(
         },
     }
     serialized = json.dumps(report, default=str)
-    output_private = bool(_PRIVATE_PATH_PATTERN.search(serialized) or _IP_PATTERN.search(serialized))
+    output_private = bool(_PRIVATE_PATH_PATTERN.search(serialized) or IP_PATTERN.search(serialized))
     report["privacy"] = {
         "private_path_or_address_returned": output_private,
         "raw_evidence_returned": False,

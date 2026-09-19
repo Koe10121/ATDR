@@ -31,6 +31,7 @@ from atdr.app.db.models import (
     ResponseAction,
     User,
 )
+from atdr.app.services.assistant_llm import IP_PATTERN
 from atdr.app.services.assistant_service import answer_assistant_question, assistant_status
 from atdr.app.services.case_service import list_alert_cases
 
@@ -38,7 +39,6 @@ from atdr.app.services.case_service import list_alert_cases
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "ml_baseline_reviews"
 RAW_SENTINEL = "v524 synthetic raw evidence must never enter assistant context"
-IP_PATTERN = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 ENTITY_PATTERNS = {
     "alert": re.compile(r"\balert\s*#?\s*(\d+)\b", re.IGNORECASE),
     "log": re.compile(r"\blog\s*#?\s*(\d+)\b", re.IGNORECASE),

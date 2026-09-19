@@ -373,6 +373,50 @@ def test_assistant_llm_prompt_contract_preserves_evidence_and_redacts_ips(monkey
     assert "[redacted-ip]" in prompt
 
 
+def test_assistant_llm_prompt_contract_redacts_ipv6_addresses(monkeypatch):
+    # A prior IP_PATTERN was IPv4-only, so an IPv6 address (e.g. from a
+    # dual-stack PAN-OS deployment) could reach the external LLM provider
+    # even with ASSISTANT_REDACT_IPS=true.
+    monkeypatch.setenv("ASSISTANT_REDACT_IPS", "true")
+    get_settings.cache_clear()
+    settings = get_settings()
+    request = assistant_llm.AssistantLLMRequest(
+        question="Why was alert 43 flagged for 2001:db8::1?",
+        deterministic_answer=(
+            "Alert #43: High possible_port_scan. Signals: repeated denied traffic from "
+            "2001:db8::1 and fe80::1%eth0 to destination port 22."
+        ),
+        context_used=["alert_detail", "why_flagged"],
+        citations=[{"label": "Alert detail", "source": "/api/alerts/{alert_id}", "reference_id": "43"}],
+        suggested_followups=[],
+        safety=["Read Only"],
+    )
+    prompt = assistant_llm.build_safe_context_prompt(request, settings)
+    assert "2001:db8::1" not in prompt
+    assert "fe80::1" not in prompt
+    assert "[redacted-ip]" in prompt
+
+
+@pytest.mark.parametrize(
+    "text,should_match",
+    [
+        ("192.168.1.1", True),
+        ("fe80::1", True),
+        ("fe80::1%eth0", True),
+        ("2001:db8::1", True),
+        ("2001:0db8:0000:0000:0000:ff00:0042:8329", True),
+        ("::1", True),
+        ("2001:db8:85a3::8a2e:370:7334", True),
+        ("alert #1234", False),
+        ("case ABCD-1234", False),
+        ("mac address 00:1A:2B:3C:4D:5E", False),
+        ("sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", False),
+    ],
+)
+def test_ip_pattern_covers_ipv4_and_ipv6_without_false_positives(text, should_match):
+    assert bool(assistant_llm.IP_PATTERN.search(text)) is should_match
+
+
 def test_assistant_guards_too_short_provider_answer_without_side_effects(monkeypatch):
     monkeypatch.setenv("ASSISTANT_LLM_ENABLED", "true")
     monkeypatch.setenv("ASSISTANT_LLM_PROVIDER", "gemini")
