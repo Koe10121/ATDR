@@ -220,6 +220,21 @@ def test_assistant_requires_authentication():
         app.dependency_overrides.clear()
 
 
+def test_assistant_chat_admits_when_no_keyword_route_matches_instead_of_a_generic_summary():
+    client, _ = _client_with_session()
+    try:
+        headers = _login(client)
+        question = "What does the app_risk field mean?"
+        response = client.post("/api/assistant/chat", json={"question": question}, headers=headers)
+        assert response.status_code == 200
+        payload = response.json()
+        assert "unmatched_question" in payload["context_used"]
+        assert "don't have a specific built-in answer" in payload["answer"]
+        assert question in payload["answer"]
+    finally:
+        app.dependency_overrides.clear()
+
+
 def test_assistant_status_is_disabled_by_default_and_does_not_expose_secret(monkeypatch):
     monkeypatch.setenv("ASSISTANT_ENABLED", "false")
     monkeypatch.setenv("ASSISTANT_PROVIDER", "disabled")

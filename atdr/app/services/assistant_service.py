@@ -1005,7 +1005,9 @@ def answer_assistant_question(
     elif any(term in lowered for term in ["replay", "import", "run detection", "detection", "start", "command", "how do i"]):
         result = _answer_workflow_question(redacted=redacted)
     else:
-        result = _answer_general_question(db, limit=context_limit if include_recent_context else 0, redacted=redacted)
+        result = _answer_general_question(
+            db, question=clean_question, limit=context_limit if include_recent_context else 0, redacted=redacted
+        )
 
     _ensure_answer_sections(result)
     active_context = _active_context_from_result(
@@ -3329,7 +3331,7 @@ def _answer_recent_changes(db: Session, *, limit: int, redacted: bool) -> Assist
     )
 
 
-def _answer_general_question(db: Session, *, limit: int, redacted: bool) -> AssistantResult:
+def _answer_general_question(db: Session, *, question: str, limit: int, redacted: bool) -> AssistantResult:
     alert_count = int(db.scalar(select(func.count(Alert.id))) or 0)
     log_count = int(db.scalar(select(func.count(NormalizedLog.id))) or 0)
     recent_alerts = list_alerts(db, limit=max(0, min(limit, 5)), sort_by="updated") if limit else []
@@ -3337,15 +3339,21 @@ def _answer_general_question(db: Session, *, limit: int, redacted: bool) -> Assi
         f"#{alert.id} {alert.severity} {alert.alert_type} status {alert.status}."
         for alert in recent_alerts
     )
+    # No keyword route matched this question. Say so plainly instead of
+    # answering with an unrelated system summary as if it addressed the
+    # question -- an analyst asking something specific (e.g. what a log
+    # field means) should not be told alert counts and get no indication
+    # that the question itself went unanswered.
     answer = (
-        f"ATDR currently tracks {log_count} normalized logs and {alert_count} alerts. "
-        "It ingests logs, preserves raw evidence, parses fields, runs authoritative rules and advisory anomaly scoring, checks governed supervised eligibility, groups alerts into cases, "
-        "and records simulated analyst-approved response actions. "
+        f"I don't have a specific built-in answer for \"{question}\". "
+        "Ask about a specific alert, log, source, or case (by ID), or about ML governance, "
+        "operations, or the ATDR workflow. "
+        f"Current state: {log_count} normalized logs, {alert_count} alerts. "
         f"Recent alerts: {alert_text or 'none in the current context.'}"
     )
     return AssistantResult(
         answer=_text(answer, redacted=redacted),
-        context_used=["system_summary", "recent_alerts"],
+        context_used=["unmatched_question", "system_summary", "recent_alerts"],
         citations=[
             Citation("ATDR PRD", "docs/prd/PRD-ATDR.md"),
             Citation("Alerts API", "/api/alerts"),
@@ -3355,6 +3363,7 @@ def _answer_general_question(db: Session, *, limit: int, redacted: bool) -> Assi
                 "normalized_logs": log_count,
                 "alerts": alert_count,
                 "recent_alert_count": len(recent_alerts),
+                "unmatched_question": True,
             }
         },
         suggested_followups=["What is the latest critical alert?", "Explain current ML model status.", "Summarize source health."],
