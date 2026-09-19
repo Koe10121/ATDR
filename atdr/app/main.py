@@ -34,6 +34,7 @@ from atdr.app.routers import (
     users,
     watchlists,
 )
+from atdr.app.services import windows_firewall_connector
 from atdr.app.services.observability_service import build_readiness
 from atdr.app.services.v561_anomaly_bootstrap_service import anomaly_bootstrap_status
 
@@ -118,6 +119,21 @@ app.add_middleware(
 )
 
 
+def _response_mode_status() -> dict:
+    provider = settings.response_provider.lower()
+    if settings.response_simulation or provider == "simulation":
+        status = "simulation"
+    elif provider == "windows_firewall":
+        status = "windows_firewall_enforcement" if windows_firewall_connector.is_supported_platform() else "misconfigured_unsupported_platform"
+    else:
+        status = "pending_connector"
+    return {
+        "status": status,
+        "provider": settings.response_provider,
+        "real_enforcement_possible": status == "windows_firewall_enforcement",
+    }
+
+
 @app.get("/health")
 def health(db: Session = Depends(get_db)) -> dict:
     database_check = check_database_connection(db)
@@ -135,10 +151,7 @@ def health(db: Session = Depends(get_db)) -> dict:
             "corrective_command": anomaly_capability["preflight_command"],
             "secrets_exposed": False,
         },
-        "response_mode": {
-            "status": "simulation" if settings.response_simulation else "pending_connector",
-            "provider": settings.response_provider,
-        },
+        "response_mode": _response_mode_status(),
     }
     overall_status = "ok" if database_check["status"] == "ok" else "degraded"
     return {

@@ -8,6 +8,9 @@ class BlockIPRequest(BaseModel):
     reason: str | None = None
     alert_id: int | None = None
     actor: str = "analyst"
+    # None means "until manually removed". A positive value is a temporary
+    # timeout; the block is automatically lifted once it expires.
+    duration_minutes: int | None = Field(default=None, gt=0)
 
 
 class UnblockIPRequest(BaseModel):
@@ -27,6 +30,7 @@ class ResponseActionRead(BaseModel):
     result_message: str
     executed_by: str
     executed_at: datetime
+    enforcement: str
 
 
 class BlockedIPRead(BaseModel):
@@ -38,6 +42,8 @@ class BlockedIPRead(BaseModel):
     created_at: datetime
     created_by: str
     active: bool
+    enforcement: str
+    expires_at: datetime | None = None
 
 
 class AuditLogRead(BaseModel):

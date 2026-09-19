@@ -1,3 +1,4 @@
+import platform
 from functools import lru_cache
 from ipaddress import ip_network
 from pathlib import Path
@@ -49,6 +50,7 @@ class Settings(BaseSettings):
     auto_create_tables: bool = Field(default=True, alias="AUTO_CREATE_TABLES")
     response_simulation: bool = Field(default=True, alias="RESPONSE_SIMULATION")
     response_provider: str = Field(default="simulation", alias="RESPONSE_PROVIDER")
+    response_max_block_minutes: int = Field(default=1440, alias="RESPONSE_MAX_BLOCK_MINUTES")
     default_import_limit: int | None = Field(default=5000, alias="DEFAULT_IMPORT_LIMIT")
     min_alert_score: int = Field(default=30, alias="MIN_ALERT_SCORE")
     ml_model_path: str = Field(default="atdr/models/isolation_forest.joblib", alias="ML_MODEL_PATH")
@@ -614,6 +616,16 @@ def validate_runtime_settings(settings: Settings) -> list[str]:
         issues.append("SYSLOG_HOST binds publicly outside production; use 127.0.0.1 for lab demo mode.")
     if not settings.response_simulation and settings.response_provider.lower() in {"simulation", "none", "manual"}:
         issues.append("RESPONSE_PROVIDER must name an approved connector before RESPONSE_SIMULATION is disabled.")
+    if not settings.response_simulation and settings.response_provider.lower() == "windows_firewall":
+        if platform.system() != "Windows":
+            issues.append("RESPONSE_PROVIDER=windows_firewall requires the ATDR backend to run on Windows.")
+        if settings.environment.lower() == "production":
+            issues.append(
+                "RESPONSE_PROVIDER=windows_firewall enforces on the local backend host only and is not valid "
+                "for the shared production profile; use it only for a local/lab environment."
+            )
+    if settings.response_max_block_minutes <= 0:
+        issues.append("RESPONSE_MAX_BLOCK_MINUTES must be greater than zero.")
     if settings.oidc_default_role not in {"admin", "analyst"}:
         issues.append("OIDC_DEFAULT_ROLE must be 'admin' or 'analyst'.")
     if settings.oidc_enabled:

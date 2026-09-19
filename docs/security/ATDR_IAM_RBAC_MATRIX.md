@@ -33,7 +33,7 @@ ATDR is a controlled lab-ready prototype. The current IAM/RBAC model is suitable
 
 | Role | Status | Purpose |
 | --- | --- | --- |
-| Admin | Supported now | Full lab operator role. Can manage users, sources, demo controls, log import, ML training/scoring, and simulated response actions. |
+| Admin | Supported now | Full lab operator role. Can manage users, sources, demo controls, log import, ML training/scoring, and response actions (simulated by default; real host-scoped enforcement only when explicitly configured). |
 | Analyst | Supported now | SOC analyst role. Can investigate logs/alerts, update alert lifecycle, add notes, run detection, review labels, view AI Governance, and view audit evidence. |
 | Viewer / read-only | Future work | Not currently implemented. A future viewer role should be read-only and must be enforced in backend dependencies, not only the UI. |
 
@@ -108,7 +108,9 @@ ATDR is a controlled lab-ready prototype. The current IAM/RBAC model is suitable
 | Linked alert without evidence is denied | Supported now | `atdr/app/services/response_service.py` |
 | Denied attempts are audited | Supported now | `atdr/app/services/response_service.py` |
 | ML output cannot trigger automatic response | Supported as a safety constraint and tested | `atdr/app/routers/ml.py`, `atdr/app/routers/detection.py`, `atdr/tests/test_response_safety.py` |
-| Real firewall enforcement | Not implemented | Future approved connector work only |
+| Real network-firewall enforcement | Not implemented | Future approved connector work only |
+| Real host-scoped enforcement | Supported as an explicit local/lab opt-in only (`RESPONSE_PROVIDER=windows_firewall`); refused for `ENVIRONMENT=production` or a non-Windows host | `atdr/app/services/windows_firewall_connector.py`, `atdr/tests/test_windows_firewall_response.py` |
+| Self-host/backend address protected from block | Supported now | `atdr/app/services/response_service.py` |
 
 ## Current IAM Limitations
 

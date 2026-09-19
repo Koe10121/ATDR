@@ -125,7 +125,9 @@ RESPONSE_SIMULATION=true
 RESPONSE_PROVIDER=simulation
 ```
 
-Real firewall enforcement is unsupported until an approved connector, allowlist, dry-run preview, rollback process, and change approval flow exist. If simulation is disabled before a connector exists, ATDR records response actions as `pending_connector`.
+Real, shared/production-scale network-firewall enforcement remains unsupported until an approved connector, allowlist, dry-run preview, rollback process, and change approval flow exist for that host. If simulation is disabled with an unimplemented `RESPONSE_PROVIDER`, ATDR records response actions as `pending_connector`.
+
+A **local/lab-only** exception exists: setting `RESPONSE_PROVIDER=windows_firewall` with `RESPONSE_SIMULATION=false` enables a real, host-scoped Windows Firewall connector that blocks a target IP on the machine running the ATDR backend only. Configuration validation refuses this combination when `ENVIRONMENT=production` or the backend is not running on Windows. See `docs/changes/T1_T20_RESPONSE_REAL_ENFORCEMENT.md`.
 
 ## Validation References
 

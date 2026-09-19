@@ -3,7 +3,11 @@
 This is the active operations reference for ATDR. Normal users enter through
 the approved MFU shell. ATDR remains a controlled release candidate: rules are
 alert-authoritative, supervised runtime is unqualified, the SOC Assistant is
-read-only, response is simulated, and real firewall blocking is disabled.
+read-only, and response is simulated by default in every profile. A local/lab
+operator may explicitly opt into a real, host-scoped Windows Firewall
+connector; no other real firewall/network connector exists, and
+shared/production profiles remain simulation-only. See
+[Response And Containment](../README.md#response-and-containment).
 
 ## Supported Profiles
 

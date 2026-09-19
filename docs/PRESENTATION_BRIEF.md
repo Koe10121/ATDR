@@ -57,7 +57,10 @@ Require 10/10 stages and 24/24 workflow checks.
 3. Open an alert and explain its evidence and next checks.
 4. Ask the SOC Assistant why the alert was flagged, then ask a scoped follow-up.
 5. Show AI Governance: rules authoritative, ML advisory/unqualified.
-6. Show Response & Audit: simulation only and analyst-confirmed.
+6. Show Response & Audit: simulation by default and analyst-confirmed; note
+   that a local/lab operator can explicitly opt this host into real,
+   reversible Windows Firewall enforcement (host-scoped only, never a real
+   network firewall).
 
 Current proof points: deterministic scenarios `24/24`, layered detection
 `288/288`, Assistant QA `30/30` plus follow-up continuity, and a bounded live

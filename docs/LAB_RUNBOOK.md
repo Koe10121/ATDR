@@ -2,7 +2,9 @@
 
 This is the active hands-on lab reference. ATDR is a controlled release
 candidate: deterministic rules create alerts, ML is advisory, the Assistant is
-read-only, and response is simulated.
+read-only, and response is simulated by default (an operator may explicitly
+opt into a real, host-scoped Windows Firewall connector; see
+`README.md#response-and-containment`).
 
 ## Normal Startup
 

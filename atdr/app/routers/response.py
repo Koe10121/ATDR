@@ -22,6 +22,7 @@ def api_block_ip(
         reason=request.reason,
         alert_id=request.alert_id,
         actor=current_user.username,
+        duration_minutes=request.duration_minutes,
     )
 
 

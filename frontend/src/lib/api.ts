@@ -583,10 +583,15 @@ export const api = {
     apiRequest<WatchlistItem>("/api/watchlists", { method: "POST", body: JSON.stringify(payload) }),
   disableWatchlist: (id: number) => apiRequest<WatchlistItem>(`/api/watchlists/${id}/disable`, { method: "POST" }),
   blockedIps: () => apiRequest<BlockedIP[]>("/api/response/blocked-ips"),
-  blockIp: (targetIp: string, reason: string, alertId?: number | null) =>
+  blockIp: (targetIp: string, reason: string, alertId?: number | null, durationMinutes?: number | null) =>
     apiRequest<ResponseAction>("/api/response/block-ip", {
       method: "POST",
-      body: JSON.stringify({ target_ip: targetIp, reason, alert_id: alertId ?? null })
+      body: JSON.stringify({
+        target_ip: targetIp,
+        reason,
+        alert_id: alertId ?? null,
+        duration_minutes: durationMinutes ?? null
+      })
     }),
   unblockIp: (targetIp: string, reason: string) =>
     apiRequest<ResponseAction>("/api/response/unblock-ip", {

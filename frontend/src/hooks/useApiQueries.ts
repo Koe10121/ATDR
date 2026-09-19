@@ -934,8 +934,17 @@ export function useResponseMutations() {
   };
   return {
     blockIp: useMutation({
-      mutationFn: ({ targetIp, reason, alertId }: { targetIp: string; reason: string; alertId?: number | null }) =>
-        api.blockIp(targetIp, reason, alertId),
+      mutationFn: ({
+        targetIp,
+        reason,
+        alertId,
+        durationMinutes
+      }: {
+        targetIp: string;
+        reason: string;
+        alertId?: number | null;
+        durationMinutes?: number | null;
+      }) => api.blockIp(targetIp, reason, alertId, durationMinutes),
       onSuccess: invalidate
     }),
     unblockIp: useMutation({

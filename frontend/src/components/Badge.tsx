@@ -54,7 +54,9 @@ const statusClass: Record<string, string> = {
   "Externally Accepted": "border-success/30 bg-success/10 text-success",
   "Externally Pending": "border-amber/30 bg-amber/10 text-amber",
   Unavailable: "border-slate-400/30 bg-slate-400/10 text-slate-600",
-  Failed: "border-danger/40 bg-danger/10 text-danger"
+  Failed: "border-danger/40 bg-danger/10 text-danger",
+  "Real Block": "border-danger/40 bg-danger/10 text-danger",
+  Simulated: "border-slate-400/30 bg-slate-400/10 text-slate-600"
 };
 
 export function Badge({ value, kind = "status" }: { value?: string | null; kind?: "severity" | "status" }) {

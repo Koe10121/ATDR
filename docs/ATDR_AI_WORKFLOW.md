@@ -40,8 +40,11 @@ Primary runtime evidence is `atdr/app/main.py`, `atdr/app/routers/`,
 - The SOC Assistant is read-only and cannot run detection, alter labels,
   activate models, modify users, delete data, or create response actions.
 - External Assistant context excludes raw logs by default and redacts IPs.
-- Response is `simulation_only`; automatic response and real blocking remain
-  disabled.
+- Response is `simulation_only` by default in every profile; automatic
+  (unattended) response always remains disabled. Real enforcement exists only
+  as an explicit, local/lab-only, host-scoped Windows Firewall connector;
+  never extend it to a shared/production profile or a real network-firewall
+  connector without a separate governed decision.
 - Consumed evaluation evidence is immutable and must never be rerun or tuned.
 - AI-assisted labels are never represented as human-reviewed labels.
 

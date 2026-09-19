@@ -230,6 +230,10 @@ class ResponseAction(Base):
     result_message: Mapped[str] = mapped_column(Text, nullable=False)
     executed_by: Mapped[str] = mapped_column(String(128), nullable=False)
     executed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    # "simulated" (no real action), "windows_firewall" (real OS-level rule
+    # applied on this host), or a future named connector. Recorded per action
+    # so history stays accurate even if the configured provider later changes.
+    enforcement: Mapped[str] = mapped_column(String(32), server_default="simulated", nullable=False)
 
     alert: Mapped[Alert | None] = relationship(back_populates="response_actions")
 
@@ -243,6 +247,13 @@ class BlockedIP(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     created_by: Mapped[str] = mapped_column(String(128), nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
+    # Same per-row provenance as ResponseAction.enforcement.
+    enforcement: Mapped[str] = mapped_column(String(32), server_default="simulated", nullable=False)
+    # NULL means "blocked until manually removed". A non-null value in the
+    # past means the block is treated as expired and is lazily swept back to
+    # active=False (and, for real enforcement, its firewall rule removed) the
+    # next time blocks are read or written.
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class AuditLog(Base):

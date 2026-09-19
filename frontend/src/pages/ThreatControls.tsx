@@ -5,7 +5,7 @@ import { ErrorBanner } from "../components/ErrorBanner";
 import { MetricCard } from "../components/MetricCard";
 import { SafeSelect } from "../components/SafeSelect";
 import { useAuth } from "../hooks/useAuth";
-import { useBlockedIps, useDetectionTuning, useResponseMutations, useSuppressions, useThreatControlMutations, useWatchlists } from "../hooks/useApiQueries";
+import { useBlockedIps, useDetectionTuning, useHealth, useResponseMutations, useSuppressions, useThreatControlMutations, useWatchlists } from "../hooks/useApiQueries";
 
 type Tab = "suppressions" | "watchlists" | "blocked" | "policy";
 
@@ -18,6 +18,8 @@ export function ThreatControls() {
   const tuning = useDetectionTuning();
   const controls = useThreatControlMutations();
   const response = useResponseMutations();
+  const health = useHealth();
+  const isRealEnforcement = health.data?.checks.response_mode?.real_enforcement_possible === true;
 
   const [suppression, setSuppression] = useState({ src_ip: "", app: "", alert_type: "", reason: "" });
   const [watchlist, setWatchlist] = useState({ indicator_type: "src_ip", indicator_value: "", description: "", severity_boost: 30 });
@@ -40,7 +42,10 @@ export function ThreatControls() {
 
   function blockIp(event: FormEvent) {
     event.preventDefault();
-    if (block.target_ip && window.confirm(`Record simulated block for ${block.target_ip}?`)) {
+    const body = isRealEnforcement
+      ? `Create a REAL Windows Firewall block for ${block.target_ip} on this host?`
+      : `Record simulated block for ${block.target_ip}?`;
+    if (block.target_ip && window.confirm(body)) {
       response.blockIp.mutate({ targetIp: block.target_ip, reason: block.reason });
     }
   }
@@ -48,7 +53,7 @@ export function ThreatControls() {
   const tabs: Array<{ id: Tab; label: string }> = [
     { id: "suppressions", label: "Suppressions" },
     { id: "watchlists", label: "Watchlists" },
-    { id: "blocked", label: "Simulated Blocked IPs" },
+    { id: "blocked", label: isRealEnforcement ? "Blocked IPs" : "Simulated Blocked IPs" },
     { id: "policy", label: "Detection Policy" }
   ];
 
@@ -56,14 +61,18 @@ export function ThreatControls() {
     <div className="space-y-5">
       <section className="hero-panel">
         <div className="text-sm font-extrabold uppercase tracking-wide text-cyan">Threat Controls</div>
-        <h1 className="mt-2 text-3xl font-black">Govern alert noise, watchlists, and simulated containment.</h1>
-        <p className="mt-2 text-muted">Controls are audited. Real firewall enforcement remains disabled.</p>
+        <h1 className="mt-2 text-3xl font-black">Govern alert noise, watchlists, and containment.</h1>
+        <p className="mt-2 text-muted">
+          Controls are audited. {isRealEnforcement
+            ? "This host has real, host-scoped Windows Firewall enforcement enabled."
+            : "Real firewall enforcement is off by default; see Response & Audit to opt in."}
+        </p>
       </section>
 
       <div className="grid gap-4 md:grid-cols-4">
         <MetricCard label="Active Suppressions" value={(suppressions.data ?? []).filter((item) => item.active).length} detail="Noise controls" tone="amber" />
         <MetricCard label="Watchlist Items" value={(watchlists.data ?? []).filter((item) => item.active).length} detail="Priority indicators" tone="danger" />
-        <MetricCard label="Blocked IPs" value={blocked.data?.length ?? "-"} detail="Simulation mode only" tone="danger" />
+        <MetricCard label="Blocked IPs" value={blocked.data?.length ?? "-"} detail={isRealEnforcement ? "Real + simulated" : "Simulation mode only"} tone="danger" />
         <MetricCard label="Admin Controls" value={isAdmin ? "Enabled" : "Read-only"} detail="RBAC enforced by backend" tone="cyan" />
       </div>
 
@@ -148,20 +157,29 @@ export function ThreatControls() {
         <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
           <form className="panel space-y-3" onSubmit={blockIp}>
             <Badge value="ready" />
-            <div className="text-sm text-muted">Simulation Mode: records containment evidence only. No firewall devices are modified.</div>
+            <div className="text-sm text-muted">
+              {isRealEnforcement
+                ? "Real enforcement: creates a Windows Firewall rule on this host. Use Response & Audit for timeout options."
+                : "Simulation Mode: records containment evidence only. No firewall devices are modified."}
+            </div>
             <input className="input" placeholder="IP address" value={block.target_ip} onChange={(event) => setBlock({ ...block, target_ip: event.target.value })} disabled={!isAdmin} />
             <textarea className="input min-h-24" value={block.reason} onChange={(event) => setBlock({ ...block, reason: event.target.value })} disabled={!isAdmin} />
-            <button className="btn-primary w-full" disabled={!isAdmin || response.blockIp.isPending}>Record simulated block</button>
+            <button className="btn-primary w-full" disabled={!isAdmin || response.blockIp.isPending}>
+              {isRealEnforcement ? "Apply real block" : "Record simulated block"}
+            </button>
           </form>
           <section className="panel space-y-3">
             {(blocked.data ?? []).map((item) => (
               <div key={item.id} className="rounded-lg border border-line bg-panel2 p-4">
-                <div className="font-bold">{item.ip_address}</div>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold">{item.ip_address}</span>
+                  <Badge value={item.enforcement === "windows_firewall" ? "Real Block" : "Simulated"} />
+                </div>
                 <div className="mt-1 text-sm text-muted">{item.reason ?? "No reason"} | by {item.created_by}</div>
                 <button className="btn-secondary mt-3" disabled={!isAdmin} onClick={() => window.confirm(`Unblock ${item.ip_address}?`) && response.unblockIp.mutate({ targetIp: item.ip_address, reason: "Removed from Threat Controls." })}>Unblock</button>
               </div>
             ))}
-            {!blocked.isLoading && !(blocked.data ?? []).length ? <EmptyState title="No simulated blocks" body="The simulated containment list is empty." /> : null}
+            {!blocked.isLoading && !(blocked.data ?? []).length ? <EmptyState title="No blocks" body="The containment list is empty." /> : null}
           </section>
         </div>
       ) : null}

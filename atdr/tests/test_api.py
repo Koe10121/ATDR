@@ -2054,6 +2054,41 @@ def test_admin_response_workflow_audit_attribution():
         app.dependency_overrides.clear()
 
 
+def test_response_block_accepts_duration_and_reports_enforcement_field():
+    client = _client()
+    try:
+        headers = _login(client, "admin", "admin123")
+
+        block = client.post(
+            "/api/response/block-ip",
+            json={"target_ip": "203.0.113.201", "reason": "temporary containment test", "duration_minutes": 15},
+            headers=headers,
+        )
+        assert block.status_code == 200
+        body = block.json()
+        assert body["status"] == "simulated"
+        assert body["enforcement"] == "simulated"
+
+        blocked = client.get("/api/response/blocked-ips", headers=headers)
+        row = next(item for item in blocked.json() if item["ip_address"] == "203.0.113.201")
+        assert row["enforcement"] == "simulated"
+        assert row["expires_at"] is not None
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_health_reports_response_mode_and_real_enforcement_flag():
+    client = _client()
+    try:
+        response = client.get("/health")
+        assert response.status_code == 200
+        response_mode = response.json()["checks"]["response_mode"]
+        assert response_mode["status"] == "simulation"
+        assert response_mode["real_enforcement_possible"] is False
+    finally:
+        app.dependency_overrides.clear()
+
+
 def test_suppression_api_is_admin_only_and_audited():
     client = _client()
     try:

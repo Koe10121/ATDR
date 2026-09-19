@@ -31,7 +31,7 @@ def test_response_without_simulation_is_pending_until_connector_exists(monkeypat
     assert action.status == "pending_connector"
     assert "no approved firewall connector" in action.result_message
     assert audit is not None
-    assert audit.details["simulation"] is False
+    assert audit.details["enforcement"] == "pending_connector"
     assert audit.details["status"] == "pending_connector"
 
 

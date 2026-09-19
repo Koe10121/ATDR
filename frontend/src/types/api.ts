@@ -400,7 +400,7 @@ export interface HealthResponse {
   checks: {
     database?: { status?: string; [key: string]: unknown };
     ml_model?: { status?: string; path?: string };
-    response_mode?: { status?: string };
+    response_mode?: { status?: string; provider?: string; real_enforcement_possible?: boolean };
   };
 }
 
@@ -2548,6 +2548,8 @@ export interface BlockedIP {
   created_at: string;
   created_by: string;
   active: boolean;
+  enforcement: string;
+  expires_at?: string | null;
 }
 
 export interface ResponseAction {
@@ -2559,6 +2561,7 @@ export interface ResponseAction {
   result_message: string;
   executed_by: string;
   executed_at: string;
+  enforcement: string;
 }
 
 export interface IngestionRun {

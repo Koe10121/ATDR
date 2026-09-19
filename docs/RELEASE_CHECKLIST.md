@@ -10,7 +10,12 @@ not certify production readiness or close external acceptance.
   generated reports, and processed evidence remain ignored.
 - `python -m atdr.scripts.config_doctor --pretty` passes for the selected
   profile without exposing values.
-- `RESPONSE_SIMULATION=true`; automatic response and real blocking are off.
+- `RESPONSE_SIMULATION=true` for any shared/production release; automatic
+  (unattended) response is off in every profile. A local/lab profile may
+  explicitly opt into the real, host-scoped Windows Firewall connector
+  (`RESPONSE_PROVIDER=windows_firewall`) — confirm this is intentional before
+  a release handoff, since it means Block actually changes host firewall
+  state.
 - Supervised runtime remains `unqualified`; no artifact was activated.
 
 ## Backend And Data
