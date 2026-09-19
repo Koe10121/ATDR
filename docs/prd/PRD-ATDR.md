@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Product | MFU AI-Driven Log-Based Threat Detection and Response |
-| Baseline | v5.63 published; v5.63.1 advisor reliability lock pending publication |
+| Baseline | v5.63.1 published; v5.64 anomaly redesign pending publication |
 | Status | Controlled local release candidate |
 | Production ready | No |
 | Primary users | SOC analyst, ATDR administrator, approved operator |
@@ -36,12 +36,12 @@ traceability, safe failure, and analyst control over automated containment.
 | FR-ING-01 | File/API import, replay, durable large-file jobs, and UDP syslog ingestion | Implemented; physical-source acceptance external |
 | FR-PAR-01 | PAN-OS TRAFFIC/THREAT/SYSTEM, generic syslog, and raw-fallback normalization with warnings | Implemented; additional devices/versions external |
 | FR-DET-01 | Versioned, correlated, deduplicated, explainable rule detection | Implemented and alert-authoritative |
-| FR-ML-01 | Reproducible advisory IsolationForest scoring with explicit scored-row rate, coverage, and fail-closed reliability gates | Implemented; no v5.63.1 replacement candidate qualified; not authoritative |
+| FR-ML-01 | Reproducible advisory IsolationForest scoring with explicit telemetry, chronological roles, context/drift/OOD diagnostics, and fail-closed gates | Implemented; no v5.64 replacement candidate qualified; not authoritative |
 | FR-ML-02 | Governed supervised SOC queue with leakage, calibration, and activation gates | Implemented but runtime `unqualified` |
 | FR-EXP-01 | Explain why flagged, evidence strength, missing context, related logs, mappings, and next checks | Implemented |
 | FR-AST-01 | Read-only deterministic and optional Gemini Assistant over bounded cited context | Implemented; institutional provider approval external |
 | FR-ALT-01 | Alert assignment, notes, status, cases, and audit history | Implemented |
-| FR-RSP-01 | Analyst-confirmed simulated response with no automatic or real blocking | Implemented as simulation only |
+| FR-RSP-01 | Analyst-confirmed response, simulated by default, with no automatic/unattended action in any profile | Implemented; simulation by default, with an explicit opt-in local/lab real host-firewall connector (`RESPONSE_PROVIDER=windows_firewall`) |
 | FR-IAM-01 | MFU shell-first identity handoff with analyst default and configured group-to-admin mapping | Implemented locally; university acceptance external |
 | FR-OPS-01 | Durable jobs, health, metrics, request IDs, backup/restore, retention, and deployment references | Implemented; approved-host evidence external |
 | FR-UI-01 | Responsive React SOC workflows with error/loading/empty states and accessibility baseline | Implemented; independent usability audit external |
@@ -66,6 +66,12 @@ Node/Vue architecture.
   coverage and all-row prevalence.
 - Normal setup/start never trains IsolationForest. A missing artifact leaves
   rules operational and exposes the governed preflight command.
+- v5.64 compared 32 fixed window/context candidates (28 methodologically
+  distinct; a disclosed dispatch defect made 4 of the 32 duplicate an
+  already-run strategy without affecting any gate or ranking). The best
+  remained at 50% malicious scenario capture and 99.01% rule overlap, so no
+  replacement was frozen, installed, or evaluated on its untouched candidate
+  holdout.
 - Supervised runtime is `unqualified`; inference fails closed.
 - The governed qualification campaign has 1,000 selected prediction-blind rows
   (300 original plus 700 append-only supplemental), but review is `0/1,000`,
@@ -75,7 +81,11 @@ Node/Vue architecture.
 - The Assistant cannot perform actions.
 - Advisor acceptance uses disposable storage and verifies the full workflow
   without accessing or resetting the configured database.
-- Response is `simulation_only` and requires an analyst decision.
+- Response requires an analyst decision and is `simulation_only` by default.
+  A local/lab operator may explicitly opt into a real, host-scoped Windows
+  Firewall connector; no other real firewall/network connector exists, and
+  shared/production profiles remain `simulation_only` regardless of
+  configuration.
 
 The consumed v5.49b evaluation selected no supervised candidate. Future work
 must use fresh development evidence, a second physical source, a predeclared

@@ -1,15 +1,14 @@
 # ATDR Current System State Lock
 
-Date: 2026-09-17
+Date: 2026-09-18
 
 ## Release Baseline
 
-The published source baseline is v5.63 at commit `cf106d6`. It contains the
-governed advisory IsolationForest bootstrap and the fresh 1,000-row supervised
-qualification campaign with protected batched review. The current uncommitted
-v5.63.1 work corrects anomaly telemetry, adds a development-only reliability
-audit, and locks a disposable advisor-demonstration acceptance. Publication
-remains separately approval-gated.
+The published source baseline is v5.63.1 at commit `fea2857`. It contains the
+corrected anomaly telemetry, private-safe reliability audit, fresh 1,000-row
+supervised qualification campaign, and disposable advisor acceptance. The
+current uncommitted v5.64 work adds a locked window-aware anomaly redesign and
+an honest no-candidate decision. Publication remains separately approval-gated.
 
 ## Product Decision
 
@@ -44,7 +43,7 @@ The supported workflow is:
 | Shared persistence | PostgreSQL-compatible worker, migration, scale, backup, and recovery paths; approved-host acceptance pending |
 | Detection | Nineteen versioned rules are `active_authoritative`; IsolationForest is explicitly bootstrapped and `active_advisory` when available; supervised runtime is `unqualified`; hybrid triage is advisory |
 | Assistant | Deterministic database-backed context with optional bounded Gemini synthesis and deterministic fallback |
-| Response | Analyst-approved simulation only; automatic response and real firewall blocking are disabled |
+| Response | Analyst-approved; simulation by default in every profile; automatic (unattended) response is always disabled; a local/lab operator may explicitly opt into real, host-scoped Windows Firewall enforcement (`RESPONSE_PROVIDER=windows_firewall`) — no other real network-firewall connector is implemented and shared/production profiles remain simulation-only |
 
 ## Supported Profiles
 
@@ -108,6 +107,16 @@ evidence that an approved shared environment exists.
   added future-evaluation rows. Seven protected 100-row batches are ready;
   combined review remains `0/1,000`, 19 windows and one source are present,
   and no model operation is allowed.
+- The project owner genuinely, independently, blindly reviewed all 1,000
+  v5.62+v5.63 rows: `threat_positive_rows` reached only `47/100` (real
+  single-source PAN-OS traffic is heavily benign-skewed). v5.65 (third tier,
+  500 rows, weighted toward the four categories that produced 100% of prior
+  threat-positive decisions) and v5.67 (fourth tier, 500 rows, re-weighted
+  after v5.65's real result showed `vendor_security_context` was not
+  actually predictive) closed the gap: `threat_positive_rows: 115/100`
+  (2026-09-19). Combined review across all four tiers is `2,000/2,000`; `5`
+  of `6` fixed gates now pass. `real_source_identities: 1/2` remains fail
+  and is structural -- see "Second-Source Requirement" below.
 - v5.63.1 corrects anomaly-rate semantics: the configured database contains
   60,230 scored rows and 1,421 anomaly flags, so the advisory anomaly rate is
   2.36% among scored rows, scoring coverage is 41.47%, and stored-row
@@ -115,6 +124,12 @@ evidence that an approved shared environment exists.
 - A private-safe, development-only comparison evaluated eight fixed anomaly
   variants. Every variant failed the controlled threat-capture gates, so no
   candidate was selected and the legacy advisory artifact remained untouched.
+- v5.64 inspected 50,000 private rows, isolated four chronological roles and
+  457 cross-role duplicate-family rows, then compared eight window/context
+  strategies at four fixed queue targets. The best diagnostic reduced
+  controlled benign anomaly to 0% and raised suspicious capture to 85.71%, but
+  malicious capture remained 50%; zero candidates qualified and the untouched
+  candidate holdout was not evaluated.
 - The disposable advisor acceptance passes 10/10 stages and 24/24 workflow
   checks, including rule detection, explanation, follow-up continuity,
   simulated-response safety, and one bounded live Gemini probe.
@@ -157,8 +172,8 @@ independent release gate passes with `ok=true` and no failed required checks.
 | Ingestion and jobs | Locally and clean-clone verified | Real non-loopback forwarding and long-running field operation |
 | Parsing/normalization | Locally verified for supported contracts | More PAN-OS versions, second source, and device-backed field accuracy |
 | Deterministic detection | Locally verified in controlled regression | Independent real-traffic FP/FN evidence and environment baselines |
-| Supervised ML | v5.62-v5.63 fresh campaign prepared with 1,000 selected rows; effective runtime `unqualified`; no candidate | Complete 300 original and 700 supplemental reviews, obtain second source, preserve untouched evaluation, pass fixed gates, freeze, and separately approve |
-| IsolationForest | Reproducible through explicit governed bootstrap; scored-row rate and coverage are explicit; advisory only | New candidates failed controlled threat-capture gates; evidence does not support detector authority |
+| Supervised ML | v5.62-v5.63-v5.65-v5.67 campaign: `2,000/2,000` rows genuinely reviewed; `5/6` fixed gates pass; effective runtime `unqualified`; no candidate | Obtain a genuinely distinct second physical source (sole remaining gate; explicitly not waivable by further review), preserve untouched evaluation, pass remaining quality gates, freeze, and separately approve |
+| IsolationForest | Reproducible through explicit governed bootstrap; v5.64 chronology/context comparison complete; advisory only | Best diagnostic remains 50% malicious capture and 99.01% rule-overlapping; new evidence or representation required |
 | Alert explanations | Locally verified | Asset/business context and external incident-management integration |
 | SOC Assistant | Locally verified and read-only | Institutional Gemini governance and representative field evaluation |
 | Dashboard | Locally verified by automated browser, axe, keyboard, and five-viewport coverage | Independent analyst and assistive-technology acceptance |
@@ -199,6 +214,13 @@ stored-row prevalence, not a 98% anomaly rate. The controlled reliability audit
 selected no replacement because lower-noise variants lost too much suspicious
 and malicious scenario capture.
 
+v5.64 tested whether chronological windows, application/direction cohorts,
+behavior context, percentile calibration, and OOD abstention repaired that
+gap. The strongest nonqualified ensemble produced a stable 2.75% development
+queue and 85.71% suspicious capture, but remained at 50% malicious capture.
+Two of 202 queued validation rows lacked existing rule evidence; the remaining
+99.01% overlapped deterministic rules. No model or threshold was changed.
+
 v5.62 prepares a new supervised path without weakening that boundary. All
 v5.49b evidence is excluded, roles are assigned chronologically, duplicate
 families are isolated, future-evaluation labels are sealed, and development
@@ -211,6 +233,25 @@ rows, but it does not convert selection into human-reviewed evidence. The
 combined review remains `0/1,000`. The time-window gate passes at 19/2; the
 physical-source gate remains 1/2; class-support and quality gates remain failed
 or blocked. Untouched evaluation labels are still inaccessible.
+
+The project owner then genuinely completed that review (`1000/1000`), which
+closed `independent_comparable_rows` but left `threat_positive_rows` at
+`47/100` -- real single-source traffic is heavily benign-skewed. v5.65 (third
+tier, 500 rows, weighted toward the four coverage categories that produced
+100% of prior threat-positive decisions) reached `79/100`; its own real
+result showed `vendor_security_context` was not actually predictive (0 new
+threat-positive rows from 97 sampled). v5.67 (fourth tier, 500 rows,
+re-weighted to the three categories that actually carry signal) closed the
+gate at `threat_positive_rows: 115/100` (2026-09-19). Combined review across
+all four tiers is `2,000/2,000`; `5` of `6` fixed gates now pass.
+`real_source_identities: 1/2` is the sole remaining failure and is
+structural -- no volume of further review of the one existing physical
+source can satisfy a 2-source requirement. Waiving or weakening this gate
+was explicitly requested by the project owner on 2026-09-19 and explicitly
+declined: doing so would report `qualified` for a model with no evidence it
+generalizes beyond this one deployment, which is precisely the risk this
+gate exists to catch. A second physical source, if one becomes available,
+remains the only path to closing it.
 
 Gemini may rephrase a bounded deterministic answer only when private settings
 enable it. Raw log lines are excluded, IP redaction remains enabled, citations
@@ -243,7 +284,11 @@ Exact checklists are in `docs/EXTERNAL_ACCEPTANCE.md`.
 - Do not activate or promote a model without a separate governed decision.
 - Keep deterministic rules alert-authoritative.
 - Keep the Assistant read-only and external raw-log context disabled.
-- Keep automatic response and real firewall blocking disabled.
+- Keep automatic (unattended) response disabled in every profile.
+- Keep real enforcement scoped to the explicit, opt-in, local/lab-only
+  Windows Firewall connector; never enable it for a shared/production
+  profile and never add a real network-firewall connector without a
+  separate governed decision.
 - Never commit `.env` files, databases, private logs, reviews, model artifacts,
   provider payloads, generated reports, SBOMs, or processed evidence.
 - Configuration never counts as owner acceptance.

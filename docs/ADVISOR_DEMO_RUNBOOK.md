@@ -80,11 +80,18 @@ pass."
 
 ### 5. Response And Audit
 
-Show that response requires analyst justification and remains simulated. Show
-the audit history.
+Show that response requires analyst justification and, by default, remains
+simulated. Show the audit history.
 
-Say: "ATDR recommends and records response decisions, but it cannot change a
-real firewall in this release."
+Say: "ATDR recommends and records response decisions. By default nothing
+real is changed. An operator can explicitly opt this machine into a real,
+host-scoped Windows Firewall block — it only ever affects this machine, never
+a real network firewall or another device."
+
+If you want to demonstrate real enforcement, do it deliberately and
+separately from the main walkthrough: confirm `RESPONSE_PROVIDER=windows_firewall`
+and `RESPONSE_SIMULATION=false` are set, run the backend as Administrator,
+and use a test IP you fully control. Do not toggle this mid-demo.
 
 ## Current Proof Points
 
@@ -93,8 +100,11 @@ real firewall in this release."
 - advisor workflow: 24/24 checks and 10/10 stages;
 - Assistant: 30 quality cases plus follow-up continuity;
 - live Gemini structured probe: pass;
-- automatic response: disabled;
-- real blocking: disabled.
+- v5.64 anomaly redesign: 0/32 candidates qualified (28 distinct, 4 a
+  disclosed duplicate); current artifact unchanged;
+- automatic (unattended) response: disabled in every profile;
+- real blocking: simulation by default; explicit opt-in local/lab
+  host-scoped Windows Firewall enforcement implemented and tested.
 
 ## Questions To Answer Honestly
 
@@ -103,8 +113,9 @@ evaluation selected no qualified candidate. Rules remain the detector of
 record.
 
 **Does IsolationForest detect attacks?** It identifies unusual rows for
-analyst review. Current controlled results are not strong enough for a threat
-accuracy claim.
+analyst review. v5.64 improved controlled suspicious capture but stayed at 50%
+malicious scenario capture, so no replacement qualified and no threat-accuracy
+claim is made.
 
 **Where do Assistant facts come from?** Bounded ATDR database/service context
 and approved documentation. Gemini is a synthesis layer, not the evidence
@@ -118,4 +129,6 @@ infrastructure remain external.
 
 If Gemini is unavailable, continue the demonstration with deterministic
 fallback. If the dashboard is already running, do not launch a second copy;
-use `scripts/check_system.ps1`. Never enable real blocking for a demo.
+use `scripts/check_system.ps1`. Do not enable real blocking mid-demo or on an
+IP you do not fully control; if demonstrating it, do so deliberately per the
+note in step 5.

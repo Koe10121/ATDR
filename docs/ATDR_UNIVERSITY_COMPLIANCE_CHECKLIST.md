@@ -20,6 +20,7 @@ available in archived phase and T1-T20 records.
 | Expand supervised evidence without leakage | Satisfied locally | v5.63 preserves 300 rows, adds 700 unique development-only rows, seals evaluation evidence, and creates no authoritative writes |
 | Validate future second-source identity safely | Ready, externally blocked | v5.63 CLI rejects same-device evidence and returns aggregates only; a second real device is not yet available |
 | Lock advisor demonstration reliability | Satisfied locally | v5.63.1 disposable acceptance covers the complete analyst flow, safe Gemini probe, and zero authoritative Assistant/model effects |
+| Evaluate anomaly redesign without leakage | Satisfied locally | v5.64 chronological roles, duplicate-family isolation, untouched candidate holdout, private redaction, fixed gates, and no installation |
 
 ## Product Integrity
 
@@ -30,10 +31,11 @@ available in archived phase and T1-T20 records.
 | Explain deterministic detection | Implemented | rule catalog, explanations, related evidence, recommendations |
 | Keep AI/ML claims honest | Satisfied | rules authoritative; anomaly/hybrid advisory and not threat-accuracy validated; supervised unqualified |
 | Report anomaly telemetry honestly | Satisfied | scored-row anomaly rate, scoring coverage, and all-row prevalence are separate; unqualified replacement is refused |
+| Separate anomaly novelty from rule evidence | Satisfied | v5.64 reports rule overlap and novel contribution; anomaly cannot create, suppress, close, or reprioritize alerts |
 | Preserve human-label provenance | Satisfied | protected review, weak-label separation, no automated human claims |
 | Seal evaluation evidence from development | Satisfied | v5.62-v5.63 loaders exclude future evaluation and remain locked until all required review closures |
 | Keep Assistant grounded and read-only | Satisfied locally | bounded context, citations, redaction, fallback, no-side-effect tests |
-| Keep response controlled | Satisfied | simulation only; no automatic response or real blocking |
+| Keep response controlled | Satisfied | simulation by default in every profile; no automatic (unattended) response; real enforcement is opt-in, local/lab-only, and host-scoped to the ATDR backend machine (Windows Firewall) |
 
 ## Security And Operations
 
@@ -54,9 +56,10 @@ available in archived phase and T1-T20 records.
 - supervised runtime `unqualified`
 - Assistant read-only
 - raw external LLM logs disabled
-- response `simulation_only`
-- automatic response disabled
-- real firewall blocking disabled
+- response `simulation_only` by default in every profile
+- automatic (unattended) response disabled in every profile
+- real network-firewall blocking not implemented; only an explicit, opt-in,
+  local/lab-only, host-scoped Windows Firewall connector exists
 
 Configuration alone is not acceptance. Missing human, hardware, university,
 provider, deployment, or repository-owner evidence must remain explicitly

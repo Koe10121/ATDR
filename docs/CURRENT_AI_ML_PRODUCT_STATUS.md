@@ -1,6 +1,6 @@
 # ATDR Current AI And ML Product Status
 
-Date: 2026-09-17
+Date: 2026-09-19
 
 ## Decision Summary
 
@@ -22,8 +22,8 @@ a response action. Automatic response and real firewall blocking are disabled.
 | Layer | Status | Authority |
 | --- | --- | --- |
 | Nineteen deterministic rules | Locally verified: controlled `24/24`, layered `288/288` | May create/deduplicate alerts; cannot execute response |
-| IsolationForest | Explicitly reproducible; current scored-row rate 2.36% at 41.47% database coverage; controlled reliability remains weak | Advisory only; not threat-accuracy validated |
-| Supervised SOC queue | v5.49b selected no candidate; effective runtime `unqualified` | No inference or alert authority; historical lifecycle is not runtime authorization |
+| IsolationForest | Reproducible; v5.64 window/context audit selected no candidate; current scored-row rate 2.36% at 41.47% coverage | Advisory only; not threat-accuracy validated |
+| Supervised SOC queue | v5.62-v5.63-v5.65-v5.67 campaign: `2,000/2,000` rows genuinely, independently reviewed; `5` of `6` fixed gates pass (`threat_positive_rows: 115/100` closed 2026-09-19); effective runtime `unqualified` | `real_source_identities: 1/2` is the sole remaining gate and is structural; no inference or alert authority until a genuinely distinct second physical source exists |
 | Legacy supervised artifact | Registered history exists but strict validation is not satisfied | Preserved history only; ordinary prediction refuses it |
 | Deterministic Assistant | v5.63.1 QA `30/30` plus context-preserving follow-up; advisor workflow `24/24`; average/max `56.1/110` words | Read-only explanation |
 | Gemini Assistant synthesis | v5.63.1 bounded live structured probe passes with raw logs excluded and redaction enabled; institutional acceptance pending | Read-only rephrasing/summarization |
@@ -98,6 +98,27 @@ the ignored legacy artifact was not changed. This is an intentional fail-closed
 decision: a quiet anomaly model that misses threat scenarios is not an
 improvement.
 
+### v5.64 Window-Aware Decision
+
+v5.64 locked 20,000 fit, 7,337 calibration, 7,337 validation, and 7,317
+untouched-holdout rows after quarantining 457 cross-role duplicate-family
+rows. It compared eight declared global, robust, chronological, cohort,
+context, OOD, and ensemble strategies at 1%, 2%, 3%, and 5% fixed queue
+targets; seven were methodologically distinct (an initial dispatch defect
+made the empirical-calibration strategy duplicate the robust-global one, now
+fixed and disclosed via `duplicate_of_strategy` with no effect on any gate,
+ranking, or reported number).
+
+The best nonqualified ensemble produced 0% controlled benign anomaly, 85.71%
+suspicious scenario capture, 50% malicious scenario capture, a 2.75% private
+validation queue, and a 1.26 percentage-point four-window range. It missed two
+C2-like scenarios and failed the unchanged 75% malicious gate. Of 202 queued
+validation rows, 200 already had deterministic rule evidence.
+
+No candidate passed validation, so none was frozen and the untouched candidate
+holdout remained unused. No artifact was written or changed. Further threshold
+tuning on this one-source unlabeled evidence is not justified.
+
 ## Supervised Model Decision
 
 The immutable v5.49b protocol bound 180 genuine protected decisions with
@@ -162,6 +183,113 @@ The second-source intake CLI is ready and fails closed for a repeated physical
 device. Current support remains one verified source and 19 time windows. A
 second real device is not fabricated. Training, evaluation, candidate freeze,
 activation, promotion, and active-artifact writing remain false.
+
+### v5.62-v5.63 Genuine Review Completion
+
+The project owner independently, blindly hand-reviewed all 1,000 selected
+rows (300 original plus 700 supplemental) via the CSV worksheet review tool.
+Combined status showed `independent_comparable_rows: 1000/1000` (the 1,000
+row floor genuinely met) and `benign_like_rows: 664/100`, but
+`threat_positive_rows: 47/100` still failed: real PAN-OS traffic from this
+one source is heavily benign-skewed, and the fixed 1,000-row selection
+happened to contain only 47 genuine threat-positive decisions.
+
+### v5.65 Extended (Third-Tier) Evidence Expansion
+
+With the 1,000-row pool exhausted, a third append-only tier selected 500
+more rows on top of the locked v5.62+v5.63 pack, with coverage-group
+selection weighted 3x toward the four categories that had produced 100% of
+the threat-positive decisions in the first 1,000 rows
+(`vendor_security_context`, `high_activity_context`,
+`incomplete_transport_context`, `unknown_transport_context`). The project
+owner reviewed all 500 rows genuinely. Result: `threat_positive_rows`
+improved to `79/100` — still short. Critically, the real result also
+falsified part of the original weighting: `vendor_security_context`
+produced zero new threat-positive rows out of 97 sampled from it, meaning
+it had only been correlated in the smaller original sample, not actually
+predictive.
+
+### v5.67 Signal-Concentrated (Fourth-Tier) Evidence Expansion
+
+Before selecting more rows, the actual per-category threat-positive rate
+was computed across all 1,455 development-role rows reviewed so far
+(sealed-role rows correctly excluded to match real gate math):
+`unknown_transport_context` 14.0%, `incomplete_transport_context` 10.0%,
+`high_activity_context` 7.9%, versus `boundary_context` 1.2%,
+`vendor_security_context` 0.4%, `routine_service_context`/
+`web_transport_context` 0.0%. A fourth append-only tier dropped
+`vendor_security_context` from the high-yield set, kept only the three
+empirically-confirmed categories, and raised the round-robin weight from 3x
+to 5x to restore a similar concentration ratio. The project owner reviewed
+all 500 new rows genuinely: 36 were threat-positive, and — confirming the
+recalibration worked exactly as intended — all 36 came from the three
+targeted categories, zero from the four de-weighted ones.
+
+### Combined Result: 5 Of 6 Fixed Gates Now Pass (2026-09-19)
+
+`2,000/2,000` rows are genuinely, independently, prediction-blind reviewed
+across all four tiers (v5.62+v5.63+v5.65+v5.67), each tier `complete: true`.
+Combined fixed qualification gates:
+
+| Gate | Observed | Threshold | Status |
+| --- | ---: | ---: | --- |
+| `independent_human_blind_labels` | 2,000 | 20 | pass |
+| `independent_comparable_rows` | 2,000 | 1,000 | pass |
+| `benign_like_rows` | 1,183 | 100 | pass |
+| `threat_positive_rows` | 115 | 100 | **pass** (closed 2026-09-19; was 47 at the start of the four-tier expansion) |
+| `independent_time_windows` | 19 | 2 | pass |
+| `real_source_identities` | 1 | 2 | **fail** — structural |
+
+A single-source-only development evaluation (explicitly not the official
+qualification decision; sealed role never touched;
+`qualification_decision: false` hardcoded in every result) was run against
+the full 1,955-row development pool: trained on `development_fit` (766
+rows), evaluated on `calibration`+`threshold_selection` (532 rows);
+`accuracy 0.857`, `threat_positive recall 0.938` / `precision 0.381`. This
+demonstrates real development-only signal on this one source, with the
+usual small-sample, high-variance caveats.
+
+### Second-Source Requirement — Final Decision (2026-09-19)
+
+The project owner asked directly whether `real_source_identities: 2` could
+be waived or weakened now that every other gate passes and a large amount
+of unused source data remains (251,518+ fresh rows still available in the
+one physical source's file). The answer is no, and this is now the
+project's recorded final decision on this question:
+
+- The gate is not a row-count threshold; it is categorical. No volume of
+  additional review of the same one physical device can ever produce a
+  second device. A model trained and evaluated on one deployment's traffic
+  has no evidence it generalizes to a different network, application mix,
+  or attacker population — that is the exact risk `minimum_real_source_identities: 2`
+  exists to catch, and more rows from the same source cannot address it.
+- A candidate second-source file supplied 2026-09-19 was checked with the
+  project's own privacy-safe `--check-second-source` preflight and
+  confirmed to be the existing primary source
+  (`independent_from_primary: false`, 773,551 rows matching the original
+  v5.62 campaign exactly) — it does not satisfy the gate.
+- Public firewall-log datasets were investigated as a possible substitute
+  and rejected: no public dataset in ATDR's ingest format (PAN-OS
+  TRAFFIC/THREAT CSV) exists, the closest candidates are either a different
+  vendor's schema (would require a new parser) or a vendor's own synthetic
+  demo-data generator (fabricated by design) — neither would be a real
+  independent deployment even if format-compatible, and using either would
+  not satisfy the gate's intent.
+- Explicitly declined: modifying `FIXED_PROMOTION_GATES` (or any other
+  mechanism) to report `qualified` without a genuine second source. Doing
+  so would produce a false claim of the exact property the gate exists to
+  verify, in a codebase whose every governed-evidence module documents that
+  these gates cannot be weakened. Supervised ML remains, correctly,
+  `unqualified`.
+
+The terminal, honest state: rigorous single-source development evidence
+exists (2,000 genuinely reviewed rows, 5/6 fixed gates passing, a measured
+development-only signal), and official qualification remains blocked on
+exactly one requirement — a genuinely distinct second physical PAN-OS
+source — that no further engineering effort against this one source can
+satisfy. This is not a partial or failed effort; it is the correct
+fail-closed outcome for a governed supervised-ML pipeline that has not yet
+been given the evidence it requires.
 
 ## Registry Wording
 
@@ -302,10 +430,16 @@ failure behavior under the approved provider policy.
 
 ## Remaining AI/ML Finish Gates
 
-1. Complete the v5.62 protected 300-row review and all seven v5.63 100-row
-   supplemental batches without forcing class quotas.
-2. Collect independently reviewed evidence from a second physical source and
-   preserve a predeclared untouched future window.
+1. ~~Complete the v5.62 protected 300-row review and all seven v5.63 100-row
+   supplemental batches without forcing class quotas.~~ **Done 2026-09-19**,
+   and extended: all `2,000` rows across four tiers (v5.62+v5.63+v5.65+v5.67)
+   are genuinely reviewed; `5` of `6` fixed gates now pass.
+2. **The sole remaining blocker.** Collect independently reviewed evidence
+   from a genuinely distinct second physical source and preserve a
+   predeclared untouched future window. No amount of further review of the
+   existing single source can satisfy this; see "Second-Source Requirement
+   — Final Decision" above. Waiving or weakening this gate was explicitly
+   requested and explicitly declined.
 3. Repair supervised models only after the development evidence gates pass,
    then require all
    fixed FPR, recall, calibration, stability, and queue-rate gates.
@@ -314,8 +448,9 @@ failure behavior under the approved provider policy.
 5. Complete institutional Gemini privacy, retention, cost/quota, monitoring,
    and key-rotation acceptance.
 6. Run representative analyst evaluation on real but privacy-approved records.
-7. Redesign anomaly evidence around stable time windows and behavior context
-   before considering any replacement of the current advisory artifact.
+7. Resume anomaly research only with newly declared evidence or a genuinely
+   different sequence representation; v5.64 completed window/context testing
+   and rejected all replacements.
 
 IsolationForest bootstrap itself is no longer a Codex-owned implementation
 gap. Field accuracy and authority remain evidence questions and must not be

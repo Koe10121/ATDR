@@ -7,14 +7,18 @@ Assistant.
 
 ATDR is a controlled release candidate, not certified production software.
 Deterministic rules remain alert-authoritative. Supervised ML and anomaly
-scores are advisory. Response is simulated and analyst-confirmed; automatic
-response and real firewall blocking are disabled.
+scores are advisory. Response is analyst-confirmed and simulated by default;
+automatic (unattended) response remains disabled in every profile. An
+operator may explicitly opt a local/lab profile into real, host-scoped
+enforcement (see [Response And Containment](#response-and-containment)); no
+real network-firewall connector is implemented, and shared/production
+deployments remain simulation-only regardless of configuration.
 
 ## Current Truth
 
-The published baseline is v5.63 at commit `cf106d6`. The current uncommitted
-v5.63.1 reliability lock adds corrected anomaly telemetry, a private-safe
-development comparison, and a disposable advisor acceptance command.
+The published baseline is v5.63.1 at commit `fea2857`. The current uncommitted
+v5.64 work adds a locked window-aware anomaly comparison with chronology,
+behavior context, cohort calibration, OOD abstention, and rule-overlap proof.
 Detection-layer authority remains explicit: rules are
 `active_authoritative`; IsolationForest is `active_advisory` when available;
 supervised runtime is `unqualified`; hybrid triage is advisory; and response is
@@ -23,8 +27,12 @@ supervised runtime is `unqualified`; hybrid triage is advisory; and response is
 The previously reported anomaly value of 0.98 was all-row prevalence in
 percent, not a 98% anomaly rate. Current telemetry reports 2.36% among scored
 rows and 41.47% scoring coverage. No candidate replacement passed the fixed
-controlled reliability gates, so the existing advisory artifact was not
-changed.
+controlled reliability gates. v5.64 compared 32 fixed strategy/queue variants
+(28 methodologically distinct; 4 were a disclosed dispatch-defect duplicate of
+an already-run strategy, fixed with no effect on any gate or ranking); the
+best diagnostic reached 0% controlled benign anomaly, 85.71% suspicious
+scenario capture, and 50% malicious scenario capture. It still failed the
+malicious gate, so the existing advisory artifact was not changed.
 
 Current governed ML truth:
 
@@ -215,7 +223,10 @@ physical source, fresh untouched future windows, prediction-blind human labels,
 stable performance, and separate activation approval remain mandatory.
 
 IsolationForest remains an unusual-behavior signal only. It is not an
-authoritative threat detector.
+authoritative threat detector. The v5.64 redesign selected no replacement:
+its best queue was 99.01% overlapping with existing rule evidence and still
+missed two controlled C2-like scenarios. Further threshold tuning on the same
+evidence is not justified.
 
 Before an advisor demonstration, run the complete disposable acceptance:
 
@@ -244,6 +255,30 @@ available if the provider fails.
 The Assistant cannot run detection, create response actions, alter labels,
 activate models, modify users, or delete data.
 
+## Response And Containment
+
+Blocking an IP from Response & Audit always requires an admin, a written
+justification, and an evidence-linked alert where one is supplied; internal/
+management IP ranges (RFC1918, loopback, link-local) and the ATDR backend
+host's own address(es) are always protected and cannot be targeted. Every
+action is audited regardless of outcome.
+
+`RESPONSE_SIMULATION=true` (the default in every example profile) means a
+block is recorded and shown in the dashboard, but nothing is changed on any
+real device. An operator may explicitly opt a **local/lab** profile into real
+enforcement with `RESPONSE_SIMULATION=false` and `RESPONSE_PROVIDER=windows_firewall`:
+this creates a real, reversible Windows Firewall rule on the machine running
+the ATDR backend, blocking inbound and outbound traffic to/from the target IP
+on that host only. It never touches any other device, requires no external
+network-owner approval (it is the operator's own machine), and is fully
+undone by the matching unblock action. Blocks may include a timeout (capped
+by `RESPONSE_MAX_BLOCK_MINUTES`, default 1440) after which they are lifted
+automatically. This is the only implemented enforcement connector; any other
+`RESPONSE_PROVIDER` value is recorded as `pending_connector` and takes no
+action. Real enforcement is refused by configuration validation outside a
+local/lab `ENVIRONMENT` and on a non-Windows backend host. See
+`docs/changes/T1_T20_RESPONSE_REAL_ENFORCEMENT.md`.
+
 ## Safety And Repository Hygiene
 
 Never commit:
@@ -256,8 +291,12 @@ Never commit:
 - `ml_baseline_reviews/` or `demo_exports/`;
 - generated reports, provider payloads, SBOMs, or acceptance manifests.
 
-`RESPONSE_SIMULATION=true` and `RESPONSE_PROVIDER=simulation` must remain set.
-No real firewall connector is enabled.
+`RESPONSE_SIMULATION=true` and `RESPONSE_PROVIDER=simulation` are the default
+in every example profile and must remain set for any shared/production
+deployment. A local/lab operator may explicitly opt into the real, host-only
+Windows Firewall connector described under
+[Response And Containment](#response-and-containment); no other real
+firewall/network connector is implemented.
 
 ## Verification
 
