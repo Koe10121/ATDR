@@ -296,3 +296,71 @@ def test_anomaly_evidence_does_not_mask_explicit_policy_rule():
     )
 
     assert attack_type == "policy_violation"
+
+
+def test_default_paloalto_untrust_zone_is_not_misread_as_an_inside_zone():
+    # Palo Alto's own default zone names are "trust" (inside) and "untrust"
+    # (outside). A naive substring check ("trust" in zone) misreads "untrust"
+    # as an inside zone, because "untrust" contains "trust" as a substring.
+    # Traffic that never leaves the untrust zone must not be treated as
+    # crossing a trust boundary in either direction.
+    log = NormalizedLog(
+        src_ip="203.0.113.10",
+        dst_ip="203.0.113.20",
+        src_zone="untrust",
+        dst_zone="untrust",
+        app="ssl",
+        app_category="general-internet",
+        dst_port=443,
+        action="allow",
+        protocol="tcp",
+        app_risk=1,
+        bytes=500,
+        packets=5,
+    )
+    context = build_detection_context([log])
+    codes = {match.code for match in evaluate_rules(log, context)}
+
+    assert "outside_to_inside" not in codes
+    assert "unusual_destination_port" not in codes
+
+
+def test_default_paloalto_trust_untrust_zones_still_detect_real_direction():
+    # The fix must not regress genuine trust/untrust traffic in either
+    # direction using Palo Alto's actual default zone names.
+    outbound = NormalizedLog(
+        src_ip="10.0.0.5",
+        dst_ip="203.0.113.20",
+        src_zone="trust",
+        dst_zone="untrust",
+        app="ssl",
+        app_category="general-internet",
+        dst_port=4444,
+        action="allow",
+        protocol="tcp",
+        app_risk=1,
+        bytes=500,
+        packets=5,
+    )
+    inbound = NormalizedLog(
+        src_ip="203.0.113.20",
+        dst_ip="10.0.0.5",
+        src_zone="untrust",
+        dst_zone="trust",
+        app="ssl",
+        app_category="general-internet",
+        dst_port=4444,
+        action="allow",
+        protocol="tcp",
+        app_risk=1,
+        bytes=500,
+        packets=5,
+    )
+    context = build_detection_context([outbound, inbound])
+
+    outbound_codes = {match.code for match in evaluate_rules(outbound, context)}
+    inbound_codes = {match.code for match in evaluate_rules(inbound, context)}
+
+    assert "unusual_destination_port" not in outbound_codes  # direction, not zone, gates this rule
+    assert "outside_to_inside" in inbound_codes
+    assert "unusual_destination_port" in inbound_codes

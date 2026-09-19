@@ -7,6 +7,7 @@ from atdr.app.db.models import Alert, AlertEvidence, MLLabel, NormalizedLog
 from atdr.app.detection.attack_mapping import attack_mapping_for_type, infer_attack_type_from_rules
 from atdr.app.detection.hybrid_scoring import hybrid_risk_score
 from atdr.app.detection.rule_catalog import rule_spec
+from atdr.app.detection.rules import is_outside_to_inside
 from atdr.app.detection.supervised_detector import predict_supervised_log
 from atdr.app.ml.features import build_log_features
 from atdr.app.services.case_service import case_trace_for_alert
@@ -169,8 +170,6 @@ def explain_log_triage(log: NormalizedLog) -> dict[str, Any]:
     action = (log.action or "").lower()
     session_end = (log.session_end_reason or "").lower()
     app = (log.app or "").lower()
-    src_zone = (log.src_zone or "").lower()
-    dst_zone = (log.dst_zone or "").lower()
 
     if any(token in action or token in session_end for token in ("deny", "drop", "reset")):
         normalized_signals.append("deny/drop/reset behavior")
@@ -180,9 +179,7 @@ def explain_log_triage(log: NormalizedLog) -> dict[str, Any]:
         normalized_signals.append(f"high application risk {log.app_risk}")
     if log.dst_port is not None:
         normalized_signals.append(f"destination port {log.dst_port}")
-    if ("outside" in src_zone or "untrust" in src_zone or "internet" in src_zone) and any(
-        token in dst_zone for token in ("inside", "trust", "lan", "wlan", "corp")
-    ):
+    if is_outside_to_inside(log):
         normalized_signals.append("external-to-internal direction")
     if log.is_anomaly:
         normalized_signals.append(f"IsolationForest anomaly score {log.anomaly_score}")

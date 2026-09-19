@@ -23,6 +23,7 @@ from atdr.app.detection.rules import (
     build_detection_context,
     correlation_window_for_log,
     evaluate_rules,
+    is_outside_to_inside,
 )
 from atdr.app.detection.scoring import clamp_score, severity_from_score
 from atdr.app.services.alert_service import (
@@ -269,14 +270,6 @@ def _time_bucket(log: NormalizedLog, bucket_minutes: int = GROUP_BUCKET_MINUTES)
     return event_time.replace(minute=minute, second=0, microsecond=0).isoformat()
 
 
-def _outside_to_inside(log: NormalizedLog) -> bool:
-    src_zone = (log.src_zone or "").lower()
-    dst_zone = (log.dst_zone or "").lower()
-    src_outside = "outside" in src_zone or "untrust" in src_zone or "internet" in src_zone
-    dst_inside = any(token in dst_zone for token in ("inside", "trust", "lan", "wlan", "corp"))
-    return src_outside and dst_inside
-
-
 def _source_scope(log: NormalizedLog | DetectionLogRecord) -> str:
     source_id = getattr(log, "source_id", None)
     raw_log = getattr(log, "raw_log", None)
@@ -289,9 +282,9 @@ def _group_key(candidate: DetectionCandidate) -> tuple:
     log = candidate.log
     primary_code = candidate.primary_rule.code
     source_group = log.src_ip or "unknown-source"
-    if primary_code in INTERNET_SWEEP_RULES and _outside_to_inside(log):
+    if primary_code in INTERNET_SWEEP_RULES and is_outside_to_inside(log):
         source_group = "multiple-internet-sources"
-    if primary_code in APP_RISK_POLICY_RULES and not _outside_to_inside(log):
+    if primary_code in APP_RISK_POLICY_RULES and not is_outside_to_inside(log):
         source_group = "multiple-app-risk-sources"
     destination_group = log.dst_ip if primary_code in REPEATED_DESTINATION_RULES else None
     dst_port = (

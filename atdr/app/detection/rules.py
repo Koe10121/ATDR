@@ -1,3 +1,4 @@
+import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -64,6 +65,20 @@ COMMON_PORTS = {
 }
 
 AUTH_SERVICE_PORTS = {21, 22, 23, 25, 110, 143, 389, 445, 465, 587, 993, 995, 1433, 3306, 3389, 5432, 5900}
+
+OUTSIDE_ZONE_TOKENS = {"outside", "untrust", "internet", "wan"}
+INSIDE_ZONE_TOKENS = {"inside", "trust", "lan", "wlan", "corp"}
+_ZONE_TOKEN_SPLIT = re.compile(r"[^a-z0-9]+")
+
+
+def _zone_tokens(zone: str | None) -> set[str]:
+    # Palo Alto's own default zone names are "trust" (inside) and "untrust"
+    # (outside). A naive `"trust" in zone` substring check treats "untrust"
+    # as an inside zone, because "untrust" contains "trust" as a substring.
+    # Tokenizing on non-alphanumeric separators keeps "SG-Outside" matching
+    # via its "outside" token while keeping "untrust" as a single distinct
+    # token that never matches the "trust" token.
+    return {token for token in _ZONE_TOKEN_SPLIT.split(_lower(zone)) if token}
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,19 +147,15 @@ def _is_deny_or_drop(log: NormalizedLog) -> bool:
     )
 
 
-def _is_outside_to_inside(log: NormalizedLog) -> bool:
-    src_zone = _lower(log.src_zone)
-    dst_zone = _lower(log.dst_zone)
-    src_outside = "outside" in src_zone or "untrust" in src_zone or "internet" in src_zone
-    dst_inside = any(token in dst_zone for token in ("inside", "trust", "lan", "wlan", "corp"))
+def is_outside_to_inside(log: NormalizedLog) -> bool:
+    src_outside = bool(_zone_tokens(log.src_zone) & OUTSIDE_ZONE_TOKENS)
+    dst_inside = bool(_zone_tokens(log.dst_zone) & INSIDE_ZONE_TOKENS)
     return src_outside and dst_inside
 
 
-def _is_internal_to_external(log: NormalizedLog) -> bool:
-    src_zone = _lower(log.src_zone)
-    dst_zone = _lower(log.dst_zone)
-    src_inside = any(token in src_zone for token in ("inside", "trust", "lan", "wlan", "corp"))
-    dst_outside = "outside" in dst_zone or "untrust" in dst_zone or "internet" in dst_zone
+def is_internal_to_external(log: NormalizedLog) -> bool:
+    src_inside = bool(_zone_tokens(log.src_zone) & INSIDE_ZONE_TOKENS)
+    dst_outside = bool(_zone_tokens(log.dst_zone) & OUTSIDE_ZONE_TOKENS)
     return src_inside and dst_outside
 
 
@@ -447,7 +458,7 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
             )
         )
 
-    if _is_outside_to_inside(log):
+    if is_outside_to_inside(log):
         matches.append(
             RuleMatch(
                 code="outside_to_inside",
@@ -513,7 +524,7 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
     scan_support: list[str] = []
     if deny_drop_count >= DENY_BURST_THRESHOLD:
         scan_support.append("repeated deny/drop evidence")
-    if _is_outside_to_inside(log):
+    if is_outside_to_inside(log):
         scan_support.append("external-to-internal direction")
     if _lower(log.app) in {"unknown", "incomplete", "not-applicable", "unknown-tcp"}:
         scan_support.append("unresolved application identity")
@@ -540,7 +551,7 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
     horizontal_support: list[str] = []
     if deny_drop_count_for_port >= DENY_BURST_THRESHOLD:
         horizontal_support.append("repeated deny/drop evidence on the service")
-    if _is_outside_to_inside(log):
+    if is_outside_to_inside(log):
         horizontal_support.append("external-to-internal direction")
     if _lower(log.app) in {"unknown", "incomplete", "not-applicable", "unknown-tcp"}:
         horizontal_support.append("unresolved application identity")
@@ -582,7 +593,7 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
     if (
         destination_repeat_count >= BEACON_EVENT_THRESHOLD
         and periodic_cadence
-        and _is_internal_to_external(log)
+        and is_internal_to_external(log)
     ):
         app_name = _lower(log.app)
         characteristics = _characteristic_set(log.app_characteristic)
@@ -631,7 +642,7 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
         and (_is_deny_or_drop(log) or vendor_flood_evidence)
     )
     if very_high_volume or corroborated_volume:
-        if _is_outside_to_inside(log):
+        if is_outside_to_inside(log):
             flood_context.append("external-to-internal direction")
         matches.append(
             RuleMatch(
@@ -647,7 +658,7 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
             )
         )
 
-    if log.dst_port is not None and log.dst_port not in COMMON_PORTS and _is_outside_to_inside(log):
+    if log.dst_port is not None and log.dst_port not in COMMON_PORTS and is_outside_to_inside(log):
         matches.append(
             RuleMatch(
                 code="unusual_destination_port",
@@ -661,7 +672,7 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
     if (
         outbound_bytes is not None
         and outbound_bytes > context.byte_outlier_threshold
-        and _is_internal_to_external(log)
+        and is_internal_to_external(log)
     ):
         matches.append(
             RuleMatch(

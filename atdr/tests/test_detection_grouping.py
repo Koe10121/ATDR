@@ -11,13 +11,14 @@ from atdr.app.db.models import (
     RawLog,
     ResponseAction,
 )
+from atdr.app.detection.rules import DetectionResult, RuleMatch
 from atdr.app.services.alert_service import (
     alert_evidence_summaries,
     get_alert,
 )
 from atdr.app.services.case_service import count_alert_cases, list_alert_cases
 from atdr.app.services import detection_service
-from atdr.app.services.detection_service import run_detection
+from atdr.app.services.detection_service import DetectionCandidate, run_detection
 
 
 def _session():
@@ -327,3 +328,57 @@ def test_alert_and_case_summaries_use_bounded_group_metadata():
     assert summary["source_ids"] == [source.id]
     assert summary["source_names"] == [source.name]
     assert cases[0]["total_related_logs"] == 150
+
+
+def _candidate(*, src_zone: str, dst_zone: str, primary_code: str) -> DetectionCandidate:
+    log = NormalizedLog(
+        src_ip="203.0.113.99",
+        dst_ip="198.51.100.5",
+        src_zone=src_zone,
+        dst_zone=dst_zone,
+        app="ssl",
+        dst_port=443,
+        action="allow",
+        protocol="tcp",
+    )
+    rule = RuleMatch(code=primary_code, title=primary_code, score=10, explanation="test")
+    result = DetectionResult(threat_score=10, severity="Low", explanation="test", matched_rules=[rule])
+    return DetectionCandidate(log=log, result=result, primary_rule=rule)
+
+
+def test_group_key_does_not_merge_same_zone_untrust_traffic_as_internet_sweep():
+    # Regression test: Palo Alto's own default zone names are "trust"
+    # (inside) and "untrust" (outside). A prior substring-matching bug
+    # ("trust" in "untrust") made _group_key treat untrust->untrust traffic
+    # (which never crosses a trust boundary) as "outside_to_inside", merging
+    # unrelated sources into a single "multiple-internet-sources" group.
+    candidate = _candidate(src_zone="untrust", dst_zone="untrust", primary_code="unknown_or_incomplete_app")
+
+    key = detection_service._group_key(candidate)
+
+    source_group = key[2]
+    assert source_group == "203.0.113.99"
+    assert source_group != "multiple-internet-sources"
+
+
+def test_group_key_still_merges_genuine_outside_to_inside_internet_sweep():
+    # The fix must not regress genuine trust/untrust traffic using Palo
+    # Alto's actual default zone names.
+    candidate = _candidate(src_zone="untrust", dst_zone="trust", primary_code="unknown_or_incomplete_app")
+
+    key = detection_service._group_key(candidate)
+
+    assert key[2] == "multiple-internet-sources"
+
+
+def test_group_key_does_not_falsely_merge_app_risk_sources_for_untrust_traffic():
+    # Before the fix, untrust->untrust traffic was misread as
+    # outside-to-inside, so `not is_outside_to_inside(log)` was False and the
+    # app-risk-policy merge never triggered even though this traffic never
+    # left the untrust zone in the first place. Genuinely outbound
+    # (trust->untrust) app-risk traffic must still merge correctly.
+    outbound = _candidate(src_zone="trust", dst_zone="untrust", primary_code="app_risk_5")
+    same_zone = _candidate(src_zone="untrust", dst_zone="untrust", primary_code="app_risk_5")
+
+    assert detection_service._group_key(outbound)[2] == "multiple-app-risk-sources"
+    assert detection_service._group_key(same_zone)[2] == "multiple-app-risk-sources"

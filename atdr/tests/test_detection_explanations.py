@@ -30,6 +30,49 @@ def test_explain_log_triage_reports_not_flagged_with_parser_context():
     assert "Decision support" in explanation["safety_note"]
 
 
+def test_explain_log_triage_does_not_report_false_direction_for_same_zone_untrust():
+    # Regression test: a prior substring-matching bug ("trust" in "untrust")
+    # made this reuse the same zone-classification defect fixed in
+    # atdr/app/detection/rules.py, reporting a false "external-to-internal
+    # direction" signal for traffic that never left Palo Alto's default
+    # "untrust" zone.
+    log = NormalizedLog(
+        id=12,
+        raw_log_id=3,
+        src_ip="203.0.113.12",
+        dst_ip="198.51.100.12",
+        dst_port=443,
+        app="ssl",
+        action="allow",
+        src_zone="untrust",
+        dst_zone="untrust",
+        parsed_json={},
+    )
+
+    explanation = explain_log_triage(log)
+
+    assert "external-to-internal direction" not in explanation["normalized_signals"]
+
+
+def test_explain_log_triage_still_reports_genuine_outside_to_inside_direction():
+    log = NormalizedLog(
+        id=13,
+        raw_log_id=4,
+        src_ip="203.0.113.13",
+        dst_ip="10.0.0.13",
+        dst_port=443,
+        app="ssl",
+        action="allow",
+        src_zone="untrust",
+        dst_zone="trust",
+        parsed_json={},
+    )
+
+    explanation = explain_log_triage(log)
+
+    assert "external-to-internal direction" in explanation["normalized_signals"]
+
+
 def test_explain_log_triage_reports_flagged_alert_links():
     log = NormalizedLog(id=11, raw_log_id=2, src_ip="203.0.113.11", dst_ip="10.0.0.11", action="deny")
     log.alert_evidence.append(AlertEvidence(alert_id=42, normalized_log_id=11))

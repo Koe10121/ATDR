@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from atdr.app.db.models import NormalizedLog, RawLog
 from atdr.app.detection.ml_detector import CATEGORICAL_FEATURES as BASE_CATEGORICAL_FEATURES
 from atdr.app.detection.ml_detector import NUMERIC_FEATURES as BASE_NUMERIC_FEATURES
-from atdr.app.detection.rules import COMMON_PORTS
+from atdr.app.detection.rules import COMMON_PORTS, is_internal_to_external, is_outside_to_inside
 from atdr.app.services.ml_service import UNKNOWN_APPS
 
 
@@ -252,11 +252,6 @@ def _lower(value: str | None) -> str:
     return (value or "").strip().lower()
 
 
-def _zone_contains(value: str | None, tokens: tuple[str, ...]) -> bool:
-    lowered = _lower(value)
-    return any(token in lowered for token in tokens)
-
-
 def _is_deny_drop_reset(action: str | None) -> bool:
     lowered = _lower(action)
     return "deny" in lowered or "drop" in lowered or lowered.startswith("reset")
@@ -320,10 +315,6 @@ def _parser_quality_features(log: NormalizedLog) -> dict[str, int | float]:
 
 
 def _behavior_flags(db: Session, log: NormalizedLog, five_min: dict[str, Any]) -> dict[str, Any]:
-    src_external = _zone_contains(log.src_zone, ("outside", "untrust", "internet", "wan"))
-    src_internal = _zone_contains(log.src_zone, ("inside", "trust", "lan", "wlan", "corp"))
-    dst_external = _zone_contains(log.dst_zone, ("outside", "untrust", "internet", "wan"))
-    dst_internal = _zone_contains(log.dst_zone, ("inside", "trust", "lan", "wlan", "corp"))
     app_name = _lower(log.app)
     rare_dst_port = int(
         log.dst_port is not None
@@ -343,8 +334,8 @@ def _behavior_flags(db: Session, log: NormalizedLog, five_min: dict[str, Any]) -
         "rare_dst_port_flag": rare_dst_port,
         "rare_app_flag": rare_app,
         "unknown_app_flag": int(app_name in UNKNOWN_APPS or app_name in {"unknown", "incomplete", "not-applicable"}),
-        "external_to_internal_flag": int(src_external and dst_internal),
-        "internal_to_external_flag": int(src_internal and dst_external),
+        "external_to_internal_flag": int(is_outside_to_inside(log)),
+        "internal_to_external_flag": int(is_internal_to_external(log)),
         "first_seen_src_ip_flag": int(bool(log.src_ip) and not _has_prior_value(db, NormalizedLog.src_ip, log.src_ip, log)),
         "first_seen_app_flag": int(bool(log.app) and not _has_prior_value(db, NormalizedLog.app, log.app, log)),
         "repeated_connection_attempts": _repeated_connection_attempts(db, log),
@@ -487,10 +478,6 @@ def _bulk_behavior_flags(
     prior_src_count: int,
     repeated_attempts: int,
 ) -> dict[str, Any]:
-    src_external = _zone_contains(log.src_zone, ("outside", "untrust", "internet", "wan"))
-    src_internal = _zone_contains(log.src_zone, ("inside", "trust", "lan", "wlan", "corp"))
-    dst_external = _zone_contains(log.dst_zone, ("outside", "untrust", "internet", "wan"))
-    dst_internal = _zone_contains(log.dst_zone, ("inside", "trust", "lan", "wlan", "corp"))
     app_name = _lower(log.app)
     unique_ports = int(five_min.get("src_ip_5min_unique_dst_ports") or 0)
     unique_ips = int(five_min.get("src_ip_5min_unique_dst_ips") or 0)
@@ -501,8 +488,8 @@ def _bulk_behavior_flags(
         ),
         "rare_app_flag": int(bool(app_name) and app_name not in UNKNOWN_APPS and prior_app_count <= 3),
         "unknown_app_flag": int(app_name in UNKNOWN_APPS or app_name in {"unknown", "incomplete", "not-applicable"}),
-        "external_to_internal_flag": int(src_external and dst_internal),
-        "internal_to_external_flag": int(src_internal and dst_external),
+        "external_to_internal_flag": int(is_outside_to_inside(log)),
+        "internal_to_external_flag": int(is_internal_to_external(log)),
         "first_seen_src_ip_flag": int(bool(log.src_ip) and prior_src_count == 0),
         "first_seen_app_flag": int(bool(log.app) and prior_app_count == 0),
         "repeated_connection_attempts": repeated_attempts,
