@@ -493,7 +493,7 @@ export interface DetectionSummary {
   anomaly: Record<string, unknown>;
   supervised: Record<string, unknown>;
   hybrid_risk: Record<string, unknown>;
-  observed_evidence?: string[];
+  observed_evidence?: Array<{ field: string; value: unknown }>;
   rule_inferences?: string[];
   diagnostic_evidence?: string[];
   missing_context?: string[];

@@ -119,7 +119,10 @@ export function AlertsTriage() {
   const missingContext = detectionSummary?.missing_context ?? [];
   const evidenceConfidence = detectionSummary?.evidence_confidence ?? "analyst review required";
   const analystNextSteps = detectionSummary?.analyst_next_steps ?? [];
-  const observedEvidence = detectionSummary?.observed_evidence ?? detectionSummary?.top_evidence_points ?? [];
+  const observedEvidence =
+    (detectionSummary?.observed_evidence?.length
+      ? detectionSummary.observed_evidence.map((point) => `${point.field}: ${String(point.value)}`)
+      : detectionSummary?.top_evidence_points) ?? [];
   const groupMetadata = selected?.matched_rules_json?.find((rule) => rule.code === "group_metadata") ?? null;
   const occurrenceCount = Number(groupMetadata?.occurrence_count ?? groupMetadata?.evidence_count ?? selected?.evidence_count ?? 0);
   const relatedLogCount = Number(groupMetadata?.related_log_count ?? groupMetadata?.evidence_count ?? selected?.evidence_count ?? 0);

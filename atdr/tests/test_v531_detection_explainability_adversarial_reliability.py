@@ -244,6 +244,28 @@ def test_v531_alert_explanation_is_complete_traceable_and_claim_bounded() -> Non
     assert completeness["score"] == 1.0
 
 
+def test_v531_observed_evidence_is_a_stable_field_value_pair_contract() -> None:
+    # Regression: the frontend alert detail view rendered this list's items
+    # directly as React children, which crashed on every alert (a white
+    # screen) because this is a list of {field, value} dicts, not plain
+    # strings. Locking the shape here so a future change can't silently
+    # break the frontend contract the same way again.
+    db = _session()
+    _persist_case(db, "vertical_scan_positive")
+    run_detection(db, limit=100, use_ml=False, actor="v531-test")
+    alert = db.scalar(select(Alert))
+    assert alert is not None
+
+    summary = build_alert_detection_summary(db, alert)
+    observed_evidence = summary["observed_evidence"]
+
+    assert observed_evidence
+    for point in observed_evidence:
+        assert set(point.keys()) == {"field", "value"}
+        assert isinstance(point["field"], str) and point["field"]
+        assert point["value"] not in (None, "")
+
+
 def test_v531_every_catalog_rule_has_explanation_and_false_positive_contract() -> None:
     assert RULE_CATALOG_VERSION == "atdr_rule_catalog_v5.31.0"
     assert len(RULE_CATALOG) == 19

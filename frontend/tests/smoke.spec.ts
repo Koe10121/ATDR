@@ -65,6 +65,14 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
       supervised: { predicted_label: "suspicious", malicious_probability: 0.82, confidence: 0.9, decision_support_only: true },
       hybrid_risk: { final_risk_score: 88 },
       behavior_window: { src_ip_5min_unique_dst_ports: 32, scanning_like_behavior_score: 80 },
+      // Real shape from build_alert_detection_summary: a list of {field, value}
+      // pairs, not plain strings. A prior mismatch here (this fixture omitted
+      // the field and the frontend silently fell back to top_evidence_points)
+      // hid a crash that fired on every real alert.
+      observed_evidence: [
+        { field: "src_ip", value: "203.0.113.10" },
+        { field: "dst_port", value: 22 }
+      ],
       top_evidence_points: ["Policy deny: Denied traffic.", "Source touched 32 unique destination ports in 5 minutes."],
       why_flagged: "Flagged as suspicious because action=deny and source touched 32 unique destination ports in 5 minutes."
     }
@@ -4985,6 +4993,10 @@ test("deep-linked alert and log drawers render", async ({ page }) => {
   await page.goto("/alerts?alert=1");
   await expect(page.getByRole("heading", { name: "Critical: Smoke alert" })).toBeVisible();
   await expect(page.getByText("Why flagged?")).toBeVisible();
+  // Regression: observed_evidence is a {field, value} pair list, not plain
+  // strings; rendering it raw crashed the whole page on every real alert.
+  await expect(page.getByText("src_ip: 203.0.113.10")).toBeVisible();
+  await expect(page.getByText("dst_port: 22")).toBeVisible();
   await expect(page.getByText("What happened", { exact: true })).toBeVisible();
   await expect(page.getByText("Evidence strength", { exact: true })).toBeVisible();
   await expect(page.getByText("Missing context", { exact: true })).toBeVisible();
@@ -5654,6 +5666,48 @@ test("supervised qualification workspace is prediction-blind and keeps external 
   const horizontalScroll = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(horizontalScroll).toBeLessThanOrEqual(1);
   await expect(page.getByRole("button", { name: /run evaluation|activate model|promote model|response action|import/i })).toHaveCount(0);
+});
+
+test("supervised qualification review form supports keyboard shortcuts without shortcutting confirmation", async ({ page }) => {
+  await mockApi(page);
+  await seedSession(page);
+  await page.goto("/evidence-review");
+  await page.getByRole("tab", { name: "Supervised Qualification" }).click();
+
+  const form = page.getByTestId("qualification-review-form");
+  const formElement = form.locator("form");
+  await expect(form).toContainText("Ctrl+Enter");
+
+  // The form auto-focuses itself when an item loads, so "5" selects
+  // Malicious immediately -- no dropdown click required.
+  await formElement.focus();
+  await page.keyboard.press("5");
+  await expect(page.getByRole("button", { name: "Supervised qualification final decision" })).toContainText("Malicious");
+
+  // Typing a digit inside the rationale textarea must type normally, not
+  // reselect the decision -- the shortcut only applies outside text entry.
+  await page.getByLabel("Rationale").fill("Repeated attempts against port 5900 support malicious classification.");
+  await expect(page.getByLabel("Rationale")).toHaveValue("Repeated attempts against port 5900 support malicious classification.");
+  await expect(page.getByRole("button", { name: "Supervised qualification final decision" })).toContainText("Malicious");
+
+  await page.getByPlaceholder("e.g. network_probe").fill("brute_force");
+  await page.getByLabel("Confidence (1-100)").fill("88");
+
+  // Ctrl+Enter must not submit while the confirmation box is unchecked --
+  // the shortcut accelerates mechanics, never the affirmative confirmation
+  // itself, even when pressed from inside a field.
+  await page.getByLabel("Confidence (1-100)").press("Control+Enter");
+  await expect(page.getByTestId("supervised_qualification-review-metrics")).toContainText("0/300");
+  await expect(page.locator('input[type="checkbox"]')).not.toBeChecked();
+
+  // "c" toggles confirmation as its own explicit, distinct keystroke -- it
+  // is never bundled into the submit shortcut above.
+  await formElement.focus();
+  await page.keyboard.press("c");
+  await expect(page.locator('input[type="checkbox"]')).toBeChecked();
+
+  await page.keyboard.press("Control+Enter");
+  await expect(page.getByTestId("supervised_qualification-review-metrics")).toContainText("1/300");
 });
 
 test("fresh evidence expansion is append-only, batched, and prediction-blind", async ({ page }) => {
