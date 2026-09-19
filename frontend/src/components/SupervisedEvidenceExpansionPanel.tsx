@@ -1,11 +1,10 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
   CheckCircle2,
   Database,
   LockKeyhole,
-  Save,
   ShieldCheck
 } from "lucide-react";
 import {
@@ -18,25 +17,16 @@ import {
   useSupervisedExpansionStatus
 } from "../hooks/useApiQueries";
 import type {
-  DetectionReviewDecision,
   SupervisedExpansionBatchProgress,
   SupervisedExpansionReviewItem,
   SupervisedExpansionReviewOperation
 } from "../types/api";
 import { Badge } from "./Badge";
 import { ErrorBanner } from "./ErrorBanner";
+import { IndependentDecisionForm } from "./IndependentDecisionForm";
 import { LoadingPanel } from "./LoadingPanel";
 import { MetricCard } from "./MetricCard";
 import { SafeSelect } from "./SafeSelect";
-
-const decisionOptions = [
-  { value: "", label: "Select final decision" },
-  { value: "benign", label: "Benign" },
-  { value: "benign_unusual", label: "Benign unusual" },
-  { value: "needs_context", label: "Needs context" },
-  { value: "suspicious", label: "Suspicious" },
-  { value: "malicious", label: "Malicious" }
-];
 
 function formatName(value: string): string {
   return value
@@ -53,123 +43,18 @@ function BatchReviewForm({
   onSaved: (result: SupervisedExpansionReviewOperation) => void;
 }) {
   const save = useSaveSupervisedExpansionReviewMutation();
-  const [decision, setDecision] = useState<DetectionReviewDecision | "">("");
-  const [attackType, setAttackType] = useState("");
-  const [confidence, setConfidence] = useState("");
-  const [rationale, setRationale] = useState("");
-  const [confirmed, setConfirmed] = useState(false);
-
-  useEffect(() => {
-    setDecision(item.existing_review?.decision ?? "");
-    setAttackType(item.existing_review?.attack_type ?? "");
-    setConfidence(item.existing_review ? String(item.existing_review.confidence) : "");
-    setRationale(item.existing_review?.rationale ?? "");
-    setConfirmed(false);
-  }, [item]);
-
-  const confidenceNumber = Number(confidence);
-  const requiresAttackType = decision === "suspicious" || decision === "malicious";
-  const valid = Boolean(
-    decision &&
-      confidenceNumber >= 1 &&
-      confidenceNumber <= 100 &&
-      rationale.trim().length >= 8 &&
-      (!requiresAttackType || attackType.trim()) &&
-      confirmed &&
-      !item.closed
-  );
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (!valid || !decision) return;
-    const result = await save.mutateAsync({
-      batchId: item.batch_id,
-      rowIndex: item.row_index,
-      payload: {
-        expected_revision: item.revision,
-        decision,
-        attack_type: attackType,
-        confidence: confidenceNumber,
-        rationale,
-        human_confirmed: true
-      }
-    });
-    onSaved(result);
-  }
-
   return (
-    <section className="panel min-w-0" data-testid="expansion-review-form">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="text-sm font-black uppercase tracking-wide text-muted">Independent decision</div>
-        <Badge value={item.closed ? "Closed" : item.reviewed ? "Saved" : "Pending"} />
-      </div>
-      <form className="mt-4 space-y-4" onSubmit={submit}>
-        <label className="block text-sm font-bold">
-          Final decision
-          <SafeSelect
-            ariaLabel="Supplemental qualification final decision"
-            className="mt-2"
-            disabled={item.closed}
-            value={decision}
-            options={decisionOptions}
-            onChange={(value) => setDecision(value as DetectionReviewDecision | "")}
-          />
-        </label>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="text-sm font-bold">
-            Attack type {requiresAttackType ? <span className="text-danger">required</span> : <span className="text-muted">optional</span>}
-            <input
-              className="input mt-2 w-full"
-              disabled={item.closed}
-              maxLength={120}
-              value={attackType}
-              onChange={(event) => setAttackType(event.target.value)}
-              placeholder="e.g. network_probe"
-            />
-          </label>
-          <label className="text-sm font-bold">
-            Confidence (1-100)
-            <input
-              className="input mt-2 w-full"
-              disabled={item.closed}
-              type="number"
-              min={1}
-              max={100}
-              value={confidence}
-              onChange={(event) => setConfidence(event.target.value)}
-            />
-          </label>
-        </div>
-        <label className="block text-sm font-bold">
-          Rationale
-          <textarea
-            className="input mt-2 min-h-28 w-full resize-y"
-            disabled={item.closed}
-            maxLength={2000}
-            value={rationale}
-            onChange={(event) => setRationale(event.target.value)}
-            placeholder="Record the evidence supporting this independent decision."
-          />
-        </label>
-        {!item.closed ? (
-          <label className="flex items-start gap-3 rounded-lg border border-line bg-panel2 p-3 text-sm font-semibold">
-            <input
-              className="mt-1"
-              type="checkbox"
-              checked={confirmed}
-              onChange={(event) => setConfirmed(event.target.checked)}
-            />
-            I confirm this is my independent human decision based only on the approved evidence shown.
-          </label>
-        ) : null}
-        {save.isError ? <ErrorBanner error={save.error} fallback="Unable to save this supplemental decision." /> : null}
-        {!item.closed ? (
-          <button className="btn-primary inline-flex items-center gap-2" type="submit" disabled={!valid || save.isPending}>
-            <Save size={16} /> {save.isPending ? "Saving" : item.reviewed ? "Update and next" : "Save and next"}
-          </button>
-        ) : null}
-      </form>
-    </section>
+    <IndependentDecisionForm
+      item={item}
+      onSaved={onSaved}
+      onSubmit={(payload) => save.mutateAsync({ batchId: item.batch_id, rowIndex: item.row_index, payload })}
+      isPending={save.isPending}
+      isError={save.isError}
+      error={save.error}
+      errorFallback="Unable to save this supplemental decision."
+      decisionAriaLabel="Supplemental qualification final decision"
+      testId="expansion-review-form"
+    />
   );
 }
 
