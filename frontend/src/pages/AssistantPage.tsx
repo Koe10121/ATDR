@@ -470,7 +470,6 @@ export function AssistantPage() {
   if (restoredSessionRef.current === undefined) {
     restoredSessionRef.current = loadAssistantSession();
   }
-  const restoredSession = hasRouteDirective ? null : restoredSessionRef.current;
   const routeContext: AssistantContextState = {
     alertId,
     logId,
@@ -478,6 +477,24 @@ export function AssistantPage() {
     caseId,
     primary: primaryContextFromValues({ alertId, logId, sourceId, caseId })
   };
+  // A route directive (e.g. ?alert=1) normally means "fresh navigation to
+  // this context" and should reset any restored session. But browser
+  // back/forward re-navigates to the exact same URL the session was saved
+  // under (e.g. returning to /assistant?alert=1 after clicking away), and
+  // that case should restore the prior question/answer instead of wiping
+  // it -- so only discard the restored session when the route directive
+  // points at a *different* context than what was saved.
+  const restoredSessionMatchesRoute =
+    hasRouteDirective
+    && restoredSessionRef.current != null
+    && restoredSessionRef.current.context.alertId === alertId
+    && restoredSessionRef.current.context.logId === logId
+    && restoredSessionRef.current.context.sourceId === sourceId
+    && restoredSessionRef.current.context.caseId === caseId;
+  const restoredSession = !hasRouteDirective || restoredSessionMatchesRoute ? restoredSessionRef.current : null;
+  if (appliedRouteDirectiveRef.current === null && restoredSessionMatchesRoute && routeDirectiveKey) {
+    appliedRouteDirectiveRef.current = routeDirectiveKey;
+  }
   const [question, setQuestion] = useState(() => restoredSession?.question ?? initialQuestion);
   const [copyStatus, setCopyStatus] = useState("");
   const [feedbackNote, setFeedbackNote] = useState("");
@@ -570,18 +587,33 @@ export function AssistantPage() {
 
   useEffect(() => {
     if (!response) return;
-    const responsePrimary = response.active_context?.primary ?? primaryContextFromResponse(response);
-    const responseAlertId = citationNumber(response, "/api/alerts/{alert_id}", ["alert"]);
-    const responseLogId = citationNumber(response, "/api/logs/{log_id}", ["log", "related"]);
-    const responseSourceId = citationNumber(response, "/api/sources/{source_id}", ["source"]);
-    const responseCaseId = citationString(response, "/api/alerts/cases", ["case"]);
-    setLastContext({
-      alertId: response.active_context?.alert_id ?? responseAlertId ?? null,
-      logId: response.active_context?.log_id ?? responseLogId ?? null,
-      sourceId: response.active_context?.source_id ?? responseSourceId ?? null,
-      caseId: response.active_context?.case_id ?? responseCaseId ?? null,
-      primary: responsePrimary ?? null
-    });
+    const activeContext = response.active_context;
+    // active_context, when present, is the backend's authoritative answer --
+    // including an explicit null meaning "no log context for this answer."
+    // Citation-parsing is only a fallback for responses that omit
+    // active_context entirely; using `??` per-field here previously treated
+    // every explicit null as "unknown" and fell through to citation
+    // guessing, which pulled a stray logId/sourceId out of unrelated
+    // citations (e.g. a "Log detail"/"Source" citation sharing the same
+    // reference_id as the alert) and corrupted the saved session context.
+    const responsePrimary = activeContext?.primary ?? primaryContextFromResponse(response);
+    if (activeContext) {
+      setLastContext({
+        alertId: activeContext.alert_id ?? null,
+        logId: activeContext.log_id ?? null,
+        sourceId: activeContext.source_id ?? null,
+        caseId: activeContext.case_id ?? null,
+        primary: responsePrimary ?? null
+      });
+    } else {
+      setLastContext({
+        alertId: citationNumber(response, "/api/alerts/{alert_id}", ["alert"]),
+        logId: citationNumber(response, "/api/logs/{log_id}", ["log", "related"]),
+        sourceId: citationNumber(response, "/api/sources/{source_id}", ["source"]),
+        caseId: citationString(response, "/api/alerts/cases", ["case"]),
+        primary: responsePrimary ?? null
+      });
+    }
     if (response.conversation_id && response.conversation_id !== conversationId) {
       setConversationId(response.conversation_id);
     }
