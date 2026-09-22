@@ -1,5 +1,6 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Badge } from "../components/Badge";
+import { DetailDrawer } from "../components/DetailDrawer";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { MetricCard } from "../components/MetricCard";
@@ -13,6 +14,97 @@ import {
   useUserMutations,
   useUsers
 } from "../hooks/useApiQueries";
+import type { User } from "../types/api";
+
+type FieldEditTarget = { user: User; field: "email" | "password" };
+
+function UserFieldDrawer({
+  target,
+  onClose,
+  onSubmitEmail,
+  onSubmitPassword,
+  isPending,
+  error
+}: {
+  target: FieldEditTarget | null;
+  onClose: () => void;
+  onSubmitEmail: (userId: number, email: string) => void;
+  onSubmitPassword: (userId: number, password: string) => void;
+  isPending: boolean;
+  error: unknown;
+}) {
+  const [value, setValue] = useState("");
+
+  useEffect(() => {
+    if (!target) return;
+    setValue(target.field === "email" ? target.user.email ?? "" : "");
+  }, [target?.user.id, target?.field]);
+
+  return (
+    <DetailDrawer
+      title={
+        target
+          ? target.field === "email"
+            ? `Edit email for ${target.user.username}`
+            : `Reset password for ${target.user.username}`
+          : ""
+      }
+      open={target !== null}
+      onClose={onClose}
+    >
+      {target ? (
+        <form
+          className="space-y-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (target.field === "email") {
+              onSubmitEmail(target.user.id, value);
+            } else {
+              onSubmitPassword(target.user.id, value);
+            }
+          }}
+        >
+          {target.field === "email" ? (
+            <input
+              className="input"
+              type="email"
+              placeholder="School email"
+              value={value}
+              onChange={(event) => setValue(event.target.value)}
+              autoFocus
+            />
+          ) : (
+            <>
+              <input
+                className="input"
+                type="password"
+                placeholder="New password"
+                minLength={8}
+                value={value}
+                onChange={(event) => setValue(event.target.value)}
+                autoFocus
+              />
+              <p className="text-xs text-muted">At least 8 characters.</p>
+            </>
+          )}
+          {error ? <ErrorBanner error={error} /> : null}
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={isPending || (target.field === "password" && value.length < 8)}
+            >
+              {target.field === "email" ? "Save email" : "Set new password"}
+            </button>
+            <button type="button" className="btn-secondary" onClick={onClose}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      ) : null}
+    </DetailDrawer>
+  );
+}
 
 export function UserAdmin() {
   const users = useUsers();
@@ -22,6 +114,7 @@ export function UserAdmin() {
   const emailStatus = useEmailStatus();
   const devOutbox = useDevEmailOutbox(Boolean(emailStatus.data?.dev_outbox_available));
   const mutations = useUserMutations();
+  const [editingUser, setEditingUser] = useState<FieldEditTarget | null>(null);
   const [form, setForm] = useState({
     username: "",
     email: "",
@@ -459,10 +552,7 @@ export function UserAdmin() {
                       <div className="flex flex-wrap gap-2">
                         <button
                           className="btn-secondary"
-                          onClick={() => {
-                            const email = window.prompt(`Email for ${user.username}`, user.email ?? "");
-                            if (email !== null) mutations.updateUser.mutate({ id: user.id, payload: { email } });
-                          }}
+                          onClick={() => setEditingUser({ user, field: "email" })}
                         >
                           Edit email
                         </button>
@@ -480,15 +570,18 @@ export function UserAdmin() {
                         >
                           Send verification
                         </button>
-                        <button className="btn-secondary" onClick={() => mutations.changeRole.mutate({ id: user.id, role: user.role === "admin" ? "analyst" : "admin" })}>
+                        <button
+                          className="btn-secondary"
+                          onClick={() =>
+                            window.confirm(`Change ${user.username} to ${user.role === "admin" ? "analyst" : "admin"}?`) &&
+                            mutations.changeRole.mutate({ id: user.id, role: user.role === "admin" ? "analyst" : "admin" })
+                          }
+                        >
                           Make {user.role === "admin" ? "analyst" : "admin"}
                         </button>
                         <button
                           className="btn-secondary"
-                          onClick={() => {
-                            const password = window.prompt(`New password for ${user.username}`);
-                            if (password) mutations.resetPassword.mutate({ id: user.id, password });
-                          }}
+                          onClick={() => setEditingUser({ user, field: "password" })}
                         >
                           Reset password
                         </button>
@@ -510,6 +603,25 @@ export function UserAdmin() {
           {!users.isLoading && !(users.data ?? []).length ? <EmptyState title="No users" body="No managed users returned from the backend." /> : null}
         </section>
       </div>
+
+      <UserFieldDrawer
+        target={editingUser}
+        onClose={() => setEditingUser(null)}
+        isPending={mutations.updateUser.isPending || mutations.resetPassword.isPending}
+        error={mutations.updateUser.error ?? mutations.resetPassword.error}
+        onSubmitEmail={(userId, email) =>
+          mutations.updateUser.mutate(
+            { id: userId, payload: { email } },
+            { onSuccess: () => setEditingUser(null) }
+          )
+        }
+        onSubmitPassword={(userId, password) =>
+          mutations.resetPassword.mutate(
+            { id: userId, password },
+            { onSuccess: () => setEditingUser(null) }
+          )
+        }
+      />
     </div>
   );
 }

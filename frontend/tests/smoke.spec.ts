@@ -5415,6 +5415,86 @@ test("admin settings shows external IAM groundwork", async ({ page }) => {
   await expect(page.getByText("SMTP_PASSWORD")).not.toBeVisible();
 });
 
+test("editing a user's email or password opens a drawer instead of a native prompt", async ({ page }) => {
+  await mockApi(page);
+  await seedSession(page);
+
+  let patchedEmail: string | undefined;
+  let resetPasswordCalled = false;
+  await page.route("**/api/users/1", async (route) => {
+    const body = JSON.parse(route.request().postData() || "{}") as { email?: string };
+    patchedEmail = body.email;
+    return route.fulfill({
+      json: {
+        id: 1,
+        username: "admin",
+        email: body.email ?? "admin@school.example",
+        full_name: "Admin",
+        role: "admin",
+        is_active: true,
+        email_verified: true,
+        auth_provider: "local",
+        external_subject: null,
+        last_login_at: "2026-05-22T00:00:00Z",
+        invited_at: null,
+        disabled_at: null,
+        created_at: "2026-05-22T00:00:00Z"
+      }
+    });
+  });
+  await page.route("**/api/users/1/reset-password", async (route) => {
+    resetPasswordCalled = true;
+    return route.fulfill({
+      json: {
+        id: 1,
+        username: "admin",
+        email: "admin@school.example",
+        full_name: "Admin",
+        role: "admin",
+        is_active: true,
+        email_verified: true,
+        auth_provider: "local",
+        external_subject: null,
+        last_login_at: "2026-05-22T00:00:00Z",
+        invited_at: null,
+        disabled_at: null,
+        created_at: "2026-05-22T00:00:00Z"
+      }
+    });
+  });
+
+  await page.goto("/users");
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+
+  await page.getByRole("button", { name: "Edit email" }).click();
+  const emailDialog = page.getByRole("dialog");
+  await expect(emailDialog).toBeVisible();
+  await expect(emailDialog.getByRole("heading", { name: "Edit email for admin" })).toBeVisible();
+  const emailInput = emailDialog.locator('input[type="email"]');
+  await emailInput.fill("new-admin@school.example");
+  await emailDialog.getByRole("button", { name: "Save email" }).click();
+  await expect(emailDialog).not.toBeVisible();
+  await expect.poll(() => patchedEmail).toBe("new-admin@school.example");
+
+  await page.getByRole("button", { name: "Reset password" }).click();
+  const passwordDialog = page.getByRole("dialog");
+  await expect(passwordDialog).toBeVisible();
+  const passwordSubmit = passwordDialog.getByRole("button", { name: "Set new password" });
+  await expect(passwordSubmit).toBeDisabled();
+  await passwordDialog.locator('input[type="password"]').fill("short");
+  await expect(passwordSubmit).toBeDisabled();
+  await passwordDialog.locator('input[type="password"]').fill("a-safe-new-password");
+  await expect(passwordSubmit).toBeEnabled();
+  await passwordSubmit.click();
+  await expect(passwordDialog).not.toBeVisible();
+  await expect.poll(() => resetPasswordCalled).toBe(true);
+
+  await page.getByRole("button", { name: "Edit email" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+});
+
 test("SOC assistant page is read-only and contains long responses safely", async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, "clipboard", {
