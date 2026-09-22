@@ -4060,6 +4060,37 @@ test("core analyst routes render with mocked API", async ({ page }) => {
   }
 });
 
+test("a page that throws while rendering shows a recoverable panel instead of a blank screen", async ({ page }) => {
+  await mockApi(page);
+  await seedSession(page);
+
+  // Replace the Overview page's ES module (served directly by Vite's dev
+  // server, unbundled) with one whose component throws during render. This
+  // forces a real React render-phase error through the actual route tree,
+  // without touching any app source, to prove RouteErrorBoundary (wrapping
+  // <Outlet /> in AppShell) catches it instead of the whole app going white.
+  await page.route("**/src/pages/ExecutiveOverview.tsx*", (route) =>
+    route.fulfill({
+      contentType: "application/javascript",
+      body: "export function ExecutiveOverview() { throw new Error('Injected test render failure'); }"
+    })
+  );
+
+  await page.goto("/overview");
+  await expect(page.getByText("Something went wrong loading this page.")).toBeVisible();
+  await expect(page.getByText("Injected test render failure")).toBeVisible();
+  // The rest of the shell (nav, header) must still be intact -- only the
+  // routed page content is contained, not the whole app.
+  await expect(page.getByText("MFU Security Operations")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Alerts" })).toBeVisible();
+
+  // Navigating away and back to a working route must recover cleanly: the
+  // boundary is keyed by route so it never gets stuck showing a stale error.
+  await page.getByRole("link", { name: "Alerts" }).click();
+  await expect(page).toHaveURL(/\/alerts$/);
+  await expect(page.getByText("Something went wrong loading this page.")).not.toBeVisible();
+});
+
 test("critical pages show concise API failure states", async ({ page }) => {
   await mockApi(page);
   await seedSession(page);

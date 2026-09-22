@@ -6,6 +6,7 @@ import clsx from "clsx";
 import { useAuth } from "../hooks/useAuth";
 import { useHealth, useMe } from "../hooks/useApiQueries";
 import { Badge } from "./Badge";
+import { RouteErrorBoundary } from "./RouteErrorBoundary";
 import { presentationMode } from "../lib/presentationMode";
 
 interface NavItem {
@@ -200,7 +201,9 @@ export function AppShell() {
             </div>
           ) : null}
           <main id="main-content" ref={mainRef} tabIndex={-1} className="focus:outline-none">
-            <Outlet />
+            <RouteErrorBoundary key={location.pathname}>
+              <Outlet />
+            </RouteErrorBoundary>
           </main>
         </div>
       </div>
