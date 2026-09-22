@@ -1006,7 +1006,11 @@ def answer_assistant_question(
         result = _answer_workflow_question(redacted=redacted)
     else:
         result = _answer_general_question(
-            db, question=clean_question, limit=context_limit if include_recent_context else 0, redacted=redacted
+            db,
+            question=clean_question,
+            limit=context_limit if include_recent_context else 0,
+            redacted=redacted,
+            settings=settings,
         )
 
     _ensure_answer_sections(result)
@@ -3331,7 +3335,9 @@ def _answer_recent_changes(db: Session, *, limit: int, redacted: bool) -> Assist
     )
 
 
-def _answer_general_question(db: Session, *, question: str, limit: int, redacted: bool) -> AssistantResult:
+def _answer_general_question(
+    db: Session, *, question: str, limit: int, redacted: bool, settings: Settings
+) -> AssistantResult:
     alert_count = int(db.scalar(select(func.count(Alert.id))) or 0)
     log_count = int(db.scalar(select(func.count(NormalizedLog.id))) or 0)
     recent_alerts = list_alerts(db, limit=max(0, min(limit, 5)), sort_by="updated") if limit else []
@@ -3351,20 +3357,96 @@ def _answer_general_question(db: Session, *, question: str, limit: int, redacted
         f"Current state: {log_count} normalized logs, {alert_count} alerts. "
         f"Recent alerts: {alert_text or 'none in the current context.'}"
     )
+
+    # The keyword router has no single relevant handler for this question,
+    # so there's no one topic to fetch. Gather a bounded snapshot across
+    # every other major topic area instead, reusing the same calls the
+    # matched handlers already make (list_sources/build_job_summary/
+    # list_alert_cases/evaluation_report/supervised_model_report) -- this
+    # gives an LLM rewrite (when enabled) real evidence to synthesize an
+    # answer from instead of nothing but this admission text. Each call is
+    # skipped when limit is 0 (include_recent_context=False), matching the
+    # existing recent_alerts behavior above.
+    context_used = ["unmatched_question", "system_summary", "recent_alerts"]
+    citations = [
+        Citation("ATDR PRD", "docs/prd/PRD-ATDR.md"),
+        Citation("Alerts API", "/api/alerts"),
+    ]
+    details: dict[str, Any] = {
+        "summary": {
+            "normalized_logs": log_count,
+            "alerts": alert_count,
+            "recent_alert_count": len(recent_alerts),
+            "unmatched_question": True,
+        }
+    }
+
+    if limit:
+        source_rows = [source_to_dict(source, include_quality=True, db=db) for source in list_sources(db, limit=min(limit, 5))]
+        if source_rows:
+            details["sources"] = _redact(
+                [
+                    {
+                        "source_id": row.get("source_id"),
+                        "name": row.get("name"),
+                        "health": (row.get("health") or {}).get("status"),
+                        "logs_received_count": row.get("logs_received_count"),
+                        "parse_failure_count": row.get("parse_failure_count"),
+                    }
+                    for row in source_rows
+                ],
+                enabled=redacted,
+            )
+            context_used.append("sources")
+            citations.append(Citation("Source API", "/api/sources"))
+
+        job_summary = build_job_summary(
+            db,
+            stale_after_minutes=settings.job_stale_after_minutes,
+            job_retention_days=settings.job_retention_days,
+            run_history_retention_days=settings.run_history_retention_days,
+        )
+        if job_summary:
+            details["job_summary"] = _redact(job_summary, enabled=redacted)
+            context_used.append("operation_jobs")
+            citations.append(Citation("Job summary API", "/api/jobs/summary"))
+
+        case_rows = list_alert_cases(db, active_only=True, limit=min(limit, 5))
+        if case_rows:
+            details["cases"] = _redact(
+                [
+                    {
+                        "case_id": row.get("case_id"),
+                        "related_alert_count": row.get("related_alert_count"),
+                        "total_related_logs": row.get("total_related_logs"),
+                        "attack_types": row.get("attack_types"),
+                    }
+                    for row in case_rows
+                ],
+                enabled=redacted,
+            )
+            context_used.append("alert_cases")
+            citations.append(Citation("Alert cases API", "/api/alerts/cases"))
+
+        ml = evaluation_report(db)
+        supervised = supervised_model_report(db)
+        if ml or supervised:
+            details["ml"] = _redact(
+                {
+                    "anomaly_rate": ml.get("anomaly_rate"),
+                    "model_status": ml.get("model_status"),
+                    "supervised_label_count": supervised.get("label_count"),
+                    "supervised_decision_support_only": supervised.get("decision_support_only"),
+                },
+                enabled=redacted,
+            )
+            context_used.append("ml_governance")
+            citations.append(Citation("ML report API", "/api/ml/report"))
+
     return AssistantResult(
         answer=_text(answer, redacted=redacted),
-        context_used=["unmatched_question", "system_summary", "recent_alerts"],
-        citations=[
-            Citation("ATDR PRD", "docs/prd/PRD-ATDR.md"),
-            Citation("Alerts API", "/api/alerts"),
-        ],
-        details={
-            "summary": {
-                "normalized_logs": log_count,
-                "alerts": alert_count,
-                "recent_alert_count": len(recent_alerts),
-                "unmatched_question": True,
-            }
-        },
+        context_used=context_used,
+        citations=citations,
+        details=details,
         suggested_followups=["What is the latest critical alert?", "Explain current ML model status.", "Summarize source health."],
     )

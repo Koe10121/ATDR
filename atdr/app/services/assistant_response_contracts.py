@@ -65,6 +65,12 @@ def response_contract(mode: AssistantResponseMode) -> ResponseContract:
 def infer_response_mode(question: str, context_used: list[str]) -> AssistantResponseMode:
     lowered = question.lower()
     contexts = set(context_used)
+    if "unmatched_question" in contexts:
+        # No keyword route matched, so no other branch below is meaningful
+        # to test against this question. list_summary's word budget gives a
+        # synthesized answer a bit more room than the tightest (direct_fact)
+        # contract without a new AssistantResponseMode.
+        return "list_summary"
     if "investigation_brief" in contexts or any(
         term in lowered
         for term in [

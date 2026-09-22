@@ -235,6 +235,74 @@ def test_assistant_chat_admits_when_no_keyword_route_matches_instead_of_a_generi
         app.dependency_overrides.clear()
 
 
+def test_assistant_unmatched_question_gathers_broad_safe_context_for_llm_synthesis():
+    client, _ = _client_with_session()
+    try:
+        headers = _login(client)
+        question = "What does the app_risk field mean?"
+        response = client.post("/api/assistant/chat", json={"question": question}, headers=headers)
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["response_mode"] == "list_summary"
+        assert "sources" in payload["context_used"]
+        assert "operation_jobs" in payload["context_used"]
+        assert "ml_governance" in payload["context_used"]
+        details = payload["details"]
+        assert isinstance(details.get("sources"), list) and details["sources"]
+        assert details["sources"][0]["name"] in {"assistant-firewall", "warning-router"}
+        assert isinstance(details.get("job_summary"), dict)
+        assert isinstance(details.get("ml"), dict)
+        assert "203.0.113.10" not in json.dumps(details)
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_assistant_unmatched_question_with_llm_enabled_synthesizes_from_the_broader_context(monkeypatch):
+    monkeypatch.setenv("ASSISTANT_LLM_ENABLED", "true")
+    monkeypatch.setenv("ASSISTANT_LLM_PROVIDER", "mock")
+    monkeypatch.setenv("ASSISTANT_LLM_MODEL", "mock-soc")
+    monkeypatch.setenv("ASSISTANT_LLM_API_KEY", "")
+    monkeypatch.setenv("ASSISTANT_ALLOW_RAW_LOG_CONTEXT", "false")
+    monkeypatch.setenv("ASSISTANT_REDACT_IPS", "true")
+    get_settings.cache_clear()
+    client, testing_session = _client_with_session()
+    try:
+        headers = _login(client)
+        with testing_session() as db:
+            before_counts = {
+                "response_actions": db.scalar(select(func.count(ResponseAction.id))),
+                "detection_runs": db.scalar(select(func.count(DetectionRun.id))),
+                "model_runs": db.scalar(select(func.count(MLModelRun.id))),
+                "labels": db.scalar(select(func.count(MLLabel.id))),
+            }
+
+        question = "What does the app_risk field mean?"
+        response = client.post("/api/assistant/chat", json={"question": question}, headers=headers)
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["external_provider_used"] is True
+        assert payload["provenance"]["answer_origin"] == "external_llm_synthesis"
+        assert payload["response_mode"] == "list_summary"
+        assert len(payload["answer"].split()) <= 75
+        assert payload["details"]["llm"]["answer_used"] is True
+        assert payload["details"]["llm"]["answer_guard_reason"] is None
+        assert "sources" in payload["context_used"]
+        assert "ml_governance" in payload["context_used"]
+        assert "203.0.113.10" not in str(payload)
+
+        with testing_session() as db:
+            after_counts = {
+                "response_actions": db.scalar(select(func.count(ResponseAction.id))),
+                "detection_runs": db.scalar(select(func.count(DetectionRun.id))),
+                "model_runs": db.scalar(select(func.count(MLModelRun.id))),
+                "labels": db.scalar(select(func.count(MLLabel.id))),
+            }
+            assert after_counts == before_counts
+    finally:
+        app.dependency_overrides.clear()
+        get_settings.cache_clear()
+
+
 def test_assistant_status_is_disabled_by_default_and_does_not_expose_secret(monkeypatch):
     monkeypatch.setenv("ASSISTANT_ENABLED", "false")
     monkeypatch.setenv("ASSISTANT_PROVIDER", "disabled")
