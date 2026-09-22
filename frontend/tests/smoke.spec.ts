@@ -6785,7 +6785,20 @@ test("core analyst routes have no automated WCAG A or AA violations", async ({ p
   await seedSession(page);
   await mockApi(page);
 
-  const routes = ["overview", "alerts", "logs", "assistant", "response", "audit", "ml", "evidence-review"];
+  const routes = [
+    "overview",
+    "alerts",
+    "logs",
+    "assistant",
+    "response",
+    "audit",
+    "ml",
+    "evidence-review",
+    "controls",
+    "tuning",
+    "users",
+    "demo"
+  ];
   const routeViolations: Array<{ route: string; id: string; nodes: number }> = [];
   for (const routeName of routes) {
     await page.goto(`/${routeName}`);

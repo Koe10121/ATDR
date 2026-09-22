@@ -18,12 +18,12 @@ export function DetectionTuning() {
       </section>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Alert Pressure" value={data?.summary.alerts_per_1000_logs ?? "-"} detail="Alerts per 1,000 logs" tone="amber" />
-        <MetricCard label="High/Critical" value={data?.summary.high_critical_open ?? "-"} detail="Active priority queue" tone="danger" />
-        <MetricCard label="Unassigned Priority" value={data?.summary.high_critical_unassigned ?? "-"} detail="Needs owner" tone="amber" />
+        <MetricCard label="Alert Pressure" value={data?.summary?.alerts_per_1000_logs ?? "-"} detail="Alerts per 1,000 logs" tone="amber" />
+        <MetricCard label="High/Critical" value={data?.summary?.high_critical_open ?? "-"} detail="Active priority queue" tone="danger" />
+        <MetricCard label="Unassigned Priority" value={data?.summary?.high_critical_unassigned ?? "-"} detail="Needs owner" tone="amber" />
         <MetricCard
           label="ML Anomaly Rate"
-          value={`${data?.ml.current_anomaly_rate ?? "-"}%`}
+          value={`${data?.ml?.current_anomaly_rate ?? "-"}%`}
           detail="Advisory flags among scored logs"
           tone="cyan"
         />
@@ -66,7 +66,7 @@ export function DetectionTuning() {
 
       <section className="panel">
         <div className="mb-4 text-sm font-extrabold uppercase tracking-wide text-muted">False Positive Learning</div>
-        {data?.false_positive_learning.suppression_recommendations.length ? (
+        {data?.false_positive_learning?.suppression_recommendations?.length ? (
           <div className="grid gap-3 lg:grid-cols-3">
             {data.false_positive_learning.suppression_recommendations.slice(0, 3).map((item, index) => (
               <div key={index} className="rounded-lg border border-amber/30 bg-amber/10 p-4">
@@ -76,7 +76,7 @@ export function DetectionTuning() {
             ))}
           </div>
         ) : (
-          <EmptyState title="Learning needs analyst feedback" body={data?.false_positive_learning.message ?? "Mark reviewed alerts as false positives to unlock recommendations."} />
+          <EmptyState title="Learning needs analyst feedback" body={data?.false_positive_learning?.message ?? "Mark reviewed alerts as false positives to unlock recommendations."} />
         )}
       </section>
     </div>
