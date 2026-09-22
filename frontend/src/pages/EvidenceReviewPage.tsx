@@ -4,6 +4,7 @@ import { Badge } from "../components/Badge";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { LoadingPanel } from "../components/LoadingPanel";
+import { safeDisplayValue } from "../components/MetaGrid";
 import { MetricCard } from "../components/MetricCard";
 import { SafeSelect } from "../components/SafeSelect";
 import { SocPageHeader } from "../components/SocPageHeader";
@@ -344,7 +345,7 @@ function DetectionWorkspace({
             {Object.entries(item.evidence).map(([key, value]) => (
               <div key={key} className="min-w-0 border-b border-line pb-2">
                 <dt className="text-xs font-black uppercase tracking-wide text-muted">{formatFieldName(key)}</dt>
-                <dd className="mt-1 break-words text-sm font-semibold text-text">{value}</dd>
+                <dd className="mt-1 break-words text-sm font-semibold text-text">{safeDisplayValue(value)}</dd>
               </div>
             ))}
           </dl>
@@ -630,7 +631,7 @@ function ManualAnchorWorkspace({
             {Object.entries(item.evidence).map(([key, value]) => (
               <div key={key} className="min-w-0 border-b border-line pb-2">
                 <dt className="text-xs font-black uppercase tracking-wide text-muted">{formatFieldName(key)}</dt>
-                <dd className="mt-1 break-words text-sm font-semibold text-text">{value}</dd>
+                <dd className="mt-1 break-words text-sm font-semibold text-text">{safeDisplayValue(value)}</dd>
               </div>
             ))}
           </dl>
@@ -940,7 +941,7 @@ function SupplementalThreatAnchorWorkspace({
             {Object.entries(item.evidence).map(([key, value]) => (
               <div key={key} className="min-w-0 border-b border-line pb-2">
                 <dt className="text-xs font-black uppercase tracking-wide text-muted">{formatFieldName(key)}</dt>
-                <dd className="mt-1 break-words text-sm font-semibold text-text">{value}</dd>
+                <dd className="mt-1 break-words text-sm font-semibold text-text">{safeDisplayValue(value)}</dd>
               </div>
             ))}
           </dl>

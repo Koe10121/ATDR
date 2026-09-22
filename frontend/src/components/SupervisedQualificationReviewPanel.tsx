@@ -22,6 +22,7 @@ import { EmptyState } from "./EmptyState";
 import { ErrorBanner } from "./ErrorBanner";
 import { IndependentDecisionForm } from "./IndependentDecisionForm";
 import { LoadingPanel } from "./LoadingPanel";
+import { safeDisplayValue } from "./MetaGrid";
 import { MetricCard } from "./MetricCard";
 import { SafeSelect } from "./SafeSelect";
 
@@ -261,7 +262,7 @@ export function SupervisedQualificationReviewPanel() {
                     {Object.entries(item.data.evidence).map(([key, value]) => (
                       <div key={key} className="min-w-0 border-b border-line pb-2">
                         <dt className="text-xs font-black uppercase tracking-wide text-muted">{formatName(key)}</dt>
-                        <dd className="mt-1 break-words text-sm font-semibold text-text">{value}</dd>
+                        <dd className="mt-1 break-words text-sm font-semibold text-text">{safeDisplayValue(value)}</dd>
                       </div>
                     ))}
                   </dl>
