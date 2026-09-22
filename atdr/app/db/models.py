@@ -210,6 +210,13 @@ class AlertNote(Base):
 
 class AlertEvidence(Base):
     __tablename__ = "alert_evidence"
+    __table_args__ = (
+        UniqueConstraint(
+            "alert_id",
+            "normalized_log_id",
+            name="uq_alert_evidence_alert_normalized_log",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     alert_id: Mapped[int] = mapped_column(ForeignKey("alerts.id"), nullable=False, index=True)
@@ -513,8 +520,8 @@ class OperationJob(Base):
     input_fingerprint: Mapped[str | None] = mapped_column(String(64))
     cancellation_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     cancellation_requested_by: Mapped[str | None] = mapped_column(String(128))
-    resume_of_job_id: Mapped[int | None] = mapped_column(Integer, index=True)
-    original_job_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    resume_of_job_id: Mapped[int | None] = mapped_column(ForeignKey("operation_jobs.id"), index=True)
+    original_job_id: Mapped[int | None] = mapped_column(ForeignKey("operation_jobs.id"), index=True)
     resume_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     result_summary_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     error_summary: Mapped[str | None] = mapped_column(Text)

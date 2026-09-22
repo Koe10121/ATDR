@@ -4,7 +4,9 @@ from datetime import datetime, timedelta, timezone
 from html import escape
 from io import StringIO
 
-from sqlalchemy import func, insert, or_, select
+from sqlalchemy import func, or_, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session, joinedload, noload
 
 from atdr.app.db.models import Alert, AlertEvidence, AlertNote, AuditLog, LogSource, NormalizedLog, RawLog, ResponseAction, User
@@ -612,10 +614,19 @@ def _insert_alert_evidence_rows(
     if alert.id is None:
         db.flush()
     alert_id = int(alert.id)
+    # Callers dedupe in-memory before reaching here, but the unique
+    # constraint on (alert_id, normalized_log_id) is the real guard against
+    # duplicate evidence rows -- skip a conflicting row instead of raising,
+    # so a future caller that isn't as careful degrades to a harmless no-op
+    # rather than a hard IntegrityError.
+    insert_builder = pg_insert if db.get_bind().dialect.name == "postgresql" else sqlite_insert
     for offset in range(0, len(normalized_log_ids), chunk_size):
         batch = normalized_log_ids[offset : offset + chunk_size]
+        statement = insert_builder(AlertEvidence).on_conflict_do_nothing(
+            index_elements=["alert_id", "normalized_log_id"]
+        )
         db.execute(
-            insert(AlertEvidence),
+            statement,
             [
                 {
                     "alert_id": alert_id,
@@ -639,6 +650,7 @@ def insert_pending_alert_evidence_rows(
     if not pending:
         return 0
     db.flush()
+    insert_builder = pg_insert if db.get_bind().dialect.name == "postgresql" else sqlite_insert
     batch: list[dict[str, int]] = []
     inserted = 0
     for alert, normalized_log_ids in pending:
@@ -651,11 +663,17 @@ def insert_pending_alert_evidence_rows(
                 }
             )
             if len(batch) >= chunk_size:
-                db.execute(insert(AlertEvidence), batch)
+                statement = insert_builder(AlertEvidence).on_conflict_do_nothing(
+                    index_elements=["alert_id", "normalized_log_id"]
+                )
+                db.execute(statement, batch)
                 inserted += len(batch)
                 batch.clear()
     if batch:
-        db.execute(insert(AlertEvidence), batch)
+        statement = insert_builder(AlertEvidence).on_conflict_do_nothing(
+            index_elements=["alert_id", "normalized_log_id"]
+        )
+        db.execute(statement, batch)
         inserted += len(batch)
     return inserted
 

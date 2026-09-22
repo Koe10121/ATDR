@@ -85,7 +85,6 @@ def test_detection_operations_are_truthful_aggregate_workload_not_accuracy():
                     AlertEvidence(alert_id=alert_one.id, normalized_log_id=raw_a1.normalized.id),
                     AlertEvidence(alert_id=alert_one.id, normalized_log_id=raw_b1.normalized.id),
                     AlertEvidence(alert_id=alert_two.id, normalized_log_id=raw_a2.normalized.id),
-                    AlertEvidence(alert_id=alert_two.id, normalized_log_id=raw_a2.normalized.id),
                     AuditLog(
                         actor="analyst",
                         action="alert_deduplicated",

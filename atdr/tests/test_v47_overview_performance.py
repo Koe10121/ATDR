@@ -190,12 +190,7 @@ def test_summary_preserves_empty_and_disabled_source_data_without_side_effects()
             alert = _alert(10)
             db.add(alert)
             db.flush()
-            db.add_all(
-                [
-                    AlertEvidence(alert_id=alert.id, normalized_log_id=raw.normalized.id),
-                    AlertEvidence(alert_id=alert.id, normalized_log_id=raw.normalized.id),
-                ]
-            )
+            db.add(AlertEvidence(alert_id=alert.id, normalized_log_id=raw.normalized.id))
             db.commit()
 
             before_ml = int(db.scalar(select(func.count(MLModelRun.id))) or 0)
@@ -206,7 +201,7 @@ def test_summary_preserves_empty_and_disabled_source_data_without_side_effects()
 
         assert summary["total_logs"] == 1
         assert summary["total_raw_logs"] == 1
-        assert summary["recent_alerts"][0]["evidence_count"] == 2
+        assert summary["recent_alerts"][0]["evidence_count"] == 1
         assert before_ml == after_ml == 0
         assert before_response == after_response == 0
     finally:

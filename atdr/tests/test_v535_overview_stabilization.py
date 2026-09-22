@@ -161,10 +161,6 @@ def _seed_source_evidence(db) -> None:
                 normalized_log_id=raw_rows[1].normalized.id,
             ),
             AlertEvidence(
-                alert_id=first_alert.id,
-                normalized_log_id=raw_rows[1].normalized.id,
-            ),
-            AlertEvidence(
                 alert_id=second_alert.id,
                 normalized_log_id=raw_rows[2].normalized.id,
             ),
