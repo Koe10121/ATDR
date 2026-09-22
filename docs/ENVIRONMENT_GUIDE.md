@@ -104,7 +104,7 @@ Run:
 ```powershell
 docker compose --profile postgres up -d postgres
 docker compose --profile postgres run --rm migrate
-docker compose --profile postgres up --build api dashboard
+docker compose --profile postgres up --build api frontend
 python -m atdr.scripts.lab_smoke_check
 ```
 

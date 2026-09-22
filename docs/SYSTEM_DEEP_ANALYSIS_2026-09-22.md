@@ -347,10 +347,25 @@ still hold with valid data.
 | 6 | `window.prompt()` → styled modal in UserAdmin | 2h | **Done** — reuses `DetailDrawer`, new regression test |
 | 7 | Add 5 missing routes to axe-core sweep | 30m | **Done** — caught and fixed a real crash in `DetectionTuning.tsx` along the way |
 | 8 | `config.py` section comments | 1-2h | **Done** — 18 sections, purely additive |
-| 9 | Fix `docker-compose.yml` to serve React, not stale Streamlit | 3-4h | Not started — low priority, demo doesn't use Docker |
+| 9 | Fix `docker-compose.yml` to serve React, not stale Streamlit | 3-4h | **Done** — new `frontend/Dockerfile` (multi-stage build → `serve`), `dashboard` service replaced, `.dockerignore` added (none existed; `COPY . .` was pulling in `.venv`/`node_modules`/the 600+MB dev DB into every build) |
 | 10 | MODULE_INDEX.md mapping live vs. historical vNNN modules (cheaper alternative to archiving ~45-50 files outright) | 3-4h | **Done** — full verified table at `docs/MODULE_INDEX.md`; corrected the membership errors in §3 above |
 
-**Subtotal: ~10-13 hours — 4 of 5 items closed 2026-09-22; only the Docker fix remains, and it's low-priority since the demo doesn't run through Docker.**
+**Subtotal: ~10-13 hours — all 5 items closed 2026-09-22.**
+
+Verifying the Docker fix was necessarily partial: Docker itself isn't
+installed on this dev machine (confirmed — same constraint already noted in
+`docs/ENVIRONMENT_GUIDE.md`), so `docker compose build`/`up` could not be
+run directly. What was verified instead: the YAML parses correctly and
+produces the expected service graph; the frontend build (`npm run build`)
+and the exact static-file-serving command the container runs
+(`serve -s dist -l 3000`) were run directly on this machine against the
+real build output, confirming the root path, an SPA client-side route
+(`/alerts`, which must fall back to `index.html` rather than 404 for
+React Router to work), and a built JS asset all serve correctly; and the
+exact healthcheck command was run standalone against both a live and a
+closed port to confirm it reports success/failure correctly. Full
+`docker compose up` should still be run once on a Docker-capable host
+before relying on it for a live demo.
 
 Item 6's build-out surfaced one more real bug, same class as the others this
 session: the new drawer's input `value` state wasn't reset between opens,
@@ -374,16 +389,20 @@ honest.
 
 ## 7. How far, and how long
 
-**Status as of 2026-09-22**: all 5 "fix before presentation" items and 4 of
+**Status as of 2026-09-22**: all 5 "fix before presentation" items and all
 5 "worth doing if time allows" items are done and verified (full backend
-suite green, full Playwright suite green, both builds clean). Only the
-Docker-serves-stale-Streamlit fix remains from the original ~16-21 hour
-estimate, and it's low priority since the demo runs through
-`start_system.cmd`, not `docker compose up`. Two real bugs were caught and
-fixed along the way that weren't in the original finding list: a missing
-optional-chain guard in `DetectionTuning.tsx` (found by the expanded
-accessibility sweep) and a state-persistence bug in the new UserAdmin
-drawer (found by its own new regression test).
+suite green, full Playwright suite green, both builds clean) — the full
+original ~16-21 hour estimate is closed out. The open-ended Assistant
+upgrade (Stage 4 of the team roadmap) is also done. Several real bugs were
+caught and fixed along the way that weren't in the original finding list: a
+missing optional-chain guard in `DetectionTuning.tsx` (found by the
+expanded accessibility sweep), a state-persistence bug in the new UserAdmin
+drawer (found by its own new regression test), and a context-corruption bug
+in the Assistant's session sync that predated this session's work entirely
+(citation-parsing was silently overriding the backend's authoritative
+`active_context` nulls, corrupting the saved conversation context after
+every answer — found while investigating an unrelated pre-existing
+Playwright failure).
 
 **What does not get fixed no matter how much time is spent**: the
 second-source gate. That's not a gap in the plan — it's the correct outcome
