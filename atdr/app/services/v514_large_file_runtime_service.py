@@ -7,7 +7,6 @@ from datetime import datetime, timedelta, timezone
 import math
 import os
 from pathlib import Path
-import re
 import tempfile
 from threading import Event, Thread
 import time
@@ -21,6 +20,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
 from atdr.app.core.config import PROJECT_ROOT, get_settings
+from atdr.app.core.redaction import IP_PATTERN
 from atdr.app.db.database import Base
 from atdr.app.db.models import (
     Alert,
@@ -76,10 +76,6 @@ _ACTOR = "v514-runtime-acceptance"
 _DEFAULT_LIMIT = 100_000
 _MAX_LIMIT = 1_000_000
 _MIN_ROWS = 4
-_IP_PATTERN = re.compile(
-    r"(?<![\w:])(?:\d{1,3}\.){3}\d{1,3}(?![\w:])|"
-    r"(?<![\w:])(?:[0-9A-Fa-f]{1,4}:){2,7}[0-9A-Fa-f]{1,4}(?![\w:])"
-)
 _SENSITIVE_KEY_PARTS = (
     "raw_line",
     "sample_path",
@@ -885,7 +881,7 @@ def _privacy_findings(value: Any, *, private_path: Path) -> list[str]:
         lowered = current.lower()
         if any(private.lower() in lowered for private in private_values if private):
             findings.append(f"private_path:{trail}")
-        if _IP_PATTERN.search(current):
+        if IP_PATTERN.search(current):
             findings.append(f"ip_address:{trail}")
 
     walk(value, "result")

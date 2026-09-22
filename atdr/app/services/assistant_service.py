@@ -17,8 +17,8 @@ from atdr.app.detection.supervised_detector import supervised_model_report
 from atdr.app.detection.explanations import build_alert_detection_summary, explain_log_triage
 from atdr.app.services.case_service import list_alert_cases
 from atdr.app.services.alert_service import get_alert, list_alerts
+from atdr.app.core.redaction import IP_PATTERN
 from atdr.app.services.assistant_llm import (
-    IP_PATTERN,
     AssistantLLMRequest,
     AssistantLLMResult,
     assistant_llm_operational_status,

@@ -4,7 +4,6 @@ import csv
 import hashlib
 import json
 import os
-import re
 import sqlite3
 import tempfile
 from collections import Counter, defaultdict
@@ -15,6 +14,7 @@ from typing import Any, Iterable
 from sqlalchemy.orm import Session
 
 from atdr.app.core.config import PROJECT_ROOT, get_settings
+from atdr.app.core.redaction import AI_REVIEWER_PATTERN
 from atdr.app.detection import v398_independent_holdout_validation as frozen
 from atdr.app.detection import v521_native_panos_evidence as v521
 from atdr.app.detection import v52_shadow_reliability as v52
@@ -80,10 +80,6 @@ FORBIDDEN_REVIEW_COLUMN_PARTS = (
     "exact_hash",
     "near_hash",
     "feature_hash",
-)
-_AI_REVIEWER_PATTERN = re.compile(
-    r"(?:assistant|automated|bot|chatgpt|claude|codex|gemini|heuristic|llm|model|openai|synthetic)",
-    re.IGNORECASE,
 )
 
 
@@ -464,7 +460,7 @@ def _validate_attestation(
         and str(value.get("source_name") or "").strip() == source_name
         and str(value.get("collection_window") or "").strip() == collection_window
         and reviewer
-        and not _AI_REVIEWER_PATTERN.search(reviewer)
+        and not AI_REVIEWER_PATTERN.search(reviewer)
         and timestamp is not None
     )
     return {
@@ -1030,7 +1026,7 @@ def _review_progress(
         valid = bool(
             decision in ALLOWED_HUMAN_DECISIONS
             and reviewer
-            and not _AI_REVIEWER_PATTERN.search(reviewer)
+            and not AI_REVIEWER_PATTERN.search(reviewer)
             and _parse_timestamp(row.get("human_reviewed_at")) is not None
             and confidence.isdigit()
             and 1 <= int(confidence) <= 100

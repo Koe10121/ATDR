@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import re
 import tempfile
 import threading
 from dataclasses import dataclass
@@ -14,6 +13,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from atdr.app.core.config import Settings
+from atdr.app.core.redaction import AI_REVIEWER_PATTERN
 from atdr.app.db.models import User
 from atdr.app.detection import v527_blind_review_evaluation as v527
 from atdr.app.detection import v528_blind_review_helper as v528
@@ -23,10 +23,6 @@ from atdr.app.services import v533_independent_acceptance_service as v533
 V537_VERSION = "v5.37.0"
 WORKSPACE_STATE_FILE = "v5_37_evidence_review_workspace_state.json"
 _WORKSPACE_LOCK = threading.RLock()
-_AI_REVIEWER_PATTERN = re.compile(
-    r"(?:assistant|automated|bot|chatgpt|claude|codex|gemini|heuristic|language model|llm|model|openai|synthetic)",
-    re.IGNORECASE,
-)
 
 DETECTION_DECISION_GROUPS = {
     "benign_like": {"benign", "benign_unusual"},
@@ -273,7 +269,7 @@ def _assert_revision(workspace: dict[str, Any], expected_revision: int) -> None:
 
 
 def _assert_human_reviewer(current_user: User) -> None:
-    if _AI_REVIEWER_PATTERN.search(current_user.username):
+    if AI_REVIEWER_PATTERN.search(current_user.username):
         raise EvidenceReviewError(
             "automated_reviewer_not_allowed",
             "This workflow accepts decisions only from a genuine authenticated human reviewer.",

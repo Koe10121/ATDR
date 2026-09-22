@@ -17,6 +17,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from atdr.app.core.config import PROJECT_ROOT, Settings
+from atdr.app.core.redaction import IP_PATTERN
 from atdr.app.db.models import MLLabel, MLModelRun
 from atdr.app.detection import v527_blind_review_evaluation as v527_detection
 from atdr.app.detection import v528_blind_review_helper as v528_review
@@ -30,7 +31,6 @@ from atdr.app.services.assistant_service import (
 )
 from atdr.app.services.assistant_response_contracts import response_contract
 from atdr.app.services.v524_investigation_gemini_quality_service import (
-    IP_PATTERN,
     QualityQuestion,
     evaluate_assistant_response,
 )

@@ -8,11 +8,11 @@ from typing import Any
 
 from atdr.app.core.config import PROJECT_ROOT, Settings
 from atdr.app.services.assistant_service import assistant_status
+from atdr.app.core.redaction import IP_PATTERN
 from atdr.app.services.v523_live_source_acceptance_service import (
     run_v523_live_source_acceptance,
 )
 from atdr.app.services.v524_investigation_gemini_quality_service import (
-    IP_PATTERN,
     run_v524_quality_lock,
 )
 from atdr.scripts.run_e2e_workflow_validation import run_e2e_workflow_validation

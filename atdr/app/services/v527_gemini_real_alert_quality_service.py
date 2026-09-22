@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from atdr.app.core.config import Settings
+from atdr.app.core.redaction import IP_PATTERN
 from atdr.app.db.database import Base
 from atdr.app.db.models import (
     Alert,
@@ -32,7 +33,6 @@ from atdr.app.db.models import (
 from atdr.app.services.assistant_service import answer_assistant_question, assistant_status
 from atdr.app.services.case_service import list_alert_cases
 from atdr.app.services.v524_investigation_gemini_quality_service import (
-    IP_PATTERN,
     QualityQuestion,
     evaluate_assistant_response,
 )

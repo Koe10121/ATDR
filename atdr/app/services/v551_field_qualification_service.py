@@ -4,7 +4,6 @@ import csv
 import hashlib
 import json
 import os
-import re
 import tempfile
 import time
 from collections import Counter, defaultdict
@@ -13,6 +12,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from atdr.app.core.config import PROJECT_ROOT
+from atdr.app.core.redaction import AI_REVIEWER_PATTERN, IP_PATTERN
 from atdr.app.detection.rules import build_detection_context, evaluate_rules
 from atdr.app.parsers.paloalto_contract import (
     PARSER_CONTRACT_VERSION,
@@ -58,27 +58,6 @@ MINIMUM_WINDOW_COUNT = 4
 MINIMUM_REVIEWED_ROWS = 40
 MAX_ROWS_LIMIT = 100_000
 
-_AI_REVIEWER_PATTERN = re.compile(
-    r"(?:assistant|automated|bot|chatgpt|claude|codex|gemini|heuristic|llm|model|openai|synthetic)",
-    re.IGNORECASE,
-)
-_IPV6_CORE = (
-    r"(?:[0-9A-Fa-f]{1,4}:){7}[0-9A-Fa-f]{1,4}"
-    r"|(?:[0-9A-Fa-f]{1,4}:){1,7}:"
-    r"|(?:[0-9A-Fa-f]{1,4}:){1,6}:[0-9A-Fa-f]{1,4}"
-    r"|(?:[0-9A-Fa-f]{1,4}:){1,5}(?::[0-9A-Fa-f]{1,4}){1,2}"
-    r"|(?:[0-9A-Fa-f]{1,4}:){1,4}(?::[0-9A-Fa-f]{1,4}){1,3}"
-    r"|(?:[0-9A-Fa-f]{1,4}:){1,3}(?::[0-9A-Fa-f]{1,4}){1,4}"
-    r"|(?:[0-9A-Fa-f]{1,4}:){1,2}(?::[0-9A-Fa-f]{1,4}){1,5}"
-    r"|[0-9A-Fa-f]{1,4}:(?:(?::[0-9A-Fa-f]{1,4}){1,6})"
-    r"|:(?:(?::[0-9A-Fa-f]{1,4}){1,7}|:)"
-)
-# Matches assistant_llm.IP_PATTERN's coverage (IPv4 + IPv6); kept local since
-# this module has no existing dependency on the assistant services.
-_IP_PATTERN = re.compile(
-    r"(?<![\w.])(?:\d{1,3}\.){3}\d{1,3}(?![\w.])"
-    r"|(?<![0-9A-Za-z:])(?:" + _IPV6_CORE + r")(?:%[0-9A-Za-z]+)?(?![0-9A-Za-z:])"
-)
 _ALLOWED_EXPECTATION_FIELDS = frozenset(
     {
         "log_type",
@@ -203,7 +182,7 @@ def _load_private_manifest(output_dir: Path) -> dict[str, Any]:
 
 def _validate_human_identity(value: Any) -> bool:
     reviewer = str(value or "").strip()
-    return bool(reviewer and not _AI_REVIEWER_PATTERN.search(reviewer))
+    return bool(reviewer and not AI_REVIEWER_PATTERN.search(reviewer))
 
 
 def _validate_source_attestation(
@@ -962,7 +941,7 @@ def _write_outputs(
 
 def _safe_public_result(result: dict[str, Any]) -> dict[str, Any]:
     serialized = json.dumps(result, sort_keys=True, default=str)
-    if _IP_PATTERN.search(serialized):
+    if IP_PATTERN.search(serialized):
         raise V551QualificationError("The public v5.51 result failed privacy validation.")
     if any(token in serialized.lower() for token in ("raw_line", "exact_hash", "near_hash", "token_salt")):
         raise V551QualificationError("The public v5.51 result failed privacy validation.")

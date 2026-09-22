@@ -11,32 +11,9 @@ from typing import Any
 import requests
 
 from atdr.app.core.config import Settings
+from atdr.app.core.redaction import IP_PATTERN
 from atdr.app.services.assistant_response_contracts import AssistantResponseMode, response_contract
 
-
-# Redaction safety net for both this module (direct provider request bodies)
-# and assistant_service.py (imports IP_PATTERN from here). The IPv6
-# alternation is the standard full/compressed/mixed-form pattern; the
-# lookaround guards prevent partial matches inside longer hex tokens (hashes,
-# session IDs) and MAC addresses while still catching a trailing zone id
-# (`fe80::1%eth0`). A prior IPv4-only version of this pattern silently let
-# real IPv6 addresses reach the external LLM provider even with
-# ASSISTANT_REDACT_IPS=true.
-_IPV6_CORE = (
-    r"(?:[0-9A-Fa-f]{1,4}:){7}[0-9A-Fa-f]{1,4}"
-    r"|(?:[0-9A-Fa-f]{1,4}:){1,7}:"
-    r"|(?:[0-9A-Fa-f]{1,4}:){1,6}:[0-9A-Fa-f]{1,4}"
-    r"|(?:[0-9A-Fa-f]{1,4}:){1,5}(?::[0-9A-Fa-f]{1,4}){1,2}"
-    r"|(?:[0-9A-Fa-f]{1,4}:){1,4}(?::[0-9A-Fa-f]{1,4}){1,3}"
-    r"|(?:[0-9A-Fa-f]{1,4}:){1,3}(?::[0-9A-Fa-f]{1,4}){1,4}"
-    r"|(?:[0-9A-Fa-f]{1,4}:){1,2}(?::[0-9A-Fa-f]{1,4}){1,5}"
-    r"|[0-9A-Fa-f]{1,4}:(?:(?::[0-9A-Fa-f]{1,4}){1,6})"
-    r"|:(?:(?::[0-9A-Fa-f]{1,4}){1,7}|:)"
-)
-IP_PATTERN = re.compile(
-    r"\b(?:(?:\d{1,3}\.){3}\d{1,3})\b"
-    r"|(?<![0-9A-Za-z:])(?:" + _IPV6_CORE + r")(?:%[0-9A-Za-z]+)?(?![0-9A-Za-z:])"
-)
 PROMPT_CONTRACT_VERSION = "soc_intent_aware_concise_v5"
 
 GEMINI_STRUCTURED_RESPONSE_SCHEMA = {
