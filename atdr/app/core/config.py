@@ -39,6 +39,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    # ---- Core / database ----
     app_name: str = "MFU ATDR"
     database_url: str = Field(default="sqlite:///./atdr.db", alias="DATABASE_URL")
     db_pool_size: int = Field(default=5, alias="DB_POOL_SIZE")
@@ -48,6 +49,8 @@ class Settings(BaseSettings):
     db_pool_pre_ping: bool = Field(default=True, alias="DB_POOL_PRE_PING")
     db_statement_timeout_ms: int = Field(default=30000, alias="DB_STATEMENT_TIMEOUT_MS")
     auto_create_tables: bool = Field(default=True, alias="AUTO_CREATE_TABLES")
+
+    # ---- Response and detection defaults ----
     response_simulation: bool = Field(default=True, alias="RESPONSE_SIMULATION")
     response_provider: str = Field(default="simulation", alias="RESPONSE_PROVIDER")
     response_max_block_minutes: int = Field(default=1440, alias="RESPONSE_MAX_BLOCK_MINUTES")
@@ -55,6 +58,8 @@ class Settings(BaseSettings):
     min_alert_score: int = Field(default=30, alias="MIN_ALERT_SCORE")
     ml_model_path: str = Field(default="atdr/models/isolation_forest.joblib", alias="ML_MODEL_PATH")
     supervised_model_path: str = Field(default="atdr/models/supervised_classifier.joblib", alias="SUPERVISED_MODEL_PATH")
+
+    # ---- Governed shadow ML (advisory scoring, observation, monitoring) ----
     governed_shadow_scoring_enabled: bool = Field(
         default=False,
         alias="GOVERNED_SHADOW_SCORING_ENABLED",
@@ -134,20 +139,28 @@ class Settings(BaseSettings):
         alias="GOVERNED_SHADOW_MONITORING_BATCH_LIMIT",
     )
     ml_contamination: float = Field(default=0.03, alias="ML_CONTAMINATION")
+
+    # ---- API and auth tokens ----
     api_base_url: str = Field(default="http://127.0.0.1:8000", alias="API_BASE_URL")
     jwt_secret_key: str = Field(default="change-this-dev-secret", alias="JWT_SECRET_KEY")
     jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
     access_token_expire_minutes: int = Field(default=480, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
+
+    # ---- Demo / seed accounts ----
     demo_admin_username: str = Field(default="admin", alias="DEMO_ADMIN_USERNAME")
     demo_admin_password: str = Field(default="admin123", alias="DEMO_ADMIN_PASSWORD")
     demo_analyst_username: str = Field(default="analyst", alias="DEMO_ANALYST_USERNAME")
     demo_analyst_password: str = Field(default="analyst123", alias="DEMO_ANALYST_PASSWORD")
     demo_sample_log_path: str = Field(default="data/samples/paloalto-demo.txt", alias="DEMO_SAMPLE_LOG_PATH")
     demo_import_limit: int = Field(default=5000, alias="DEMO_IMPORT_LIMIT")
+
+    # ---- Environment and logging ----
     environment: str = Field(default="development", alias="ENVIRONMENT")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     log_format: str = Field(default="json", alias="LOG_FORMAT")
     service_version: str = Field(default="0.1.0", alias="SERVICE_VERSION")
+
+    # ---- CORS and security headers ----
     cors_allowed_origins: str = Field(
         default="http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:8501,http://localhost:8501",
         alias="CORS_ALLOWED_ORIGINS",
@@ -167,6 +180,8 @@ class Settings(BaseSettings):
     security_headers_enabled: bool = Field(default=True, alias="SECURITY_HEADERS_ENABLED")
     trust_proxy_headers: bool = Field(default=False, alias="TRUST_PROXY_HEADERS")
     trusted_proxy_cidrs: str = Field(default="127.0.0.1/32,::1/128", alias="TRUSTED_PROXY_CIDRS")
+
+    # ---- Deployment and acceptance evidence ----
     deployment_rehearsal_approved: bool = Field(default=False, alias="DEPLOYMENT_REHEARSAL_APPROVED")
     deployment_public_base_url: str = Field(default="", alias="DEPLOYMENT_PUBLIC_BASE_URL")
     deployment_dns_name: str = Field(default="", alias="DEPLOYMENT_DNS_NAME")
@@ -175,12 +190,18 @@ class Settings(BaseSettings):
     deployment_prometheus_url: str = Field(default="", alias="DEPLOYMENT_PROMETHEUS_URL")
     deployment_secret_provider: str = Field(default="disabled", alias="DEPLOYMENT_SECRET_PROVIDER")
     acceptance_evidence_root: str = Field(default="", alias="ATDR_ACCEPTANCE_EVIDENCE_ROOT")
+
+    # ---- Syslog ingestion ----
     syslog_enabled: bool = Field(default=False, alias="SYSLOG_ENABLED")
     syslog_host: str = Field(default="127.0.0.1", alias="SYSLOG_HOST")
     syslog_port: int = Field(default=5514, alias="SYSLOG_PORT")
     syslog_batch_size: int = Field(default=100, alias="SYSLOG_BATCH_SIZE")
+
+    # ---- Login rate limiting ----
     login_rate_limit_attempts: int = Field(default=5, alias="LOGIN_RATE_LIMIT_ATTEMPTS")
     login_rate_limit_window_seconds: int = Field(default=300, alias="LOGIN_RATE_LIMIT_WINDOW_SECONDS")
+
+    # ---- Local auth mode and OIDC ----
     # The MFU shell is the normal entry path. Local credentials are available
     # only when an operator explicitly selects the recovery/test profile.
     auth_mode: str = Field(default="template_shell", alias="ATDR_AUTH_MODE")
@@ -191,6 +212,8 @@ class Settings(BaseSettings):
     oidc_issuer_url: str = Field(default="", alias="OIDC_ISSUER_URL")
     oidc_allowed_domains: str = Field(default="", alias="OIDC_ALLOWED_DOMAINS")
     oidc_default_role: str = Field(default="analyst", alias="OIDC_DEFAULT_ROLE")
+
+    # ---- MFU IAM adapter ----
     mfu_iam_enabled: bool = Field(default=False, alias="MFU_IAM_ENABLED")
     mfu_iam_base_url: str = Field(
         default="",
@@ -351,11 +374,14 @@ class Settings(BaseSettings):
         default="",
         validation_alias=AliasChoices("MFU_IAM_INIT_SEED_ADMIN_EMAIL", "PROJECT_INIT_SEED_ADMIN_EMAIL"),
     )
+    # ---- Google SSO and school email ----
     google_sso_enabled: bool = Field(default=False, alias="GOOGLE_SSO_ENABLED")
     google_client_id: str = Field(default="", alias="GOOGLE_CLIENT_ID")
     school_email_domains: str = Field(default="", alias="SCHOOL_EMAIL_DOMAINS")
     require_school_email: bool = Field(default=False, alias="REQUIRE_SCHOOL_EMAIL")
     local_email_login_enabled: bool = Field(default=True, alias="LOCAL_EMAIL_LOGIN_ENABLED")
+
+    # ---- SMTP and email notifications ----
     smtp_enabled: bool = Field(default=False, alias="SMTP_ENABLED")
     smtp_host: str = Field(default="", alias="SMTP_HOST")
     smtp_port: int = Field(default=587, alias="SMTP_PORT")
@@ -373,10 +399,13 @@ class Settings(BaseSettings):
         default=False,
         alias="EMAIL_VERIFICATION_REQUIRED_FOR_ADMIN_ACTIONS",
     )
+    # ---- Dashboard cache and run/job retention ----
     dashboard_summary_cache_seconds: int = Field(default=30, alias="DASHBOARD_SUMMARY_CACHE_SECONDS")
     job_stale_after_minutes: int = Field(default=60, alias="JOB_STALE_AFTER_MINUTES")
     job_retention_days: int = Field(default=30, alias="JOB_RETENTION_DAYS")
     run_history_retention_days: int = Field(default=90, alias="RUN_HISTORY_RETENTION_DAYS")
+
+    # ---- Durable operations: worker, job queue, ingestion, staging ----
     operation_worker_enabled: bool = Field(default=False, alias="OPERATION_WORKER_ENABLED")
     operation_worker_poll_seconds: float = Field(default=1.0, alias="OPERATION_WORKER_POLL_SECONDS")
     operation_worker_lease_seconds: int = Field(default=900, alias="OPERATION_WORKER_LEASE_SECONDS")
@@ -407,11 +436,14 @@ class Settings(BaseSettings):
         default=60,
         alias="OPERATION_JOB_FAILURE_WARNING_WINDOW_MINUTES",
     )
+    # ---- Backup and audit retention ----
     backup_directory: str = Field(default="", alias="ATDR_BACKUP_DIRECTORY")
     backup_max_age_hours: float = Field(default=30.0, alias="ATDR_BACKUP_MAX_AGE_HOURS")
     audit_retention_days: int = Field(default=365, alias="AUDIT_RETENTION_DAYS")
     audit_retention_min_days: int = Field(default=90, alias="AUDIT_RETENTION_MIN_DAYS")
     audit_retention_batch_size: int = Field(default=500, alias="AUDIT_RETENTION_BATCH_SIZE")
+
+    # ---- AI Assistant ----
     assistant_enabled: bool = Field(default=False, alias="ASSISTANT_ENABLED")
     assistant_provider: str = Field(default="disabled", alias="ASSISTANT_PROVIDER")
     assistant_model: str = Field(default="", alias="ASSISTANT_MODEL")
