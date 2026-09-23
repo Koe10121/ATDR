@@ -1,5 +1,5 @@
 from atdr.app.db.models import Alert, AlertEvidence, NormalizedLog
-from atdr.app.detection.explanations import alert_explanation_completeness, explain_log_triage
+from atdr.app.detection.explanations import alert_explanation_completeness, explain_log_triage, recommended_response
 
 
 def test_explain_log_triage_reports_not_flagged_with_parser_context():
@@ -168,3 +168,63 @@ def test_alert_explanation_completeness_passes_full_governed_contract():
     assert completeness["passed"] is True
     assert completeness["score"] == 1.0
     assert completeness["missing"] == []
+
+
+def test_recommended_response_is_rule_specific_not_generic_by_severity():
+    # Regression test: recommended_response used to be 3 fixed sentences
+    # selected purely by severity bucket -- a credential brute-force, a
+    # port scan, and a C2 beacon all produced identical text modulo one
+    # substituted IP. Different rule codes at the same severity must now
+    # produce genuinely different guidance.
+    port_scan = recommended_response(
+        "High", {"code": "possible_port_scan", "title": "Possible port scan"}, src_ip="203.0.113.9"
+    )
+    brute_force = recommended_response(
+        "High", {"code": "brute_force_like_attempts", "title": "Brute force"}, src_ip="203.0.113.9"
+    )
+    beaconing = recommended_response(
+        "High", {"code": "beaconing_like_outbound", "title": "Beaconing"}, src_ip="203.0.113.9"
+    )
+    assert len({port_scan, brute_force, beaconing}) == 3
+    assert "authorized scanner or asset-discovery system" in port_scan
+    assert "same destination and authentication service" in brute_force
+    assert "interval regularity" in beaconing
+    # All still carry the source and the severity-appropriate action.
+    for text in (port_scan, brute_force, beaconing):
+        assert "203.0.113.9" in text
+        assert "preserve raw evidence" in text
+
+
+def test_recommended_response_names_a_source_count_for_multi_source_groups():
+    # Regression test: a grouped alert spanning many source IPs used to
+    # recommend investigating one single IP (the highest-scoring log's),
+    # even though the alert's own explanation text correctly said "Sample
+    # sources: A, B, C...". The recommendation must reflect the same
+    # multi-source reality instead of pointing at one arbitrary IP.
+    single_source = recommended_response(
+        "High",
+        {"code": "possible_port_scan", "title": "Possible port scan"},
+        src_ip="203.0.113.9",
+        observations={"unique_src_count": 1},
+    )
+    multi_source = recommended_response(
+        "High",
+        {"code": "possible_port_scan", "title": "Possible port scan"},
+        src_ip="203.0.113.9",
+        observations={"unique_src_count": 5},
+    )
+    assert "203.0.113.9" in single_source
+    assert "203.0.113.9" not in multi_source
+    assert "5 sources" in multi_source
+
+
+def test_recommended_response_falls_back_gracefully_with_no_rule_or_evidence():
+    assert recommended_response("Low", None) == (
+        "Monitor the event and mark as false positive if expected for this environment."
+    )
+    # A rule code with no entry in the analyst-checks table (e.g. the
+    # dynamically-added watchlist match) must not crash -- falls back to
+    # the severity-appropriate action alone.
+    assert recommended_response("Medium", {"code": "watchlist_match", "title": "Watchlist"}, src_ip="10.0.0.9") == (
+        "Review 10.0.0.9, validate the business context, and monitor for repeated behavior."
+    )

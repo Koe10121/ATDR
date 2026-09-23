@@ -8,6 +8,7 @@ from atdr.app.detection.attack_mapping import attack_mapping_for_type, infer_att
 from atdr.app.detection.hybrid_scoring import hybrid_risk_score
 from atdr.app.detection.rule_catalog import rule_spec
 from atdr.app.detection.rules import is_outside_to_inside
+from atdr.app.detection.scoring import SEVERITY_CRITICAL, SEVERITY_HIGH, SEVERITY_MEDIUM
 from atdr.app.detection.supervised_detector import predict_supervised_log
 from atdr.app.ml.features import build_log_features
 from atdr.app.services.case_service import case_trace_for_alert
@@ -137,6 +138,46 @@ def _rule_specific_analyst_checks(rules: list[dict[str, Any]]) -> list[str]:
         ]
     )
     return list(dict.fromkeys(values))[:8]
+
+
+def recommended_response(
+    severity: str,
+    top_rule: dict[str, Any] | None,
+    *,
+    src_ip: str | None = None,
+    observations: dict[str, Any] | None = None,
+) -> str:
+    """Build a rule-specific recommended action.
+
+    Previously this was 3 fixed sentences selected purely by severity
+    bucket -- a credential brute-force, a port scan, and a C2 beacon all
+    produced identical text modulo one substituted IP. Lead with the top
+    matched rule's own analyst-check guidance (the same RULE_ANALYST_CHECKS
+    table the "Recommended checks" panel already uses), then the
+    severity-appropriate action -- naming the actual evidence subject (the
+    one source IP, or a source count for a multi-source grouped alert,
+    rather than always naming a single IP even when the alert groups many).
+    """
+    top_code = str((top_rule or {}).get("code") or "") or None
+    checks = RULE_ANALYST_CHECKS.get(top_code) if top_code else None
+    check = checks[0] if checks else None
+
+    unique_src_count = (observations or {}).get("unique_src_count")
+    if unique_src_count and unique_src_count > 1:
+        subject = f"{unique_src_count} sources"
+    elif src_ip:
+        subject = src_ip
+    else:
+        subject = "the event"
+
+    if severity in {SEVERITY_CRITICAL, SEVERITY_HIGH}:
+        action = f"Investigate {subject}, preserve raw evidence, and use simulated block if activity is unauthorized."
+    elif severity == SEVERITY_MEDIUM:
+        action = f"Review {subject}, validate the business context, and monitor for repeated behavior."
+    else:
+        action = f"Monitor {subject} and mark as false positive if expected for this environment."
+
+    return f"{check} {action}" if check else action
 
 
 def compact_behavior_features(db: Session, log: NormalizedLog) -> dict[str, Any]:

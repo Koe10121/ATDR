@@ -10,10 +10,10 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session, joinedload, noload
 
 from atdr.app.db.models import Alert, AlertEvidence, AlertNote, AuditLog, LogSource, NormalizedLog, RawLog, ResponseAction, User
-from atdr.app.detection.explanations import build_alert_detection_summary, compact_behavior_features
+from atdr.app.detection.explanations import build_alert_detection_summary, compact_behavior_features, recommended_response
 from atdr.app.detection.rule_catalog import serialize_rule_match
 from atdr.app.detection.rules import DetectionResult
-from atdr.app.detection.scoring import recommended_response, severity_from_score
+from atdr.app.detection.scoring import severity_from_score
 
 
 ALERT_STATUSES = {"open", "investigating", "contained", "resolved", "false_positive", "needs_more_context"}
@@ -73,7 +73,9 @@ def create_alert_from_detection(db: Session, log: NormalizedLog, result: Detecti
         severity=result.severity,
         explanation=result.explanation,
         matched_rules_json=matched_rules,
-        recommended_response=recommended_response(result.severity, log.src_ip),
+        recommended_response=recommended_response(
+            result.severity, matched_rules[0] if matched_rules else None, src_ip=log.src_ip
+        ),
     )
     alert.evidence.append(AlertEvidence(normalized_log_id=log.id))
     db.add(alert)
@@ -227,7 +229,9 @@ def create_grouped_alert_from_detections(
                 "source_ids": source_ids,
             },
         ],
-        recommended_response=recommended_response(severity, primary_log.src_ip),
+        recommended_response=recommended_response(
+            severity, top_rule, src_ip=primary_log.src_ip, observations=observations
+        ),
     )
     db.add(alert)
     evidence_ids = [int(log.id) for log in logs if log.id is not None]
@@ -581,7 +585,9 @@ def _update_deduplicated_alert(
         f"Deduplicated alert updated with {len(added_log_ids)} new evidence log"
         f"{'s' if len(added_log_ids) != 1 else ''}. {alert.explanation}"
     )[:4000]
-    alert.recommended_response = recommended_response(alert.severity, alert.src_ip)
+    alert.recommended_response = recommended_response(
+        alert.severity, top_rule, src_ip=alert.src_ip, observations=metadata
+    )
     alert.matched_rules_json = [*_merge_rule_metadata(alert.matched_rules_json or [], matched_rules), metadata]
     db.add(
         AuditLog(
