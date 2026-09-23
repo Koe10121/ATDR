@@ -3,6 +3,7 @@ import { Badge } from "../components/Badge";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { MetricCard } from "../components/MetricCard";
+import { SafeSelect } from "../components/SafeSelect";
 import { useAuth } from "../hooks/useAuth";
 import { useBlockedIps, useHealth, useResponseMutations } from "../hooks/useApiQueries";
 
@@ -96,22 +97,17 @@ export function ResponseCenter() {
           </div>
           <input aria-label="Response target IP address" className="input" placeholder="IP address" value={targetIp} onChange={(event) => setTargetIp(event.target.value)} disabled={!isAdmin} />
           <textarea aria-label="Response justification" className="input mt-3 min-h-24" value={reason} onChange={(event) => setReason(event.target.value)} disabled={!isAdmin} />
-          <label className="mt-3 block text-xs font-bold uppercase tracking-wide text-muted" htmlFor="block-duration">
+          <label className="mt-3 block text-xs font-bold uppercase tracking-wide text-muted">
             Timeout
+            <SafeSelect
+              className="mt-1"
+              disabled={!isAdmin}
+              value={durationMinutes ?? ""}
+              options={DURATION_OPTIONS.map((option) => ({ value: String(option.minutes ?? ""), label: option.label }))}
+              onChange={(next) => setDurationMinutes(next === "" ? null : Number(next))}
+              ariaLabel="Response block timeout"
+            />
           </label>
-          <select
-            id="block-duration"
-            className="input mt-1"
-            disabled={!isAdmin}
-            value={durationMinutes ?? ""}
-            onChange={(event) => setDurationMinutes(event.target.value === "" ? null : Number(event.target.value))}
-          >
-            {DURATION_OPTIONS.map((option) => (
-              <option key={option.label} value={option.minutes ?? ""}>
-                {option.label}
-              </option>
-            ))}
-          </select>
           <div className="mt-2 text-xs text-muted">
             A justification note is required. Internal/management ranges and the ATDR host itself are protected from blocks.
           </div>
@@ -129,7 +125,7 @@ export function ResponseCenter() {
               {blockIp.data.result_message}
             </div>
           ) : null}
-          {blockIp.error ? <div className="mt-3 rounded-lg border border-danger/30 bg-danger/10 p-3 text-sm text-danger">{String(blockIp.error.message)}</div> : null}
+          {blockIp.error ? <div className="mt-3"><ErrorBanner error={blockIp.error} /></div> : null}
           {!isAdmin ? <div className="mt-3 text-xs text-muted">Only admins can record block/unblock actions.</div> : null}
         </form>
 

@@ -6699,6 +6699,32 @@ test("simulated response confirmation and denied audit are visible", async ({ pa
   await expect(page.getByText("10.0.0.10")).toBeVisible();
 });
 
+test("response center shows the real validation detail instead of a generic error", async ({ page }) => {
+  // Regression test: this form used to render `String(blockIp.error.message)`
+  // directly instead of <ErrorBanner>. ApiError's `.message` falls back to a
+  // generic "API request failed with status 422" whenever `detail` isn't a
+  // plain string -- which is exactly FastAPI/Pydantic's shape for a 422
+  // validation error (an array of {loc, msg} objects). ErrorBanner formats
+  // that array into the real per-field message; the raw render did not.
+  await mockApi(page);
+  await seedSession(page);
+  await page.route("**/api/response/block-ip", async (route) => {
+    await route.fulfill({
+      status: 422,
+      json: { detail: [{ loc: ["body", "target_ip"], msg: "IP address value is not valid." }] }
+    });
+  });
+  await page.goto("/response");
+
+  await page.getByPlaceholder("IP address").fill("not-a-real-ip");
+  await page.locator("textarea").fill("Acceptance test malformed target IP.");
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Record simulated block" }).click();
+
+  await expect(page.getByRole("alert")).toContainText("target_ip: IP address value is not valid.");
+  await expect(page.getByText("API request failed with status 422")).not.toBeVisible();
+});
+
 test("sort and saved-view dropdowns tolerate malformed persisted table state", async ({ page }) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
