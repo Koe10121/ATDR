@@ -9,6 +9,7 @@ from atdr.app.main import app
 from atdr.app.services import assistant_llm
 from atdr.app.services.assistant_response_contracts import (
     RESPONSE_CONTRACTS,
+    _shorten,
     build_response_presentation,
     infer_response_mode,
 )
@@ -92,6 +93,66 @@ def test_v534_case_context_uses_dedicated_handoff_mode() -> None:
         "Summarize this case for analyst handoff.",
         ["alert_cases", "case_grouping"],
     ) == "case_handoff"
+
+
+def test_shorten_prefers_a_sentence_boundary_over_a_mid_word_cut() -> None:
+    # Regression test: _shorten used to cut at a hard word count regardless
+    # of where that landed, so a multi-sentence item (e.g. a raw LLM answer
+    # placed whole into one "summary" entry) could be truncated mid-quote --
+    # observed live as `...the "code...` from a real governance-mode answer.
+    value = (
+        "The supervised model is currently in a \"candidate_only\" status and is not production promoted. "
+        "It has passed 4 out of 7 readiness checks. "
+        "The main blocker for promotion is that the \"code contract matched\" check has not passed, "
+        "which means the candidate model artifact does not yet align with the expected production contract shape."
+    )
+    shortened = _shorten(value, 32)
+    assert shortened == (
+        'The supervised model is currently in a "candidate_only" status and is not production promoted. '
+        "It has passed 4 out of 7 readiness checks..."
+    )
+    assert "..." not in shortened[:-3]
+    assert '"code' not in shortened
+
+
+def test_shorten_falls_back_to_a_word_cut_when_no_sentence_fits_the_budget() -> None:
+    # A single sentence that alone exceeds the limit has no earlier sentence
+    # boundary to stop at -- must still fall back to the original word-count
+    # behavior rather than returning the whole, unshortened sentence.
+    value = "This is one very long single sentence with no period anywhere inside it that keeps going and going"
+    shortened = _shorten(value, 8)
+    assert shortened == "This is one very long single sentence with..."
+
+
+def test_shorten_leaves_short_text_unchanged() -> None:
+    assert _shorten("Short and fine.", 32) == "Short and fine."
+
+
+def test_v534_governance_presentation_stays_sentence_clean_when_summary_is_one_long_paragraph() -> None:
+    # End-to-end reproduction of the live bug via the real presentation
+    # path, not just the _shorten unit above: a governance-mode answer
+    # whose raw "summary" section is a single multi-sentence LLM paragraph
+    # (the actual shape structured Gemini output produced) must not garble.
+    presentation = build_response_presentation(
+        mode="governance",
+        question="Explain current ML model status and why it is not production promoted.",
+        original_answer="fallback text",
+        raw_sections={
+            "summary": [
+                "The supervised model is currently in a \"candidate_only\" status and is not production "
+                "promoted. It has passed 4 out of 7 readiness checks. The main blocker for promotion is "
+                "that the \"code contract matched\" check has not passed, which means the candidate model "
+                "artifact does not yet align with the expected production contract shape."
+            ],
+            "limitations": ["promotion_gate.decision: candidate_only"],
+            "next_steps": ["Address the code contract mismatch before re-running the promotion gate."],
+        },
+        active_context={},
+        citation_references=[],
+    )
+    assert '"code' not in presentation.answer
+    assert "candidate_only" in presentation.answer
+    assert presentation.answer.count("...") <= 1
 
 
 def test_v534_gemini_brief_is_compacted_after_provider_rendering_and_read_only(

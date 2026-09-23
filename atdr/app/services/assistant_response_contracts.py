@@ -216,18 +216,49 @@ def _fallback_lines(answer: str) -> list[str]:
     return _dedupe([" ".join(item.split()) for item in rows if item.strip()])
 
 
+_SENTENCE_BOUNDARY_PATTERN = re.compile(r"(?<=[.!?])\s+")
+
+
+def _sentence_bounded(value: str, limit: int) -> str | None:
+    """Try to truncate at a whole-sentence boundary within the word budget.
+
+    A raw LLM answer can put an entire multi-sentence paragraph into a
+    single section item (rather than one sentence per item); a blind
+    word-count cut on that can land mid-quote or mid-clause -- e.g.
+    producing `the "code...` -- which reads as broken rather than merely
+    abbreviated. Returns None when no sentence-boundary cut applies (a
+    single sentence that alone exceeds the limit), so the caller can fall
+    back to a plain word-count cut.
+    """
+    sentences = [item for item in _SENTENCE_BOUNDARY_PATTERN.split(value.strip()) if item]
+    kept: list[str] = []
+    word_count = 0
+    for sentence in sentences:
+        sentence_words = len(sentence.split())
+        if kept and word_count + sentence_words > limit:
+            break
+        kept.append(sentence)
+        word_count += sentence_words
+        if word_count >= limit:
+            break
+    if len(kept) < len(sentences) and word_count <= limit:
+        joined = " ".join(kept)
+        return joined[:-1] + "..." if joined.endswith(".") else joined + "..."
+    return None
+
+
 def _bounded_words(value: str, limit: int) -> str:
     words = value.split()
     if len(words) <= limit:
         return value.strip()
-    return " ".join(words[:limit]).rstrip(" ,;:-") + "..."
+    return _sentence_bounded(value, limit) or " ".join(words[:limit]).rstrip(" ,;:-") + "..."
 
 
 def _shorten(value: str, limit: int) -> str:
     words = value.split()
     if len(words) <= limit:
         return value
-    return " ".join(words[:limit]).rstrip(" ,;:-") + "..."
+    return _sentence_bounded(value, limit) or " ".join(words[:limit]).rstrip(" ,;:-") + "..."
 
 
 def _atomic_evidence(values: list[str]) -> list[str]:
