@@ -326,3 +326,66 @@ def test_logout_only_revokes_the_logging_out_users_own_sessions():
         assert client.get("/api/auth/me", headers=admin_headers).status_code == 200
     finally:
         app.dependency_overrides.clear()
+
+
+def test_admin_password_reset_revokes_the_targets_existing_sessions():
+    # An admin resetting another user's password is a natural response to a
+    # suspected credential compromise -- if a stale, already-issued token
+    # kept working for the rest of its 8-hour lifetime after the reset, the
+    # reset wouldn't actually contain anything.
+    client = _client()
+    try:
+        admin_headers = _login(client, "admin", "admin123")
+        analyst_headers = _login(client, "analyst", "analyst123")
+        assert client.get("/api/auth/me", headers=analyst_headers).status_code == 200
+
+        users = client.get("/api/users", headers=admin_headers)
+        assert users.status_code == 200
+        analyst_id = next(u["id"] for u in users.json() if u["username"] == "analyst")
+
+        reset = client.post(
+            f"/api/users/{analyst_id}/reset-password",
+            json={"new_password": "brandnewpass123"},
+            headers=admin_headers,
+        )
+        assert reset.status_code == 200
+
+        stale = client.get("/api/auth/me", headers=analyst_headers)
+        assert stale.status_code == 401
+        assert "revoked" in stale.json()["detail"].lower()
+
+        time.sleep(1.1)
+        fresh_headers = _login(client, "analyst", "brandnewpass123")
+        assert client.get("/api/auth/me", headers=fresh_headers).status_code == 200
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_change_own_password_revokes_other_existing_sessions():
+    # Changing your own password is the standard "kick everyone else out"
+    # signal (e.g. after noticing a suspicious login elsewhere) -- a second,
+    # already-issued session token must not keep working afterward.
+    client = _client()
+    try:
+        first_session = _login(client, "analyst", "analyst123")
+        time.sleep(1.1)
+        second_session = _login(client, "analyst", "analyst123")
+        assert client.get("/api/auth/me", headers=first_session).status_code == 200
+        assert client.get("/api/auth/me", headers=second_session).status_code == 200
+
+        changed = client.post(
+            "/api/auth/change-password",
+            json={"current_password": "analyst123", "new_password": "freshpass123"},
+            headers=first_session,
+        )
+        assert changed.status_code == 200
+
+        stale = client.get("/api/auth/me", headers=second_session)
+        assert stale.status_code == 401
+        assert "revoked" in stale.json()["detail"].lower()
+
+        time.sleep(1.1)
+        fresh_headers = _login(client, "analyst", "freshpass123")
+        assert client.get("/api/auth/me", headers=fresh_headers).status_code == 200
+    finally:
+        app.dependency_overrides.clear()

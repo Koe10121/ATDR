@@ -238,6 +238,7 @@ def reset_user_password(db: Session, user_id: int, *, new_password: str, actor: 
     if user is None:
         return None
     user.password_hash = hash_password(new_password)
+    user.sessions_revoked_at = datetime.now(timezone.utc)
     db.add(
         AuditLog(
             actor=actor,
@@ -277,6 +278,7 @@ def change_own_password(db: Session, user: User, *, current_password: str, new_p
     if db_user is None or not verify_password(current_password, db_user.password_hash):
         raise ValueError("Current password is incorrect.")
     db_user.password_hash = hash_password(new_password)
+    db_user.sessions_revoked_at = datetime.now(timezone.utc)
     db.add(
         AuditLog(
             actor=user.username,
