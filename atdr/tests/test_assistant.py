@@ -385,6 +385,40 @@ def test_assistant_unmatched_question_omits_job_and_ml_context_when_none_exists(
         app.dependency_overrides.clear()
 
 
+def test_assistant_unmatched_question_curates_job_summary_instead_of_embedding_it_whole():
+    # Regression test: job_summary used to be embedded whole in the
+    # unmatched-question fallback context, unlike the hand-picked
+    # sources/cases fields -- measured directly, it alone was 64% of a
+    # modest context block, driven by latest_failed_job's unbounded
+    # error_summary/result_summary fields. Assert the curated shape: the
+    # small operational-health fields are present, but the raw job_to_dict
+    # blob (worker/staging/retention_policy/queue/latest_successful_job/
+    # result_summary) is gone, and error_summary is bounded.
+    client, _ = _client_with_session()
+    try:
+        headers = _login(client)
+        question = "What does the app_risk field mean?"
+        response = client.post("/api/assistant/chat", json={"question": question}, headers=headers)
+        assert response.status_code == 200
+        job_summary = response.json()["details"]["job_summary"]
+        assert set(job_summary.keys()) == {
+            "counts",
+            "active_count",
+            "failed_count",
+            "stale_count",
+            "health_status",
+            "warning_count",
+            "recent_failure_count",
+            "latest_failed_job",
+        }
+        assert job_summary["latest_failed_job"]["job_type"] == "run_detection"
+        assert job_summary["latest_failed_job"]["status"] == "failed"
+        assert job_summary["latest_failed_job"]["error_summary"] == "Synthetic failed job for assistant tests."
+        assert set(job_summary["latest_failed_job"].keys()) == {"job_type", "status", "error_summary"}
+    finally:
+        app.dependency_overrides.clear()
+
+
 def test_assistant_unmatched_question_with_llm_enabled_synthesizes_from_the_broader_context(monkeypatch):
     monkeypatch.setenv("ASSISTANT_LLM_ENABLED", "true")
     monkeypatch.setenv("ASSISTANT_LLM_PROVIDER", "mock")
