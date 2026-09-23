@@ -85,6 +85,31 @@ def get_current_user(
             detail="User is inactive or no longer exists.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    if user.sessions_revoked_at is not None:
+        issued_at = payload.get("iat")
+        # SQLite (unlike Postgres) doesn't preserve tzinfo across a
+        # DateTime(timezone=True) round-trip, even though the value was
+        # written as UTC (datetime.now(UTC)) -- it comes back naive, and
+        # .timestamp() on a naive datetime interprets it as *local* time,
+        # silently shifting it by the machine's UTC offset. Re-attach UTC
+        # explicitly before comparing against the token's iat (already a
+        # correct UTC epoch value from PyJWT).
+        revoked_at = user.sessions_revoked_at
+        if revoked_at.tzinfo is None:
+            revoked_at = revoked_at.replace(tzinfo=timezone.utc)
+        # `<=`, not `<`: iat has 1-second resolution, and the token used to
+        # call logout is minted and revoked within the same request/response
+        # cycle -- a strict `<` would let that exact token survive whenever
+        # login and logout land in the same wall-clock second. A real user
+        # can't type credentials and log back in within the same second, so
+        # the only cost of `<=` is a theoretical same-second relogin needing
+        # one retry -- far cheaper than a "revoked" token still working.
+        if issued_at is None or float(issued_at) <= revoked_at.timestamp():
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Session has been revoked. Please sign in again.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
     return user
 
 

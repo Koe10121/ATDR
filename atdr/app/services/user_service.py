@@ -149,6 +149,7 @@ def disable_user(db: Session, user_id: int, *, actor: str) -> User | None:
         raise ValueError("Admins cannot disable their own account.")
     user.is_active = False
     user.disabled_at = datetime.now(timezone.utc)
+    user.sessions_revoked_at = datetime.now(timezone.utc)
     db.add(
         AuditLog(
             actor=actor,

@@ -1,4 +1,5 @@
 import time
+from datetime import UTC, datetime
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -214,6 +215,7 @@ async def consume_mfu_iam_template_handoff(request: Request, db: Session = Depen
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 def logout(response: Response, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> Response:
     settings = get_settings()
+    current_user.sessions_revoked_at = datetime.now(UTC)
     db.add(
         AuditLog(
             actor=current_user.username,

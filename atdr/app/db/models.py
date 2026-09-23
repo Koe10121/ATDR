@@ -83,6 +83,7 @@ class User(Base):
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     invited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     disabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    sessions_revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 

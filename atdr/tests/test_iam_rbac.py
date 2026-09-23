@@ -1,3 +1,4 @@
+import time
 from collections.abc import Generator
 from datetime import datetime, timezone
 from pathlib import Path
@@ -272,3 +273,56 @@ def test_frontend_has_admin_route_guard_and_role_aware_navigation():
     assert "adminOnly" in app_shell
     assert "User Admin" in app_shell
     assert "Validation Controls" in app_shell
+
+
+def test_logout_revokes_the_token_that_was_used_to_call_it():
+    client = _client()
+    try:
+        headers = _login(client, "analyst", "analyst123")
+        assert client.get("/api/auth/me", headers=headers).status_code == 200
+
+        logout = client.post("/api/auth/logout", headers=headers)
+        assert logout.status_code == 204
+
+        stale = client.get("/api/auth/me", headers=headers)
+        assert stale.status_code == 401
+        assert "revoked" in stale.json()["detail"].lower()
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_logout_does_not_revoke_a_fresh_login_issued_afterward():
+    client = _client()
+    try:
+        first_headers = _login(client, "analyst", "analyst123")
+        assert client.post("/api/auth/logout", headers=first_headers).status_code == 204
+
+        # JWT `iat` has 1-second resolution and the revocation check is
+        # inclusive (`<=`) so the exact token used to call logout is always
+        # killed even when login+logout land in the same second (see
+        # security.py). That means a *fresh* login also needs a real second
+        # to pass before its new iat is guaranteed distinct -- true for any
+        # actual human re-typing credentials, so this sleep just makes the
+        # test represent that instead of racing the clock.
+        time.sleep(1.1)
+
+        second_headers = _login(client, "analyst", "analyst123")
+        response = client.get("/api/auth/me", headers=second_headers)
+        assert response.status_code == 200
+        assert response.json()["username"] == "analyst"
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_logout_only_revokes_the_logging_out_users_own_sessions():
+    client = _client()
+    try:
+        analyst_headers = _login(client, "analyst", "analyst123")
+        admin_headers = _login(client, "admin", "admin123")
+
+        assert client.post("/api/auth/logout", headers=analyst_headers).status_code == 204
+
+        assert client.get("/api/auth/me", headers=analyst_headers).status_code == 401
+        assert client.get("/api/auth/me", headers=admin_headers).status_code == 200
+    finally:
+        app.dependency_overrides.clear()
