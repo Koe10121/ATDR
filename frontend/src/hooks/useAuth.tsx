@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { api } from "../lib/api";
 import { clearAssistantSession } from "../lib/assistantSession";
-import { clearSession, loadSession, saveSession, tokenToSession, userToCookieSession } from "../lib/session";
+import { clearSession, loadSession, loginResponseToCookieSession, saveSession, userToCookieSession } from "../lib/session";
 import type { Session } from "../lib/session";
 
 interface AuthContextValue {
@@ -79,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isReady,
       login: async (username: string, password: string) => {
         const token = await api.login(username, password);
-        const nextSession = tokenToSession(token);
+        const nextSession = loginResponseToCookieSession(token);
         saveSession(nextSession);
         setSession(nextSession);
       },

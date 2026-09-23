@@ -105,7 +105,7 @@ def _validate_template_handoff_origin(request: Request, settings) -> bool:
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)) -> dict:
+def login(payload: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db)) -> dict:
     settings = get_settings()
     if not settings.local_login_enabled:
         raise HTTPException(
@@ -124,6 +124,19 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
     _clear_failed_logins(request, payload.username)
     record_successful_login(db, user)
     token = create_access_token(subject=user.username, role=user.role)
+    # The recovery login previously relied solely on the frontend storing
+    # this token in localStorage, readable by any XSS payload. Setting the
+    # same HttpOnly cookie the MFU-shell handoff flow already uses makes the
+    # cookie the real credential going forward; the frontend no longer
+    # persists the body's access_token anywhere (see useAuth.tsx's login()).
+    response.set_cookie(
+        key=settings.mfu_iam_handoff_cookie_name,
+        value=token,
+        httponly=True,
+        secure=settings.mfu_iam_handoff_cookie_secure,
+        samesite="lax",
+        path="/",
+    )
     return {
         "access_token": token,
         "token_type": "bearer",

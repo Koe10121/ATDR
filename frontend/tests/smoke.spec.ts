@@ -3976,13 +3976,14 @@ test("school handoff errors are actionable and do not expose credentials", async
 test("protected login preserves a safe alert deep link", async ({ page }) => {
   await mockApi(page);
   await page.route("**/api/auth/me", (route) => {
-    const authorization = route.request().headers().authorization;
-    return authorization
+    const cookie = route.request().headers().cookie ?? "";
+    return cookie.includes("atdr_session=")
       ? route.fulfill({ json: { id: 1, username: "admin", full_name: "Smoke User", role: "admin", is_active: true } })
       : route.fulfill({ status: 401, json: { detail: "Not authenticated" } });
   });
   await page.route("**/api/auth/login", (route) =>
     route.fulfill({
+      headers: { "set-cookie": "atdr_session=recovery-token; Path=/; HttpOnly" },
       json: {
         access_token: "recovery-token",
         token_type: "bearer",
@@ -4006,13 +4007,14 @@ test("protected login preserves a safe alert deep link", async ({ page }) => {
 test("login rejects malicious redirect state", async ({ page }) => {
   await mockApi(page);
   await page.route("**/api/auth/me", (route) => {
-    const authorization = route.request().headers().authorization;
-    return authorization
+    const cookie = route.request().headers().cookie ?? "";
+    return cookie.includes("atdr_session=")
       ? route.fulfill({ json: { id: 1, username: "admin", full_name: "Smoke User", role: "admin", is_active: true } })
       : route.fulfill({ status: 401, json: { detail: "Not authenticated" } });
   });
   await page.route("**/api/auth/login", (route) =>
     route.fulfill({
+      headers: { "set-cookie": "atdr_session=recovery-token; Path=/; HttpOnly" },
       json: {
         access_token: "recovery-token",
         token_type: "bearer",
@@ -4038,6 +4040,45 @@ test("login rejects malicious redirect state", async ({ page }) => {
 
   await expect(page).toHaveURL(/\/overview$/);
   expect(new URL(page.url()).origin).toBe("http://127.0.0.1:4173");
+});
+
+test("recovery login stores no bearer token in browser storage", async ({ page }) => {
+  await mockApi(page);
+  await page.route("**/api/auth/me", (route) => {
+    const cookie = route.request().headers().cookie ?? "";
+    return cookie.includes("atdr_session=")
+      ? route.fulfill({ json: { id: 1, username: "admin", full_name: "Smoke User", role: "admin", is_active: true } })
+      : route.fulfill({ status: 401, json: { detail: "Not authenticated" } });
+  });
+  await page.route("**/api/auth/login", (route) =>
+    route.fulfill({
+      headers: { "set-cookie": "atdr_session=recovery-token; Path=/; HttpOnly" },
+      json: {
+        access_token: "recovery-token",
+        token_type: "bearer",
+        expires_in_minutes: 480,
+        username: "admin",
+        role: "admin"
+      }
+    })
+  );
+
+  await page.goto("/login");
+  await page.getByLabel("Username or email").fill("admin");
+  await page.getByLabel("Password").fill("test-password");
+  await page.getByRole("button", { name: "Sign in for recovery" }).click();
+  await expect(page).toHaveURL(/\/overview$/);
+
+  // The actual fix: the response body still carries access_token (for wire
+  // compatibility), but nothing in the app may persist it -- the HttpOnly
+  // cookie set above is the real credential now. If a future change
+  // reintroduces writing it to localStorage, this test must fail.
+  const stored = await page.evaluate(() => window.localStorage.getItem("atdr.session.v1"));
+  expect(stored).not.toBeNull();
+  const parsed = JSON.parse(stored ?? "{}");
+  expect(parsed.authMode).toBe("cookie");
+  expect(parsed.token).toBeUndefined();
+  expect(JSON.stringify(parsed)).not.toContain("recovery-token");
 });
 
 test("unknown routes fail closed to the authenticated overview", async ({ page }) => {
