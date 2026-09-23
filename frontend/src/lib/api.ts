@@ -95,7 +95,7 @@ import type {
   User,
   WatchlistItem
 } from "../types/api";
-import { clearSession, loadSession } from "./session";
+import { clearSession } from "./session";
 
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000").replace(/\/$/, "");
 
@@ -127,13 +127,9 @@ function buildUrl(path: string, params?: Params): string {
 }
 
 export async function apiRequest<T>(path: string, options: RequestInit & { params?: Params } = {}): Promise<T> {
-  const session = loadSession();
   const headers = new Headers(options.headers);
   if (!headers.has("Content-Type") && options.body && !(options.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
-  }
-  if (session?.token) {
-    headers.set("Authorization", `Bearer ${session.token}`);
   }
 
   const response = await fetch(buildUrl(path, options.params), {
@@ -162,11 +158,7 @@ export async function apiRequest<T>(path: string, options: RequestInit & { param
 }
 
 export async function apiListRequest<T>(path: string, options: RequestInit & { params?: Params } = {}): Promise<PaginatedResult<T>> {
-  const session = loadSession();
   const headers = new Headers(options.headers);
-  if (session?.token) {
-    headers.set("Authorization", `Bearer ${session.token}`);
-  }
   const response = await fetch(buildUrl(path, options.params), {
     ...options,
     credentials: options.credentials ?? "include",
@@ -192,12 +184,7 @@ export async function apiListRequest<T>(path: string, options: RequestInit & { p
 }
 
 export async function apiDownload(path: string, params?: Params): Promise<{ blob: Blob; filename: string }> {
-  const session = loadSession();
-  const headers = new Headers();
-  if (session?.token) {
-    headers.set("Authorization", `Bearer ${session.token}`);
-  }
-  const response = await fetch(buildUrl(path, params), { credentials: "include", headers });
+  const response = await fetch(buildUrl(path, params), { credentials: "include" });
   if (response.status === 401) {
     clearSession();
     window.dispatchEvent(new Event("atdr:session-expired"));

@@ -3,10 +3,10 @@ import type { Role, TokenResponse, User } from "../types/api";
 const SESSION_KEY = "atdr.session.v1";
 
 export interface Session {
-  /** A local login keeps its bearer token in browser storage. */
-  token?: string;
-  /** Template-shell handoff sessions use an HttpOnly API cookie instead. */
-  authMode: "bearer" | "cookie";
+  /** Both real login paths (template-shell handoff and local recovery) now
+   * set the same HttpOnly API cookie as the actual credential -- this field
+   * exists only as a UI cache of who is logged in, never a bearer token. */
+  authMode: "cookie";
   username: string;
   role: Role;
   expiresAt: number;
@@ -44,17 +44,11 @@ export function loadSession(): Session | null {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as Session;
-    const authMode = parsed.authMode ?? "bearer";
-    if (
-      !parsed.username ||
-      !parsed.role ||
-      parsed.expiresAt <= Date.now() ||
-      (authMode === "bearer" && !parsed.token)
-    ) {
+    if (!parsed.username || !parsed.role || parsed.expiresAt <= Date.now()) {
       clearSession();
       return null;
     }
-    return { ...parsed, authMode };
+    return { ...parsed, authMode: "cookie" };
   } catch {
     clearSession();
     return null;
