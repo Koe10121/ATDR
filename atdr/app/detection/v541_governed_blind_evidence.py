@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from atdr.app.core.config import PROJECT_ROOT, get_settings
 from atdr.app.core.redaction import AI_REVIEWER_PATTERN
+from atdr.app.core.time_utils import parse_timestamp as _parse_timestamp
 from atdr.app.detection import v398_independent_holdout_validation as frozen
 from atdr.app.detection import v521_native_panos_evidence as v521
 from atdr.app.detection import v52_shadow_reliability as v52
@@ -115,22 +116,6 @@ def _file_sha256(path: Path) -> str:
 
 def _boolean(value: Any) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "y"}
-
-
-def _parse_timestamp(value: Any) -> datetime | None:
-    if isinstance(value, datetime):
-        parsed = value
-    else:
-        text = str(value or "").strip()
-        if not text:
-            return None
-        try:
-            parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
-        except ValueError:
-            return None
-    if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=UTC)
-    return parsed.astimezone(UTC)
 
 
 def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:

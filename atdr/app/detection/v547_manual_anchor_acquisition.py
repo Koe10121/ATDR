@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from atdr.app.core.config import PROJECT_ROOT, get_settings
 from atdr.app.core.redaction import AI_REVIEWER_PATTERN
+from atdr.app.core.time_utils import parse_timestamp as _parse_timestamp
 from atdr.app.detection import v398_independent_holdout_validation as frozen
 from atdr.app.detection import v540_development_supervised_repair as v540
 from atdr.app.detection import v541_governed_blind_evidence as v541
@@ -223,17 +224,6 @@ def _protected_digest(rows: list[dict[str, Any]], columns: list[str]) -> str:
             ],
         }
     )
-
-
-def _parse_timestamp(value: Any) -> datetime | None:
-    text = str(value or "").strip()
-    if not text:
-        return None
-    try:
-        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
 
 
 def _v546_status_lock(output_dir: Path) -> dict[str, Any]:

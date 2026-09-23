@@ -13,6 +13,7 @@ from typing import Any, Iterable
 
 from atdr.app.core.config import PROJECT_ROOT
 from atdr.app.core.redaction import AI_REVIEWER_PATTERN, IP_PATTERN
+from atdr.app.core.time_utils import parse_timestamp as _parse_timestamp
 from atdr.app.detection.rules import build_detection_context, evaluate_rules
 from atdr.app.parsers.paloalto_contract import (
     PARSER_CONTRACT_VERSION,
@@ -105,22 +106,6 @@ def _stable_hash(value: Any) -> str:
         default=str,
     ).encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
-
-
-def _parse_timestamp(value: Any) -> datetime | None:
-    if isinstance(value, datetime):
-        parsed = value
-    else:
-        text = str(value or "").strip()
-        if not text:
-            return None
-        try:
-            parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
-        except ValueError:
-            return None
-    if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=UTC)
-    return parsed.astimezone(UTC)
 
 
 def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
