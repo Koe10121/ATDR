@@ -6508,6 +6508,49 @@ test("SOC assistant clear context removes URL-scoped alert before the next quest
   expect(typeof assistantRequests.at(-1)?.conversation_id).toBe("string");
 });
 
+test("SOC assistant does not restore a stale answer when navigating between different prompt-only links", async ({ page }) => {
+  // Regression test: restoredSessionMatchesRoute used to compare only the
+  // alert/log/source/case IDs, never the `prompt` query param itself. Two
+  // real in-app links (ExecutiveOverview's "Summarize recent detection
+  // runs..." and MLGovernance's "Explain current ML model status...")
+  // carry only a prompt with no IDs, so both looked like "the same route"
+  // and visiting the second after answering the first silently restored
+  // the first question's cached answer instead of asking the new one.
+  const firstPrompt = "Summarize recent detection runs and failed jobs.";
+  const secondPrompt = "Explain current ML model status and why it is not production promoted.";
+  await mockApi(page);
+  await page.route("**/api/assistant/chat", async (route) => {
+    const payload = route.request().postDataJSON() as Record<string, unknown>;
+    const question = String(payload.question ?? "");
+    await route.fulfill({
+      json: {
+        answer: `Answered: ${question}`,
+        mode: "deterministic_local",
+        external_provider_used: false,
+        safety: ["Read Only", "Decision Support Only", "Response Automation Disabled", "Simulation Mode"],
+        context_used: ["operations_summary"],
+        citations: [],
+        redaction_applied: true,
+        raw_log_context_included: false,
+        suggested_followups: [],
+        details: { answer_sections: { summary: [`Answered: ${question}`] } },
+        conversation_id: String(payload.conversation_id ?? "prompt-only-conversation"),
+        active_context: { alert_id: null, log_id: null, source_id: null, case_id: null, primary: null }
+      }
+    });
+  });
+  await seedSession(page);
+
+  await page.goto(`/assistant?prompt=${encodeURIComponent(firstPrompt)}`);
+  await expect(page.getByLabel("Analyst question")).toHaveValue(firstPrompt);
+  await page.getByRole("button", { name: "Ask assistant" }).click();
+  await expect(page.getByTestId("assistant-response-panel")).toContainText(`Answered: ${firstPrompt}`);
+
+  await page.goto(`/assistant?prompt=${encodeURIComponent(secondPrompt)}`);
+  await expect(page.getByLabel("Analyst question")).toHaveValue(secondPrompt);
+  await expect(page.getByTestId("assistant-response-panel")).not.toContainText(`Answered: ${firstPrompt}`);
+});
+
 test("SOC assistant session storage is resilient and clears on logout", async ({ page }) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));

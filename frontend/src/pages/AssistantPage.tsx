@@ -490,7 +490,8 @@ export function AssistantPage() {
     && restoredSessionRef.current.context.alertId === alertId
     && restoredSessionRef.current.context.logId === logId
     && restoredSessionRef.current.context.sourceId === sourceId
-    && restoredSessionRef.current.context.caseId === caseId;
+    && restoredSessionRef.current.context.caseId === caseId
+    && restoredSessionRef.current.promptParam === promptParam;
   const restoredSession = !hasRouteDirective || restoredSessionMatchesRoute ? restoredSessionRef.current : null;
   if (appliedRouteDirectiveRef.current === null && restoredSessionMatchesRoute && routeDirectiveKey) {
     appliedRouteDirectiveRef.current = routeDirectiveKey;
@@ -625,9 +626,10 @@ export function AssistantPage() {
       conversationId,
       context: lastContext,
       response,
-      turns: conversationTurns
+      turns: conversationTurns,
+      promptParam
     });
-  }, [conversationId, conversationTurns, lastContext, question, response]);
+  }, [conversationId, conversationTurns, lastContext, promptParam, question, response]);
 
   function askQuestion(value: string, options: { resetContext?: boolean } = {}) {
     const trimmed = value.trim();

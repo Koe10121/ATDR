@@ -27,6 +27,12 @@ export interface AssistantSessionSnapshot {
   context: AssistantSessionContext;
   response: AssistantChatResponse | null;
   turns: AssistantConversationTurn[];
+  // Tracked separately from `context` (rather than as one more of its
+  // fields) because `context` gets overwritten from the *response's*
+  // active_context/citations once an answer arrives, while promptParam
+  // must keep identifying which route the session was saved under --
+  // otherwise it would go stale the moment any response landed.
+  promptParam: string | null;
 }
 
 export interface AssistantConversationTurn {
@@ -309,7 +315,8 @@ export function loadAssistantSession(): AssistantSessionSnapshot | null {
       conversationId,
       context: safeContext(parsed.context),
       response,
-      turns
+      turns,
+      promptParam: boundedString(parsed.promptParam, 2000) || null
     };
   } catch {
     window.sessionStorage.removeItem(ASSISTANT_SESSION_KEY);
@@ -321,6 +328,7 @@ export function saveAssistantSession(snapshot: AssistantSessionSnapshot): void {
   const response = safeResponse(snapshot.response);
   const context = safeContext(snapshot.context);
   const question = boundedString(snapshot.question, 2000) || DEFAULT_QUESTION;
+  const promptParam = boundedString(snapshot.promptParam, 2000) || null;
   const conversationId = CONVERSATION_ID_PATTERN.test(snapshot.conversationId)
     ? snapshot.conversationId
     : "";
@@ -335,10 +343,10 @@ export function saveAssistantSession(snapshot: AssistantSessionSnapshot): void {
     clearAssistantSession();
     return;
   }
-  let serialized = JSON.stringify({ question, conversationId, context, response, turns });
+  let serialized = JSON.stringify({ question, conversationId, context, response, turns, promptParam });
   while (serialized.length > MAX_SESSION_CHARACTERS && turns.length > 1) {
     turns = turns.slice(1);
-    serialized = JSON.stringify({ question, conversationId, context, response, turns });
+    serialized = JSON.stringify({ question, conversationId, context, response, turns, promptParam });
   }
   if (serialized.length <= MAX_SESSION_CHARACTERS) {
     window.sessionStorage.setItem(ASSISTANT_SESSION_KEY, serialized);
