@@ -626,6 +626,14 @@ def validate_runtime_settings(settings: Settings) -> list[str]:
             issues.append("RESPONSE_SIMULATION should remain true until a firewall connector is formally approved.")
         if "*" in settings.cors_origins:
             issues.append("CORS_ALLOWED_ORIGINS must not include '*' in production.")
+        # /api/auth/login sets this same session cookie in *both* auth
+        # modes (template_shell's handoff flow and local_recovery's direct
+        # login both call response.set_cookie with mfu_iam_handoff_cookie_*
+        # settings -- see routers/auth.py), so this must be validated
+        # unconditionally in production rather than only inside the
+        # template_shell branch below.
+        if not settings.mfu_iam_handoff_cookie_secure:
+            issues.append("MFU_IAM_HANDOFF_COOKIE_SECURE must be true in production.")
     allowed_cors_methods = {"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
     if not settings.cors_methods or any(method not in allowed_cors_methods for method in settings.cors_methods):
         issues.append("CORS_ALLOWED_METHODS must contain only GET, POST, PUT, PATCH, DELETE, or OPTIONS.")
@@ -727,8 +735,6 @@ def validate_runtime_settings(settings: Settings) -> list[str]:
                 issues.append("MFU_IAM_HANDOFF_ALLOWED_RETURN_PATHS must contain only absolute application paths without URLs, queries, or fragments.")
             if not settings.mfu_iam_handoff_cookie_name.strip():
                 issues.append("MFU_IAM_HANDOFF_COOKIE_NAME is required when MFU_IAM_HANDOFF_ENABLED=true.")
-            if settings.environment.lower() == "production" and not settings.mfu_iam_handoff_cookie_secure:
-                issues.append("MFU_IAM_HANDOFF_COOKIE_SECURE must be true in production.")
         if not settings.mfu_iam_base_url.strip() and b2b_required:
             issues.append("MFU_IAM_BASE_URL is required when MFU_IAM_ENABLED=true.")
         if not settings.mfu_iam_client_id.strip() and b2b_required:

@@ -251,6 +251,36 @@ def test_cors_contract_is_explicit_and_rejects_wildcards(tmp_path):
     assert "CORS_ALLOWED_HEADERS must be explicit" in rendered
 
 
+def test_local_recovery_mode_in_production_requires_secure_session_cookie(tmp_path):
+    # /api/auth/login sets the mfu_iam_handoff_cookie_* session cookie for
+    # BOTH auth modes (see routers/auth.py login()), but the cookie-secure
+    # validation used to live only inside the template_shell branch --
+    # ATDR_AUTH_MODE=local_recovery + ENVIRONMENT=production +
+    # MFU_IAM_HANDOFF_COOKIE_SECURE=false passed validation with zero
+    # complaints while shipping a load-bearing session cookie without
+    # Secure over what could be plain HTTP.
+    insecure = _settings(
+        tmp_path,
+        ENVIRONMENT="production",
+        ATDR_AUTH_MODE="local_recovery",
+        MFU_IAM_ENABLED=False,
+        JWT_SECRET_KEY="local-recovery-test-signing-secret-with-safe-length",
+        MFU_IAM_HANDOFF_COOKIE_SECURE=False,
+    )
+    rendered = " ".join(validate_runtime_settings(insecure))
+    assert "MFU_IAM_HANDOFF_COOKIE_SECURE must be true in production" in rendered
+
+    secure = _settings(
+        tmp_path,
+        ENVIRONMENT="production",
+        ATDR_AUTH_MODE="local_recovery",
+        MFU_IAM_ENABLED=False,
+        JWT_SECRET_KEY="local-recovery-test-signing-secret-with-safe-length",
+        MFU_IAM_HANDOFF_COOKIE_SECURE=True,
+    )
+    assert not any("MFU_IAM_HANDOFF_COOKIE_SECURE" in issue for issue in validate_runtime_settings(secure))
+
+
 def test_readiness_endpoint_is_admin_only_and_has_no_authoritative_side_effects(monkeypatch):
     monkeypatch.setenv("ATDR_AUTH_MODE", "local_recovery")
     get_settings.cache_clear()
