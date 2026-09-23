@@ -112,6 +112,12 @@ export function LogExplorer() {
     } else {
       setLabelForm({ label: "suspicious", attack_type: "unknown_anomaly", confidence: 3, review_note: "" });
     }
+    // React Query only clears `.error` on the next mutate() call on that
+    // *same* mutation object -- without this, a failed label edit's error
+    // would still be showing here after switching to a different log row.
+    labelMutations.create.reset();
+    labelMutations.update.reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentLabel, selectedId]);
 
   const columns = useMemo<ColumnDef<NormalizedLog>[]>(

@@ -5536,6 +5536,36 @@ test("editing a user's email or password opens a drawer instead of a native prom
   await expect(page.getByRole("dialog")).not.toBeVisible();
 });
 
+test("a failed password reset error does not leak into the next drawer opened", async ({ page }) => {
+  // Regression test: React Query only clears `.error` on the next mutate()
+  // call on that *same* mutation object, and this drawer's error prop was
+  // `mutations.updateUser.error ?? mutations.resetPassword.error` -- so a
+  // failed password reset's error used to still be showing after cancelling
+  // and opening "Edit email" for the same (or a different) user.
+  await mockApi(page);
+  await seedSession(page);
+  await page.route("**/api/users/1/reset-password", async (route) => {
+    await route.fulfill({ status: 422, json: { detail: "New password must not match a recently used password." } });
+  });
+
+  await page.goto("/users");
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+
+  await page.getByRole("button", { name: "Reset password" }).click();
+  const passwordDialog = page.getByRole("dialog");
+  await passwordDialog.locator('input[type="password"]').fill("a-safe-new-password");
+  await passwordDialog.getByRole("button", { name: "Set new password" }).click();
+  await expect(passwordDialog.getByRole("alert")).toContainText("New password must not match a recently used password.");
+
+  await passwordDialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+
+  await page.getByRole("button", { name: "Edit email" }).click();
+  const emailDialog = page.getByRole("dialog");
+  await expect(emailDialog).toBeVisible();
+  await expect(emailDialog.getByRole("alert")).toHaveCount(0);
+});
+
 test("SOC assistant page is read-only and contains long responses safely", async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, "clipboard", {

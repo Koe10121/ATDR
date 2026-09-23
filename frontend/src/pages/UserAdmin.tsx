@@ -552,7 +552,16 @@ export function UserAdmin() {
                       <div className="flex flex-wrap gap-2">
                         <button
                           className="btn-secondary"
-                          onClick={() => setEditingUser({ user, field: "email" })}
+                          onClick={() => {
+                            // React Query only clears `.error` on the next
+                            // mutate() call on that *same* mutation object --
+                            // without this, a failed password reset's error
+                            // would still be showing here after switching to
+                            // a different user's (or field's) drawer.
+                            mutations.updateUser.reset();
+                            mutations.resetPassword.reset();
+                            setEditingUser({ user, field: "email" });
+                          }}
                         >
                           Edit email
                         </button>
@@ -581,7 +590,11 @@ export function UserAdmin() {
                         </button>
                         <button
                           className="btn-secondary"
-                          onClick={() => setEditingUser({ user, field: "password" })}
+                          onClick={() => {
+                            mutations.updateUser.reset();
+                            mutations.resetPassword.reset();
+                            setEditingUser({ user, field: "password" });
+                          }}
                         >
                           Reset password
                         </button>
