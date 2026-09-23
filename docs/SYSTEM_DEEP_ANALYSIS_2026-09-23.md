@@ -2,8 +2,11 @@
 
 Date: 2026-09-23. HEAD at time of writing: `d216d22`.
 
-**Status: Tier 0 and Tier 1 complete** — all 8 items fixed, tested, and
-committed (see per-item commit hashes below). Tier 2 next.
+**Status: Tier 0, Tier 1, and Tier 2 complete** — all 12 items fixed,
+tested, and committed (see per-item commit hashes below). Full backend
+suite (1225 passed, 1 skipped, 0 failed) and full frontend Playwright
+suite (51/51 passed) both re-verified clean after this round. Tier 3
+(low-value cleanup) remains, optional given time constraints.
 
 ## Why a second full audit, and why it matters
 
@@ -226,7 +229,7 @@ including writing the reproduction first.
 
 ## Tier 2 — Real, medium-value fixes
 
-### 9. The Assistant's fallback context always claims job/ML data even when there is none
+### 9. The Assistant's fallback context always claims job/ML data even when there is none — FIXED (`7857f2e`)
 
 `if job_summary:` and `if ml or supervised:` (`assistant_service.py:3409,3433`)
 can never evaluate false — `build_job_summary`/`evaluation_report`/`supervised_model_report`
@@ -238,7 +241,7 @@ unmatched question regardless of whether either has ever had any data —
 another direct hit against "only necessary info." **Effort: ~1h** — gate
 on an actual "has real data" check instead of dict truthiness.
 
-### 10. The Assistant's job-summary context is uncurated and can push the LLM prompt past its size limit
+### 10. The Assistant's job-summary context is uncurated and can push the LLM prompt past its size limit — FIXED (`7857f2e`)
 
 Unlike the hand-picked `sources`/`cases` fields, `job_summary` is embedded
 whole (`assistant_service.py:3410`). Measured directly: with a modest
@@ -252,7 +255,7 @@ instructions in the prompt template, overflow truncates the safety
 instructions, not the evidence. **Effort: 1-2h** — curate to the same
 handful of fields the other sections use.
 
-### 11. Stale mutation errors leak across unrelated targets
+### 11. Stale mutation errors leak across unrelated targets — FIXED (`d72f156`)
 
 `UserFieldDrawer` (`UserAdmin.tsx:607-624`) and the LogExplorer ML-label
 editor (`LogExplorer.tsx:441-443`) both do `error={mutationA.error ??
@@ -262,7 +265,7 @@ call on that *same* mutation object. Fail an email edit, cancel, open
 error is still shown next to the unrelated password form. **Effort: ~1h**
 — call `.reset()` on target/selection change.
 
-### 12. ResponseCenter bypasses the shared error formatter and the shared dropdown component
+### 12. ResponseCenter bypasses the shared error formatter and the shared dropdown component — FIXED (`5d44f05`)
 
 `ResponseCenter.tsx:132` renders `String(blockIp.error.message)` directly
 instead of `<ErrorBanner>`, so a structured 422 validation error shows a
