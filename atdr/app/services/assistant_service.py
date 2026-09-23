@@ -3393,7 +3393,12 @@ def _answer_general_question(
     }
 
     if limit:
-        source_rows = [source_to_dict(source, include_quality=True, db=db) for source in list_sources(db, limit=min(limit, 5))]
+        # Unlike the dedicated source-health handler above, this curated
+        # fallback row only ever reads source_id/name/health/counts below --
+        # never quality/recent_ingestion_runs/recent_detection_runs, so
+        # include_quality=True was computing and discarding 3 extra queries
+        # per source for nothing.
+        source_rows = [source_to_dict(source, include_quality=False, db=db) for source in list_sources(db, limit=min(limit, 5))]
         if source_rows:
             details["sources"] = _redact(
                 [
@@ -3421,7 +3426,31 @@ def _answer_general_question(
         # brand-new system with zero jobs ever run -- `if job_summary:` can
         # never be false. Check for an actual job instead of dict truthiness.
         if sum(job_summary.get("counts", {}).values()) > 0:
-            details["job_summary"] = _redact(job_summary, enabled=redacted)
+            # Unlike sources/cases above, job_summary used to be embedded
+            # whole here: measured directly, it alone was 64% of a modest
+            # context block's size, driven by latest_failed_job/
+            # latest_successful_job's unbounded error_summary and
+            # result_summary fields (unlike details_json, which is capped
+            # via public_job_details). Curate to the same handful of fields
+            # the other sections use instead.
+            latest_failed_job = job_summary.get("latest_failed_job") or {}
+            details["job_summary"] = _redact(
+                {
+                    "counts": job_summary.get("counts"),
+                    "active_count": job_summary.get("active_count"),
+                    "failed_count": job_summary.get("failed_count"),
+                    "stale_count": job_summary.get("stale_count"),
+                    "health_status": job_summary.get("health_status"),
+                    "warning_count": job_summary.get("warning_count"),
+                    "recent_failure_count": job_summary.get("recent_failure_count"),
+                    "latest_failed_job": {
+                        "job_type": latest_failed_job.get("job_type"),
+                        "status": latest_failed_job.get("status"),
+                        "error_summary": (latest_failed_job.get("error_summary") or "")[:200] or None,
+                    } if latest_failed_job else None,
+                },
+                enabled=redacted,
+            )
             context_used.append("operation_jobs")
             citations.append(Citation("Job summary API", "/api/jobs/summary"))
 
