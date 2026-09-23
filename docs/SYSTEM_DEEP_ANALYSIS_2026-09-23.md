@@ -2,8 +2,8 @@
 
 Date: 2026-09-23. HEAD at time of writing: `d216d22`.
 
-**Status: Tier 0 complete** (commits `75a8b2e`, `d309563`, `ea51bcd`) — all
-3 items fixed, tested, and committed. Tier 1 in progress.
+**Status: Tier 0 and Tier 1 complete** — all 8 items fixed, tested, and
+committed (see per-item commit hashes below). Tier 2 next.
 
 ## Why a second full audit, and why it matters
 
@@ -159,7 +159,7 @@ covered.
 
 ## Tier 1 — High-value, real gaps
 
-### 4. No cookie-`Secure` validation for `local_recovery` mode
+### 4. No cookie-`Secure` validation for `local_recovery` mode — FIXED (`ae3108e`)
 
 `validate_runtime_settings` checks that `mfu_iam_handoff_cookie_secure` is
 true in production — but only inside the `template_shell` auth-mode
@@ -173,7 +173,7 @@ load-bearing session cookie without `Secure` — sendable over plain HTTP,
 during what's likely already a stressful ad-hoc recovery event.
 **Effort: 1h.**
 
-### 5. AssistantPage can silently answer the wrong question after navigating between prompt-only links
+### 5. AssistantPage can silently answer the wrong question after navigating between prompt-only links — FIXED (`25366ce`)
 
 `restoredSessionMatchesRoute` (`frontend/src/pages/AssistantPage.tsx:487-494`)
 compares 4 context ID fields but never compares `promptParam`, even though
@@ -186,7 +186,7 @@ context badge either way, so a user would only notice if the textarea
 text doesn't match the button they clicked. **Effort: ~1h** (add the
 prompt to the comparison), plus a regression test.
 
-### 6. Session revocation has zero test coverage for the MFU-shell handoff (cookie) login path
+### 6. Session revocation has zero test coverage for the MFU-shell handoff (cookie) login path — FIXED (`fb55692`)
 
 All revocation tests authenticate via `/api/auth/login`. The handoff flow
 (`/api/auth/mfu-iam/handoff/consume`) mints and cookie-sets tokens through
@@ -197,7 +197,7 @@ exactly the shape of the two bugs already found this session: a code path
 that shares implementation with a tested one but was never independently
 exercised. **Effort: 1-2h.**
 
-### 7. The frontend logout test doesn't verify logout actually happens
+### 7. The frontend logout test doesn't verify logout actually happens — FIXED (`5a57914`)
 
 `useAuth.tsx`'s `logout()` calls `api.logout()` fire-and-forget
 (`.catch(() => undefined)`) and clears local state unconditionally. The
@@ -208,7 +208,7 @@ code entirely, which means a regression that silently breaks real
 server-side session revocation (Tier 0 item 3's whole point) would ship
 undetected. **Effort: 30min-1h** — add a route assertion.
 
-### 8. A second, unconfirmed instance of the same "citation heuristic over authoritative null" bug class, in the outbound direction
+### 8. A second, unconfirmed instance of the same "citation heuristic over authoritative null" bug class, in the outbound direction — CONFIRMED AND FIXED (`2fc0522`)
 
 The fixed bug was in the *inbound* response-sync effect. `askQuestion`'s
 outbound request-building (`AssistantPage.tsx:678-681`) has the identical
