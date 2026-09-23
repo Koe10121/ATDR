@@ -431,3 +431,70 @@ def test_default_paloalto_trust_untrust_zones_still_detect_real_direction():
     assert "unusual_destination_port" not in outbound_codes  # direction, not zone, gates this rule
     assert "outside_to_inside" in inbound_codes
     assert "unusual_destination_port" in inbound_codes
+
+
+def test_scan_with_only_external_direction_signal_is_flagged_low_confidence():
+    # Regression test: possible_port_scan/possible_horizontal_scan scored
+    # identically (score=25) whether a source had one bare, non-specific
+    # corroborating signal or several strong ones -- indistinguishable from
+    # routine internet background-radiation scanning (any rotating scanner
+    # IP crossing the threshold gets treated the same as a genuinely
+    # targeted, sustained scan). Rather than merging different source IPs
+    # into one alert (which would destroy per-attacker visibility for a
+    # real attack) or changing the score (risking already-calibrated
+    # severity behavior), a weak single-signal match must now say so in
+    # its own explanation text.
+    started = datetime(2026, 5, 20, 13, 36)
+    weak_logs = [
+        NormalizedLog(
+            id=index + 1,
+            generated_time=started + timedelta(seconds=index * 10),
+            log_type="TRAFFIC",
+            src_ip="198.51.100.99",
+            dst_ip="10.0.0.5",
+            src_zone="SG-Outside",
+            dst_zone="LAN-Inside",
+            app="web-browsing",
+            dst_port=8000 + index,
+            action="allow",
+            protocol="tcp",
+            bytes=80,
+            packets=1,
+        )
+        for index in range(11)
+    ]
+    context = build_detection_context(weak_logs)
+    match = next(m for m in evaluate_rules(weak_logs[0], context) if m.code == "possible_port_scan")
+
+    assert "low-confidence" in match.explanation
+    assert "routine internet background-radiation scanning" in match.explanation
+
+
+def test_scan_with_multiple_signals_is_not_flagged_low_confidence():
+    # Negative control: a source with several corroborating signals (not
+    # just the one generic "external-to-internal direction" signal) is
+    # genuinely stronger evidence and must not carry the low-confidence
+    # caveat.
+    started = datetime(2026, 5, 20, 13, 36)
+    strong_logs = [
+        NormalizedLog(
+            id=index + 1,
+            generated_time=started + timedelta(seconds=index * 10),
+            log_type="TRAFFIC",
+            src_ip="198.51.100.88",
+            dst_ip="10.0.0.6",
+            src_zone="SG-Outside",
+            dst_zone="LAN-Inside",
+            app="unknown",
+            dst_port=9000 + index,
+            action="deny",
+            protocol="tcp",
+            bytes=80,
+            packets=1,
+        )
+        for index in range(11)
+    ]
+    context = build_detection_context(strong_logs)
+    match = next(m for m in evaluate_rules(strong_logs[0], context) if m.code == "possible_port_scan")
+
+    assert "low-confidence" not in match.explanation

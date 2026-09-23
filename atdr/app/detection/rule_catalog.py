@@ -218,7 +218,13 @@ RULE_CATALOG: dict[str, DetectionRuleSpec] = {
             attack_type="port_scan",
             mitre=("T1046",),
             window="5m",
-            false_positives=("Vulnerability scanners", "Asset discovery", "Monitoring systems"),
+            false_positives=(
+                "Vulnerability scanners",
+                "Asset discovery",
+                "Monitoring systems",
+                "Routine internet background-radiation scanning (flagged as low-confidence in the "
+                "explanation when inbound direction is the only corroborating signal)",
+            ),
             references=(PAN_TRAFFIC_FIELDS, MITRE_T1046, SIGMA_RULE_SPEC),
             version="2.0.0",
             claim_boundary="Observed service probing is consistent with discovery; intent and authorization require analyst context.",
@@ -346,6 +352,8 @@ RULE_CATALOG: dict[str, DetectionRuleSpec] = {
                 "Service health sweeps",
                 "Legitimate internal administration (patch management, remote support, "
                 "configuration management tools reaching many hosts over SMB/RDP/WinRM/SSH)",
+                "Routine internet background-radiation scanning (flagged as low-confidence in the "
+                "explanation when inbound direction is the only corroborating signal)",
             ),
             references=(PAN_TRAFFIC_FIELDS, MITRE_T1046, SIGMA_RULE_SPEC),
             claim_boundary=(

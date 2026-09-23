@@ -165,6 +165,32 @@ def is_internal_to_external(log: NormalizedLog) -> bool:
     return src_inside and dst_outside
 
 
+def _low_confidence_scan_note(support: list[str]) -> str:
+    """Flag a scan match whose only corroboration is the single most
+    generic, non-distinguishing signal.
+
+    "external-to-internal direction" alone is true of essentially any
+    inbound connection from any external IP -- on an internet-facing
+    deployment, this is exactly the shape of routine internet
+    background-radiation scanning (Shodan/Censys/botnet probes), which
+    would otherwise score identically (score=25, typically "High" once
+    combined with other rules) to a genuinely targeted, sustained scan.
+    Rather than merging different source IPs into one alert (which would
+    destroy the per-attacker visibility an analyst needs for a real,
+    sustained attack) or changing the score (which risks disturbing
+    already-calibrated severity behavior), surface this as an explicit
+    triage signal in the explanation text so low-value alerts are fast to
+    spot without losing anything for genuine investigation.
+    """
+    if support == ["external-to-internal direction"]:
+        return (
+            " Only one, non-specific corroborating signal was observed; treat as low-confidence "
+            "and consistent with routine internet background-radiation scanning until stronger "
+            "evidence (repeated denies, an unresolved app, or a wider port/destination spread) appears."
+        )
+    return ""
+
+
 def _characteristic_set(value: str | None) -> set[str]:
     if not value:
         return set()
@@ -545,7 +571,7 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
                 explanation=(
                     f"{src_ip} touched {distinct_ports} distinct destination ports in the "
                     "source-scoped five-minute window; supporting context: "
-                    f"{', '.join(scan_support)}."
+                    f"{', '.join(scan_support)}.{_low_confidence_scan_note(scan_support)}"
                 ),
             )
         )
@@ -586,7 +612,7 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
                 explanation=(
                     f"{src_ip} reached {distinct_destinations_for_port} distinct destinations on port "
                     f"{log.dst_port} in the source-scoped five-minute window; supporting context: "
-                    f"{', '.join(horizontal_support)}."
+                    f"{', '.join(horizontal_support)}.{_low_confidence_scan_note(horizontal_support)}"
                 ),
             )
         )
