@@ -332,18 +332,27 @@ RULE_CATALOG: dict[str, DetectionRuleSpec] = {
             required_fields=("src_ip", "dst_ip", "dst_port", "generated_time"),
             condition=(
                 "source reaches at least 10 distinct destinations on one service port in five "
-                "minutes with deny/drop, inbound, or unresolved-app context"
+                "minutes with deny/drop, inbound, unresolved-app, or lateral-movement/remote-"
+                "administration port context"
             ),
             level="high",
             confidence="medium",
             attack_type="port_scan",
             mitre=("T1046",),
             window="5m",
-            false_positives=("Authorized vulnerability scanners", "Asset discovery", "Service health sweeps"),
+            false_positives=(
+                "Authorized vulnerability scanners",
+                "Asset discovery",
+                "Service health sweeps",
+                "Legitimate internal administration (patch management, remote support, "
+                "configuration management tools reaching many hosts over SMB/RDP/WinRM/SSH)",
+            ),
             references=(PAN_TRAFFIC_FIELDS, MITRE_T1046, SIGMA_RULE_SPEC),
             claim_boundary=(
-                "Same-service probing across hosts resembles network service discovery; intent "
-                "and scanner authorization require analyst context."
+                "Same-service probing across hosts resembles network service discovery, including "
+                "same-service fan-out over an internal, allowed admin protocol (SMB, RDP, WinRM, "
+                "SSH, WMI/RPC, VNC), which is also the textbook pattern for post-compromise lateral "
+                "movement; intent and tool authorization require analyst context."
             ),
         ),
         _spec(

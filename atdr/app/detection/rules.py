@@ -66,6 +66,12 @@ COMMON_PORTS = {
 
 AUTH_SERVICE_PORTS = {21, 22, 23, 25, 110, 143, 389, 445, 465, 587, 993, 995, 1433, 3306, 3389, 5432, 5900}
 
+# Classic post-compromise lateral-movement/remote-administration ports: SSH,
+# RPC/WMI, SMB, RDP, WinRM (HTTP/HTTPS), VNC. Kept separate from
+# AUTH_SERVICE_PORTS (used for brute-force auth-deny counting) even though
+# they overlap, so tuning one list can't silently change the other's meaning.
+LATERAL_MOVEMENT_PORTS = {22, 135, 445, 3389, 5985, 5986, 5900}
+
 OUTSIDE_ZONE_TOKENS = {"outside", "untrust", "internet", "wan"}
 INSIDE_ZONE_TOKENS = {"inside", "trust", "lan", "wlan", "corp"}
 _ZONE_TOKEN_SPLIT = re.compile(r"[^a-z0-9]+")
@@ -555,6 +561,18 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
         horizontal_support.append("external-to-internal direction")
     if _lower(log.app) in {"unknown", "incomplete", "not-applicable", "unknown-tcp"}:
         horizontal_support.append("unresolved application identity")
+    if log.dst_port in LATERAL_MOVEMENT_PORTS:
+        # The other 3 signals above all assume the traffic looks abnormal in
+        # some way (denied, crossing the perimeter, or an unresolved app).
+        # None of them can ever be true for the textbook lateral-movement
+        # case: a compromised internal host sweeping other internal hosts
+        # over an *allowed*, *identified* admin protocol (SMB, RDP, WinRM,
+        # SSH, WMI/RPC, VNC) -- internal-to-internal is never
+        # is_outside_to_inside, there's no deny, and the app is known. Fan
+        # out on one of these specific ports is corroboration on its own;
+        # unlike the other 3 signals it isn't direction-gated, so it also
+        # (harmlessly) reinforces the already-covered external case.
+        horizontal_support.append(f"port {log.dst_port} is a common lateral-movement/remote-administration service")
     if (
         log.dst_port is not None
         and distinct_destinations_for_port >= HORIZONTAL_SCAN_DESTINATION_THRESHOLD

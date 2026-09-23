@@ -47,7 +47,8 @@ RULE_ANALYST_CHECKS: dict[str, tuple[str, ...]] = {
         "Review the destination-port spread, deny rate, targets, and five-minute event window.",
     ),
     "possible_horizontal_scan": (
-        "Confirm whether same-service probing across destinations is authorized asset discovery.",
+        "Confirm whether same-service probing across destinations is authorized asset discovery "
+        "or authorized internal administration (patch/config management, remote support).",
         "Review destination ownership, service port, deny rate, and source-scoped five-minute window.",
     ),
     "brute_force_like_attempts": (

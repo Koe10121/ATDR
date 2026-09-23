@@ -286,6 +286,73 @@ def test_normal_web_fanout_is_not_called_horizontal_scan():
     assert "possible_horizontal_scan" not in codes
 
 
+def test_internal_lateral_movement_over_allowed_rdp_is_flagged():
+    # Regression test: internal-to-internal lateral movement (the textbook
+    # post-compromise pattern) was structurally unreachable by this rule --
+    # every corroboration signal (deny/drop evidence, external-to-internal
+    # direction, unresolved app identity) assumes the traffic looks
+    # abnormal in some way none of which can ever be true for a
+    # compromised host sweeping other internal hosts over an *allowed*,
+    # *identified* admin protocol like RDP. Fan-out on a known
+    # lateral-movement-prone port is now corroboration on its own.
+    started = datetime(2026, 5, 20, 13, 36)
+    logs = [
+        NormalizedLog(
+            id=index + 1,
+            generated_time=started + timedelta(seconds=index * 10),
+            log_type="TRAFFIC",
+            src_ip="10.0.1.50",
+            dst_ip=f"10.0.2.{index + 1}",
+            src_zone="LAN-Inside",
+            dst_zone="LAN-Inside",
+            app="ms-rdp",
+            dst_port=3389,
+            action="allow",
+            protocol="tcp",
+            bytes=5000,
+            packets=20,
+        )
+        for index in range(12)
+    ]
+    context = build_detection_context(logs)
+
+    codes = {match.code for match in evaluate_rules(logs[0], context)}
+
+    assert "possible_horizontal_scan" in codes
+
+
+def test_internal_fanout_on_a_non_admin_port_is_still_not_flagged():
+    # Negative control for the test above: internal-to-internal fan-out on
+    # an ordinary internal service port (not one of the specific
+    # lateral-movement-prone admin ports) must not be newly flagged --
+    # otherwise this fix would trade the coverage gap for a broad new
+    # false-positive source on routine internal microservice traffic.
+    started = datetime(2026, 5, 20, 13, 36)
+    logs = [
+        NormalizedLog(
+            id=index + 1,
+            generated_time=started + timedelta(seconds=index * 10),
+            log_type="TRAFFIC",
+            src_ip="10.0.1.60",
+            dst_ip=f"10.0.2.{index + 1}",
+            src_zone="LAN-Inside",
+            dst_zone="LAN-Inside",
+            app="web-browsing",
+            dst_port=8080,
+            action="allow",
+            protocol="tcp",
+            bytes=5000,
+            packets=20,
+        )
+        for index in range(12)
+    ]
+    context = build_detection_context(logs)
+
+    codes = {match.code for match in evaluate_rules(logs[0], context)}
+
+    assert "possible_horizontal_scan" not in codes
+
+
 def test_anomaly_evidence_does_not_mask_explicit_policy_rule():
     attack_type = infer_attack_type_from_rules(
         [
