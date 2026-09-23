@@ -696,6 +696,12 @@ def evaluation_report(db: Session) -> dict:
     anomaly_count = status["current_anomaly_logs"]
     anomaly_rate = status["current_anomaly_rate"]
 
+    top_anomalous_src_ips = _anomalous_group(db, NormalizedLog.src_ip)
+    top_anomalous_dst_ips = _anomalous_group(db, NormalizedLog.dst_ip)
+    top_anomalous_apps = _anomalous_group(db, NormalizedLog.app)
+    top_anomalous_dst_ports = _anomalous_group(db, NormalizedLog.dst_port)
+    top_anomalous_protocols = _anomalous_group(db, NormalizedLog.protocol)
+
     recommendations: list[str] = []
     if not status["artifact_exists"]:
         recommendations.append(
@@ -705,11 +711,39 @@ def evaluation_report(db: Session) -> dict:
     if scored_logs == 0:
         recommendations.append("Apply ML scoring after training so anomaly evidence appears in logs and dashboards.")
     if anomaly_rate > 10:
-        recommendations.append("Current anomaly rate is high; review baseline filter, contamination setting, and top anomalous apps/IPs.")
+        # Interpolate the actual rate and top offenders (already computed
+        # above) instead of a generic "review baseline filter..." pointer --
+        # this is the same data the return dict's top_anomalous_* fields
+        # carry, just threaded into the recommendation text itself.
+        top_app = top_anomalous_apps[0] if top_anomalous_apps else None
+        top_src = top_anomalous_src_ips[0] if top_anomalous_src_ips else None
+        detail = ""
+        if top_app:
+            detail += f" Top anomalous app is '{top_app['name']}' ({top_app['count']} logs)."
+        if top_src:
+            detail += f" Top anomalous source is {top_src['name']} ({top_src['count']} logs)."
+        recommendations.append(
+            f"Current anomaly rate is {anomaly_rate}%, above the expected baseline; "
+            f"review the contamination setting and baseline filter.{detail}"
+        )
     elif 0 < anomaly_rate < 0.5:
-        recommendations.append("Current anomaly rate is very low; verify that scoring covered enough logs and the model is not too strict.")
+        recommendations.append(
+            f"Current anomaly rate is {anomaly_rate}%, very low; verify that scoring covered enough logs "
+            "(scored_log_count above) and the model is not too strict."
+        )
     elif anomaly_count:
-        recommendations.append("Review top anomalous sources, apps, and ports before turning findings into response actions.")
+        detail_parts = []
+        for label, group in (
+            ("source", top_anomalous_src_ips),
+            ("app", top_anomalous_apps),
+            ("port", top_anomalous_dst_ports),
+        ):
+            if group:
+                detail_parts.append(f"{label} {group[0]['name']} ({group[0]['count']})")
+        detail = f" Top offenders: {', '.join(detail_parts)}." if detail_parts else ""
+        recommendations.append(
+            f"Review the {anomaly_count} anomalous log(s) below before turning findings into response actions.{detail}"
+        )
     recommendations.extend(profile.get("recommendations", [])[:2])
 
     return {
@@ -733,11 +767,11 @@ def evaluation_report(db: Session) -> dict:
             _aggregate=aggregate,
             _distributions=distributions,
         ),
-        "top_anomalous_src_ips": _anomalous_group(db, NormalizedLog.src_ip),
-        "top_anomalous_dst_ips": _anomalous_group(db, NormalizedLog.dst_ip),
-        "top_anomalous_apps": _anomalous_group(db, NormalizedLog.app),
-        "top_anomalous_dst_ports": _anomalous_group(db, NormalizedLog.dst_port),
-        "top_anomalous_protocols": _anomalous_group(db, NormalizedLog.protocol),
+        "top_anomalous_src_ips": top_anomalous_src_ips,
+        "top_anomalous_dst_ips": top_anomalous_dst_ips,
+        "top_anomalous_apps": top_anomalous_apps,
+        "top_anomalous_dst_ports": top_anomalous_dst_ports,
+        "top_anomalous_protocols": top_anomalous_protocols,
         "sample_anomalies": _sample_anomalies(db),
         "recommendations": list(dict.fromkeys(recommendations)),
     }

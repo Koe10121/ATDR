@@ -489,3 +489,59 @@ def test_cold_and_warm_ml_governance_responses_are_equivalent():
     assert cold == warm
     assert cold["dataset_profile"]["total_logs"] == 12
     assert cold["model_status"]["total_logs"] == 12
+
+
+def test_high_anomaly_rate_recommendation_interpolates_the_actual_rate_and_top_offenders():
+    # Regression test: the "anomaly rate is high" recommendation used to be
+    # generic ("review baseline filter, contamination setting, and top
+    # anomalous apps/IPs") even though evaluation_report's own return dict
+    # already computes the exact rate and the top offenders a paragraph
+    # later -- the data existed, it just wasn't threaded into the text.
+    Session = _session_factory()
+    with Session() as db:
+        source = LogSource(name="high-anomaly-source", source_type="firewall", parser_profile="palo_alto")
+        db.add(source)
+        db.flush()
+        start = datetime(2026, 7, 1, tzinfo=timezone.utc)
+        for index in range(10):
+            raw = RawLog(
+                source_id=source.id,
+                raw_line=f"anomaly-rate-evidence-{index}",
+                raw_line_hash=f"{index:064x}",
+            )
+            db.add(raw)
+            db.flush()
+            is_anomaly = index < 5  # 50% anomaly rate, well above the >10% branch
+            db.add(
+                NormalizedLog(
+                    raw_log_id=raw.id,
+                    generated_time=start + timedelta(seconds=index),
+                    src_ip="198.51.100.77" if is_anomaly else f"198.51.100.{index}",
+                    dst_ip="10.0.0.5",
+                    dst_port=443,
+                    protocol="tcp",
+                    action="allow",
+                    app="beacon-like-app" if is_anomaly else "ssl",
+                    src_zone="outside",
+                    dst_zone="inside",
+                    bytes=800,
+                    packets=8,
+                    app_risk=2,
+                    is_anomaly=is_anomaly,
+                    anomaly_score=-0.4 if is_anomaly else 0.2,
+                    parsed_json={"parser_profile": "palo_alto", "parse_status": "parsed", "field_count": 110},
+                )
+            )
+        db.commit()
+
+        report = ml_service.evaluation_report(db)
+
+    assert report["anomaly_rate"] == 50.0
+    high_rate_recommendation = next(item for item in report["recommendations"] if "above the expected baseline" in item)
+    assert "50.0%" in high_rate_recommendation
+    assert "'beacon-like-app' (5 logs)" in high_rate_recommendation
+    assert "198.51.100.77 (5 logs)" in high_rate_recommendation
+    # The same numbers must match what the top_anomalous_* fields report,
+    # not just look plausible in the recommendation text.
+    assert report["top_anomalous_apps"][0] == {"name": "beacon-like-app", "count": 5}
+    assert report["top_anomalous_src_ips"][0] == {"name": "198.51.100.77", "count": 5}
