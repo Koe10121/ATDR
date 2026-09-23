@@ -133,6 +133,54 @@ def test_secure_template_handoff_sets_http_only_cookie_and_never_uses_url_creden
         get_settings.cache_clear()
 
 
+def test_handoff_login_then_logout_revokes_the_same_cookie(monkeypatch):
+    # All existing session-revocation tests (test_iam_rbac.py) authenticate
+    # via /api/auth/login. The handoff flow mints and cookie-sets tokens
+    # through a completely different code path
+    # (/api/auth/mfu-iam/handoff/consume), and nothing previously exercised
+    # "handoff login -> logout -> same cookie now 401" end to end. Both
+    # paths converge on the same get_current_user revocation check, but
+    # that was verified by reading code, not by a test -- exactly the
+    # shape of bugs this project has shipped before: a code path sharing
+    # implementation with a tested one but never independently exercised.
+    _configure_handoff(monkeypatch)
+    monkeypatch.setattr(mfu_iam_service.requests, "post", lambda *args, **kwargs: _FakeResponse())
+    client, _ = _client()
+    try:
+        consume = client.post(
+            "/api/auth/mfu-iam/handoff/consume",
+            data={"handoff_code": "short-lived-code", "return_to": "/assistant"},
+            headers={"Origin": "http://template-shell.test"},
+            follow_redirects=False,
+        )
+        assert consume.status_code == 303
+
+        # TestClient's cookie jar now holds the handoff-issued cookie; every
+        # subsequent request on this client sends it automatically, with no
+        # Authorization header involved anywhere in this test.
+        assert client.get("/api/auth/me").status_code == 200
+
+        cookie_name = get_settings().mfu_iam_handoff_cookie_name
+        stolen_cookie_value = client.cookies.get(cookie_name)
+        assert stolen_cookie_value
+
+        logout = client.post("/api/auth/logout")
+        assert logout.status_code == 204
+
+        # logout deletes the cookie on *this* client, same as a real
+        # browser -- so the real regression check is a second holder of the
+        # pre-logout cookie value (another tab, or a stolen copy), which
+        # must be rejected even though this client's own jar was cleared.
+        other_client = TestClient(app)
+        other_client.cookies.set(cookie_name, stolen_cookie_value)
+        stale = other_client.get("/api/auth/me")
+        assert stale.status_code == 401
+        assert "revoked" in stale.json()["detail"].lower()
+    finally:
+        app.dependency_overrides.clear()
+        get_settings.cache_clear()
+
+
 def test_handoff_requires_allowed_origin_and_legacy_browser_token_route_is_absent(monkeypatch):
     _configure_handoff(monkeypatch)
     client, _ = _client()
