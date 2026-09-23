@@ -159,7 +159,7 @@ export function AssistantCitationList({ citations }: { citations: AssistantCitat
           return (
             <li
               key={`${citation.label}-${citation.source}-${citation.reference_id ?? ""}`}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-white px-3 py-2"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-panel2 px-3 py-2"
             >
               <div className="min-w-0">
                 <div className="break-words font-black text-text">{citation.label}</div>
@@ -203,7 +203,7 @@ export function AssistantAnswerProvenance({ response }: { response: AssistantCha
       : ["No record-specific evidence"];
   return (
     <div
-      className="rounded-lg border border-line bg-white px-4 py-3"
+      className="rounded-lg border border-line bg-panel2 px-4 py-3"
       data-testid="assistant-answer-provenance"
       aria-label="Answer provenance"
     >
@@ -243,7 +243,7 @@ export function AssistantAnswerContent({ response }: { response: AssistantChatRe
         </div>
       </div>
       {detail || sections?.key_evidence.length || sections?.limitations.length ? (
-        <details className="rounded-lg border border-line bg-white p-3" data-testid="assistant-evidence-detail">
+        <details className="rounded-lg border border-line bg-panel2 p-3" data-testid="assistant-evidence-detail">
           <summary className="cursor-pointer text-xs font-black uppercase tracking-wide text-muted">Evidence and reasoning</summary>
           <div className="mt-3 grid gap-3 lg:grid-cols-2">
             <SectionCard title="Evidence" items={(detailEvidence.length ? detailEvidence : sections?.key_evidence ?? []).slice(0, 6)} />
@@ -262,7 +262,7 @@ export function AssistantTechnicalContext({ response }: { response: AssistantCha
     <details className="rounded-lg border border-line bg-panel2 p-4">
       <summary className="cursor-pointer text-sm font-black uppercase tracking-wide text-muted">Technical context</summary>
       <pre
-        className="mt-3 max-h-80 overflow-auto rounded-lg border border-line bg-white p-3 text-xs leading-relaxed text-muted whitespace-pre-wrap break-words"
+        className="mt-3 max-h-80 overflow-auto rounded-lg border border-line bg-panel2 p-3 text-xs leading-relaxed text-muted whitespace-pre-wrap break-words"
         data-testid="assistant-technical-context"
       >
         {JSON.stringify(

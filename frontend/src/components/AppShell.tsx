@@ -112,13 +112,13 @@ export function AppShell() {
           mainRef.current?.focus();
           mainRef.current?.scrollIntoView({ block: "start" });
         }}
-        className="sr-only fixed left-4 top-4 z-50 rounded-md bg-white px-4 py-2 font-bold text-danger shadow-panel focus:not-sr-only"
+        className="sr-only fixed left-4 top-4 z-50 rounded-md bg-panel px-4 py-2 font-bold text-cyan shadow-panel focus:not-sr-only"
       >
         Skip to main content
       </a>
-      <aside className="fixed inset-y-0 left-0 z-20 hidden w-72 border-r border-danger bg-[#681114] p-5 text-white shadow-panel lg:block">
+      <aside className="fixed inset-y-0 left-0 z-20 hidden w-72 border-r border-maroonDeep bg-gradient-to-b from-maroon to-maroonDeep p-5 text-white shadow-panel lg:block">
         <div className="border-b border-white/15 pb-5">
-          <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#f0bd67]">Mae Fah Luang University</div>
+          <div className="text-[11px] font-black uppercase tracking-[0.2em] text-gold">Mae Fah Luang University</div>
           <div className="mt-2 text-xl font-black text-white">MFU ATDR</div>
           <div className="mt-1 text-sm font-semibold text-white/70">Security operations console</div>
         </div>
@@ -140,7 +140,7 @@ export function AppShell() {
                           clsx(
                             "flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-bold transition",
                             isActive
-                              ? "border-[#d9a64e]/70 bg-white/15 text-white"
+                              ? "border-cyan/50 bg-cyan/15 text-white shadow-[0_0_0_1px_rgba(34,211,238,0.25)]"
                               : "border-transparent text-white/75 hover:border-white/15 hover:bg-white/10 hover:text-white"
                           )
                         }
@@ -158,11 +158,11 @@ export function AppShell() {
       </aside>
 
       <div className="lg:pl-72">
-        <header className="sticky top-0 z-10 border-b border-line border-t-4 border-t-gold bg-white/95 px-5 py-3 shadow-sm backdrop-blur">
+        <header className="sticky top-0 z-10 border-b border-line border-t-4 border-t-gold bg-panel/95 px-5 py-3 shadow-sm backdrop-blur">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <div className="text-xs font-extrabold uppercase tracking-wide text-danger">MFU Security Operations</div>
-              <div className="text-lg font-black">AI-Driven Threat Detection and Response</div>
+              <div className="text-xs font-extrabold uppercase tracking-wide text-cyan">MFU Security Operations</div>
+              <div className="text-lg font-black text-text">AI-Driven Threat Detection and Response</div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Badge value={health.data?.status === "ok" ? "ready" : "review"} />
@@ -185,7 +185,7 @@ export function AppShell() {
                 key={item.to}
                 to={item.to}
                 className={({ isActive }) =>
-                  clsx("whitespace-nowrap rounded-lg border px-3 py-2 text-xs font-bold", isActive ? "border-danger/40 bg-danger/10 text-danger" : "border-line bg-panel2 text-muted")
+                  clsx("whitespace-nowrap rounded-lg border px-3 py-2 text-xs font-bold", isActive ? "border-cyan/40 bg-cyan/10 text-cyan" : "border-line bg-panel2 text-muted")
                 }
               >
                 {item.label}

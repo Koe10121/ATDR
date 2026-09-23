@@ -1685,16 +1685,19 @@ export function MLGovernance() {
                       data={longitudinalTrend}
                       margin={{ top: 8, right: 12, left: 0, bottom: 4 }}
                     >
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" minTickGap={24} />
-                      <YAxis domain={[0, 100]} unit="%" width={46} />
-                      <Tooltip formatter={(value) => `${Number(value).toFixed(1)}%`} />
-                      <Legend />
+                      <CartesianGrid stroke="#263445" strokeDasharray="3 3" />
+                      <XAxis dataKey="name" stroke="#93a4b7" minTickGap={24} />
+                      <YAxis domain={[0, 100]} unit="%" width={46} stroke="#93a4b7" />
+                      <Tooltip
+                        formatter={(value) => `${Number(value).toFixed(1)}%`}
+                        contentStyle={{ background: "#0f151d", border: "1px solid #263445", color: "#e5edf6" }}
+                      />
+                      <Legend wrapperStyle={{ color: "#93a4b7" }} />
                       <Line
                         type="monotone"
                         dataKey="queueRate"
                         name="Queue rate"
-                        stroke="#2563eb"
+                        stroke="#22d3ee"
                         strokeWidth={2}
                         dot={false}
                       />
@@ -1702,7 +1705,7 @@ export function MLGovernance() {
                         type="monotone"
                         dataKey="disagreementRate"
                         name="Rule disagreement"
-                        stroke="#b45309"
+                        stroke="#fbbf24"
                         strokeWidth={2}
                         dot={false}
                       />

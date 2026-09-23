@@ -416,7 +416,7 @@ function AssistantProviderTelemetry({ response }: { response: AssistantChatRespo
         </div>
         <span className={`rounded-full border px-3 py-1 text-xs font-black uppercase tracking-wide ${accent}`}>{providerCalled ? provider : "Local"}</span>
       </div>
-      <details className="mt-3 rounded-lg border border-line bg-white p-3">
+      <details className="mt-3 rounded-lg border border-line bg-panel2 p-3">
         <summary className="cursor-pointer text-xs font-black uppercase tracking-wide text-muted">Provider Detail</summary>
         <div className="mt-3 grid gap-2 text-xs font-bold text-muted sm:grid-cols-2 lg:grid-cols-3">
           <div><span className="uppercase tracking-wide">Raw logs:</span> <span className="text-text">{rawLogContextIncluded ? "Included" : "Not included"}</span></div>
@@ -947,13 +947,13 @@ export function AssistantPage() {
       {status.isError ? <ErrorBanner error={status.error} fallback="Unable to load assistant status." /> : null}
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-        <form className="rounded-xl border border-line bg-white p-5 shadow-panel" onSubmit={ask}>
+        <form className="rounded-xl border border-line bg-panel2 p-5 shadow-panel" onSubmit={ask}>
           <label className="text-sm font-black uppercase tracking-wide text-muted" htmlFor="assistant-question">
             Analyst question
           </label>
           <textarea
             id="assistant-question"
-            className="mt-3 min-h-36 w-full rounded-lg border border-line bg-white p-3 text-sm font-semibold text-text outline-none transition focus:border-danger"
+            className="mt-3 min-h-36 w-full rounded-lg border border-line bg-panel2 p-3 text-sm font-semibold text-text outline-none transition focus:border-cyan"
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
             onKeyDown={(event) => {
@@ -1032,7 +1032,7 @@ export function AssistantPage() {
         </form>
 
         <section
-          className="rounded-xl border border-line bg-white p-5 shadow-panel"
+          className="rounded-xl border border-line bg-panel2 p-5 shadow-panel"
           data-testid="assistant-response-panel"
           aria-live="polite"
           aria-busy={assistant.isPending}
@@ -1072,7 +1072,7 @@ export function AssistantPage() {
                   </summary>
                   <ol className="mt-3 space-y-3">
                     {previousConversationTurns.map((turn) => (
-                      <li key={turn.id} className="rounded-lg border border-line bg-white p-3">
+                      <li key={turn.id} className="rounded-lg border border-line bg-panel2 p-3">
                         <div className="break-words text-xs font-black text-text">{turn.question}</div>
                         <div className="mt-1 break-words text-xs font-semibold text-muted">
                           {turn.response.answer.slice(0, 240)}{turn.response.answer.length > 240 ? "..." : ""}
@@ -1121,7 +1121,7 @@ export function AssistantPage() {
                 </label>
                 <textarea
                   id="assistant-feedback-note"
-                  className="mt-2 min-h-20 w-full rounded-lg border border-line bg-white p-3 text-sm font-semibold text-text outline-none transition focus:border-danger"
+                  className="mt-2 min-h-20 w-full rounded-lg border border-line bg-panel2 p-3 text-sm font-semibold text-text outline-none transition focus:border-cyan"
                   value={feedbackNote}
                   onChange={(event) => setFeedbackNote(event.target.value)}
                   placeholder="Short note for answer-quality review."
@@ -1149,7 +1149,7 @@ export function AssistantPage() {
         </section>
       </section>
 
-      <details className="rounded-xl border border-line bg-white p-5 shadow-panel presentation-technical" data-testid="assistant-history">
+      <details className="rounded-xl border border-line bg-panel2 p-5 shadow-panel presentation-technical" data-testid="assistant-history">
         <summary className="cursor-pointer text-sm font-black uppercase tracking-wide text-muted">Assistant activity</summary>
         <div className="mt-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1197,7 +1197,7 @@ export function AssistantPage() {
         </div>
       </details>
 
-      <details className="rounded-xl border border-line bg-white p-5 shadow-panel presentation-technical" data-testid="assistant-feedback-summary">
+      <details className="rounded-xl border border-line bg-panel2 p-5 shadow-panel presentation-technical" data-testid="assistant-feedback-summary">
         <summary className="cursor-pointer text-sm font-black uppercase tracking-wide text-muted">Feedback quality review</summary>
         <div className="mt-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1290,7 +1290,7 @@ export function AssistantPage() {
             <div className="text-sm font-black uppercase tracking-wide text-amber">Priority feedback</div>
             <div className="mt-3 grid gap-3 md:grid-cols-2">
               {feedbackSummary.data.latest_unsafe_or_incorrect.map((item) => (
-                <div key={`priority-${item.feedback_id}`} className="rounded-lg border border-amber/30 bg-white p-3">
+                <div key={`priority-${item.feedback_id}`} className="rounded-lg border border-amber/30 bg-panel2 p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-sm font-black text-text">{item.rating.replaceAll("_", " ")}</span>
                     <Badge value="Review Recommended" />

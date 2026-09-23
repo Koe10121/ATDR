@@ -4,7 +4,7 @@
 
 @layer base {
   html {
-    color-scheme: light;
+    color-scheme: dark;
     overflow-x: clip;
   }
 
@@ -12,7 +12,7 @@
     margin: 0;
     min-width: 320px;
     min-height: 100vh;
-    background: #f2f4f7;
+    background: #0a0e16;
     font-family: Inter, "Segoe UI", Arial, sans-serif;
     overflow-x: clip;
   }
@@ -22,7 +22,7 @@
   }
 
   :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
-    outline: 3px solid #8c1515;
+    outline: 3px solid #22d3ee;
     outline-offset: 3px;
   }
 
@@ -50,7 +50,7 @@
   .hero-panel::before {
     content: "";
     @apply absolute left-0 right-0 top-0 h-1;
-    background: #8c1515;
+    background: linear-gradient(90deg, #22d3ee, #2dd4bf);
   }
 
   .input {
@@ -58,15 +58,15 @@
   }
 
   .btn-primary {
-    @apply rounded-lg border border-danger bg-danger px-4 py-2 text-sm font-extrabold text-white transition hover:bg-[#6f1111] disabled:cursor-not-allowed disabled:opacity-50;
+    @apply rounded-lg border border-cyan bg-cyan px-4 py-2 text-sm font-extrabold text-[#04222b] transition hover:bg-[#67e2f3] disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .btn-secondary {
-    @apply rounded-lg border border-line bg-white px-4 py-2 text-sm font-extrabold text-text transition hover:border-danger/40 hover:bg-danger/5 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply rounded-lg border border-line bg-panel2 px-4 py-2 text-sm font-extrabold text-text transition hover:border-cyan/50 hover:bg-cyan/10 disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .metric-card {
-    @apply min-w-0 rounded-lg border border-line bg-white p-4 shadow-panel;
+    @apply min-w-0 rounded-lg border border-line bg-panel p-4 shadow-panel;
   }
 
   .metric-label {
@@ -110,7 +110,7 @@
   }
 
   .soc-table tr:hover td {
-    @apply bg-danger/5 text-text;
+    @apply bg-cyan/5 text-text;
   }
 
   .action-result-card {
