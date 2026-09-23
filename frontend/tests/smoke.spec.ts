@@ -6725,6 +6725,72 @@ test("response center shows the real validation detail instead of a generic erro
   await expect(page.getByText("API request failed with status 422")).not.toBeVisible();
 });
 
+test("marking a user's email unverified requires confirmation", async ({ page }) => {
+  // Regression test: this toggle used to fire immediately on click, with no
+  // confirmation -- inconsistent with every other destructive/security-
+  // relevant action in the app (disable user, change role, block IP).
+  await mockApi(page);
+  await seedSession(page);
+  let patchedBody: Record<string, unknown> | undefined;
+  await page.route("**/api/users/1", async (route) => {
+    patchedBody = JSON.parse(route.request().postData() || "{}") as Record<string, unknown>;
+    return route.fulfill({
+      json: {
+        id: 1,
+        username: "admin",
+        email: "admin@school.example",
+        full_name: "Admin",
+        role: "admin",
+        is_active: true,
+        email_verified: false,
+        auth_provider: "local",
+        external_subject: null,
+        last_login_at: "2026-05-22T00:00:00Z",
+        invited_at: null,
+        disabled_at: null,
+        created_at: "2026-05-22T00:00:00Z"
+      }
+    });
+  });
+
+  await page.goto("/users");
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await page.getByRole("button", { name: "Mark unverified" }).click();
+  expect(patchedBody).toBeUndefined();
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Mark unverified" }).click();
+  await expect.poll(() => patchedBody).toEqual({ email_verified: false });
+});
+
+test("deleting the last saved table view requires confirmation", async ({ page }) => {
+  // Regression test: same missing-confirmation gap as the email-verified
+  // toggle, for TableToolbar's "Delete last" saved-view button.
+  await mockApi(page);
+  await page.addInitScript(() => {
+    window.localStorage.setItem(
+      "atdr.session.v1",
+      JSON.stringify({ token: "smoke-token", username: "admin", role: "admin", expiresAt: Date.now() + 3600000 })
+    );
+    window.localStorage.setItem("atdr.log.views.v1", JSON.stringify([{ name: "keep-me", value: { sort_by: "src_ip" } }]));
+  });
+  await page.goto("/logs");
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+
+  const deleteButton = page.getByRole("button", { name: "Delete last" });
+  await expect(deleteButton).toBeVisible();
+
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await deleteButton.click();
+  await expect(deleteButton).toBeVisible();
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await deleteButton.click();
+  await expect(deleteButton).toHaveCount(0);
+});
+
 test("sort and saved-view dropdowns tolerate malformed persisted table state", async ({ page }) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));

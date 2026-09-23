@@ -69,7 +69,14 @@ export function TableToolbar<T>({
           Save view
         </button>
         {safeSavedViews.length ? (
-          <button type="button" className="btn-secondary" onClick={() => onDeleteView(safeSavedViews[safeSavedViews.length - 1].name)}>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => {
+              const lastView = safeSavedViews[safeSavedViews.length - 1];
+              if (window.confirm(`Delete saved view "${lastView.name}"?`)) onDeleteView(lastView.name);
+            }}
+          >
             Delete last
           </button>
         ) : null}

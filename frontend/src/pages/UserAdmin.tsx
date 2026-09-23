@@ -567,7 +567,10 @@ export function UserAdmin() {
                         </button>
                         <button
                           className="btn-secondary"
-                          onClick={() => mutations.updateUser.mutate({ id: user.id, payload: { email_verified: !user.email_verified } })}
+                          onClick={() => {
+                            if (user.email_verified && !window.confirm(`Mark ${user.username}'s email as unverified?`)) return;
+                            mutations.updateUser.mutate({ id: user.id, payload: { email_verified: !user.email_verified } });
+                          }}
                         >
                           {user.email_verified ? "Mark unverified" : "Verify email"}
                         </button>
