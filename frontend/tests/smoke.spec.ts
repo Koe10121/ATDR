@@ -6912,7 +6912,10 @@ test("demo import strips copy-as-path quotes before sending sample path", async 
 });
 
 test("core SOC pages fit desktop, tablet, and mobile viewports", async ({ page }, testInfo) => {
-  test.setTimeout(150_000);
+  // 5 viewports x 12 routes (was 8 routes before audit/controls/tuning/demo
+  // were added to match the WCAG sweep's full route list) -- scale the
+  // budget with the added iterations.
+  test.setTimeout(225_000);
   await seedSession(page);
   await mockApi(page);
   const viewports = [
@@ -6922,7 +6925,7 @@ test("core SOC pages fit desktop, tablet, and mobile viewports", async ({ page }
     { name: "tablet", width: 768, height: 1024 },
     { name: "mobile", width: 390, height: 844 }
   ];
-  const routes = ["overview", "alerts", "logs", "assistant", "ml", "evidence-review", "response", "users"];
+  const routes = ["overview", "alerts", "logs", "assistant", "ml", "evidence-review", "response", "users", "audit", "controls", "tuning", "demo"];
   const routeHeadings: Record<string, RegExp> = {
     overview: /ATDR lab SOC status/i,
     alerts: /Prioritize, investigate, contain, and document alerts/i,
@@ -6931,7 +6934,11 @@ test("core SOC pages fit desktop, tablet, and mobile viewports", async ({ page }
     ml: /Model status and review operations/i,
     "evidence-review": /Evidence Review/i,
     response: /Containment actions stay simulated by default/i,
-    users: /Manage analyst and admin access/i
+    users: /Manage analyst and admin access/i,
+    audit: /Read-only evidence for analyst and admin actions/i,
+    controls: /Govern alert noise, watchlists, and containment/i,
+    tuning: /Convert SOC feedback into lower-noise detections/i,
+    demo: /Manage controlled data and evidence/i
   };
 
   for (const viewport of viewports) {
