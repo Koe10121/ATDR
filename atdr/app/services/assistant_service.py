@@ -3350,13 +3350,23 @@ def _answer_general_question(
     # question -- an analyst asking something specific (e.g. what a log
     # field means) should not be told alert counts and get no indication
     # that the question itself went unanswered.
-    answer = (
-        f"I don't have a specific built-in answer for \"{question}\". "
-        "Ask about a specific alert, log, source, or case (by ID), or about ML governance, "
-        "operations, or the ATDR workflow. "
-        f"Current state: {log_count} normalized logs, {alert_count} alerts. "
-        f"Recent alerts: {alert_text or 'none in the current context.'}"
-    )
+    #
+    # Built as distinct lines (not one run-on paragraph) and fed into
+    # details["answer_sections"]["summary"] explicitly below. This mode maps
+    # to "list_summary" presentation (assistant_response_contracts.py),
+    # which independently re-derives a "fallback" list by sentence-splitting
+    # the raw answer text and combines it with the auto-derived summary --
+    # a single unbroken paragraph made both derivations slice the same
+    # content two different ways and then concatenate both slices, garbling
+    # and duplicating the visible answer. Distinct one-sentence lines make
+    # both derivations agree, so they dedupe cleanly instead.
+    summary_lines = [
+        f"I don't have a specific built-in answer for \"{question}\".",
+        "Ask about a specific alert, log, source, or case (by ID), or about ML governance, operations, or the ATDR workflow.",
+        f"Current state: {log_count} normalized logs, {alert_count} alerts.",
+        f"Recent alerts: {alert_text or 'none in the current context.'}",
+    ]
+    answer = "\n".join(summary_lines)
 
     # The keyword router has no single relevant handler for this question,
     # so there's no one topic to fetch. Gather a bounded snapshot across
@@ -3378,7 +3388,8 @@ def _answer_general_question(
             "alerts": alert_count,
             "recent_alert_count": len(recent_alerts),
             "unmatched_question": True,
-        }
+        },
+        "answer_sections": {"summary": summary_lines},
     }
 
     if limit:

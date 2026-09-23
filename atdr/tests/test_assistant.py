@@ -257,6 +257,29 @@ def test_assistant_unmatched_question_gathers_broad_safe_context_for_llm_synthes
         app.dependency_overrides.clear()
 
 
+def test_assistant_unmatched_question_answer_is_not_garbled_or_duplicated():
+    # Regression test: _answer_general_question's answer used to be one
+    # unbroken paragraph, which the "list_summary" presentation layer both
+    # auto-summarized AND independently re-split by sentence, then
+    # concatenated both slices -- producing visibly duplicated, doubly
+    # mid-sentence-truncated text. Assert each distinct piece of content
+    # appears exactly once.
+    client, _ = _client_with_session()
+    try:
+        headers = _login(client)
+        question = "What does the app_risk field mean?"
+        response = client.post("/api/assistant/chat", json={"question": question}, headers=headers)
+        assert response.status_code == 200
+        answer = response.json()["answer"]
+        assert answer.count("I don't have a specific built-in answer") == 1
+        assert answer.count("Ask about a specific alert") == 1
+        assert answer.count("Current state:") == 1
+        assert answer.count("Recent alerts:") == 1
+        assert "..." not in answer
+    finally:
+        app.dependency_overrides.clear()
+
+
 def test_assistant_unmatched_question_with_llm_enabled_synthesizes_from_the_broader_context(monkeypatch):
     monkeypatch.setenv("ASSISTANT_LLM_ENABLED", "true")
     monkeypatch.setenv("ASSISTANT_LLM_PROVIDER", "mock")
