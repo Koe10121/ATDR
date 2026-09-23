@@ -182,6 +182,77 @@ def test_anomaly_signal_is_advisory_and_cannot_create_alert(monkeypatch):
     assert list(db.scalars(select(Alert))) == []
 
 
+def _add_deny_log(db, *, src_ip: str, parsed_json: dict) -> NormalizedLog:
+    raw = RawLog(raw_line=f"deny log {src_ip}")
+    db.add(raw)
+    db.flush()
+    log = NormalizedLog(
+        raw_log_id=raw.id,
+        generated_time=datetime(2026, 5, 20, 13, 36, 15),
+        log_type="TRAFFIC",
+        src_ip=src_ip,
+        dst_ip="10.0.0.50",
+        src_zone="SG-Outside",
+        dst_zone="LAN-Inside",
+        app="ssl",
+        dst_port=443,
+        action="deny",
+        protocol="tcp",
+        bytes=100,
+        packets=2,
+        parsed_json=parsed_json,
+    )
+    db.add(log)
+    return log
+
+
+def test_low_parse_quality_evidence_still_creates_an_alert_but_is_flagged():
+    # Regression test: ML scoring already abstains on a log whose parse
+    # didn't satisfy the governed schema contract (see
+    # v520_schema_aware_abstention.assess_log_schema_compatibility), but
+    # rule evaluation had no equivalent check at all -- a structurally-odd
+    # log could drive a rule match with zero quality signal on the result.
+    # Rules must stay authoritative (this must NOT suppress the alert --
+    # that would be a new detection blind spot, worse than the gap it
+    # fixes), but the alert must now carry a visible caveat.
+    db = _session()
+    _add_deny_log(db, src_ip="203.0.113.60", parsed_json={"parse_status": "error"})
+    db.commit()
+
+    result = run_detection(db, limit=100, use_ml=False, actor="test")
+    alerts = list(db.scalars(select(Alert)))
+
+    assert result["created_alerts"] == 1
+    assert result["low_parse_quality_signals"] == 1
+    assert len(alerts) == 1
+    codes = [rule.get("code") for rule in alerts[0].matched_rules_json]
+    assert "deny_drop_action" in codes
+    assert "low_parse_quality" in codes
+    low_pq = next(rule for rule in alerts[0].matched_rules_json if rule["code"] == "low_parse_quality")
+    assert low_pq["score"] == 0
+    assert "did not fully match the governed PAN-OS parsing contract" in low_pq["explanation"]
+
+
+def test_well_formed_evidence_is_not_flagged_with_a_parse_quality_caveat():
+    # Negative control for the test above: a log with every required field
+    # populated and a clean parse status must not get the caveat.
+    db = _session()
+    _add_deny_log(
+        db,
+        src_ip="203.0.113.61",
+        parsed_json={"parser_profile": "palo_alto", "parse_status": "parsed"},
+    )
+    db.commit()
+
+    result = run_detection(db, limit=100, use_ml=False, actor="test")
+    alerts = list(db.scalars(select(Alert)))
+
+    assert result["created_alerts"] == 1
+    assert result["low_parse_quality_signals"] == 0
+    codes = [rule.get("code") for rule in alerts[0].matched_rules_json]
+    assert "low_parse_quality" not in codes
+
+
 def _grouped_detection_snapshot(db) -> dict:
     alerts = list(db.scalars(select(Alert).order_by(Alert.id)))
     return {

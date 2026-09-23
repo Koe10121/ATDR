@@ -375,6 +375,8 @@ def _detection_record(parsed: ParsedPaloAltoLog, row_id: int) -> detection.Detec
             if parsed.parsed_json.get(key) is not None
         },
         is_anomaly=False,
+        src_port=value.get("src_port"),
+        elapsed_time=value.get("elapsed_time"),
     )
 
 

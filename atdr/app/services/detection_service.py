@@ -26,6 +26,7 @@ from atdr.app.detection.rules import (
     is_outside_to_inside,
 )
 from atdr.app.detection.scoring import clamp_score, severity_from_score
+from atdr.app.detection.v520_schema_aware_abstention import assess_log_schema_compatibility
 from atdr.app.services.alert_service import (
     ALERT_DEDUP_ACTIVE_STATUSES,
     create_grouped_alert_from_detections,
@@ -60,7 +61,7 @@ MULTI_EVENT_PATTERN_RULES = {
     "possible_horizontal_scan",
     "possible_port_scan",
 }
-ADVISORY_EVIDENCE_RULES = frozenset({"ml_anomaly_detected"})
+ADVISORY_EVIDENCE_RULES = frozenset({"ml_anomaly_detected", "low_parse_quality"})
 CONTEXT_ONLY_PRIMARY_RULES = frozenset(
     {
         "outside_to_inside",
@@ -132,6 +133,11 @@ class DetectionLogRecord:
     action_source: str | None
     parsed_json: dict
     is_anomaly: bool
+    # Appended (not inserted among the fields above) so the existing
+    # DetectionLogRecord(*row) positional construction below can't silently
+    # shift any pre-existing field into the wrong slot.
+    src_port: int | None
+    elapsed_time: int | None
 
 
 def _runtime_profile_sample(
@@ -213,6 +219,8 @@ def _bounded_detection_records(
             NormalizedLog.action_source,
             NormalizedLog.parsed_json,
             NormalizedLog.is_anomaly,
+            NormalizedLog.src_port,
+            NormalizedLog.elapsed_time,
         )
         .join(RawLog, RawLog.id == NormalizedLog.raw_log_id)
         .order_by(NormalizedLog.id.desc())
@@ -461,6 +469,7 @@ def run_detection(
         evaluated = 0
         watchlist_matches = 0
         advisory_anomaly_signals = 0
+        low_parse_quality_signals = 0
         advisory_only_logs = 0
         authoritative_rule_signals = 0
         matched_rule_ids: set[str] = set()
@@ -489,9 +498,34 @@ def run_detection(
                 )
             if not matches:
                 continue
+            # Rules are the sole alert-creation authority and always
+            # evaluate every log (unlike ML scoring, which already abstains
+            # via this same assess_log_schema_compatibility check -- see
+            # supervised_detector.predict_supervised_log). A log with a
+            # partial/unsupported parse can still legitimately match a rule
+            # (missing fields mostly evaluate to "no match", not a false
+            # match), so this doesn't suppress the alert -- it only makes
+            # a real quality signal visible on the resulting alert instead
+            # of leaving it silently absent, the same way advisory ML
+            # evidence is surfaced without being allowed to gate creation.
+            compatibility = assess_log_schema_compatibility(log)
+            if compatibility["abstained"]:
+                low_parse_quality_signals += 1
+                matches.append(
+                    RuleMatch(
+                        code="low_parse_quality",
+                        title="Evidence parse-quality concern",
+                        score=0,
+                        explanation=(
+                            "This evidence did not fully match the governed PAN-OS parsing contract "
+                            f"({compatibility['message']}). Rule matches on it remain authoritative, "
+                            "but verify field values before relying on this alert's specifics."
+                        ),
+                    )
+                )
             matched_rule_ids.update(match.code for match in matches)
             advisory_anomaly_signals += sum(
-                1 for match in matches if match.code in ADVISORY_EVIDENCE_RULES
+                1 for match in matches if match.code == "ml_anomaly_detected"
             )
             authoritative_matches = _alert_authoritative_matches(matches)
             authoritative_matched_rule_ids.update(
@@ -613,6 +647,7 @@ def run_detection(
             "suppressed_by_rules": suppressed_by_rules,
             "watchlist_matches": watchlist_matches,
             "advisory_anomaly_signals": advisory_anomaly_signals,
+            "low_parse_quality_signals": low_parse_quality_signals,
             "advisory_only_logs": advisory_only_logs,
             "rule_detection_authoritative": True,
             "detection_layers": detection_layers,
