@@ -6558,6 +6558,18 @@ test("SOC assistant session storage is resilient and clears on logout", async ({
     window.sessionStorage.setItem("atdr.assistant.session.v1", "{malformed-json");
   });
   await mockApi(page);
+  // Regression coverage: useAuth.tsx's logout() calls api.logout() with
+  // .catch(() => undefined) and clears local state unconditionally, so
+  // this test previously passed even if the real /api/auth/logout call
+  // were deleted entirely -- meaning a regression that silently broke
+  // real server-side session revocation would ship undetected. Assert the
+  // request actually happens, not just that local storage was cleared.
+  let logoutRequests = 0;
+  await page.route("**/api/auth/logout", async (route) => {
+    logoutRequests += 1;
+    expect(route.request().method()).toBe("POST");
+    await route.fulfill({ status: 204, body: "" });
+  });
   await seedSession(page);
   await page.goto("/assistant");
   await expect(page.getByLabel("Analyst question")).toHaveValue("What is the latest critical alert?");
@@ -6571,6 +6583,7 @@ test("SOC assistant session storage is resilient and clears on logout", async ({
   await page.getByRole("button", { name: "Logout" }).click();
   await expect(page).toHaveURL(/\/login$/);
   expect(await page.evaluate(() => window.sessionStorage.getItem("atdr.assistant.session.v1"))).toBeNull();
+  await expect.poll(() => logoutRequests).toBe(1);
 });
 
 test("simulated response confirmation and denied audit are visible", async ({ page }) => {
