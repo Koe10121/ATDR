@@ -2,11 +2,11 @@
 
 Date: 2026-09-23. HEAD at time of writing: `d216d22`.
 
-**Status: Tier 0, Tier 1, and Tier 2 complete** — all 12 items fixed,
-tested, and committed (see per-item commit hashes below). Full backend
-suite (1225 passed, 1 skipped, 0 failed) and full frontend Playwright
-suite (51/51 passed) both re-verified clean after this round. Tier 3
-(low-value cleanup) remains, optional given time constraints.
+**Status: All tiers complete.** Tier 0/1/2 (12 items) fully fixed,
+tested, and committed. Tier 3: 6 of 8 items fixed, 2 deliberately
+skipped (see Tier 3 section for why). Full backend suite (1225 passed,
+1 skipped, 0 failed) and full frontend Playwright suite (54/54 passed)
+both re-verified clean after this round.
 
 ## Why a second full audit, and why it matters
 
@@ -280,36 +280,29 @@ real detail. Same file also uses a raw native `<select>`
 
 ## Tier 3 — Confirmed, low-value cleanup
 
-- `formatName`/`formatFieldName` is now **triplicated** (`SupervisedEvidenceExpansionPanel.tsx`,
-  `SupervisedQualificationReviewPanel.tsx`, `EvidenceReviewPage.tsx`) —
-  consolidate into one shared export. **~30min.**
+- `formatName`/`formatFieldName` is now **triplicated** — FIXED (`5eb3944`),
+  consolidated into `frontend/src/lib/format.ts`.
 - `POST /api/auth/login`'s response body still returns the raw
-  `access_token` even though the frontend never uses it anymore (the
-  cookie is the real credential) — a narrow residual XSS-exfiltration
-  window. Consider dropping it from the body. **~30min.**
-- Dead `token`/`authMode:"bearer"` code remains in `session.ts`/`api.ts`,
-  unreachable via any real login now — recommend deleting outright now
-  that it's confirmed unused by any real flow (only reachable via the
-  `seedSession` test bypass, which constructs the object directly and
-  doesn't call the removed function). **~30min**, verify the ~40
-  `seedSession`-based tests still pass.
-- `v560_clean_machine_acceptance_service.py:42` has the same IPv4-only
-  regex bug — but this file is confirmed **historical** (dead code, no
-  live importer), so this is optional. **~15min if done at all.**
-- Missing confirmation on `TableToolbar`'s "Delete last" (saved view) and
-  `UserAdmin`'s "Mark unverified" toggle — inconsistent with every other
-  destructive/security-relevant action in the app. **~30min.**
-- Viewport-fit test only covers 8 of 12 routes (missing `audit`,
-  `controls`, `tuning`, `demo`) — the WCAG sweep already covers all 12;
-  this one just wasn't updated to match. **~15min.**
-- Minor N+1: the Assistant fallback's `source_to_dict(..., include_quality=True)`
-  computes and discards quality/run-history data it doesn't use — pass
-  `include_quality=False`. **~15min.**
-- `_parse_timestamp` is independently (but currently consistently)
-  redefined in `v541`/`v547`/`v551` — latent duplication risk, not a live
-  bug today. Consolidate opportunistically. **~30min-1h, not urgent.**
+  `access_token` — SKIPPED, deliberately. An existing test
+  (`smoke.spec.ts` ~line 4072) already documents this as an accepted
+  "wire compatibility" tradeoff after the real fix (never persisting it
+  to `localStorage`); the doc's own phrasing here was a soft "consider,"
+  not a confirmed gap, and re-litigating an already-made call wasn't
+  worth the risk this close to the deadline.
+- Dead `token`/`authMode:"bearer"` code in `session.ts`/`api.ts` — FIXED
+  (`e87b7ae`), removed outright; `Session.authMode` is now just
+  `"cookie"`.
+- `v560_clean_machine_acceptance_service.py:42` IPv4-only regex — SKIPPED,
+  confirmed historical dead code with zero live importers; fixing it
+  changes nothing that runs.
+- Missing confirmation on `TableToolbar`'s "Delete last" and `UserAdmin`'s
+  "Mark unverified" — FIXED (`29aa7da`).
+- Viewport-fit test only covers 8 of 12 routes — FIXED (`ca36453`).
+- Minor N+1 in Assistant fallback's `source_to_dict` — FIXED (`a3d30d1`).
+- `_parse_timestamp` duplicated in `v541`/`v547`/`v551` — FIXED (`b2d4d8c`),
+  consolidated into `atdr/app/core/time_utils.py`.
 
-**Tier 3 subtotal: ~2-4 hours.**
+**Tier 3: 6 of 8 items fixed; 2 deliberately skipped (see above).**
 
 ---
 
