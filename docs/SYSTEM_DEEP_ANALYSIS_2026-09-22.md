@@ -229,10 +229,30 @@ fixed this session, now confirmed by direct re-inspection:**
    comment admitting it's a deliberate duplicate — proving even the
    "faithful" copies are one refactor away from drifting, because nothing
    forces them to stay in sync.
-3. No JWT revocation — logout only clears the cookie; a bearer token
-   survives up to its 8-hour lifetime regardless. Compounded by the
+3. **Done 2026-09-23**: no JWT revocation — logout only cleared the cookie;
+   a bearer token survived up to its 8-hour lifetime regardless. Fixed with
+   a `User.sessions_revoked_at` column (migration `5bc516e2f7e7`), checked
+   against the token's `iat` claim in `get_current_user` — zero new
+   queries, since that function already loads the `User` row on every
+   request. Also applied to admin-disable, alongside the existing
+   `is_active` check it already enforced. Surfaced and fixed a real,
+   subtle SQLite gotcha along the way: `DateTime(timezone=True)` doesn't
+   preserve tzinfo across a SQLite round-trip, so the naive value read back
+   was silently reinterpreted as local time by `.timestamp()`, shifting it
+   by the machine's UTC offset — caught by a debug script, not by the
+   first test run (which happened to pass by accident). Compounded by the
    `local_recovery` fallback path storing its token in `localStorage`
-   (XSS-exfiltrable) rather than an HttpOnly cookie like the primary path.
+   (XSS-exfiltrable) rather than an HttpOnly cookie like the primary path —
+   also fixed: `/api/auth/login` now sets the same HttpOnly cookie the
+   handoff flow uses, and the frontend stopped persisting the token to
+   `localStorage` at all (only setting a cookie without that second change
+   would not have closed the actual vulnerability). Fixing this surfaced a
+   real test-infrastructure side effect: FastAPI's `TestClient` carries
+   cookies across requests like a real browser, so 2 pre-existing backend
+   tests that logged in twice and then checked an "unauthenticated" request
+   on the same client (with no explicit headers) started silently passing
+   for the wrong reason — fixed by explicitly clearing cookies at that
+   point in both.
 
 This is now the **fourth** instance of the same root cause found this
 session (after the zone-classification substring bug, the IPv4-only
@@ -374,12 +394,19 @@ the email's typed text into the password field's validation check. Found by
 the new regression test failing on first run, fixed with a `useEffect` keyed
 on the edit target.
 
-**Explicitly defer — real production-hardening, out of scope for a capstone
-demo, belongs in Limitations/Future Work rather than a pre-presentation
-scramble:** JWT revocation, moving the recovery-login token out of
-`localStorage`, durable multi-worker rate limiting, OpenTelemetry tracing, a
-job-failure alerting hook, delegating `/api/logs/import` to the queued path,
-batched-hash dedup on the sync path, archiving (vs. just indexing) the dead
+**Done 2026-09-23**: JWT session revocation and moving the recovery-login
+token out of `localStorage` — see the updated finding above. Chosen
+deliberately out of the full Stage 2 list because both are genuinely
+valuable, self-contained security fixes tied to real audit findings, not
+just generic hardening.
+
+**Still explicitly deferred — real production-hardening, out of scope for
+a capstone demo, belongs in Limitations/Future Work rather than a
+pre-presentation scramble:** durable multi-worker rate limiting (no
+multi-worker deployment exists), OpenTelemetry tracing, a job-failure
+alerting hook (no external alerting infra to wire it to), delegating
+`/api/logs/import` to the queued path, batched-hash dedup on the sync path,
+archiving (vs. just indexing) the dead
 vNNN modules, splitting `MLGovernance.tsx`/`ExecutiveOverview.tsx`. None of
 these change what the system does today; they're about running it somewhere
 real, at scale, unattended — not about the capstone demo being correct and
