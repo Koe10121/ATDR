@@ -1,8 +1,95 @@
 from __future__ import annotations
 
+import ast
+from pathlib import Path
+
 import pytest
 
 from atdr.app.core.redaction import AI_REVIEWER_PATTERN, IP_PATTERN
+
+# The exact vocabulary AI_REVIEWER_PATTERN matches on. Used below to detect a
+# *redefinition* of this pattern anywhere else in the codebase -- this same
+# bug class (an independently-defined copy silently missing some of these
+# terms) has recurred 5 times across this project's history, most recently
+# in v527_blind_review_evaluation.py, v547_manual_anchor_acquisition.py, and
+# v533_independent_acceptance_service.py, all now fixed to import the
+# canonical pattern instead. This test exists so a 6th recurrence fails CI
+# instead of shipping silently.
+_CANONICAL_MARKER_WORDS = {
+    "assistant", "automated", "bot", "chatgpt", "claude", "codex", "gemini",
+    "heuristic", "language model", "llm", "model", "openai", "synthetic",
+}
+_REDACTION_MODULE = Path(__file__).resolve().parents[1] / "app" / "core" / "redaction.py"
+
+
+def _is_re_compile_call(node: ast.AST) -> bool:
+    if not isinstance(node, ast.Call):
+        return False
+    func = node.func
+    if isinstance(func, ast.Attribute):
+        return func.attr == "compile"
+    if isinstance(func, ast.Name):
+        return func.id == "compile"
+    return False
+
+
+def _named_constant_string_groups(tree: ast.AST):
+    """Yield the string literals bound by every top-level constant
+    assignment in a module -- the exact shape all 5 historical
+    redefinitions of this pattern took: a module-level NAME = ... binding
+    to either a single regex string (optionally wrapped in re.compile(...))
+    or a set/tuple/list of marker words. Deliberately does NOT scan
+    arbitrary string constants (docstrings, error messages, inline literals
+    never bound to a name) -- those produce false positives from ordinary
+    prose that happens to mention a provider name (e.g. a config validator
+    error message listing "gemini, openai, claude" as allowed values)."""
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+            continue
+        value = node.value
+        if value is None:
+            continue
+        if _is_re_compile_call(value):
+            args = value.args
+            value = args[0] if args else None
+        if value is None:
+            continue
+        if isinstance(value, ast.Constant) and isinstance(value.value, str):
+            values = [value.value]
+        elif isinstance(value, (ast.Set, ast.Tuple, ast.List)):
+            values = [
+                elt.value
+                for elt in value.elts
+                if isinstance(elt, ast.Constant) and isinstance(elt.value, str)
+            ]
+        else:
+            continue
+        if values:
+            yield values, node.lineno
+
+
+def test_no_file_outside_redaction_module_redefines_ai_reviewer_markers():
+    app_root = Path(__file__).resolve().parents[1] / "app"
+    violations: list[str] = []
+    for path in app_root.rglob("*.py"):
+        if path.resolve() == _REDACTION_MODULE:
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for values, lineno in _named_constant_string_groups(tree):
+            blob = " ".join(values).lower()
+            hits = sum(1 for marker in _CANONICAL_MARKER_WORDS if marker in blob)
+            # A real redefinition reuses most of the vocabulary; an
+            # incidental partial overlap (e.g. a docstring mentioning
+            # "gemini" and "claude" once) won't reach this threshold.
+            if hits >= 5:
+                violations.append(f"{path.relative_to(app_root.parent.parent)}:{lineno}")
+    assert not violations, (
+        "Found file(s) outside atdr/app/core/redaction.py that look like an "
+        "independent redefinition of AI_REVIEWER_PATTERN's marker vocabulary "
+        "instead of importing it from atdr.app.core.redaction -- this is the "
+        "exact duplicated-pattern-drift bug class that has recurred 5 times:\n"
+        + "\n".join(violations)
+    )
 
 
 @pytest.mark.parametrize(

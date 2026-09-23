@@ -4,7 +4,6 @@ import csv
 import hashlib
 import json
 import os
-import re
 import sqlite3
 import tempfile
 import time
@@ -16,6 +15,7 @@ from typing import Any, Iterable
 from sqlalchemy.orm import Session
 
 from atdr.app.core.config import PROJECT_ROOT, get_settings
+from atdr.app.core.redaction import AI_REVIEWER_PATTERN
 from atdr.app.detection import v398_independent_holdout_validation as frozen
 from atdr.app.detection import v540_development_supervised_repair as v540
 from atdr.app.detection import v541_governed_blind_evidence as v541
@@ -109,10 +109,6 @@ SAFE_GUARD_COLUMNS = {
     "source_identities_exposed",
     "fingerprints_exposed",
 }
-AI_REVIEWER_PATTERN = re.compile(
-    r"\b(ai|assistant|automated|automation|chatgpt|claude|codex|gemini|llm|model)\b",
-    re.IGNORECASE,
-)
 
 
 class V547AcquisitionError(RuntimeError):

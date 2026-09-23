@@ -17,7 +17,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from atdr.app.core.config import PROJECT_ROOT, Settings
-from atdr.app.core.redaction import IP_PATTERN
+from atdr.app.core.redaction import AI_REVIEWER_PATTERN, IP_PATTERN
 from atdr.app.db.models import MLLabel, MLModelRun
 from atdr.app.detection import v527_blind_review_evaluation as v527_detection
 from atdr.app.detection import v528_blind_review_helper as v528_review
@@ -111,16 +111,6 @@ REQUIRED_ASSISTANT_CONTEXTS = {
     "safe_response",
 }
 ALLOWED_HUMAN_DECISIONS = {"accept", "revise", "reject"}
-AI_REVIEWER_MARKERS = {
-    "assistant",
-    "automated",
-    "chatgpt",
-    "claude",
-    "codex",
-    "gemini",
-    "language model",
-    "llm",
-}
 ABSOLUTE_WINDOWS_PATH = re.compile(r"\b[A-Za-z]:\\[^\r\n\t]+")
 LONG_HEX_TOKEN = re.compile(r"\b[a-fA-F0-9]{48,}\b")
 
@@ -517,9 +507,7 @@ def validate_assistant_human_review_pack(
         reviewer_tokens = set(re.findall(r"[a-z0-9]+", reviewer_lower))
         if not reviewer:
             reasons.append("reviewer_missing")
-        elif "ai" in reviewer_tokens or any(
-            marker in reviewer_lower for marker in AI_REVIEWER_MARKERS
-        ):
+        elif "ai" in reviewer_tokens or AI_REVIEWER_PATTERN.search(reviewer):
             reasons.append("automated_reviewer_not_allowed")
         timestamp = str(row.get("human_reviewed_at") or "").strip()
         try:

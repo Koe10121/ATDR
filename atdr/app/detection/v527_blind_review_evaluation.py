@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from atdr.app.core.redaction import AI_REVIEWER_PATTERN
 from atdr.app.detection import v398_independent_holdout_validation as frozen
 from atdr.app.detection import v521_native_panos_evidence as v521
 from atdr.app.detection import v526_native_blind_qualification as v526
@@ -22,19 +23,12 @@ MIN_REVIEWED_ROWS = 20
 VALID_DECISIONS = frozenset(v526.VALID_DECISIONS)
 THREAT_DECISIONS = frozenset({"suspicious", "malicious"})
 QUEUE_DECISIONS = frozenset({"needs_context", "suspicious", "malicious"})
-AUTOMATED_REVIEWER_MARKERS = (
-    "assistant",
-    "automated",
-    "chatgpt",
-    "claude",
-    "codex",
-    "gemini",
-    "heuristic",
-    "model",
-    "openai",
-    "synthetic",
-    "weak label",
-)
+# "weak label" is a marker specific to this module's data provenance (a
+# reviewer identity literally stamped by a weak-label bootstrap step, not
+# an AI-tool name) and isn't part of the canonical AI_REVIEWER_PATTERN --
+# kept as an additional check below rather than folded into the shared
+# pattern.
+_WEAK_LABEL_MARKER = "weak label"
 PREDICTION_COLUMN_MARKERS = (
     "prediction",
     "predicted_",
@@ -332,7 +326,7 @@ def _row_review_reasons(
         reasons.append("invalid_or_missing_decision")
     if not reviewer:
         reasons.append("reviewer_missing")
-    elif any(marker in reviewer_lowered for marker in AUTOMATED_REVIEWER_MARKERS):
+    elif AI_REVIEWER_PATTERN.search(reviewer) or _WEAK_LABEL_MARKER in reviewer_lowered:
         reasons.append("automated_or_assisted_reviewer_identity")
     if not _valid_review_timestamp(str(row.get("human_reviewed_at") or "")):
         reasons.append("invalid_or_missing_review_timestamp")
