@@ -6405,6 +6405,70 @@ test("SOC assistant follow-up questions keep the previous alert context", async 
   expect(assistantRequests[5].conversation_id).not.toBe(assistantRequests[4].conversation_id);
 });
 
+test("SOC assistant does not resurrect an alert_id from a citation once active_context authoritatively says none", async ({ page }) => {
+  // Regression test for the outbound counterpart of the already-fixed
+  // inbound "citation heuristic over authoritative null" bug: askQuestion
+  // used to build the next request as
+  // `lastContext.alertId ?? citationNumber(response, ...)`, which could not
+  // tell "authoritatively no alert" (active_context.alert_id === null) apart
+  // from "not yet known" -- so a log-focused answer's "Linked alert"
+  // reference citation (present for cross-reference, not as the primary
+  // subject) got silently reinterpreted as the active alert on the next
+  // generic follow-up, even though the backend had just said this answer
+  // has no alert context at all.
+  const assistantRequests: Array<Record<string, unknown>> = [];
+  await mockApi(page);
+  await page.route("**/api/assistant/chat", async (route) => {
+    const payload = route.request().postDataJSON() as Record<string, unknown>;
+    assistantRequests.push(payload);
+    await route.fulfill({
+      json: {
+        answer: "Log #5 was flagged for suspicious behavior. Linked alert #9 provides broader context but is not the primary subject of this answer.",
+        mode: "deterministic_local",
+        response_mode: "alert_explanation",
+        external_provider_used: false,
+        safety: ["Read Only", "Decision Support Only", "Response Automation Disabled", "Simulation Mode"],
+        context_used: ["log_detail", "log_triage"],
+        citations: [
+          { label: "Log detail", source: "/api/logs/{log_id}", reference_id: "5" },
+          { label: "Linked alert", source: "/api/alerts/{alert_id}", reference_id: "9" }
+        ],
+        redaction_applied: true,
+        raw_log_context_included: false,
+        suggested_followups: ["What should an analyst check next?"],
+        details: {
+          answer_sections: {
+            what_happened: ["Log #5 was flagged for suspicious behavior."],
+            why_flagged_or_not: ["Linked alert #9 provides broader context but is not the primary subject."]
+          }
+        },
+        conversation_id: String(payload.conversation_id ?? "log-only-conversation"),
+        // Authoritative: this answer's primary subject is the log, and it
+        // has NO active alert context, even though it cites one for
+        // reference.
+        active_context: { alert_id: null, log_id: 5, source_id: null, case_id: null, primary: "log" }
+      }
+    });
+  });
+  await seedSession(page);
+  await page.goto("/assistant");
+
+  await page.getByLabel("Analyst question").fill("Why was log 5 flagged?");
+  await page.getByRole("button", { name: "Ask assistant" }).click();
+  await expect(page.getByTestId("assistant-response-panel")).toContainText("Log #5 was flagged");
+  await expect(page.getByText("Using log #5")).toBeVisible();
+  expect(assistantRequests).toHaveLength(1);
+  expect(assistantRequests[0].alert_id).toBeNull();
+  expect(assistantRequests[0].log_id).toBe(5);
+
+  await page.getByLabel("Analyst question").fill("What should an analyst check next?");
+  await page.getByRole("button", { name: "Ask assistant" }).click();
+  await expect(page.getByTestId("assistant-response-panel")).toContainText("Log #5 was flagged");
+  expect(assistantRequests).toHaveLength(2);
+  expect(assistantRequests[1].alert_id).toBeNull();
+  expect(assistantRequests[1].log_id).toBe(5);
+});
+
 test("SOC assistant treats source ID as source context and supports keyboard submit", async ({ page }) => {
   let assistantRequest: Record<string, unknown> | null = null;
   await mockApi(page);

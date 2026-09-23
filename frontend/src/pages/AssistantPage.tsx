@@ -677,10 +677,30 @@ export function AssistantPage() {
       ["alert", "log", "source", "case", "prompt"].forEach((key) => next.delete(key));
       setSearchParams(next, { replace: true });
     }
-    const rememberedAlertId = effectiveResetContext ? null : alertId ?? lastContext.alertId ?? citationNumber(response, "/api/alerts/{alert_id}", ["alert"]);
-    const rememberedLogId = effectiveResetContext ? null : logId ?? lastContext.logId ?? citationNumber(response, "/api/logs/{log_id}", ["log", "related"]);
-    const rememberedSourceId = effectiveResetContext ? null : sourceId ?? lastContext.sourceId ?? citationNumber(response, "/api/sources/{source_id}", ["source"]);
-    const rememberedCaseId = effectiveResetContext ? null : caseId ?? lastContext.caseId ?? citationString(response, "/api/alerts/cases", ["case"]);
+    // lastContext is already the authoritative carried-forward context for
+    // the current `response` -- the inbound sync effect above (see its
+    // comment) sets it wholesale from response.active_context when present
+    // (including true nulls, e.g. a log-only answer with no primary alert),
+    // and only falls back to citation-guessing when active_context is
+    // absent entirely. Re-guessing from citations here on top of that,
+    // whenever lastContext's field happens to be null, reintroduced the
+    // exact bug the inbound fix eliminated: a "Linked alert" reference
+    // citation on a log-focused answer could silently resurrect an alert_id
+    // the backend had just authoritatively said this answer has none of.
+    // lastContext is already the authoritative carried-forward context for
+    // the current `response` -- the inbound sync effect above (see its
+    // comment) sets it wholesale from response.active_context when present
+    // (including true nulls, e.g. a log-only answer with no primary alert),
+    // and only falls back to citation-guessing when active_context is
+    // absent entirely. Re-guessing from citations here on top of that,
+    // whenever lastContext's field happens to be null, reintroduced the
+    // exact bug the inbound fix eliminated: a "Linked alert" reference
+    // citation on a log-focused answer could silently resurrect an alert_id
+    // the backend had just authoritatively said this answer has none of.
+    const rememberedAlertId = effectiveResetContext ? null : alertId ?? lastContext.alertId;
+    const rememberedLogId = effectiveResetContext ? null : logId ?? lastContext.logId;
+    const rememberedSourceId = effectiveResetContext ? null : sourceId ?? lastContext.sourceId;
+    const rememberedCaseId = effectiveResetContext ? null : caseId ?? lastContext.caseId;
     const carriedAlertId = explicitAlertId ?? rememberedAlertId;
     const explicitAlertQuestion = explicitAlertId !== null;
     const asksRelatedLogs = ["related log", "logs are related", "what logs", "show logs", "linked logs", "evidence logs"].some((term) => lowered.includes(term));
