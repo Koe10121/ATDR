@@ -1544,6 +1544,11 @@ def test_source_management_and_import_fallback_source():
         admin_headers = _login(client, "admin", "admin123")
         analyst_headers = _login(client, "analyst", "analyst123")
 
+        # /login now also sets the same HttpOnly cookie the MFU-shell handoff
+        # flow uses, and TestClient carries cookies across requests like a
+        # real browser -- clear them so this check reflects a truly
+        # unauthenticated request, not just one missing a bearer header.
+        client.cookies.clear()
         unauthorized = client.get("/api/sources")
         assert unauthorized.status_code == 401
 

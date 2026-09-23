@@ -265,6 +265,11 @@ def test_detailed_operations_health_is_admin_only():
     try:
         analyst_headers = _login(client, "analyst", "analyst123")
         admin_headers = _login(client, "admin", "admin123")
+        # /login now also sets the same HttpOnly cookie the MFU-shell handoff
+        # flow uses, and TestClient carries cookies across requests like a
+        # real browser -- clear them so this check reflects a truly
+        # unauthenticated request, not just one missing a bearer header.
+        client.cookies.clear()
         assert client.get("/api/operations/health").status_code == 401
         assert client.get("/api/operations/health", headers=analyst_headers).status_code == 403
         response = client.get("/api/operations/health", headers=admin_headers)
