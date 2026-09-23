@@ -133,6 +133,92 @@ def test_secure_template_handoff_sets_http_only_cookie_and_never_uses_url_creden
         get_settings.cache_clear()
 
 
+def test_handoff_grants_admin_by_email_when_the_shell_reports_no_groups_at_all(monkeypatch):
+    # Regression test: a real handoff against this project's own local shell
+    # instance was observed to report an empty groups list for every
+    # account regardless of role -- not "not an admin group", just nothing.
+    # The group-based admin path (tested above) can never grant admin in
+    # that case, so MFU_IAM_ADMIN_EMAILS must still work as a fallback for
+    # this exact "shell sends no group data" shape, matching how the
+    # already-verified real payload looked (payload_keys included "groups"
+    # but the value was []).
+    _configure_handoff(monkeypatch)
+    monkeypatch.setenv("MFU_IAM_ADMIN_EMAILS", "admin.by.email@lamduan.mfu.ac.th")
+    get_settings.cache_clear()
+
+    class _NoGroupsResponse:
+        status_code = 200
+
+        def json(self) -> dict:
+            return {
+                "data": {
+                    "email": "admin.by.email@lamduan.mfu.ac.th",
+                    "subject": "template-account-99",
+                    "full_name": "Admin By Email",
+                    "groups": [],
+                }
+            }
+
+    monkeypatch.setattr(mfu_iam_service.requests, "post", lambda *args, **kwargs: _NoGroupsResponse())
+    client, _ = _client()
+    try:
+        response = client.post(
+            "/api/auth/mfu-iam/handoff/consume",
+            data={"handoff_code": "short-lived-code"},
+            headers={"Origin": "http://template-shell.test"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 303
+
+        me = client.get("/api/auth/me")
+        assert me.status_code == 200
+        assert me.json()["username"] == "admin.by.email@lamduan.mfu.ac.th"
+        assert me.json()["role"] == "admin"
+    finally:
+        app.dependency_overrides.clear()
+        get_settings.cache_clear()
+
+
+def test_handoff_with_no_groups_and_no_email_match_stays_analyst(monkeypatch):
+    # Negative control: an account with empty groups AND no entry in
+    # MFU_IAM_ADMIN_EMAILS must still default to analyst, not silently
+    # become admin.
+    _configure_handoff(monkeypatch)
+    monkeypatch.setenv("MFU_IAM_ADMIN_EMAILS", "someone.else@lamduan.mfu.ac.th")
+    get_settings.cache_clear()
+
+    class _NoGroupsResponse:
+        status_code = 200
+
+        def json(self) -> dict:
+            return {
+                "data": {
+                    "email": "ordinary.user@lamduan.mfu.ac.th",
+                    "subject": "template-account-100",
+                    "full_name": "Ordinary User",
+                    "groups": [],
+                }
+            }
+
+    monkeypatch.setattr(mfu_iam_service.requests, "post", lambda *args, **kwargs: _NoGroupsResponse())
+    client, _ = _client()
+    try:
+        response = client.post(
+            "/api/auth/mfu-iam/handoff/consume",
+            data={"handoff_code": "short-lived-code"},
+            headers={"Origin": "http://template-shell.test"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 303
+
+        me = client.get("/api/auth/me")
+        assert me.status_code == 200
+        assert me.json()["role"] == "analyst"
+    finally:
+        app.dependency_overrides.clear()
+        get_settings.cache_clear()
+
+
 def test_handoff_login_then_logout_revokes_the_same_cookie(monkeypatch):
     # All existing session-revocation tests (test_iam_rbac.py) authenticate
     # via /api/auth/login. The handoff flow mints and cookie-sets tokens

@@ -533,7 +533,16 @@ def _identity_from_template_handoff_payload(payload: dict[str, Any], settings: S
         provider="template_shell_handoff",
         settings=settings,
         groups=groups,
-        allow_email_admin_mapping=False,
+        # The shell's own group/permission RBAC would normally be the more
+        # trustworthy signal for this flow (school-email handoff), but this
+        # deployment's shell instance reports an empty group list for every
+        # account regardless of role -- verified directly against a real
+        # handoff payload, not assumed. Falling back to
+        # MFU_IAM_ADMIN_EMAILS keeps admin elevation working at all for a
+        # single-operator local/lab deployment; a multi-tenant production
+        # deployment with a shell that actually populates groups should
+        # prefer the group path and leave this list empty.
+        allow_email_admin_mapping=True,
     )
 
 
