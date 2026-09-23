@@ -3417,7 +3417,10 @@ def _answer_general_question(
             job_retention_days=settings.job_retention_days,
             run_history_retention_days=settings.run_history_retention_days,
         )
-        if job_summary:
+        # build_job_summary always returns a fully-populated dict, even on a
+        # brand-new system with zero jobs ever run -- `if job_summary:` can
+        # never be false. Check for an actual job instead of dict truthiness.
+        if sum(job_summary.get("counts", {}).values()) > 0:
             details["job_summary"] = _redact(job_summary, enabled=redacted)
             context_used.append("operation_jobs")
             citations.append(Citation("Job summary API", "/api/jobs/summary"))
@@ -3441,7 +3444,11 @@ def _answer_general_question(
 
         ml = evaluation_report(db)
         supervised = supervised_model_report(db)
-        if ml or supervised:
+        # Same issue as job_summary above: both reports always return a
+        # fully-populated dict, even with zero scored logs and zero labels
+        # ever recorded, so `if ml or supervised:` can never be false.
+        has_ml_data = (ml.get("scored_log_count") or 0) > 0 or (supervised.get("label_count") or 0) > 0
+        if has_ml_data:
             details["ml"] = _redact(
                 {
                     "anomaly_rate": ml.get("anomaly_rate"),

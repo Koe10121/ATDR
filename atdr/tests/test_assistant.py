@@ -99,6 +99,8 @@ def _client_with_session() -> tuple[TestClient, sessionmaker[Session]]:
             bytes=120,
             packets=3,
             app_risk=4,
+            anomaly_score=-0.1,
+            is_anomaly=False,
             parsed_json={"test": "assistant"},
         )
         db.add(log)
@@ -276,6 +278,109 @@ def test_assistant_unmatched_question_answer_is_not_garbled_or_duplicated():
         assert answer.count("Current state:") == 1
         assert answer.count("Recent alerts:") == 1
         assert "..." not in answer
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_assistant_unmatched_question_omits_job_and_ml_context_when_none_exists():
+    # Regression test: build_job_summary/evaluation_report/supervised_model_report
+    # all return fully-populated dicts even on a brand-new system with zero
+    # jobs ever run and zero ML scoring/labeling ever done, so the old
+    # `if job_summary:` / `if ml or supervised:` guards could never
+    # evaluate false -- a brand-new system got "Job summary API" and
+    # "ML report API" citations regardless of whether either had any real
+    # data. This fixture seeds a source and alert (so the broader-context
+    # gathering path runs) but deliberately no OperationJob, no scored log,
+    # and no MLLabel.
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+        future=True,
+    )
+    Base.metadata.create_all(engine)
+    testing_session = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+    now = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
+    with testing_session() as db:
+        create_user(db, username="analyst", password="analyst123", role="analyst", full_name="Test Analyst")
+        source = LogSource(
+            name="no-jobs-no-ml-source",
+            source_type="firewall",
+            parser_profile="palo_alto",
+            enabled=True,
+            logs_received_count=1,
+            parse_success_count=1,
+            parse_failure_count=0,
+            last_seen=now,
+            last_log_received_at=now,
+        )
+        db.add(source)
+        db.flush()
+        raw = RawLog(raw_line="synthetic no-jobs-no-ml log", source_id=source.id, imported_at=now)
+        db.add(raw)
+        db.flush()
+        log = NormalizedLog(
+            raw_log_id=raw.id,
+            receive_time=now,
+            generated_time=now,
+            log_type="TRAFFIC",
+            subtype="end",
+            src_ip="203.0.113.20",
+            dst_ip="198.51.100.30",
+            app="incomplete",
+            action="deny",
+            src_zone="untrust",
+            dst_zone="trust",
+            src_port=43124,
+            dst_port=22,
+            protocol="tcp",
+            bytes=120,
+            packets=3,
+            app_risk=4,
+            parsed_json={"test": "no-jobs-no-ml"},
+        )
+        db.add(log)
+        db.flush()
+        alert = Alert(
+            title="Critical: no-jobs-no-ml alert",
+            alert_type="possible_port_scan",
+            src_ip="203.0.113.20",
+            dst_ip="198.51.100.30",
+            threat_score=91,
+            severity="Critical",
+            status="open",
+            explanation="Synthetic alert with no jobs or ML data in the system.",
+            matched_rules_json=[{"code": "possible_port_scan", "title": "Possible port scan"}],
+            recommended_response="Review related logs before simulated containment.",
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(alert)
+        db.flush()
+        db.add(AlertEvidence(alert_id=alert.id, normalized_log_id=log.id))
+        db.commit()
+
+    def override_get_db() -> Generator[Session, None, None]:
+        db = testing_session()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    app.dependency_overrides[get_db] = override_get_db
+    client = TestClient(app)
+    try:
+        headers = _login(client)
+        question = "What does the app_risk field mean?"
+        response = client.post("/api/assistant/chat", json={"question": question}, headers=headers)
+        assert response.status_code == 200
+        payload = response.json()
+        assert "sources" in payload["context_used"]
+        assert "operation_jobs" not in payload["context_used"]
+        assert "ml_governance" not in payload["context_used"]
+        details = payload["details"]
+        assert "job_summary" not in details
+        assert "ml" not in details
     finally:
         app.dependency_overrides.clear()
 
