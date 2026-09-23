@@ -16,6 +16,7 @@ import {
   useSupervisedExpansionReviewStatus,
   useSupervisedExpansionStatus
 } from "../hooks/useApiQueries";
+import { formatFieldName } from "../lib/format";
 import type {
   SupervisedExpansionBatchProgress,
   SupervisedExpansionReviewItem,
@@ -28,13 +29,6 @@ import { LoadingPanel } from "./LoadingPanel";
 import { safeDisplayValue } from "./MetaGrid";
 import { MetricCard } from "./MetricCard";
 import { SafeSelect } from "./SafeSelect";
-
-function formatName(value: string): string {
-  return value
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
 
 function BatchReviewForm({
   item,
@@ -171,7 +165,7 @@ export function SupervisedEvidenceExpansionPanel() {
                     setRowIndex(batch.next_pending_index ?? null);
                   }}
                 >
-                  <span>{formatName(batch.batch_id)}</span>
+                  <span>{formatFieldName(batch.batch_id)}</span>
                   <span>{batch.reviewed}/{batch.total}{batch.closed ? " Closed" : ""}</span>
                 </button>
               ))}
@@ -248,13 +242,13 @@ export function SupervisedEvidenceExpansionPanel() {
                   <section className="panel min-w-0" data-testid="expansion-approved-evidence">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="text-sm font-black uppercase tracking-wide text-muted">Approved evidence</div>
-                      <div className="flex flex-wrap gap-2"><Badge value={formatName(item.data.evidence_role)} /><Badge value={formatName(item.data.coverage_group)} /><Badge value="Predictions Withheld" /></div>
+                      <div className="flex flex-wrap gap-2"><Badge value={formatFieldName(item.data.evidence_role)} /><Badge value={formatFieldName(item.data.coverage_group)} /><Badge value="Predictions Withheld" /></div>
                     </div>
                     <div className="mt-3 text-sm font-black">Item {item.data.display_position} of {item.data.total}</div>
                     <dl className="mt-4 grid gap-x-6 gap-y-3 sm:grid-cols-2" data-testid="expansion-evidence-fields">
                       {Object.entries(item.data.evidence).map(([key, value]) => (
                         <div key={key} className="min-w-0 border-b border-line pb-2">
-                          <dt className="text-xs font-black uppercase tracking-wide text-muted">{formatName(key)}</dt>
+                          <dt className="text-xs font-black uppercase tracking-wide text-muted">{formatFieldName(key)}</dt>
                           <dd className="mt-1 break-words text-sm font-semibold text-text">{safeDisplayValue(value)}</dd>
                         </div>
                       ))}

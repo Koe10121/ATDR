@@ -34,6 +34,7 @@ import {
   useStartEvidenceReviewMutation,
   useStartManualAnchorReviewMutation
 } from "../hooks/useApiQueries";
+import { formatFieldName } from "../lib/format";
 import type {
   AssistantReviewItem,
   AssistantReviewScores,
@@ -97,13 +98,6 @@ const scoreOptions = [
   { value: "", label: "Select score" },
   ...[1, 2, 3, 4, 5].map((score) => ({ value: String(score), label: `${score} / 5` }))
 ];
-
-function formatFieldName(value: string): string {
-  return value
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
 
 function ProgressPanel({ progress }: { progress: EvidenceReviewProgress | ManualAnchorReviewProgress | SupplementalThreatAnchorReviewProgress }) {
   return (

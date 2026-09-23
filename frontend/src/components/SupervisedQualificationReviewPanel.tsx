@@ -16,6 +16,7 @@ import {
   useSupervisedQualificationReviewStatus,
   useSupervisedQualificationStatus
 } from "../hooks/useApiQueries";
+import { formatFieldName } from "../lib/format";
 import type { SupervisedQualificationReviewItem, SupervisedQualificationReviewOperation } from "../types/api";
 import { Badge } from "./Badge";
 import { EmptyState } from "./EmptyState";
@@ -25,13 +26,6 @@ import { LoadingPanel } from "./LoadingPanel";
 import { safeDisplayValue } from "./MetaGrid";
 import { MetricCard } from "./MetricCard";
 import { SafeSelect } from "./SafeSelect";
-
-function formatName(value: string): string {
-  return value
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
 
 function gateStatus(
   gate: Record<string, unknown> | undefined
@@ -147,7 +141,7 @@ export function SupervisedQualificationReviewPanel() {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" data-testid="supervised_qualification-review-metrics">
         <MetricCard label="Reviewed" value={`${progress.reviewed}/${progress.total}`} detail="Independent decisions" tone="teal" />
         <MetricCard label="Remaining" value={progress.remaining} detail="Pending review" tone="amber" />
-        <MetricCard label="Integrity" value={formatName(progress.integrity_status)} detail="Protected contract" tone={progress.integrity_status === "valid" ? "success" : "amber"} />
+        <MetricCard label="Integrity" value={formatFieldName(progress.integrity_status)} detail="Protected contract" tone={progress.integrity_status === "valid" ? "success" : "amber"} />
         <MetricCard label="Invalid" value={progress.invalid} detail="Must remain zero" tone={progress.invalid ? "danger" : "slate"} />
       </div>
 
@@ -200,11 +194,11 @@ export function SupervisedQualificationReviewPanel() {
             <div className="grid gap-4 sm:grid-cols-3">
               <label className="text-sm font-bold">
                 Evidence role
-                <SafeSelect ariaLabel="Qualification evidence role" className="mt-2" value={role} options={[{ value: "", label: "All roles" }, ...Object.keys(progress.role_counts).map((value) => ({ value, label: formatName(value) }))]} onChange={setRole} />
+                <SafeSelect ariaLabel="Qualification evidence role" className="mt-2" value={role} options={[{ value: "", label: "All roles" }, ...Object.keys(progress.role_counts).map((value) => ({ value, label: formatFieldName(value) }))]} onChange={setRole} />
               </label>
               <label className="text-sm font-bold">
                 Coverage group
-                <SafeSelect ariaLabel="Qualification coverage group" className="mt-2" value={coverageGroup} options={[{ value: "", label: "All groups" }, ...progress.coverage_groups.map((value) => ({ value, label: formatName(value) }))]} onChange={setCoverageGroup} />
+                <SafeSelect ariaLabel="Qualification coverage group" className="mt-2" value={coverageGroup} options={[{ value: "", label: "All groups" }, ...progress.coverage_groups.map((value) => ({ value, label: formatFieldName(value) }))]} onChange={setCoverageGroup} />
               </label>
               <label className="text-sm font-bold">
                 Review state
@@ -256,12 +250,12 @@ export function SupervisedQualificationReviewPanel() {
                 <section className="panel min-w-0" data-testid="qualification-approved-evidence">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="text-sm font-black uppercase tracking-wide text-muted">Approved evidence</div>
-                    <div className="flex flex-wrap gap-2"><Badge value={formatName(item.data.evidence_role)} /><Badge value={formatName(item.data.coverage_group)} /><Badge value="Predictions Withheld" /></div>
+                    <div className="flex flex-wrap gap-2"><Badge value={formatFieldName(item.data.evidence_role)} /><Badge value={formatFieldName(item.data.coverage_group)} /><Badge value="Predictions Withheld" /></div>
                   </div>
                   <dl className="mt-4 grid gap-x-6 gap-y-3 sm:grid-cols-2" data-testid="qualification-evidence-fields">
                     {Object.entries(item.data.evidence).map(([key, value]) => (
                       <div key={key} className="min-w-0 border-b border-line pb-2">
-                        <dt className="text-xs font-black uppercase tracking-wide text-muted">{formatName(key)}</dt>
+                        <dt className="text-xs font-black uppercase tracking-wide text-muted">{formatFieldName(key)}</dt>
                         <dd className="mt-1 break-words text-sm font-semibold text-text">{safeDisplayValue(value)}</dd>
                       </div>
                     ))}
