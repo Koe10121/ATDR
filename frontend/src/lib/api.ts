@@ -97,7 +97,19 @@ import type {
 } from "../types/api";
 import { clearSession } from "./session";
 
-export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000").replace(/\/$/, "");
+function defaultApiBaseUrl(): string {
+  // Match the page's own hostname (localhost vs 127.0.0.1) rather than a
+  // fixed default. The session cookie is SameSite=Lax, and browsers treat
+  // "localhost" and "127.0.0.1" as different sites even though both are
+  // loopback, so a mismatch here silently drops the cookie on every request
+  // after login instead of producing a visible error.
+  if (typeof window !== "undefined" && window.location?.hostname) {
+    return `${window.location.protocol}//${window.location.hostname}:8000`;
+  }
+  return "http://127.0.0.1:8000";
+}
+
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? defaultApiBaseUrl()).replace(/\/$/, "");
 
 export class ApiError extends Error {
   status: number;
