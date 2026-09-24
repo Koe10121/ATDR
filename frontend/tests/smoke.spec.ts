@@ -4188,6 +4188,7 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(detectionOperations).toContainText("Primary Rule Volume");
   await expect(detectionOperations).toContainText("policy deny");
   await expect(detectionOperations).toContainText("Source-Scoped Alert Volume");
+  await detectionOperations.getByText("Rule, source, and disposition breakdown").click();
   await expect(detectionOperations.getByRole("link", { name: /local_import/ })).toHaveAttribute("href", "/overview?source=1");
   await expect(detectionOperations).toContainText("Analyst Dispositions");
   await expect(detectionOperations).toContainText("Occurrences / Alert");
@@ -4246,6 +4247,7 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByTestId("operation-queue-panel")).toContainText("idle");
   await expect(page.getByText("Stale Jobs")).toBeVisible();
   await expect(page.getByText("Response Mode")).toBeVisible();
+  await page.getByText("More system detail").click();
   await expect(page.getByText("Config: local lab profile")).toBeVisible();
 
   await page.goto("/ml");
@@ -5421,6 +5423,7 @@ test("admin settings shows external IAM groundwork", async ({ page }) => {
   await expect(page.getByText("External IAM")).toBeVisible();
   await expect(page.getByText("School-email login groundwork")).toBeVisible();
   await expect(page.getByText("Local login only").first()).toBeVisible();
+  await page.getByText("Details").nth(0).click();
   await expect(page.getByText("School Email Policy")).toBeVisible();
   await expect(page.getByText("Email Login", { exact: true })).toBeVisible();
   expect(await page.getByText("Enabled", { exact: true }).count()).toBeGreaterThanOrEqual(1);
@@ -5428,6 +5431,7 @@ test("admin settings shows external IAM groundwork", async ({ page }) => {
   await expect(page.getByText("Normal access uses the MFU application shell.")).toBeVisible();
   await expect(page.getByText("MFU IAM Adapter")).toBeVisible();
   await expect(page.getByText("School-email integration readiness")).toBeVisible();
+  await page.getByText("Details").nth(1).click();
   await expect(page.getByText("B2B Client")).toBeVisible();
   await expect(page.getByText("Admin API")).toBeVisible();
   await expect(page.getByText("Permission Bootstrap")).toBeVisible();
@@ -5447,6 +5451,7 @@ test("admin settings shows external IAM groundwork", async ({ page }) => {
   await expect(page.getByText("Account Notifications")).toBeVisible();
   await expect(page.getByText("Email verification foundation")).toBeVisible();
   await expect(page.getByText("Verification disabled")).toBeVisible();
+  await page.getByText("Details").nth(3).click();
   await expect(page.getByText("Delivery Mode")).toBeVisible();
   await expect(page.getByText("Login Requirement")).toBeVisible();
   await expect(page.getByText("Admin Action Requirement")).toBeVisible();

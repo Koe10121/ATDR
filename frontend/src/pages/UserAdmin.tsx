@@ -210,7 +210,9 @@ export function UserAdmin() {
           </div>
           <Badge value={oidcStatus.data?.enabled ? "OIDC Ready" : "Local login only"} />
         </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-4">
+        <details className="mt-4">
+          <summary className="cursor-pointer text-xs font-extrabold uppercase tracking-wide text-muted">Details</summary>
+        <div className="mt-3 grid gap-3 md:grid-cols-4">
           <div className="rounded-lg border border-line bg-panel2 p-3">
             <div className="text-xs uppercase tracking-wide text-muted">Status</div>
             <div className="mt-1 font-bold">{oidcStatus.data?.enabled ? "OIDC enabled" : "Local login only"}</div>
@@ -249,6 +251,7 @@ export function UserAdmin() {
         <div className="mt-3 rounded-lg border border-line bg-panel2 p-3 text-sm text-muted">
           Normal access uses the MFU application shell. Local username/password access is available only in the explicit recovery profile.
         </div>
+        </details>
       </section>
 
       <section className="panel">
@@ -259,7 +262,9 @@ export function UserAdmin() {
           </div>
           <Badge value={mfuModeLabel} />
         </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-4">
+        <details className="mt-4">
+          <summary className="cursor-pointer text-xs font-extrabold uppercase tracking-wide text-muted">Details</summary>
+        <div className="mt-3 grid gap-3 md:grid-cols-4">
           <div className="rounded-lg border border-line bg-panel2 p-3">
             <div className="text-xs uppercase tracking-wide text-muted">Template Shell</div>
             <div className="mt-1 font-bold">{mfuIamStatus.data?.template_shell_ready ? "Ready" : "Not ready"}</div>
@@ -327,6 +332,7 @@ export function UserAdmin() {
         <div className="mt-3 rounded-lg border border-line bg-panel2 p-3 text-sm text-muted">
           The supervisor shell owns school login and 2FA, then launches ATDR through a single-use server-side handoff. New approved users default to analyst; admin access requires an explicit IAM group mapping.
         </div>
+        </details>
         {mfuIamStatus.isError ? <ErrorBanner error={mfuIamStatus.error} fallback="MFU IAM status is unavailable." /> : null}
       </section>
 
@@ -339,7 +345,9 @@ export function UserAdmin() {
           </div>
           <Badge value={releaseReadiness.data?.shared_lab_ready ? "Shared lab ready" : "External acceptance required"} />
         </div>
-        <dl className="mt-4 grid min-w-0 gap-x-4 gap-y-3 border-y border-line py-4 sm:grid-cols-2 xl:grid-cols-4">
+        <details className="mt-4">
+          <summary className="cursor-pointer text-xs font-extrabold uppercase tracking-wide text-muted">Details</summary>
+        <dl className="mt-3 grid min-w-0 gap-x-4 gap-y-3 border-y border-line py-4 sm:grid-cols-2 xl:grid-cols-4">
           {[
             ["Local controls", releaseReadiness.data?.readiness_states?.local_controls],
             ["External evidence", releaseReadiness.data?.readiness_states?.external_evidence],
@@ -369,6 +377,7 @@ export function UserAdmin() {
             </div>
           ))}
         </dl>
+        </details>
         <div className="mt-4 grid min-w-0 gap-3 lg:grid-cols-[1fr_auto] lg:items-start">
           <div className="min-w-0">
             <div className="text-xs font-extrabold uppercase tracking-wide text-muted">Remaining external actions</div>
@@ -400,7 +409,9 @@ export function UserAdmin() {
           </div>
           <Badge value={emailStatus.data?.verification_enabled ? "Verification enabled" : "Verification disabled"} />
         </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-4">
+        <details className="mt-4">
+          <summary className="cursor-pointer text-xs font-extrabold uppercase tracking-wide text-muted">Details</summary>
+        <div className="mt-3 grid gap-3 md:grid-cols-4">
           <div className="rounded-lg border border-line bg-panel2 p-3">
             <div className="text-xs uppercase tracking-wide text-muted">Notifications</div>
             <div className="mt-1 font-bold">{emailStatus.data?.notifications_enabled ? "Enabled" : "Disabled"}</div>
@@ -439,6 +450,7 @@ export function UserAdmin() {
         <div className="mt-3 rounded-lg border border-line bg-panel2 p-3 text-sm text-muted">
           Verification is optional by default. Real SMTP and school OIDC login stay disabled until provider details and secrets are approved.
         </div>
+        </details>
         {emailStatus.data?.dev_outbox_available ? (
           <details className="mt-4 rounded-lg border border-line bg-panel2 p-3">
             <summary className="cursor-pointer text-sm font-extrabold uppercase tracking-wide text-muted">Dev email outbox</summary>

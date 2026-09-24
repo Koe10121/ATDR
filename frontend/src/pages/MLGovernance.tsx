@@ -653,7 +653,9 @@ export function MLGovernance() {
             Field qualification status is unavailable. Detection authority and model lifecycle remain unchanged.
           </div>
         ) : (
-          <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <details className="mt-3">
+            <summary className="cursor-pointer text-xs font-extrabold uppercase tracking-wide text-muted">Details</summary>
+          <div className="mt-3 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-4">
             <MetricCard
               label="Device Transport"
               value={fieldQualificationData?.transport.real_device_validated ? "Validated" : "Required"}
@@ -679,6 +681,7 @@ export function MLGovernance() {
               tone={fieldQualificationData?.status === "ready" ? "teal" : "cyan"}
             />
           </div>
+          </details>
         )}
       </section>
 
@@ -703,7 +706,9 @@ export function MLGovernance() {
             Candidate readiness is unavailable. Model lifecycle remains unchanged.
           </div>
         ) : (
-          <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <details className="mt-3">
+            <summary className="cursor-pointer text-xs font-extrabold uppercase tracking-wide text-muted">Details</summary>
+          <div className="mt-3 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-4">
             <MetricCard
               label="Best Candidate"
               value={candidateFreezeData?.best_candidate?.replaceAll("_", " ") ?? "Not evaluated"}
@@ -729,6 +734,7 @@ export function MLGovernance() {
               tone="cyan"
             />
           </div>
+          </details>
         )}
       </section>
 
@@ -753,7 +759,9 @@ export function MLGovernance() {
             Transfer status is unavailable. Model lifecycle remains unchanged.
           </div>
         ) : (
-          <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <details className="mt-3">
+            <summary className="cursor-pointer text-xs font-extrabold uppercase tracking-wide text-muted">Details</summary>
+          <div className="mt-3 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-4">
             <MetricCard
               label="Transfer Status"
               value={(manualAnchorTransferData?.manual_anchor_transfer_status ?? "blocked").replaceAll("_", " ")}
@@ -779,6 +787,7 @@ export function MLGovernance() {
               tone={manualAnchorTransferData?.calibration_status === "passed" ? "teal" : "amber"}
             />
           </div>
+          </details>
         )}
       </section>
 
@@ -804,7 +813,9 @@ export function MLGovernance() {
             Manual-anchor status is unavailable. Governed evidence remains sealed.
           </div>
         ) : (
-          <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <details className="mt-3">
+            <summary className="cursor-pointer text-xs font-extrabold uppercase tracking-wide text-muted">Details</summary>
+          <div className="mt-3 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-4">
             <MetricCard
               label="Evidence Pack"
               value={`${manualAnchorAcquisitionData?.selected_rows ?? 0}/${manualAnchorAcquisitionData?.target_rows ?? 120}`}
@@ -830,6 +841,7 @@ export function MLGovernance() {
               tone={manualAnchorReviewData?.evaluation_ready ? "teal" : "slate"}
             />
           </div>
+          </details>
         )}
         <div className="mt-4">
           <Link className="btn-secondary inline-flex" to="/evidence-review">Open protected review</Link>
@@ -859,8 +871,9 @@ export function MLGovernance() {
             Combined revalidation status is unavailable. The supervised lifecycle remains unchanged.
           </div>
         ) : (
-          <>
-            <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <details className="mt-3">
+            <summary className="cursor-pointer text-xs font-extrabold uppercase tracking-wide text-muted">Details</summary>
+            <div className="mt-3 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-4">
               <MetricCard
                 label="Reviewed Evidence"
                 value={`${combinedFixedRevalidationData?.custody.combined_reviewed ?? 0}/180`}
@@ -889,7 +902,7 @@ export function MLGovernance() {
             <div className="mt-3 rounded border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-muted">
               {combinedFixedRevalidationData?.selection_bias_notice ?? "Threat-enriched evidence is diagnostic and does not estimate field prevalence."}
             </div>
-          </>
+          </details>
         )}
       </section>
 
@@ -914,7 +927,9 @@ export function MLGovernance() {
             Development repair status is unavailable. Model lifecycle remains unchanged.
           </div>
         ) : (
-          <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <details className="mt-3">
+            <summary className="cursor-pointer text-xs font-extrabold uppercase tracking-wide text-muted">Details</summary>
+          <div className="mt-3 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-4">
             <MetricCard
               label="Diagnostic Leader"
               value={developmentModelRepairData?.diagnostic_leader?.replaceAll("_", " ") ?? "Not evaluated"}
@@ -940,6 +955,7 @@ export function MLGovernance() {
               tone={developmentModelRepairData?.isolation_forest_reliable ? "teal" : "amber"}
             />
           </div>
+          </details>
         )}
       </section>
 
@@ -964,7 +980,9 @@ export function MLGovernance() {
             Temporal stability status is unavailable. Model lifecycle remains unchanged.
           </div>
         ) : (
-          <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <details className="mt-3">
+            <summary className="cursor-pointer text-xs font-extrabold uppercase tracking-wide text-muted">Details</summary>
+          <div className="mt-3 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-4">
             <MetricCard
               label="Best Repair"
               value={temporalStabilityData?.best_variant?.replaceAll("_", " ") ?? "Not evaluated"}
@@ -990,6 +1008,7 @@ export function MLGovernance() {
               tone={temporalStabilityData?.queue_stability_status === "passed" ? "teal" : "amber"}
             />
           </div>
+          </details>
         )}
       </section>
 
@@ -1015,7 +1034,9 @@ export function MLGovernance() {
             Independent evidence status is unavailable. Model lifecycle remains unchanged.
           </div>
         ) : (
-          <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+          <details className="mt-3">
+            <summary className="cursor-pointer text-xs font-extrabold uppercase tracking-wide text-muted">Details</summary>
+          <div className="mt-3 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
             <MetricCard
               label="Sources"
               value={`${blindEvidenceData?.independent_source_count ?? 0}/${blindEvidenceData?.required_source_count ?? 2}`}
@@ -1047,6 +1068,7 @@ export function MLGovernance() {
               tone="cyan"
             />
           </div>
+          </details>
         )}
       </section>
 
@@ -1206,7 +1228,9 @@ export function MLGovernance() {
                 <Badge value="diagnostic only" />
               </div>
             </div>
-            <div className="grid gap-3 md:grid-cols-3">
+            <details className="mt-1">
+              <summary className="cursor-pointer text-xs font-extrabold uppercase tracking-wide text-muted">Reliability metrics</summary>
+            <div className="mt-3 grid gap-3 md:grid-cols-3">
               <MetricCard
                 label="Split Stability"
                 value={reliabilityValidation?.available
@@ -1300,6 +1324,7 @@ export function MLGovernance() {
                 tone="cyan"
               />
             </div>
+            </details>
             <div
               className="mt-3 rounded border border-line bg-surface px-3 py-3"
               data-testid="governed-shadow-runtime"
@@ -1387,6 +1412,8 @@ export function MLGovernance() {
                   <Badge value="Raw Evidence Excluded" />
                 </div>
               </div>
+              <details className="mt-3">
+                <summary className="cursor-pointer text-xs font-extrabold uppercase tracking-wide text-muted">Observation metrics</summary>
               <div className="mt-3 grid gap-3 md:grid-cols-3 xl:grid-cols-6">
                 <MetricCard
                   label="Observations"
@@ -1461,6 +1488,7 @@ export function MLGovernance() {
                   }
                 />
               </div>
+              </details>
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded border border-line bg-panel px-3 py-2 text-sm">
                 <div className="text-muted">
                   Operational gates{" "}
@@ -2081,23 +2109,26 @@ export function MLGovernance() {
           <MetricCard label="Parse Errors" value={dataQuality?.parse_errors ?? "-"} detail="Preserved as raw evidence" tone="amber" />
           <MetricCard label="Unknown Apps" value={dataQuality?.unknown_app_count ?? "-"} detail="Needs context" tone="amber" />
         </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {[
-            ["Missing timestamp", dataQuality?.missing_timestamp],
-            ["Missing source IP", dataQuality?.missing_source_ip],
-            ["Missing destination IP", dataQuality?.missing_destination_ip],
-            ["Missing action", dataQuality?.missing_action],
-            ["Duplicate raw groups", dataQuality?.duplicate_raw_line_groups],
-            ["Latest ingestion", dataQuality?.latest_ingestion_time],
-            ["First event", dataQuality?.dataset_time_min],
-            ["Last event", dataQuality?.dataset_time_max]
-          ].map(([label, value]) => (
-            <div key={String(label)} className="rounded-lg border border-line bg-panel2 p-3 text-sm">
-              <div className="text-xs font-bold uppercase tracking-wide text-muted">{label}</div>
-              <div className="mt-1 font-bold text-text">{String(value ?? "-")}</div>
-            </div>
-          ))}
-        </div>
+        <details className="mt-4">
+          <summary className="cursor-pointer text-xs font-extrabold uppercase tracking-wide text-muted">More dataset detail</summary>
+          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {[
+              ["Missing timestamp", dataQuality?.missing_timestamp],
+              ["Missing source IP", dataQuality?.missing_source_ip],
+              ["Missing destination IP", dataQuality?.missing_destination_ip],
+              ["Missing action", dataQuality?.missing_action],
+              ["Duplicate raw groups", dataQuality?.duplicate_raw_line_groups],
+              ["Latest ingestion", dataQuality?.latest_ingestion_time],
+              ["First event", dataQuality?.dataset_time_min],
+              ["Last event", dataQuality?.dataset_time_max]
+            ].map(([label, value]) => (
+              <div key={String(label)} className="rounded-lg border border-line bg-panel2 p-3 text-sm">
+                <div className="text-xs font-bold uppercase tracking-wide text-muted">{label}</div>
+                <div className="mt-1 font-bold text-text">{String(value ?? "-")}</div>
+              </div>
+            ))}
+          </div>
+        </details>
         {dataQuality?.parser_error_examples?.length ? (
           <details className="mt-4">
             <summary className="cursor-pointer text-sm font-bold text-text">Parser error examples</summary>
