@@ -38,6 +38,11 @@ function UserFieldDrawer({
   useEffect(() => {
     if (!target) return;
     setValue(target.field === "email" ? target.user.email ?? "" : "");
+    // Dependency array is intentionally narrower than `target`: reset only when
+    // navigating to a different user/field, not on every parent re-render (which
+    // recreates the `target` object but keeps the same id/field, and would
+    // otherwise wipe out whatever the analyst is currently typing).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target?.user.id, target?.field]);
 
   return (
