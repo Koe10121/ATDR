@@ -498,3 +498,99 @@ def test_scan_with_multiple_signals_is_not_flagged_low_confidence():
     match = next(m for m in evaluate_rules(strong_logs[0], context) if m.code == "possible_port_scan")
 
     assert "low-confidence" not in match.explanation
+
+
+def _byte_batch(big: NormalizedLog, background_size: int = 30) -> list[NormalizedLog]:
+    # Outlier thresholds come from the batch (max(10MB, mean + 3 stdev)), so a
+    # single large transfer needs a backdrop of ordinary sessions.
+    background = [
+        NormalizedLog(
+            generated_time=datetime(2026, 5, 20, 9, 0) + timedelta(seconds=idx),
+            src_ip=f"10.0.1.{idx}",
+            dst_ip="93.184.216.34",
+            src_zone="LAN-Inside",
+            dst_zone="SG-Outside",
+            app="ssl",
+            app_category="networking",
+            dst_port=443,
+            action="allow",
+            bytes=1_000,
+            bytes_sent=500,
+            packets=10,
+        )
+        for idx in range(background_size)
+    ]
+    return [*background, big]
+
+
+def _big_transfer(**overrides) -> NormalizedLog:
+    values = dict(
+        generated_time=datetime(2026, 5, 20, 9, 5),
+        src_ip="10.0.1.200",
+        dst_ip="198.51.100.9",
+        src_zone="LAN-Inside",
+        dst_zone="SG-Outside",
+        app="ssl",
+        app_category="networking",
+        dst_port=443,
+        action="allow",
+        bytes=50_000_000,
+        packets=10,
+    )
+    values.update(overrides)
+    return NormalizedLog(**values)
+
+
+def test_one_large_outbound_transfer_is_not_scored_twice():
+    big = _big_transfer()
+    matches = evaluate_rules(big, build_detection_context(_byte_batch(big)))
+    codes = {match.code for match in matches}
+
+    assert "high_outbound_bytes" in codes
+    assert "high_bytes_outlier" not in codes
+    assert "repeated_large_outbound" not in codes
+    assert sum(match.score for match in matches if match.code.startswith("high_") and "bytes" in match.code) == 35
+
+
+def test_large_inbound_transfer_still_flags_the_generic_byte_outlier():
+    big = _big_transfer(src_ip="198.51.100.9", dst_ip="10.0.1.200", src_zone="SG-Outside", dst_zone="LAN-Inside")
+    codes = {match.code for match in evaluate_rules(big, build_detection_context(_byte_batch(big)))}
+
+    assert "high_bytes_outlier" in codes
+    assert "high_outbound_bytes" not in codes
+
+
+def test_large_download_on_an_outbound_session_is_a_byte_outlier_not_exfiltration():
+    big = _big_transfer(bytes_sent=2_000, bytes_received=49_998_000)
+    codes = {match.code for match in evaluate_rules(big, build_detection_context(_byte_batch(big)))}
+
+    assert "high_bytes_outlier" in codes
+    assert "high_outbound_bytes" not in codes
+
+
+def test_repeated_large_uploads_to_one_destination_add_corroboration():
+    # 200 ordinary sessions so four large uploads don't lift the batch's own
+    # outlier threshold above themselves.
+    burst = [
+        _big_transfer(generated_time=datetime(2026, 5, 20, 9, 5) + timedelta(seconds=30 * idx), bytes=45_000_000 + idx)
+        for idx in range(4)
+    ]
+    context = build_detection_context([*_byte_batch(burst[0], background_size=200)[:-1], *burst])
+    for log in burst:
+        codes = {match.code for match in evaluate_rules(log, context)}
+        assert {"high_outbound_bytes", "repeated_large_outbound"} <= codes
+
+
+def test_large_uploads_to_different_destinations_are_not_a_repeat():
+    spread = [
+        _big_transfer(
+            generated_time=datetime(2026, 5, 20, 9, 5) + timedelta(seconds=30 * idx),
+            dst_ip=f"198.51.100.{20 + idx}",
+        )
+        for idx in range(4)
+    ]
+    context = build_detection_context([*_byte_batch(spread[0], background_size=200)[:-1], *spread])
+    for log in spread:
+        codes = {match.code for match in evaluate_rules(log, context)}
+        assert "high_outbound_bytes" in codes
+        assert "repeated_large_outbound" not in codes

@@ -23,6 +23,7 @@ CORRELATION_WINDOW_MINUTES = 5
 REPEATED_SOURCE_THRESHOLD = 25
 DENY_BURST_THRESHOLD = 5
 AUTH_TARGET_DENY_THRESHOLD = 5
+REPEATED_LARGE_OUTBOUND_THRESHOLD = 3
 VERTICAL_SCAN_PORT_THRESHOLD = 10
 HORIZONTAL_SCAN_DESTINATION_THRESHOLD = 10
 BEACON_EVENT_THRESHOLD = 6
@@ -125,6 +126,7 @@ class CorrelationSnapshot:
     cadence_jitter_ratio: float | None
     source_scope: str
     window_label: str
+    large_outbound_to_destination_count: int = 0
 
 
 @dataclass(slots=True)
@@ -366,7 +368,16 @@ def build_detection_context(logs: Iterable[NormalizedLog]) -> DetectionContext:
         port_destinations: dict[int, set[str]] = defaultdict(set)
         port_deny_drop_counts: Counter[int] = Counter()
         destination_times: dict[tuple[str, int | None], list[datetime]] = defaultdict(list)
+        large_outbound_by_destination: Counter[str] = Counter()
         for item in grouped_logs:
+            outbound_bytes, _field = _outbound_byte_value(item)
+            if (
+                item.dst_ip
+                and outbound_bytes is not None
+                and outbound_bytes > byte_threshold
+                and is_internal_to_external(item)
+            ):
+                large_outbound_by_destination[item.dst_ip] += 1
             if item.dst_ip:
                 destination_counts[(item.dst_ip, item.dst_port)] += _effective_event_count(item)
                 destination_event_counts[(item.dst_ip, item.dst_port)] += 1
@@ -407,6 +418,7 @@ def build_detection_context(logs: Iterable[NormalizedLog]) -> DetectionContext:
                 cadence_jitter_ratio=jitter_ratio,
                 source_scope=scope,
                 window_label=window_label,
+                large_outbound_to_destination_count=large_outbound_by_destination.get(item.dst_ip or "", 0),
             )
 
     return DetectionContext(
@@ -713,11 +725,12 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
         )
 
     outbound_bytes, outbound_bytes_field = _outbound_byte_value(log)
-    if (
+    outbound_volume_flagged = (
         outbound_bytes is not None
         and outbound_bytes > context.byte_outlier_threshold
         and is_internal_to_external(log)
-    ):
+    )
+    if outbound_volume_flagged:
         matches.append(
             RuleMatch(
                 code="high_outbound_bytes",
@@ -729,6 +742,19 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
                 ),
             )
         )
+        repeats = correlation.large_outbound_to_destination_count if correlation is not None else 0
+        if repeats >= REPEATED_LARGE_OUTBOUND_THRESHOLD:
+            matches.append(
+                RuleMatch(
+                    code="repeated_large_outbound",
+                    title="Repeated large outbound transfers",
+                    score=20,
+                    explanation=(
+                        f"{src_ip} sent {repeats} above-threshold outbound transfers to "
+                        f"{log.dst_ip} within the same {CORRELATION_WINDOW_MINUTES}-minute window."
+                    ),
+                )
+            )
 
     app_name = _lower(log.app)
     app_category = _lower(log.app_category)
@@ -742,7 +768,9 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
             )
         )
 
-    if log.bytes is not None and log.bytes > context.byte_outlier_threshold:
+    # Skipped when the outbound rule already fired: the same transfer would
+    # otherwise add 35 + 20 points from one byte signal.
+    if not outbound_volume_flagged and log.bytes is not None and log.bytes > context.byte_outlier_threshold:
         matches.append(
             RuleMatch(
                 code="high_bytes_outlier",

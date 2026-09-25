@@ -67,6 +67,10 @@ RULE_ANALYST_CHECKS: dict[str, tuple[str, ...]] = {
         "Validate the outbound byte direction, destination, data owner, protocol, and approved transfer schedule.",
         "Do not claim exfiltration without content, authorization, or endpoint evidence.",
     ),
+    "repeated_large_outbound": (
+        "Check whether repeated uploads to this destination match an approved backup or sync job.",
+        "Compare the total volume and destination ownership against what this host normally sends.",
+    ),
     "multiple_denied_connections": (
         "Check whether denies are expected policy enforcement, internet background noise, or a misconfigured client.",
     ),

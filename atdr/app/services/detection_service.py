@@ -87,6 +87,7 @@ PRIMARY_RULE_PRIORITY = {
     "unknown_or_incomplete_app": 50,
     "outside_to_inside": 40,
     "high_outbound_bytes": 38,
+    "repeated_large_outbound": 37,
     "high_bytes_outlier": 35,
     "high_packets_outlier": 35,
     "ml_anomaly_detected": 5,

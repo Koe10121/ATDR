@@ -316,7 +316,10 @@ RULE_CATALOG: dict[str, DetectionRuleSpec] = {
             "high_bytes_outlier",
             "High byte-count outlier",
             required_fields=("bytes",),
-            condition="total bytes exceed the versioned high-volume threshold",
+            condition=(
+                "total bytes exceed the versioned high-volume threshold and the same transfer "
+                "was not already flagged by high_outbound_bytes"
+            ),
             level="medium",
             confidence="low",
             false_positives=("Backups", "Media transfer", "Software distribution"),
@@ -361,6 +364,27 @@ RULE_CATALOG: dict[str, DetectionRuleSpec] = {
                 "same-service fan-out over an internal, allowed admin protocol (SMB, RDP, WinRM, "
                 "SSH, WMI/RPC, VNC), which is also the textbook pattern for post-compromise lateral "
                 "movement; intent and tool authorization require analyst context."
+            ),
+        ),
+        _spec(
+            "ATDR-NET-019",
+            "repeated_large_outbound",
+            "Repeated large outbound transfers",
+            required_fields=("bytes_sent", "bytes", "src_ip", "dst_ip", "src_zone", "dst_zone", "generated_time"),
+            condition=(
+                "high_outbound_bytes fired and the same source sent at least 3 above-threshold "
+                "outbound transfers to the same destination within five minutes"
+            ),
+            level="high",
+            confidence="low",
+            attack_type="data_exfiltration_suspicion",
+            mitre=("T1048",),
+            window="5m",
+            false_positives=("Chunked backups to one endpoint", "Cloud synchronization", "Large approved uploads"),
+            references=(PAN_TRAFFIC_FIELDS, MITRE_T1048, SIGMA_RULE_SPEC),
+            claim_boundary=(
+                "Repetition corroborates a volume anomaly; it does not establish theft, content, "
+                "or lack of authorization."
             ),
         ),
         _spec(
