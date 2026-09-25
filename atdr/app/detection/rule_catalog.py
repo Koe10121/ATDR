@@ -4,7 +4,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 
-RULE_CATALOG_VERSION = "atdr_rule_catalog_v5.31.0"
+RULE_CATALOG_VERSION = "atdr_rule_catalog_v5.31.1"
 
 PAN_TRAFFIC_FIELDS = (
     "https://docs.paloaltonetworks.com/ngfw/administration/monitoring/"

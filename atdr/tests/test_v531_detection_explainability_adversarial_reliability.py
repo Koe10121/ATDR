@@ -267,8 +267,8 @@ def test_v531_observed_evidence_is_a_stable_field_value_pair_contract() -> None:
 
 
 def test_v531_every_catalog_rule_has_explanation_and_false_positive_contract() -> None:
-    assert RULE_CATALOG_VERSION == "atdr_rule_catalog_v5.31.0"
-    assert len(RULE_CATALOG) == 19
+    assert RULE_CATALOG_VERSION == "atdr_rule_catalog_v5.31.1"
+    assert len(RULE_CATALOG) == 21
     for code, spec in RULE_CATALOG.items():
         assert spec.rule_id
         assert spec.condition
