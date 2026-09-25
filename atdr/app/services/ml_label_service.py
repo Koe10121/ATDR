@@ -510,6 +510,9 @@ def build_label_review_queue(db: Session, *, limit: int = 100, include_labeled: 
         .limit(max(limit * 5, 200))
     )
     logs = list(db.scalars(statement).unique())
+    from atdr.app.detection.runtime_contract import supervised_runtime_status
+
+    runtime_status = supervised_runtime_status(db, requested=True)
     queue: list[dict] = []
     for log in logs:
         existing_label = latest_labels.get(log.id)
@@ -517,7 +520,7 @@ def build_label_review_queue(db: Session, *, limit: int = 100, include_labeled: 
             continue
         alert_info = alert_scores.get(log.id, {})
         rule_score = int(alert_info.get("rule_score", 0))
-        prediction = predict_supervised_log(db, log.id, rule_score=rule_score)
+        prediction = predict_supervised_log(db, log.id, rule_score=rule_score, runtime_status=runtime_status)
         malicious_probability = float(prediction.get("malicious_probability") or 0)
         hybrid = prediction.get("hybrid_risk") or hybrid_risk_score(
             rule_score=rule_score,

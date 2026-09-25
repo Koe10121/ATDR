@@ -271,6 +271,46 @@ def test_ml_label_csv_template_import_and_review_queue_api():
         app.dependency_overrides.clear()
 
 
+def test_review_queue_evaluates_the_supervised_runtime_gate_once_not_per_log(monkeypatch):
+    # The runtime gate is global state (governance decision + lifecycle +
+    # artifact checksum), identical for every log in one request, yet costs
+    # ~30ms warm and seconds cold. Evaluating it per candidate log made the
+    # AI Governance page's review queue take 10+ seconds and time out.
+    from atdr.app.detection import runtime_contract
+
+    calls = {"count": 0}
+
+    def counting_gate(_db, *, requested=True, **_kwargs):
+        calls["count"] += 1
+        return {
+            "state": "unqualified",
+            "reason_code": "latest_governance_decision_selected_no_candidate",
+            "scoring_allowed": False,
+            "historical_lifecycle_state": "inactive",
+        }
+
+    monkeypatch.setattr(runtime_contract, "supervised_runtime_status", counting_gate)
+    # Force every log past the schema check so each one would reach the gate;
+    # otherwise the prediction returns early and the count proves nothing.
+    monkeypatch.setattr(
+        supervised_detector,
+        "assess_log_schema_compatibility",
+        lambda _log: {"scoring_allowed": True, "abstained": False},
+    )
+    Session = _test_session()
+    with Session() as db:
+        for index in range(1, 9):
+            _add_log(db, index, action="deny", app="unknown-tcp", app_risk=5)
+        db.commit()
+
+        queue = build_label_review_queue(db, limit=10)
+
+    assert len(queue) == 8
+    assert calls["count"] == 1
+    assert all(item["supervised_prediction"] is None for item in queue)
+    assert all(item["malicious_probability"] == 0.0 for item in queue)
+
+
 def test_review_queue_prioritizes_unlabeled_anomaly_and_exports_csv():
     Session = _test_session()
     with Session() as db:

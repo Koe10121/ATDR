@@ -1470,6 +1470,7 @@ def predict_supervised_log(
     rule_score: int = 0,
     asset_context_weight: int = 0,
     _allow_legacy_diagnostic: bool = False,
+    runtime_status: dict | None = None,
 ) -> dict:
     imports = _optional_imports()
     if imports is None:
@@ -1509,7 +1510,11 @@ def predict_supervised_log(
     if not _allow_legacy_diagnostic:
         from atdr.app.detection.runtime_contract import supervised_runtime_status
 
-        runtime = supervised_runtime_status(db, requested=True)
+        # Callers scoring many logs in one request pass the gate in, evaluated
+        # once; it is global state, not per-log. Deliberately explicit rather
+        # than cached here -- a stale "scoring allowed" answer would bypass the
+        # governance gate.
+        runtime = runtime_status if runtime_status is not None else supervised_runtime_status(db, requested=True)
         if not runtime.get("scoring_allowed"):
             return {
                 "predicted_label": None,
