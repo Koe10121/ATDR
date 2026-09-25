@@ -298,6 +298,36 @@ function llmDetails(response: AssistantChatResponse): AssistantLlmDetails | null
   return raw as AssistantLlmDetails;
 }
 
+// Deliberately not token streaming: the safety check must approve the whole
+// provider rewrite before any of it is shown, so partial text would be unchecked.
+function AssistantPendingState({ providerName, typicalMs }: { providerName: string | null; typicalMs: number }) {
+  const [elapsedMs, setElapsedMs] = useState(0);
+  useEffect(() => {
+    const started = Date.now();
+    const timer = window.setInterval(() => setElapsedMs(Date.now() - started), 100);
+    return () => window.clearInterval(timer);
+  }, []);
+  const hint = providerName
+    ? `${providerName} rephrases a redacted copy, then a safety check approves it${
+        typicalMs > 0 ? ` (usually about ${(typicalMs / 1000).toFixed(1)} s)` : ""
+      }.`
+    : "The answer comes straight from ATDR records.";
+  return (
+    <div className="mt-4 rounded-lg border border-cyan/30 bg-cyan/10 p-4" role="status" data-testid="assistant-pending">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-sm font-bold text-cyan">
+          <Clock3 size={16} aria-hidden="true" className="animate-pulse" />
+          Building an answer from ATDR records…
+        </div>
+        <span className="font-mono text-sm tabular-nums text-muted" aria-hidden="true">
+          {(elapsedMs / 1000).toFixed(1)} s
+        </span>
+      </div>
+      <p className="mt-2 text-sm text-muted">{hint}</p>
+    </div>
+  );
+}
+
 function boolLabel(value: boolean | undefined, truthy: string, falsy: string, unknown = "Unknown") {
   if (value === true) return truthy;
   if (value === false) return falsy;
@@ -1056,7 +1086,12 @@ export function AssistantPage() {
               <ShieldCheck className="text-success" size={20} />
             </div>
           </div>
-          {assistant.isPending ? <LoadingPanel label="Building read-only context" /> : null}
+          {assistant.isPending ? (
+            <AssistantPendingState
+              providerName={status.data?.external_provider_configured ? providerDisplayName(status.data.provider) : null}
+              typicalMs={providerOperations?.average_latency_ms ?? 0}
+            />
+          ) : null}
           {assistant.isError ? <ErrorBanner error={assistant.error} fallback="Unable to ask assistant." /> : null}
           {!response && !assistant.isPending && !assistant.isError ? (
             <div className="mt-4 rounded-lg border border-line bg-panel2 p-4 text-sm font-semibold text-muted">

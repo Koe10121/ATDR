@@ -6116,6 +6116,48 @@ test("SOC assistant provider telemetry shows guarded external LLM state", async 
   await expect(page.getByRole("button", { name: "Record simulated block" })).not.toBeVisible();
 });
 
+test("SOC assistant shows visible progress while an answer is being built", async ({ page }) => {
+  await mockApi(page);
+  let release: () => void = () => undefined;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/assistant/chat", async (route) => {
+    await held;
+    return route.fulfill({
+      json: {
+        answer: "Source health is stable.",
+        mode: "deterministic_local",
+        response_mode: "direct_fact",
+        external_provider_used: false,
+        safety: ["Read Only"],
+        context_used: ["sources"],
+        citations: [],
+        redaction_applied: true,
+        raw_log_context_included: false,
+        suggested_followups: [],
+        details: { answer_sections: { direct_answer: ["Source health is stable."] } },
+        conversation_id: "progress-conversation",
+        active_context: { alert_id: null, log_id: null, source_id: null, case_id: null, primary: null }
+      }
+    });
+  });
+  await seedSession(page);
+  await page.goto("/assistant");
+  await page.getByLabel("Analyst question").fill("Summarize source health");
+  await page.getByRole("button", { name: "Ask assistant" }).click();
+
+  const pending = page.getByTestId("assistant-pending");
+  await expect(pending).toBeVisible();
+  await expect(pending).toContainText("Building an answer from ATDR records");
+  await expect(pending).toContainText("The answer comes straight from ATDR records.");
+  await expect(pending).toContainText(/\d+\.\d s/);
+
+  release();
+  await expect(pending).toHaveCount(0);
+  await expect(page.getByTestId("assistant-response-panel")).toContainText("Source health is stable.");
+});
+
 test("SOC assistant labels Gemini only after an answer uses the provider", async ({ page }) => {
   await mockApi(page);
   await page.route("**/api/assistant/status", async (route) =>
