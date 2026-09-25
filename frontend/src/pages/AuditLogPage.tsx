@@ -14,6 +14,7 @@ import { useAuditPage } from "../hooks/useApiQueries";
 import { usePersistentState } from "../hooks/usePersistentState";
 import { normalizeSavedViews, normalizeStringState } from "../lib/safeTableState";
 import type { AuditLog } from "../types/api";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
 
 const AUDIT_FILTER_DEFAULTS = { actor: "", action: "", target_type: "", target_value: "", created_from: "", created_to: "" };
 type AuditFilters = typeof AUDIT_FILTER_DEFAULTS;
@@ -21,6 +22,12 @@ type AuditFilters = typeof AUDIT_FILTER_DEFAULTS;
 function normalizeAuditFilters(value: unknown): AuditFilters {
   return normalizeStringState(AUDIT_FILTER_DEFAULTS, value);
 }
+
+// Server-side paging: the table must not auto-reset its own page index, and
+// while a page loads it gets this same empty array instead of a new one per
+// render. A fresh [] each render made TanStack reset the page index in a loop
+// that never yielded, freezing the tab on a keystroke or "Next".
+const NO_AUDIT_ROWS: AuditLog[] = [];
 
 export function AuditLogPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -33,8 +40,9 @@ export function AuditLogPage() {
   const [offset, setOffset] = useState(0);
   const selectedIdParam = Number(searchParams.get("audit"));
   const selectedId = Number.isFinite(selectedIdParam) && selectedIdParam > 0 ? selectedIdParam : null;
-  const audit = useAuditPage({ ...safeFilters, limit, offset });
-  const auditRows = audit.data?.items ?? [];
+  const queryFilters = useDebouncedValue(safeFilters);
+  const audit = useAuditPage({ ...queryFilters, limit, offset });
+  const auditRows = audit.data?.items ?? NO_AUDIT_ROWS;
   const selected = auditRows.find((row) => row.id === selectedId) ?? null;
 
   const columns = useMemo<ColumnDef<AuditLog>[]>(
@@ -47,7 +55,7 @@ export function AuditLogPage() {
     ],
     []
   );
-  const table = useReactTable({ data: auditRows, columns, getCoreRowModel: getCoreRowModel() });
+  const table = useReactTable({ data: auditRows, columns, getCoreRowModel: getCoreRowModel(), manualPagination: true });
 
   function updateFilter(key: keyof AuditFilters, value: string) {
     setOffset(0);

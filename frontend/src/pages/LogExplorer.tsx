@@ -63,6 +63,12 @@ function normalizeLogSavedView(value: unknown): LogSavedView {
   };
 }
 
+// Server-side paging: the table must not auto-reset its own page index, and
+// while a page loads it gets this same empty array instead of a new one per
+// render. A fresh [] each render made TanStack reset the page index in a loop
+// that never yielded, freezing the tab on a keystroke or "Next".
+const NO_LOGS: NormalizedLog[] = [];
+
 export function LogExplorer() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = usePersistentState("atdr.log.search.v1", "");
@@ -88,7 +94,8 @@ export function LogExplorer() {
   }, [searchParams, setFilters, setSearchParams, srcIpParam]);
   const selectedId = Number.isFinite(selectedIdParam) && selectedIdParam > 0 ? selectedIdParam : null;
   const debouncedSearch = useDebouncedValue(search);
-  const logs = useLogsPage({ search: debouncedSearch, ...safeFilters, limit, offset });
+  const queryFilters = useDebouncedValue(safeFilters);
+  const logs = useLogsPage({ search: debouncedSearch, ...queryFilters, limit, offset });
   const sources = useSources({ limit: 100 });
   const sourceOptions = useMemo(
     () => [
@@ -97,7 +104,7 @@ export function LogExplorer() {
     ],
     [sources.data]
   );
-  const logRows = logs.data?.items ?? [];
+  const logRows = logs.data?.items ?? NO_LOGS;
   const selectedDetail = useLog(selectedId);
   const selected = selectedDetail.data ?? logRows.find((item) => item.id === selectedId) ?? null;
   const assistantHref = selected
@@ -147,7 +154,7 @@ export function LogExplorer() {
     ],
     []
   );
-  const table = useReactTable({ data: logRows, columns, getCoreRowModel: getCoreRowModel() });
+  const table = useReactTable({ data: logRows, columns, getCoreRowModel: getCoreRowModel(), manualPagination: true });
 
   function updateFilter(key: keyof LogFilters, value: string) {
     setOffset(0);

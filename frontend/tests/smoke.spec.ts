@@ -7309,3 +7309,131 @@ test("playbook links open the right filtered views", async ({ page }) => {
   await page.goto("/controls?tab=watchlists");
   await expect(page.getByRole("button", { name: "Watchlist indicator type" })).toBeVisible();
 });
+
+// Regression: while a new search or page was loading, each table got a fresh
+// empty array on every render, so TanStack Table reset its page index in a
+// loop that never yielded. The tab froze on the first keystroke or "Next".
+function slowPagedRoute<T>(pattern: RegExp, makeRow: (n: number) => T, calls: string[], total = 120) {
+  return async (route: import("@playwright/test").Route) => {
+    const url = new URL(route.request().url());
+    if (!pattern.test(url.pathname)) return route.fallback();
+    calls.push(url.search);
+    const offset = Number(url.searchParams.get("offset") ?? 0);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    return route.fulfill({
+      json: Array.from({ length: 50 }, (_, index) => makeRow(offset + index + 1)),
+      // The real API exposes this header to the cross-origin dashboard too.
+      headers: { "X-Total-Count": String(total), "Access-Control-Expose-Headers": "X-Total-Count" }
+    });
+  };
+}
+
+const pagedAlert = (id: number) => ({
+  id,
+  title: `High: paged alert ${id}`,
+  alert_type: "possible_port_scan",
+  src_ip: `10.9.0.${id}`,
+  dst_ip: "10.0.0.8",
+  threat_score: 70,
+  severity: "High",
+  status: "open",
+  assigned_to: null,
+  explanation: "Paged row.",
+  matched_rules_json: [],
+  recommended_response: "Review.",
+  created_at: "2026-05-22T00:00:00Z",
+  updated_at: "2026-05-22T00:00:00Z",
+  evidence_count: 1,
+  evidence_log_ids: [1],
+  evidence_log_ids_truncated: false,
+  source_ids: [1],
+  source_names: ["local_import"],
+  sla: { label: "4h", state: "on_track" }
+});
+
+const pagedLog = (id: number) => ({
+  id,
+  raw_log_id: id,
+  source_id: 1,
+  source_name: "local_import",
+  source_type: "file_import",
+  parser_profile: "palo_alto",
+  generated_time: "2026-05-22T00:00:00Z",
+  src_ip: `10.9.0.${id}`,
+  dst_ip: "10.0.0.5",
+  app: "ssl",
+  action: "allow",
+  protocol: "tcp",
+  app_risk: 2,
+  is_anomaly: false,
+  parsed_json: {},
+  raw_line: `paged raw log ${id}`,
+  alert_ids: []
+});
+
+const pagedAudit = (id: number) => ({
+  id,
+  actor: `actor-${id}`,
+  action: "login",
+  target_type: "user",
+  target_value: "admin",
+  details: {},
+  created_at: "2026-05-22T00:00:00Z"
+});
+
+test("alert search and paging stay responsive while the next results load", async ({ page }) => {
+  const calls: string[] = [];
+  await mockApi(page);
+  await page.route(/\/api\/alerts(\?.*)?$/, slowPagedRoute(/^\/api\/alerts$/, pagedAlert, calls));
+  await seedSession(page);
+  await page.goto("/alerts");
+  await expect(page.getByRole("cell", { name: "10.9.0.1", exact: true })).toBeVisible();
+
+  await page.getByLabel("Search alerts").pressSequentially("port", { delay: 40 });
+  await expect(page.getByLabel("Search alerts")).toHaveValue("port", { timeout: 5_000 });
+  await expect.poll(() => calls.some((query) => query.includes("search=port")), { timeout: 5_000 }).toBe(true);
+  // Debounced: one request for the finished word, not one per keystroke.
+  expect(calls.filter((query) => query.includes("search=")).every((query) => query.includes("search=port"))).toBe(true);
+
+  await page.getByLabel("Search alerts").fill("");
+  await expect(page.getByRole("cell", { name: "10.9.0.1", exact: true })).toBeVisible({ timeout: 5_000 });
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(page.getByRole("cell", { name: "10.9.0.51", exact: true })).toBeVisible({ timeout: 5_000 });
+});
+
+test("log search and paging stay responsive while the next results load", async ({ page }) => {
+  const calls: string[] = [];
+  await mockApi(page);
+  await page.route(/\/api\/logs(\?.*)?$/, slowPagedRoute(/^\/api\/logs$/, pagedLog, calls));
+  await seedSession(page);
+  await page.goto("/logs");
+  await expect(page.getByRole("cell", { name: "10.9.0.1", exact: true })).toBeVisible();
+
+  await page.getByLabel("Search logs").pressSequentially("ssl", { delay: 40 });
+  await expect(page.getByLabel("Search logs")).toHaveValue("ssl", { timeout: 5_000 });
+  await expect.poll(() => calls.some((query) => query.includes("search=ssl")), { timeout: 5_000 }).toBe(true);
+
+  await page.getByLabel("Search logs").fill("");
+  await expect(page.getByRole("cell", { name: "10.9.0.1", exact: true })).toBeVisible({ timeout: 5_000 });
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(page.getByRole("cell", { name: "10.9.0.51", exact: true })).toBeVisible({ timeout: 5_000 });
+});
+
+test("audit filters and paging stay responsive while the next results load", async ({ page }) => {
+  const calls: string[] = [];
+  await mockApi(page);
+  await page.route(/\/api\/audit(\?.*)?$/, slowPagedRoute(/^\/api\/audit$/, pagedAudit, calls, 300));
+  await seedSession(page);
+  await page.goto("/audit");
+  await expect(page.getByRole("cell", { name: "actor-1", exact: true })).toBeVisible();
+
+  await page.getByLabel("Audit actor").pressSequentially("adm", { delay: 40 });
+  await expect(page.getByLabel("Audit actor")).toHaveValue("adm", { timeout: 5_000 });
+  await expect.poll(() => calls.some((query) => query.includes("actor=adm")), { timeout: 5_000 }).toBe(true);
+  expect(calls.filter((query) => query.includes("actor=")).every((query) => query.includes("actor=adm"))).toBe(true);
+
+  await page.getByLabel("Audit actor").fill("");
+  await expect(page.getByRole("cell", { name: "actor-1", exact: true })).toBeVisible({ timeout: 5_000 });
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(page.getByRole("cell", { name: /^actor-10[1-9]$|^actor-1\d\d$/ }).first()).toBeVisible({ timeout: 5_000 });
+});

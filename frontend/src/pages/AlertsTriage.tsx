@@ -31,6 +31,7 @@ import {
 import { api } from "../lib/api";
 import { attackMappingForType, inferAttackTypeFromAlertType } from "../lib/attackMapping";
 import { normalizeSavedViews, normalizeStringState } from "../lib/safeTableState";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { usePersistentState } from "../hooks/usePersistentState";
 import type { Alert, AlertStatus } from "../types/api";
 
@@ -74,6 +75,12 @@ function normalizeAlertFilters(value: unknown): AlertFilters {
   });
 }
 
+// Server-side paging: the table must not auto-reset its own page index, and
+// while a page loads it gets this same empty array instead of a new one per
+// render. A fresh [] each render made TanStack reset the page index in a loop
+// that never yielded, freezing the tab on a keystroke or "Next".
+const NO_ALERTS: Alert[] = [];
+
 export function AlertsTriage() {
   const { isAdmin, session } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -88,7 +95,9 @@ export function AlertsTriage() {
   const [reportError, setReportError] = useState<string | null>(null);
   const selectedIdParam = Number(searchParams.get("alert"));
   const selectedId = Number.isFinite(selectedIdParam) && selectedIdParam > 0 ? selectedIdParam : null;
-  const alerts = useAlertsPage({ ...safeFilters, limit, offset });
+  // Typing waits until the user pauses instead of sending a request per keystroke.
+  const queryFilters = useDebouncedValue(safeFilters);
+  const alerts = useAlertsPage({ ...queryFilters, limit, offset });
   const cases = useAlertCases({ active_only: true, limit: 5, source_id: safeFilters.source_id, source_status: safeFilters.source_status });
   const sources = useSources({ limit: 100 });
   const sourceOptions = useMemo(
@@ -98,7 +107,7 @@ export function AlertsTriage() {
     ],
     [sources.data]
   );
-  const alertRows = alerts.data?.items ?? [];
+  const alertRows = alerts.data?.items ?? NO_ALERTS;
   const selectedDetail = useAlert(selectedId);
   const statusMutation = useAlertStatusMutation();
   const bulkStatus = useAlertBulkStatusMutation();
@@ -173,7 +182,7 @@ export function AlertsTriage() {
     ],
     []
   );
-  const table = useReactTable({ data: alertRows, columns, getCoreRowModel: getCoreRowModel() });
+  const table = useReactTable({ data: alertRows, columns, getCoreRowModel: getCoreRowModel(), manualPagination: true });
 
   function updateFilter(key: keyof AlertFilters, value: string) {
     setOffset(0);
