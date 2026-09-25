@@ -1,5 +1,6 @@
 from collections import Counter
 import csv
+import re
 from datetime import datetime, timedelta, timezone
 from html import escape
 from io import StringIO
@@ -19,6 +20,7 @@ from atdr.app.detection.scoring import severity_from_score
 ALERT_STATUSES = {"open", "investigating", "contained", "resolved", "false_positive", "needs_more_context"}
 ALERT_DEDUP_ACTIVE_STATUSES = {"open", "investigating", "contained", "needs_more_context"}
 ALERT_DEDUP_WINDOW_MINUTES = 10
+_DEDUP_MERGE_NOTE = re.compile(r"^(?:Deduplicated alert updated with \d+ new evidence logs?\. )+")
 SLA_TARGETS = {
     "Critical": ("Immediate", timedelta(hours=1)),
     "High": ("Same day", timedelta(hours=24)),
@@ -581,9 +583,11 @@ def _update_deduplicated_alert(
     alert.threat_score = max(alert.threat_score, max_score)
     alert.severity = severity_from_score(alert.threat_score)
     alert.title = f"{alert.severity}: {top_rule['title']} ({related_log_count} related logs, {occurrence_count} occurrences)"
+    # Replace, don't stack: each merge is recorded individually in the audit
+    # log below, so the explanation only needs the latest merge note.
     alert.explanation = (
         f"Deduplicated alert updated with {len(added_log_ids)} new evidence log"
-        f"{'s' if len(added_log_ids) != 1 else ''}. {alert.explanation}"
+        f"{'s' if len(added_log_ids) != 1 else ''}. {_DEDUP_MERGE_NOTE.sub('', alert.explanation or '')}"
     )[:4000]
     alert.recommended_response = recommended_response(
         alert.severity, top_rule, src_ip=alert.src_ip, observations=metadata

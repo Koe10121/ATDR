@@ -243,6 +243,30 @@ def test_alert_dedup_updates_existing_alert_and_keeps_raw_logs():
     assert detection_runs[-1].alerts_deduplicated >= 1
 
 
+def test_repeated_dedup_merges_keep_a_single_merge_note_in_the_explanation():
+    # Each merge used to prepend another "Deduplicated alert updated with N new
+    # evidence logs." sentence, so an alert merged K times opened with K stacked
+    # copies ahead of the real explanation shown in the alert drawer.
+    Session = _session()
+    sample_path = Path("data/samples/paloalto-demo.txt")
+    with Session() as db:
+        import_log_file(db, sample_path, actor="unit_test")
+        run_detection(db, limit=50, use_ml=False, actor="unit_test")
+        original = db.scalar(select(Alert).where(Alert.alert_type == "deny_drop_action")).explanation
+        for _ in range(2):
+            import_log_file(db, sample_path, actor="unit_test")
+            run_detection(db, limit=50, use_ml=False, actor="unit_test")
+        alert = db.scalar(select(Alert).where(Alert.alert_type == "deny_drop_action"))
+        merges = int(
+            db.scalar(select(func.count(AuditLog.id)).where(AuditLog.action == "alert_deduplicated")) or 0
+        )
+
+    assert merges >= 2
+    assert alert.explanation.count("Deduplicated alert updated") == 1
+    assert alert.explanation.startswith("Deduplicated alert updated with")
+    assert alert.explanation.endswith(original)
+
+
 def test_detection_run_attack_types_exclude_unrelated_historical_alerts():
     Session = _session()
     with Session() as db:
