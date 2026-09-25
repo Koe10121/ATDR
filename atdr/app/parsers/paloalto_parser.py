@@ -1,4 +1,5 @@
 import csv
+import ipaddress
 import logging
 import re
 from dataclasses import dataclass
@@ -7,14 +8,32 @@ from io import StringIO
 from typing import Any
 
 from atdr.app.parsers.paloalto_contract import (
+    LOG_TYPE_CONTRACTS,
     PARSER_CONTRACT_VERSION,
     application_resolution,
     compatibility_diagnostics,
+    required_field_names,
 )
 
 logger = logging.getLogger(__name__)
 
 ISO_TIMESTAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T")
+
+IP_FIELD_LABELS = {
+    "src_ip": "source IP",
+    "dst_ip": "destination IP",
+    "nat_src_ip": "NAT source IP",
+    "nat_dst_ip": "NAT destination IP",
+}
+PORT_FIELD_OFFSETS = {"src_port": 24, "dst_port": 25}
+NETWORK_FIELD_LABELS = {**IP_FIELD_LABELS, "src_port": "source port", "dst_port": "destination port"}
+# Checks that already raise their own specific warning when the field is empty.
+MISSING_FIELD_WARNINGS = (
+    ("src_ip", "missing source IP"),
+    ("dst_ip", "missing destination IP"),
+    ("action", "missing action"),
+    ("app", "missing application field"),
+)
 
 
 @dataclass(slots=True)
@@ -70,6 +89,36 @@ def _to_int(value: str | None) -> int | None:
         return None
 
 
+def _is_ip_address(value: str) -> bool:
+    try:
+        ipaddress.ip_address(value)
+    except ValueError:
+        return False
+    return True
+
+
+def _drop_invalid_network_values(normalized: dict[str, Any], fields: list[str]) -> list[str]:
+    """Clear IP and port values that cannot be real, and return their field names.
+
+    A value in the wrong column (a hostname, a timestamp, text in a port) would
+    otherwise be stored and matched against watchlists and rules as if it were
+    an address.
+    """
+
+    invalid: list[str] = []
+    for field in IP_FIELD_LABELS:
+        value = normalized.get(field)
+        if value is not None and not _is_ip_address(value):
+            normalized[field] = None
+            invalid.append(field)
+    for field, index in PORT_FIELD_OFFSETS.items():
+        port = normalized.get(field)
+        if _safe_get(fields, index) is not None and (port is None or not 0 <= port <= 65535):
+            normalized[field] = None
+            invalid.append(field)
+    return invalid
+
+
 def _parse_payload(payload: str) -> list[str]:
     reader = csv.reader(StringIO(payload))
     return next(reader)
@@ -104,23 +153,21 @@ def _app_metadata(fields: list[str], log_type: str | None) -> tuple[dict[str, An
     the tail silently shifts on newer releases. Current TRAFFIC and THREAT
     formats both retain a high-resolution timestamp immediately before a small,
     documented group of fields. Legacy tail positions remain a fail-safe for
-    historical lab fixtures.
+    historical lab fixtures (the bundled scenario files use that layout). A
+    line shorter than its contract minimum is truncated, so its tail holds
+    session fields rather than app metadata and nothing is read from it.
     """
 
+    empty_metadata = {
+        "high_res_timestamp": parse_datetime(_find_high_res_timestamp(fields)),
+        "app_subcategory": None,
+        "app_category": None,
+        "app_technology": None,
+        "app_risk": None,
+        "app_characteristic": None,
+    }
     if log_type not in {"TRAFFIC", "THREAT"}:
-        return (
-            {
-                "high_res_timestamp": parse_datetime(
-                    _find_high_res_timestamp(fields)
-                ),
-                "app_subcategory": None,
-                "app_category": None,
-                "app_technology": None,
-                "app_risk": None,
-                "app_characteristic": None,
-            },
-            "not_applicable",
-        )
+        return empty_metadata, "not_applicable"
 
     high_res_index = _find_high_res_timestamp_index(fields)
     candidates: list[tuple[str, int]] = []
@@ -146,12 +193,15 @@ def _app_metadata(fields: list[str], log_type: str | None) -> tuple[dict[str, An
                 mapping_name,
             )
 
+    if len(fields) < int(LOG_TYPE_CONTRACTS[log_type]["minimum_fields"]):
+        return empty_metadata, "unresolved"
+
     tail_risk = _to_int(_safe_get(fields, -7))
     if tail_risk is not None and not 1 <= tail_risk <= 5:
         tail_risk = None
     return (
         {
-            "high_res_timestamp": parse_datetime(_find_high_res_timestamp(fields)),
+            "high_res_timestamp": empty_metadata["high_res_timestamp"],
             "app_subcategory": _safe_get(fields, -10),
             "app_category": _safe_get(fields, -9),
             "app_technology": _safe_get(fields, -8),
@@ -316,15 +366,12 @@ def parse_log_line(raw_line: str) -> ParsedPaloAltoLog:
     elif log_type == "SYSTEM":
         system_normalized, type_details = _system_specific(fields)
         normalized.update(system_normalized)
-    else:
-        normalized.update(
-            {
-                "category": _safe_get(fields, 37),
-                "src_country": _safe_get(fields, 41),
-                "dst_country": _safe_get(fields, 42),
-                "device_name": _safe_get(fields, 52),
-            }
-        )
+    # Other log types keep only the shared header fields: their later columns
+    # mean different things, so TRAFFIC offsets would store wrong values.
+
+    invalid_fields = (
+        _drop_invalid_network_values(normalized, fields) if log_type != "SYSTEM" else []
+    )
 
     app_metadata, app_metadata_mapping = _app_metadata(fields, log_type)
     normalized.update(app_metadata)
@@ -352,20 +399,30 @@ def parse_log_line(raw_line: str) -> ParsedPaloAltoLog:
     else:
         syslog_timestamp = None
         parser_warnings.append("missing or unparsable syslog timestamp")
+    for field in invalid_fields:
+        parser_warnings.append(f"invalid {NETWORK_FIELD_LABELS[field]} value dropped")
+    warned_fields = set(invalid_fields)
     if (
         normalized.get("generated_time") is None
         and normalized.get("receive_time") is None
     ):
         parser_warnings.append("missing generated and receive timestamps")
+        warned_fields.add("generated_time")
     if log_type in {"TRAFFIC", "THREAT"} or not log_type:
-        if not normalized.get("src_ip"):
-            parser_warnings.append("missing source IP")
-        if not normalized.get("dst_ip"):
-            parser_warnings.append("missing destination IP")
-        if not normalized.get("action"):
-            parser_warnings.append("missing action")
-        if not normalized.get("app"):
-            parser_warnings.append("missing application field")
+        for field, warning in MISSING_FIELD_WARNINGS:
+            if not normalized.get(field) and field not in warned_fields:
+                parser_warnings.append(warning)
+                warned_fields.add(field)
+    # The contract's required fields decide whether a row is fully parsed; a
+    # right-sized line with empty or unusable key fields is only partial.
+    missing_required_fields = [
+        field
+        for field in required_field_names(log_type)
+        if normalized.get(field) in (None, "")
+    ]
+    unwarned_missing = [field for field in missing_required_fields if field not in warned_fields]
+    if unwarned_missing:
+        parser_warnings.append(f"missing required fields: {', '.join(unwarned_missing)}")
 
     app_resolution = application_resolution(log_type, normalized.get("app"))
     parser_notices: list[str] = []
@@ -384,8 +441,12 @@ def parse_log_line(raw_line: str) -> ParsedPaloAltoLog:
         "parse_status": (
             "partial"
             if compatibility["confidence"] in {"partial", "unsupported"}
+            or missing_required_fields
+            or invalid_fields
             else "parsed"
         ),
+        "missing_required_fields": missing_required_fields,
+        "invalid_fields": invalid_fields,
         "parser_contract_version": PARSER_CONTRACT_VERSION,
         "parser_compatibility": compatibility,
         "application_resolution": app_resolution,

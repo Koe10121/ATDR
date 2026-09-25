@@ -169,3 +169,132 @@ def test_raw_fallback_profile_preserves_evidence_and_counts_failure():
     assert parsed.normalized == {}
     assert parsed.parsed_json["raw_fallback"] is True
     assert parsed.parsed_json["parse_status"] == "fallback"
+
+
+# Compact lab layout used by every bundled scenario file: app metadata sits
+# just before the high-resolution timestamp, so only the tail fallback reads it.
+SCENARIO_LAB_LINE = (
+    "2026-05-20T15:11:00+07:00 LAB-FW.local "
+    "1,2026/05/20 15:11:00,LAB-001,TRAFFIC,end,2561,2026/05/20 15:11:00,"
+    "10.10.40.20,198.51.100.200,0.0.0.0,0.0.0.0,Allow-Lab-Outbound,,,unknown-tcp,"
+    "vsys1,LAN-Inside,SG-Outside,ethernet1/1,ethernet1/2,Forward-to-ATDR,"
+    "2026/05/20 15:11:00,810002,1,51002,4444,,,0x100019,tcp,allow,510,315,195,4,"
+    "2026/05/20 15:11:00,1,any,,,,RFC1918,External,,4,4,aged-out,unknown,unknown,"
+    "network-protocol,5,used-by-malware,2026-05-20T15:11:00.000+07:00,,,,0"
+)
+
+
+def _payload_fields(line: str) -> tuple[str, list[str]]:
+    prefix, payload = line.split(" 1,", 1)
+    return prefix, f"1,{payload}".split(",")
+
+
+def test_scenario_lab_layout_reads_app_metadata_from_the_tail():
+    parsed = parse_log_line(SCENARIO_LAB_LINE)
+
+    assert parsed.parsed_json["app_metadata_mapping"] == "legacy_tail_fallback"
+    assert parsed.parsed_json["parse_status"] == "parsed"
+    assert parsed.normalized["app_subcategory"] == "unknown"
+    assert parsed.normalized["app_category"] == "unknown"
+    assert parsed.normalized["app_technology"] == "network-protocol"
+    assert parsed.normalized["app_risk"] == 5
+    assert parsed.normalized["app_characteristic"] == "used-by-malware"
+
+
+def test_legacy_anchor_reads_app_metadata_right_after_the_high_res_timestamp():
+    line = TRAFFIC_LINE.replace(
+        "2026-05-20T13:36:16.534+07:00,,,internet-utility,general-internet,network-protocol,2,",
+        "2026-05-20T13:36:16.534+07:00,internet-utility,general-internet,network-protocol,2,",
+    )
+    parsed = parse_log_line(line)
+
+    assert parsed.parsed_json["app_metadata_mapping"] == "pan_high_res_anchor_legacy"
+    assert parsed.normalized["app_subcategory"] == "internet-utility"
+    assert parsed.normalized["app_category"] == "general-internet"
+    assert parsed.normalized["app_technology"] == "network-protocol"
+    assert parsed.normalized["app_risk"] == 2
+    assert parsed.normalized["app_characteristic"] == (
+        "has-known-vulnerability,tunnel-other-application,pervasive-use"
+    )
+
+
+def test_truncated_line_does_not_read_session_fields_as_app_metadata():
+    # Cut to 30 fields, the tail's "risk" slot lands on the repeat count, so
+    # a repeat count of 5 used to become a maximum app risk.
+    prefix, fields = _payload_fields(SCENARIO_LAB_LINE)
+    fields = fields[:30]
+    fields[23] = "5"
+    parsed = parse_log_line(f"{prefix} {','.join(fields)}")
+
+    assert parsed.parsed_json["parse_status"] == "partial"
+    assert parsed.parsed_json["app_metadata_mapping"] == "unresolved"
+    assert parsed.normalized["app_risk"] is None
+    assert parsed.normalized["app_subcategory"] is None
+    assert parsed.normalized["app_characteristic"] is None
+
+
+def test_unsupported_log_type_keeps_only_shared_header_fields():
+    parsed = parse_log_line(TRAFFIC_LINE.replace(",TRAFFIC,end,", ",GLOBALPROTECT,end,"))
+
+    assert parsed.error is None
+    assert parsed.parsed_json["parse_status"] == "partial"
+    assert parsed.normalized["src_ip"] == "198.51.100.10"
+    # Columns 37+ mean something else outside TRAFFIC; TRAFFIC offsets used
+    # to store "Thailand" and "LAB-FW" here.
+    assert parsed.normalized.get("category") is None
+    assert parsed.normalized.get("src_country") is None
+    assert parsed.normalized.get("dst_country") is None
+    assert parsed.normalized.get("device_name") is None
+
+
+def test_right_sized_line_with_empty_required_fields_is_partial():
+    complete = parse_log_line(TRAFFIC_LINE)
+    assert complete.parsed_json["parse_status"] == "parsed"
+    assert complete.parsed_json["missing_required_fields"] == []
+
+    parsed = parse_log_line(TRAFFIC_LINE.replace(",Outside-Lab,Inside-Lab,", ",,,"))
+
+    assert parsed.parsed_json["parser_compatibility"]["status"] == "supported_known_layout"
+    assert parsed.parsed_json["parse_status"] == "partial"
+    assert parsed.parsed_json["missing_required_fields"] == ["src_zone", "dst_zone"]
+    assert "missing required fields: src_zone, dst_zone" in parsed.parsed_json["parser_warnings"]
+
+
+def test_required_field_with_its_own_warning_is_not_reported_twice():
+    parsed = parse_log_line(TRAFFIC_LINE.replace(",,,ping,", ",,,,"))
+
+    assert parsed.parsed_json["parse_status"] == "partial"
+    assert parsed.parsed_json["missing_required_fields"] == ["app"]
+    assert parsed.parsed_json["parser_warnings"] == ["missing application field"]
+
+
+def test_impossible_ip_and_port_values_are_dropped_not_stored():
+    line = (
+        TRAFFIC_LINE.replace("198.51.100.10,203.0.113.20,", "fw-lab-host,2001:db8::20,")
+        .replace(",35845233,1,0,0,", ",35845233,1,http,70000,")
+    )
+    parsed = parse_log_line(line)
+
+    assert parsed.error is None
+    assert parsed.normalized["src_ip"] is None
+    assert parsed.normalized["dst_ip"] == "2001:db8::20"
+    assert parsed.normalized["src_port"] is None
+    assert parsed.normalized["dst_port"] is None
+    assert parsed.parsed_json["parse_status"] == "partial"
+    assert parsed.parsed_json["invalid_fields"] == ["src_ip", "src_port", "dst_port"]
+    warnings = parsed.parsed_json["parser_warnings"]
+    assert "invalid source IP value dropped" in warnings
+    assert "invalid source port value dropped" in warnings
+    assert "invalid destination port value dropped" in warnings
+    assert "missing source IP" not in warnings
+    assert not any(warning.startswith("missing required fields") for warning in warnings)
+
+
+def test_port_zero_and_ipv6_are_valid_values():
+    parsed = parse_log_line(TRAFFIC_LINE.replace("198.51.100.10,", "2001:db8::10,"))
+
+    assert parsed.normalized["src_ip"] == "2001:db8::10"
+    assert parsed.normalized["src_port"] == 0
+    assert parsed.normalized["dst_port"] == 0
+    assert parsed.parsed_json["invalid_fields"] == []
+    assert parsed.parsed_json["parse_status"] == "parsed"
