@@ -30,6 +30,16 @@ def count_nonblank_log_lines(file_path: str | Path) -> int:
         return sum(1 for line in stream if line.strip())
 
 
+def is_partial_parse(parsed: ParsedPaloAltoLog) -> bool:
+    """True when a line was stored but some structure is missing or unusable.
+
+    These rows count as parsed (the evidence is kept) but are reported
+    separately so a clean-looking "parsed" total cannot hide them.
+    """
+
+    return parsed.error is None and parsed.parsed_json.get("parse_status", "parsed") != "parsed"
+
+
 def persist_parsed_log(db: Session, parsed: ParsedPaloAltoLog, *, source_id: int | None = None) -> NormalizedLog | None:
     raw = RawLog(
         source_id=source_id,
@@ -59,6 +69,7 @@ def import_log_stream(
 ) -> dict:
     imported = 0
     parsed = 0
+    parsed_partial = 0
     failed = 0
     duplicate_raw_logs = 0
     parser_quality = empty_runtime_parser_quality()
@@ -101,6 +112,7 @@ def import_log_stream(
                 logger.debug("Parser issue in %s line %s: %s", source_name, line_number, parsed_log.error)
             else:
                 parsed += 1
+                parsed_partial += int(is_partial_parse(parsed_log))
             if imported % 500 == 0:
                 db.flush()
     except Exception as exc:
@@ -113,6 +125,7 @@ def import_log_stream(
                 details={
                     "imported_before_failure": imported,
                     "parsed_before_failure": parsed,
+                    "parsed_partial_before_failure": parsed_partial,
                     "failed_before_failure": failed,
                     "parser_quality": run_quality,
                 },
@@ -129,6 +142,7 @@ def import_log_stream(
         details={
             "imported": imported,
             "parsed": parsed,
+            "parsed_partial": parsed_partial,
             "failed": failed,
             "duplicate_raw_logs": duplicate_raw_logs,
             "limit": limit,
@@ -159,6 +173,7 @@ def import_log_stream(
                 "actor": actor,
                 "source_id": source.id,
                 "available_lines": available_lines,
+                "parsed_partial": parsed_partial,
                 "parser_quality": run_quality,
             },
         )
@@ -173,6 +188,7 @@ def import_log_stream(
         "normalized_logs_created": imported,
         "parsed": parsed,
         "parsed_successfully": parsed,
+        "parsed_partial": parsed_partial,
         "failed": failed,
         "parse_failures": failed,
         "duplicate_raw_logs": duplicate_raw_logs,
@@ -240,6 +256,7 @@ def import_raw_log_line(
         db.commit()
     return {
         "parsed": not bool(parsed_log.error),
+        "parsed_partial": is_partial_parse(parsed_log),
         "error": parsed_log.error,
         "normalized_log_id": getattr(normalized, "id", None),
         "duplicate_raw_log": duplicate_raw_log,

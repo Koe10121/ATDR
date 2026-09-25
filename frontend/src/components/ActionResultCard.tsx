@@ -66,6 +66,7 @@ function buildSummary(result: Record<string, unknown>, kind: ActionResultCardPro
       ["Available lines", valueAt(result, ["available_lines"])],
       ["Raw logs imported", valueAt(result, ["raw_logs_imported", "imported"])],
       ["Normalized logs", valueAt(result, ["normalized_logs_created", "parsed_successfully", "parsed"])],
+      ["Partially parsed", valueAt(result, ["parsed_partial"])],
       ["Parse failures", valueAt(result, ["parse_failures", "failed"])],
       ["Duplicate raw logs", valueAt(result, ["duplicate_raw_logs"])],
       ["Alerts created", valueAt(result, ["alerts_created"])],

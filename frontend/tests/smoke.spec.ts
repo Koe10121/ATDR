@@ -3781,6 +3781,7 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
           normalized_logs_created: Math.min(Number(body.limit ?? available), available),
           parsed: Math.min(Number(body.limit ?? available), available),
           parsed_successfully: Math.min(Number(body.limit ?? available), available),
+          parsed_partial: 1,
           failed: 0,
           parse_failures: 0,
           duplicate_raw_logs: 0,
@@ -7025,6 +7026,7 @@ test("demo action results summarize imports and contain long ML details", async 
   await expect(page.getByTestId("action-result-import")).toContainText("Requested limit");
   await expect(page.getByTestId("action-result-import")).toContainText("Available lines");
   await expect(page.getByTestId("action-result-import")).toContainText("Raw logs imported");
+  await expect(page.getByTestId("action-result-import")).toContainText("Partially parsed");
   await expect(page.getByTestId("action-result-import")).toContainText("Alerts created");
   await expect(page.getByText("contains 2 non-empty log lines")).toBeVisible();
 

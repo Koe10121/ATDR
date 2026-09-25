@@ -9,7 +9,9 @@ from sqlalchemy.pool import StaticPool
 
 from atdr.app.db.database import Base
 from atdr.app.db.models import (
+    AuditLog,
     DetectionRun,
+    IngestionRun,
     LogSource,
     MLLabel,
     MLModelRun,
@@ -18,6 +20,7 @@ from atdr.app.db.models import (
     ResponseAction,
 )
 from atdr.app.parsers.paloalto_parser import parse_log_line_for_profile
+from atdr.app.services.job_service import build_result_summary
 from atdr.app.services.log_service import import_log_stream, import_raw_log_line
 from atdr.app.services.runtime_parser_quality_service import (
     empty_runtime_parser_quality,
@@ -276,6 +279,34 @@ def test_file_import_records_contract_aggregates_without_ml_or_response_writes()
         "response_actions",
     ):
         assert after[table] == before[table]
+
+
+
+def test_file_import_reports_partial_parses_separately_from_clean_ones():
+    partial_line = TRAFFIC_LINE.replace(",Outside-Lab,Inside-Lab,", ",,,")
+    SessionLocal = _session()
+    with SessionLocal() as db:
+        result = import_log_stream(
+            db,
+            StringIO(f"{TRAFFIC_LINE}\n{partial_line}\nbad line\n"),
+            source_name="synthetic-partial.log",
+            source_type="file_import",
+            actor="unit_test",
+        )
+        audit = db.scalars(
+            select(AuditLog).where(AuditLog.action == "import_logs")
+        ).one()
+        run = db.get(IngestionRun, result["run_id"])
+
+    # Partial rows are kept as evidence (counted in parsed) but no longer
+    # hide inside a clean-looking parsed total.
+    assert result["imported"] == 3
+    assert result["parsed"] == 2
+    assert result["parsed_partial"] == 1
+    assert result["failed"] == 1
+    assert audit.details["parsed_partial"] == 1
+    assert run.details_json["parsed_partial"] == 1
+    assert build_result_summary("import_logs", result)["parsed_partial"] == 1
 
 
 def test_historical_reparse_impact_preview_is_read_only_and_redacted():

@@ -193,6 +193,7 @@ def build_result_summary(job_type: str, result: dict[str, Any] | None) -> dict[s
             "lines_read": result.get("read"),
             "raw_logs_imported": _summary_value(result, "raw_logs_imported", "imported", "raw_logs_created"),
             "normalized_logs_created": _summary_value(result, "normalized_logs_created", "parsed", "parsed_successfully"),
+            "parsed_partial": result.get("parsed_partial"),
             "parse_failures": _summary_value(result, "parse_failures", "failed"),
             "duplicate_raw_logs": result.get("duplicate_raw_logs"),
             "source": result.get("source_label") or result.get("source"),
