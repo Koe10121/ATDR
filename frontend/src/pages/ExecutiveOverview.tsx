@@ -89,8 +89,14 @@ export function ExecutiveOverview() {
   const data = summary.data;
   const severityRows = data ? Object.entries(data.severity_counts).map(([name, count]) => ({ name, count })) : [];
   const highCritical = (data?.critical_open_alerts ?? 0) + (data?.high_open_alerts ?? 0);
-  const attackRows =
-    data?.top_alert_types.map((item) => ({ name: inferAttackTypeFromAlertType(item.name).replaceAll("_", " "), count: item.count })) ?? [];
+  // Several alert types map to the same attack type, so combine their counts
+  // instead of listing the same attack type as separate rows.
+  const attackCounts = new Map<string, number>();
+  for (const item of data?.top_alert_types ?? []) {
+    const name = inferAttackTypeFromAlertType(item.name).replaceAll("_", " ");
+    attackCounts.set(name, (attackCounts.get(name) ?? 0) + item.count);
+  }
+  const attackRows = [...attackCounts].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
   const detectionBreakdown = [
     { name: "Rule alerts", count: data?.total_alerts ?? 0 },
     { name: "Anomaly logs", count: data?.ml_anomaly_logs ?? 0 },
