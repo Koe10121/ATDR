@@ -74,6 +74,18 @@ export function LogExplorer() {
   const savedViews = useMemo(() => normalizeSavedViews(rawSavedViews, normalizeLogSavedView), [rawSavedViews]);
   const [offset, setOffset] = useState(0);
   const selectedIdParam = Number(searchParams.get("log"));
+  const srcIpParam = searchParams.get("src_ip")?.trim() || null;
+
+  // Other pages (the response playbook) link here as /logs?src_ip=<ip>: apply it
+  // as the Source IP filter once, then drop it from the URL.
+  useEffect(() => {
+    if (!srcIpParam) return;
+    setFilters((current) => ({ ...normalizeLogFilters(current), src_ip: srcIpParam }));
+    setOffset(0);
+    const next = new URLSearchParams(searchParams);
+    next.delete("src_ip");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setFilters, setSearchParams, srcIpParam]);
   const selectedId = Number.isFinite(selectedIdParam) && selectedIdParam > 0 ? selectedIdParam : null;
   const debouncedSearch = useDebouncedValue(search);
   const logs = useLogsPage({ search: debouncedSearch, ...safeFilters, limit, offset });

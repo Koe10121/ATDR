@@ -7,6 +7,7 @@ import {
   AssistantCitationList,
   AssistantTechnicalContext
 } from "../components/AssistantAnswerContent";
+import { AlertPlaybookPanel, PlaybookStarter } from "../components/AlertPlaybookPanel";
 import { Badge } from "../components/Badge";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { LoadingPanel } from "../components/LoadingPanel";
@@ -76,7 +77,7 @@ function createConversationId(): string {
 
 const promptGroups = [
   {
-    label: "SOC Playbook",
+    label: "Quick questions",
     prompts: [
       { label: "Latest Critical Alert", question: "Explain the latest critical alert.", resetContext: true },
       { label: "Explain Current Alert", question: "Why was this alert flagged?" },
@@ -539,6 +540,13 @@ export function AssistantPage() {
   const [persistedResponse, setPersistedResponse] = useState<AssistantChatResponse | null>(() => restoredSession?.response ?? null);
   const [conversationTurns, setConversationTurns] = useState<AssistantConversationTurn[]>(() => restoredSession?.turns ?? []);
   const response = persistedResponse ?? assistant.data ?? null;
+  const responsePanelRef = useRef<HTMLElement>(null);
+  // The playbook follows the alert in context, but asking an unrelated
+  // question (source health, failed jobs) must not close it mid-workflow.
+  const [playbookAlertId, setPlaybookAlertId] = useState<number | null>(null);
+  useEffect(() => {
+    if (lastContext.alertId) setPlaybookAlertId(lastContext.alertId);
+  }, [lastContext.alertId]);
   const previousConversationTurns = conversationTurns.length > 1 ? conversationTurns.slice(0, -1) : [];
   const feedbackParams = useMemo(
     () => ({
@@ -660,6 +668,12 @@ export function AssistantPage() {
       promptParam
     });
   }, [conversationId, conversationTurns, lastContext, promptParam, question, response]);
+
+  function askFromPlaybook(value: string, options: { resetContext?: boolean } = {}) {
+    askQuestion(value, options);
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    responsePanelRef.current?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+  }
 
   function askQuestion(value: string, options: { resetContext?: boolean } = {}) {
     const trimmed = value.trim();
@@ -1035,7 +1049,7 @@ export function AssistantPage() {
               </div>
             ))}
             <details className="rounded-lg border border-line bg-panel2 p-3">
-              <summary className="cursor-pointer text-xs font-black uppercase tracking-wide text-muted">More analyst playbooks</summary>
+              <summary className="cursor-pointer text-xs font-black uppercase tracking-wide text-muted">More questions</summary>
               <div className="mt-4 space-y-4">
                 {promptGroups.slice(1).map((group) => (
                   <div key={group.label}>
@@ -1062,6 +1076,7 @@ export function AssistantPage() {
         </form>
 
         <section
+          ref={responsePanelRef}
           className="rounded-xl border border-line bg-panel2 p-5 shadow-panel"
           data-testid="assistant-response-panel"
           aria-live="polite"
@@ -1183,6 +1198,17 @@ export function AssistantPage() {
           ) : null}
         </section>
       </section>
+
+      {playbookAlertId ? (
+        <AlertPlaybookPanel
+          alertId={playbookAlertId}
+          onAsk={askFromPlaybook}
+          askDisabled={assistant.isPending}
+          onClose={() => setPlaybookAlertId(null)}
+        />
+      ) : (
+        <PlaybookStarter onOpen={setPlaybookAlertId} onAsk={askFromPlaybook} askDisabled={assistant.isPending} />
+      )}
 
       <details className="rounded-xl border border-line bg-panel2 p-5 shadow-panel presentation-technical" data-testid="assistant-history">
         <summary className="cursor-pointer text-sm font-black uppercase tracking-wide text-muted">Assistant activity</summary>

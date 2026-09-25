@@ -26,6 +26,37 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
   let expansionReviewRevision = 0;
   let expansionReviewReviewed = 0;
   let expansionStarted = false;
+  const smokePlaybook = {
+    alert_id: 1,
+    attack_type: "port_scan",
+    label: "Port scan",
+    objective: "Decide whether this is approved scanning or someone mapping your services.",
+    mitre: { tactic: "Discovery", technique: "Network Service Discovery", technique_id: "T1046" },
+    claim_boundary: "The mapping describes observable service probing; intent and authorization require analyst context.",
+    facts: { severity: "Critical", score: 88, status: "investigating", src_ip: "203.0.113.10", dst_ip: "10.0.0.5", related_log_count: 12, rule_names: ["Possible vertical port scanning behavior"] },
+    phases: [
+      { key: "triage", title: "Triage", goal: "Confirm the alert is real and worth your time.", steps: [
+        { id: "triage-why", text: "Read why it was flagged: 1 rule matched (Possible vertical port scanning behavior).", action: { kind: "ask", question: "Why was alert 1 flagged?" }, done: false },
+        { id: "triage-claim", text: "Set the status to Investigating so the team knows it is taken.", action: { kind: "open", path: "/alerts?alert=1", label: "Open alert" }, done: true }
+      ] },
+      { key: "investigate", title: "Investigate", goal: "Work out what happened and how far it goes.", steps: [
+        { id: "investigate-check-1", text: "Confirm whether the source is an authorized scanner or asset-discovery system.", action: null, done: false },
+        { id: "investigate-source-activity", text: "Look for other activity from 203.0.113.10 before and after the alert.", action: { kind: "open", path: "/logs?src_ip=203.0.113.10", label: "Search logs" }, done: false }
+      ] },
+      { key: "contain", title: "Contain", goal: "Limit harm, only when the evidence supports it.", steps: [
+        { id: "contain-watch", text: "Add 203.0.113.10 to a watchlist so its next activity stands out.", action: { kind: "open", path: "/controls?tab=watchlists", label: "Open watchlists" }, done: false }
+      ] },
+      { key: "close", title: "Close", goal: "Decide, write it down, and hand off.", steps: [
+        { id: "close-brief", text: "Create a hand-off brief for the next shift or your supervisor.", action: { kind: "ask", question: "Create investigation brief for alert 1." }, done: false }
+      ] }
+    ],
+    decision_guide: {
+      false_positive: "The source is an approved vulnerability scanner or asset-discovery system.",
+      resolved: "The source is blocked or watched, and no probed service accepted follow-up traffic.",
+      escalate: "An allowed port later shows sessions or data transfer from the same source."
+    },
+    safety_note: "This playbook is guidance only. Opening it changes nothing, and the assistant never blocks or closes alerts."
+  };
   const smokeAlert = {
     id: 1,
     title: "Critical: Smoke alert",
@@ -2338,6 +2369,7 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
         ]
       });
     }
+    if (url.includes("/playbook")) return route.fulfill({ json: smokePlaybook });
     if (url.includes("/notes")) return route.fulfill({ json: [] });
     if (url.includes("/timeline")) return route.fulfill({ json: [] });
     if (url.includes("/report")) return route.fulfill({ json: { evidence_logs: [], matched_rules: [], timeline: [], notes: [], response_actions: [] } });
@@ -5593,14 +5625,14 @@ test("SOC assistant page is read-only and contains long responses safely", async
   await expect(page.getByText("Response Automation Disabled", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Raw Logs Disabled", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Raw logs are excluded by default.")).toBeVisible();
-  await page.getByText("More analyst playbooks").click();
+  await page.getByText("More questions").click();
   await expect(page.getByTestId("assistant-presets")).toContainText("Alert Triage");
   await expect(page.getByTestId("assistant-presets")).toContainText("False Positive Review");
   await expect(page.getByTestId("assistant-presets")).toContainText("Source Health");
   await expect(page.getByTestId("assistant-presets")).toContainText("Case Handoff");
   await expect(page.getByTestId("assistant-presets")).toContainText("AI Governance");
   await expect(page.getByTestId("assistant-presets")).toContainText("How-To");
-  await expect(page.getByTestId("assistant-presets")).toContainText("SOC Playbook");
+  await expect(page.getByTestId("assistant-presets")).toContainText("Quick questions");
   await expect(page.getByRole("button", { name: "Latest Critical Alert", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "AI Governance Summary", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Controlled Validation Scenario", exact: true })).toBeVisible();
@@ -7222,4 +7254,58 @@ test("core analyst routes have no automated WCAG A or AA violations", async ({ p
     );
   }
   expect(routeViolations, `Accessibility violations: ${JSON.stringify(routeViolations)}`).toEqual([]);
+});
+
+test("SOC assistant walks the alert in context through its response playbook", async ({ page }) => {
+  const asked: string[] = [];
+  await mockApi(page);
+  await page.route("**/api/assistant/chat", async (route) => {
+    asked.push(String((route.request().postDataJSON() as { question?: string }).question ?? ""));
+    await route.fallback();
+  });
+  await seedSession(page);
+  await page.goto("/assistant?alert=1");
+
+  const playbook = page.getByTestId("alert-playbook");
+  await expect(playbook).toContainText("Response playbook · Alert #1");
+  await expect(playbook.getByRole("heading", { name: "Port scan" })).toBeVisible();
+  await expect(playbook).toContainText("T1046 · Network Service Discovery");
+  await expect(page.getByTestId("playbook-progress")).toHaveText("1 of 6 steps done");
+  for (const phase of ["triage", "investigate", "contain", "close"]) {
+    await expect(page.getByTestId(`playbook-phase-${phase}`)).toBeVisible();
+  }
+  await expect(page.getByTestId("playbook-decision-guide")).toContainText("approved vulnerability scanner");
+  await expect(page.getByTestId("playbook-step-investigate-source-activity").getByRole("link", { name: "Search logs" })).toHaveAttribute("href", "/logs?src_ip=203.0.113.10");
+
+  await page.getByTestId("playbook-step-triage-why").getByRole("button", { name: /Ask the assistant/ }).click();
+  await expect(page.getByLabel("Analyst question")).toHaveValue("Why was alert 1 flagged?");
+  await expect.poll(() => asked).toContain("Why was alert 1 flagged?");
+
+  await playbook.getByRole("button", { name: "Hide" }).click();
+  await expect(page.getByTestId("playbook-starter")).toBeVisible();
+});
+
+test("SOC assistant starts a playbook from the most urgent open alert", async ({ page }) => {
+  await mockApi(page);
+  await seedSession(page);
+  await page.goto("/assistant");
+  await page.evaluate(() => window.localStorage.removeItem("atdr.assistant.session.v1"));
+  await page.reload();
+
+  const starter = page.getByTestId("playbook-starter");
+  await expect(starter).toContainText("Start-of-shift routine");
+  await expect(starter).toContainText("#1 Critical: Smoke alert");
+  await starter.getByRole("button", { name: "Open playbook" }).click();
+  await expect(page.getByTestId("alert-playbook")).toContainText("Response playbook · Alert #1");
+});
+
+test("playbook links open the right filtered views", async ({ page }) => {
+  await mockApi(page);
+  await seedSession(page);
+  await page.goto("/logs?src_ip=203.0.113.10");
+  await expect(page.getByLabel("Log source IP")).toHaveValue("203.0.113.10");
+  await expect(page).toHaveURL(/\/logs$/);
+
+  await page.goto("/controls?tab=watchlists");
+  await expect(page.getByRole("button", { name: "Watchlist indicator type" })).toBeVisible();
 });

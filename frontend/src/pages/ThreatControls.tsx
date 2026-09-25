@@ -1,4 +1,5 @@
 import { FormEvent, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Badge } from "../components/Badge";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorBanner } from "../components/ErrorBanner";
@@ -11,7 +12,11 @@ type Tab = "suppressions" | "watchlists" | "blocked" | "policy";
 
 export function ThreatControls() {
   const { isAdmin } = useAuth();
-  const [tab, setTab] = useState<Tab>("suppressions");
+  const [searchParams] = useSearchParams();
+  const [tab, setTab] = useState<Tab>(() => {
+    const requested = searchParams.get("tab");
+    return requested === "watchlists" || requested === "blocked" || requested === "policy" ? requested : "suppressions";
+  });
   const suppressions = useSuppressions();
   const watchlists = useWatchlists();
   const blocked = useBlockedIps();

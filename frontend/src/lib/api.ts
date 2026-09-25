@@ -2,6 +2,7 @@ import type {
   Alert,
   AlertCase,
   AlertNote,
+  AlertPlaybook,
   AlertReport,
   AlertStatus,
   AlertTimelineEvent,
@@ -497,6 +498,7 @@ export const api = {
   alerts: (params: Params = {}) => apiRequest<Alert[]>("/api/alerts", { params }),
   alertsPage: (params: Params = {}) => apiListRequest<Alert>("/api/alerts", { params }),
   alert: (id: number) => apiRequest<Alert>(`/api/alerts/${id}`),
+  alertPlaybook: (id: number) => apiRequest<AlertPlaybook>(`/api/alerts/${id}/playbook`),
   assignAlertToMe: (id: number) => apiRequest<Alert>(`/api/alerts/${id}/assign/me`, { method: "POST" }),
   addAlertNote: (id: number, note: string) =>
     apiRequest<AlertNote>(`/api/alerts/${id}/notes`, { method: "POST", body: JSON.stringify({ note }) }),

@@ -21,6 +21,7 @@ from atdr.app.schemas.alerts import (
 )
 from atdr.app.detection.attack_mapping import infer_attack_type_from_rules
 from atdr.app.detection.explanations import build_alert_detection_summary
+from atdr.app.detection.playbooks import build_alert_playbook
 from atdr.app.services.alert_service import (
     add_alert_note,
     alert_evidence_summaries,
@@ -238,6 +239,18 @@ def api_get_alert(
         include_detection_summary=True,
         evidence_summary=evidence_summary,
     )
+
+
+@router.get("/{alert_id}/playbook")
+def api_get_alert_playbook(
+    alert_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    alert = get_alert(db, alert_id, load_evidence=False)
+    if alert is None:
+        raise HTTPException(status_code=404, detail="Alert not found.")
+    return build_alert_playbook(alert, build_alert_detection_summary(db, alert))
 
 
 @router.post("/{alert_id}/assign", response_model=AlertRead)

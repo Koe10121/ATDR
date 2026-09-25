@@ -418,6 +418,45 @@ export interface AlertSla {
   target_minutes?: number;
 }
 
+export type AlertPlaybookAction =
+  | { kind: "ask"; question: string }
+  | { kind: "open"; path: string; label: string };
+
+export interface AlertPlaybookStep {
+  id: string;
+  text: string;
+  action: AlertPlaybookAction | null;
+  done: boolean;
+}
+
+export interface AlertPlaybookPhase {
+  key: "triage" | "investigate" | "contain" | "close";
+  title: string;
+  goal: string;
+  steps: AlertPlaybookStep[];
+}
+
+export interface AlertPlaybook {
+  alert_id: number;
+  attack_type: string;
+  label: string;
+  objective: string;
+  mitre: { tactic?: string | null; technique?: string | null; technique_id?: string | null };
+  claim_boundary?: string | null;
+  facts: {
+    severity: string;
+    score: number;
+    status: string;
+    src_ip?: string | null;
+    dst_ip?: string | null;
+    related_log_count: number;
+    rule_names: string[];
+  };
+  phases: AlertPlaybookPhase[];
+  decision_guide: { false_positive: string; resolved: string; escalate: string };
+  safety_note: string;
+}
+
 export interface Alert {
   id: number;
   title: string;

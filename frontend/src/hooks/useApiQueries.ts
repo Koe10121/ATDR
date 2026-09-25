@@ -68,6 +68,7 @@ export const queryKeys = {
   alerts: (params?: Record<string, unknown>) => ["alerts", params ?? {}],
   alertsPage: (params?: Record<string, unknown>) => ["alerts-page", params ?? {}],
   alert: (id?: number | null) => ["alert", id],
+  alertPlaybook: (id?: number | null) => ["alert", id, "playbook"],
   alertNotes: (id?: number | null) => ["alert-notes", id],
   alertTimeline: (id?: number | null) => ["alert-timeline", id],
   alertReport: (id?: number | null) => ["alert-report", id],
@@ -779,6 +780,10 @@ export function useAlertsPage(params: Params) {
 
 export function useAlert(id?: number | null) {
   return useQuery({ queryKey: queryKeys.alert(id), queryFn: () => api.alert(id as number), enabled: Boolean(id), refetchInterval: 30_000 });
+}
+
+export function useAlertPlaybook(id?: number | null) {
+  return useQuery({ queryKey: queryKeys.alertPlaybook(id), queryFn: () => api.alertPlaybook(id as number), enabled: Boolean(id) });
 }
 
 export function useAlertNotes(id?: number | null) {
