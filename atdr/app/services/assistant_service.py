@@ -16,6 +16,8 @@ from atdr.app.db.models import Alert, AssistantFeedback, AuditLog, DetectionRun,
 from atdr.app.detection.supervised_detector import supervised_model_report
 from atdr.app.detection.explanations import build_alert_detection_summary, explain_log_triage
 from atdr.app.services.case_service import list_alert_cases
+from atdr.app.services.assistant_data_query import DataAnswer, answer_data_question, parse_data_question
+from atdr.app.services.assistant_help import HelpAnswer, RuleAnswer, answer_help_question, answer_rule_question
 from atdr.app.services.alert_service import get_alert, list_alerts
 from atdr.app.core.redaction import IP_PATTERN
 from atdr.app.services.assistant_llm import (
@@ -233,6 +235,17 @@ def _is_alert_next_step_followup(value: str) -> bool:
 
 def _is_alert_explanation_followup(value: str) -> bool:
     return _has_any_term(value, ALERT_EXPLANATION_TERMS)
+
+
+_SPECIFIC_ALERT = re.compile(r"\b(?:latest|newest|most recent|top|highest|critical|this|that)\b[^.?!]{0,40}\balert\b")
+
+
+def _names_specific_alert(value: str) -> bool:
+    # The bare word "alert" is not a request to explain the latest alert;
+    # without an ID or context, only explanation words or a named alert are.
+    return _has_any_term(value, [term for term in ALERT_EXPLANATION_TERMS if term != "alert"]) or bool(
+        _SPECIFIC_ALERT.search(value)
+    )
 
 
 def _normalize_conversation_id(value: str | None) -> str:
@@ -912,6 +925,12 @@ def answer_assistant_question(
         result = _answer_unsafe_action_refusal(clean_question, redacted=redacted)
     elif any(term in lowered for term in ["response safety", "safety rules", "can assistant block", "can the assistant block", "can chatbot block"]):
         result = _answer_response_safety(redacted=redacted)
+    elif (help_answer := answer_help_question(clean_question)) is not None:
+        result = _help_result(help_answer, redacted=redacted)
+    elif (rule_answer := answer_rule_question(clean_question)) is not None:
+        result = _rule_result(rule_answer, redacted=redacted)
+    elif (data_question := parse_data_question(clean_question)) is not None:
+        result = _data_result(answer_data_question(db, data_question), redacted=redacted)
     elif any(term in lowered for term in ["changed recently", "what changed", "recent changes"]):
         result = _answer_recent_changes(db, limit=context_limit, redacted=redacted)
     elif any(term in lowered for term in ["failed job", "failed jobs", "job failure"]):
@@ -992,7 +1011,7 @@ def answer_assistant_question(
             redacted=redacted,
             warnings_only="warning" in lowered or "error" in lowered,
         )
-    elif _is_alert_explanation_followup(lowered) or requested_alert_id:
+    elif (_is_alert_explanation_followup(lowered) and _names_specific_alert(lowered)) or requested_alert_id:
         result = _answer_alert_question(db, clean_question, alert_id=requested_alert_id, redacted=redacted)
     elif requested_source_id:
         result = _answer_source_question(db, source_id=requested_source_id, limit=context_limit, redacted=redacted, warnings_only="warning" in lowered or "error" in lowered)
@@ -1088,6 +1107,14 @@ def answer_assistant_question(
             fallback_reason="unsafe_request_local_only",
         )
         if "assistant_safety_guardrail" in response["context_used"]
+        else AssistantLLMResult(
+            used=False,
+            provider=settings.assistant_llm_provider.strip().lower() or "disabled",
+            fallback_reason="exact_data_answer_local_only",
+        )
+        # Counts and rankings are shown exactly as the database returned them;
+        # a rewrite could drop rows or change a number.
+        if response_mode == "data_answer"
         else maybe_generate_external_answer(llm_request, settings)
     )
     llm_guard_reason = _llm_answer_guard_reason(
@@ -3335,6 +3362,71 @@ def _answer_recent_changes(db: Session, *, limit: int, redacted: bool) -> Assist
     )
 
 
+def _data_result(data: DataAnswer, *, redacted: bool) -> AssistantResult:
+    lines = [_text(line, redacted=redacted) for line in data.lines]
+    summary = _text(data.summary, redacted=redacted)
+    basis = _text(data.basis, redacted=redacted)
+    answer = "\n".join([summary, *[f"- {line}" for line in lines], basis])
+    source = "/api/alerts" if data.context == "alert_query" else "/api/logs"
+    citations = [Citation("Alert records" if data.context == "alert_query" else "Firewall log records", source)]
+    return AssistantResult(
+        answer=answer,
+        context_used=[data.context],
+        citations=citations,
+        details={
+            "data_query": _redact(data.counts, enabled=redacted),
+            "answer_sections": {
+                "summary": [summary],
+                "evidence": lines,
+                "related_context": [basis],
+                "citations": [_citation_reference(citation) for citation in citations],
+            },
+        },
+        suggested_followups=[_text(item, redacted=redacted) for item in data.followups[:3]],
+    )
+
+
+def _help_result(help_answer: HelpAnswer, *, redacted: bool) -> AssistantResult:
+    steps = [*help_answer.steps, *([help_answer.note] if help_answer.note else [])]
+    citation = Citation(*help_answer.citation)
+    if help_answer.context == "assistant_capabilities":
+        answer = "\n".join([help_answer.summary, *[f"- {step}" for step in steps]])
+        sections = {"summary": [help_answer.summary], "evidence": steps, "related_context": []}
+        context = [help_answer.context]
+    else:
+        answer = "\n".join(f"{index}. {step}" for index, step in enumerate(steps, 1))
+        sections = {"summary": [help_answer.summary], "what_to_check_next": steps, "safe_next_steps": steps}
+        context = ["dashboard_help", help_answer.context]
+    sections["citations"] = [_citation_reference(citation)]
+    return AssistantResult(
+        answer=_text(answer, redacted=redacted),
+        context_used=context,
+        citations=[citation],
+        details={"answer_sections": _redact(sections, enabled=redacted)},
+        suggested_followups=help_answer.followups[:3],
+    )
+
+
+def _rule_result(rule_answer: RuleAnswer, *, redacted: bool) -> AssistantResult:
+    citations = [Citation("Detection rule catalog", "docs/DETECTION_RULE_CATALOG.md")]
+    answer = "\n".join([rule_answer.summary, *[f"- {line}" for line in rule_answer.lines], rule_answer.basis])
+    return AssistantResult(
+        answer=_text(answer, redacted=redacted),
+        context_used=[rule_answer.context],
+        citations=citations,
+        details={
+            "rule_codes": rule_answer.codes,
+            "answer_sections": {
+                "summary": [rule_answer.summary],
+                "evidence": rule_answer.lines,
+                "related_context": [rule_answer.basis],
+                "citations": [_citation_reference(citation) for citation in citations],
+            },
+        },
+        suggested_followups=["How many rules are there?"] if len(rule_answer.codes) == 1 else [],
+    )
+
+
 def _answer_general_question(
     db: Session, *, question: str, limit: int, redacted: bool, settings: Settings
 ) -> AssistantResult:
@@ -3362,7 +3454,7 @@ def _answer_general_question(
     # both derivations agree, so they dedupe cleanly instead.
     summary_lines = [
         f"I don't have a specific built-in answer for \"{question}\".",
-        "Ask about a specific alert, log, source, or case (by ID), or about ML governance, operations, or the ATDR workflow.",
+        "Try: 'How many High alerts today?', 'Which source IPs have the most alerts?', 'How do I add an IP to a watchlist?', or 'What can you do?'.",
         f"Current state: {log_count} normalized logs, {alert_count} alerts.",
         f"Recent alerts: {alert_text or 'none in the current context.'}",
     ]

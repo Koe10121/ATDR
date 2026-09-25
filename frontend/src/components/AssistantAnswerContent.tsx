@@ -79,7 +79,8 @@ function responseModeLabel(mode: AssistantChatResponse["response_mode"]): string
     case_handoff: "Case handoff",
     investigation_brief: "Investigation brief",
     how_to: "Procedure",
-    governance: "Governance"
+    governance: "Governance",
+    data_answer: "From ATDR data"
   };
   return labels[mode] ?? "Direct answer";
 }

@@ -769,6 +769,7 @@ def build_safe_context_prompt(request: AssistantLLMRequest, settings: Settings) 
         "investigation_brief": "Give a structured brief with evidence, assessment, checks, and limitations.",
         "how_to": "Give concise numbered steps and preserve safe commands exactly.",
         "governance": "State the current status, main blocker, and operational consequence.",
+        "data_answer": "Repeat the exact numbers and rows given. Never change, drop, or add a number.",
     }[request.response_mode]
     lines = [
         f"Prompt contract: {PROMPT_CONTRACT_VERSION}",

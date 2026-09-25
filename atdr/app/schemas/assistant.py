@@ -58,6 +58,7 @@ class AssistantChatResponse(BaseModel):
         "investigation_brief",
         "how_to",
         "governance",
+        "data_answer",
     ]
     external_provider_used: bool
     safety: list[str] = Field(default_factory=list)

@@ -7437,3 +7437,53 @@ test("audit filters and paging stay responsive while the next results load", asy
   await page.getByRole("button", { name: "Next", exact: true }).click();
   await expect(page.getByRole("cell", { name: /^actor-10[1-9]$|^actor-1\d\d$/ }).first()).toBeVisible({ timeout: 5_000 });
 });
+
+test("SOC assistant answers data questions from one click with exact counts", async ({ page }) => {
+  const asked: string[] = [];
+  await mockApi(page);
+  await page.route("**/api/assistant/chat", async (route) => {
+    const body = route.request().postDataJSON() as { question?: string };
+    asked.push(String(body.question ?? ""));
+    await route.fulfill({
+      json: {
+        answer:
+          "0 High alerts were created today.\n- Most recent: alert #3250 (High) on 23 Sep 2026 22:59.\nCounted alerts with severity High, any status, created today. Times are server local time (UTC+07:00).",
+        mode: "deterministic_local",
+        response_mode: "data_answer",
+        external_provider_used: false,
+        safety: ["Read Only"],
+        context_used: ["alert_query"],
+        citations: [{ label: "Alert records", source: "/api/alerts", reference_id: null }],
+        redaction_applied: true,
+        raw_log_context_included: false,
+        suggested_followups: ["How many High alerts per day this week?"],
+        details: {
+          answer_sections: {
+            response_mode: ["data_answer"],
+            direct_answer: ["0 High alerts were created today."],
+            summary: ["0 High alerts were created today."],
+            list_items: ["Most recent: alert #3250 (High) on 23 Sep 2026 22:59."],
+            key_evidence: ["Most recent: alert #3250 (High) on 23 Sep 2026 22:59."],
+            evidence: ["Most recent: alert #3250 (High) on 23 Sep 2026 22:59."],
+            related_context: ["Counted alerts with severity High, any status, created today. Times are server local time (UTC+07:00)."]
+          }
+        },
+        conversation_id: "data-question-test",
+        active_context: { alert_id: null, log_id: null, source_id: null, case_id: null, primary: null }
+      }
+    });
+  });
+  await seedSession(page);
+  await page.goto("/assistant");
+
+  const presets = page.getByTestId("assistant-presets");
+  await expect(presets).toContainText("Ask the data");
+  await presets.getByRole("button", { name: "High alerts today", exact: true }).click();
+  await expect(page.getByLabel("Analyst question")).toHaveValue("How many High alerts were created today?");
+  await expect.poll(() => asked).toContain("How many High alerts were created today?");
+
+  const answer = page.getByTestId("assistant-direct-answer");
+  await expect(answer).toContainText("From ATDR data");
+  await expect(answer).toContainText("0 High alerts were created today.");
+  await expect(answer).toContainText("Counted alerts with severity High");
+});

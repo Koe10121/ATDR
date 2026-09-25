@@ -224,7 +224,8 @@ export type AssistantResponseMode =
   | "case_handoff"
   | "investigation_brief"
   | "how_to"
-  | "governance";
+  | "governance"
+  | "data_answer";
 
 export interface AssistantChatResponse {
   answer: string;

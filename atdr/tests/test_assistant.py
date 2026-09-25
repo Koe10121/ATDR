@@ -274,7 +274,7 @@ def test_assistant_unmatched_question_answer_is_not_garbled_or_duplicated():
         assert response.status_code == 200
         answer = response.json()["answer"]
         assert answer.count("I don't have a specific built-in answer") == 1
-        assert answer.count("Ask about a specific alert") == 1
+        assert answer.count("Try: 'How many High alerts today?'") == 1
         assert answer.count("Current state:") == 1
         assert answer.count("Recent alerts:") == 1
         assert "..." not in answer

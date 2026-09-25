@@ -77,6 +77,17 @@ function createConversationId(): string {
 
 const promptGroups = [
   {
+    label: "Ask the data",
+    prompts: [
+      { label: "High alerts today", question: "How many High alerts were created today?", resetContext: true },
+      { label: "Top source IPs", question: "Which source IPs have the most alerts this week?", resetContext: true },
+      { label: "Alerts per day", question: "How many alerts per day this week?", resetContext: true },
+      { label: "Top attack types", question: "What is the most common attack type?", resetContext: true },
+      { label: "Denied traffic", question: "How many denied connections in the last 24 hours?", resetContext: true },
+      { label: "What can you do?", question: "What can you do?", resetContext: true }
+    ]
+  },
+  {
     label: "Quick questions",
     prompts: [
       { label: "Latest Critical Alert", question: "Explain the latest critical alert.", resetContext: true },
@@ -1029,7 +1040,7 @@ export function AssistantPage() {
             ) : null}
           </div>
           <div className="mt-5 space-y-4" data-testid="assistant-presets">
-            {promptGroups.slice(0, 1).map((group) => (
+            {promptGroups.slice(0, 2).map((group) => (
               <div key={group.label}>
                 <div className="mb-2 text-[11px] font-black uppercase tracking-wide text-muted">{group.label}</div>
                 <div className="flex flex-wrap gap-2">
@@ -1051,7 +1062,7 @@ export function AssistantPage() {
             <details className="rounded-lg border border-line bg-panel2 p-3">
               <summary className="cursor-pointer text-xs font-black uppercase tracking-wide text-muted">More questions</summary>
               <div className="mt-4 space-y-4">
-                {promptGroups.slice(1).map((group) => (
+                {promptGroups.slice(2).map((group) => (
                   <div key={group.label}>
                     <div className="mb-2 text-[11px] font-black uppercase tracking-wide text-muted">{group.label}</div>
                     <div className="flex flex-wrap gap-2">

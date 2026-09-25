@@ -16,6 +16,7 @@ AssistantResponseMode = Literal[
     "investigation_brief",
     "how_to",
     "governance",
+    "data_answer",
 ]
 
 
@@ -46,6 +47,9 @@ RESPONSE_CONTRACTS: dict[AssistantResponseMode, ResponseContract] = {
     "investigation_brief": ResponseContract("investigation_brief", 110, 2),
     "how_to": ResponseContract("how_to", 120, 2),
     "governance": ResponseContract("governance", 70, 2),
+    # Counts, rankings and rule facts: a direct answer, up to eight lines,
+    # and a sentence saying exactly what was counted.
+    "data_answer": ResponseContract("data_answer", 160, 2),
 }
 
 
@@ -65,6 +69,10 @@ def response_contract(mode: AssistantResponseMode) -> ResponseContract:
 def infer_response_mode(question: str, context_used: list[str]) -> AssistantResponseMode:
     lowered = question.lower()
     contexts = set(context_used)
+    if contexts & {"alert_query", "log_query", "rule_catalog", "assistant_capabilities"}:
+        return "data_answer"
+    if "dashboard_help" in contexts:
+        return "how_to"
     if "unmatched_question" in contexts:
         # No keyword route matched, so no other branch below is meaningful
         # to test against this question. list_summary's word budget gives a
@@ -535,6 +543,23 @@ def build_response_presentation(
                 "next_steps": brief_steps,
                 "what_to_check_next": brief_steps,
                 "limitations": brief_limitations,
+            }
+        )
+    elif mode == "data_answer":
+        # Rows are distinct facts (one per IP, day or rule), so they are
+        # neither deduplicated nor shortened the way prose evidence is.
+        items = _strings(raw_sections.get("evidence"), limit=8)
+        basis = _strings(raw_sections.get("related_context"), limit=1)
+        answer_parts = [summary[0], *[f"- {item}" for item in items], *basis]
+        answer = "\n".join(answer_parts)
+        sections.update(
+            {
+                "direct_answer": summary[:1],
+                "summary": summary[:1],
+                "list_items": items,
+                "key_evidence": items,
+                "evidence": items,
+                "related_context": basis,
             }
         )
     elif mode == "how_to":

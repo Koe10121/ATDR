@@ -58,6 +58,7 @@ def test_v552_response_contracts_are_concise_and_limit_followups() -> None:
         "investigation_brief": 110,
         "how_to": 120,
         "governance": 70,
+        "data_answer": 160,
     }
     assert {name: contract.word_limit for name, contract in RESPONSE_CONTRACTS.items()} == expected_limits
     assert all(contract.max_followups == 2 for contract in RESPONSE_CONTRACTS.values())
