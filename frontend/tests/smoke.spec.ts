@@ -6730,6 +6730,74 @@ test("response center shows the real validation detail instead of a generic erro
   await expect(page.getByText("API request failed with status 422")).not.toBeVisible();
 });
 
+test("analysts can bulk-update selected alerts with confirmation", async ({ page }) => {
+  await mockApi(page);
+  const rowFor = (id: number) => ({
+    id,
+    title: `High: bulk row ${id}`,
+    alert_type: "policy_deny",
+    src_ip: "203.0.113.20",
+    dst_ip: "10.0.0.8",
+    threat_score: 70,
+    severity: "High",
+    status: "open",
+    assigned_to: null,
+    explanation: "Bulk row.",
+    matched_rules_json: [],
+    recommended_response: "Review.",
+    created_at: "2026-05-22T00:00:00Z",
+    updated_at: "2026-05-22T00:00:00Z",
+    evidence_count: 1,
+    evidence_log_ids: [1],
+    evidence_log_ids_truncated: false,
+    source_ids: [1],
+    source_names: ["local_import"],
+    sla: { label: "4h", state: "overdue" }
+  });
+  await page.route(/\/api\/alerts(\?.*)?$/, (route) =>
+    route.fulfill({ json: [rowFor(11), rowFor(12), rowFor(13)], headers: { "X-Total-Count": "3" } })
+  );
+  const bulkBodies: Array<{ alert_ids: number[]; status: string }> = [];
+  await page.route("**/api/alerts/bulk-status", async (route) => {
+    const body = JSON.parse(route.request().postData() || "{}") as { alert_ids: number[]; status: string };
+    bulkBodies.push(body);
+    return route.fulfill({
+      json: { status: body.status, updated_ids: body.alert_ids, updated_count: body.alert_ids.length, not_found_ids: [] }
+    });
+  });
+  await seedSession(page, "analyst");
+  await page.goto("/alerts");
+
+  await expect(page.getByTestId("alert-bulk-actions")).toHaveCount(0);
+  await page.getByLabel("Select alert 11").check();
+  await page.getByLabel("Select alert 13").check();
+  // Ticking a row's checkbox must not open that alert's drawer.
+  await expect(page).not.toHaveURL(/alert=/);
+  const bar = page.getByTestId("alert-bulk-actions");
+  await expect(bar).toContainText("2 selected");
+
+  let confirmText = "";
+  page.once("dialog", (dialog) => {
+    confirmText = dialog.message();
+    return dialog.dismiss();
+  });
+  await bar.getByRole("button", { name: "Resolve" }).click();
+  expect(confirmText).toBe("Mark 2 alerts as resolved?");
+  expect(bulkBodies).toHaveLength(0);
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await bar.getByRole("button", { name: "Resolve" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Marked 2 alerts as resolved." })).toBeVisible();
+  expect(bulkBodies).toEqual([{ alert_ids: [11, 13], status: "resolved" }]);
+  await expect(page.getByTestId("alert-bulk-actions")).toHaveCount(0);
+
+  await page.getByLabel("Select all alerts on this page").check();
+  await expect(page.getByTestId("alert-bulk-actions")).toContainText("3 selected");
+  await page.getByTestId("alert-bulk-actions").getByRole("button", { name: "Investigating" }).click();
+  await expect.poll(() => bulkBodies.length).toBe(2);
+  expect(bulkBodies[1]).toEqual({ alert_ids: [11, 12, 13], status: "investigating" });
+});
+
 test("marking a user's email unverified requires confirmation", async ({ page }) => {
   // Regression test: this toggle used to fire immediately on click, with no
   // confirmation -- inconsistent with every other destructive/security-

@@ -8,6 +8,8 @@ from atdr.app.db.models import User
 from atdr.app.schemas.alerts import (
     ALLOWED_ALERT_STATUSES,
     AlertAssignRequest,
+    AlertBulkStatusResponse,
+    AlertBulkStatusUpdate,
     AlertCaseRead,
     AlertEscalateRequest,
     AlertNoteCreate,
@@ -25,6 +27,7 @@ from atdr.app.services.alert_service import (
     alert_sla,
     alert_timeline,
     assign_alert,
+    bulk_update_alert_status,
     count_alerts,
     escalate_alert,
     get_alert,
@@ -296,6 +299,21 @@ def _set_alert_status(db: Session, alert_id: int, status: str, username: str) ->
     if alert is None:
         raise HTTPException(status_code=404, detail="Alert not found.")
     return {"id": alert.id, "status": alert.status, "updated_at": alert.updated_at}
+
+
+@router.post("/bulk-status", response_model=AlertBulkStatusResponse)
+def bulk_update_status(
+    request: AlertBulkStatusUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    normalized = request.normalized_status()
+    if normalized not in ALLOWED_ALERT_STATUSES:
+        raise HTTPException(status_code=400, detail=f"Unsupported alert status: {request.status}")
+    try:
+        return bulk_update_alert_status(db, request.alert_ids, normalized, actor=current_user.username)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/{alert_id}/status", response_model=AlertStatusResponse)

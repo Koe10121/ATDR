@@ -913,6 +913,17 @@ export function useAlertStatusMutation() {
   });
 }
 
+export function useAlertBulkStatusMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ ids, status }: { ids: number[]; status: AlertStatus }) => api.bulkUpdateAlertStatus(ids, status),
+    onSuccess: () => {
+      invalidateAlerts(queryClient);
+      invalidateAudit(queryClient);
+    }
+  });
+}
+
 export function useAlertWorkflowMutations() {
   const queryClient = useQueryClient();
   const invalidate = () => {

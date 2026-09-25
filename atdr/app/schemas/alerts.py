@@ -58,6 +58,21 @@ class AlertStatusUpdate(BaseModel):
         return self.status.strip().lower().replace("-", "_")
 
 
+class AlertBulkStatusUpdate(BaseModel):
+    alert_ids: list[int] = Field(min_length=1, max_length=200)
+    status: str = Field(description="One of: open, investigating, contained, resolved, false_positive, needs_more_context")
+
+    def normalized_status(self) -> str:
+        return self.status.strip().lower().replace("-", "_")
+
+
+class AlertBulkStatusResponse(BaseModel):
+    status: str
+    updated_ids: list[int]
+    updated_count: int
+    not_found_ids: list[int]
+
+
 class AlertAssignRequest(BaseModel):
     username: str | None = Field(default=None, max_length=128)
 

@@ -1322,6 +1322,83 @@ def test_alert_workflow_requires_auth_and_audits_user():
         app.dependency_overrides.clear()
 
 
+def _add_extra_alerts(count: int) -> list[int]:
+    db = next(app.dependency_overrides[get_db]())
+    try:
+        alerts = [
+            Alert(
+                title=f"Low: bulk test alert {index}",
+                alert_type="api_test",
+                src_ip="203.0.113.60",
+                dst_ip="10.0.0.6",
+                threat_score=20,
+                severity="Low",
+                status="open",
+                explanation="Bulk test alert.",
+                matched_rules_json=[],
+                recommended_response="Review.",
+            )
+            for index in range(count)
+        ]
+        db.add_all(alerts)
+        db.commit()
+        return [alert.id for alert in alerts]
+    finally:
+        db.close()
+
+
+def test_bulk_alert_status_updates_many_and_audits_each_alert():
+    client = _client()
+    try:
+        extra_ids = _add_extra_alerts(2)
+        ids = [1, *extra_ids]
+        assert client.post("/api/alerts/bulk-status", json={"alert_ids": ids, "status": "resolved"}).status_code == 401
+
+        headers = _login(client, "analyst", "analyst123")
+        response = client.post(
+            "/api/alerts/bulk-status",
+            json={"alert_ids": [*ids, ids[0], 999], "status": "false-positive"},
+            headers=headers,
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "false_positive"
+        assert body["updated_ids"] == sorted(ids)
+        assert body["updated_count"] == 3
+        assert body["not_found_ids"] == [999]
+
+        for alert_id in ids:
+            detail = client.get(f"/api/alerts/{alert_id}", headers=headers)
+            assert detail.json()["status"] == "false_positive"
+            timeline = client.get(f"/api/alerts/{alert_id}/timeline", headers=headers).json()
+            assert any(event.get("event_type") == "alert_false_positive" and event.get("actor") == "analyst" for event in timeline)
+
+        audit = client.get("/api/audit", headers=headers).json()
+        bulk_entries = [entry for entry in audit if entry["action"] == "alert_false_positive"]
+        assert sorted(int(entry["target_value"]) for entry in bulk_entries) == sorted(ids)
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_bulk_alert_status_rejects_bad_requests():
+    client = _client()
+    try:
+        headers = _login(client, "analyst", "analyst123")
+        bad_status = client.post("/api/alerts/bulk-status", json={"alert_ids": [1], "status": "deleted"}, headers=headers)
+        assert bad_status.status_code == 400
+        empty = client.post("/api/alerts/bulk-status", json={"alert_ids": [], "status": "resolved"}, headers=headers)
+        assert empty.status_code == 422
+        too_many = client.post(
+            "/api/alerts/bulk-status",
+            json={"alert_ids": list(range(1, 202)), "status": "resolved"},
+            headers=headers,
+        )
+        assert too_many.status_code == 422
+        assert client.get("/api/alerts/1", headers=headers).json()["status"] == "open"
+    finally:
+        app.dependency_overrides.clear()
+
+
 def test_alert_status_transition_api_supports_new_workflow_states():
     client = _client()
     try:

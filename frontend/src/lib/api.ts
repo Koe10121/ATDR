@@ -510,6 +510,14 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ status })
     }),
+  bulkUpdateAlertStatus: (alertIds: number[], status: AlertStatus) =>
+    apiRequest<{ status: string; updated_ids: number[]; updated_count: number; not_found_ids: number[] }>(
+      "/api/alerts/bulk-status",
+      {
+        method: "POST",
+        body: JSON.stringify({ alert_ids: alertIds, status })
+      }
+    ),
   logs: (params: Params = {}) => apiRequest<NormalizedLog[]>("/api/logs", { params }),
   logsPage: (params: Params = {}) => apiListRequest<NormalizedLog>("/api/logs", { params }),
   log: (id: number) => apiRequest<NormalizedLog>(`/api/logs/${id}`),

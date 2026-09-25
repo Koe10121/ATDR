@@ -1034,6 +1034,50 @@ def update_alert_status(db: Session, alert_id: int, status: str, actor: str = "a
     return alert
 
 
+BULK_ALERT_STATUS_LIMIT = 200
+
+
+def bulk_update_alert_status(db: Session, alert_ids: list[int], status: str, actor: str = "analyst") -> dict:
+    """Apply one status to many alerts in a single transaction.
+
+    Writes the same per-alert audit entry as update_alert_status so every
+    alert's timeline still shows who changed it and when.
+    """
+    if status not in ALERT_STATUSES:
+        raise ValueError(f"Unsupported alert status: {status}")
+    requested = list(dict.fromkeys(int(alert_id) for alert_id in alert_ids))
+    if not requested:
+        raise ValueError("Select at least one alert.")
+    if len(requested) > BULK_ALERT_STATUS_LIMIT:
+        raise ValueError(f"At most {BULK_ALERT_STATUS_LIMIT} alerts can be updated at once.")
+    alerts = list(db.scalars(select(Alert).where(Alert.id.in_(requested))))
+    found = {alert.id for alert in alerts}
+    for alert in alerts:
+        alert.status = status
+        db.add(
+            AuditLog(
+                actor=actor,
+                action=f"alert_{status}",
+                target_type="alert",
+                target_value=str(alert.id),
+                details={
+                    "src_ip": alert.src_ip,
+                    "dst_ip": alert.dst_ip,
+                    "severity": alert.severity,
+                    "bulk": True,
+                    "bulk_size": len(alerts),
+                },
+            )
+        )
+    db.commit()
+    return {
+        "status": status,
+        "updated_ids": sorted(found),
+        "updated_count": len(found),
+        "not_found_ids": [alert_id for alert_id in requested if alert_id not in found],
+    }
+
+
 def assign_alert(
     db: Session,
     alert_id: int,

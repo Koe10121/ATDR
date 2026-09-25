@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Link, useSearchParams } from "react-router-dom";
@@ -16,6 +16,7 @@ import { TableToolbar, tableDensityClass } from "../components/TableToolbar";
 import type { SavedView, TableDensity } from "../components/TableToolbar";
 import { useAuth } from "../hooks/useAuth";
 import {
+  useAlertBulkStatusMutation,
   useAlertNotes,
   useAlertReport,
   useAlertCases,
@@ -58,6 +59,13 @@ const ALERT_SEVERITY_VALUES = ["", "Critical", "High", "Medium", "Low"] as const
 const ALERT_STATUS_VALUES = ["", "open", "investigating", "contained", "resolved", "false_positive", "needs_more_context"] as const;
 type AlertFilters = typeof ALERT_FILTER_DEFAULTS;
 
+const BULK_STATUS_ACTIONS: Array<{ status: AlertStatus; label: string; done: string; confirm: boolean }> = [
+  { status: "investigating", label: "Investigating", done: "investigating", confirm: false },
+  { status: "needs_more_context", label: "Needs context", done: "needing more context", confirm: false },
+  { status: "resolved", label: "Resolve", done: "resolved", confirm: true },
+  { status: "false_positive", label: "False positive", done: "false positive", confirm: true }
+];
+
 function normalizeAlertFilters(value: unknown): AlertFilters {
   return normalizeStringState(ALERT_FILTER_DEFAULTS, value, {
     sort_by: ALERT_SORT_VALUES,
@@ -93,6 +101,9 @@ export function AlertsTriage() {
   const alertRows = alerts.data?.items ?? [];
   const selectedDetail = useAlert(selectedId);
   const statusMutation = useAlertStatusMutation();
+  const bulkStatus = useAlertBulkStatusMutation();
+  const [bulkSelection, setBulkSelection] = useState<Set<number>>(() => new Set());
+  const [bulkMessage, setBulkMessage] = useState<string | null>(null);
   const workflow = useAlertWorkflowMutations();
   const response = useResponseMutations();
   const selected = selectedDetail.data ?? alertRows.find((item) => item.id === selectedId) ?? null;
@@ -190,6 +201,47 @@ export function AlertsTriage() {
   function applyView(view: SavedView<AlertFilters>) {
     setOffset(0);
     setFilters(normalizeAlertFilters(view.value));
+  }
+
+  // Selection only ever refers to rows currently on screen.
+  useEffect(() => {
+    setBulkSelection(new Set());
+  }, [safeFilters, offset, limit]);
+
+  const pageIds = alertRows.map((row) => row.id);
+  const selectedOnPage = pageIds.filter((id) => bulkSelection.has(id));
+  const allOnPageSelected = pageIds.length > 0 && selectedOnPage.length === pageIds.length;
+
+  function toggleBulkSelection(id: number) {
+    setBulkMessage(null);
+    setBulkSelection((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectPage() {
+    setBulkMessage(null);
+    setBulkSelection(allOnPageSelected ? new Set() : new Set(pageIds));
+  }
+
+  function applyBulkStatus(action: (typeof BULK_STATUS_ACTIONS)[number]) {
+    const ids = selectedOnPage;
+    if (!ids.length) return;
+    const noun = ids.length === 1 ? "alert" : "alerts";
+    if (action.confirm && !window.confirm(`Mark ${ids.length} ${noun} as ${action.done}?`)) return;
+    bulkStatus.mutate(
+      { ids, status: action.status },
+      {
+        onSuccess: (result) => {
+          setBulkSelection(new Set());
+          const missing = result.not_found_ids.length ? ` ${result.not_found_ids.length} no longer existed.` : "";
+          setBulkMessage(`Marked ${result.updated_count} ${result.updated_count === 1 ? "alert" : "alerts"} as ${action.done}.${missing}`);
+        }
+      }
+    );
   }
 
   function setAlertStatus(nextStatus: AlertStatus) {
@@ -341,12 +393,59 @@ export function AlertsTriage() {
         </section>
       ) : null}
 
+      {selectedOnPage.length ? (
+        <section
+          className="panel flex flex-wrap items-center justify-between gap-3 border-cyan/40"
+          aria-label="Bulk alert actions"
+          data-testid="alert-bulk-actions"
+        >
+          <div className="text-sm font-bold text-text">
+            {selectedOnPage.length} selected
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {BULK_STATUS_ACTIONS.map((action) => (
+              <button
+                key={action.status}
+                type="button"
+                className={action.status === "resolved" ? "btn-primary" : "btn-secondary"}
+                disabled={bulkStatus.isPending}
+                onClick={() => applyBulkStatus(action)}
+              >
+                {action.label}
+              </button>
+            ))}
+            <button type="button" className="btn-secondary" onClick={() => setBulkSelection(new Set())}>
+              Clear selection
+            </button>
+          </div>
+        </section>
+      ) : null}
+      {bulkMessage ? (
+        <div role="status" className="rounded-lg border border-success/30 bg-success/10 p-3 text-sm text-success">
+          {bulkMessage}
+        </div>
+      ) : null}
+      {bulkStatus.isError ? <ErrorBanner error={bulkStatus.error} /> : null}
+
       <section className="panel overflow-hidden">
         <div className="overflow-auto">
           <table className={tableDensityClass(density)}>
             <thead>
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>
+                  <th className="w-10">
+                    <span className="sr-only">Select</span>
+                    <input
+                      type="checkbox"
+                      aria-label="Select all alerts on this page"
+                      checked={allOnPageSelected}
+                      ref={(element) => {
+                        if (element) element.indeterminate = selectedOnPage.length > 0 && !allOnPageSelected;
+                      }}
+                      onChange={toggleSelectPage}
+                      disabled={!pageIds.length}
+                    />
+                  </th>
                   {headerGroup.headers.map((header) => (
                     <th key={header.id}>{flexRender(header.column.columnDef.header, header.getContext())}</th>
                   ))}
@@ -356,6 +455,14 @@ export function AlertsTriage() {
             <tbody>
               {table.getRowModel().rows.map((row) => (
                 <tr key={row.id} className="cursor-pointer" onClick={() => openAlert(row.original.id)}>
+                  <td className="w-10" onClick={(event) => event.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      aria-label={`Select alert ${row.original.id}`}
+                      checked={bulkSelection.has(row.original.id)}
+                      onChange={() => toggleBulkSelection(row.original.id)}
+                    />
+                  </td>
                   {row.getVisibleCells().map((cell) => (
                     <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
                   ))}
