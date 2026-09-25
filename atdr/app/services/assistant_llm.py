@@ -1007,6 +1007,23 @@ def _citation_aliases(item: dict[str, Any]) -> set[str]:
     }
 
 
+# Labels ATDR adds itself when it lays out an answer. A provider that copies
+# the prepared answer into direct_answer brings them along, and the page then
+# shows "Verdict: Verdict: ..." with the evidence listed twice.
+_DIRECT_ANSWER_LABEL = re.compile(r"^\s*(?:verdict|direct answer|answer)\s*:\s*", re.IGNORECASE)
+_EMBEDDED_SECTION = re.compile(r"(?:^|(?<=[.!?])\s+|\n)\s*(?:key evidence|next checks?|next steps?)\s*:", re.IGNORECASE)
+
+
+def _clean_direct_answer(value: str) -> str:
+    text = value
+    while (stripped := _DIRECT_ANSWER_LABEL.sub("", text, count=1)) != text:
+        text = stripped
+    section = _EMBEDDED_SECTION.search(text)
+    if section is not None:
+        text = text[: section.start()]
+    return text.strip()
+
+
 def _parse_structured_answer(
     value: str,
     *,
@@ -1020,7 +1037,7 @@ def _parse_structured_answer(
     if not isinstance(payload, dict):
         return None
 
-    direct_answer = str(payload.get("direct_answer") or payload.get("summary") or "").strip()[:1200]
+    direct_answer = _clean_direct_answer(str(payload.get("direct_answer") or payload.get("summary") or ""))[:1200]
     safety_notice = str(payload.get("safety_notice", "")).strip()[:400]
     evidence = _safe_string_list(
         payload.get("key_evidence") if "key_evidence" in payload else payload.get("evidence"),

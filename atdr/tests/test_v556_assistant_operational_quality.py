@@ -383,3 +383,44 @@ def test_v556_false_positive_and_governance_answers_are_direct() -> None:
     assert false_positive.answer.startswith("Verdict: Do not mark alert #42")
     assert "Independent validation is still required" in governance.answer
     assert "Blocker: Anomaly artifact" not in governance.answer
+
+
+def test_gemini_verdict_that_repeats_our_section_labels_is_trimmed_to_the_verdict() -> None:
+    # Seen live: Gemini copied the whole prepared answer into direct_answer, so
+    # the page showed "Verdict: Verdict: ..." and the key evidence twice.
+    citations = [{"label": "Alert detail", "source": "/api/alerts/{alert_id}", "reference_id": "3224"}]
+    payload = json.dumps(
+        {
+            "direct_answer": (
+                "Verdict: Alert #3224: Critical possible_port_scan with risk score 100. "
+                "Key evidence: - Deny or drop action: firewall action indicates deny/drop behavior."
+            ),
+            "key_evidence": ["Firewall action indicates deny/drop behavior.", "The source touched 10 destination ports."],
+            "next_steps": ["Verify the matched firewall policy."],
+        }
+    )
+    parsed = assistant_llm._parse_structured_answer(payload, citations=citations, response_mode="alert_explanation")
+    assert parsed is not None
+    assert parsed["direct_answer"] == "Alert #3224: Critical possible_port_scan with risk score 100."
+
+    rendered = assistant_llm._render_structured_answer(parsed, response_mode="alert_explanation")
+    assert "Verdict" not in rendered
+    assert rendered.count("Key evidence") == 1
+
+    plain = assistant_llm._parse_structured_answer(
+        payload.replace(
+            "Verdict: Alert #3224: Critical possible_port_scan with risk score 100. Key evidence: - Deny or drop action: firewall action indicates deny/drop behavior.",
+            "Alert #3224 is supported by rule evidence: 10 ports were probed.",
+        ),
+        citations=citations,
+        response_mode="alert_explanation",
+    )
+    assert plain is not None
+    assert plain["direct_answer"] == "Alert #3224 is supported by rule evidence: 10 ports were probed."
+
+    only_sections = assistant_llm._parse_structured_answer(
+        payload.replace("Verdict: Alert #3224: Critical possible_port_scan with risk score 100. ", ""),
+        citations=citations,
+        response_mode="alert_explanation",
+    )
+    assert only_sections is None
