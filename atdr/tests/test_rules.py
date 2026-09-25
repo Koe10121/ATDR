@@ -594,3 +594,52 @@ def test_large_uploads_to_different_destinations_are_not_a_repeat():
         codes = {match.code for match in evaluate_rules(log, context)}
         assert "high_outbound_bytes" in codes
         assert "repeated_large_outbound" not in codes
+
+
+def _threat_log(**overrides) -> NormalizedLog:
+    values = dict(
+        generated_time=datetime(2026, 5, 20, 10, 0),
+        log_type="THREAT",
+        subtype="vulnerability",
+        category="code-execution",
+        src_ip="10.0.2.15",
+        dst_ip="198.51.100.30",
+        src_zone="LAN-Inside",
+        dst_zone="SG-Outside",
+        app="web-browsing",
+        dst_port=80,
+        action="alert",
+        parsed_json={"parsed_threat_severity": "low", "parsed_threat_name": "Test Signature"},
+    )
+    values.update(overrides)
+    return NormalizedLog(**values)
+
+
+def test_vendor_malware_threat_gets_its_own_rule_and_malware_attack_type():
+    log = _threat_log(subtype="spyware", category="spyware")
+    matches = evaluate_rules(log, build_detection_context([log]))
+    by_code = {match.code: match for match in matches}
+
+    assert "paloalto_malware_threat" in by_code
+    assert "paloalto_threat_log" not in by_code
+    # Low vendor severity (20) plus the malware-class bonus reaches the alert threshold (30).
+    assert by_code["paloalto_malware_threat"].score == 30
+    assert "type is spyware" in by_code["paloalto_malware_threat"].explanation
+    assert infer_attack_type_from_rules([{"code": m.code} for m in matches]) == "malware_c2"
+
+
+def test_c2_category_counts_as_malware_class_even_with_another_subtype():
+    log = _threat_log(subtype="vulnerability", category="command-and-control")
+    codes = {match.code for match in evaluate_rules(log, build_detection_context([log]))}
+    assert "paloalto_malware_threat" in codes
+
+
+def test_generic_threat_keeps_generic_rule_and_now_explains_type_and_category():
+    log = _threat_log()
+    matches = evaluate_rules(log, build_detection_context([log]))
+    generic = next(match for match in matches if match.code == "paloalto_threat_log")
+
+    assert "paloalto_malware_threat" not in {match.code for match in matches}
+    assert generic.score == 20
+    assert "type is vulnerability" in generic.explanation
+    assert "category is code-execution" in generic.explanation

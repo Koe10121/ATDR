@@ -19,6 +19,7 @@ from atdr.app.schemas.alerts import (
     AlertStatusUpdate,
     AlertTimelineEvent,
 )
+from atdr.app.detection.attack_mapping import infer_attack_type_from_rules
 from atdr.app.detection.explanations import build_alert_detection_summary
 from atdr.app.services.alert_service import (
     add_alert_note,
@@ -103,6 +104,8 @@ def _alert_to_dict(
         "escalated_at": alert.escalated_at,
         "explanation": alert.explanation,
         "matched_rules_json": alert.matched_rules_json,
+        # Same function the detail drawer uses, so list and drawer can't disagree.
+        "attack_type": infer_attack_type_from_rules(alert.matched_rules_json or []),
         "recommended_response": alert.recommended_response,
         "created_at": alert.created_at,
         "updated_at": alert.updated_at,

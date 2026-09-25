@@ -18,6 +18,7 @@ from atdr.app.db.models import (
     SuppressionRule,
     WatchlistItem,
 )
+from atdr.app.detection.attack_mapping import infer_attack_type_from_rules
 from atdr.app.services.alert_service import alert_sla
 from atdr.app.services.operation_run_service import detection_run_to_dict, ingestion_run_to_dict
 
@@ -146,6 +147,7 @@ def _alert_operations_aggregate(db: Session) -> dict:
     severity_counts: Counter[str] = Counter()
     status_counts: Counter[str] = Counter()
     alert_type_counts: Counter[str] = Counter()
+    attack_type_counts: Counter[str] = Counter()
     occurrence_count = 0
     rows = db.execute(
         select(
@@ -159,6 +161,7 @@ def _alert_operations_aggregate(db: Session) -> dict:
         severity_counts[str(severity)] += 1
         status_counts[str(status)] += 1
         alert_type_counts[str(alert_type)] += 1
+        attack_type_counts[infer_attack_type_from_rules(rules or [])] += 1
         metadata = next(
             (
                 rule
@@ -180,6 +183,7 @@ def _alert_operations_aggregate(db: Session) -> dict:
         "severity_counts": severity_counts,
         "status_counts": status_counts,
         "alert_type_counts": alert_type_counts,
+        "attack_type_counts": attack_type_counts,
         "occurrence_count": occurrence_count,
     }
 
@@ -331,6 +335,13 @@ def build_dashboard_summary(db: Session) -> dict:
         "severity_counts": {severity: int(count) for severity, count in severity_rows},
         "status_counts": {status: int(count) for status, count in status_rows},
         "top_alert_types": [{"name": str(alert_type), "count": int(count)} for alert_type, count in alert_type_rows],
+        # Attack types come from the same rule mapping the alert drawer uses.
+        "top_attack_types": [
+            {"name": str(attack_type), "count": int(count)}
+            for attack_type, count in sorted(
+                alert_operations["attack_type_counts"].items(), key=lambda item: (-item[1], item[0])
+            )[:10]
+        ],
         "top_suspicious_source_ips": [{"name": str(src_ip), "count": int(count)} for src_ip, count in suspicious_rows],
         "top_destination_countries": _group_counts(db, NormalizedLog.dst_country),
         "action_distribution": _group_counts(db, NormalizedLog.action),

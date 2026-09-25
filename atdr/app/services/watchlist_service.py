@@ -10,7 +10,7 @@ from atdr.app.schemas.watchlists import ALLOWED_WATCHLIST_TYPES
 def _normalized_value(indicator_type: str, value: str | None) -> str:
     if value is None:
         return ""
-    if indicator_type in {"src_ip", "dst_ip", "app"}:
+    if indicator_type in {"src_ip", "dst_ip", "app", "src_country", "dst_country"}:
         return value.strip().lower()
     return value.strip()
 
@@ -88,6 +88,9 @@ def matching_watchlist_items(log: NormalizedLog, active_items: list[WatchlistIte
         "src_ip": log.src_ip,
         "dst_ip": log.dst_ip,
         "app": log.app,
+        # Parsed from PAN-OS logs but previously unused by any detection logic.
+        "src_country": getattr(log, "src_country", None),
+        "dst_country": getattr(log, "dst_country", None),
     }
     for item in active_items:
         expected = _normalized_value(item.indicator_type, item.indicator_value)

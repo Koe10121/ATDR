@@ -453,3 +453,60 @@ def test_group_key_does_not_falsely_merge_app_risk_sources_for_untrust_traffic()
 
     assert detection_service._group_key(outbound)[2] == "multiple-app-risk-sources"
     assert detection_service._group_key(same_zone)[2] == "multiple-app-risk-sources"
+
+
+def _seed_malware_threat_with_country_watch(db) -> None:
+    from atdr.app.db.models import WatchlistItem
+
+    raw = RawLog(raw_line="threat spyware log")
+    db.add(raw)
+    db.flush()
+    db.add(
+        NormalizedLog(
+            raw_log_id=raw.id,
+            generated_time=datetime(2026, 5, 20, 10, 0, 0),
+            log_type="THREAT",
+            subtype="spyware",
+            category="spyware",
+            src_ip="10.0.2.15",
+            dst_ip="198.51.100.30",
+            src_zone="LAN-Inside",
+            dst_zone="SG-Outside",
+            dst_country="Germany",
+            app="web-browsing",
+            dst_port=80,
+            action="alert",
+            protocol="tcp",
+            bytes=500,
+            packets=4,
+            parsed_json={"parsed_threat_severity": "medium", "parsed_threat_name": "Test Spyware"},
+        )
+    )
+    db.add(
+        WatchlistItem(
+            indicator_type="dst_country",
+            indicator_value="germany",
+            description="Country watch test",
+            severity_boost=20,
+            created_by="test",
+        )
+    )
+    db.commit()
+
+
+def test_malware_threat_and_country_watch_work_in_both_detection_modes():
+    # The bounded (large-import) path evaluates a lightweight record, not the
+    # ORM row; it lacked the threat category and country fields, so the new
+    # malware rule would have raised AttributeError and a country watch could
+    # never match there.
+    results = {}
+    for mode, bounded in (("full", False), ("bounded", True)):
+        db = _session()
+        _seed_malware_threat_with_country_watch(db)
+        result = run_detection(db, limit=100, use_ml=False, actor="test", bounded_memory=bounded)
+        alert = db.scalar(select(Alert))
+        results[mode] = (result["watchlist_matches"], alert.alert_type if alert else None)
+        db.close()
+
+    assert results["full"] == (1, "paloalto_malware_threat")
+    assert results["bounded"] == results["full"]

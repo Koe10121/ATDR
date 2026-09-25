@@ -111,7 +111,8 @@ export function AlertsTriage() {
   const timeline = useAlertTimeline(selected?.id);
   const report = useAlertReport(selected?.id);
   const detectionSummary = selected?.detection_summary ?? report.data?.detection_summary;
-  const attackMapping = detectionSummary?.attack_mapping ?? attackMappingForType(inferAttackTypeFromAlertType(selected?.alert_type));
+  const attackMapping =
+    detectionSummary?.attack_mapping ?? attackMappingForType(selected?.attack_type ?? inferAttackTypeFromAlertType(selected?.alert_type));
   const anomalySummary = detectionSummary?.anomaly;
   const supervisedSummary = detectionSummary?.supervised;
   const supervisedAbstained = supervisedSummary?.abstained === true;
@@ -158,7 +159,8 @@ export function AlertsTriage() {
         id: "attack_type",
         header: "Attack Type",
         cell: ({ row }) => {
-          const attackType = row.original.detection_summary?.attack_type ?? inferAttackTypeFromAlertType(row.original.alert_type);
+          const attackType =
+            row.original.attack_type ?? row.original.detection_summary?.attack_type ?? inferAttackTypeFromAlertType(row.original.alert_type);
           return <Badge value={attackType} />;
         }
       },
@@ -513,7 +515,7 @@ export function AlertsTriage() {
                   <div className="text-sm font-extrabold uppercase tracking-wide text-cyan">Why flagged?</div>
                   <p className="mt-1 text-sm text-muted">{detectionSummary?.why_flagged ?? selected.explanation}</p>
                 </div>
-                <Badge value={detectionSummary?.attack_type ?? inferAttackTypeFromAlertType(selected.alert_type)} />
+                <Badge value={detectionSummary?.attack_type ?? selected.attack_type ?? inferAttackTypeFromAlertType(selected.alert_type)} />
               </div>
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="rounded border border-line bg-panel2 p-3">

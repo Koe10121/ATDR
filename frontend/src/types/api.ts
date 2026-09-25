@@ -422,6 +422,7 @@ export interface Alert {
   id: number;
   title: string;
   alert_type: string;
+  attack_type?: string;
   src_ip?: string | null;
   dst_ip?: string | null;
   threat_score: number;
@@ -852,6 +853,7 @@ export interface DashboardSummary {
   severity_counts: Record<string, number>;
   status_counts: Record<string, number>;
   top_alert_types: CountRow[];
+  top_attack_types?: CountRow[];
   top_suspicious_source_ips: CountRow[];
   top_destination_countries: CountRow[];
   action_distribution: CountRow[];

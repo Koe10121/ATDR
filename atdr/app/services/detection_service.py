@@ -76,6 +76,7 @@ PRIMARY_RULE_PRIORITY = {
     "brute_force_like_attempts": 97,
     "beaconing_like_outbound": 96,
     "multiple_denied_connections": 95,
+    "paloalto_malware_threat": 91,
     "paloalto_threat_log": 90,
     "watchlist_match": 88,
     "deny_drop_action": 80,
@@ -139,6 +140,9 @@ class DetectionLogRecord:
     # shift any pre-existing field into the wrong slot.
     src_port: int | None
     elapsed_time: int | None
+    category: str | None
+    src_country: str | None
+    dst_country: str | None
 
 
 def _runtime_profile_sample(
@@ -222,6 +226,9 @@ def _bounded_detection_records(
             NormalizedLog.is_anomaly,
             NormalizedLog.src_port,
             NormalizedLog.elapsed_time,
+            NormalizedLog.category,
+            NormalizedLog.src_country,
+            NormalizedLog.dst_country,
         )
         .join(RawLog, RawLog.id == NormalizedLog.raw_log_id)
         .order_by(NormalizedLog.id.desc())
@@ -308,7 +315,7 @@ def _group_key(candidate: DetectionCandidate) -> tuple:
         }
         else None
     )
-    app = log.app if primary_code in {"paloalto_threat_log", *APP_RISK_POLICY_RULES, "beaconing_like_outbound"} else None
+    app = log.app if primary_code in {"paloalto_threat_log", "paloalto_malware_threat", *APP_RISK_POLICY_RULES, "beaconing_like_outbound"} else None
     time_bucket = _time_bucket(log)
     if primary_code in MULTI_EVENT_PATTERN_RULES:
         time_bucket = candidate.correlation_window or time_bucket

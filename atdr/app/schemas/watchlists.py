@@ -3,11 +3,11 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
-ALLOWED_WATCHLIST_TYPES = {"src_ip", "dst_ip", "app"}
+ALLOWED_WATCHLIST_TYPES = {"src_ip", "dst_ip", "app", "src_country", "dst_country"}
 
 
 class WatchlistCreateRequest(BaseModel):
-    indicator_type: str = Field(description="One of: src_ip, dst_ip, app")
+    indicator_type: str = Field(description="One of: src_ip, dst_ip, app, src_country, dst_country")
     indicator_value: str = Field(min_length=1, max_length=255)
     description: str = Field(min_length=3, max_length=2000)
     severity_boost: int = Field(default=30, ge=5, le=60)

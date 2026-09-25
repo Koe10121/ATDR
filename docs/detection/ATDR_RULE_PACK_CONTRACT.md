@@ -30,6 +30,7 @@ v5.31 source-backed contract for catalog `atdr_rule_catalog_v5.31.0`. Determinis
 | --- | --- | --- | --- | --- |
 | `ATDR-NET-001` / `deny_drop_action` | Deny, drop, or reset action/session metadata | event | `policy_violation` | A firewall policy action does not prove hostile intent. |
 | `ATDR-NET-002` / `paloalto_threat_log` | Vendor `THREAT` event scored by vendor severity with name retained | event | `unknown_anomaly` | Subtype, severity, signature/name, action, and corroborating telemetry require review. |
+| `ATDR-NET-020` / `paloalto_malware_threat` | Vendor `THREAT` whose type is virus, wildfire-virus, or spyware, or whose category is command-and-control, backdoor, or botnet; vendor severity score plus 10 | event | `malware_c2`, T1071 | Vendor malware classification; file, infection, and channel are not independently verified. |
 | `ATDR-NET-003` / `app_risk_4` | PAN-OS app risk 4 | event | `policy_violation` | Vendor risk is context, not a malware finding. |
 | `ATDR-NET-004` / `app_risk_5` | PAN-OS app risk at least 5 | event | `policy_violation` | Approved high-risk applications can be benign. |
 | `ATDR-NET-005` / `suspicious_app_characteristic` | Versioned PAN-OS app characteristic set | event | `policy_violation` | Broad app characteristics do not establish malicious use. |

@@ -33,6 +33,7 @@ class AlertRead(BaseModel):
     escalated_at: datetime | None = None
     explanation: str
     matched_rules_json: list[dict[str, Any]]
+    attack_type: str = "unknown_anomaly"
     recommended_response: str
     created_at: datetime
     updated_at: datetime

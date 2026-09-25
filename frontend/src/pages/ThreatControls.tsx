@@ -125,13 +125,26 @@ export function ThreatControls() {
               options={[
                 { value: "src_ip", label: "Source IP" },
                 { value: "dst_ip", label: "Destination IP" },
-                { value: "app", label: "Application" }
+                { value: "app", label: "Application" },
+                { value: "src_country", label: "Source country" },
+                { value: "dst_country", label: "Destination country" }
               ]}
               onChange={(next) => setWatchlist({ ...watchlist, indicator_type: next })}
               disabled={!isAdmin}
               ariaLabel="Watchlist indicator type"
             />
-            <input className="input" placeholder="Indicator value" value={watchlist.indicator_value} onChange={(event) => setWatchlist({ ...watchlist, indicator_value: event.target.value })} disabled={!isAdmin} />
+            <input
+              className="input"
+              aria-label="Watchlist indicator value"
+              placeholder={
+                watchlist.indicator_type.endsWith("_country")
+                  ? "Country as the firewall reports it (e.g. Germany)"
+                  : "Indicator value"
+              }
+              value={watchlist.indicator_value}
+              onChange={(event) => setWatchlist({ ...watchlist, indicator_value: event.target.value })}
+              disabled={!isAdmin}
+            />
             <textarea className="input min-h-24" placeholder="Description" value={watchlist.description} onChange={(event) => setWatchlist({ ...watchlist, description: event.target.value })} disabled={!isAdmin} />
             <input className="input" type="number" min={5} max={60} value={watchlist.severity_boost} onChange={(event) => setWatchlist({ ...watchlist, severity_boost: Number(event.target.value) })} disabled={!isAdmin} />
             <button className="btn-primary w-full" disabled={!isAdmin || controls.createWatchlist.isPending}>Create watchlist item</button>

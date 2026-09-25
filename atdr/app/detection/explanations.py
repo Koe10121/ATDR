@@ -42,6 +42,10 @@ RULE_ANALYST_CHECKS: dict[str, tuple[str, ...]] = {
         "Verify the vendor threat subtype, severity, signature or threat name, and firewall action.",
         "Correlate the THREAT row with its traffic session and endpoint or service telemetry.",
     ),
+    "paloalto_malware_threat": (
+        "Check whether the firewall blocked the file or connection, and isolate the internal host if it did not.",
+        "Confirm infection on the endpoint (EDR/antivirus) before treating this as a compromise.",
+    ),
     "possible_port_scan": (
         "Confirm whether the source is an authorized scanner or asset-discovery system.",
         "Review the destination-port spread, deny rate, targets, and five-minute event window.",

@@ -120,6 +120,26 @@ RULE_CATALOG: dict[str, DetectionRuleSpec] = {
             claim_boundary="The firewall reported a THREAT event; subtype, severity, signature, and action still require review.",
         ),
         _spec(
+            "ATDR-NET-020",
+            "paloalto_malware_threat",
+            "Palo Alto malware or C2 threat",
+            required_fields=("log_type", "subtype", "category"),
+            condition=(
+                "vendor log type equals THREAT and the vendor type is virus, wildfire-virus, or spyware, "
+                "or the vendor category is command-and-control, backdoor, or botnet"
+            ),
+            level="high",
+            confidence="high",
+            attack_type="malware_c2",
+            mitre=("T1071",),
+            references=(PAN_THREAT_FIELDS, MITRE_T1071, SIGMA_RULE_SPEC),
+            false_positives=("Signature false positives", "Sinkholed or security-research destinations"),
+            claim_boundary=(
+                "The firewall classified this as malware or C2; ATDR does not verify the file, host "
+                "infection, or channel independently."
+            ),
+        ),
+        _spec(
             "ATDR-NET-003",
             "app_risk_4",
             "High application risk",

@@ -77,6 +77,7 @@ RULE_ATTACK_HINTS = {
     "multiple_denied_connections": "policy_violation",
     "deny_drop_action": "policy_violation",
     "paloalto_threat_log": "unknown_anomaly",
+    "paloalto_malware_threat": "malware_c2",
     "suspicious_app_characteristic": "policy_violation",
     "high_outbound_bytes": "data_exfiltration_suspicion",
     "repeated_large_outbound": "data_exfiltration_suspicion",
@@ -96,6 +97,7 @@ RULE_ATTACK_PRIORITY = {
     "repeated_large_outbound": 87,
     "high_bytes_outlier": 80,
     "high_packets_outlier": 78,
+    "paloalto_malware_threat": 91,
     "paloalto_threat_log": 75,
     "suspicious_app_characteristic": 70,
     # IsolationForest is advisory evidence. It must never mask a more

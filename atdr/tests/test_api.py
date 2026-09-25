@@ -1380,6 +1380,47 @@ def test_bulk_alert_status_updates_many_and_audits_each_alert():
         app.dependency_overrides.clear()
 
 
+def test_alert_list_detail_and_dashboard_agree_on_attack_type():
+    # Primary rule is an app-policy rule, but the strongest attack evidence is
+    # outbound volume. The old frontend inferred from the primary rule alone
+    # and disagreed with the drawer; the backend now sends one answer.
+    client = _client()
+    try:
+        db = next(app.dependency_overrides[get_db]())
+        try:
+            alert = Alert(
+                title="High: exfil-like alert",
+                alert_type="suspicious_app_characteristic",
+                src_ip="10.0.1.200",
+                dst_ip="198.51.100.9",
+                threat_score=70,
+                severity="High",
+                status="open",
+                explanation="Large outbound transfer.",
+                matched_rules_json=[
+                    {"code": "suspicious_app_characteristic", "title": "App", "score": 15, "explanation": "x"},
+                    {"code": "high_outbound_bytes", "title": "Bytes", "score": 35, "explanation": "y"},
+                ],
+                recommended_response="Review.",
+            )
+            db.add(alert)
+            db.commit()
+            alert_id = alert.id
+        finally:
+            db.close()
+
+        headers = _login(client, "analyst", "analyst123")
+        listed = next(item for item in client.get("/api/alerts", headers=headers).json() if item["id"] == alert_id)
+        detail = client.get(f"/api/alerts/{alert_id}", headers=headers).json()
+        summary = client.get("/api/dashboard/summary", headers=headers).json()
+
+        assert listed["attack_type"] == "data_exfiltration_suspicion"
+        assert detail["detection_summary"]["attack_type"] == listed["attack_type"]
+        assert {"name": "data_exfiltration_suspicion", "count": 1} in summary["top_attack_types"]
+    finally:
+        app.dependency_overrides.clear()
+
+
 def test_bulk_alert_status_rejects_bad_requests():
     client = _client()
     try:

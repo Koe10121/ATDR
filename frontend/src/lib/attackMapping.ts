@@ -52,14 +52,24 @@ const mapping: Record<string, AttackMapping> = {
   }
 };
 
+// Fallback only: the backend sends each alert's attack_type, computed from all of
+// its matched rules. Must mirror RULE_ATTACK_HINTS in atdr/app/detection/attack_mapping.py;
+// atdr/tests/test_attack_mapping_parity.py fails if the two drift.
 const ruleHints: Record<string, keyof typeof mapping> = {
   possible_port_scan: "port_scan",
+  possible_horizontal_scan: "port_scan",
+  brute_force_like_attempts: "brute_force",
+  beaconing_like_outbound: "malware_c2",
+  connection_flood_suspicion: "dos_ddos",
   multiple_denied_connections: "policy_violation",
   deny_drop_action: "policy_violation",
-  paloalto_threat_log: "malware_c2",
-  suspicious_app_characteristic: "malware_c2",
-  high_bytes_outlier: "data_exfiltration_suspicion",
-  high_packets_outlier: "dos_ddos",
+  paloalto_threat_log: "unknown_anomaly",
+  paloalto_malware_threat: "malware_c2",
+  suspicious_app_characteristic: "policy_violation",
+  high_outbound_bytes: "data_exfiltration_suspicion",
+  repeated_large_outbound: "data_exfiltration_suspicion",
+  high_bytes_outlier: "unknown_anomaly",
+  high_packets_outlier: "unknown_anomaly",
   ml_anomaly_detected: "unknown_anomaly",
   unknown_or_incomplete_app: "unknown_anomaly"
 };

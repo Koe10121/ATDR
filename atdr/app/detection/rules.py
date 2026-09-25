@@ -24,6 +24,11 @@ REPEATED_SOURCE_THRESHOLD = 25
 DENY_BURST_THRESHOLD = 5
 AUTH_TARGET_DENY_THRESHOLD = 5
 REPEATED_LARGE_OUTBOUND_THRESHOLD = 3
+# PAN-OS THREAT subtypes/categories that mean the vendor identified malware or
+# a C2 channel, as opposed to an exploit attempt, URL, or file-policy event.
+MALWARE_THREAT_TYPES = frozenset({"virus", "wildfire-virus", "spyware"})
+MALWARE_THREAT_CATEGORIES = frozenset({"command-and-control", "backdoor", "botnet"})
+MALWARE_THREAT_BONUS = 10
 VERTICAL_SCAN_PORT_THRESHOLD = 10
 HORIZONTAL_SCAN_DESTINATION_THRESHOLD = 10
 BEACON_EVENT_THRESHOLD = 6
@@ -460,17 +465,32 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
     if str(log.log_type or "").upper() == "THREAT":
         threat_score, threat_severity = _threat_event_score(log)
         threat_name = _parsed_value(log, "parsed_threat_name") or "unavailable"
-        matches.append(
-            RuleMatch(
-                code="paloalto_threat_log",
-                title="Palo Alto threat event",
-                score=threat_score,
-                explanation=(
-                    "The firewall classified this row as a THREAT event; "
-                    f"vendor severity is {threat_severity} and threat name is {threat_name}."
-                ),
-            )
+        threat_type = _lower(log.subtype) or "unavailable"
+        threat_category = _lower(getattr(log, "category", None)) or "unavailable"
+        vendor_facts = (
+            f"vendor severity is {threat_severity}, type is {threat_type}, "
+            f"category is {threat_category}, and threat name is {threat_name}"
         )
+        if threat_type in MALWARE_THREAT_TYPES or threat_category in MALWARE_THREAT_CATEGORIES:
+            # A vendor-confirmed malware or C2 detection is alert-worthy even at
+            # low vendor severity, unlike a generic vulnerability or URL probe.
+            matches.append(
+                RuleMatch(
+                    code="paloalto_malware_threat",
+                    title="Palo Alto malware or C2 threat",
+                    score=threat_score + MALWARE_THREAT_BONUS,
+                    explanation=f"The firewall classified this row as a malware-class THREAT event; {vendor_facts}.",
+                )
+            )
+        else:
+            matches.append(
+                RuleMatch(
+                    code="paloalto_threat_log",
+                    title="Palo Alto threat event",
+                    score=threat_score,
+                    explanation=f"The firewall classified this row as a THREAT event; {vendor_facts}.",
+                )
+            )
 
     if log.app_risk == 4:
         matches.append(

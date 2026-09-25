@@ -377,6 +377,9 @@ def _detection_record(parsed: ParsedPaloAltoLog, row_id: int) -> detection.Detec
         is_anomaly=False,
         src_port=value.get("src_port"),
         elapsed_time=value.get("elapsed_time"),
+        category=value.get("category"),
+        src_country=value.get("src_country"),
+        dst_country=value.get("dst_country"),
     )
 
 
