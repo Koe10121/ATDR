@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from atdr.app.core.config import PROJECT_ROOT, Settings
 from atdr.app.db.database import Base
-from atdr.app.db.engine import build_engine_kwargs, database_kind, inspect_database_runtime
+from atdr.app.db.engine import build_engine_kwargs, create_configured_engine, database_kind, inspect_database_runtime
 from atdr.app.db.models import MLLabel, MLModelRun, ResponseAction, User
 from atdr.app.services import persistence_service
 from atdr.app.services.persistence_service import create_database_backup, restore_database_backup
@@ -51,6 +51,46 @@ def test_sqlite_remains_default_and_ignores_postgres_pool_options():
     assert "pool_size" not in kwargs
     assert "max_overflow" not in kwargs
     assert "pool_timeout" not in kwargs
+
+
+def test_file_sqlite_uses_wal_so_an_open_reader_does_not_block_a_writer(tmp_path):
+    # In SQLite's default rollback-journal mode a writer cannot commit while
+    # another connection holds a read transaction, and fails with "database
+    # is locked" after the busy timeout -- the source of the AI Governance
+    # page's 503s under parallel load. WAL lets readers and a writer coexist.
+    settings = Settings(DATABASE_URL=_sqlite_url(tmp_path / "wal.db"), DB_CONNECT_TIMEOUT_SECONDS=1, _env_file=None)
+    engine = create_configured_engine(settings)
+    reader = writer = None
+    try:
+        with engine.begin() as connection:
+            assert connection.exec_driver_sql("PRAGMA journal_mode").scalar() == "wal"
+            connection.exec_driver_sql("CREATE TABLE wal_probe (x INTEGER)")
+        reader = engine.raw_connection()
+        writer = engine.raw_connection()
+        reader_cursor = reader.cursor()
+        reader_cursor.execute("BEGIN")
+        assert reader_cursor.execute("SELECT COUNT(*) FROM wal_probe").fetchone()[0] == 0
+
+        writer.cursor().execute("INSERT INTO wal_probe VALUES (1)")
+        writer.commit()
+
+        assert reader_cursor.execute("SELECT COUNT(*) FROM wal_probe").fetchone()[0] == 0
+        reader.rollback()
+        assert reader.cursor().execute("SELECT COUNT(*) FROM wal_probe").fetchone()[0] == 1
+    finally:
+        for connection in (reader, writer):
+            if connection is not None:
+                connection.close()
+        engine.dispose()
+
+
+def test_in_memory_sqlite_is_unaffected_by_wal_setup():
+    engine = create_configured_engine(Settings(DATABASE_URL="sqlite://", _env_file=None))
+    try:
+        with engine.connect() as connection:
+            assert connection.exec_driver_sql("PRAGMA journal_mode").scalar() == "memory"
+    finally:
+        engine.dispose()
 
 
 def test_postgres_engine_options_are_dialect_specific_and_secret_free():

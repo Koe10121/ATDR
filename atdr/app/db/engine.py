@@ -6,7 +6,7 @@ from typing import Any
 
 from alembic.config import Config
 from alembic.script import ScriptDirectory
-from sqlalchemy import Engine, create_engine, inspect, text
+from sqlalchemy import Engine, create_engine, event, inspect, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.pool import Pool
 
@@ -61,8 +61,30 @@ def build_engine_kwargs(settings: Settings, *, poolclass: type[Pool] | None = No
     return kwargs
 
 
+def _is_file_sqlite(database_url: str) -> bool:
+    if database_kind(database_url) != "sqlite":
+        return False
+    database = make_url(database_url).database
+    return bool(database) and database != ":memory:" and not database.startswith("file::memory:")
+
+
+def _enable_sqlite_wal(dbapi_connection: Any, _record: Any) -> None:
+    # WAL lets readers and a single writer proceed concurrently. In the default
+    # rollback-journal mode a commit waits for every open read to finish, which
+    # surfaced as "database is locked" 503s under the dashboard's parallel load.
+    cursor = dbapi_connection.cursor()
+    try:
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+    finally:
+        cursor.close()
+
+
 def create_configured_engine(settings: Settings, *, poolclass: type[Pool] | None = None) -> Engine:
-    return create_engine(settings.database_url, **build_engine_kwargs(settings, poolclass=poolclass))
+    engine = create_engine(settings.database_url, **build_engine_kwargs(settings, poolclass=poolclass))
+    if _is_file_sqlite(settings.database_url):
+        event.listen(engine, "connect", _enable_sqlite_wal)
+    return engine
 
 
 def public_database_profile(settings: Settings) -> dict[str, Any]:
