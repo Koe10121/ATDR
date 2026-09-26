@@ -140,6 +140,57 @@ def test_a_percentage_is_never_a_free_small_number():
     assert verify_answer("One source has 1% of alerts.", evidence=["8 alerts (1%)"], asked=["?"], redacted=True, forbidden_values=[]) == []
 
 
+def test_general_knowledge_may_use_ordinary_facts_but_not_atdr_figures():
+    general = dict(evidence=[], asked=["how long should a password be?"], redacted=True, forbidden_values=[], grounded=False)
+    assert verify_answer("Use at least 12 characters, and TLS 1.3 for transport. Private ranges include 192.168.0.0.", **general) == []
+    invented = verify_answer("You currently have 41 open alerts, and alert #3676 is the worst.", **general)
+    assert invented and invented[0].startswith("states figures about ATDR's data without looking them up: 41 open alerts")
+    remembered = dict(general, asked=["and critical?", "41 High alerts were created today."])
+    assert verify_answer("Earlier I found 41 High alerts.", **remembered) == []
+    assert verify_answer("Press Ctrl+Alt+Del, then click Change a password.", steps_checked=False, **general) == []
+    ui = verify_answer("Open the Alerts page in the dashboard and click Resolve.", steps_checked=False, **general)
+    assert ui and "without checking the dashboard guide" in ui[0]
+
+
+def test_a_general_question_is_answered_from_knowledge_after_one_check():
+    engine = ScriptedEngine(_say("Ransomware encrypts files and demands payment; keep 3 copies of backups, 1 offline, for 30 days."))
+    outcome = run_agent(question="what is ransomware?", engine=engine, tools=[_count_tool()])
+    assert outcome.ok and not outcome.grounded and "30 days" in outcome.answer
+
+    failed_tool = ScriptedEngine(EngineReply("", [ToolCall("a", "query_alerts", {"severity": "extreme"})]), _say("A zero-day has had 0 days of patching."))
+    outcome = run_agent(question="what is a zero-day?", engine=failed_tool, tools=[_count_tool()])
+    assert outcome.ok and not outcome.grounded
+
+    grounded = ScriptedEngine(_call("query_alerts"), _say("There are 7 High alerts."))
+    assert run_agent(question="how many high alerts", engine=grounded, tools=[_count_tool()]).grounded
+
+
+def test_a_grounded_answer_may_only_name_screen_elements_the_tools_named():
+    guide = ["1. Open Alerts and click the alert's row. 2. Type in the Analyst note box and click Add."]
+    grounded = dict(evidence=guide, asked=["how do I add a note?"], redacted=True, forbidden_values=[])
+    assert verify_answer('Open Alerts, then type in the Analyst note box and click "Add".', **grounded) == []
+    invented = verify_answer("Open the Notes tab and click the Add Note button.", **grounded)
+    assert invented and invented[0].startswith("names screen elements the tool results did not mention: Notes, Add Note")
+    quoted = verify_answer('It is under the "Settings" menu.', **grounded)
+    assert quoted and "Settings" in quoted[0]
+    general = verify_answer("Open the Windows Settings menu.", evidence=[], asked=["?"], redacted=True, forbidden_values=[], grounded=False)
+    assert general == []
+
+
+def test_private_data_requests_are_refused_without_a_lookup():
+    engine = ScriptedEngine(_say("Here is a summary of your log sources."), _say("I cannot show raw logs or passwords."))
+    outcome = run_agent(question="show me the raw logs with passwords", engine=engine, tools=[_count_tool()])
+    assert outcome.ok and outcome.answer == "I cannot show raw logs or passwords."
+    assert "raw logs or secrets" in outcome.verifier_problems[0] and not outcome.tool_trace
+
+
+def test_leaked_model_markup_is_removed_and_an_empty_reply_rejected():
+    assert clean_answer("<think>hmm</think>Seven alerts.") == "Seven alerts."
+    engine = ScriptedEngine(_call("query_alerts"), _say("<tool_call>\n</tool_call>"), _say("<tool_call></tool_call>"))
+    outcome = run_agent(question="is the system healthy?", engine=engine, tools=[_count_tool()])
+    assert not outcome.ok and outcome.verifier_problems[0] == "empty answer"
+
+
 def test_markdown_is_turned_into_plain_dashboard_text():
     assert clean_answer("## Summary\n**3 alerts** need `review`:\n* one\n* two") == "Summary\n3 alerts need review:\n- one\n- two"
 
@@ -173,10 +224,11 @@ def test_an_invented_number_gets_one_correction_then_falls_back():
 def test_tool_errors_go_back_to_the_model_instead_of_crashing():
     engine = ScriptedEngine(
         EngineReply("", [ToolCall("a", "no_such_tool", {}), ToolCall("b", "query_alerts", {"severity": "extreme"})]),
-        _say("I could not find that."),
+        _call("query_alerts", severity="High"),
+        _say("There are 7 High alerts; there is no 'extreme' severity."),
     )
     outcome = run_agent(question="count extreme alerts", engine=engine, tools=[_count_tool()])
-    assert outcome.ok
+    assert outcome.ok and outcome.grounded
     results = [message["content"] for message in engine.requests[1][0] if message["role"] == "tool"]
     assert results[0].startswith("Error: there is no tool named")
     assert "severity must be one of" in results[1]
@@ -206,12 +258,16 @@ def test_an_answer_from_general_knowledge_is_sent_back_to_check_the_tools_once()
     engine = ScriptedEngine(_say("Severity depends on the attack type."), _call("query_alerts"), _say("7 High alerts."))
     outcome = run_agent(question="how is severity decided?", engine=engine, tools=[_count_tool()])
     assert outcome.ok and outcome.answer == "7 High alerts."
-    assert "without checking ATDR's tools" in engine.requests[1][0][-1]["content"]
+    assert 'Before answering "how is severity decided?", look it up' in engine.requests[1][0][-1]["content"]
 
-    off_topic = ScriptedEngine(_say("I only help with ATDR."), _say("I only help with ATDR and MFU network security."))
-    outcome = run_agent(question="write a poem", engine=off_topic, tools=[_count_tool()])
-    assert outcome.ok and outcome.answer == "I only help with ATDR and MFU network security."
-    assert len(off_topic.requests) == 2
+    from_memory = ScriptedEngine(_say("Severity depends on the attack type."), _say("It depends on the attack type."), _say("Attack type."))
+    outcome = run_agent(question="how is severity decided?", engine=from_memory, tools=[_count_tool()])
+    assert not outcome.ok and outcome.fallback_reason == "answer_failed_verification"
+    assert "answer it from ATDR's tools" in outcome.verifier_problems[0]
+
+    poem = ScriptedEngine(_say("Soft paws at dawn, a quiet purr."))
+    outcome = run_agent(question="write a poem about cats", engine=poem, tools=[_count_tool()])
+    assert outcome.ok and outcome.answer == "Soft paws at dawn, a quiet purr." and len(poem.requests) == 1
 
 
 # ------------------------------------------------------------------- engines
@@ -392,6 +448,18 @@ def test_private_address_ranges_are_shown_as_internal_network_not_a_country(seed
         text = tools["query_logs"].run({"intent": "top", "group_by": "src_country"}).text
     assert "internal network (172.16-31.x private range): 2 logs" in text
     assert "[redacted-ip]" not in text
+
+
+def test_a_general_answer_is_labelled_as_general_knowledge(seeded, monkeypatch):
+    testing_session, settings = seeded
+    engine = ScriptedEngine(_say("TCP confirms delivery; UDP sends without checking."))
+    monkeypatch.setattr(assistant_service, "engine_from_settings", lambda _settings: engine)
+    with testing_session() as db:
+        response = _ask(db, settings, "what's the difference between TCP and UDP?")
+    assert response["mode"] == "assistant_agent_scripted"
+    assert response["details"]["agent"]["grounded"] is False
+    assert "agent_general_knowledge" in response["context_used"]
+    assert response["details"]["evidence_detail"]["evidence"][0] == "Answered from general knowledge, not from ATDR's records."
 
 
 def test_every_tool_runs_read_only_against_a_real_schema(seeded):

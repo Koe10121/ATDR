@@ -91,6 +91,7 @@ function safeAgentDetails(value: unknown): Record<string, unknown> | null {
     engine: boundedString(row.engine, 40),
     model: boundedString(row.model, 80),
     answered: row.answered === true,
+    grounded: row.grounded !== false,
     fallback_reason: boundedString(row.fallback_reason, 64) || null,
     latency_ms: typeof row.latency_ms === "number" ? Math.max(0, row.latency_ms) : null,
     tools_called: tools

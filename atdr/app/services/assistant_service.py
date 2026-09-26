@@ -908,6 +908,7 @@ def _agent_response(
         "assistant_agent",
         f"agent_engine:{outcome.engine}",
         *dict.fromkeys(f"agent_tool:{item['name']}" for item in outcome.tool_trace),
+        *([] if outcome.grounded else ["agent_general_knowledge"]),
     ]
     checked = list(dict.fromkeys(_describe_agent_tool_call(item, redacted=redacted) for item in outcome.tool_trace))
     provenance = _answer_provenance(citations, context_used, external_provider_used=external, provider=outcome.engine)
@@ -922,7 +923,10 @@ def _agent_response(
             "citations": [_citation_reference(citation) for citation in citations],
         },
         "evidence_detail": {
-            "evidence": checked[:6] or ["Answered without looking up ATDR records."],
+            "evidence": checked[:6] if outcome.grounded else [
+                "Answered from general knowledge, not from ATDR's records.",
+                *checked[:3],
+            ],
         },
         "response_contract": {
             "mode": "conversation",

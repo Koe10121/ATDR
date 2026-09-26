@@ -7787,3 +7787,39 @@ test("SOC assistant explains when the conversational answer was not used", async
     "its answer contained a fact that ATDR's records did not support"
   );
 });
+
+test("SOC assistant labels a general-knowledge answer as not coming from ATDR records", async ({ page }) => {
+  await mockApi(page);
+  await page.route("**/api/assistant/chat", async (route) => {
+    await route.fulfill({
+      json: {
+        answer: "A VPN creates an encrypted tunnel between your device and another network.",
+        mode: "assistant_agent_ollama",
+        response_mode: "conversation",
+        external_provider_used: false,
+        safety: ["Read Only"],
+        context_used: ["assistant_agent", "agent_engine:ollama", "agent_general_knowledge"],
+        citations: [],
+        redaction_applied: true,
+        raw_log_context_included: false,
+        suggested_followups: [],
+        provenance: { answer_origin: "assistant_agent", provider: "ollama", evidence_scope: [], citation_count: 0, grounded: false },
+        details: {
+          agent: { engine: "ollama", model: "qwen3:8b", answered: true, grounded: false, fallback_reason: null, latency_ms: 2100, tools_called: [] },
+          evidence_detail: { evidence: ["Answered from general knowledge, not from ATDR's records."] }
+        },
+        conversation_id: "agent-general-test",
+        active_context: { alert_id: null, log_id: null, source_id: null, case_id: null, primary: null }
+      }
+    });
+  });
+  await seedSession(page);
+  await page.goto("/assistant");
+  await page.getByLabel("Analyst question").fill("what does a VPN do");
+  await page.getByRole("button", { name: "Ask assistant" }).click();
+
+  await expect(page.getByTestId("assistant-direct-answer")).toContainText("encrypted tunnel");
+  await expect(page.getByTestId("assistant-provenance-origin")).toHaveText(
+    "Local model assistant, general knowledge (not from ATDR records)"
+  );
+});

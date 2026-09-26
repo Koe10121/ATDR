@@ -208,8 +208,11 @@ export function AssistantCitationList({ citations }: { citations: AssistantCitat
 export function AssistantAnswerProvenance({ response }: { response: AssistantChatResponse }) {
   const provenance = response.provenance;
   const provider = provenance?.provider?.trim();
+  const agent = response.details?.agent as { grounded?: boolean } | undefined;
   const origin = provenance?.answer_origin === "assistant_agent"
-    ? `${agentEngineLabel(provider)} assistant, every number checked against ATDR records`
+    ? agent?.grounded === false
+      ? `${agentEngineLabel(provider)} assistant, general knowledge (not from ATDR records)`
+      : `${agentEngineLabel(provider)} assistant, every number checked against ATDR records`
     : provenance?.answer_origin === "external_llm_synthesis"
       ? `${provider ? `${provider.charAt(0).toUpperCase()}${provider.slice(1)}` : "External LLM"} synthesis`
       : "ATDR deterministic analysis";

@@ -52,6 +52,43 @@ ACTION_REQUEST = re.compile(
     re.IGNORECASE,
 )
 SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
+# In a general-knowledge answer, a figure about ATDR's own data ("41 alerts", "alert #3676") must still be looked up.
+ATDR_FIGURE = re.compile(
+    r"#\d+|\balert\s+\d+|\b\d[\d,]*(?:\.\d+)?%?\s+(?:(?:open|new|critical|high|medium|low|unique|denied|allowed|"
+    r"firewall|security|port[- ]scan|brute[- ]force)\s+){0,2}"
+    r"(?:alerts?|logs?|incidents?|detections?|events?|connections?|sessions?|sources?|attacks?|attackers?)\b",
+    re.IGNORECASE,
+)
+# Questions about ATDR's own data, pages or settings must be answered from the tools, never from memory.
+ATDR_QUESTION = re.compile(
+    r"\b(?:atdr|alerts?|logs?|detect\w*|(?:detection|atdr|the|which|this|that) rules?|rules? (?:fire|fires|fired|check|checks)|"
+    r"rule catalog|dashboard|mfu|our network|the network|sla|severity|supervised|ml model|the model|ai model|anomal\w*|"
+    r"healthy|system health|system status|block|unblock|suppress\w*|watch ?lists?|audit|assign\w*|playbooks?|sources?|"
+    r"ips|(?:which|this|that|the) ip|traffic|ports?|false positives?|port[- ]?scans?|horizontal scans?|scann\w+|"
+    r"brute[- ]?force|beacon\w*|mitre|att&ck|attacking us|under attack|attack types?|attackers?|exfiltration|malware|"
+    r"c2|policy violations?|security situation|data come from|how many attacks?|right now|worry about|overview)\b"
+    # Thai has no spaces between words, so these match anywhere: alert, (security) situation, log, attack.
+    r"|แจ้งเตือน|สถานการณ์|ล็อก|โจมตี",
+    re.IGNORECASE,
+)
+# "show me the raw logs / passwords / the API key": always refused, never looked up.
+PRIVATE_REQUEST = re.compile(
+    r"\braw log|\b(?:show|give|reveal|print|list|send|tell)\b.{0,40}\b(?:passwords?|api ?keys?|secrets?|credentials|tokens?)\b",
+    re.IGNORECASE,
+)
+# Named screen elements: "the Add Note button", "the Settings menu", or anything in double quotes.
+UI_TERM = re.compile(
+    r"[\"\u201c]([^\"\u201d\n]{2,40})[\"\u201d]"
+    r"|\b((?:[A-Z][\w&/-]*\s){0,3}[A-Z][\w&/-]*)\s+(?:section|button|menu|tab|page|box|panel|link)\b"
+)
+# Chat-template markup a local model sometimes leaks into its text.
+MODEL_MARKUP = re.compile(r"<think>.*?</think>|<tool_call>.*?</tool_call>|</?(?:think|tool_call)>", re.IGNORECASE | re.DOTALL)
+# Pages and controls of ATDR's own dashboard; general computer steps ("press Ctrl+Alt+Del") do not name these.
+ATDR_UI = re.compile(
+    r"\b(?:dashboard|atdr|alerts page|threat controls|validation controls|response & audit|audit trail|"
+    r"analyst actions|investigation page|soc assistant)\b",
+    re.IGNORECASE,
+)
 SAYS_CANNOT = re.compile(r"\b(?:cannot|can't|can not|unable to|not able to|only read)\b", re.IGNORECASE)
 CANNOT_ACT = "I can't do that myself; I only read ATDR's data. Here is how you can do it:"
 ACTION_CLAIM = re.compile(
@@ -130,12 +167,15 @@ class AgentOutcome:
     followups: list[str] = field(default_factory=list)
     verifier_problems: list[str] = field(default_factory=list)
     usage: dict[str, int] = field(default_factory=dict)
+    # True when at least one tool returned ATDR data; False for a general-knowledge answer.
+    grounded: bool = False
 
     def safe_details(self) -> dict[str, Any]:
         return {
             "engine": self.engine,
             "model": self.model,
             "answered": self.ok,
+            "grounded": self.grounded,
             "fallback_reason": self.fallback_reason,
             "rounds": self.rounds,
             "latency_ms": self.latency_ms,
@@ -348,7 +388,7 @@ def clean_answer(text: str) -> str:
     """Plain text for the dashboard, which shows the answer without a markdown renderer."""
 
     lines = []
-    for line in (text or "").replace("\r\n", "\n").split("\n"):
+    for line in MODEL_MARKUP.sub("", text or "").replace("\r\n", "\n").split("\n"):
         line = re.sub(r"^\s{0,3}#{1,6}\s*", "", line)
         line = re.sub(r"^(\s*)[*•]\s+", r"\1- ", line)
         lines.append(line.replace("**", "").replace("__", "").replace("`", ""))
@@ -365,8 +405,16 @@ def verify_answer(
     tool_names: list[str] | None = None,
     steps_checked: bool = True,
     action_requested: bool = False,
+    grounded: bool = True,
+    about_atdr: bool = False,
+    private_request: bool = False,
 ) -> list[str]:
-    """Reasons an answer may not be shown; empty when it passes."""
+    """Reasons an answer may not be shown; empty when it passes.
+
+    A grounded answer (built from tool results) may only use numbers and IPs the tools returned. A
+    general-knowledge answer may use ordinary facts ("TLS 1.3", "at least 12 characters"), but any
+    figure about ATDR's own alerts or logs, and any ATDR dashboard direction, still needs a tool.
+    """
 
     if not answer.strip():
         return ["empty answer"]
@@ -377,26 +425,46 @@ def verify_answer(
         if secret and len(secret) >= 8 and secret in answer:
             problems.append("answer contains a configured secret")
     known_text = "\n".join([*evidence, *asked])
-    typed_ips = {ip for text in asked for ip in IPV4.findall(text)}
-    for ip in dict.fromkeys(IPV4.findall(answer)):
-        if redacted and ip not in typed_ips:
-            problems.append(f"names IP address {ip}, which is redacted in ATDR's records")
-        elif not redacted and ip not in known_text:
-            problems.append(f"names IP address {ip}, which no tool returned")
     known_numbers = _numbers(known_text) | FREE_NUMBERS
-    unknown = sorted(
-        _numbers(LIST_MARKER.sub("", answer)) - known_numbers,
-        key=lambda value: float(value.rstrip("%")),
-    )
-    if unknown:
-        problems.append("numbers not found in any tool result: " + ", ".join(unknown[:8]))
+    if grounded:
+        typed_ips = {ip for text in asked for ip in IPV4.findall(text)}
+        for ip in dict.fromkeys(IPV4.findall(answer)):
+            if redacted and ip not in typed_ips:
+                problems.append(f"names IP address {ip}, which is redacted in ATDR's records")
+            elif not redacted and ip not in known_text:
+                problems.append(f"names IP address {ip}, which no tool returned")
+        unknown = sorted(
+            _numbers(LIST_MARKER.sub("", answer)) - known_numbers,
+            key=lambda value: float(value.rstrip("%")),
+        )
+        if unknown:
+            problems.append("numbers not found in any tool result: " + ", ".join(unknown[:8]))
+    elif about_atdr:
+        problems.append("this question is about ATDR's own data, pages or settings, so answer it from ATDR's tools")
+    else:
+        figures = [match.group(0) for match in ATDR_FIGURE.finditer(answer) if not _numbers(match.group(0)) <= known_numbers]
+        if figures:
+            problems.append("states figures about ATDR's data without looking them up: " + ", ".join(figures[:5]))
+    if grounded:
+        known_lower = known_text.lower()
+        invented = [
+            term for match in UI_TERM.finditer(answer)
+            if (term := (match.group(1) or match.group(2) or "").strip(" .,:;")) and term.lower() not in known_lower
+        ]
+        if invented:
+            problems.append(
+                "names screen elements the tool results did not mention: " + ", ".join(dict.fromkeys(invented[:5]))
+                + " (use the guide's own page and button names)"
+            )
+    if private_request and not SAYS_CANNOT.search(answer):
+        problems.append("the analyst asked for raw logs or secrets: say plainly that you cannot show them")
     claim = ACTION_CLAIM.search(answer)
     if claim:
         problems.append(f"claims an action was taken ({claim.group(0)!r}); the assistant can only read")
     named = [name for name in tool_names or [] if name in answer]
     if named:
         problems.append("mentions internal tool names: " + ", ".join(named))
-    if not steps_checked and DASHBOARD_STEP.search(answer):
+    if not steps_checked and DASHBOARD_STEP.search(answer) and (grounded or ATDR_UI.search(answer)):
         problems.append("gives dashboard directions without checking the dashboard guide (dashboard_how_to)")
     elif not steps_checked and action_requested:
         problems.append(
@@ -424,39 +492,40 @@ def drop_tool_mentions(answer: str, tool_names: list[str]) -> str:
 
 # ----------------------------------------------------------------------- loop
 
-SYSTEM_PROMPT = """You are the ATDR security assistant for the Mae Fah Luang University (MFU) network security team. ATDR reads MFU's Palo Alto firewall logs, finds possible attacks with fixed detection rules, and helps analysts investigate and respond.
+SYSTEM_PROMPT = """You are the ATDR security assistant for the Mae Fah Luang University (MFU) network security team. ATDR reads MFU's Palo Alto firewall logs, finds possible attacks with fixed detection rules, and helps analysts investigate and respond. Talk like a knowledgeable, friendly colleague.
 
-Always check ATDR's tools before answering a question about ATDR, the network, alerts, logs, security terms or the dashboard. Do not answer those from general knowledge: ATDR's pages, rules and numbers are specific to ATDR. Pick the tool by the question:
+For anything about ATDR or MFU's data (alerts, logs, counts, IPs, rules, ATDR's pages and settings, ATDR's own terms such as its severity, SLA or ML), always use the tools; never answer those from memory. Pick the tool by the question:
 - How many / which / top / list for alerts: query_alerts. Which rule fires most: query_alerts with intent top and group_by rule. Per day, going up or down: query_alerts with intent trend. For logs, traffic, apps, ports or countries (including how many logs are stored): query_logs.
 - What is going on, are we under attack, summaries, biggest risks, what to look at first: security_overview.
 - One alert: get_alert. What to do about an alert, how to respond or fix it: get_alert_playbook.
-- How to do something in the dashboard, including things you cannot do yourself (block an IP, close, delete or assign alerts, notes, suppression, audit trail, importing logs, running detection): dashboard_how_to, then give its steps. Never describe a page, button or step that the guide did not give; if there is no guide, say the dashboard has no such feature.
-- Security terms (port scan, beaconing, MITRE ATT&CK), how severity or SLA work, how ML is used, where the data comes from: explain_concept. What a detection rule checks or how many rules exist: explain_detection_rules.
+- How to do something in ATDR's dashboard, including things you cannot do yourself (block an IP, close, delete or assign alerts, notes, suppression, audit trail, importing logs, running detection): dashboard_how_to, then give its steps. Never describe an ATDR page, button or step that the guide did not give; if there is no guide, say the dashboard has no such feature.
+- Security terms ATDR uses (port scan, beaconing, MITRE ATT&CK), how ATDR's severity, SLA or ML work, where the data comes from: explain_concept. What a detection rule checks or how many rules exist: explain_detection_rules.
 - ATDR's own health, jobs, sources, model status: system_status.
 
+For general questions that are not about ATDR's data (security or networking concepts ATDR has no tool for, such as ransomware, phishing, VPNs, TCP vs UDP, good password rules; IT advice; writing help such as drafting an email or incident note; everyday conversation), answer from your own knowledge like a helpful colleague, and say briefly that it is general knowledge, not from ATDR's records. You have no internet access: for live facts such as weather, news or sports results, say you cannot look them up. Explain attacks only to help defend against them; do not help anyone attack, break into or bypass the security of any system.
+
 Rules for the answer:
-- Use only facts from tool results. Never invent a number, page, button or step. If the tools do not have it, say so.
+- When a tool gives you steps, page or button names, rule details or numbers, repeat them faithfully in your answer. Do not replace them with your own version or with what other software usually looks like.
+- Never invent ATDR data: every number about alerts, logs or MFU's network must come from a tool result. If the tools do not have it, say so.
 - Filter by time only when the analyst names a time ("today", "this week"). "Total", "in the system" or no time at all means all_time.
 - An alert is a possible attack found by ATDR's rules, not a confirmed attack. Do not say "we are under attack" as a fact.
-- Put the direct answer first, then only the details that matter, usually under 120 words. Do not add advice, urgency or claims that the tool results do not support.
+- Put the direct answer first, then only the details that matter, usually under 150 words.
 - Write plain text with "- " bullets. No markdown headings, bold or tables.
 - Never mention tool names or tell the analyst to "use a tool". You call the tools yourself.
 - You can only read. You cannot block IPs, change, assign or close alerts, delete anything or run detection. If asked, say you cannot do it yourself and give the dashboard steps from dashboard_how_to.
-- IP addresses appear as [redacted-ip]. Never guess them. If asked for raw log lines, passwords, keys or secrets, say you cannot show them for privacy and security reasons, and offer the alert and log summaries you can show.
+- IP addresses in ATDR's data appear as [redacted-ip]. Never guess them. If asked for raw log lines, passwords, keys or secrets, say you cannot show them for privacy and security reasons, and offer the alert and log summaries you can show.
 - Never refer to steps or answers you did not give in this reply.
-- If the question has nothing to do with ATDR or network security, say briefly that you only help with ATDR and MFU network security, and suggest one question you can answer.
 - Reply in the language the analyst writes in."""
 
-CHECK_FIRST = (
-    "You answered without checking ATDR's tools. If the question is about ATDR, the network, alerts, logs, security "
-    "terms or the dashboard, call the tool that covers it now and answer from its result. If it has nothing to do with "
-    "ATDR or network security, give the same short reply as before, word for word."
+CHECK_FIRST_ATDR = (
+    "Before answering \"{question}\", look it up: it is about ATDR or MFU's data. Call the tool from your instructions "
+    "that covers it (for a security term or ATDR concept, explain_concept), then answer from its result."
 )
 
 CORRECTION = (
     "Your answer was not shown to the analyst because: {problems}. "
-    "Rewrite it using only facts from the tool results above (call a tool if you need a fact you do not have). "
-    "Do not claim to have done anything, do not name tools, and do not include IP addresses."
+    "Rewrite it so every fact about ATDR's data comes from a tool result (call a tool if you need one). "
+    "Do not claim to have done anything, do not name tools, and do not include IP addresses from ATDR's data."
 )
 
 
@@ -503,6 +572,8 @@ def run_agent(
     evidence: list[str] = []
     corrected = False
     nudged = False
+    private_request = bool(PRIVATE_REQUEST.search(question))
+    about_atdr = not private_request and bool(ATDR_QUESTION.search(question) or IPV4.search(question))
 
     def run_calls(calls: list[ToolCall], content: str = "") -> None:
         messages.append({
@@ -518,6 +589,7 @@ def run_agent(
             evidence.append(text)
             outcome.tool_trace.append({"name": call.name, "arguments": call.arguments, "output_chars": len(text)})
             if output is not None:
+                outcome.grounded = True
                 outcome.citations.extend(item for item in output.citations if item not in outcome.citations)
                 outcome.followups.extend(item for item in output.followups if item not in outcome.followups)
             messages.append({"role": "tool", "tool_call_id": call.id, "name": call.name, "content": text})
@@ -546,10 +618,10 @@ def run_agent(
             run_calls(reply.tool_calls[:MAX_TOOL_CALLS_PER_ROUND], reply.content or "")
             continue
 
-        if not outcome.tool_trace and not nudged and not final_round:
+        if about_atdr and not outcome.tool_trace and not nudged and not final_round:
             nudged = True
             messages.append({"role": "assistant", "content": reply.content or ""})
-            messages.append({"role": "user", "content": CHECK_FIRST})
+            messages.append({"role": "user", "content": CHECK_FIRST_ATDR.format(question=question)})
             continue
 
         answer = drop_tool_mentions(clean_answer(reply.content), list(registry))
@@ -564,6 +636,9 @@ def run_agent(
                 registry[item["name"]].provides_steps for item in outcome.tool_trace if item["name"] in registry
             ),
             action_requested=bool(ACTION_REQUEST.search(question)),
+            grounded=outcome.grounded,
+            about_atdr=about_atdr,
+            private_request=private_request,
         )
         if not problems:
             if ACTION_REQUEST.search(question) and not SAYS_CANNOT.search(answer):
