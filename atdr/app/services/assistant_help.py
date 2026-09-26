@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from atdr.app.detection.explanations import RULE_ANALYST_CHECKS
 from atdr.app.detection.rule_catalog import RULE_CATALOG, DetectionRuleSpec
 from atdr.app.services.assistant_data_query import ATTACK_LABELS, ATTACK_PHRASES
+from atdr.app.services.detection_service import SUPPORTING_ONLY_RULES
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,9 +83,27 @@ HELP_TOPICS: tuple[HelpTopic, ...] = (
         note="Only admins can create or disable suppressions; analysts can review them.",
     ),
     HelpTopic(
+        key="delete",
+        title="Remove alerts or logs",
+        patterns=(r"\bdelet", r"\berase\b", r"\bwipe\b", r"\bremove (?:an? |the |all |these |those )?(?:alerts?|logs?)\b"),
+        steps=(
+            "The dashboard has no way to delete alerts or logs. They stay as evidence, and every change is kept in the Audit Trail.",
+            "To take an alert off the open list, open it on the Alerts page and click Resolve or False positive under Analyst Actions.",
+            "To close many alerts at once, tick them on the Alerts page and use the bar above the table (up to 200 per action).",
+            "To stop similar alerts from being created, an admin can add a suppression in Threat Controls.",
+        ),
+        page="Alerts",
+        note="The assistant cannot change or remove anything.",
+    ),
+    HelpTopic(
         key="bulk",
         title="Update many alerts at once",
-        patterns=(r"\bbulk\b", r"\b(?:many|multiple|several|all(?: the| these)?) alerts\b", r"\bat once\b", r"\bselect (?:all|many|multiple)\b"),
+        patterns=(
+            r"\bbulk\b",
+            r"\b(?:many|multiple|several|all)(?: the| these| of the)?(?: \w+)? alerts\b",
+            r"\bat once\b",
+            r"\bselect (?:all|many|multiple)\b",
+        ),
         steps=(
             "Open Alerts and tick the box at the start of each row, or the box in the header to select the whole page.",
             "A bar appears above the table: choose Investigating, Needs context, Resolve or False positive.",
@@ -135,7 +154,7 @@ HELP_TOPICS: tuple[HelpTopic, ...] = (
     HelpTopic(
         key="block",
         title="Block an IP (simulated by default)",
-        patterns=(r"\bblock", r"\bcontain(?:ment)?\b(?! alerts?)", r"\bquarantine\b", r"\bisolate\b"),
+        patterns=(r"\bblock", r"\bunblock", r"\bcontain(?:ment)?\b(?! alerts?)", r"\bquarantine\b", r"\bisolate\b"),
         steps=(
             "From an alert: open it and click Simulated block source under Analyst Actions.",
             "Or open Response & Audit, enter the IP and a reason of at least 8 characters, and click Record simulated block.",
@@ -167,6 +186,23 @@ HELP_TOPICS: tuple[HelpTopic, ...] = (
         ),
         page="Validation Controls",
         note="Only admins can run detection from the dashboard. The assistant cannot run it for you.",
+    ),
+    HelpTopic(
+        key="import_logs",
+        title="Import new firewall logs",
+        patterns=(
+            r"\bimport(?:ing)?(?: (?:new|more|the|a|this|my|our|firewall|palo alto))* (?:logs?|log files?|files?|data)\b",
+            r"\bupload (?:a |the |new )?(?:log|file)",
+            r"\b(?:add|load) (?:new |more )?(?:firewall )?logs\b",
+        ),
+        steps=(
+            "Open Validation Controls (left menu, under Admin / Settings).",
+            "Set Log limit to the number of lines to import, or tick All for the whole file.",
+            "Under Durable file import, choose the Palo Alto log file (.log, .txt or .csv, up to 50 MB) and click Queue import. The background worker imports it with progress and safe resume.",
+            "When the import finishes, click Check all unchecked logs so detection checks the new logs.",
+        ),
+        page="Validation Controls",
+        note="Only admins can import logs. The assistant cannot import files for you.",
     ),
     HelpTopic(
         key="investigate",
@@ -312,8 +348,12 @@ def answer_rule_question(question: str) -> RuleAnswer | None:
 
     if RULE_LIST.search(text):
         by_type = Counter(ATTACK_LABELS.get(spec.attack_type, spec.attack_type) for spec in network)
+        supporting = sum(1 for spec in network if spec.code in SUPPORTING_ONLY_RULES)
         return RuleAnswer(
-            summary=f"ATDR has {len(network)} fixed detection rules that decide alerts (plus 1 legacy machine-learning rule that no longer creates alerts).",
+            summary=(
+                f"ATDR has {len(network)} fixed detection rules: {len(network) - supporting} can raise an alert, and "
+                f"{supporting} only add supporting points to one (plus 1 legacy machine-learning rule that no longer creates alerts)."
+            ),
             lines=[f"{label}: {count} rule{'s' if count != 1 else ''}" for label, count in by_type.most_common()],
             basis="From the detection rule catalog. Ask \"What does the <name> rule check?\" for any one of them.",
             codes=[spec.code for spec in network],

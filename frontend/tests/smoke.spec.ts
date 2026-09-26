@@ -7691,3 +7691,99 @@ test("SOC assistant answers data questions from one click with exact counts", as
   await expect(answer).toContainText("0 High alerts were created today.");
   await expect(answer).toContainText("Counted alerts with severity High");
 });
+
+test("SOC assistant shows a conversational answer with what it checked and where it ran", async ({ page }) => {
+  await mockApi(page);
+  await page.route("**/api/assistant/chat", async (route) => {
+    await route.fulfill({
+      json: {
+        answer: "There are 41 High alerts created today. All 41 are open; the most recent is #3661.",
+        mode: "assistant_agent_ollama",
+        response_mode: "conversation",
+        external_provider_used: false,
+        safety: ["Read Only"],
+        context_used: ["assistant_agent", "agent_engine:ollama", "agent_tool:query_alerts"],
+        citations: [{ label: "Alert records", source: "/api/alerts", reference_id: null }],
+        redaction_applied: true,
+        raw_log_context_included: false,
+        suggested_followups: ["Which source IPs have the most alerts?"],
+        provenance: {
+          answer_origin: "assistant_agent",
+          provider: "ollama",
+          evidence_scope: ["ATDR database records"],
+          citation_count: 1,
+          grounded: true
+        },
+        details: {
+          agent: {
+            engine: "ollama",
+            model: "qwen3:8b",
+            answered: true,
+            fallback_reason: null,
+            latency_ms: 3120,
+            tools_called: [{ name: "query_alerts", arguments: { intent: "count", severity: "High", time_window: "today" } }]
+          },
+          answer_sections: { response_mode: ["conversation"], direct_answer: ["There are 41 High alerts created today."] },
+          evidence_detail: { evidence: ["Checked Alert query (intent: count, severity: High, time window: today)"] }
+        },
+        conversation_id: "agent-answer-test",
+        active_context: { alert_id: null, log_id: null, source_id: null, case_id: null, primary: null }
+      }
+    });
+  });
+  await seedSession(page);
+  await page.goto("/assistant");
+  await page.getByLabel("Analyst question").fill("how many high alerts do we have today");
+  await page.getByRole("button", { name: "Ask assistant" }).click();
+
+  const answer = page.getByTestId("assistant-direct-answer");
+  await expect(answer).toContainText("Assistant");
+  await expect(answer).toContainText("There are 41 High alerts created today.");
+  await expect(page.getByTestId("assistant-provenance-origin")).toHaveText(
+    "Local model assistant, every number checked against ATDR records"
+  );
+  await page.getByTestId("assistant-evidence-detail").locator("summary").click();
+  await expect(page.getByTestId("assistant-section-what-the-assistant-checked")).toContainText(
+    "Checked Alert query (intent: count, severity: High, time window: today)"
+  );
+  await page.getByText("Sources and provider details").click();
+  const telemetry = page.getByTestId("assistant-provider-telemetry");
+  await expect(telemetry).toContainText("Conversational assistant");
+  await expect(telemetry).toContainText("qwen3:8b");
+  await expect(telemetry).toContainText("Data sent outside: No");
+});
+
+test("SOC assistant explains when the conversational answer was not used", async ({ page }) => {
+  await mockApi(page);
+  await page.route("**/api/assistant/chat", async (route) => {
+    await route.fulfill({
+      json: {
+        answer: "3,676 alerts in total.",
+        mode: "deterministic_local",
+        response_mode: "data_answer",
+        external_provider_used: false,
+        safety: ["Read Only"],
+        context_used: ["alert_query", "agent_fallback:ollama"],
+        citations: [{ label: "Alert records", source: "/api/alerts", reference_id: null }],
+        redaction_applied: true,
+        raw_log_context_included: false,
+        suggested_followups: [],
+        details: {
+          agent: { engine: "ollama", model: "qwen3:8b", answered: false, fallback_reason: "answer_failed_verification", tools_called: [] }
+        },
+        conversation_id: "agent-fallback-test",
+        active_context: { alert_id: null, log_id: null, source_id: null, case_id: null, primary: null }
+      }
+    });
+  });
+  await seedSession(page);
+  await page.goto("/assistant");
+  await page.getByLabel("Analyst question").fill("How many alerts in total?");
+  await page.getByRole("button", { name: "Ask assistant" }).click();
+
+  await expect(page.getByTestId("assistant-direct-answer")).toContainText("3,676 alerts in total.");
+  await page.getByText("Sources and provider details").click();
+  await expect(page.getByTestId("assistant-agent-fallback")).toContainText(
+    "its answer contained a fact that ATDR's records did not support"
+  );
+});

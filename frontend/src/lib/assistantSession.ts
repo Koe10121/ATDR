@@ -70,9 +70,31 @@ function safeResponseMode(value: unknown): AssistantResponseMode {
     "case_handoff",
     "investigation_brief",
     "how_to",
-    "governance"
+    "governance",
+    "data_answer",
+    "conversation"
   ];
   return modes.includes(value as AssistantResponseMode) ? value as AssistantResponseMode : "direct_fact";
+}
+
+function safeAgentDetails(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  const tools = Array.isArray(row.tools_called)
+    ? row.tools_called
+        .slice(0, 12)
+        .map((item) => (item && typeof item === "object" ? boundedString((item as Record<string, unknown>).name, 64) : ""))
+        .filter(Boolean)
+        .map((name) => ({ name }))
+    : [];
+  return {
+    engine: boundedString(row.engine, 40),
+    model: boundedString(row.model, 80),
+    answered: row.answered === true,
+    fallback_reason: boundedString(row.fallback_reason, 64) || null,
+    latency_ms: typeof row.latency_ms === "number" ? Math.max(0, row.latency_ms) : null,
+    tools_called: tools
+  };
 }
 
 function safeContext(value: unknown): AssistantSessionContext {
@@ -119,9 +141,11 @@ function safeProvenance(
   const row = value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
     : {};
-  const answerOrigin = row.answer_origin === "external_llm_synthesis" || externalProviderUsed
-    ? "external_llm_synthesis"
-    : "atdr_deterministic";
+  const answerOrigin = row.answer_origin === "assistant_agent"
+    ? "assistant_agent"
+    : row.answer_origin === "external_llm_synthesis" || externalProviderUsed
+      ? "external_llm_synthesis"
+      : "atdr_deterministic";
   return {
     answer_origin: answerOrigin,
     provider: boundedString(row.provider, 40) || null,
@@ -242,6 +266,8 @@ function safeResponse(value: unknown): AssistantChatResponse | null {
   if (llm) details.llm = llm;
   if (grounding) details.grounding = grounding;
   if (evidenceDetail) details.evidence_detail = evidenceDetail;
+  const agent = safeAgentDetails(rawDetails.agent);
+  if (agent) details.agent = agent;
   if (rawDetails.response_contract && typeof rawDetails.response_contract === "object" && !Array.isArray(rawDetails.response_contract)) {
     const contract = rawDetails.response_contract as Record<string, unknown>;
     details.response_contract = {

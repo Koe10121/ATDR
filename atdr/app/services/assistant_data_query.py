@@ -83,6 +83,8 @@ LOG_ACTIONS: tuple[tuple[str, tuple[str, ...], str], ...] = (
 )
 
 IPV4 = r"(?:\d{1,3}\.){3}\d{1,3}"
+# Palo Alto reports an address range instead of a country for private (internal) addresses.
+PRIVATE_RANGE = re.compile(r"^(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}-\d{1,3}\.(\d{1,3})\.\d{1,3}\.\d{1,3}$")
 
 # Questions about one specific record, its evidence, or how to use the UI
 # belong to the existing routes, which carry that context.
@@ -669,8 +671,9 @@ def _answer_logs(db: Session, dq: DataQuestion) -> DataAnswer:
             if ranked
             else f"No {noun}s {window_phrase(dq)}, so there is nothing to rank."
         )
+        display = country_label if dq.group_by in {"src_country", "dst_country"} else str
         lines = [
-            f"{value if value not in (None, '') else 'unknown'}: {_plural(total, 'log')} ({round(100 * total / overall) if overall else 0}%)"
+            f"{display(value) if value not in (None, '') else 'unknown'}: {_plural(total, 'log')} ({round(100 * total / overall) if overall else 0}%)"
             for value, total in ranked
         ]
         if not ranked and dq.window.bounded:
@@ -697,6 +700,20 @@ def _answer_logs(db: Session, dq: DataQuestion) -> DataAnswer:
         if latest:
             lines.append(latest)
     return DataAnswer(summary, lines, _log_basis(dq, window.phrase) + " Days with no logs are left out.", "log_query", [], {"total": total})
+
+
+def country_label(value: Any) -> str:
+    match = PRIVATE_RANGE.match(str(value))
+    if not match:
+        return str(value)
+    first, second, last_second = match.groups()
+    if first == "10":
+        span = "10.x"
+    elif second == last_second:
+        span = f"{first}.{second}.x"
+    else:
+        span = f"{first}.{second}-{last_second}.x"
+    return f"internal network ({span} private range)"
 
 
 def window_phrase(dq: DataQuestion) -> str:

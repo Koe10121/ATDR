@@ -17,6 +17,7 @@ from atdr.app.detection.supervised_detector import supervised_model_report
 from atdr.app.detection.explanations import build_alert_detection_summary, explain_log_triage
 from atdr.app.services.case_service import list_alert_cases
 from atdr.app.services.assistant_data_query import DataAnswer, answer_data_question, parse_data_question
+from atdr.app.services.assistant_agent import ACTION_REQUEST, AgentOutcome, engine_from_settings, is_loopback_url, run_agent
 from atdr.app.services.assistant_help import HelpAnswer, RuleAnswer, answer_help_question, answer_rule_question
 from atdr.app.services.alert_service import get_alert, list_alerts
 from atdr.app.core.redaction import IP_PATTERN
@@ -606,6 +607,9 @@ def assistant_status(settings: Settings) -> dict[str, Any]:
         "redaction_enabled": settings.assistant_redact_ips,
         "raw_log_context_allowed": settings.assistant_allow_raw_log_context,
         "max_context_rows": settings.assistant_max_context_rows,
+        "agent_engine": settings.assistant_agent_engine.strip().lower() or "off",
+        "agent_model": (agent.model if (agent := engine_from_settings(settings)) is not None else ""),
+        "agent_local": agent is None or (agent.name == "ollama" and is_loopback_url(getattr(agent, "base_url", ""))),
         "safety": _safety_notes(),
     }
 
@@ -831,6 +835,150 @@ def _brief_requested(lowered: str) -> bool:
     )
 
 
+AGENT_TOOL_LABELS = {
+    "security_overview": "Security overview",
+    "query_alerts": "Alert query",
+    "query_logs": "Firewall log query",
+    "get_alert": "Alert details",
+    "get_alert_playbook": "Response playbook",
+    "get_log": "Log details",
+    "explain_detection_rules": "Detection rule catalog",
+    "explain_concept": "Concept guide",
+    "dashboard_how_to": "Dashboard guide",
+    "system_status": "System status",
+}
+
+
+def _agent_context_note(
+    *,
+    alert_id: int | None,
+    log_id: int | None,
+    source_id: int | None,
+    case_id: str | None,
+) -> str | None:
+    parts = [
+        f"alert #{alert_id}" if alert_id else None,
+        f"log #{log_id}" if log_id else None,
+        f"source #{source_id}" if source_id else None,
+        f"case {case_id}" if case_id else None,
+    ]
+    named = [part for part in parts if part]
+    if not named:
+        return None
+    return f"The analyst's current context: {', '.join(named)}. Words like 'it' or 'this alert' refer to it."
+
+
+def _describe_agent_tool_call(item: dict[str, Any], *, redacted: bool) -> str:
+    label = AGENT_TOOL_LABELS.get(item["name"], item["name"])
+    arguments = ", ".join(
+        f"{str(key).replace('_', ' ')}: {str(value).replace('_', ' ')}"
+        for key, value in (item.get("arguments") or {}).items()
+        if value not in (None, "")
+    )
+    return _text(f"Checked {label} ({arguments})" if arguments else f"Checked {label}", redacted=redacted)
+
+
+def _agent_response(
+    db: Session,
+    outcome: AgentOutcome,
+    *,
+    question: str,
+    actor: str,
+    actor_user_id: int | None,
+    redacted: bool,
+    conversation_id: str,
+    context_reset: bool,
+    history_turns: int,
+    alert_id: int | None,
+    log_id: int | None,
+    source_id: int | None,
+    case_id: str | None,
+    external: bool,
+) -> dict[str, Any]:
+    answer = outcome.answer or ""
+    citations = [Citation(label, source, reference) for label, source, reference in outcome.citations[:8]]
+    active_context = _active_context_from_result(
+        AssistantResult(answer=answer, context_used=["assistant_agent"], citations=citations),
+        alert_id=alert_id,
+        log_id=log_id,
+        source_id=source_id,
+        case_id=case_id,
+    )
+    context_used = [
+        "assistant_agent",
+        f"agent_engine:{outcome.engine}",
+        *dict.fromkeys(f"agent_tool:{item['name']}" for item in outcome.tool_trace),
+    ]
+    checked = list(dict.fromkeys(_describe_agent_tool_call(item, redacted=redacted) for item in outcome.tool_trace))
+    provenance = _answer_provenance(citations, context_used, external_provider_used=external, provider=outcome.engine)
+    provenance["answer_origin"] = "assistant_agent"
+    provenance["provider"] = outcome.engine
+    contract = response_contract("conversation")
+    details: dict[str, Any] = {
+        "agent": outcome.safe_details(),
+        "answer_sections": {
+            "response_mode": ["conversation"],
+            "direct_answer": [answer],
+            "citations": [_citation_reference(citation) for citation in citations],
+        },
+        "evidence_detail": {
+            "evidence": checked[:6] or ["Answered without looking up ATDR records."],
+        },
+        "response_contract": {
+            "mode": "conversation",
+            "word_limit": contract.word_limit,
+            "word_count": len(answer.split()),
+            "max_followups": contract.max_followups,
+        },
+        "grounding": _grounding_details(citations, provenance),
+        "conversation": {
+            "conversation_id": conversation_id,
+            "history_turns_used": 0 if context_reset else history_turns,
+            "context_reset": context_reset,
+            "active_context": active_context,
+        },
+    }
+    audit_id = _record_assistant_audit(
+        db,
+        actor=actor,
+        question=question,
+        context_used=context_used,
+        external_provider_used=external,
+        redaction_applied=redacted,
+        conversation_id=conversation_id,
+        actor_user_id=actor_user_id,
+        active_context=active_context,
+        question_category=str(active_context.get("primary") or "assistant_agent")[:64],
+        provider=outcome.engine,
+        provider_called=True,
+        fallback_used=False,
+        provider_outcome_category=None,
+        latency_ms=outcome.latency_ms,
+        answer_summary=answer,
+        provenance=provenance,
+    )
+    details["assistant_audit_id"] = audit_id
+    return {
+        "answer": answer,
+        "mode": f"assistant_agent_{outcome.engine}",
+        "response_mode": "conversation",
+        "external_provider_used": external,
+        "safety": _safety_notes(),
+        "context_used": context_used,
+        "citations": [
+            {"label": citation.label, "source": citation.source, "reference_id": citation.reference_id}
+            for citation in citations
+        ],
+        "redaction_applied": redacted,
+        "raw_log_context_included": False,
+        "suggested_followups": [_text(item, redacted=redacted) for item in outcome.followups[: contract.max_followups]],
+        "details": details,
+        "conversation_id": conversation_id,
+        "active_context": active_context,
+        "provenance": provenance,
+    }
+
+
 def answer_assistant_question(
     db: Session,
     *,
@@ -888,6 +1036,60 @@ def answer_assistant_question(
         requested_alert_id = question_alert_id
         requested_log_id = question_log_id
         requested_source_id = question_source_id
+
+    agent_details: dict[str, Any] | None = None
+    engine = (
+        engine_from_settings(settings)
+        if clean_question and not _brief_requested(lowered) and not _unsafe_action_requested(lowered)
+        else None
+    )
+    if engine is not None:
+        from atdr.app.services.assistant_tools import build_assistant_tools
+
+        outcome = run_agent(
+            question=clean_question,
+            engine=engine,
+            tools=build_assistant_tools(db, settings=settings),
+            history=[] if should_reset_context else _load_conversation_history(
+                db,
+                actor=actor,
+                conversation_id=resolved_conversation_id,
+                limit=settings.assistant_conversation_history_turns if include_recent_context else 0,
+            ),
+            context_note=_agent_context_note(
+                alert_id=requested_alert_id,
+                log_id=requested_log_id,
+                source_id=requested_source_id,
+                case_id=requested_case_id,
+            ),
+            # Asked to act ("close these alerts"): give the model the real dashboard guide to relay.
+            prefetch=[("dashboard_how_to", {"task": clean_question})] if ACTION_REQUEST.search(clean_question) else None,
+            redacted=redacted,
+            forbidden_values=[
+                settings.assistant_llm_api_key,
+                settings.assistant_api_key,
+                settings.assistant_agent_api_key,
+            ],
+            max_rounds=settings.assistant_agent_max_rounds,
+        )
+        if outcome.ok and outcome.answer:
+            return _agent_response(
+                db,
+                outcome,
+                question=clean_question,
+                actor=actor,
+                actor_user_id=actor_user_id,
+                redacted=redacted,
+                conversation_id=resolved_conversation_id,
+                context_reset=should_reset_context,
+                history_turns=settings.assistant_conversation_history_turns if include_recent_context else 0,
+                alert_id=requested_alert_id,
+                log_id=requested_log_id,
+                source_id=requested_source_id,
+                case_id=requested_case_id,
+                external=not (engine.name == "ollama" and is_loopback_url(getattr(engine, "base_url", ""))),
+            )
+        agent_details = outcome.safe_details()
 
     if not clean_question:
         result = AssistantResult(
@@ -1231,6 +1433,9 @@ def answer_assistant_question(
         "context_reset": should_reset_context,
         "active_context": active_context,
     }
+    if agent_details is not None:
+        response["details"]["agent"] = agent_details
+        response["context_used"] = [*response["context_used"], f"agent_fallback:{agent_details['engine']}"]
     audit_id = _record_assistant_audit(
         db,
         actor=actor,

@@ -17,6 +17,7 @@ AssistantResponseMode = Literal[
     "how_to",
     "governance",
     "data_answer",
+    "conversation",
 ]
 
 
@@ -50,6 +51,8 @@ RESPONSE_CONTRACTS: dict[AssistantResponseMode, ResponseContract] = {
     # Counts, rankings and rule facts: a direct answer, up to eight lines,
     # and a sentence saying exactly what was counted.
     "data_answer": ResponseContract("data_answer", 160, 2),
+    # The conversational agent's own reply; its facts are checked against tool results.
+    "conversation": ResponseContract("conversation", 220, 2),
 }
 
 

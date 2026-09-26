@@ -44,6 +44,18 @@ def test_a_fallback_answer_fails_even_if_it_mentions_the_right_words():
     assert check_answer({"none": ["has been blocked"]}, {"answer": "IP has been blocked."}, {}) == ["says forbidden 'has been blocked'"]
 
 
+def test_an_alert_id_never_counts_as_a_matching_total():
+    facts = {"alerts_total": 3676, "top_log_app": "ssl"}
+    spec = {"facts": ["alerts_total"]}
+    assert check_answer(spec, {"answer": "423 alerts today; latest is alert #3676."}, facts) == ["missing alerts_total=3676"]
+    assert check_answer(spec, {"answer": "Alert 3676 is the newest of 3,676 alerts."}, facts) == []
+    assert check_answer({"mentions_facts": ["top_log_app"]}, {"answer": "Most traffic is SSL."}, facts) == []
+    assert check_answer({"mentions_facts": ["top_log_app"]}, {"answer": "No logs today."}, facts) == ["does not name top_log_app=ssl"]
+    assert check_answer({"any": ["81-100"]}, {"answer": "Critical is 81\u2013100."}, facts) == []
+    never = check_answer({}, {"answer": "Use the dashboard_how_to tool."}, facts, never=["dashboard_how_to"])
+    assert never == ["says forbidden 'dashboard_how_to'"]
+
+
 def test_scoreboard_fills_facts_keeps_conversations_and_never_writes_the_source(tmp_path):
     source = _source(tmp_path)
     before = hashlib.sha256(source.read_bytes()).hexdigest()

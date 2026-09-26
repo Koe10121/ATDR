@@ -490,6 +490,16 @@ class Settings(BaseSettings):
     assistant_max_context_rows: int = Field(default=20, alias="ASSISTANT_MAX_CONTEXT_ROWS")
     assistant_redact_ips: bool = Field(default=True, alias="ASSISTANT_REDACT_IPS")
     assistant_allow_raw_log_context: bool = Field(default=False, alias="ASSISTANT_ALLOW_RAW_LOG_CONTEXT")
+    # Conversational agent: a language model that answers only through
+    # ATDR's read-only tools. "off" keeps the keyword router alone.
+    assistant_agent_engine: str = Field(default="off", alias="ASSISTANT_AGENT_ENGINE")
+    assistant_agent_model: str = Field(default="", alias="ASSISTANT_AGENT_MODEL")
+    assistant_agent_base_url: str = Field(default="", alias="ASSISTANT_AGENT_BASE_URL")
+    assistant_agent_api_key: str = Field(default="", alias="ASSISTANT_AGENT_API_KEY")
+    assistant_agent_timeout_seconds: float = Field(default=120.0, alias="ASSISTANT_AGENT_TIMEOUT_SECONDS")
+    assistant_agent_max_rounds: int = Field(default=5, alias="ASSISTANT_AGENT_MAX_ROUNDS")
+    assistant_agent_context_tokens: int = Field(default=12288, alias="ASSISTANT_AGENT_CONTEXT_TOKENS")
+    assistant_agent_keep_alive: str = Field(default="30m", alias="ASSISTANT_AGENT_KEEP_ALIVE")
 
     @property
     def resolved_model_path(self) -> Path:
@@ -901,6 +911,22 @@ def validate_runtime_settings(settings: Settings) -> list[str]:
             issues.append("ASSISTANT_REDACT_IPS must remain true when ASSISTANT_LLM_ENABLED=true.")
         if settings.assistant_allow_raw_log_context:
             issues.append("ASSISTANT_ALLOW_RAW_LOG_CONTEXT must remain false for external LLM use by default.")
+    agent_engine = settings.assistant_agent_engine.strip().lower()
+    if agent_engine not in {"off", "ollama", "gemini", "openai_compatible"}:
+        issues.append("ASSISTANT_AGENT_ENGINE must be off, ollama, gemini, or openai_compatible.")
+    elif agent_engine != "off":
+        if agent_engine in {"gemini", "openai_compatible"} and not (
+            settings.assistant_agent_api_key.strip() or settings.assistant_llm_api_key.strip()
+        ):
+            issues.append("ASSISTANT_AGENT_API_KEY (or ASSISTANT_LLM_API_KEY) is required for a hosted agent engine.")
+        if not settings.assistant_redact_ips:
+            issues.append("ASSISTANT_REDACT_IPS must remain true when the assistant agent is enabled.")
+        if not 5 <= settings.assistant_agent_timeout_seconds <= 600:
+            issues.append("ASSISTANT_AGENT_TIMEOUT_SECONDS must be between 5 and 600.")
+        if not 2 <= settings.assistant_agent_max_rounds <= 8:
+            issues.append("ASSISTANT_AGENT_MAX_ROUNDS must be between two and eight.")
+        if not 4096 <= settings.assistant_agent_context_tokens <= 65536:
+            issues.append("ASSISTANT_AGENT_CONTEXT_TOKENS must be between 4096 and 65536.")
     if not 0 <= settings.assistant_conversation_history_turns <= 10:
         issues.append("ASSISTANT_CONVERSATION_HISTORY_TURNS must be between zero and ten.")
     if settings.assistant_rate_limit_requests <= 0:

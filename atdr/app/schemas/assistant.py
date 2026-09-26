@@ -29,7 +29,7 @@ class AssistantCitation(BaseModel):
 
 
 class AssistantAnswerProvenance(BaseModel):
-    answer_origin: Literal["atdr_deterministic", "external_llm_synthesis"]
+    answer_origin: Literal["atdr_deterministic", "external_llm_synthesis", "assistant_agent"]
     provider: str | None = None
     evidence_scope: list[str] = Field(default_factory=list)
     citation_count: int = 0
@@ -59,6 +59,7 @@ class AssistantChatResponse(BaseModel):
         "how_to",
         "governance",
         "data_answer",
+        "conversation",
     ]
     external_provider_used: bool
     safety: list[str] = Field(default_factory=list)
@@ -159,6 +160,9 @@ class AssistantStatusResponse(BaseModel):
     redaction_enabled: bool
     raw_log_context_allowed: bool
     max_context_rows: int
+    agent_engine: str = "off"
+    agent_model: str = ""
+    agent_local: bool = True
     safety: list[str] = Field(default_factory=list)
 
 

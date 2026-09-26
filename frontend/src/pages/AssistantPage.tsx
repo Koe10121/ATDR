@@ -4,6 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import {
   AssistantAnswerContent,
   AssistantAnswerProvenance,
+  agentEngineLabel,
   AssistantCitationList,
   AssistantTechnicalContext
 } from "../components/AssistantAnswerContent";
@@ -302,6 +303,38 @@ function shouldResetContextForQuestion(lowered: string): boolean {
   ].some((term) => lowered.includes(term));
 }
 
+interface AssistantAgentDetails {
+  engine?: string;
+  model?: string;
+  answered?: boolean;
+  fallback_reason?: string | null;
+  rounds?: number;
+  latency_ms?: number;
+  tools_called?: { name: string }[];
+}
+
+function agentDetails(response: AssistantChatResponse): AssistantAgentDetails | null {
+  const raw = response.details?.agent;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  return raw as AssistantAgentDetails;
+}
+
+function agentFallbackLabel(reason?: string | null): string {
+  switch (reason) {
+    case "answer_failed_verification":
+      return "its answer contained a fact that ATDR's records did not support";
+    case "engine_timeout":
+      return "the model took too long";
+    case "engine_unreachable":
+    case "engine_unavailable":
+      return "the model was not reachable";
+    case "engine_rate_limited":
+      return "the model's rate limit was reached";
+    default:
+      return reason ? reason.replaceAll("_", " ") : "it could not answer";
+  }
+}
+
 function llmDetails(response: AssistantChatResponse): AssistantLlmDetails | null {
   const raw = response.details?.llm;
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
@@ -419,7 +452,37 @@ function guardReasonLabel(reason?: string | null) {
   }
 }
 
+function AgentTelemetry({ response, agent }: { response: AssistantChatResponse; agent: AssistantAgentDetails }) {
+  const engine = agentEngineLabel(agent.engine);
+  const tools = Array.from(new Set((agent.tools_called ?? []).map((item) => item.name.replaceAll("_", " "))));
+  return (
+    <div className="rounded-lg border border-line bg-panel2 p-4" data-testid="assistant-provider-telemetry">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-xs font-black uppercase tracking-wide text-muted">Answer mode</div>
+          <div className="mt-1 text-base font-black text-text">Conversational assistant</div>
+          <p className="mt-1 text-sm font-semibold text-muted">
+            The {engine.toLowerCase()} chose ATDR&apos;s read-only tools and wrote this answer. Every number in it was checked against what the tools returned.
+          </p>
+        </div>
+        <span className="rounded-full border border-success/40 bg-success/10 px-3 py-1 text-xs font-black uppercase tracking-wide text-success">{engine}</span>
+      </div>
+      <div className="mt-3 grid gap-2 text-xs font-bold text-muted sm:grid-cols-2 lg:grid-cols-3">
+        <div><span className="uppercase tracking-wide">Model:</span> <span className="text-text">{agent.model || "-"}</span></div>
+        <div><span className="uppercase tracking-wide">Tools used:</span> <span className="text-text">{tools.length ? tools.join(", ") : "none"}</span></div>
+        <div><span className="uppercase tracking-wide">Time:</span> <span className="text-text">{typeof agent.latency_ms === "number" ? `${(agent.latency_ms / 1000).toFixed(1)} s` : "-"}</span></div>
+        <div><span className="uppercase tracking-wide">Data sent outside:</span> <span className="text-text">{response.external_provider_used ? "Yes, IPs redacted" : "No"}</span></div>
+        <div><span className="uppercase tracking-wide">Raw logs:</span> <span className="text-text">Not included</span></div>
+      </div>
+    </div>
+  );
+}
+
 function AssistantProviderTelemetry({ response }: { response: AssistantChatResponse }) {
+  const agent = agentDetails(response);
+  if (agent && response.mode.startsWith("assistant_agent_")) {
+    return <AgentTelemetry response={response} agent={agent} />;
+  }
   const llm = llmDetails(response);
   const providerCalled = Boolean(llm?.provider_called ?? response.external_provider_used);
   const answerUsed = Boolean(llm?.answer_used ?? (response.external_provider_used && response.mode.startsWith("external_llm_")));
@@ -455,6 +518,11 @@ function AssistantProviderTelemetry({ response }: { response: AssistantChatRespo
           <div className="mt-1 text-base font-black text-text">{title}</div>
           <p className="mt-1 text-sm font-semibold text-muted">{status}</p>
           {guarded || fallback ? <p className="mt-2 text-sm font-bold text-amber">{guardReasonLabel(llm?.answer_guard_reason ?? llm?.fallback_reason)}</p> : null}
+          {agent && !agent.answered ? (
+            <p className="mt-2 text-sm font-bold text-amber" data-testid="assistant-agent-fallback">
+              The conversational assistant was not used because {agentFallbackLabel(agent.fallback_reason)}, so ATDR answered with its built-in answers.
+            </p>
+          ) : null}
         </div>
         <span className={`rounded-full border px-3 py-1 text-xs font-black uppercase tracking-wide ${accent}`}>{providerCalled ? provider : "Local"}</span>
       </div>
@@ -590,6 +658,12 @@ export function AssistantPage() {
     if (providerAnswerUsed && response) {
       const answerProvider = providerDisplayName(responseLlm?.provider ?? status.data.provider);
       return `${answerProvider} Assisted`;
+    }
+    if (response?.mode.startsWith("assistant_agent_")) {
+      return `${agentEngineLabel(agentDetails(response)?.engine)} Assistant`;
+    }
+    if (status.data.agent_engine && status.data.agent_engine !== "off") {
+      return `${agentEngineLabel(status.data.agent_engine)} Assistant Ready`;
     }
     if (status.data.external_provider_configured) {
       return `${providerDisplayName(status.data.provider)} Configured`;
@@ -1114,7 +1188,13 @@ export function AssistantPage() {
           </div>
           {assistant.isPending ? (
             <AssistantPendingState
-              providerName={status.data?.external_provider_configured ? providerDisplayName(status.data.provider) : null}
+              providerName={
+                status.data?.agent_engine && status.data.agent_engine !== "off"
+                  ? agentEngineLabel(status.data.agent_engine)
+                  : status.data?.external_provider_configured
+                    ? providerDisplayName(status.data.provider)
+                    : null
+              }
               typicalMs={providerOperations?.average_latency_ms ?? 0}
             />
           ) : null}

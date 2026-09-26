@@ -199,7 +199,7 @@ export interface AssistantCitation {
 }
 
 export interface AssistantAnswerProvenance {
-  answer_origin: "atdr_deterministic" | "external_llm_synthesis";
+  answer_origin: "atdr_deterministic" | "external_llm_synthesis" | "assistant_agent";
   provider?: string | null;
   evidence_scope: string[];
   citation_count: number;
@@ -225,7 +225,8 @@ export type AssistantResponseMode =
   | "investigation_brief"
   | "how_to"
   | "governance"
-  | "data_answer";
+  | "data_answer"
+  | "conversation";
 
 export interface AssistantChatResponse {
   answer: string;
@@ -368,6 +369,9 @@ export interface AssistantStatusResponse {
   redaction_enabled: boolean;
   raw_log_context_allowed: boolean;
   max_context_rows: number;
+  agent_engine?: string;
+  agent_model?: string;
+  agent_local?: boolean;
   safety: string[];
 }
 

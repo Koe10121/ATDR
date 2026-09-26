@@ -68,6 +68,19 @@ function evidenceSections(response: AssistantChatResponse): AssistantAnswerSecti
   return answerSections({ ...response, details: { answer_sections: detail } });
 }
 
+export function agentEngineLabel(engine?: string | null): string {
+  switch ((engine ?? "").trim().toLowerCase()) {
+    case "ollama":
+      return "Local model";
+    case "gemini":
+      return "Gemini";
+    case "openai_compatible":
+      return "Hosted model";
+    default:
+      return engine?.trim() || "Model";
+  }
+}
+
 function responseModeLabel(mode: AssistantChatResponse["response_mode"]): string {
   const labels: Record<AssistantChatResponse["response_mode"], string> = {
     direct_fact: "Direct answer",
@@ -80,7 +93,8 @@ function responseModeLabel(mode: AssistantChatResponse["response_mode"]): string
     investigation_brief: "Investigation brief",
     how_to: "Procedure",
     governance: "Governance",
-    data_answer: "From ATDR data"
+    data_answer: "From ATDR data",
+    conversation: "Assistant"
   };
   return labels[mode] ?? "Direct answer";
 }
@@ -194,9 +208,11 @@ export function AssistantCitationList({ citations }: { citations: AssistantCitat
 export function AssistantAnswerProvenance({ response }: { response: AssistantChatResponse }) {
   const provenance = response.provenance;
   const provider = provenance?.provider?.trim();
-  const origin = provenance?.answer_origin === "external_llm_synthesis"
-    ? `${provider ? `${provider.charAt(0).toUpperCase()}${provider.slice(1)}` : "External LLM"} synthesis`
-    : "ATDR deterministic analysis";
+  const origin = provenance?.answer_origin === "assistant_agent"
+    ? `${agentEngineLabel(provider)} assistant, every number checked against ATDR records`
+    : provenance?.answer_origin === "external_llm_synthesis"
+      ? `${provider ? `${provider.charAt(0).toUpperCase()}${provider.slice(1)}` : "External LLM"} synthesis`
+      : "ATDR deterministic analysis";
   const evidenceScope = provenance?.evidence_scope?.length
     ? provenance.evidence_scope
     : response.citations.length
@@ -247,7 +263,10 @@ export function AssistantAnswerContent({ response }: { response: AssistantChatRe
         <details className="rounded-lg border border-line bg-panel2 p-3" data-testid="assistant-evidence-detail">
           <summary className="cursor-pointer text-xs font-black uppercase tracking-wide text-muted">Evidence and reasoning</summary>
           <div className="mt-3 grid gap-3 lg:grid-cols-2">
-            <SectionCard title="Evidence" items={(detailEvidence.length ? detailEvidence : sections?.key_evidence ?? []).slice(0, 6)} />
+            <SectionCard
+              title={response.response_mode === "conversation" ? "What the assistant checked" : "Evidence"}
+              items={(detailEvidence.length ? detailEvidence : sections?.key_evidence ?? []).slice(0, 6)}
+            />
             <SectionCard title="Assessment" items={(detailAssessment.length ? detailAssessment : sections?.assessment ?? []).slice(0, 4)} />
             <SectionCard title="Related context" items={detailRelated.slice(0, 5)} />
             <SectionCard title="Limitations" items={(detailLimitations.length ? detailLimitations : sections?.limitations ?? []).slice(0, 4)} />
