@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { ArrowLeft, ArrowRight, CheckCircle2, ClipboardCheck, LockKeyhole, Save } from "lucide-react";
 import { Badge } from "../components/Badge";
 import { EmptyState } from "../components/EmptyState";
@@ -1206,6 +1207,7 @@ export function EvidenceReviewPage() {
         description="Record independent human decisions against sealed evidence contracts."
         icon={<ClipboardCheck size={18} />}
         badges={["Human Decisions Only", "Predictions Withheld", "No Auto Import", "No Model Activation"]}
+        actions={<Link className="btn-secondary" to="/ml">Back to AI Governance</Link>}
         compact
       />
 

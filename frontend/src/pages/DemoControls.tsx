@@ -116,7 +116,7 @@ export function DemoControls() {
         {
           label: "Train ML model",
           description: "Train or refresh IsolationForest assistive anomaly scoring.",
-          uses: `Trains on ${amount} normal-looking logs: app risk 3 or lower, a known app, not already flagged.`,
+          uses: `Learns what typical traffic looks like from ${amount} logs${rangeText}.`,
           disabled: false,
           run: () => demo.trainMl.mutate({ limit })
         },

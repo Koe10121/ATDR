@@ -4298,6 +4298,8 @@ test("overview system health panel and ML governance wording render", async ({ p
 
   await page.goto("/ml");
   await expect(page.getByRole("heading", { name: "Model status and review operations" })).toBeVisible();
+  // The detailed model evidence now lives in one collapsed research-history section.
+  await page.getByTestId("model-research-history").locator(":scope > summary").click();
   await expect(page.getByText("Canonical ML Evidence", { exact: true })).toBeVisible();
   await expect(page.getByText("Controlled validation snapshot", { exact: true })).toBeVisible();
   await expect(page.getByText("Queue F1", { exact: true })).toBeVisible();
@@ -4369,6 +4371,84 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByText("Weak labels require analyst review before model claims.")).toBeVisible();
 });
 
+test("AI Governance leads with what decides and a plain trust summary, with research history collapsed", async ({ page }) => {
+  // The page was 12 screens of research-round panels. It now reads in 3 parts,
+  // folds the research history into one closed section, and Evidence Review
+  // moved from the menu to a link in the trust summary.
+  await mockApi(page);
+  await page.route("**/api/evidence-review/evaluation-status", async (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        status: "frozen_evaluation_complete",
+        detection: { available: true, total: 40, reviewed: 40, remaining: 0, invalid: 0, completed: true, closed: true },
+        assistant: { available: true, total: 8, reviewed: 8, remaining: 0, invalid: 0, completed: true, closed: true },
+        reviews_complete: true,
+        reviews_closed: true,
+        activation_decision: { lifecycle: "shadow_observation", activate_candidate: false, model_activated: false },
+        message: "The single governed evaluation is complete. No model was activated."
+      }
+    })
+  );
+  const queue = Array.from({ length: 8 }, (_, index) => ({
+    log_id: 900 + index,
+    priority_score: 100 - index,
+    hybrid_risk_score: 60,
+    generated_time: "2026-05-20T13:44:00",
+    src_ip: "10.1.1.1",
+    dst_ip: "10.2.2.2",
+    app: "incomplete",
+    action: "deny",
+    app_risk: 4,
+    priority_reasons: ["unlabeled"],
+    is_anomaly: true,
+    supervised_prediction: null,
+    malicious_probability: 0,
+    existing_label: null
+  }));
+  await page.route("**/api/ml/review-queue**", async (route) => route.fulfill({ json: queue }));
+  // The live lab state: the model scores, but its bootstrap provenance is
+  // incomplete. That must read as "Hint only" with a note, never as "Off".
+  await page.unroute("**/api/ml/report");
+  await page.route("**/api/ml/report", async (route) =>
+    route.fulfill({ json: { model_status: { artifact_exists: true, advisory_capability_label: "Advisory anomaly model available", bootstrap_required: true, governed_bootstrap_manifest_valid: false, decision_support_only: true, threat_accuracy_validated: false }, dataset_profile: { recommendations: [] }, scored_log_count: 600, anomaly_count: 18, anomaly_rate: 3, anomaly_rate_basis: "scored_logs", scoring_coverage_percent: 60, recommendations: [], drift_signals: [], top_anomalous_src_ips: [], top_anomalous_apps: [], top_anomalous_dst_ports: [] } })
+  );
+  await seedSession(page);
+  await page.goto("/ml");
+
+  const nav = page.getByRole("navigation").first();
+  await expect(nav.getByRole("link", { name: "AI Governance" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Evidence Review" })).toHaveCount(0);
+
+  await expect(page.getByTestId("governance-part-decides")).toContainText("What decides");
+  await expect(page.getByTestId("governance-part-trust")).toContainText("Is the AI trustworthy yet?");
+  await expect(page.getByTestId("governance-part-work")).toContainText("Data and analyst review");
+  await expect(page.getByTestId("ai-trust-anomaly")).toContainText("Hint only");
+  await expect(page.getByTestId("ai-trust-anomaly")).toContainText("3% of 600 scored logs");
+  await expect(page.getByTestId("ai-trust-anomaly")).toContainText("Its training provenance is incomplete");
+  await expect(page.getByTestId("ai-trust-supervised")).toContainText("Not in use");
+  await expect(page.getByTestId("ai-trust-review")).toContainText("Complete");
+  await expect(page.getByTestId("ai-trust-review")).toContainText("40/40 detection cases and 8/8 assistant answers");
+  await expect(page.getByTestId("ai-trust-review")).toContainText("No model was activated.");
+  await expect(page.getByTestId("ai-trust-assistant")).toContainText("IP redaction on; raw logs never sent.");
+
+  const history = page.getByTestId("model-research-history");
+  await expect(history).not.toHaveAttribute("open", "");
+  await expect(page.getByTestId("field-qualification-readiness")).not.toBeVisible();
+  await history.locator(":scope > summary").click();
+  await expect(page.getByTestId("field-qualification-readiness")).toBeVisible();
+
+  const worklistRows = page.locator("table.soc-table tbody tr").filter({ hasText: "Hybrid 60" });
+  await expect(worklistRows).toHaveCount(5);
+  await page.getByRole("button", { name: "Show all 8 logs in the worklist" }).click();
+  await expect(worklistRows).toHaveCount(8);
+
+  await page.getByRole("link", { name: "Open review records" }).click();
+  await expect(page).toHaveURL(/\/evidence-review$/);
+  await page.getByRole("link", { name: "Back to AI Governance" }).click();
+  await expect(page).toHaveURL(/\/ml$/);
+});
+
 test("AI Governance explains a missing advisory anomaly capability without training it", async ({ page }) => {
   await mockApi(page);
   await page.unroute("**/api/ml/report");
@@ -4402,6 +4482,10 @@ test("AI Governance explains a missing advisory anomaly capability without train
   );
 
   await page.goto("/ml");
+  // The plain summary must say the hint is off and how to restore it.
+  await expect(page.getByTestId("ai-trust-anomaly")).toContainText("Off");
+  await expect(page.getByTestId("ai-trust-anomaly")).toContainText("bootstrap_advisory_anomaly.cmd");
+  await page.getByTestId("model-research-history").locator(":scope > summary").click();
   const capability = page.getByTestId("anomaly-capability-status");
   await expect(capability).toContainText("Advisory anomaly model unavailable");
   await expect(capability).toContainText("Corrective Preflight");
@@ -4911,6 +4995,9 @@ test("AI Governance shows governed supervised shadow status without selecting th
   await seedSession(page);
 
   await page.goto("/ml");
+  // Open the research history first so the overflow checks below measure
+  // rendered panels rather than zero-width hidden ones.
+  await page.getByTestId("model-research-history").locator(":scope > summary").click();
   const fieldQualification = page.getByTestId("field-qualification-readiness");
   await expect(fieldQualification).toContainText("hardware required");
   await expect(fieldQualification).toContainText("Device Transport");
@@ -7020,6 +7107,7 @@ test("dashboard dropdowns close and do not block follow-up clicks", async ({ pag
 
   await page.goto("/ml");
   await expect(page.getByRole("heading", { name: "Model status and review operations" })).toBeVisible();
+  await page.getByTestId("model-research-history").locator(":scope > summary").click();
   const assistantGovernance = page.getByTestId("assistant-provider-governance");
   await expect(assistantGovernance).toContainText("Assistant Provider Governance");
   await expect(assistantGovernance).toContainText("Deterministic Fallback");
@@ -7172,7 +7260,7 @@ test("validation controls say which logs each action uses and check every unchec
 
   await page.getByRole("checkbox", { name: "All" }).check();
   await expect(page.getByRole("button", { name: /Run detection/ })).toBeDisabled();
-  await expect(page.getByRole("button", { name: /Train ML model/ })).toContainText("Trains on all normal-looking logs");
+  await expect(page.getByRole("button", { name: /Train ML model/ })).toContainText("Learns what typical traffic looks like from all logs.");
   await page.getByRole("button", { name: /Import sample logs/ }).click();
   await expect.poll(() => importBodies.length).toBe(1);
   expect(importBodies[0].limit).toBe(0);
