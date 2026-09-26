@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session, joinedload
 
 from atdr.app.core.config import get_settings
@@ -187,6 +187,7 @@ def _bounded_detection_records(
     event_time_start: datetime | None,
     event_time_end: datetime | None,
     yield_per: int = 2_000,
+    only_unchecked: bool = False,
 ) -> list[DetectionLogRecord]:
     event_time = func.coalesce(
         NormalizedLog.generated_time,
@@ -231,8 +232,10 @@ def _bounded_detection_records(
             NormalizedLog.dst_country,
         )
         .join(RawLog, RawLog.id == NormalizedLog.raw_log_id)
-        .order_by(NormalizedLog.id.desc())
+        .order_by(NormalizedLog.id.asc() if only_unchecked else NormalizedLog.id.desc())
     )
+    if only_unchecked:
+        statement = statement.where(NormalizedLog.last_detection_run_id.is_(None))
     if source_id is not None:
         statement = statement.where(RawLog.source_id == source_id)
     if event_time_start is not None:
@@ -248,8 +251,29 @@ def _bounded_detection_records(
             statement.execution_options(yield_per=max(1, yield_per))
         )
     ]
-    records.reverse()
+    if not only_unchecked:
+        records.reverse()
     return records
+
+
+def _mark_logs_checked(db: Session, log_ids: list[int], detection_run_id: int, chunk_size: int = 900) -> None:
+    """Record which run evaluated these logs, so later runs can find unchecked ones."""
+
+    for start in range(0, len(log_ids), chunk_size):
+        chunk = log_ids[start:start + chunk_size]
+        db.execute(
+            update(NormalizedLog)
+            .where(NormalizedLog.id.in_(chunk))
+            .values(last_detection_run_id=detection_run_id)
+            .execution_options(synchronize_session=False)
+        )
+
+
+def count_unchecked_logs(db: Session, *, source_id: int | None = None) -> int:
+    statement = select(func.count(NormalizedLog.id)).where(NormalizedLog.last_detection_run_id.is_(None))
+    if source_id is not None:
+        statement = statement.join(RawLog, RawLog.id == NormalizedLog.raw_log_id).where(RawLog.source_id == source_id)
+    return int(db.scalar(statement) or 0)
 
 
 def _alert_authoritative_matches(matches: list[RuleMatch]) -> list[RuleMatch]:
@@ -369,8 +393,19 @@ def run_detection(
     release_session_state: bool = False,
     runtime_profile: dict[str, Any] | None = None,
     coordination_timeout_seconds: float = 30.0,
+    only_unchecked: bool = False,
 ) -> dict:
+    """Evaluate a batch of logs against the rules.
+
+    By default the batch is the newest ``limit`` logs. With ``only_unchecked``
+    it is the oldest ``limit`` logs that no run has evaluated yet, so repeated
+    calls walk the whole history exactly once instead of re-checking the
+    newest rows and skipping older ones. That mode is rules-only: advisory ML
+    scoring works on the newest rows and stays a separate step.
+    """
     settings = get_settings()
+    if only_unchecked:
+        use_ml = False
     coordination_wait_seconds = acquire_detection_transaction_lock(
         db,
         timeout_seconds=coordination_timeout_seconds,
@@ -387,6 +422,7 @@ def run_detection(
             "source_type": source_type,
             "event_time_start": event_time_start.isoformat() if event_time_start else None,
             "event_time_end": event_time_end.isoformat() if event_time_end else None,
+            "selection": "unchecked_oldest_first" if only_unchecked else "newest",
             "postgres_detection_coordination": (
                 "transaction_scoped" if db.get_bind().dialect.name == "postgresql" else "not_required"
             ),
@@ -430,14 +466,17 @@ def run_detection(
                     source_id=source_id,
                     event_time_start=event_time_start,
                     event_time_end=event_time_end,
+                    only_unchecked=only_unchecked,
                 )
             )
         else:
             statement = (
                 select(NormalizedLog)
                 .options(joinedload(NormalizedLog.raw_log))
-                .order_by(NormalizedLog.id.desc())
+                .order_by(NormalizedLog.id.asc() if only_unchecked else NormalizedLog.id.desc())
             )
+            if only_unchecked:
+                statement = statement.where(NormalizedLog.last_detection_run_id.is_(None))
             if source_id is not None:
                 statement = statement.join(
                     RawLog,
@@ -456,7 +495,9 @@ def run_detection(
             if limit:
                 statement = statement.limit(limit)
             logs = list(db.scalars(statement))
-            logs.reverse()
+            if not only_unchecked:
+                logs.reverse()
+        evaluated_log_ids = [int(log.id) for log in logs]
         _runtime_profile_sample(db, runtime_profile, "logs_loaded")
 
         supervised_runtime = score_supervised_runtime_batch(
@@ -646,8 +687,13 @@ def run_detection(
             alerts_created=created,
             alerts_updated=deduplicated_alert_updates,
         )
+        _mark_logs_checked(db, evaluated_log_ids, int(run.id))
         run_details = {
             "evaluated": evaluated,
+            "selection": "unchecked_oldest_first" if only_unchecked else "newest",
+            "evaluated_log_id_range": (
+                [min(evaluated_log_ids), max(evaluated_log_ids)] if evaluated_log_ids else None
+            ),
             "candidate_logs": len(candidates),
             "created_alerts": created,
             "deduplicated_alert_updates": deduplicated_alert_updates,
@@ -686,7 +732,7 @@ def run_detection(
                 actor=actor,
                 action="run_detection",
                 target_type="normalized_logs",
-                target_value="latest_batch",
+                target_value="unchecked_batch" if only_unchecked else "latest_batch",
                 details={**run_details, "detection_run_id": run.id},
             )
         )
@@ -715,6 +761,7 @@ def run_detection(
             **run_details,
             "use_ml": use_ml,
             "detection_run_id": detection_run_id,
+            "remaining_unchecked": count_unchecked_logs(db, source_id=source_id),
             "group_bucket_minutes": GROUP_BUCKET_MINUTES,
             "low_severity_group_min_evidence": LOW_SEVERITY_GROUP_MIN_EVIDENCE,
         }

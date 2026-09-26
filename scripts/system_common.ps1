@@ -282,9 +282,12 @@ function Get-TrackedSystemRuntimeClassification {
     )
 
     $expected = @("atdr-backend", "atdr-frontend", "shell-backend", "shell-frontend")
+    # The background operation worker only runs when OPERATION_WORKER_ENABLED
+    # is true, so it is tracked when present but never required.
+    $optional = @("atdr-worker")
     $tracked = @($TrackedNames | ForEach-Object { [string]$_ })
     $active = @($ActiveNames | ForEach-Object { [string]$_ })
-    $unexpected = @($tracked | Where-Object { $_ -notin $expected })
+    $unexpected = @($tracked | Where-Object { $_ -notin $expected -and $_ -notin $optional })
     $missingTracked = @($expected | Where-Object { $_ -notin $tracked })
     $missingActive = @($expected | Where-Object { $_ -notin $active })
     $readyCount = @($ServiceReadiness.Values | Where-Object { [bool]$_ }).Count

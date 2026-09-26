@@ -143,6 +143,9 @@ class NormalizedLog(Base):
     anomaly_score: Mapped[float | None] = mapped_column(Float, index=True)
     is_anomaly: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
     parsed_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    # The detection run that last evaluated this log against the rules. NULL
+    # means no run has checked it yet, which "unchecked" detection picks up.
+    last_detection_run_id: Mapped[int | None] = mapped_column(Integer, index=True)
 
     raw_log: Mapped[RawLog] = relationship(back_populates="normalized")
     alert_evidence: Mapped[list["AlertEvidence"]] = relationship(back_populates="normalized_log")

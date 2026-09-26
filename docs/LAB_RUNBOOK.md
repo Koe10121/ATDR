@@ -65,6 +65,17 @@ $env:OPERATION_WORKER_ENABLED="true"
 Review progress, staging capacity, cancellation state, and worker heartbeat in
 Operations Health. Do not run multiple SQLite workers.
 
+With `OPERATION_WORKER_ENABLED=true` in `.env`, `.\scripts\start_system.cmd`
+starts this one worker for you (tracked as `atdr-worker` and stopped by
+`.\scripts\stop_system.cmd`), so do not also start it by hand. Run
+`.\scripts\stop_system.cmd` before the full backend test suite: six acceptance
+tests (v48, v525, v538) prove a test run never changes the configured
+`atdr.db` files, and the running worker's heartbeat legitimately does.
+
+After an import, open Validation Controls and use **Check all unchecked logs**.
+Each log records the detection run that checked it, so this checks every
+unchecked log once, oldest first, in batches, instead of only the newest batch.
+
 ## Live Syslog Lab Flow
 
 Loopback is the safe default:

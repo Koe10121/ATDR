@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -15,6 +17,9 @@ class DemoResetRequest(BaseModel):
 class DemoDetectionRequest(BaseModel):
     limit: int | None = None
     use_ml: bool = False
+    # "newest" checks the newest `limit` logs; "unchecked" checks the oldest
+    # `limit` logs no detection run has evaluated yet (one batch per call).
+    mode: Literal["newest", "unchecked"] = "newest"
 
 
 class DemoExportRequest(BaseModel):

@@ -352,6 +352,51 @@ def test_runtime_classification_distinguishes_healthy_partial_and_stale_states()
     assert stale["state"] == "stale"
 
 
+def test_runtime_classification_tracks_the_optional_worker_without_requiring_it():
+    root = Path(__file__).resolve().parents[2]
+    common = str(root / "scripts/system_common.ps1").replace("'", "''")
+    services = "'atdr-backend','atdr-frontend','shell-backend','shell-frontend'"
+    all_ready = "@{a=$true;b=$true;c=$true;d=$true}"
+
+    def classify(tracked: str) -> dict[str, object]:
+        command = (
+            f". '{common}'; "
+            f"$result = Get-TrackedSystemRuntimeClassification -TrackedNames {tracked} "
+            f"-ActiveNames {tracked} -ServiceReadiness {all_ready}; "
+            "$result | ConvertTo-Json -Compress"
+        )
+        result = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        assert result.returncode == 0, result.stderr
+        return json.loads(result.stdout)
+
+    with_worker = classify(f"@({services},'atdr-worker')")
+    with_stranger = classify(f"@({services},'mystery-process')")
+
+    assert with_worker["state"] == "healthy"
+    assert with_stranger["state"] == "partial"
+    unexpected = with_stranger["unexpected_tracked"]
+    assert (unexpected if isinstance(unexpected, list) else [unexpected]) == ["mystery-process"]
+
+
+def test_launcher_starts_the_worker_only_when_enabled_and_never_blocks_startup_on_it():
+    root = Path(__file__).resolve().parents[2]
+    launcher = (root / "scripts" / "start_system.ps1").read_text(encoding="utf-8")
+
+    assert '$envValues["OPERATION_WORKER_ENABLED"]' in launcher
+    start = launcher.index('"atdr.scripts.run_operation_worker", "--watch"')
+    before, after = launcher[:start], launcher[start:]
+    # Started only inside the enabled branch, inside a try whose catch warns.
+    assert before.rindex("if ($workerEnabled) {") > before.rindex("atdr-backend")
+    assert before.rindex("try {") > before.rindex("if ($workerEnabled) {")
+    assert after.index("Write-Warning") < after.index("shellBackendEnvironment")
+
+
 def test_startup_diagnostics_use_supported_commands_and_hide_machine_paths(tmp_path):
     root = Path(__file__).resolve().parents[2]
     scripts = tmp_path / "portable startup" / "scripts"

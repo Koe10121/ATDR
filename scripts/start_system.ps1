@@ -152,6 +152,12 @@ try {
     Write-Host "  MFU IAM proxy: configured (account acceptance still requires a real sign-in)"
     Write-Host "  Google OAuth client agreement: verified"
     Write-Host "  Response simulation: true"
+    $workerEnabled = $envValues.Contains("OPERATION_WORKER_ENABLED") -and ([string]$envValues["OPERATION_WORKER_ENABLED"]).ToLowerInvariant() -eq "true"
+    if ($workerEnabled) {
+        Write-Host "  Background worker: on (runs queued imports)"
+    } else {
+        Write-Host "  Background worker: off (set OPERATION_WORKER_ENABLED=true in .env to run queued imports)"
+    }
     $modelPathValue = if ($envValues.Contains("ML_MODEL_PATH") -and [string]$envValues["ML_MODEL_PATH"]) {
         [string]$envValues["ML_MODEL_PATH"]
     } else {
@@ -180,6 +186,16 @@ try {
     New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 
     $started.Add((Start-TrackedProcess -Name "atdr-backend" -FilePath $python -Arguments @("-m", "uvicorn", "atdr.app.main:app", "--host", "127.0.0.1", "--port", "8000") -WorkingDirectory $root -LogDirectory $logDir))
+    if ($workerEnabled) {
+        # Runs queued imports and jobs (Validation Controls > Queue import).
+        # Optional: ATDR still works without it, so a failed start only warns.
+        try {
+            $started.Add((Start-TrackedProcess -Name "atdr-worker" -FilePath $python -Arguments @("-m", "atdr.scripts.run_operation_worker", "--watch") -WorkingDirectory $root -LogDirectory $logDir))
+        }
+        catch {
+            Write-Warning "Background worker did not start ($($_.Exception.Message)). ATDR runs without it; queued imports wait until it runs."
+        }
+    }
     $started.Add((Start-TrackedProcess -Name "atdr-frontend" -FilePath $node -Arguments @("node_modules/vite/bin/vite.js", "--host", "127.0.0.1", "--port", "5173", "--strictPort") -WorkingDirectory (Join-Path $root "frontend") -LogDirectory $logDir))
 
     $shellBackendEnvironment = @{

@@ -49,6 +49,7 @@ import type {
   DashboardSummary,
   DashboardValidationSummary,
   DemoActionResult,
+  DetectionCoverage,
   DetectionMlProductizationEvaluation,
   DetectionRuntimeStatus,
   DetectionReviewItem,
@@ -93,6 +94,7 @@ import type {
   SupervisedModelRegistry,
   Suppression,
   TokenResponse,
+  UncheckedDetectionBatch,
   User,
   WatchlistItem
 } from "../types/api";
@@ -626,6 +628,13 @@ export const api = {
     apiRequest<DemoActionResult>("/api/demo/import-sample", { method: "POST", body: JSON.stringify(payload) }),
   demoRunDetection: (payload: { limit?: number | null; use_ml?: boolean }) =>
     apiRequest<DemoActionResult>("/api/demo/run-detection", { method: "POST", body: JSON.stringify(payload) }),
+  demoCheckUncheckedBatch: (payload: { limit?: number | null }) =>
+    apiRequest<UncheckedDetectionBatch>("/api/demo/run-detection", {
+      method: "POST",
+      body: JSON.stringify({ ...payload, mode: "unchecked" })
+    }),
+  demoDetectionCoverage: (limit: number | null) =>
+    apiRequest<DetectionCoverage>(`/api/demo/detection-coverage${limit ? `?limit=${limit}` : ""}`),
   demoTrainMl: (payload: { limit?: number | null }) =>
     apiRequest<DemoActionResult>("/api/demo/train-ml", { method: "POST", body: JSON.stringify(payload) }),
   demoApplyMl: (payload: { limit?: number | null }) =>

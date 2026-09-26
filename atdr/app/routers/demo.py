@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from atdr.app.core.security import require_admin
@@ -7,6 +7,7 @@ from atdr.app.db.models import User
 from atdr.app.schemas.demo import DemoDetectionRequest, DemoExportRequest, DemoLimitRequest, DemoResetRequest
 from atdr.app.services.demo_service import (
     apply_demo_ml_scoring,
+    detection_coverage,
     export_demo_bundle,
     import_demo_sample_logs,
     reset_and_seed_demo,
@@ -76,10 +77,16 @@ def run_demo_detection_endpoint(
         db,
         job_type="run_detection",
         requested_by=current_user.username,
-        details={"limit": request.limit, "use_ml": request.use_ml, "demo": True},
+        details={"limit": request.limit, "use_ml": request.use_ml, "mode": request.mode, "demo": True},
     )
     try:
-        result = run_demo_detection(db, limit=request.limit, use_ml=request.use_ml, actor=current_user.username)
+        result = run_demo_detection(
+            db,
+            limit=request.limit,
+            use_ml=request.use_ml,
+            actor=current_user.username,
+            mode=request.mode,
+        )
         complete_job(
             db,
             job,
@@ -91,6 +98,15 @@ def run_demo_detection_endpoint(
     except Exception as exc:
         fail_job(db, job, exc)
         raise
+
+
+@router.get("/detection-coverage")
+def get_detection_coverage(
+    limit: int | None = Query(default=None, ge=0),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+) -> dict:
+    return detection_coverage(db, limit=limit)
 
 
 @router.post("/train-ml")

@@ -1,16 +1,38 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Upload } from "lucide-react";
 import { ActionResultCard } from "../components/ActionResultCard";
 import { Badge } from "../components/Badge";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { MetricCard } from "../components/MetricCard";
-import { useDashboardSummary, useDemoMutations, useHealth, useMlReport, useQueuedImportMutation } from "../hooks/useApiQueries";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
+import { useDashboardSummary, useDemoMutations, useDetectionCoverage, useHealth, useMlReport, useQueuedImportMutation } from "../hooks/useApiQueries";
+import { api } from "../lib/api";
+
+const count = (value: number) => value.toLocaleString("en-US");
+
+interface CoverageSweep {
+  running: boolean;
+  finished: boolean;
+  checked: number;
+  created: number;
+  updated: number;
+  batches: number;
+  remaining: number;
+  error: unknown;
+}
+
+const IDLE_SWEEP: CoverageSweep = { running: false, finished: false, checked: 0, created: 0, updated: 0, batches: 0, remaining: 0, error: null };
 
 export function DemoControls() {
   const [limitText, setLimitText] = useState("1000");
+  const [allLogs, setAllLogs] = useState(false);
   const [samplePath, setSamplePath] = useState("");
   const [useMl, setUseMl] = useState(false);
   const [queuedFile, setQueuedFile] = useState<File | null>(null);
+  const [sweep, setSweep] = useState<CoverageSweep>(IDLE_SWEEP);
+  const stopSweep = useRef(false);
+  const queryClient = useQueryClient();
   const health = useHealth();
   const summary = useDashboardSummary();
   const ml = useMlReport();
@@ -18,10 +40,48 @@ export function DemoControls() {
   const queuedImport = useQueuedImportMutation();
 
   const parsedLimit = Number.parseInt(limitText.trim(), 10);
-  const limit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : null;
+  const typedLimit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : null;
+  // 0 tells the server "no limit"; null falls back to the server default.
+  const limit = allLogs ? 0 : typedLimit;
+  const coverage = useDetectionCoverage(useDebouncedValue(allLogs ? null : typedLimit));
+  const coverageData = coverage.data;
+  const newestRange = !allLogs && typedLimit ? coverageData?.newest_log_id_range ?? null : null;
+  const rangeText = newestRange ? ` (log IDs ${count(newestRange[0])} to ${count(newestRange[1])})` : "";
+  const amount = allLogs ? "all" : typedLimit ? `the newest ${count(typedLimit)}` : "the newest 5,000 (server default)";
+  const lines = allLogs ? "every line" : typedLimit ? `the first ${count(typedLimit)} lines` : "the first 5,000 lines (server default)";
+
   const cleanedSamplePath = samplePath.trim().replace(/^["']|["']$/g, "").trim();
   const samplePathPayload = cleanedSamplePath ? cleanedSamplePath : null;
   const samplePathHint = samplePathPayload ? "Custom sample path will be used for import/reset." : "Blank uses the safe 2-line demo sample.";
+
+  async function checkUncheckedLogs() {
+    stopSweep.current = false;
+    let totals = { ...IDLE_SWEEP, running: true, remaining: coverageData?.unchecked_logs ?? 0 };
+    setSweep(totals);
+    try {
+      while (!stopSweep.current) {
+        const batch = await api.demoCheckUncheckedBatch({ limit: coverageData?.unchecked_batch_size ?? 5000 });
+        totals = {
+          ...totals,
+          checked: totals.checked + batch.evaluated,
+          created: totals.created + batch.created_alerts,
+          updated: totals.updated + batch.deduplicated_alert_updates,
+          batches: totals.batches + 1,
+          remaining: batch.remaining_unchecked
+        };
+        setSweep(totals);
+        if (batch.remaining_unchecked === 0 || batch.evaluated === 0) break;
+      }
+      setSweep({ ...totals, running: false, finished: true });
+    } catch (error) {
+      setSweep({ ...totals, running: false, finished: true, error });
+    } finally {
+      void queryClient.invalidateQueries();
+    }
+  }
+
+  const sweepTotal = sweep.checked + sweep.remaining;
+  const sweepPercent = sweepTotal ? Math.round((sweep.checked / sweepTotal) * 100) : 0;
 
   const actionGroups = [
     {
@@ -30,6 +90,8 @@ export function DemoControls() {
         {
           label: "Import sample logs",
           description: "Load safe sample or the custom file path below.",
+          uses: `Reads ${lines} of ${samplePathPayload ? "the file at that path" : "the 2-line safe sample"}.`,
+          disabled: false,
           run: () => demo.importSample.mutate({ limit, sample_path: samplePathPayload })
         }
       ]
@@ -39,7 +101,11 @@ export function DemoControls() {
       actions: [
         {
           label: "Run detection",
-          description: "Generate rule-first grouped alerts from parsed logs.",
+          description: "Re-check the newest logs with the rules.",
+          uses: allLogs
+            ? "Needs a number. To check every log, use Check all unchecked logs above."
+            : `Checks ${amount} logs${rangeText}.`,
+          disabled: allLogs,
           run: () => demo.runDetection.mutate({ limit, use_ml: useMl })
         }
       ]
@@ -50,11 +116,17 @@ export function DemoControls() {
         {
           label: "Train ML model",
           description: "Train or refresh IsolationForest assistive anomaly scoring.",
+          uses: `Trains on ${amount} normal-looking logs: app risk 3 or lower, a known app, not already flagged.`,
+          disabled: false,
           run: () => demo.trainMl.mutate({ limit })
         },
         {
           label: "Apply ML scoring",
           description: "Refresh anomaly flags for the current dataset.",
+          uses: allLogs
+            ? `Scores all ${coverageData ? count(coverageData.total_logs) : ""} logs. This can take a few minutes.`
+            : `Scores ${amount} logs${rangeText}.`,
+          disabled: false,
           run: () => demo.applyMl.mutate({ limit })
         }
       ]
@@ -65,6 +137,8 @@ export function DemoControls() {
         {
           label: "Export evidence bundle",
           description: "Create case-ready JSON/CSV/HTML/PDF evidence files.",
+          uses: "Uses the top 10 alerts and the latest 50 audit entries.",
+          disabled: false,
           run: () => demo.exportBundle.mutate({ top_alert_limit: 10, audit_limit: 50 })
         }
       ]
@@ -86,6 +160,66 @@ export function DemoControls() {
         <MetricCard label="ML Artifact" value={ml.data?.model_status.artifact_exists ? "Ready" : "Missing"} detail="Assistive only" tone={ml.data?.model_status.artifact_exists ? "success" : "amber"} />
       </div>
 
+      <section className="panel" data-testid="detection-coverage" aria-labelledby="detection-coverage-title">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 id="detection-coverage-title" className="text-sm font-extrabold uppercase tracking-wide text-muted">Detection coverage</h2>
+            <p className="mt-1 text-lg font-bold text-text">
+              {coverageData
+                ? `${count(coverageData.checked_logs)} of ${count(coverageData.total_logs)} logs have been checked by detection.`
+                : "Loading coverage..."}
+            </p>
+            {coverageData && coverageData.unchecked_logs > 0 ? (
+              <p className="mt-1 text-sm text-muted">
+                {count(coverageData.unchecked_logs)} logs have never been checked
+                {coverageData.oldest_unchecked_log_id ? ` (oldest: log #${count(coverageData.oldest_unchecked_log_id)})` : ""}.
+                This checks them oldest first, {count(coverageData.unchecked_batch_size)} at a time, so every log is checked once. You can stop and continue later.
+              </p>
+            ) : null}
+            {coverageData && coverageData.unchecked_logs === 0 && !sweep.running ? (
+              <p className="mt-1 text-sm text-muted">Every log has been checked. Newly imported logs will show up here until you check them.</p>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {sweep.running ? (
+              <button className="btn-secondary" type="button" onClick={() => { stopSweep.current = true; }}>
+                Stop after this batch
+              </button>
+            ) : (
+              <button
+                className="btn-primary"
+                type="button"
+                disabled={!coverageData || coverageData.unchecked_logs === 0}
+                onClick={() => void checkUncheckedLogs()}
+              >
+                Check all unchecked logs
+              </button>
+            )}
+          </div>
+        </div>
+        {sweep.running || sweep.finished ? (
+          <div className="mt-4 grid gap-2" data-testid="detection-sweep-progress">
+            <div
+              className="h-3 overflow-hidden rounded-full border border-line bg-panel2"
+              role="progressbar"
+              aria-label="Detection coverage progress"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={sweepPercent}
+            >
+              <div className="h-full bg-cyan transition-all" style={{ width: `${sweepPercent}%` }} />
+            </div>
+            <div className="text-sm text-text" aria-live="polite">
+              {sweep.running ? "Checking: " : sweep.remaining === 0 ? "Done: " : "Stopped: "}
+              {count(sweep.checked)} of {count(sweepTotal)} logs checked in {sweep.batches} {sweep.batches === 1 ? "batch" : "batches"},{" "}
+              {count(sweep.created)} new {sweep.created === 1 ? "alert" : "alerts"}, {count(sweep.updated)}{" "}
+              {sweep.updated === 1 ? "update" : "updates"} to existing alerts.
+            </div>
+            {sweep.error ? <ErrorBanner error={sweep.error} /> : null}
+          </div>
+        ) : null}
+      </section>
+
       <section className="panel">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -94,19 +228,27 @@ export function DemoControls() {
           </div>
           <Badge value="ready" />
         </div>
-        <div className="grid gap-3 lg:grid-cols-[180px_1fr_220px]">
-          <label className="grid gap-1">
-            <span className="text-xs font-extrabold uppercase tracking-wide text-muted">Log limit</span>
-            <input
-              aria-label="Log import limit"
-              className="input"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              placeholder="1000"
-              value={limitText}
-              onChange={(event) => setLimitText(event.target.value.replace(/[^\d]/g, ""))}
-            />
-          </label>
+        <div className="grid gap-3 lg:grid-cols-[220px_1fr_220px]">
+          <div className="grid gap-1">
+            <label className="text-xs font-extrabold uppercase tracking-wide text-muted" htmlFor="demo-log-limit">Log limit</label>
+            <div className="flex items-center gap-3">
+              <input
+                id="demo-log-limit"
+                aria-label="Log import limit"
+                className="input min-w-0 flex-1"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                placeholder="1000"
+                value={limitText}
+                disabled={allLogs}
+                onChange={(event) => setLimitText(event.target.value.replace(/[^\d]/g, ""))}
+              />
+              <label className="flex shrink-0 items-center gap-2 text-sm text-muted">
+                <input type="checkbox" checked={allLogs} onChange={(event) => setAllLogs(event.target.checked)} />
+                All
+              </label>
+            </div>
+          </div>
           <label className="grid gap-1">
             <span className="text-xs font-extrabold uppercase tracking-wide text-muted">Optional sample file path</span>
             <input
@@ -156,7 +298,8 @@ export function DemoControls() {
               if (!queuedFile) return;
               queuedImport.mutate({
                 file: queuedFile,
-                limit,
+                // The queue reads a missing limit as "the whole file".
+                limit: allLogs ? null : typedLimit,
                 job_type: "import_logs",
                 source_type: "file_import",
                 parser_profile: "palo_alto"
@@ -166,7 +309,9 @@ export function DemoControls() {
             <Upload size={16} />
             {queuedImport.isPending ? "Staging..." : "Queue import"}
           </button>
-          <div className="w-full text-xs text-muted">Runs through the manual operation worker with checkpointed progress and safe resume.</div>
+          <div className="w-full text-xs text-muted">
+            Imports {allLogs || !typedLimit ? "every line" : `the first ${count(typedLimit)} lines`} of the chosen file (up to 50 MB) in the background worker, with checkpointed progress and safe resume. Check new logs afterwards with Check all unchecked logs.
+          </div>
         </div>
         <div className="mt-4 grid gap-4 xl:grid-cols-4">
           {actionGroups.map((group) => (
@@ -176,11 +321,13 @@ export function DemoControls() {
                 {group.actions.map((action) => (
                   <button
                     key={action.label}
-                    className="rounded-lg border border-line bg-panel p-4 text-left transition hover:border-cyan/50 hover:bg-cyan/10"
+                    className="rounded-lg border border-line bg-panel p-4 text-left transition hover:border-cyan/50 hover:bg-cyan/10 disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={action.disabled}
                     onClick={action.run}
                   >
                     <div className="font-extrabold text-text">{action.label}</div>
                     <div className="mt-2 text-xs text-muted">{action.description}</div>
+                    <div className="mt-2 text-xs font-bold text-text">{action.uses}</div>
                   </button>
                 ))}
               </div>

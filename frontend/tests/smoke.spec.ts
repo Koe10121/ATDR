@@ -3831,6 +3831,19 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
   await page.route("**/api/demo/run-detection", async (route) =>
     route.fulfill({ json: { logs_evaluated: 1000, created_alerts: 4, deduplicated_alert_updates: 2, suppressed_alerts: 0, detection_run_id: 8 } })
   );
+  await page.route("**/api/demo/detection-coverage**", async (route) =>
+    route.fulfill({
+      json: {
+        total_logs: 1200,
+        checked_logs: 1200,
+        unchecked_logs: 0,
+        oldest_unchecked_log_id: null,
+        limit: 1000,
+        newest_log_id_range: [201, 1200],
+        unchecked_batch_size: 5000
+      }
+    })
+  );
   await page.route("**/api/demo/train-ml", async (route) =>
     route.fulfill({
       json: {
@@ -7093,6 +7106,109 @@ test("demo import limit is editable and custom sample path is sent", async ({ pa
   await expect(importResult).toContainText("Raw logs imported");
   await expect(importResult).toContainText("paloalto-firewall.log");
   await expect(page.getByText("contains 2 non-empty log lines")).not.toBeVisible();
+});
+
+test("validation controls say which logs each action uses and check every unchecked log", async ({ page }) => {
+  // Detection used to take the newest N logs each run and remember nothing,
+  // so logs between batches were never checked. The page must show coverage,
+  // name the exact logs, and walk every unchecked log in batches.
+  let sweepDone = false;
+  const detectionBodies: Array<{ mode?: string; limit?: number | null }> = [];
+  const importBodies: Array<{ limit?: number | null }> = [];
+  await mockApi(page);
+  await page.route("**/api/demo/detection-coverage**", async (route) =>
+    route.fulfill({
+      json: {
+        total_logs: 12000,
+        checked_logs: sweepDone ? 12000 : 2000,
+        unchecked_logs: sweepDone ? 0 : 10000,
+        oldest_unchecked_log_id: sweepDone ? null : 101,
+        limit: 1000,
+        newest_log_id_range: [11001, 12000],
+        unchecked_batch_size: 5000
+      }
+    })
+  );
+  await page.route("**/api/demo/run-detection", async (route) => {
+    const body = JSON.parse(route.request().postData() || "{}") as { mode?: string; limit?: number | null };
+    detectionBodies.push(body);
+    const first = detectionBodies.length === 1;
+    if (!first) sweepDone = true;
+    await route.fulfill({
+      json: {
+        evaluated: 5000,
+        created_alerts: first ? 3 : 2,
+        deduplicated_alert_updates: first ? 1 : 0,
+        remaining_unchecked: first ? 5000 : 0,
+        evaluated_log_id_range: first ? [101, 5100] : [5101, 10100],
+        detection_run_id: first ? 40 : 41
+      }
+    });
+  });
+  await page.route("**/api/demo/import-sample", async (route) => {
+    importBodies.push(JSON.parse(route.request().postData() || "{}") as { limit?: number | null });
+    await route.fulfill({ json: { requested_limit: null, available_lines: 2, raw_logs_imported: 2 } });
+  });
+  await seedSession(page);
+  await page.goto("/demo");
+
+  const coverage = page.getByTestId("detection-coverage");
+  await expect(coverage).toContainText("2,000 of 12,000 logs have been checked by detection.");
+  await expect(coverage).toContainText("10,000 logs have never been checked (oldest: log #101)");
+  await expect(page.getByRole("button", { name: /Run detection/ })).toContainText(
+    "Checks the newest 1,000 logs (log IDs 11,001 to 12,000)."
+  );
+
+  await coverage.getByRole("button", { name: "Check all unchecked logs" }).click();
+  const progress = page.getByTestId("detection-sweep-progress");
+  await expect(progress).toContainText("Done: 10,000 of 10,000 logs checked in 2 batches, 5 new alerts, 1 update to existing alerts.");
+  await expect(page.getByRole("progressbar", { name: "Detection coverage progress" })).toHaveAttribute("aria-valuenow", "100");
+  expect(detectionBodies).toEqual([
+    { limit: 5000, mode: "unchecked" },
+    { limit: 5000, mode: "unchecked" }
+  ]);
+  await expect(coverage).toContainText("12,000 of 12,000 logs have been checked by detection.");
+  await expect(coverage.getByRole("button", { name: "Check all unchecked logs" })).toBeDisabled();
+
+  await page.getByRole("checkbox", { name: "All" }).check();
+  await expect(page.getByRole("button", { name: /Run detection/ })).toBeDisabled();
+  await expect(page.getByRole("button", { name: /Train ML model/ })).toContainText("Trains on all normal-looking logs");
+  await page.getByRole("button", { name: /Import sample logs/ }).click();
+  await expect.poll(() => importBodies.length).toBe(1);
+  expect(importBodies[0].limit).toBe(0);
+});
+
+test("validation controls can stop checking unchecked logs after the current batch", async ({ page }) => {
+  let requests = 0;
+  await mockApi(page);
+  await page.route("**/api/demo/detection-coverage**", async (route) =>
+    route.fulfill({
+      json: {
+        total_logs: 50000,
+        checked_logs: 0,
+        unchecked_logs: 50000,
+        oldest_unchecked_log_id: 1,
+        limit: 1000,
+        newest_log_id_range: [49001, 50000],
+        unchecked_batch_size: 5000
+      }
+    })
+  );
+  await page.route("**/api/demo/run-detection", async (route) => {
+    requests += 1;
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    await route.fulfill({
+      json: { evaluated: 5000, created_alerts: 0, deduplicated_alert_updates: 0, remaining_unchecked: 50000 - requests * 5000, evaluated_log_id_range: [1, 5000], detection_run_id: 50 + requests }
+    });
+  });
+  await seedSession(page);
+  await page.goto("/demo");
+
+  await page.getByRole("button", { name: "Check all unchecked logs" }).click();
+  await page.getByRole("button", { name: "Stop after this batch" }).click();
+  await expect(page.getByTestId("detection-sweep-progress")).toContainText("Stopped: 5,000 of 50,000 logs checked in 1 batch");
+  expect(requests).toBe(1);
+  await expect(page.getByRole("button", { name: "Check all unchecked logs" })).toBeEnabled();
 });
 
 test("demo import strips copy-as-path quotes before sending sample path", async ({ page }) => {

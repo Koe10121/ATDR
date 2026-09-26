@@ -875,6 +875,25 @@ export interface DemoActionResult {
   [key: string]: unknown;
 }
 
+export interface DetectionCoverage {
+  total_logs: number;
+  checked_logs: number;
+  unchecked_logs: number;
+  oldest_unchecked_log_id: number | null;
+  limit: number | null;
+  newest_log_id_range: [number, number] | null;
+  unchecked_batch_size: number;
+}
+
+export interface UncheckedDetectionBatch {
+  evaluated: number;
+  created_alerts: number;
+  deduplicated_alert_updates: number;
+  remaining_unchecked: number;
+  evaluated_log_id_range: [number, number] | null;
+  detection_run_id: number;
+}
+
 export interface DashboardSummary {
   total_logs: number;
   total_raw_logs?: number;

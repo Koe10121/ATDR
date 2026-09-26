@@ -256,11 +256,19 @@ def explain_log_triage(log: NormalizedLog) -> dict[str, Any]:
         reasons = ["The log is already part of alert evidence."]
     else:
         status = "not_flagged"
-        summary = "No active alert evidence currently links to this log."
-        reasons = [
-            "No alert evidence row currently references this normalized log.",
-            "It may be benign, below alert threshold, already covered by another grouped alert, suppressed by policy, or detection may not have run after ingestion.",
-        ]
+        checked_by = getattr(log, "last_detection_run_id", None)
+        if checked_by is None:
+            summary = "Detection has not checked this log yet."
+            reasons = [
+                "No alert evidence row currently references this normalized log.",
+                "No detection run has evaluated it against the rules yet; Validation Controls > Check all unchecked logs will check it.",
+            ]
+        else:
+            summary = f"Detection run #{checked_by} checked this log and did not link it to an alert."
+            reasons = [
+                "No alert evidence row currently references this normalized log.",
+                f"Detection run #{checked_by} evaluated it: its rule points stayed below the alert threshold, its group was too small to alert on, or a suppression rule matched.",
+            ]
         if normalized_signals:
             reasons.append("Analyst-relevant fields exist, but they did not produce an alert link on their own.")
         else:

@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from datetime import datetime, timezone
 
-from sqlalchemy import delete, desc, select
+from sqlalchemy import delete, desc, func, select
 from sqlalchemy.orm import Session
 
 from atdr.app.core.config import PROJECT_ROOT, get_settings
@@ -21,7 +21,7 @@ from atdr.app.db.models import (
 )
 from atdr.app.services.alert_service import alert_report, render_alert_report_csv, render_alert_report_html, render_alert_report_pdf
 from atdr.app.services.dashboard_service import build_dashboard_summary
-from atdr.app.services.detection_service import run_detection
+from atdr.app.services.detection_service import count_unchecked_logs, run_detection
 from atdr.app.services.log_service import import_log_file
 from atdr.app.services.operation_run_service import safe_source_label
 from atdr.app.services.ml_service import apply_anomaly_scoring, evaluation_report, train_anomaly_model
@@ -122,18 +122,54 @@ def import_demo_sample_logs(
     return result
 
 
+UNCHECKED_BATCH_DEFAULT = 5000
+UNCHECKED_BATCH_MAX = 20000
+
+
 def run_demo_detection(
     db: Session,
     *,
     limit: int | None = None,
     use_ml: bool = False,
     actor: str,
+    mode: str = "newest",
 ) -> dict:
     settings = get_settings()
+    if mode == "unchecked":
+        # One bounded batch per request keeps each call short; the page calls
+        # again until nothing is left, showing progress in between.
+        batch = UNCHECKED_BATCH_DEFAULT if not limit or limit <= 0 else min(limit, UNCHECKED_BATCH_MAX)
+        return run_detection(db, limit=batch, use_ml=False, actor=actor, only_unchecked=True)
     detection_limit = settings.demo_import_limit if limit is None else limit
     if detection_limit is not None and detection_limit <= 0:
         detection_limit = None
     return run_detection(db, limit=detection_limit, use_ml=use_ml, actor=actor)
+
+
+def detection_coverage(db: Session, *, limit: int | None = None) -> dict:
+    """Say which logs the Validation Controls actions would use right now."""
+
+    total = int(db.scalar(select(func.count(NormalizedLog.id))) or 0)
+    unchecked = count_unchecked_logs(db)
+    newest_ids = None
+    if limit and limit > 0 and total:
+        newest = db.scalar(select(func.max(NormalizedLog.id)))
+        oldest_in_batch = db.scalar(
+            select(NormalizedLog.id).order_by(desc(NormalizedLog.id)).offset(min(limit, total) - 1).limit(1)
+        )
+        newest_ids = [int(oldest_in_batch), int(newest)] if newest is not None and oldest_in_batch is not None else None
+    oldest_unchecked = db.scalar(
+        select(func.min(NormalizedLog.id)).where(NormalizedLog.last_detection_run_id.is_(None))
+    )
+    return {
+        "total_logs": total,
+        "checked_logs": total - unchecked,
+        "unchecked_logs": unchecked,
+        "oldest_unchecked_log_id": int(oldest_unchecked) if oldest_unchecked is not None else None,
+        "limit": limit if limit and limit > 0 else None,
+        "newest_log_id_range": newest_ids,
+        "unchecked_batch_size": UNCHECKED_BATCH_DEFAULT,
+    }
 
 
 def train_demo_ml_model(db: Session, *, limit: int | None = None, actor: str) -> dict:

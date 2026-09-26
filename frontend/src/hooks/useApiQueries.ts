@@ -1016,6 +1016,14 @@ export function useUserMutations() {
   };
 }
 
+export function useDetectionCoverage(limit: number | null) {
+  return useQuery({
+    queryKey: ["detection-coverage", limit],
+    queryFn: () => api.demoDetectionCoverage(limit),
+    placeholderData: (previous) => previous
+  });
+}
+
 export function useDemoMutations() {
   const queryClient = useQueryClient();
   const invalidate = () => {
