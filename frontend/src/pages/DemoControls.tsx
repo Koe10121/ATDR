@@ -173,7 +173,7 @@ export function DemoControls() {
               <p className="mt-1 text-sm text-muted">
                 {count(coverageData.unchecked_logs)} logs have never been checked
                 {coverageData.oldest_unchecked_log_id ? ` (oldest: log #${count(coverageData.oldest_unchecked_log_id)})` : ""}.
-                This checks them oldest first, {count(coverageData.unchecked_batch_size)} at a time, so every log is checked once. You can stop and continue later.
+                This checks them oldest first in whole 5-minute windows of traffic (at least {count(coverageData.unchecked_batch_size)} logs per step), so every log is checked once with its full context. You can stop and continue later.
               </p>
             ) : null}
             {coverageData && coverageData.unchecked_logs === 0 && !sweep.running ? (

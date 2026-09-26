@@ -5,7 +5,7 @@ fell between batches were never evaluated (85,012 of them in the lab data,
 including very-high-risk app traffic that the rules would have alerted on).
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
@@ -31,7 +31,8 @@ def _add_log(db, index: int, *, risky: bool = False) -> int:
     db.flush()
     log = NormalizedLog(
         raw_log_id=raw.id,
-        generated_time=datetime(2026, 5, 20, 13, 0, index),
+        # One log per five-minute window, so window-sized batches stay small.
+        generated_time=datetime(2026, 5, 20, 13, 0) + timedelta(minutes=5 * index),
         log_type="TRAFFIC",
         src_ip=f"10.1.24.{index}",
         dst_ip="34.237.179.253",

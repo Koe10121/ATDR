@@ -132,6 +132,10 @@ class CorrelationSnapshot:
     source_scope: str
     window_label: str
     large_outbound_to_destination_count: int = 0
+    # Beacon evidence for this log's destination over fifteen minutes (its own,
+    # previous and next window); the cadence fields above use the same span.
+    beacon_event_count: int = 0
+    beacon_repeat_count: int = 0
 
 
 @dataclass(slots=True)
@@ -216,16 +220,66 @@ def _source_scope(log: NormalizedLog) -> str:
     return f"source:{source_id}" if source_id is not None else "source:unscoped"
 
 
-def _event_time(log: NormalizedLog) -> datetime | None:
+def event_time(log: NormalizedLog) -> datetime | None:
     return log.generated_time or log.receive_time or log.high_res_timestamp or log.start_time
 
 
 def _window_label(log: NormalizedLog) -> str:
-    value = _event_time(log)
+    value = event_time(log)
     if value is None:
         return "missing-event-time"
     minute = (value.minute // 5) * 5
     return value.replace(minute=minute, second=0, microsecond=0).isoformat()
+
+
+BYTE_OUTLIER_FLOOR = 10_000_000.0
+PACKET_OUTLIER_FLOOR = 50_000.0
+OUTLIER_MIN_SAMPLES = 10
+OUTLIER_SIGMA = 3
+
+
+def outlier_threshold(count: int, mean_value: float | None, std_value: float | None, floor: float) -> float:
+    """mean + 3 sigma of the observed values, never below `floor`."""
+
+    if count >= OUTLIER_MIN_SAMPLES and mean_value is not None and std_value is not None:
+        return max(floor, mean_value + OUTLIER_SIGMA * std_value)
+    return floor
+
+
+def outlier_thresholds_from_values(byte_values: list[int], packet_values: list[int]) -> tuple[float, float]:
+    return (
+        outlier_threshold(
+            len(byte_values),
+            mean(byte_values) if byte_values else None,
+            pstdev(byte_values) if byte_values else None,
+            BYTE_OUTLIER_FLOOR,
+        ),
+        outlier_threshold(
+            len(packet_values),
+            mean(packet_values) if packet_values else None,
+            pstdev(packet_values) if packet_values else None,
+            PACKET_OUTLIER_FLOOR,
+        ),
+    )
+
+
+CORRELATION_WINDOW = timedelta(minutes=CORRELATION_WINDOW_MINUTES)
+# Two grids of fixed windows, the second shifted by half a window: any burst
+# shorter than half a window falls whole into a window of one of them.
+WINDOW_OFFSETS = (timedelta(0), CORRELATION_WINDOW / 2)
+_NO_CADENCE = (0, 0, 0, None, None)
+
+
+def correlation_window_start(value: datetime, offset: timedelta = timedelta(0)) -> datetime:
+    """Start of the fixed clock window holding `value` (13:35:00-13:40:00, ...).
+
+    Windows sit on the clock rather than starting at a source's first event,
+    so the same traffic always correlates the same way no matter how logs
+    were split into detection batches. `offset` selects the shifted grid.
+    """
+
+    midnight = value.replace(hour=0, minute=0, second=0, microsecond=0)
+    return midnight + offset + ((value - midnight - offset) // CORRELATION_WINDOW) * CORRELATION_WINDOW
 
 
 def _effective_event_count(log: NormalizedLog) -> int:
@@ -278,7 +332,18 @@ def _cadence_metrics(times: list[datetime]) -> tuple[int, float | None, float | 
     return len(intervals), interval_mean, jitter_ratio
 
 
-def build_detection_context(logs: Iterable[NormalizedLog]) -> DetectionContext:
+def build_detection_context(
+    logs: Iterable[NormalizedLog],
+    *,
+    outlier_thresholds: tuple[float, float] | None = None,
+) -> DetectionContext:
+    """Correlate events per source within fixed clock windows.
+
+    `logs` may include context-only neighbours from outside the batch being
+    evaluated, so windows are complete at batch edges. `outlier_thresholds`
+    (bytes, packets) replaces the thresholds otherwise derived from `logs`,
+    so they don't change with batch composition either.
+    """
     materialized_logs = logs if isinstance(logs, list) else list(logs)
     source_counts: Counter[str] = Counter()
     source_deny_drop_counts: Counter[str] = Counter()
@@ -313,118 +378,42 @@ def build_detection_context(logs: Iterable[NormalizedLog]) -> DetectionContext:
         if log.packets is not None:
             packet_values.append(log.packets)
 
-    byte_threshold = 10_000_000.0
-    packet_threshold = 50_000.0
-    if len(byte_values) >= 10:
-        byte_threshold = max(byte_threshold, mean(byte_values) + (3 * pstdev(byte_values)))
-    if len(packet_values) >= 10:
-        packet_threshold = max(packet_threshold, mean(packet_values) + (3 * pstdev(packet_values)))
-
-    correlation_groups: list[tuple[str, str, list[NormalizedLog]]] = []
-    for (scope, _src_ip), grouped_logs in source_groups.items():
-        timed = sorted(
-            (item for item in grouped_logs if _event_time(item) is not None),
-            key=lambda item: (_event_time(item), _event_key(item)),
-        )
-        missing_time = [item for item in grouped_logs if _event_time(item) is None]
-        current: list[NormalizedLog] = []
-        window_start: datetime | None = None
-        for item in timed:
-            item_time = _event_time(item)
-            if window_start is None or (
-                item_time is not None
-                and item_time - window_start <= timedelta(minutes=CORRELATION_WINDOW_MINUTES)
-            ):
-                current.append(item)
-                window_start = window_start or item_time
-                continue
-            correlation_groups.append((scope, window_start.isoformat(), current))
-            current = [item]
-            window_start = item_time
-        if current and window_start is not None:
-            correlation_groups.append((scope, window_start.isoformat(), current))
-        for item in missing_time:
-            # A missing event timestamp cannot support cross-row temporal
-            # correlation. Keep each row isolated while still allowing
-            # event-local evidence such as PAN repeatcnt to be evaluated.
-            correlation_groups.append(
-                (
-                    scope,
-                    f"missing-event-time:{_event_key(item)}",
-                    [item],
-                )
-            )
+    if outlier_thresholds is not None:
+        byte_threshold, packet_threshold = outlier_thresholds
+    else:
+        byte_threshold, packet_threshold = outlier_thresholds_from_values(byte_values, packet_values)
 
     event_correlations: dict[int, CorrelationSnapshot] = {}
-    for scope, window_label, grouped_logs in correlation_groups:
-        source_count = sum(_effective_event_count(item) for item in grouped_logs)
-        deny_drop_count = sum(
-            _effective_event_count(item) for item in grouped_logs if _is_deny_or_drop(item)
-        )
-        auth_deny_count = sum(
-            _effective_event_count(item)
-            for item in grouped_logs
-            if _is_deny_or_drop(item) and item.dst_port in AUTH_SERVICE_PORTS
-        )
-        distinct_ports = frozenset(item.dst_port for item in grouped_logs if item.dst_port is not None)
-        destination_counts: Counter[tuple[str, int | None]] = Counter()
-        destination_event_counts: Counter[tuple[str, int | None]] = Counter()
-        auth_target_deny_counts: Counter[tuple[str, int | None]] = Counter()
-        port_destinations: dict[int, set[str]] = defaultdict(set)
-        port_deny_drop_counts: Counter[int] = Counter()
-        destination_times: dict[tuple[str, int | None], list[datetime]] = defaultdict(list)
-        large_outbound_by_destination: Counter[str] = Counter()
+    for (scope, _src_ip), grouped_logs in source_groups.items():
+        timed = [item for item in grouped_logs if event_time(item) is not None]
+        cadence = _cadence_by_log(timed)
+        for offset in WINDOW_OFFSETS:
+            windows: dict[datetime, list[NormalizedLog]] = defaultdict(list)
+            for item in timed:
+                item_time = event_time(item)
+                window_start = correlation_window_start(item_time, offset)
+                windows[window_start].append(item)
+                if item_time == window_start:
+                    # "Within five minutes" includes the five-minute mark, so
+                    # an event exactly on an edge also closes the previous window.
+                    windows[window_start - CORRELATION_WINDOW].append(item)
+            for window_start, window_logs in sorted(windows.items()):
+                window_logs.sort(key=lambda item: (event_time(item), _event_key(item)))
+                snapshots = _window_snapshots(scope, window_start.isoformat(), window_logs, byte_threshold, cadence)
+                for key, snapshot in snapshots.items():
+                    # Each log keeps the fuller of its two windows; ties keep
+                    # the unshifted window, which alert grouping also uses.
+                    current = event_correlations.get(key)
+                    if current is None or snapshot.source_count > current.source_count:
+                        event_correlations[key] = snapshot
         for item in grouped_logs:
-            outbound_bytes, _field = _outbound_byte_value(item)
-            if (
-                item.dst_ip
-                and outbound_bytes is not None
-                and outbound_bytes > byte_threshold
-                and is_internal_to_external(item)
-            ):
-                large_outbound_by_destination[item.dst_ip] += 1
-            if item.dst_ip:
-                destination_counts[(item.dst_ip, item.dst_port)] += _effective_event_count(item)
-                destination_event_counts[(item.dst_ip, item.dst_port)] += 1
-                if item.dst_port is not None:
-                    port_destinations[item.dst_port].add(item.dst_ip)
-                item_time = _event_time(item)
-                if item_time is not None:
-                    destination_times[(item.dst_ip, item.dst_port)].append(item_time)
-            if _is_deny_or_drop(item) and item.dst_port is not None:
-                port_deny_drop_counts[item.dst_port] += _effective_event_count(item)
-                if item.dst_port in AUTH_SERVICE_PORTS:
-                    auth_target_deny_counts[(item.dst_ip or "", item.dst_port)] += _effective_event_count(item)
-        for item in grouped_logs:
-            destination_key = (item.dst_ip or "", item.dst_port)
-            interval_count, interval_mean, jitter_ratio = _cadence_metrics(
-                destination_times.get(destination_key, [])
-            )
-            event_correlations[_event_key(item)] = CorrelationSnapshot(
-                source_count=source_count,
-                deny_drop_count=deny_drop_count,
-                distinct_ports=distinct_ports,
-                auth_deny_count=auth_deny_count,
-                auth_target_deny_count=auth_target_deny_counts.get(destination_key, 0),
-                destination_repeat_count=destination_counts.get(destination_key, 0),
-                destination_event_count=destination_event_counts.get(destination_key, 0),
-                distinct_destinations_for_port=(
-                    len(port_destinations.get(item.dst_port, set()))
-                    if item.dst_port is not None
-                    else 0
-                ),
-                deny_drop_count_for_port=(
-                    port_deny_drop_counts.get(item.dst_port, 0)
-                    if item.dst_port is not None
-                    else 0
-                ),
-                cadence_interval_count=interval_count,
-                cadence_mean_seconds=interval_mean,
-                cadence_jitter_ratio=jitter_ratio,
-                source_scope=scope,
-                window_label=window_label,
-                large_outbound_to_destination_count=large_outbound_by_destination.get(item.dst_ip or "", 0),
-            )
+            if event_time(item) is None:
+                # A missing event timestamp cannot support cross-row temporal
+                # correlation. Keep each row isolated while still allowing
+                # event-local evidence such as PAN repeatcnt to be evaluated.
+                event_correlations.update(
+                    _window_snapshots(scope, f"missing-event-time:{_event_key(item)}", [item], byte_threshold, cadence)
+                )
 
     return DetectionContext(
         source_counts=source_counts,
@@ -437,6 +426,118 @@ def build_detection_context(logs: Iterable[NormalizedLog]) -> DetectionContext:
         packet_outlier_threshold=packet_threshold,
         event_correlations=event_correlations,
     )
+
+
+def _cadence_by_log(timed_logs: list[NormalizedLog]) -> dict[int, tuple[int, int, int, float | None, float | None]]:
+    """Beacon metrics per log over its own, previous and next fixed window.
+
+    Beacons are slow and periodic: one check-in a minute fits only five into a
+    five-minute window, so their cadence is measured over fifteen minutes.
+    Returns (events, repeat-weighted events, intervals, mean interval, jitter).
+    """
+
+    by_destination: dict[tuple[str, int | None], dict[datetime, list[NormalizedLog]]] = defaultdict(
+        lambda: defaultdict(list)
+    )
+    for item in timed_logs:
+        if item.dst_ip:
+            by_destination[(item.dst_ip, item.dst_port)][correlation_window_start(event_time(item))].append(item)
+    metrics_by_log: dict[int, tuple[int, int, int, float | None, float | None]] = {}
+    for windows in by_destination.values():
+        for window_start, window_logs in windows.items():
+            span = [
+                item
+                for start in (window_start - CORRELATION_WINDOW, window_start, window_start + CORRELATION_WINDOW)
+                for item in windows.get(start, [])
+            ]
+            interval_count, interval_mean, jitter_ratio = _cadence_metrics([event_time(item) for item in span])
+            metrics = (
+                len(span),
+                sum(_effective_event_count(item) for item in span),
+                interval_count,
+                interval_mean,
+                jitter_ratio,
+            )
+            for item in window_logs:
+                metrics_by_log[_event_key(item)] = metrics
+    return metrics_by_log
+
+
+def _window_snapshots(
+    scope: str,
+    window_label: str,
+    grouped_logs: list[NormalizedLog],
+    byte_threshold: float,
+    cadence: dict[int, tuple[int, int, int, float | None, float | None]],
+) -> dict[int, CorrelationSnapshot]:
+    source_count = sum(_effective_event_count(item) for item in grouped_logs)
+    deny_drop_count = sum(
+        _effective_event_count(item) for item in grouped_logs if _is_deny_or_drop(item)
+    )
+    auth_deny_count = sum(
+        _effective_event_count(item)
+        for item in grouped_logs
+        if _is_deny_or_drop(item) and item.dst_port in AUTH_SERVICE_PORTS
+    )
+    distinct_ports = frozenset(item.dst_port for item in grouped_logs if item.dst_port is not None)
+    destination_counts: Counter[tuple[str, int | None]] = Counter()
+    destination_event_counts: Counter[tuple[str, int | None]] = Counter()
+    auth_target_deny_counts: Counter[tuple[str, int | None]] = Counter()
+    port_destinations: dict[int, set[str]] = defaultdict(set)
+    port_deny_drop_counts: Counter[int] = Counter()
+    large_outbound_by_destination: Counter[str] = Counter()
+    for item in grouped_logs:
+        outbound_bytes, _field = _outbound_byte_value(item)
+        if (
+            item.dst_ip
+            and outbound_bytes is not None
+            and outbound_bytes > byte_threshold
+            and is_internal_to_external(item)
+        ):
+            large_outbound_by_destination[item.dst_ip] += 1
+        if item.dst_ip:
+            destination_counts[(item.dst_ip, item.dst_port)] += _effective_event_count(item)
+            destination_event_counts[(item.dst_ip, item.dst_port)] += 1
+            if item.dst_port is not None:
+                port_destinations[item.dst_port].add(item.dst_ip)
+        if _is_deny_or_drop(item) and item.dst_port is not None:
+            port_deny_drop_counts[item.dst_port] += _effective_event_count(item)
+            if item.dst_port in AUTH_SERVICE_PORTS:
+                auth_target_deny_counts[(item.dst_ip or "", item.dst_port)] += _effective_event_count(item)
+    snapshots: dict[int, CorrelationSnapshot] = {}
+    for item in grouped_logs:
+        destination_key = (item.dst_ip or "", item.dst_port)
+        beacon_events, beacon_repeats, interval_count, interval_mean, jitter_ratio = cadence.get(
+            _event_key(item), _NO_CADENCE
+        )
+        snapshots[_event_key(item)] = CorrelationSnapshot(
+            source_count=source_count,
+            deny_drop_count=deny_drop_count,
+            distinct_ports=distinct_ports,
+            auth_deny_count=auth_deny_count,
+            auth_target_deny_count=auth_target_deny_counts.get(destination_key, 0),
+            destination_repeat_count=destination_counts.get(destination_key, 0),
+            destination_event_count=destination_event_counts.get(destination_key, 0),
+            distinct_destinations_for_port=(
+                len(port_destinations.get(item.dst_port, set()))
+                if item.dst_port is not None
+                else 0
+            ),
+            deny_drop_count_for_port=(
+                port_deny_drop_counts.get(item.dst_port, 0)
+                if item.dst_port is not None
+                else 0
+            ),
+            cadence_interval_count=interval_count,
+            cadence_mean_seconds=interval_mean,
+            cadence_jitter_ratio=jitter_ratio,
+            source_scope=scope,
+            window_label=window_label,
+            large_outbound_to_destination_count=large_outbound_by_destination.get(item.dst_ip or "", 0),
+            beacon_event_count=beacon_events,
+            beacon_repeat_count=beacon_repeats,
+        )
+    return snapshots
 
 
 def correlation_window_for_log(
@@ -654,12 +755,13 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
         if correlation
         else context.source_destination_counts.get((src_ip, log.dst_ip or "", log.dst_port), 0)
     )
-    destination_event_count = correlation.destination_event_count if correlation else 0
+    beacon_event_count = correlation.beacon_event_count if correlation else 0
+    beacon_repeat_count = correlation.beacon_repeat_count if correlation else 0
     cadence_interval_count = correlation.cadence_interval_count if correlation else 0
     cadence_mean_seconds = correlation.cadence_mean_seconds if correlation else None
     cadence_jitter_ratio = correlation.cadence_jitter_ratio if correlation else None
     periodic_cadence = bool(
-        destination_event_count >= BEACON_EVENT_THRESHOLD
+        beacon_event_count >= BEACON_EVENT_THRESHOLD
         and cadence_interval_count >= BEACON_EVENT_THRESHOLD - 1
         and cadence_mean_seconds is not None
         and BEACON_MIN_INTERVAL_SECONDS <= cadence_mean_seconds <= BEACON_MAX_INTERVAL_SECONDS
@@ -667,7 +769,7 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
         and cadence_jitter_ratio <= BEACON_MAX_JITTER_RATIO
     )
     if (
-        destination_repeat_count >= BEACON_EVENT_THRESHOLD
+        beacon_repeat_count >= BEACON_EVENT_THRESHOLD
         and periodic_cadence
         and is_internal_to_external(log)
     ):
@@ -693,7 +795,7 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
                     title="Beaconing-like repeated outbound behavior",
                     score=30,
                     explanation=(
-                        f"{src_ip} made {destination_repeat_count} repeated outbound connections to "
+                        f"{src_ip} made {beacon_repeat_count} repeated outbound connections to "
                         f"{log.dst_ip or 'unknown destination'}:{log.dst_port or 'unknown port'}; "
                         f"mean interval {cadence_mean_seconds:.1f}s with jitter ratio "
                         f"{cadence_jitter_ratio:.3f}; supporting context: {', '.join(beacon_context)}."
@@ -758,7 +860,7 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
                 score=35,
                 explanation=(
                     f"Outbound {outbound_bytes_field} value {outbound_bytes} is above the "
-                    f"batch outlier threshold {int(context.byte_outlier_threshold)}."
+                    f"outlier threshold {int(context.byte_outlier_threshold)} for stored traffic."
                 ),
             )
         )
@@ -796,7 +898,7 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
                 code="high_bytes_outlier",
                 title="High byte-count outlier",
                 score=20,
-                explanation=f"Bytes value {log.bytes} is above the batch outlier threshold.",
+                explanation=f"Bytes value {log.bytes} is above the outlier threshold for stored traffic.",
             )
         )
 
@@ -806,7 +908,7 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
                 code="high_packets_outlier",
                 title="High packet-count outlier",
                 score=20,
-                explanation=f"Packet count {log.packets} is above the batch outlier threshold.",
+                explanation=f"Packet count {log.packets} is above the outlier threshold for stored traffic.",
             )
         )
 

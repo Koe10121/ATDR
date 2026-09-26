@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import gc
 import tracemalloc
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import func, select, update
+from sqlalchemy import Float, cast, func, literal, select, update
 from sqlalchemy.orm import Session, joinedload
 
 from atdr.app.core.config import get_settings
@@ -18,12 +18,18 @@ from atdr.app.detection.runtime_contract import (
     score_supervised_runtime_batch,
 )
 from atdr.app.detection.rules import (
+    BYTE_OUTLIER_FLOOR,
+    CORRELATION_WINDOW,
+    PACKET_OUTLIER_FLOOR,
     DetectionResult,
     RuleMatch,
     build_detection_context,
     correlation_window_for_log,
+    correlation_window_start,
     evaluate_rules,
+    event_time,
     is_outside_to_inside,
+    outlier_threshold,
 )
 from atdr.app.detection.scoring import clamp_score, severity_from_score
 from atdr.app.detection.v520_schema_aware_abstention import assess_log_schema_compatibility
@@ -179,6 +185,165 @@ def _runtime_profile_sample(
     )
 
 
+_RECORD_FIELDS = tuple(field.name for field in fields(DetectionLogRecord))
+CONTEXT_SOURCE_CHUNK = 900
+
+
+def _detection_record_columns(*, include_payload: bool = True) -> tuple:
+    """Columns in DetectionLogRecord field order.
+
+    Context-only neighbours never go through rule evaluation, so they skip
+    the parsed JSON payload.
+    """
+
+    return (
+        NormalizedLog.id,
+        RawLog.source_id,
+        NormalizedLog.generated_time,
+        NormalizedLog.receive_time,
+        NormalizedLog.high_res_timestamp,
+        NormalizedLog.start_time,
+        NormalizedLog.log_type,
+        NormalizedLog.subtype,
+        NormalizedLog.src_ip,
+        NormalizedLog.dst_ip,
+        NormalizedLog.src_zone,
+        NormalizedLog.dst_zone,
+        NormalizedLog.app,
+        NormalizedLog.app_category,
+        NormalizedLog.app_risk,
+        NormalizedLog.app_characteristic,
+        NormalizedLog.dst_port,
+        NormalizedLog.action,
+        NormalizedLog.protocol,
+        NormalizedLog.bytes,
+        NormalizedLog.bytes_sent,
+        NormalizedLog.bytes_received,
+        NormalizedLog.packets,
+        NormalizedLog.repeat_count,
+        NormalizedLog.session_end_reason,
+        NormalizedLog.action_source,
+        NormalizedLog.parsed_json if include_payload else literal(None).label("parsed_json"),
+        NormalizedLog.is_anomaly,
+        NormalizedLog.src_port,
+        NormalizedLog.elapsed_time,
+        NormalizedLog.category,
+        NormalizedLog.src_country,
+        NormalizedLog.dst_country,
+    )
+
+
+def _context_neighbour_records(
+    db: Session,
+    batch_logs: list,
+    *,
+    source_id: int | None,
+) -> list[DetectionLogRecord]:
+    """Other logs from the batch's sources inside the batch's clock windows.
+
+    A batch covers seconds of traffic while correlation windows cover five
+    minutes. Without these neighbours a scan that straddles a batch edge is
+    counted in two halves that each stay under the threshold, and results
+    depend on the batch size.
+    """
+
+    times = [value for value in (event_time(log) for log in batch_logs) if value is not None]
+    sources = sorted({log.src_ip for log in batch_logs if log.src_ip})
+    if not times or not sources:
+        return []
+    # One window either side: the shifted grid reaches half a window past
+    # each edge and beacon cadence spans the previous and next window.
+    window_from = correlation_window_start(min(times)) - CORRELATION_WINDOW
+    window_to = correlation_window_start(max(times)) + 2 * CORRELATION_WINDOW
+    batch_ids = {int(log.id) for log in batch_logs}
+    neighbours: list[DetectionLogRecord] = []
+    for start in range(0, len(sources), CONTEXT_SOURCE_CHUNK):
+        statement = (
+            select(*_detection_record_columns(include_payload=False))
+            .join(RawLog, RawLog.id == NormalizedLog.raw_log_id)
+            .where(NormalizedLog.src_ip.in_(sources[start:start + CONTEXT_SOURCE_CHUNK]))
+            .where(NormalizedLog.generated_time >= window_from)
+            .where(NormalizedLog.generated_time < window_to)
+        )
+        if source_id is not None:
+            statement = statement.where(RawLog.source_id == source_id)
+        for row in db.execute(statement):
+            if int(row[0]) in batch_ids:
+                continue
+            neighbours.append(DetectionLogRecord(**{**dict(zip(_RECORD_FIELDS, row)), "parsed_json": {}}))
+    return neighbours
+
+
+def _event_time_expression():
+    return func.coalesce(
+        NormalizedLog.generated_time,
+        NormalizedLog.receive_time,
+        NormalizedLog.high_res_timestamp,
+        NormalizedLog.start_time,
+    )
+
+
+def _unchecked_batch_clause(
+    db: Session,
+    *,
+    limit: int | None,
+    source_id: int | None,
+    event_time_start: datetime | None,
+    event_time_end: datetime | None,
+):
+    """Choose the next unchecked batch as whole five-minute windows, oldest first.
+
+    Alert groups are formed per source, rule and five-minute window, so a
+    batch that ends mid-window would judge half a group (for example "at
+    least five logs") and results would depend on the batch size. Returns
+    (extra where-clause or None, whether `limit` still applies).
+    """
+
+    time_expr = _event_time_expression()
+
+    def scoped(statement):
+        statement = statement.where(NormalizedLog.last_detection_run_id.is_(None))
+        if source_id is not None:
+            statement = statement.join(RawLog, RawLog.id == NormalizedLog.raw_log_id).where(RawLog.source_id == source_id)
+        if event_time_start is not None:
+            statement = statement.where(time_expr >= event_time_start)
+        if event_time_end is not None:
+            statement = statement.where(time_expr < event_time_end)
+        return statement
+
+    # Rows without any timestamp cannot correlate; check them first, by id.
+    if db.scalar(scoped(select(NormalizedLog.id).where(time_expr.is_(None))).limit(1)) is not None:
+        return time_expr.is_(None), True
+    if not limit:
+        return None, False
+    last_time = db.scalar(
+        scoped(select(time_expr)).order_by(time_expr, NormalizedLog.id).offset(limit - 1).limit(1)
+    )
+    if last_time is None:
+        return None, False  # fewer than `limit` unchecked logs remain
+    return time_expr < correlation_window_start(last_time) + CORRELATION_WINDOW, False
+
+
+def dataset_outlier_thresholds(db: Session) -> tuple[float, float]:
+    """Byte and packet outlier thresholds over all stored logs.
+
+    Computed from the whole dataset rather than the current batch, so the
+    same log is judged against the same bar whatever batch it lands in.
+    """
+
+    def bar(column, floor: float) -> float:
+        value = cast(column, Float)
+        count, mean_value, mean_square = db.execute(
+            select(func.count(column), func.avg(value), func.avg(value * value))
+        ).one()
+        if not count or mean_value is None or mean_square is None:
+            return floor
+        std_value = max(float(mean_square) - float(mean_value) ** 2, 0.0) ** 0.5
+        return outlier_threshold(int(count), float(mean_value), std_value, floor)
+
+    return bar(NormalizedLog.bytes, BYTE_OUTLIER_FLOOR), bar(NormalizedLog.packets, PACKET_OUTLIER_FLOOR)
+
+
 def _bounded_detection_records(
     db: Session,
     *,
@@ -188,61 +353,26 @@ def _bounded_detection_records(
     event_time_end: datetime | None,
     yield_per: int = 2_000,
     only_unchecked: bool = False,
+    unchecked_clause=None,
+    apply_limit: bool = True,
 ) -> list[DetectionLogRecord]:
-    event_time = func.coalesce(
-        NormalizedLog.generated_time,
-        NormalizedLog.receive_time,
-        NormalizedLog.high_res_timestamp,
-        NormalizedLog.start_time,
-    )
+    event_time = _event_time_expression()
     statement = (
-        select(
-            NormalizedLog.id,
-            RawLog.source_id,
-            NormalizedLog.generated_time,
-            NormalizedLog.receive_time,
-            NormalizedLog.high_res_timestamp,
-            NormalizedLog.start_time,
-            NormalizedLog.log_type,
-            NormalizedLog.subtype,
-            NormalizedLog.src_ip,
-            NormalizedLog.dst_ip,
-            NormalizedLog.src_zone,
-            NormalizedLog.dst_zone,
-            NormalizedLog.app,
-            NormalizedLog.app_category,
-            NormalizedLog.app_risk,
-            NormalizedLog.app_characteristic,
-            NormalizedLog.dst_port,
-            NormalizedLog.action,
-            NormalizedLog.protocol,
-            NormalizedLog.bytes,
-            NormalizedLog.bytes_sent,
-            NormalizedLog.bytes_received,
-            NormalizedLog.packets,
-            NormalizedLog.repeat_count,
-            NormalizedLog.session_end_reason,
-            NormalizedLog.action_source,
-            NormalizedLog.parsed_json,
-            NormalizedLog.is_anomaly,
-            NormalizedLog.src_port,
-            NormalizedLog.elapsed_time,
-            NormalizedLog.category,
-            NormalizedLog.src_country,
-            NormalizedLog.dst_country,
-        )
+        select(*_detection_record_columns())
         .join(RawLog, RawLog.id == NormalizedLog.raw_log_id)
-        .order_by(NormalizedLog.id.asc() if only_unchecked else NormalizedLog.id.desc())
+        .order_by(*((event_time, NormalizedLog.id) if only_unchecked else (NormalizedLog.id.desc(),)))
     )
     if only_unchecked:
         statement = statement.where(NormalizedLog.last_detection_run_id.is_(None))
+        if unchecked_clause is not None:
+            statement = statement.where(unchecked_clause)
     if source_id is not None:
         statement = statement.where(RawLog.source_id == source_id)
     if event_time_start is not None:
         statement = statement.where(event_time >= event_time_start)
     if event_time_end is not None:
         statement = statement.where(event_time < event_time_end)
-    if limit:
+    if limit and apply_limit:
         statement = statement.limit(limit)
 
     records = [
@@ -398,9 +528,12 @@ def run_detection(
     """Evaluate a batch of logs against the rules.
 
     By default the batch is the newest ``limit`` logs. With ``only_unchecked``
-    it is the oldest ``limit`` logs that no run has evaluated yet, so repeated
-    calls walk the whole history exactly once instead of re-checking the
-    newest rows and skipping older ones. That mode is rules-only: advisory ML
+    it is the oldest unchecked logs by event time, rounded up to whole
+    five-minute windows (at least ``limit`` logs when that many remain), so
+    repeated calls walk the whole history exactly once and every alert group
+    is complete within its batch. Either way, neighbouring logs from the same
+    sources complete correlation windows at batch edges, so the result does
+    not depend on the batch size. Unchecked mode is rules-only: advisory ML
     scoring works on the newest rows and stays a separate step.
     """
     settings = get_settings()
@@ -458,6 +591,17 @@ def run_detection(
             ),
         )
 
+        unchecked_clause, apply_limit = (
+            _unchecked_batch_clause(
+                db,
+                limit=limit,
+                source_id=source_id,
+                event_time_start=event_time_start,
+                event_time_end=event_time_end,
+            )
+            if only_unchecked
+            else (None, True)
+        )
         if bounded_rule_mode:
             logs: list[NormalizedLog | DetectionLogRecord] = (
                 _bounded_detection_records(
@@ -467,32 +611,31 @@ def run_detection(
                     event_time_start=event_time_start,
                     event_time_end=event_time_end,
                     only_unchecked=only_unchecked,
+                    unchecked_clause=unchecked_clause,
+                    apply_limit=apply_limit,
                 )
             )
         else:
+            event_time = _event_time_expression()
             statement = (
                 select(NormalizedLog)
                 .options(joinedload(NormalizedLog.raw_log))
-                .order_by(NormalizedLog.id.asc() if only_unchecked else NormalizedLog.id.desc())
+                .order_by(*((event_time, NormalizedLog.id) if only_unchecked else (NormalizedLog.id.desc(),)))
             )
             if only_unchecked:
                 statement = statement.where(NormalizedLog.last_detection_run_id.is_(None))
+                if unchecked_clause is not None:
+                    statement = statement.where(unchecked_clause)
             if source_id is not None:
                 statement = statement.join(
                     RawLog,
                     NormalizedLog.raw_log_id == RawLog.id,
                 ).where(RawLog.source_id == source_id)
-            event_time = func.coalesce(
-                NormalizedLog.generated_time,
-                NormalizedLog.receive_time,
-                NormalizedLog.high_res_timestamp,
-                NormalizedLog.start_time,
-            )
             if event_time_start is not None:
                 statement = statement.where(event_time >= event_time_start)
             if event_time_end is not None:
                 statement = statement.where(event_time < event_time_end)
-            if limit:
+            if limit and apply_limit:
                 statement = statement.limit(limit)
             logs = list(db.scalars(statement))
             if not only_unchecked:
@@ -507,7 +650,11 @@ def run_detection(
         )
         _runtime_profile_sample(db, runtime_profile, "advisory_scoring_checked")
 
-        context = build_detection_context(logs)
+        context_logs = _context_neighbour_records(db, logs, source_id=source_id)
+        context = build_detection_context(
+            [*logs, *context_logs],
+            outlier_thresholds=dataset_outlier_thresholds(db),
+        )
         _runtime_profile_sample(db, runtime_profile, "context_built")
         already_alerted = existing_evidence_log_ids(
             db,
@@ -691,6 +838,7 @@ def run_detection(
         run_details = {
             "evaluated": evaluated,
             "selection": "unchecked_oldest_first" if only_unchecked else "newest",
+            "context_neighbour_logs": len(context_logs),
             "evaluated_log_id_range": (
                 [min(evaluated_log_ids), max(evaluated_log_ids)] if evaluated_log_ids else None
             ),
@@ -741,6 +889,7 @@ def run_detection(
             grouped.clear()
             candidates.clear()
             logs.clear()
+            context_logs.clear()
             context.event_correlations.clear()
             already_alerted.clear()
             evidence_id_cache.clear()
