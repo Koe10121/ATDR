@@ -2,7 +2,7 @@
 
 ## Status
 
-v5.31 source-backed contract for catalog `atdr_rule_catalog_v5.31.1` (v5.31.1 adds `repeated_large_outbound` and `paloalto_malware_threat`). Deterministic rules remain ATDR's alert-authoritative layer. IsolationForest and supervised ML remain advisory decision support and cannot create, suppress, classify, or change an authoritative alert.
+v5.32 source-backed contract for catalog `atdr_rule_catalog_v5.32.0` (v5.31.1 added `repeated_large_outbound` and `paloalto_malware_threat`; v5.32.0 makes `app_risk_4`, `suspicious_app_characteristic`, `repeated_source_ip`, `outside_to_inside`, `high_bytes_outlier` and `high_packets_outlier` supporting-only). Deterministic rules remain ATDR's alert-authoritative layer. IsolationForest and supervised ML remain advisory decision support and cannot create, suppress, classify, or change an authoritative alert.
 
 ## Source Evidence
 

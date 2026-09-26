@@ -267,7 +267,7 @@ def explain_log_triage(log: NormalizedLog) -> dict[str, Any]:
             summary = f"Detection run #{checked_by} checked this log and did not link it to an alert."
             reasons = [
                 "No alert evidence row currently references this normalized log.",
-                f"Detection run #{checked_by} evaluated it: its rule points stayed below the alert threshold, its group was too small to alert on, or a suppression rule matched.",
+                f"Detection run #{checked_by} evaluated it: its rule points stayed below the alert threshold, it only showed supporting signals (a risky app, a busy source, inbound direction or a large transfer) without suspicious behaviour, its group was too small to alert on, or a suppression rule matched.",
             ]
         if normalized_signals:
             reasons.append("Analyst-relevant fields exist, but they did not produce an alert link on their own.")

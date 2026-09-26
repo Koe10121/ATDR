@@ -136,10 +136,54 @@ def test_low_severity_singletons_are_suppressed():
     result = run_detection(db, limit=100, use_ml=False, actor="test")
     alerts = list(db.scalars(select(Alert)))
 
-    assert result["candidate_logs"] == 3
+    # Application-risk signals alone are supporting-only: they never become
+    # alert candidates, so no low-severity group is even formed.
+    assert result["candidate_logs"] == 0
+    assert result["supporting_only_logs"] == 3
     assert result["created_alerts"] == 0
-    assert result["suppressed_low_groups"] == 1
     assert alerts == []
+
+
+def test_context_signals_add_points_but_never_raise_an_alert_alone():
+    """A busy source using a risky app is context, not an attack; a scan is.
+
+    Busy source (20) + app risk 4 (15) + suspicious characteristic (15) used to
+    reach 50 points and alert on normal heavy browsing. On MFU labels those
+    alerts were right about a quarter of the time.
+    """
+
+    db = _session()
+
+    def add(index: int, **fields) -> None:
+        raw = RawLog(raw_line=f"context signals {index}")
+        db.add(raw)
+        db.flush()
+        db.add(NormalizedLog(raw_log_id=raw.id, generated_time=datetime(2026, 5, 20, 13, 36, index % 60),
+                             log_type="TRAFFIC", protocol="tcp", bytes=2000, packets=12, parsed_json={}, **fields))
+
+    for index in range(30):  # a busy WLAN client browsing with a risky app
+        add(index, src_ip="172.27.6.242", dst_ip=f"93.184.216.{index}", src_zone="WLAN-Inside",
+            dst_zone="SG-Outside", app="hola-unblocker", app_risk=4, app_characteristic="able-to-transfer-file",
+            dst_port=443, action="allow")
+    for index in range(12):  # an outside scanner using the same risky app
+        add(100 + index, src_ip="203.0.113.50", dst_ip="10.20.30.40", src_zone="SG-Outside",
+            dst_zone="LAN-Inside", app="hola-unblocker", app_risk=4, dst_port=30000 + index, action="deny")
+    for index in range(30):  # a busy outside source on one uncommon port
+        add(200 + index, src_ip="198.51.100.9", dst_ip="10.20.30.41", src_zone="SG-Outside",
+            dst_zone="LAN-Inside", app="ssl", app_risk=1, dst_port=4444, action="allow")
+    db.commit()
+
+    result = run_detection(db, limit=None, use_ml=False, actor="test")
+    alerts = {alert.src_ip: alert for alert in db.scalars(select(Alert))}
+
+    assert result["supporting_only_logs"] == 30
+    assert set(alerts) == {"203.0.113.50", "198.51.100.9"}
+    assert alerts["203.0.113.50"].alert_type == "possible_port_scan"
+    assert "app_risk_4" in {item["code"] for item in alerts["203.0.113.50"].matched_rules_json}
+    # A supporting rule can outrank the behavioural one in priority ("busy
+    # source" 60 vs "unusual port" 55) but must never name the alert.
+    assert alerts["198.51.100.9"].alert_type == "unusual_destination_port"
+    assert "repeated_source_ip" in {item["code"] for item in alerts["198.51.100.9"].matched_rules_json}
 
 
 def test_anomaly_signal_is_advisory_and_cannot_create_alert(monkeypatch):

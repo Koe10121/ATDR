@@ -68,6 +68,22 @@ MULTI_EVENT_PATTERN_RULES = {
     "possible_port_scan",
 }
 ADVISORY_EVIDENCE_RULES = frozenset({"ml_anomaly_detected", "low_parse_quality"})
+# Signals that describe context (a risky app, a busy source, inbound direction,
+# a large transfer) rather than suspicious behaviour. The catalog marks them
+# context-only or low confidence. They add points when a behavioural rule also
+# fires on the log, but never raise or name an alert on their own: on
+# human-reviewed MFU logs, alerts they led were right 0-37% of the time, and
+# making them supporting-only took dev false alarms from 47% to 7%.
+SUPPORTING_ONLY_RULES = frozenset(
+    {
+        "app_risk_4",
+        "suspicious_app_characteristic",
+        "repeated_source_ip",
+        "outside_to_inside",
+        "high_bytes_outlier",
+        "high_packets_outlier",
+    }
+)
 CONTEXT_ONLY_PRIMARY_RULES = frozenset(
     {
         "outside_to_inside",
@@ -667,6 +683,7 @@ def run_detection(
         advisory_anomaly_signals = 0
         low_parse_quality_signals = 0
         advisory_only_logs = 0
+        supporting_only_logs = 0
         authoritative_rule_signals = 0
         matched_rule_ids: set[str] = set()
         authoritative_matched_rule_ids: set[str] = set()
@@ -731,13 +748,17 @@ def run_detection(
             if not authoritative_matches:
                 advisory_only_logs += 1
                 continue
+            trigger_matches = [match for match in authoritative_matches if match.code not in SUPPORTING_ONLY_RULES]
+            if not trigger_matches:
+                supporting_only_logs += 1
+                continue
             result = _result_from_matches(matches, scoring_matches=authoritative_matches)
             if result.threat_score >= settings.min_alert_score:
                 candidates.append(
                     DetectionCandidate(
                         log=log,
                         result=result,
-                        primary_rule=_primary_rule(authoritative_matches),
+                        primary_rule=_primary_rule(trigger_matches),
                         correlation_window=correlation_window_for_log(log, context),
                     )
                 )
@@ -851,6 +872,7 @@ def run_detection(
             "advisory_anomaly_signals": advisory_anomaly_signals,
             "low_parse_quality_signals": low_parse_quality_signals,
             "advisory_only_logs": advisory_only_logs,
+            "supporting_only_logs": supporting_only_logs,
             "rule_detection_authoritative": True,
             "detection_layers": detection_layers,
             "limit": limit,
