@@ -54,6 +54,68 @@ All numbers are per log, the same unit as the detection scoreboard: a scan of
 - The same labeled set will later be the test set for the MFU-trained ML
   model, so rules and ML can be compared on identical, unseen logs.
 
+## Result (2026-09-27, rule catalog v5.32.0, model mfu_behavior_v1)
+
+**How the labels were made.** All 150 rows were labeled by ChatGPT, asked to act
+as a senior SOC analyst, on behalf of the ATDR team. The reviewer saw only the
+workbook: no ATDR verdicts, alerts, dashboard or model output, and no IP
+reputation lookups. Borderline one-packet probes were left "Unsure". So the
+labels are blind to ATDR but come from one AI reviewer; the team has not yet
+checked them. Decisions: 102 Normal, 13 Normal but unusual, 31 Threat,
+4 Unsure (left out).
+
+| Detector | Precision | Recall | False-alarm rate | F1 |
+|---|---|---|---|---|
+| Rules alone | 50.9% (95% interval 38.6-64.9%) | 81.8% (61.9-100%) | 6.0% | 62.7% |
+| Behaviour model alone | 74.4% | 65.5% | 1.7% | 69.7% |
+| Rules or model | 53.5% | 90.9% | 6.0% | 67.4% |
+
+Rule precision by alert type in the sample (Threat / judged):
+
+| Alert type | Precision | What the reviewer saw in the false alarms |
+|---|---|---|
+| Port scan | 12/12 | |
+| Horizontal scan | 13/13 | |
+| Multiple denied connections | 1/1 | |
+| Unusual destination port | 3/5 (3 Unsure) | normal inbound web services |
+| Connection flood | 0/13 | ordinary outbound SSL, QUIC, WeChat and DNS-over-HTTPS; one SNMP monitor |
+| Very high application risk | 0/9 | BitTorrent file sharing ("policy-relevant, not an attack") |
+| Unknown or incomplete app | 0/3 | peer-to-peer UDP |
+| Beaconing | 0/1 | one two-way SSL session on port 4433 |
+
+The two threats the rules missed were small probing bursts from outside
+(10-16 unanswered attempts over 5-8 hosts); the model caught one of them.
+
+Reading it:
+
+- This is the honest number. The scoreboard's F1 94% measured agreement with
+  labels made while tuning; blind, the rules' F1 is about 63%.
+- The scan rules are right every time. Nearly all false alarms come from two
+  rules: the flood rule, which fired on campus devices' ordinary busy apps,
+  and the very-high-application-risk rule, which fired on BitTorrent.
+- The reviewer left single unanswered probes as Unsure rather than Threat,
+  which matches treating them as background probing.
+- These labels have now been seen, so any rule change made after reading them
+  is reported as a second look at this window, never as a new blind result.
+
+### Second look after the flood fix (v5.33.0, not blind)
+
+The flood rule was narrowed after this check (see `DETECTION_RULE_CATALOG.md`),
+the fix was first confirmed on the non-blind reviewed labels (scoreboard F1
+94.2% to 94.9%), then the rules were re-run on a copy of the holdout. Exactly
+the 13 sampled flood false alarms stopped alerting; no other sampled verdict
+changed.
+
+| Detector | Precision | Recall | False-alarm rate | F1 |
+|---|---|---|---|---|
+| Rules (v5.33.0) | 65.9% (51.3-80.0%) | 81.8% | 3.2% | 73.0% |
+| Rules or model | 68.2% | 90.9% | 3.2% | 78.0% |
+
+The remaining false alarms are BitTorrent (very high application risk, 9),
+peer-to-peer UDP (unknown app, 3), inbound web services on unusual ports (2)
+and one two-way SSL session (beaconing, 1). Whether file sharing is an attack to
+alert on or a policy matter to summarise is a policy decision for the team.
+
 ## Commands
 
 ```

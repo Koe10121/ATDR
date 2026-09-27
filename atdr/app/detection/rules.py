@@ -150,6 +150,16 @@ def _lower(value: str | None) -> str:
     return (value or "").strip().lower()
 
 
+def _looks_unanswered(log: NormalizedLog) -> bool:
+    """A connection that got no real reply: denied or reset, nothing received, or the app never identified."""
+
+    if _is_deny_or_drop(log):
+        return True
+    if log.bytes_received is not None and log.bytes_received <= 0:
+        return True
+    return _lower(log.app) in {"incomplete", "insufficient-data", "not-applicable"}
+
+
 def _is_deny_or_drop(log: NormalizedLog) -> bool:
     values = {
         _lower(log.action),
@@ -812,9 +822,14 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
     )
     if vendor_flood_evidence:
         flood_context.append(f"vendor THREAT subtype {_lower(log.subtype)}")
-    very_high_volume = destination_repeat_count >= HIGH_VOLUME_COMMON_SERVICE_THRESHOLD
+    # Campus devices' busy apps (QUIC, messaging, DNS-over-HTTPS) open 100+ normal two-way sessions to one
+    # service in five minutes. From our own devices, only unanswered connections look like a flood; an
+    # outside source hammering an MFU service is suspicious either way.
+    very_high_volume = destination_repeat_count >= HIGH_VOLUME_COMMON_SERVICE_THRESHOLD and (
+        is_outside_to_inside(log) or _looks_unanswered(log)
+    )
     if very_high_volume:
-        flood_context.append("very high repeated connection volume")
+        flood_context.append("very high volume of unanswered connections")
     corroborated_volume = (
         destination_repeat_count >= FLOOD_CORROBORATED_EVENT_THRESHOLD
         and (_is_deny_or_drop(log) or vendor_flood_evidence)

@@ -173,6 +173,20 @@ def test_inbound_repeated_service_connections_keep_flood_signal_with_explicit_vo
     assert "connection_flood_suspicion" in codes
 
 
+def test_busy_outbound_apps_are_not_a_flood_unless_their_connections_go_unanswered():
+    def flood(**overrides):
+        logs = _repeated_logs(count=20, app="quic-base", port=443, app_risk=2, app_characteristic="pervasive-use", repeat_count=6)
+        for log in logs:
+            log.bytes_received = overrides.get("bytes_received", 4000)
+            log.app = overrides.get("app", log.app)
+        context = build_detection_context(logs)
+        return "connection_flood_suspicion" in {match.code for match in evaluate_rules(logs[0], context)}
+
+    assert not flood(), "a campus device's busy two-way app traffic is not a flood"
+    assert flood(bytes_received=0), "120 connections that get nothing back are"
+    assert flood(app="incomplete"), "so are connections whose app is never identified"
+
+
 def test_irregular_unknown_polling_is_not_called_beaconing():
     started = datetime(2026, 5, 20, 13, 36)
     offsets = [0, 7, 19, 54, 61, 140, 151, 250]

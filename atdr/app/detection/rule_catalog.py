@@ -4,7 +4,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 
-RULE_CATALOG_VERSION = "atdr_rule_catalog_v5.32.0"
+RULE_CATALOG_VERSION = "atdr_rule_catalog_v5.33.0"
 
 PAN_TRAFFIC_FIELDS = (
     "https://docs.paloaltonetworks.com/ngfw/administration/monitoring/"
@@ -276,8 +276,9 @@ RULE_CATALOG: dict[str, DetectionRuleSpec] = {
             required_fields=("src_ip", "dst_ip", "dst_port", "generated_time"),
             condition=(
                 "source makes at least 20 connections to one destination service in five minutes "
-                "with deny/reset or vendor flood/packet evidence, or reaches at least 100 repeated "
-                "session events regardless of action"
+                "with deny/reset or vendor flood/packet evidence, or at least 100 repeated session "
+                "events that come from outside the network or got no real answer (denied, nothing "
+                "received, or app never identified)"
             ),
             level="high",
             confidence="medium",
