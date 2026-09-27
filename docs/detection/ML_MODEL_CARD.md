@@ -50,7 +50,21 @@ mostly inbound and unanswered, touching at most 9 hosts, 4 ports and 20
 connections in five minutes. Such windows are not trained on and never
 flagged; the dashboard shows how many there were instead. Whether single
 probes should count as threats is a policy decision for the team, and the
-blind check is scored both ways.
+blind check is scored both ways. The team has decided to keep summarising
+them: a probe is escalated only with stronger evidence, such as repeated
+attempts, wider host or port coverage, a known malicious indicator,
+exploitation, or other correlated signals.
+
+**Peer-to-peer file sharing (from catalog v5.34.0).** BitTorrent and similar
+file sharing is policy activity, not an attack. A window in which at least half
+of the source's connections are peer-to-peer file sharing, with no firewall
+threat log, is never flagged; the dashboard shows it in its own policy summary.
+This policy was added after v1 was trained. 13 training-period windows were
+mostly file sharing: 11 were already left out (rule-alerted, unlabeled) and 2
+were trained as port scans because the team had labeled them so. The dataset
+builder now leaves such windows out. v1 has not been retrained, so the blind
+evaluation and the model review still describe the same model. The policy is
+applied when the model makes predictions.
 
 **Threshold.** Chosen on a validation split grouped by source IP (no source on
 both sides) so that at most 0.2% of real normal windows are flagged: 0.969.
@@ -85,9 +99,16 @@ flagged 190, and 179 of those 190 are windows the rules also alerted on. The
 model found 11 windows the rules did not: 1 port scan, 7 beaconing, 3
 exfiltration.
 
+With the file-sharing policy (v5.34.0), 5 of the 190 flags were file-sharing
+windows the model had called port scans; they are no longer flagged (185).
+The 11 model-only windows and the simulated recall above are unchanged, so the
+model review below still applies.
+
 Bar condition 1 (at least 90% of model-only alerts are real threats) is waiting
 for the team's blind review of those 11 windows
-(`.tmp/mfu_model/ATDR_model_review.xlsx`, mixed with 11 random windows).
+(`.tmp/mfu_model/ATDR_model_review_anonymized.xlsx`, mixed with 11 random
+windows; MFU addresses are replaced by consistent stand-ins, row IDs match the
+first copy).
 Brute force and flood made no model-only alerts in the window, so they cannot
 pass condition 1 and stay advisory; the model adds nothing beyond the rules for
 them here.
@@ -102,11 +123,26 @@ the time (v5.32.0):
 | Model alone | 74.4% | 65.5% | 1.7% | 69.7% |
 | Rules or model | 53.5% | 90.9% | 6.0% | 67.4% |
 
+These are the official blind numbers and stay as they are.
+
 The model's own false alarms in that sample were BitTorrent: peers touching
 hundreds of hosts and ports look like scans. Those windows were rule-alerted
 and unlabeled in training, so they were left out and the model never learned
-that file sharing is not scanning. How to treat file sharing is a policy
-decision for the team.
+that file sharing is not scanning. The team then decided file sharing is
+policy activity (catalog v5.34.0).
+
+Post-tuning second look (not blind; the change was made after reading these
+labels), rules v5.34.0 and the model with the file-sharing policy:
+
+| Detector | Precision | Recall | False-alarm rate | F1 |
+|---|---|---|---|---|
+| Rules alone | 80.6% | 81.8% | 1.5% | 81.2% |
+| Model alone | 21 of 21 flags labeled Threat | 65.5% | 0.0% | 79.2% |
+| Rules or model | 82.2% | 90.9% | 1.5% | 86.3% |
+
+The only change for the model: the 8 BitTorrent samples, all labeled "Normal
+but unusual", are no longer flagged. No sample labeled Threat lost its flag.
+Condition 3 still holds (86.3% vs 81.2%).
 
 ## Known limits
 
@@ -127,6 +163,7 @@ python -m atdr.scripts.train_behavior_model --log-file "C:\path\paloalto-firewal
 python -m atdr.scripts.evaluate_behavior_model
 python -m atdr.scripts.evaluate_behavior_model --review-decisions .tmp/mfu_model/review_decisions.csv
 python -m atdr.scripts.evaluate_behavior_model --blind-decisions .tmp/blind_check/decisions.csv
+python -m atdr.scripts.anonymized_review_files model-review   # needs openpyxl
 ```
 
 The model file (`atdr/models/mfu_behavior_model.joblib`) is not in git; the

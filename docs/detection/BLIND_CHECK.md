@@ -54,14 +54,20 @@ All numbers are per log, the same unit as the detection scoreboard: a scan of
 - The same labeled set will later be the test set for the MFU-trained ML
   model, so rules and ML can be compared on identical, unseen logs.
 
-## Result (2026-09-27, rule catalog v5.32.0, model mfu_behavior_v1)
+## Official blind result (2026-09-27, rule catalog v5.32.0, model mfu_behavior_v1)
+
+This is the official blind evaluation. Its numbers are fixed. Rules changed
+after these labels were read are reported further down as post-tuning second
+looks, which never replace these numbers.
 
 **How the labels were made.** All 150 rows were labeled by ChatGPT, asked to act
 as a senior SOC analyst, on behalf of the ATDR team. The reviewer saw only the
 workbook: no ATDR verdicts, alerts, dashboard or model output, and no IP
 reputation lookups. Borderline one-packet probes were left "Unsure". So the
 labels are blind to ATDR but come from one AI reviewer; the team has not yet
-checked them. Decisions: 102 Normal, 13 Normal but unusual, 31 Threat,
+checked them. Until it has, this is an **independent blind reference labeling
+performed without access to ATDR verdicts**, not ground truth (see "Human
+verification" below). Decisions: 102 Normal, 13 Normal but unusual, 31 Threat,
 4 Unsure (left out).
 
 | Detector | Precision | Recall | False-alarm rate | F1 |
@@ -98,7 +104,27 @@ Reading it:
 - These labels have now been seen, so any rule change made after reading them
   is reported as a second look at this window, never as a new blind result.
 
-### Second look after the flood fix (v5.33.0, not blind)
+## Post-tuning second looks (not blind)
+
+The changes below were made after reading the blind labels, with their false
+alarms in view. Re-scoring the same 150 labels therefore shows whether a fix
+did what it was meant to do and broke nothing else. It is not a new blind
+result and is expected to look better than a fresh blind check would.
+
+| Detector | Official blind (v5.32.0) | Second look v5.33.0 (flood fix) | Second look v5.34.0 (P2P policy) |
+|---|---|---|---|
+| Rules: precision | 50.9% | 65.9% | 80.6% (66.7-92.7%) |
+| Rules: recall | 81.8% | 81.8% | 81.8% |
+| Rules: false-alarm rate | 6.0% | 3.2% | 1.5% |
+| Rules: F1 | 62.7% | 73.0% | 81.2% |
+| Model: precision / recall / F1 | 74.4% / 65.5% / 69.7% | unchanged | 21 of 21 flags Threat / 65.5% / 79.2% |
+| Rules or model: precision | 53.5% | 68.2% | 82.2% (68.8-93.5%) |
+| Rules or model: recall | 90.9% | 90.9% | 90.9% |
+| Rules or model: F1 | 67.4% | 78.0% | 86.3% |
+
+Recall never moved: no sample labeled Threat lost its flag in either change.
+
+### v5.33.0: flood fix
 
 The flood rule was narrowed after this check (see `DETECTION_RULE_CATALOG.md`),
 the fix was first confirmed on the non-blind reviewed labels (scoreboard F1
@@ -116,14 +142,59 @@ peer-to-peer UDP (unknown app, 3), inbound web services on unusual ports (2)
 and one two-way SSL session (beaconing, 1). Whether file sharing is an attack to
 alert on or a policy matter to summarise is a policy decision for the team.
 
+### v5.34.0: peer-to-peer file sharing is policy activity
+
+The team decided that BitTorrent and other peer-to-peer file sharing is
+policy-relevant activity, not an attack: its fan-out resembles scanning, but
+that alone is not a threat. File sharing (Palo Alto technology
+"peer-to-peer", subcategory "file-sharing") now alerts only with malicious
+evidence: a firewall threat or malware detection, brute force, or a watchlist
+match. Otherwise it is counted as policy activity and shown on the dashboard
+beside background probing, outside the attack counts. The behaviour model
+applies the same policy: a window that is mostly file sharing with no firewall
+threat log is never flagged.
+
+Rules re-run on a copy of the holdout, model flags recomputed with the policy:
+
+- Exactly the 8 sampled BitTorrent logs changed; the reviewer had labeled all
+  8 "Normal but unusual". They stop alerting from both the rules (very high
+  application risk) and the model (it had called them port scans).
+- No other sampled verdict changed, and no Threat sample lost its flag.
+- All 21 samples the model still flags are labeled Threat. 21 is a small
+  number, so this does not show the model never errs.
+- The remaining rule false alarms: unknown UDP on port 5521 (3, which the
+  reviewer called peer-to-peer; the firewall did not identify the app, so the
+  policy cannot see it), web browsing on port 3000 (unusual destination port,
+  2), an HTTP proxy (very high application risk, 1) and the SSL session on port
+  4433 (beaconing, 1).
+
+## Human verification (pending)
+
+The team will check the AI reviewer's labels by hand: all 31 Threat labels, all
+28 false alarms (logs the rules or the model flagged that the reviewer called
+Normal or Normal but unusual) and the 4 Unsure rows, mixed with 20 random other
+rows so the checkers cannot tell which rows ATDR flagged (83 rows,
+`.tmp/blind_check/ATDR_blind_label_verification.xlsx`). The sheet shows the
+reviewer's decision and note and asks Agree or Change. A second sheet asks
+whether the 11 BitTorrent logs our own team labeled as threats (10 port scans,
+1 unknown anomaly) are still threats under the file-sharing policy. IP addresses are anonymized consistently: the same address
+always gets the same stand-in, MFU addresses stay recognisable as MFU and
+subnets stay grouped, so behaviour can still be judged. Once done, this
+document will report the result as AI-assisted, human-verified labeling. If a
+checker changes a label, the official blind numbers above stay as they are and
+the re-scored numbers are reported next to them.
+
 ## Commands
 
 ```
 python -m atdr.scripts.blind_check prepare --log-file "C:\path\paloalto-firewall(1).log"
 python -m atdr.scripts.blind_check score --decisions .tmp/blind_check/decisions.csv
+python -m atdr.scripts.anonymized_review_files verify-blind-labels   # needs openpyxl
 ```
 
 `prepare` reuses `holdout.db` if it exists. `score` reads a CSV with columns
 `sample_id` and `decision` and writes `.tmp/blind_check/score.json`. The files
 under `.tmp/blind_check/` contain real MFU IP addresses and stay private to
-the team.
+the team. The second looks are written next to it (`second_look.json` for
+v5.33.0, `second_look_v5_34.json` for v5.34.0); `score.json` is the official
+blind result and is not rewritten.
