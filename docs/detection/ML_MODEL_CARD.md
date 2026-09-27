@@ -225,8 +225,25 @@ windows (`.tmp/mfu_model/v2_fresh/ATDR_model_review_v2_fresh_anonymized.xlsx`,
   address may have changed hands since). Because nothing flagged it in
   13:36-13:45, both models learned its windows as normal. v1 still caught it in
   the test window; v2 scores it 0.93, just under its threshold. Labeling a
-  sample of unalerted training windows, or putting known indicators on ATDR's
-  watchlist so the rules alert on them, would stop this.
+  sample of unalerted training windows would stop the models learning such
+  traffic as normal.
+
+  The address is now on ATDR's watchlist (item 1, added 2026-09-27 through
+  the admin API, so it is in the audit log). Re-running the current rules with
+  it on a copy of the 13:45-13:57 traffic adds exactly 2 Critical
+  watchlist alerts, for the beaconing device (53 connections) and a second
+  device (1 connection), and changes nothing else. In the live database the
+  13:36-13:39 part of the same traffic already sits in two open alerts that
+  older rules raised as "application risk 4".
+
+  Why no new behavioural rule: the beaconing rule needs extra context (an
+  uncommon port, an unidentified app, a firewall threat log or a very-high-risk
+  app), and this beacon was plain web browsing on port 80. Counting steady
+  outbound beacons that only one device sends to a destination gives 30 in
+  13:36-13:45 and 35 in 13:45-13:57, nearly all SNMP polling, NTP, ping
+  monitors and app keep-alives. A rule on that pattern would bury this one C2
+  under dozens of harmless alerts. Behaviour alone cannot single it out;
+  threat intelligence can, which is what the watchlist is for.
 
 - **Beaconing:** a 5-minute window often holds only 4-5 beacons, and a beacon
   hidden among a busy host's HTTPS traffic is hard to see. The model finds
