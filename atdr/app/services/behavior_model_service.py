@@ -202,6 +202,63 @@ def draw_model_review(
                   "groups": dict(Counter(entry["group"] for entry in key)), "reviews": key}
 
 
+# Only a review a person did or checked can switch a type on (ML_QUALITY_BAR.md addendum).
+PERSON_REVIEW_METHODS = ("By a person without AI", "AI-assisted and a person checked every row")
+MIN_REVIEWED_FROM_V2 = 5
+
+
+def quality_bar_record(
+    *,
+    fresh: dict[str, Any],
+    blind: dict[str, Any],
+    review_score: dict[str, Any] | None = None,
+    review_method: str | None = None,
+    min_reviewed: int = MIN_REVIEWED_FROM_V2,
+) -> dict[str, Any]:
+    """Where each attack type stands on the quality bar after one evaluation round.
+
+    ``fresh`` is the round's evaluation.json (model-only windows, simulated recall), ``blind`` the
+    blind-check comparison (condition 3) and ``review_score`` the scored blind review of the
+    model-only windows (condition 1), or None while the review is out.
+    """
+
+    rules_f1 = blind["rules"]["estimate"]["f1"]
+    combined_f1 = blind["rules_or_model"]["estimate"]["f1"]
+    condition_3 = {"rules_f1": rules_f1, "rules_or_model_f1": combined_f1,
+                   "passes": bool(rules_f1 is not None and combined_f1 is not None and combined_f1 >= rules_f1)}
+    person_checked = review_method in PERSON_REVIEW_METHODS
+    types = {}
+    for attack_type in ATTACK_TYPES:
+        model_only = int(fresh["real_by_type"][attack_type]["model_only"])
+        found = float(fresh["simulated_recall"][attack_type]["found_with_right_type"])
+        if model_only < min_reviewed:
+            condition_1 = {"status": "cannot_pass", "model_only": model_only}
+        elif review_score is None:
+            condition_1 = {"status": "pending", "model_only": model_only}
+        else:
+            score = review_score.get(attack_type, {})
+            status = "pass" if score.get("passes_condition_1") else "fail"
+            if status == "pass" and not person_checked:
+                status = "needs_person"
+            condition_1 = {"status": status, "model_only": model_only, "judged": int(score.get("judged") or 0),
+                           "threat": int(score.get("threat") or 0), "precision": score.get("precision")}
+        condition_2 = {"found": found, "passes": found >= 0.9}
+        types[attack_type] = {
+            "condition_1": condition_1,
+            "condition_2": condition_2,
+            "eligible": condition_1["status"] == "pass" and condition_2["passes"] and condition_3["passes"],
+        }
+    return {
+        "declared_in": "docs/detection/ML_QUALITY_BAR.md",
+        "model_version": fresh.get("model_version"),
+        "windows": fresh.get("windows") or [fresh.get("window")],
+        "min_reviewed": min_reviewed,
+        "review_method": review_method,
+        "condition_3": condition_3,
+        "types": types,
+    }
+
+
 def score_model_review(key: dict[str, Any], decisions: dict[str, Any], *, min_judged: int = 1) -> dict[str, Any]:
     """Share of reviewed model-only alerts that are real threats, per attack type (bar condition 1).
 

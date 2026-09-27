@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ErrorBanner } from "./ErrorBanner";
-import { useBehaviorAlertOpinion, useBehaviorFindings } from "../hooks/useApiQueries";
-import type { BehaviorFinding } from "../types/api";
+import { useBehaviorAlertOpinion, useBehaviorFindings, useBehaviorModelStatus } from "../hooks/useApiQueries";
+import type { BehaviorFinding, BehaviorQualityBar, BehaviorQualityBarType } from "../types/api";
 
 const VISIBLE_FINDINGS = 6;
 
@@ -233,6 +233,106 @@ export function BehaviorAlertOpinionCard({ alertId }: { alertId: number }) {
         </ul>
       ) : null}
       <p className="mt-2 text-xs font-semibold text-muted">Advisory only: the rules decide alerts.</p>
+    </section>
+  );
+}
+
+
+const ATTACK_TYPE_NAMES: Record<string, string> = {
+  port_scan: "Port scan",
+  brute_force: "Brute force",
+  dos_ddos: "Flood / denial of service",
+  malware_c2: "Malware C2 beaconing",
+  data_exfiltration_suspicion: "Data exfiltration"
+};
+
+function reviewText(entry: BehaviorQualityBarType, bar: BehaviorQualityBar): { text: string; ok: boolean | null } {
+  const review = entry.condition_1;
+  const counted = `${review.threat ?? 0} of ${review.judged ?? 0} judged real`;
+  switch (review.status) {
+    case "pending":
+      return { text: `Blind review in progress (${review.model_only} windows)`, ok: null };
+    case "cannot_pass":
+      return review.model_only === 0
+        ? { text: "Nothing to review: it found nothing the rules missed", ok: false }
+        : { text: `Only ${review.model_only} model-only windows; ${bar.min_reviewed} needed`, ok: false };
+    case "pass":
+      return { text: counted, ok: true };
+    case "needs_person":
+      return { text: `${counted}, but a person must do or check the review`, ok: false };
+    default:
+      return { text: `${counted} (90% needed)`, ok: false };
+  }
+}
+
+function Mark({ ok }: { ok: boolean | null }) {
+  if (ok === null) return <span className="text-xs font-black uppercase text-amber">Pending</span>;
+  return ok ? <span className="text-xs font-black uppercase text-success">Passes</span> : <span className="text-xs font-black uppercase text-danger">Not met</span>;
+}
+
+/** The AI Governance lead: the MFU-trained model and where each attack type stands on its quality bar. */
+export function BehaviorModelGovernance() {
+  const query = useBehaviorModelStatus();
+  const status = query.data;
+  const bar = status?.quality_bar;
+  const windows = bar?.windows.map((window) => `${window.start.slice(11, 16)}-${window.end.slice(11, 16)}`).join(" and ");
+  return (
+    <section className="panel space-y-4" data-testid="governance-mfu-model">
+      <div>
+        <div className="text-xs font-extrabold uppercase tracking-wide text-cyan">Start here</div>
+        <h2 className="mt-1 text-2xl font-black text-text">The MFU behaviour model</h2>
+        <p className="mt-1 text-sm text-muted">
+          Trained only on MFU's own firewall traffic. For each device's five minutes of traffic it names the attack, explains why and shows how
+          to respond, on the Overview and on every alert. It may raise alerts on its own only for attack types that pass the quality bar
+          declared before training; until then it advises and the rules decide.
+        </p>
+      </div>
+      {query.isError ? <ErrorBanner error={query.error} fallback="The behaviour model's status is unavailable." /> : null}
+      {status && !status.available ? <p className="text-sm font-semibold text-muted">{status.detail}</p> : null}
+      {status?.available ? (
+        <p className="text-sm font-semibold text-text">
+          {status.version}, trained on {status.trained_on}. {status.detail}
+        </p>
+      ) : null}
+      {status?.available && bar ? (
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm" data-testid="governance-quality-bar">
+              <thead className="text-xs uppercase tracking-wide text-muted">
+                <tr>
+                  <th className="py-2 pr-4">Attack type</th>
+                  <th className="py-2 pr-4">1. Its extra finds are real (blind review, 90%+)</th>
+                  <th className="py-2 pr-4">2. Finds fresh simulated attacks (90%+)</th>
+                  <th className="py-2 pr-4">Model alerts</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(bar.types).map(([type, entry]) => {
+                  const review = reviewText(entry, bar);
+                  return (
+                    <tr key={type} className="border-t border-line align-top">
+                      <td className="py-2 pr-4 font-bold">{ATTACK_TYPE_NAMES[type] ?? type}</td>
+                      <td className="py-2 pr-4">
+                        <Mark ok={review.ok} /> <span className="text-muted">{review.text}</span>
+                      </td>
+                      <td className="py-2 pr-4">
+                        <Mark ok={entry.condition_2.passes} /> <span className="text-muted">{(entry.condition_2.found * 100).toFixed(1)}% found</span>
+                      </td>
+                      <td className="py-2 pr-4 font-bold">{entry.eligible ? "Can be switched on" : "Advisory"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-xs font-semibold text-muted">
+            3. Rules or model must not lower accuracy on the blind-check labels: F1 {bar.condition_3.rules_or_model_f1 === null ? "-" : percent(bar.condition_3.rules_or_model_f1)} vs
+            rules alone {bar.condition_3.rules_f1 === null ? "-" : percent(bar.condition_3.rules_f1)} ({bar.condition_3.passes ? "holds" : "not met"}). Tested on 20 May{" "}
+            {windows}, traffic the model never trained on. The bar is in docs/detection/ML_QUALITY_BAR.md; the full record in ML_MODEL_CARD.md.
+          </p>
+        </>
+      ) : null}
+      {status?.available && !bar ? <p className="text-sm font-semibold text-muted">No quality-bar evaluation is recorded for this model yet.</p> : null}
     </section>
   );
 }

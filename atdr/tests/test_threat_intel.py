@@ -141,5 +141,6 @@ def test_the_api_lists_feeds_apart_from_manual_items():
         client.app.dependency_overrides.clear()
     assert anonymous.status_code == 401
     assert feeds.status_code == 200 and feeds.json()[0]["source"] == "ThreatFox recent" and feeds.json()[0]["active"] == 2
+    assert feeds.json()[0]["last_added_at"].endswith(("Z", "+00:00")), "UTC must be marked so the browser shows local time"
     assert [item["indicator_value"] for item in manual.json()] == ["45.33.32.156"]
     assert len(everything.json()) == 3 and {item["source"] for item in everything.json()} == {None, "ThreatFox recent"}

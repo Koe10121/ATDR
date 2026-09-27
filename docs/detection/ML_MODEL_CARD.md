@@ -268,6 +268,10 @@ python -m atdr.scripts.anonymized_review_files model-review   # needs openpyxl
 python -m atdr.scripts.evaluate_behavior_model --out-dir .tmp/mfu_model/v2_second_look --rules-db .tmp/blind_check/holdout_v5_34.db --no-review
 python -m atdr.scripts.evaluate_behavior_model --out-dir .tmp/mfu_model/v2_fresh --window "2026-05-20 13:45:00" "2026-05-20 13:50:00" --window "2026-05-20 13:55:00" "2026-05-20 14:00:00" --rules-db .tmp/blind_check/holdout_v5_34.db --seed 9000002 --review-seed 20260928 --review-prefix F --min-reviewed 5
 python -m atdr.scripts.anonymized_review_files model-review --round-dir .tmp/mfu_model/v2_fresh
+
+# after the review is scored: save each type's quality-bar standing in the model card (shown on AI Governance)
+python -m atdr.scripts.evaluate_behavior_model --out-dir .tmp/mfu_model/v2_fresh --review-decisions review_decisions.csv --min-reviewed 5
+python -m atdr.scripts.evaluate_behavior_model --out-dir .tmp/mfu_model/v2_fresh --record-bar --blind-dir .tmp/mfu_model/v2_second_look --min-reviewed 5 --review-method "<as the sign-off says>"
 ```
 
 `holdout_v5_34.db` is a copy of the holdout with the current rules run over

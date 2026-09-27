@@ -13,6 +13,7 @@ import {
   YAxis
 } from "recharts";
 import { AiTrustSummary } from "../components/AiTrustSummary";
+import { BehaviorModelGovernance } from "../components/BehaviorModelPanel";
 import { ChartCard } from "../components/ChartCard";
 import { EmptyState } from "../components/EmptyState";
 import { MetricCard } from "../components/MetricCard";
@@ -486,6 +487,8 @@ export function MLGovernance() {
         />
       ) : null}
 
+      <BehaviorModelGovernance />
+
       <div className="pt-2" data-testid="governance-part-decides">
         <div className="text-xs font-extrabold uppercase tracking-wide text-cyan">Part 1</div>
         <h2 className="mt-1 text-2xl font-black text-text">What decides</h2>
@@ -546,7 +549,10 @@ export function MLGovernance() {
       <div className="pt-2" data-testid="governance-part-trust">
         <div className="text-xs font-extrabold uppercase tracking-wide text-cyan">Part 2</div>
         <h2 className="mt-1 text-2xl font-black text-text">Is the AI trustworthy yet?</h2>
-        <p className="mt-1 text-sm text-muted">Where each AI part stands today, in plain words. The detail behind each answer is in the research history at the bottom.</p>
+        <p className="mt-1 text-sm text-muted">
+          Where the earlier AI parts stand today, in plain words: the anomaly model and supervised classifier built before the MFU behaviour
+          model, and the assistant. The detail behind each answer is in the research history at the bottom.
+        </p>
       </div>
 
       <AiTrustSummary

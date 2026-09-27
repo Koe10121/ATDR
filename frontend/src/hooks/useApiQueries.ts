@@ -85,6 +85,7 @@ export const queryKeys = {
   mlReport: ["ml-report"],
   behaviorFindings: (windowStart?: string | null) => ["behavior-findings", windowStart ?? "latest"] as const,
   behaviorAlertOpinion: (alertId: number) => ["behavior-alert-opinion", alertId] as const,
+  behaviorModelStatus: ["behavior-model-status"],
   mlEvidenceSnapshot: ["ml-evidence-snapshot"],
   supervisedReport: ["supervised-report"],
   supervisedModels: ["supervised-models"],
@@ -836,6 +837,10 @@ export function useBehaviorFindings(windowStart?: string | null) {
     queryFn: () => api.behaviorFindings(windowStart),
     refetchInterval: 60_000
   });
+}
+
+export function useBehaviorModelStatus() {
+  return useQuery({ queryKey: queryKeys.behaviorModelStatus, queryFn: api.behaviorModelStatus, refetchInterval: 120_000 });
 }
 
 export function useBehaviorAlertOpinion(alertId: number | null) {

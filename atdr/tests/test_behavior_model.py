@@ -265,3 +265,40 @@ def test_an_evaluation_round_never_overwrites_earlier_results(tmp_path, monkeypa
     with pytest.raises(SystemExit, match="use a new --out-dir"):
         evaluate_behavior_model.main()
     assert (tmp_path / "review_key.json").read_text(encoding="utf-8") == "{}"
+
+
+def _round(model_only, found):
+    return {
+        "model_version": "mfu_behavior_v2",
+        "windows": [{"start": "2026-05-20 13:45:00", "end": "2026-05-20 13:50:00"}],
+        "real_by_type": {attack_type: {"model_only": model_only.get(attack_type, 0)} for attack_type in ATTACK_TYPES},
+        "simulated_recall": {attack_type: {"found_with_right_type": found.get(attack_type, 0.95)} for attack_type in ATTACK_TYPES},
+    }
+
+
+def test_the_quality_bar_record_says_what_each_type_still_needs():
+    from atdr.app.services.behavior_model_service import quality_bar_record
+
+    fresh = _round({"port_scan": 5, "malware_c2": 8, "data_exfiltration_suspicion": 2}, {"malware_c2": 0.885})
+    blind = {"rules": {"estimate": {"f1": 0.81}}, "rules_or_model": {"estimate": {"f1": 0.86}}}
+    pending = quality_bar_record(fresh=fresh, blind=blind)
+    assert pending["condition_3"]["passes"]
+    assert pending["types"]["port_scan"]["condition_1"]["status"] == "pending"
+    assert pending["types"]["data_exfiltration_suspicion"]["condition_1"]["status"] == "cannot_pass", "2 windows, 5 needed"
+    assert pending["types"]["brute_force"]["condition_1"]["status"] == "cannot_pass"
+    assert not pending["types"]["malware_c2"]["condition_2"]["passes"]
+    assert not any(entry["eligible"] for entry in pending["types"].values())
+
+    review = {"port_scan": {"threat": 5, "judged": 5, "precision": 1.0, "passes_condition_1": True},
+              "malware_c2": {"threat": 7, "harmless": 1, "judged": 8, "precision": 0.875, "passes_condition_1": False}}
+    by_ai = quality_bar_record(fresh=fresh, blind=blind, review_score=review, review_method="AI only (not checked by a person)")
+    assert by_ai["types"]["port_scan"]["condition_1"]["status"] == "needs_person" and not by_ai["types"]["port_scan"]["eligible"]
+    by_person = quality_bar_record(fresh=fresh, blind=blind, review_score=review, review_method="By a person without AI")
+    assert by_person["types"]["port_scan"]["eligible"] and by_person["types"]["port_scan"]["condition_1"]["threat"] == 5
+    assert by_person["types"]["malware_c2"]["condition_1"]["status"] == "fail" and not by_person["types"]["malware_c2"]["eligible"]
+    worse = quality_bar_record(fresh=fresh, blind={"rules": {"estimate": {"f1": 0.9}}, "rules_or_model": {"estimate": {"f1": 0.86}}},
+                               review_score=review, review_method="By a person without AI")
+    assert not worse["types"]["port_scan"]["eligible"], "condition 3 failing stops every type"
+    perfect_c2 = review | {"malware_c2": {"threat": 8, "judged": 8, "precision": 1.0, "passes_condition_1": True}}
+    c2 = quality_bar_record(fresh=fresh, blind=blind, review_score=perfect_c2, review_method="By a person without AI")
+    assert c2["types"]["malware_c2"]["condition_1"]["status"] == "pass" and not c2["types"]["malware_c2"]["eligible"],         "a perfect review cannot make up for missing simulated beacons (condition 2)"

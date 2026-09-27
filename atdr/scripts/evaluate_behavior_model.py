@@ -35,6 +35,7 @@ from atdr.app.services.behavior_model_service import (
     WORK_DIR,
     draw_model_review,
     evaluate_on_window,
+    quality_bar_record,
     rule_alerted_logs,
     score_model_review,
 )
@@ -62,11 +63,34 @@ def main() -> None:
     parser.add_argument("--review-prefix", default="M")
     parser.add_argument("--min-reviewed", type=int, default=1, help="reviewed model-only windows a type needs (5 from v2)")
     parser.add_argument("--no-review", action="store_true", help="measure only; draw no review (windows already seen)")
+    parser.add_argument("--record-bar", action="store_true",
+                        help="save this round's quality-bar status into the model card (needs --blind-dir)")
+    parser.add_argument("--blind-dir", type=Path, help="round folder holding blind_comparison.json (condition 3)")
+    parser.add_argument("--review-method", help="how the blind review was done, as its sign-off says")
     args = parser.parse_args()
     WORK_DIR_ = args.out_dir
     WORK_DIR_.mkdir(parents=True, exist_ok=True)
     evaluation_path = WORK_DIR_ / "evaluation.json"
 
+    if args.record_bar:
+        if not args.blind_dir:
+            raise SystemExit("--record-bar needs --blind-dir (the round with blind_comparison.json).")
+        review_path = WORK_DIR_ / "review_score.json"
+        record = quality_bar_record(
+            fresh=json.loads(evaluation_path.read_text(encoding="utf-8")),
+            blind=json.loads((args.blind_dir / "blind_comparison.json").read_text(encoding="utf-8")),
+            review_score=json.loads(review_path.read_text(encoding="utf-8")) if review_path.exists() else None,
+            review_method=args.review_method,
+            min_reviewed=args.min_reviewed,
+        )
+        model = BehaviorModel.load(args.model)
+        if record["model_version"] != model.card.get("version"):
+            raise SystemExit(f"{WORK_DIR_} evaluated {record['model_version']}, but {args.model.name} is {model.card.get('version')}.")
+        model.card["quality_bar"] = record
+        model.save(args.model)
+        args.model.with_suffix(".card.json").write_text(json.dumps(model.card, indent=2, default=str), encoding="utf-8")
+        print(json.dumps(record, indent=2))
+        return
     if args.review_decisions:
         key = json.loads((WORK_DIR_ / "review_key.json").read_text(encoding="utf-8"))
         result = score_model_review(key, _decisions(args.review_decisions, "review_id"), min_judged=args.min_reviewed)

@@ -58,6 +58,7 @@ def model_status(model: BehaviorModel | None) -> dict[str, Any]:
         "threshold": round(model.threshold, 4),
         "alerting_types": [],
         "detail": "Advisory: no attack type is switched on yet, so the model creates no alerts.",
+        "quality_bar": card.get("quality_bar"),
     }
 
 

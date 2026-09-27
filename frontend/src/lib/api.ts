@@ -1,6 +1,7 @@
 import type {
   Alert,
   BehaviorAlertOpinion,
+  BehaviorModelStatus,
   BehaviorFindings,
   AlertCase,
   AlertNote,
@@ -535,6 +536,7 @@ export const api = {
   behaviorFindings: (windowStart?: string | null) =>
     apiRequest<BehaviorFindings>("/api/ml/behavior/findings", { params: windowStart ? { window_start: windowStart } : {} }),
   behaviorAlertOpinion: (alertId: number) => apiRequest<BehaviorAlertOpinion>(`/api/ml/behavior/alerts/${alertId}`),
+  behaviorModelStatus: () => apiRequest<BehaviorModelStatus>("/api/ml/behavior/status"),
   mlEvidenceSnapshot: () => apiRequest<MLEvidenceSnapshot>("/api/ml/evidence-snapshot"),
   supervisedReport: () => apiRequest<SupervisedModelReport>("/api/ml/supervised/report"),
   supervisedModels: () => apiRequest<SupervisedModelRegistry>("/api/ml/supervised/models"),

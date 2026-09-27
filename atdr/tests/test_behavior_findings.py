@@ -142,3 +142,19 @@ def test_the_findings_api_needs_a_login_and_reports_a_missing_model(monkeypatch)
         client.app.dependency_overrides.clear()
     assert response.status_code == 200 and response.json()["model"]["available"] is False
     assert missing.status_code == 404
+
+
+def test_the_status_api_reports_the_quality_bar_from_the_model_card(monkeypatch):
+    model = _model()
+    model.card["quality_bar"] = {"types": {"port_scan": {"eligible": False}}, "condition_3": {"passes": True}}
+    monkeypatch.setattr(behavior_findings_service, "load_model", lambda *args, **kwargs: model)
+    client, _ = _client_with_session()
+    try:
+        anonymous = client.get("/api/ml/behavior/status")
+        response = client.get("/api/ml/behavior/status", headers=_login(client))
+    finally:
+        client.app.dependency_overrides.clear()
+    assert anonymous.status_code == 401
+    body = response.json()
+    assert body["available"] and body["quality_bar"]["types"]["port_scan"] == {"eligible": False}
+    assert body["alerting_types"] == []

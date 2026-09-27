@@ -44,9 +44,13 @@ def watchlist_feed_summary(db: Session) -> list[dict[str, Any]]:
         .group_by(WatchlistItem.source)
         .order_by(WatchlistItem.source)
     ).all()
+    def utc(value: datetime | None) -> datetime | None:
+        # SQLite hands timestamps back without a zone; they are UTC, and saying so lets the browser show local time.
+        return value.replace(tzinfo=timezone.utc) if value is not None and value.tzinfo is None else value
+
     return [
-        {"source": source, "indicators": int(total), "active": int(active or 0), "last_added_at": last_added,
-         "matches": int(matches or 0), "last_matched_at": last_matched}
+        {"source": source, "indicators": int(total), "active": int(active or 0), "last_added_at": utc(last_added),
+         "matches": int(matches or 0), "last_matched_at": utc(last_matched)}
         for source, total, active, last_added, matches, last_matched in rows
     ]
 

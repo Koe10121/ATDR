@@ -52,6 +52,7 @@ from atdr.app.services.active_learning_service import (
     export_training_window_threat_review_sample_csv,
 )
 from atdr.app.services.assisted_label_service import export_label_review_sample
+from atdr.app.services import behavior_findings_service
 from atdr.app.services.behavior_findings_service import alert_opinion, window_findings
 from atdr.app.services.class_temporal_coverage_service import build_class_temporal_coverage, render_class_temporal_coverage_markdown
 from atdr.app.services.label_quality_service import export_label_quality_issues_csv
@@ -916,6 +917,13 @@ def predict_supervised(
     asset_context_weight: int = Query(default=0, ge=0, le=100),
 ) -> dict:
     return predict_supervised_log(db, log_id, rule_score=rule_score, asset_context_weight=asset_context_weight)
+
+
+@router.get("/behavior/status")
+def get_behavior_model_status(current_user: User = Depends(require_analyst_or_admin)) -> dict:
+    """The MFU behaviour model's version, training period and quality-bar standing per attack type."""
+    # The legacy ML service has its own model_status; this is the behaviour model's.
+    return behavior_findings_service.model_status(behavior_findings_service.load_model())
 
 
 @router.get("/behavior/findings")

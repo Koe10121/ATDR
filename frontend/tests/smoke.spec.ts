@@ -75,6 +75,28 @@ const smokeBehaviorFindings = {
   }
 };
 
+const smokeBehaviorStatus = {
+  ...smokeBehaviorModel,
+  version: "mfu_behavior_v2",
+  quality_bar: {
+    declared_in: "docs/detection/ML_QUALITY_BAR.md",
+    model_version: "mfu_behavior_v2",
+    windows: [
+      { start: "2026-05-20 13:45:00", end: "2026-05-20 13:50:00" },
+      { start: "2026-05-20 13:55:00", end: "2026-05-20 14:00:00" }
+    ],
+    min_reviewed: 5,
+    review_method: null,
+    condition_3: { rules_f1: 0.8117, rules_or_model_f1: 0.863, passes: true },
+    types: {
+      port_scan: { condition_1: { status: "pending", model_only: 5 }, condition_2: { found: 0.965, passes: true }, eligible: false },
+      brute_force: { condition_1: { status: "cannot_pass", model_only: 0 }, condition_2: { found: 0.975, passes: true }, eligible: false },
+      malware_c2: { condition_1: { status: "pending", model_only: 8 }, condition_2: { found: 0.885, passes: false }, eligible: false },
+      data_exfiltration_suspicion: { condition_1: { status: "cannot_pass", model_only: 2 }, condition_2: { found: 0.98, passes: true }, eligible: false }
+    }
+  }
+};
+
 const smokeBehaviorOpinion = {
   alert_id: 1,
   window_start: "2026-05-20T13:35:00",
@@ -2476,6 +2498,7 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
     })
   );
   await page.route("**/api/ml/behavior/findings**", async (route) => route.fulfill({ json: smokeBehaviorFindings }));
+  await page.route("**/api/ml/behavior/status", async (route) => route.fulfill({ json: smokeBehaviorStatus }));
   await page.route("**/api/ml/behavior/alerts/**", async (route) => route.fulfill({ json: smokeBehaviorOpinion }));
   await page.route("**/api/detection/tuning", async (route) =>
     route.fulfill({ json: { summary: {}, alert_type_pressure: [], suppression_candidates: [], false_positive_learning: {}, severity_distribution: [], status_distribution: [], ml: {}, production_readiness: [], recommendations: [] } })
@@ -4501,6 +4524,16 @@ test("AI Governance leads with what decides and a plain trust summary, with rese
   await expect(nav.getByRole("link", { name: "AI Governance" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Evidence Review" })).toHaveCount(0);
 
+  const mfuModel = page.getByTestId("governance-mfu-model");
+  await expect(mfuModel).toContainText("The MFU behaviour model");
+  const bar = page.getByTestId("governance-quality-bar");
+  await expect(bar.getByRole("row", { name: /Port scan/ })).toContainText("Blind review in progress (5 windows)");
+  await expect(bar.getByRole("row", { name: /Data exfiltration/ })).toContainText("Only 2 model-only windows; 5 needed");
+  await expect(bar.getByRole("row", { name: /Brute force/ })).toContainText("Nothing to review");
+  await expect(bar.getByRole("row", { name: /Malware C2/ })).toContainText("88.5% found");
+  await expect(bar.getByRole("row", { name: /Malware C2/ })).toContainText("Not met");
+  await expect(mfuModel).toContainText("F1 86.3% vs rules alone 81.2% (holds)");
+  await expect(mfuModel).toContainText("13:45-13:50 and 13:55-14:00");
   await expect(page.getByTestId("governance-part-decides")).toContainText("What decides");
   await expect(page.getByTestId("governance-part-trust")).toContainText("Is the AI trustworthy yet?");
   await expect(page.getByTestId("governance-part-work")).toContainText("Data and analyst review");

@@ -438,6 +438,29 @@ export interface BehaviorModelStatus {
   threshold?: number;
   alerting_types?: string[];
   detail: string;
+  quality_bar?: BehaviorQualityBar | null;
+}
+
+export interface BehaviorQualityBarType {
+  condition_1: {
+    status: "pending" | "cannot_pass" | "pass" | "fail" | "needs_person";
+    model_only: number;
+    judged?: number;
+    threat?: number;
+    precision?: number | null;
+  };
+  condition_2: { found: number; passes: boolean };
+  eligible: boolean;
+}
+
+export interface BehaviorQualityBar {
+  declared_in: string;
+  model_version?: string | null;
+  windows: { start: string; end: string }[];
+  min_reviewed: number;
+  review_method?: string | null;
+  condition_3: { rules_f1: number | null; rules_or_model_f1: number | null; passes: boolean };
+  types: Record<string, BehaviorQualityBarType>;
 }
 
 export interface BehaviorFinding {
