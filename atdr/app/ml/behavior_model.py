@@ -25,6 +25,7 @@ at most 4 in 99.9% of windows)".
 from __future__ import annotations
 
 import hashlib
+import warnings
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -35,6 +36,10 @@ import joblib
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import HistGradientBoostingClassifier
+
+# joblib cannot count physical cores on this Windows setup and prints a traceback on every first use;
+# it falls back to logical cores, which is fine for this model.
+warnings.filterwarnings("ignore", message="Could not find the number of physical cores", category=UserWarning)
 
 from atdr.app.core.config import PROJECT_ROOT
 from atdr.app.ml.attack_simulation import ATTACK_TYPES, Network, Simulator
@@ -77,6 +82,13 @@ FEATURE_TEXT = {
     "bytes_sent_max": "largest single upload in bytes",
     "upload_ratio": "bytes uploaded per byte downloaded",
 }
+# Quantiles of normal MFU windows kept for explanations, and the order they are tried in.
+NORMAL_QUANTILES = {"q001": 0.001, "q01": 0.01, "q10": 0.10, "q90": 0.90, "q99": 0.99, "q999": 0.999}
+EXPLANATION_TIERS = {
+    "high": [("q999", "99.9%"), ("q99", "99%"), ("q90", "90%")],
+    "low": [("q001", "99.9%"), ("q01", "99%"), ("q10", "90%")],
+}
+TIER_RANK = {"99.9%": 3, "99%": 2, "90%": 1}
 SHARE_FEATURES = {"zero_reply_share", "deny_share", "auth_port_share", "short_session_share", "uncommon_port_share", "top_dst_share"}
 
 
@@ -215,7 +227,7 @@ class BehaviorModel:
         return result
 
     def explain(self, row: pd.Series, attack_type: str, *, limit: int = 3) -> list[str]:
-        """Plain reasons: where this window is far outside what normal MFU sources do."""
+        """Plain reasons: where this window is outside what normal MFU sources do, strongest first."""
 
         reasons = []
         for name, direction in CLASS_FEATURES.get(attack_type, []):
@@ -223,20 +235,19 @@ class BehaviorModel:
             quantiles = self.normal_quantiles.get(name)
             if value is None or pd.isna(value) or not quantiles:
                 continue
-            if direction == "high":
-                reference = quantiles["q999"]
-                if value <= reference:
+            for tier, share in EXPLANATION_TIERS[direction]:
+                reference = quantiles.get(tier)
+                if reference is None:
                     continue
-                strength = (value + 1e-9) / (reference + 1e-9)
-                reasons.append((strength, f"{_fmt(name, value)} {FEATURE_TEXT[name]} (normal MFU sources: at most {_fmt(name, reference)} in 99.9% of windows)"))
-            else:
-                reference = quantiles["q001"]
-                if value >= reference:
+                beyond = value > reference if direction == "high" else value < reference
+                if not beyond:
                     continue
-                strength = (reference + 1e-9) / (value + 1e-9)
-                reasons.append((strength, f"{_fmt(name, value)} {FEATURE_TEXT[name]} (normal MFU sources: at least {_fmt(name, reference)} in 99.9% of windows)"))
-        reasons.sort(key=lambda item: -item[0])
-        return [text for _strength, text in reasons[:limit]]
+                bound = "at most" if direction == "high" else "at least"
+                ratio = (value + 1e-9) / (reference + 1e-9) if direction == "high" else (reference + 1e-9) / (value + 1e-9)
+                reasons.append((share, ratio, f"{_fmt(name, value)} {FEATURE_TEXT[name]} (normal MFU sources: {bound} {_fmt(name, reference)} in {share} of windows)"))
+                break
+        reasons.sort(key=lambda item: (-TIER_RANK[item[0]], -item[1]))
+        return [text for _share, _ratio, text in reasons[:limit]]
 
     def save(self, path: Path = MODEL_PATH) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -271,6 +282,16 @@ def choose_threshold(normal_scores: np.ndarray, *, max_false_alarm_rate: float =
     return float(min(0.99, max(0.5, np.nextafter(cut, 1))))
 
 
+def normal_quantiles(dataset: Dataset) -> dict[str, dict[str, float]]:
+    """What real normal MFU windows look like, per feature, for explanations."""
+
+    normal_rows = dataset.features[(dataset.labels == "normal") & (dataset.origin == "real")]
+    return {
+        name: {tier: float(normal_rows[name].quantile(share)) for tier, share in NORMAL_QUANTILES.items()}
+        for name in FEATURES if normal_rows[name].notna().any()
+    }
+
+
 def train_model(dataset: Dataset, *, seed: int = 1, trained_on: str = "") -> tuple[BehaviorModel, dict[str, Any]]:
     sources = dataset.features.index.get_level_values(0).map(lambda value: value.split(":", 1)[-1])
     on_validation = np.array([validation_side(src) for src in sources])
@@ -285,11 +306,7 @@ def train_model(dataset: Dataset, *, seed: int = 1, trained_on: str = "") -> tup
     report = validation_report(validation, y[on_validation], dataset.origin[on_validation], threshold)
 
     final = _classifier(seed).fit(X, y)
-    normal_rows = X[(y == "normal") & (dataset.origin == "real")]
-    quantiles = {
-        name: {"q001": float(normal_rows[name].quantile(0.001)), "q999": float(normal_rows[name].quantile(0.999))}
-        for name in FEATURES if normal_rows[name].notna().any()
-    }
+    quantiles = normal_quantiles(dataset)
     card = {
         "version": MODEL_VERSION,
         "trained_at": datetime.now().isoformat(timespec="seconds"),

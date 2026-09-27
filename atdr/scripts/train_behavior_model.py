@@ -15,16 +15,12 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
 
-# joblib cannot count physical cores on this Windows setup and prints a traceback; logical cores are fine.
-os.environ.setdefault("LOKY_MAX_CPU_COUNT", str(os.cpu_count() or 1))
-
 from atdr.app.ml.behavior_features import load_logs
-from atdr.app.ml.behavior_model import MODEL_PATH, build_dataset, train_model
+from atdr.app.ml.behavior_model import MODEL_PATH, BehaviorModel, build_dataset, normal_quantiles, train_model
 from atdr.app.services.behavior_model_service import (
     TRAIN_DB,
     labels_for_database,
@@ -43,6 +39,8 @@ def main() -> None:
     parser.add_argument("--log-file", required=True)
     parser.add_argument("--attacks-per-type", type=int, default=300)
     parser.add_argument("--seed", type=int, default=1)
+    parser.add_argument("--refresh-explanations", action="store_true",
+                        help="Recompute the explanation statistics and training period of the saved model without retraining it.")
     args = parser.parse_args()
 
     if not TRAIN_DB.exists():
@@ -57,9 +55,19 @@ def main() -> None:
     print(f"{len(logs):,} training logs, {len(human):,} with a reviewed label, {len(alerted):,} rule-alerted.", flush=True)
     dataset = build_dataset(logs, human_labels=human, rule_alerted=alerted, attacks_per_type=args.attacks_per_type, seed=args.seed)
     print("Dataset:", json.dumps(dataset.summary), flush=True)
+    period = {"trained_from": logs["generated_time"].min().isoformat(), "trained_to": logs["generated_time"].max().isoformat()}
+    if args.refresh_explanations:
+        # The classifier and threshold stay exactly as frozen; only explanation data and the card change.
+        model = BehaviorModel.load(MODEL_PATH)
+        model.normal_quantiles = normal_quantiles(dataset)
+        model.card.update(period)
+        model.save()
+        MODEL_PATH.with_suffix(".card.json").write_text(json.dumps(model.card, indent=2, default=str), encoding="utf-8")
+        print(f"Refreshed explanations and training period of {MODEL_PATH}")
+        return
     model, report = train_model(dataset, seed=args.seed, trained_on="MFU export 20 May 13:36-13:45 (lines 1-319,643)")
     commit = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, check=False).stdout.strip()
-    model.card["code_commit"] = commit or None
+    model.card.update(period, code_commit=commit or None)
     model.save()
     MODEL_PATH.with_suffix(".card.json").write_text(json.dumps(model.card, indent=2, default=str), encoding="utf-8")
     print("Validation:", json.dumps(report, indent=2))

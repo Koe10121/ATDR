@@ -52,6 +52,7 @@ from atdr.app.services.active_learning_service import (
     export_training_window_threat_review_sample_csv,
 )
 from atdr.app.services.assisted_label_service import export_label_review_sample
+from atdr.app.services.behavior_findings_service import alert_opinion, window_findings
 from atdr.app.services.class_temporal_coverage_service import build_class_temporal_coverage, render_class_temporal_coverage_markdown
 from atdr.app.services.label_quality_service import export_label_quality_issues_csv
 from atdr.app.services.job_service import build_result_summary, complete_job, enqueue_job, fail_job, job_to_dict, start_job
@@ -915,3 +916,25 @@ def predict_supervised(
     asset_context_weight: int = Query(default=0, ge=0, le=100),
 ) -> dict:
     return predict_supervised_log(db, log_id, rule_score=rule_score, asset_context_weight=asset_context_weight)
+
+
+@router.get("/behavior/findings")
+def get_behavior_findings(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+    window_start: datetime | None = Query(default=None),
+) -> dict:
+    """What the MFU behaviour model sees in one 5-minute window (latest by default). Read-only and advisory."""
+    return window_findings(db, window_start)
+
+
+@router.get("/behavior/alerts/{alert_id}")
+def get_behavior_alert_opinion(
+    alert_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+) -> dict:
+    opinion = alert_opinion(db, alert_id)
+    if opinion is None:
+        raise HTTPException(status_code=404, detail="The behaviour model has no opinion on this alert.")
+    return opinion

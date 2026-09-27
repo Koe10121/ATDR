@@ -18,12 +18,8 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import os
 import sys
 from pathlib import Path
-
-# joblib cannot count physical cores on this Windows setup and prints a traceback; logical cores are fine.
-os.environ.setdefault("LOKY_MAX_CPU_COUNT", str(os.cpu_count() or 1))
 
 from atdr.app.ml.behavior_model import MODEL_PATH, BehaviorModel
 from atdr.app.services.behavior_model_service import (
