@@ -150,6 +150,16 @@ def _lower(value: str | None) -> str:
     return (value or "").strip().lower()
 
 
+# Peer-to-peer file sharing as Palo Alto classifies it (BitTorrent, Xunlei, QQ-download). Video calls
+# are also peer-to-peer technology but a different subcategory, so they are not included.
+P2P_TECHNOLOGY = "peer-to-peer"
+P2P_SUBCATEGORY = "file-sharing"
+
+
+def is_p2p_file_sharing(log: NormalizedLog) -> bool:
+    return _lower(log.app_technology) == P2P_TECHNOLOGY and _lower(log.app_subcategory) == P2P_SUBCATEGORY
+
+
 def _looks_unanswered(log: NormalizedLog) -> bool:
     """A connection that got no real reply: denied or reset, nothing received, or the app never identified."""
 

@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 from atdr.app.db.models import Alert, AlertEvidence, NormalizedLog, RawLog
 from atdr.app.detection.attack_mapping import attack_mapping_for_type, infer_attack_type_from_rules
 from atdr.app.detection.playbooks import PLAYBOOK_GUIDANCE
+from atdr.app.detection.rules import P2P_SUBCATEGORY, P2P_TECHNOLOGY
 from atdr.app.ml.behavior_features import LOG_COLUMNS, is_background_probe, window_features
 from atdr.app.ml.behavior_model import MODEL_PATH, BehaviorModel
 from atdr.app.services.assistant_data_query import ATTACK_LABELS
@@ -165,6 +166,11 @@ def window_findings(db: Session, window_start: datetime | None = None, *, model:
             "response": _response(attack_type),
         })
 
+    p2p_logs = logs[
+        logs["app_technology"].fillna("").str.lower().eq(P2P_TECHNOLOGY)
+        & logs["app_subcategory"].fillna("").str.lower().eq(P2P_SUBCATEGORY)
+    ]
+    p2p_apps = Counter(str(app) for app in p2p_logs["app"].dropna())
     background = prediction["background_probe"]
     probe_sources = [index[0] for index in prediction.index[background]]
     probe_logs = logs[logs["src_ip"].isin(probe_sources)]
@@ -184,6 +190,13 @@ def window_findings(db: Session, window_start: datetime | None = None, *, model:
                 "connections": int(len(probe_logs)),
                 "mfu_hosts_touched": int(probe_logs["dst_ip"].nunique()),
                 "top_ports": [{"port": port, "connections": count} for port, count in ports.most_common(5)],
+            },
+            "p2p_policy": {
+                "sources": int(p2p_logs["src_ip"].nunique()),
+                "connections": int(len(p2p_logs)),
+                "peers": int(p2p_logs["dst_ip"].nunique()),
+                "bytes": int(p2p_logs["bytes_sent"].fillna(0).sum() + p2p_logs["bytes_received"].fillna(0).sum()),
+                "apps": [{"app": app, "connections": count} for app, count in p2p_apps.most_common(5)],
             },
         },
     }
@@ -232,6 +245,7 @@ def alert_opinion(db: Session, alert_id: int, *, model: BehaviorModel | None = N
         "confidence": round(float(row["attack_probability"]), 4),
         "flagged": bool(row["flagged"]),
         "background_probe": bool(row["background_probe"]),
+        "p2p_policy": bool(row["p2p_policy"]),
         "agrees_with_rules": bool(row["flagged"]) and attack_type == rules_type,
         "rules_attack_type": rules_type,
         "reasons": model.explain(feature_row, attack_type) if row["flagged"] else [],

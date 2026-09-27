@@ -186,6 +186,35 @@ def test_context_signals_add_points_but_never_raise_an_alert_alone():
     assert "repeated_source_ip" in {item["code"] for item in alerts["198.51.100.9"].matched_rules_json}
 
 
+def test_peer_to_peer_file_sharing_is_policy_activity_unless_there_is_malicious_evidence():
+    """BitTorrent fans out to hundreds of peers and ports and carries app risk 5; that is policy, not an attack."""
+
+    db = _session()
+
+    def add(index: int, **fields) -> None:
+        raw = RawLog(raw_line=f"p2p policy {index}")
+        db.add(raw)
+        db.flush()
+        db.add(NormalizedLog(raw_log_id=raw.id, generated_time=datetime(2026, 5, 20, 13, 36, index % 60),
+                             protocol="udp", bytes=2000, packets=12, parsed_json={}, action="allow", **fields))
+
+    for index in range(40):  # a campus laptop seeding a torrent to many peers on many ports
+        add(index, log_type="TRAFFIC", src_ip="172.27.6.10", dst_ip=f"93.184.{index}.7", src_zone="WLAN-Inside",
+            dst_zone="SG-Outside", app="bittorrent", app_risk=5, app_technology="peer-to-peer",
+            app_subcategory="file-sharing", dst_port=40000 + index)
+    for index in range(3):  # another torrent client whose traffic the firewall flagged as spyware
+        add(100 + index, log_type="THREAT", subtype="spyware", src_ip="172.27.6.11", dst_ip="93.184.99.9",
+            src_zone="WLAN-Inside", dst_zone="SG-Outside", app="bittorrent", app_risk=5,
+            app_technology="peer-to-peer", app_subcategory="file-sharing", dst_port=6881)
+    db.commit()
+
+    result = run_detection(db, limit=None, use_ml=False, actor="test")
+    alerted_sources = {alert.src_ip for alert in db.scalars(select(Alert))}
+
+    assert result["p2p_policy_logs"] == 40
+    assert alerted_sources == {"172.27.6.11"}, "file sharing alerts only when the firewall saw a threat in it"
+
+
 def test_anomaly_signal_is_advisory_and_cannot_create_alert(monkeypatch):
     db = _session()
     raw = RawLog(raw_line="normal backup flow")

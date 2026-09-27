@@ -380,6 +380,8 @@ def _detection_record(parsed: ParsedPaloAltoLog, row_id: int) -> detection.Detec
         category=value.get("category"),
         src_country=value.get("src_country"),
         dst_country=value.get("dst_country"),
+        app_technology=value.get("app_technology"),
+        app_subcategory=value.get("app_subcategory"),
     )
 
 

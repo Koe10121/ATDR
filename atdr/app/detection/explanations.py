@@ -7,7 +7,7 @@ from atdr.app.db.models import Alert, AlertEvidence, MLLabel, NormalizedLog
 from atdr.app.detection.attack_mapping import attack_mapping_for_type, infer_attack_type_from_rules
 from atdr.app.detection.hybrid_scoring import hybrid_risk_score
 from atdr.app.detection.rule_catalog import rule_spec
-from atdr.app.detection.rules import is_outside_to_inside
+from atdr.app.detection.rules import is_outside_to_inside, is_p2p_file_sharing
 from atdr.app.detection.scoring import SEVERITY_CRITICAL, SEVERITY_HIGH, SEVERITY_MEDIUM
 from atdr.app.detection.supervised_detector import predict_supervised_log
 from atdr.app.ml.features import build_log_features
@@ -269,6 +269,11 @@ def explain_log_triage(log: NormalizedLog) -> dict[str, Any]:
                 "No alert evidence row currently references this normalized log.",
                 f"Detection run #{checked_by} evaluated it: its rule points stayed below the alert threshold, it only showed supporting signals (a risky app, a busy source, inbound direction or a large transfer) without suspicious behaviour, its group was too small to alert on, or a suppression rule matched.",
             ]
+        if is_p2p_file_sharing(log):
+            reasons.append(
+                "It is peer-to-peer file sharing, which ATDR tracks as policy activity and alerts on only with "
+                "evidence of malicious activity (a firewall threat detection, brute force or a watchlist match)."
+            )
         if normalized_signals:
             reasons.append("Analyst-relevant fields exist, but they did not produce an alert link on their own.")
         else:

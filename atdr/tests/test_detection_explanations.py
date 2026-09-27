@@ -228,3 +228,13 @@ def test_recommended_response_falls_back_gracefully_with_no_rule_or_evidence():
     assert recommended_response("Medium", {"code": "watchlist_match", "title": "Watchlist"}, src_ip="10.0.0.9") == (
         "Review 10.0.0.9, validate the business context, and monitor for repeated behavior."
     )
+
+
+def test_an_unflagged_file_sharing_log_says_it_is_tracked_as_policy_activity():
+    torrent = NormalizedLog(id=11, raw_log_id=2, src_ip="172.27.6.10", dst_ip="93.184.1.7", dst_port=51413, app="bittorrent",
+                            app_technology="peer-to-peer", app_subcategory="file-sharing", app_risk=5, action="allow", parsed_json={})
+    call = NormalizedLog(id=12, raw_log_id=3, src_ip="172.27.6.10", dst_ip="17.1.1.1", dst_port=443, app="facetime",
+                         app_technology="peer-to-peer", app_subcategory="voip-video", app_risk=2, action="allow", parsed_json={})
+
+    assert any("peer-to-peer file sharing" in reason for reason in explain_log_triage(torrent)["reasons"])
+    assert not any("file sharing" in reason for reason in explain_log_triage(call)["reasons"])

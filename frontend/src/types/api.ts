@@ -476,6 +476,13 @@ export interface BehaviorFindings {
       mfu_hosts_touched: number;
       top_ports: { port: number; connections: number }[];
     };
+    p2p_policy?: {
+      sources: number;
+      connections: number;
+      peers: number;
+      bytes: number;
+      apps: { app: string; connections: number }[];
+    };
   } | null;
 }
 
@@ -487,6 +494,7 @@ export interface BehaviorAlertOpinion {
   confidence: number;
   flagged: boolean;
   background_probe: boolean;
+  p2p_policy?: boolean;
   agrees_with_rules: boolean;
   rules_attack_type: string;
   reasons: string[];

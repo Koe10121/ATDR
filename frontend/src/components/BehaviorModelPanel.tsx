@@ -96,6 +96,7 @@ export function BehaviorModelPanel() {
   const data = query.data;
   const summary = data?.summary;
   const probing = summary?.background_probing;
+  const p2p = summary?.p2p_policy;
   const findings = data?.findings ?? [];
   const visible = showAll ? findings : findings.slice(0, VISIBLE_FINDINGS);
 
@@ -146,7 +147,7 @@ export function BehaviorModelPanel() {
             </div>
           ) : null}
           {summary ? (
-            <div className="grid gap-3 md:grid-cols-3" data-testid="behavior-summary">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4" data-testid="behavior-summary">
               <div className="rounded-lg border border-line bg-panel2 p-3">
                 <div className="text-xs font-bold uppercase tracking-wide text-muted">Sources checked</div>
                 <div className="mt-1 text-xl font-black text-text">{summary.sources_checked.toLocaleString()}</div>
@@ -165,6 +166,14 @@ export function BehaviorModelPanel() {
                 <div className="text-xs font-semibold text-muted">
                   probed {probing?.mfu_hosts_touched.toLocaleString() ?? 0} MFU addresses with {probing?.connections.toLocaleString() ?? 0} unanswered connections
                   {probing?.top_ports.length ? `; top ports ${probing.top_ports.map((item) => item.port).join(", ")}` : ""}. Normal internet noise, summarised instead of alerted.
+                </div>
+              </div>
+              <div className="rounded-lg border border-line bg-panel2 p-3" data-testid="behavior-p2p-policy">
+                <div className="text-xs font-bold uppercase tracking-wide text-muted">Peer-to-peer file sharing (policy)</div>
+                <div className="mt-1 text-xl font-black text-text">{p2p?.sources.toLocaleString() ?? 0} devices</div>
+                <div className="text-xs font-semibold text-muted">
+                  {p2p?.connections.toLocaleString() ?? 0} connections to {p2p?.peers.toLocaleString() ?? 0} peers
+                  {p2p?.apps.length ? ` (${p2p.apps.map((item) => item.app).join(", ")})` : ""}. A policy matter, not an attack: not counted as attack behaviour, alerted only with malicious evidence.
                 </div>
               </div>
             </div>
@@ -198,7 +207,9 @@ export function BehaviorAlertOpinionCard({ alertId }: { alertId: number }) {
   if (!opinion) return null;
   const verdict = opinion.background_probe
     ? "sees internet background probing from this source, which it summarises rather than alerts on"
-    : opinion.flagged
+    : opinion.p2p_policy
+      ? "sees mostly peer-to-peer file sharing from this source, which is policy activity rather than an attack"
+      : opinion.flagged
       ? `sees ${opinion.attack_label} behaviour (${percent(opinion.confidence)})`
       : `does not see clear attack behaviour from this source (attack score ${percent(opinion.confidence)})`;
   return (

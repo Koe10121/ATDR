@@ -15,16 +15,28 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from atdr.app.detection.rules import AUTH_SERVICE_PORTS, COMMON_PORTS, INSIDE_ZONE_TOKENS, OUTSIDE_ZONE_TOKENS
+from atdr.app.detection.rules import (
+    AUTH_SERVICE_PORTS,
+    COMMON_PORTS,
+    INSIDE_ZONE_TOKENS,
+    OUTSIDE_ZONE_TOKENS,
+    P2P_SUBCATEGORY,
+    P2P_TECHNOLOGY,
+)
 
 WINDOW = "5min"
 LOG_COLUMNS = [
     "log_id", "generated_time", "src_ip", "dst_ip", "dst_port", "src_zone", "dst_zone", "action", "app",
     "app_risk", "bytes_sent", "bytes_received", "packets", "elapsed_time", "session_end_reason", "log_type",
+    "app_technology", "app_subcategory",
 ]
 UNKNOWN_APPS = ("unknown-tcp", "unknown-udp", "unknown-p2p", "incomplete", "insufficient-data", "not-applicable")
 DENY_PREFIXES = ("deny", "drop", "reset", "block")
 MIN_BEACON_CONNECTIONS = 4
+# Policy columns returned next to FEATURES; the classifier never sees them.
+POLICY_COLUMNS = ["p2p_share"]
+# A window that is mostly peer-to-peer file sharing is policy activity, not an attack.
+P2P_POLICY_SHARE = 0.5
 # Background probing: an internet host sending a few unanswered connections to a few MFU addresses.
 # The internet does this to every public network all day, so it is summarised, not alerted on one by
 # one. A source that touches 10 or more hosts or 5 or more ports is a scan, not background.
@@ -62,6 +74,14 @@ def is_background_probe(features: pd.DataFrame) -> pd.Series:
         & (features["n_dst_ports"] <= PROBE_MAX_PORTS)
         & (features["n_logs"] <= PROBE_MAX_CONNECTIONS)
     )
+
+
+def is_p2p_policy(features: pd.DataFrame) -> pd.Series:
+    """Mostly peer-to-peer file sharing, with no firewall threat detection among its connections."""
+
+    if "p2p_share" not in features:
+        return pd.Series(False, index=features.index)
+    return (features["p2p_share"].fillna(0) >= P2P_POLICY_SHARE) & (features["threat_logs"].fillna(0) == 0)
 
 
 def load_logs(database: Path, *, start: str | None = None, end: str | None = None) -> pd.DataFrame:
@@ -102,6 +122,10 @@ def window_features(logs: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
     frame["auth_port"] = ports.isin(AUTH_SERVICE_PORTS)
     frame["uncommon_port"] = ports.notna() & ~ports.isin(COMMON_PORTS)
     frame["threat"] = frame["log_type"].fillna("").str.upper().eq("THREAT")
+    frame["p2p"] = (
+        frame.get("app_technology", pd.Series(index=frame.index, dtype=object)).fillna("").str.lower().eq(P2P_TECHNOLOGY)
+        & frame.get("app_subcategory", pd.Series(index=frame.index, dtype=object)).fillna("").str.lower().eq(P2P_SUBCATEGORY)
+    )
     frame["service"] = frame["dst_ip"].fillna("") + ":" + ports.fillna(-1).astype(int).astype(str)
     key = ["src_ip", "window"]
     grouped = frame.groupby(key, sort=False)
@@ -128,6 +152,7 @@ def window_features(logs: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
         uncommon_port_share=("uncommon_port", "mean"),
         threat_logs=("threat", "sum"),
         n_apps=("app", "nunique"),
+        p2p_share=("p2p", "mean"),
     )
     features["max_ports_per_dst"] = frame.groupby([*key, "dst_ip"])["dst_port"].nunique().groupby(level=[0, 1]).max()
     features["max_dsts_per_port"] = frame.groupby([*key, "dst_port"])["dst_ip"].nunique().groupby(level=[0, 1]).max()
@@ -151,4 +176,4 @@ def window_features(logs: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
     features["beacon_cv"] = steadiest["cv"]
 
     evidence = grouped["log_id"].agg(list)
-    return features[FEATURES].astype(float), evidence
+    return features[[*FEATURES, *POLICY_COLUMNS]].astype(float), evidence

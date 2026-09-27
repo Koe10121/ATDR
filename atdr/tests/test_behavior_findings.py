@@ -41,14 +41,16 @@ def db():
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool, future=True)
     Base.metadata.create_all(engine)
     with sessionmaker(bind=engine, future=True)() as session:
-        def log(line, seconds, src, dst, port, *, inbound, received):
+        def log(line, seconds, src, dst, port, *, inbound, received, app=None):
             raw = RawLog(raw_line=line, raw_line_hash=raw_line_fingerprint(line))
             session.add(raw)
             session.flush()
             row = NormalizedLog(
                 raw_log_id=raw.id, generated_time=START + timedelta(seconds=seconds), src_ip=src, dst_ip=dst, dst_port=port,
                 src_zone="SG-Outside" if inbound else "WLAN-Inside", dst_zone="WLAN-Inside" if inbound else "SG-Outside",
-                action="allow", app="incomplete" if inbound else "ssl", app_risk=2, bytes_sent=60,
+                action="allow", app=app or ("incomplete" if inbound else "ssl"), app_risk=2, bytes_sent=60,
+                app_technology="peer-to-peer" if app == "bittorrent" else None,
+                app_subcategory="file-sharing" if app == "bittorrent" else None,
                 bytes_received=received, packets=1, elapsed_time=0, log_type="TRAFFIC", parsed_json={},
             )
             session.add(row)
@@ -60,6 +62,8 @@ def db():
         for index in range(5):
             log(f"web {index}", index * 9, "10.1.0.6", "142.250.1.1", 443, inbound=False, received=900)
         log("probe", 12, "185.220.101.5", "10.1.0.7", 8081, inbound=True, received=0)
+        for peer in range(12):
+            log(f"torrent {peer}", peer, "10.1.0.8", f"91.{peer}.2.3", 6881 + peer, inbound=False, received=400, app="bittorrent")
         log("next window", 400, "10.1.0.6", "142.250.1.1", 443, inbound=False, received=900)
         alert = Alert(title="scan", alert_type="possible_port_scan", threat_score=90, severity="Critical", status="open",
                       explanation="x", matched_rules_json=[{"code": "possible_port_scan"}], recommended_response="-", src_ip="45.33.32.156")
@@ -85,13 +89,16 @@ def test_findings_are_deduplicated_linked_to_rule_alerts_and_explained(db):
     assert finding["status"] == "advisory" and result["model"]["alerting_types"] == []
     assert result["summary"]["background_probing"]["sources"] == 1
     assert result["summary"]["background_probing"]["top_ports"] == [{"port": 8081, "connections": 1}]
+    assert result["summary"]["p2p_policy"] == {
+        "sources": 1, "connections": 12, "peers": 12, "bytes": 12 * 460, "apps": [{"app": "bittorrent", "connections": 12}],
+    }, "file sharing touches 12 ports but is summarised as policy activity, not a finding"
     assert db.scalar(select(func.count(Alert.id))) == before
 
 
 def test_windows_are_whole_five_minutes_and_training_data_is_labelled(db):
     assert available_windows(db) == [
         {"start": "2026-05-20T13:55:00", "logs": 1},
-        {"start": "2026-05-20T13:50:00", "logs": 37},
+        {"start": "2026-05-20T13:50:00", "logs": 49},
     ]
     inside = window_findings(db, START, model=_model(trained_from="2026-05-20T13:48:00", trained_to="2026-05-20T13:52:00"))
     assert inside["window"]["in_training_data"] is True

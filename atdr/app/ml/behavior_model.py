@@ -13,7 +13,9 @@ Training data (``build_dataset``), for each source's 5-minute window:
 Background probing (a few unanswered connections from an internet host, see
 ``behavior_features.is_background_probe``) is neither normal nor an attack to
 alert on, so those windows are left out of training and never flagged; the
-dashboard summarises them instead.
+dashboard summarises them instead. Windows that are mostly peer-to-peer file
+sharing with no firewall threat detection are policy activity: never flagged,
+summarised separately.
 
 The classifier is scikit-learn's HistGradientBoostingClassifier. The alert
 threshold is chosen on a validation split grouped by source IP, so no source
@@ -43,7 +45,7 @@ warnings.filterwarnings("ignore", message="Could not find the number of physical
 
 from atdr.app.core.config import PROJECT_ROOT
 from atdr.app.ml.attack_simulation import ATTACK_TYPES, Network, Simulator
-from atdr.app.ml.behavior_features import FEATURES, is_background_probe, window_features
+from atdr.app.ml.behavior_features import FEATURES, is_background_probe, is_p2p_policy, window_features
 
 MODEL_VERSION = "mfu_behavior_v1"
 MODEL_PATH = PROJECT_ROOT / "atdr" / "models" / "mfu_behavior_model.joblib"
@@ -171,7 +173,8 @@ def build_dataset(
     features, evidence = window_features(real_logs)
     real_classes = label_real_windows(evidence, human_labels=human_labels, rule_alerted=rule_alerted)
     background = is_background_probe(features)
-    known = real_classes.notna() & ~background
+    p2p = is_p2p_policy(features)
+    known = real_classes.notna() & ~background & ~p2p
     real_features = features[known]
     simulated_features, simulated_classes = simulate_windows(real_logs, attacks_per_type=attacks_per_type, seed=seed)
     simulated_features.index = pd.MultiIndex.from_tuples(
@@ -192,6 +195,7 @@ def build_dataset(
             "real_windows_left_out": int((~known).sum()),
             "background_probe_windows_left_out": int(background.sum()),
             "background_probe_windows_team_labeled_as_attack": int((background & real_classes.isin(ATTACK_TYPES)).sum()),
+            "p2p_policy_windows_left_out": int((p2p & ~background).sum()),
             "real_attack_windows": dict(Counter(real_classes[known][real_classes[known] != "normal"])),
             "simulated_windows": dict(Counter(simulated_classes)),
         },
@@ -223,7 +227,10 @@ class BehaviorModel:
             "attack_probability": attack_score,
         }, index=features.index)
         result["background_probe"] = is_background_probe(features).to_numpy()
-        result["flagged"] = (result["attack_probability"] >= self.threshold) & ~result["background_probe"]
+        result["p2p_policy"] = is_p2p_policy(features).to_numpy()
+        result["flagged"] = (
+            (result["attack_probability"] >= self.threshold) & ~result["background_probe"] & ~result["p2p_policy"]
+        )
         return result
 
     def explain(self, row: pd.Series, attack_type: str, *, limit: int = 3) -> list[str]:

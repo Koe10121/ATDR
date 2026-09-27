@@ -9,20 +9,23 @@ import pandas as pd
 import pytest
 
 from atdr.app.ml.attack_simulation import ATTACK_TYPES, Network, Simulator
-from atdr.app.ml.behavior_features import FEATURES, is_background_probe, window_features
+from atdr.app.ml.behavior_features import FEATURES, POLICY_COLUMNS, is_background_probe, is_p2p_policy, window_features
 from atdr.app.ml.behavior_model import BehaviorModel, build_dataset, choose_threshold, label_real_windows
 from atdr.app.services.behavior_model_service import label_class, score_model_review
 
 START = datetime(2026, 5, 20, 13, 40)
 
 
-def _log(log_id, seconds, src, dst, port, *, inbound=False, action="allow", app="ssl", received=500.0, sent=300.0):
+def _log(log_id, seconds, src, dst, port, *, inbound=False, action="allow", app="ssl", received=500.0, sent=300.0, log_type="TRAFFIC"):
+    p2p = app == "bittorrent"
     return {
         "log_id": log_id, "generated_time": START + timedelta(seconds=seconds), "src_ip": src, "dst_ip": dst,
         "dst_port": port, "src_zone": "SG-Outside" if inbound else "WLAN-Inside",
         "dst_zone": "WLAN-Inside" if inbound else "SG-Outside", "action": action, "app": app, "app_risk": 2,
         "bytes_sent": sent, "bytes_received": received, "packets": 5, "elapsed_time": 2,
-        "session_end_reason": "tcp-fin", "log_type": "TRAFFIC",
+        "session_end_reason": "tcp-fin", "log_type": log_type,
+        "app_technology": "peer-to-peer" if p2p else "browser-based",
+        "app_subcategory": "file-sharing" if p2p else "internet-utility",
     }
 
 
@@ -43,7 +46,7 @@ def test_window_features_describe_scans_beacons_and_background_probes():
     assert scanner["n_dst_ports"] == 30 and scanner["max_ports_per_dst"] == 30 and scanner["zero_reply_share"] == 1
     beacon_host = features.loc[("10.1.0.6", window)]
     assert beacon_host["beacon_count"] == 9 and beacon_host["beacon_interval"] == 30 and beacon_host["beacon_cv"] == 0
-    assert list(features.columns) == FEATURES
+    assert list(features.columns) == [*FEATURES, *POLICY_COLUMNS]
     assert sorted(evidence.loc[("10.1.0.6", window)])[:2] == [100, 101]
 
     background = is_background_probe(features)
@@ -102,6 +105,36 @@ def test_the_dataset_leaves_out_background_probes_and_unknown_windows():
     assert dataset.summary["background_probe_windows_team_labeled_as_attack"] == 1
     assert dataset.summary["simulated_windows"] == {attack_type: 1 for attack_type in ATTACK_TYPES}
     assert (dataset.origin == "simulated").sum() == len(ATTACK_TYPES)
+
+
+def _torrent_window():
+    rows = [_log(index, index, "10.1.0.8", f"91.{index}.2.3", 6881 + index, app="bittorrent") for index in range(40)]
+    rows += [_log(100 + index, index, "10.1.0.9", f"92.{index}.2.3", 6881 + index, app="bittorrent") for index in range(40)]
+    rows += [_log(200, 50, "10.1.0.9", "92.0.2.3", 6881, app="bittorrent", log_type="THREAT")]
+    rows += [_log(300 + index, index, "10.1.0.5", f"93.{index}.2.3", 7000 + index) for index in range(40)]
+    return pd.DataFrame(rows)
+
+
+def test_peer_to_peer_file_sharing_is_policy_activity_unless_the_firewall_saw_a_threat():
+    features, _ = window_features(_torrent_window())
+    window = pd.Timestamp(START)
+    assert features.at[("10.1.0.8", window), "p2p_share"] == 1
+    policy = is_p2p_policy(features)
+    assert policy.loc[("10.1.0.8", window)], "plain BitTorrent fan-out is policy activity"
+    assert not policy.loc[("10.1.0.9", window)], "BitTorrent with a firewall threat detection is not"
+    assert not policy.loc[("10.1.0.5", window)], "a scan-like fan-out that is not file sharing is not"
+
+    prediction = BehaviorModel(_Fixed(), 0.9, {}, {}).predict(features)
+    assert not prediction.at[("10.1.0.8", window), "flagged"] and prediction.at[("10.1.0.8", window), "p2p_policy"]
+    assert prediction.at[("10.1.0.9", window), "flagged"] and prediction.at[("10.1.0.5", window), "flagged"]
+
+
+def test_the_dataset_leaves_out_peer_to_peer_policy_windows():
+    human = {0: "port_scan", 300: "port_scan"}
+    dataset = build_dataset(_torrent_window(), human_labels=human, rule_alerted=set(), attacks_per_type=1, seed=3)
+    sources = set(dataset.features.index.get_level_values(0))
+    assert "10.1.0.8" not in sources and "10.1.0.5" in sources
+    assert dataset.summary["p2p_policy_windows_left_out"] == 1
 
 
 def test_the_threshold_keeps_false_alarms_within_the_cap():

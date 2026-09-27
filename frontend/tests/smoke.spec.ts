@@ -70,7 +70,8 @@ const smokeBehaviorFindings = {
     flagged: 2,
     model_only: 1,
     by_type: { port_scan: 1, data_exfiltration_suspicion: 1 },
-    background_probing: { sources: 949, connections: 1720, mfu_hosts_touched: 890, top_ports: [{ port: 8081, connections: 29 }, { port: 22, connections: 17 }] }
+    background_probing: { sources: 949, connections: 1720, mfu_hosts_touched: 890, top_ports: [{ port: 8081, connections: 29 }, { port: 22, connections: 17 }] },
+    p2p_policy: { sources: 14, connections: 2310, peers: 1875, bytes: 912000000, apps: [{ app: "bittorrent", connections: 2290 }, { app: "xunlei", connections: 20 }] }
   }
 };
 
@@ -7913,6 +7914,11 @@ test("Overview shows what the MFU behaviour model sees and how to respond", asyn
   await expect(panel).toContainText("What the MFU model sees");
   await expect(page.getByTestId("behavior-training-window")).toContainText("part of the model's training data");
   await expect(page.getByTestId("behavior-summary")).toContainText("949 hosts");
+  const p2p = page.getByTestId("behavior-p2p-policy");
+  await expect(p2p).toContainText("14 devices");
+  await expect(p2p).toContainText("2,310 connections to 1,875 peers (bittorrent, xunlei)");
+  await expect(p2p).toContainText("not counted as attack behaviour");
+  await expect(page.getByTestId("behavior-summary")).toContainText("Attack behaviour found2");
   const findings = page.getByTestId("behavior-finding");
   await expect(findings).toHaveCount(2);
   await expect(findings.first()).toContainText("Port scan");

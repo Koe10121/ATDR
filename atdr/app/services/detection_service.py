@@ -29,6 +29,7 @@ from atdr.app.detection.rules import (
     evaluate_rules,
     event_time,
     is_outside_to_inside,
+    is_p2p_file_sharing,
     outlier_threshold,
 )
 from atdr.app.detection.scoring import clamp_score, severity_from_score
@@ -83,6 +84,12 @@ SUPPORTING_ONLY_RULES = frozenset(
         "high_bytes_outlier",
         "high_packets_outlier",
     }
+)
+# Peer-to-peer file sharing is a policy matter, not an attack: its natural fan-out and risky-app
+# score look like scanning. It alerts only with evidence of malicious activity; otherwise it is
+# counted as policy activity for the dashboard.
+P2P_MALICIOUS_EVIDENCE_RULES = frozenset(
+    {"paloalto_threat_log", "paloalto_malware_threat", "brute_force_like_attempts", "watchlist_match"}
 )
 CONTEXT_ONLY_PRIMARY_RULES = frozenset(
     {
@@ -165,6 +172,8 @@ class DetectionLogRecord:
     category: str | None
     src_country: str | None
     dst_country: str | None
+    app_technology: str | None
+    app_subcategory: str | None
 
 
 def _runtime_profile_sample(
@@ -246,6 +255,8 @@ def _detection_record_columns(*, include_payload: bool = True) -> tuple:
         NormalizedLog.category,
         NormalizedLog.src_country,
         NormalizedLog.dst_country,
+        NormalizedLog.app_technology,
+        NormalizedLog.app_subcategory,
     )
 
 
@@ -684,6 +695,7 @@ def run_detection(
         low_parse_quality_signals = 0
         advisory_only_logs = 0
         supporting_only_logs = 0
+        p2p_policy_logs = 0
         authoritative_rule_signals = 0
         matched_rule_ids: set[str] = set()
         authoritative_matched_rule_ids: set[str] = set()
@@ -751,6 +763,9 @@ def run_detection(
             trigger_matches = [match for match in authoritative_matches if match.code not in SUPPORTING_ONLY_RULES]
             if not trigger_matches:
                 supporting_only_logs += 1
+                continue
+            if is_p2p_file_sharing(log) and not any(match.code in P2P_MALICIOUS_EVIDENCE_RULES for match in trigger_matches):
+                p2p_policy_logs += 1
                 continue
             result = _result_from_matches(matches, scoring_matches=authoritative_matches)
             if result.threat_score >= settings.min_alert_score:
@@ -873,6 +888,7 @@ def run_detection(
             "low_parse_quality_signals": low_parse_quality_signals,
             "advisory_only_logs": advisory_only_logs,
             "supporting_only_logs": supporting_only_logs,
+            "p2p_policy_logs": p2p_policy_logs,
             "rule_detection_authoritative": True,
             "detection_layers": detection_layers,
             "limit": limit,
