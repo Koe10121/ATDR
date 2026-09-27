@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from itertools import islice
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session, sessionmaker
@@ -314,26 +314,24 @@ def normalise_decision(value: Any) -> str | None:
     return DECISIONS[text]
 
 
-def _estimate(outcomes: dict[str, list[bool]], population: dict[str, int]) -> dict[str, float | None]:
-    threats = harmless = 0.0
-    alerted_threats = alerted_harmless = 0.0
+def _estimate(outcomes: dict[str, list[tuple[bool, bool]]], population: dict[str, int]) -> dict[str, float | None]:
+    """Window-wide rates from (threat, flagged) pairs, each stratum scaled to its population."""
+
+    caught = missed = false_alarms = quiet = 0.0
     for stratum in STRATA:
-        labels = outcomes.get(stratum) or []
-        if not labels:
+        pairs = outcomes.get(stratum) or []
+        if not pairs:
             if population.get(stratum):
                 return {"precision": None, "recall": None, "false_alarm_rate": None, "f1": None}
             continue
-        share = sum(labels) / len(labels)
-        stratum_threats = population[stratum] * share
-        stratum_harmless = population[stratum] * (1 - share)
-        threats += stratum_threats
-        harmless += stratum_harmless
-        if stratum == "alerted":
-            alerted_threats, alerted_harmless = stratum_threats, stratum_harmless
-    alerted_total = alerted_threats + alerted_harmless
-    precision = alerted_threats / alerted_total if alerted_total else None
-    recall = alerted_threats / threats if threats else None
-    false_alarm = alerted_harmless / harmless if harmless else None
+        scale = population[stratum] / len(pairs)
+        caught += scale * sum(1 for threat, flagged in pairs if threat and flagged)
+        missed += scale * sum(1 for threat, flagged in pairs if threat and not flagged)
+        false_alarms += scale * sum(1 for threat, flagged in pairs if flagged and not threat)
+        quiet += scale * sum(1 for threat, flagged in pairs if not threat and not flagged)
+    precision = caught / (caught + false_alarms) if caught + false_alarms else None
+    recall = caught / (caught + missed) if caught + missed else None
+    false_alarm = false_alarms / (false_alarms + quiet) if false_alarms + quiet else None
     f1 = 2 * precision * recall / (precision + recall) if precision and recall else None
     return {"precision": precision, "recall": recall, "false_alarm_rate": false_alarm, "f1": f1}
 
@@ -345,10 +343,22 @@ def _interval(values: Iterable[float | None]) -> list[float] | None:
     return [round(kept[int(0.025 * (len(kept) - 1))], 4), round(kept[int(0.975 * (len(kept) - 1))], 4)]
 
 
-def score_blind_check(key: dict[str, Any], decisions: dict[str, Any], *, resamples: int = 2000, seed: int = 7) -> dict[str, Any]:
-    """Estimate precision, recall and false-alarm rate for the whole test window."""
+def score_blind_check(
+    key: dict[str, Any],
+    decisions: dict[str, Any],
+    *,
+    flagged: Callable[[dict[str, Any]], bool] | None = None,
+    resamples: int = 2000,
+    seed: int = 7,
+) -> dict[str, Any]:
+    """Estimate precision, recall and false-alarm rate for the whole test window.
 
-    outcomes: dict[str, list[bool]] = defaultdict(list)
+    ``flagged`` decides which sampled logs count as detected; by default the
+    rules' alerts. Pass another test to score the model, or rules or model.
+    """
+
+    is_flagged = flagged or (lambda entry: bool(entry["alerted"]))
+    outcomes: dict[str, list[tuple[bool, bool]]] = defaultdict(list)
     unsure = missing = 0
     sample_rows = []
     for entry in key["samples"]:
@@ -360,7 +370,7 @@ def score_blind_check(key: dict[str, Any], decisions: dict[str, Any], *, resampl
         if decision is None:
             unsure += 1
             continue
-        outcomes[entry["stratum"]].append(decision == "threat")
+        outcomes[entry["stratum"]].append((decision == "threat", is_flagged(entry)))
         sample_rows.append((entry, decision == "threat"))
     population = key["population"]
     point = _estimate(outcomes, population)
@@ -376,16 +386,16 @@ def score_blind_check(key: dict[str, Any], decisions: dict[str, Any], *, resampl
         stratum: {
             "population": population.get(stratum, 0),
             "labeled": len(outcomes.get(stratum) or []),
-            "threat": sum(outcomes.get(stratum) or []),
+            "threat": sum(1 for threat, _flagged in outcomes.get(stratum) or [] if threat),
         }
         for stratum in STRATA
     }
     missed = Counter()
     wrong = Counter()
     for entry, threat in sample_rows:
-        if threat and not entry["alerted"]:
+        if threat and not is_flagged(entry):
             missed[entry["stratum"]] += 1
-        if entry["alerted"] and not threat:
+        if is_flagged(entry) and not threat:
             for alert_type in entry["alert_types"] or ["unknown"]:
                 wrong[alert_type] += 1
     return {

@@ -50,6 +50,21 @@ def test_each_stratum_is_scaled_by_its_population():
     assert low <= 0.8 <= high
 
 
+def test_another_detector_is_scored_on_the_same_blind_labels():
+    samples, decisions = [], {}
+    for stratum, threats, total in [("alerted", 8, 10), ("notable", 1, 10), ("other", 0, 10)]:
+        for index in range(total):
+            samples.append({"sample_id": f"{stratum}-{index}", "stratum": stratum, "alerted": stratum == "alerted", "alert_types": []})
+            decisions[f"{stratum}-{index}"] = "Threat" if index < threats else "Normal"
+    key = _key({"alerted": 100, "notable": 1000, "other": 10000}, samples)
+
+    # "Rules or model", where the model flags every notable log: all 180 estimated threats are caught.
+    either = score_blind_check(key, decisions, flagged=lambda entry: entry["alerted"] or entry["stratum"] == "notable", resamples=50)
+    assert either["estimate"]["recall"] == 1.0
+    assert either["estimate"]["precision"] == round(180 / 1100, 4)
+    assert either["missed_threats_by_stratum"] == {}
+
+
 def test_unknown_decisions_are_rejected():
     assert normalise_decision("  normal BUT unusual ") == "harmless"
     assert normalise_decision("?") is None
