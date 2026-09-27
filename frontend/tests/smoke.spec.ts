@@ -19,7 +19,7 @@ const smokeBehaviorModel = {
   trained_to: "2026-05-20T13:44:59",
   threshold: 0.9688,
   alerting_types: [],
-  detail: "Advisory: no attack type has passed the quality bar yet, so the model creates no alerts."
+  detail: "Advisory: no attack type is switched on yet, so the model creates no alerts."
 };
 
 const smokeBehaviorFindings = {

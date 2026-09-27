@@ -1,4 +1,4 @@
-# MFU behaviour model (mfu_behavior_v1)
+# MFU behaviour model (current: mfu_behavior_v2)
 
 A supervised model trained only on Mae Fah Luang University's own firewall
 traffic. For each source's activity in a 5-minute window it names the attack
@@ -13,10 +13,11 @@ attack type passes the quality bar declared before training
   the rules use, so a model finding and a rule alert can be compared directly.
 - **Classes:** normal, port scan (including horizontal scans), brute force,
   flood / denial of service, malware / C2 beaconing, possible data exfiltration.
-- **Features:** 30 numbers from raw firewall fields only: how many
-  destinations and ports the source touched, how concentrated its traffic was,
-  denied and unanswered shares, upload volume, app risk, direction, and how
-  regular its most regular repeated connection was. No rule output is used, so
+- **Features:** numbers from raw firewall fields only: how many destinations
+  and ports the source touched, how concentrated its traffic was, denied and
+  unanswered shares, upload volume, app risk, direction, and how regular its
+  most regular repeated connection was (30 in v1). v2 adds a 31st: how many
+  sources contacted the destination of that regular connection. No rule output is used, so
   the model cannot simply copy the rules. (`atdr/app/ml/behavior_features.py`)
 - **Classifier:** scikit-learn HistGradientBoostingClassifier.
 - **Explanations:** each finding quotes the values that are outside what normal
@@ -163,7 +164,69 @@ The only change for the model: the 8 BitTorrent samples, all labeled "Normal
 but unusual", are no longer flagged. No sample labeled Threat lost its flag.
 Condition 3 still holds (86.3% vs 81.2%).
 
+## v2 (2026-09-27, current)
+
+What changed and how it is tested was declared before it was built
+(`ML_QUALITY_BAR.md`, addendum). Trained from commit 5001f9e on the same
+13:36-13:45 data; threshold 0.981, chosen the same way (0.18% of real normal
+validation windows flagged).
+
+- **Destination prevalence.** For the steadiest repeated connection, how many
+  sources contacted that destination in the window. Counted over the whole
+  window, also when the model judges one alert's source or a simulated attack.
+- **Direction.** C2 and exfiltration are flagged only when most of the
+  source's traffic leaves MFU.
+- **Training labels from the current rules (v5.34.0).** 25,363 rule-alerted
+  training logs instead of 34,369; 13,863 real windows used. The training
+  script had been keeping the older catalog's alerts; it now re-runs the rules.
+
+Validation (training period, held-back sources), simulated attacks found:
+
+| Attack type | v1 | v2 |
+|---|---|---|
+| Port scan | 96.4% (real labeled: 6 of 8) | 96.4% (real labeled: 5 of 8) |
+| Brute force | 100% | 99.0% |
+| Flood | 100% | 100% |
+| C2 beaconing | 76.5% | 82.7% |
+| Data exfiltration | 100% | 97.8% |
+
+**Second look at 13:50-13:55** (seen before, not a clean test; rules v5.34.0):
+
+- All 9 false alarms from the v1 review are gone: the 6 C2 ones (their
+  destinations were used by 236-355 sources, or scored lower) and the 3
+  exfiltration ones (data coming in). The real port scan is still flagged.
+- The real C2 window is no longer flagged: v2 scores it 0.929, under its
+  threshold (see Known limits).
+- 170 flags, 9 of them model-only (3 port scan, 1 brute force, 5 C2).
+- Blind labels (condition 3): all 20 samples v2 flags are labeled Threat;
+  model recall 62.7%; rules or model F1 86.3% vs rules 81.2%, so it holds.
+
+**Fresh windows 13:45-13:50 and 13:55-13:57** (the clean test):
+
+| Attack type | Simulated attacks found (condition 2) | Model-only windows | Can it pass? |
+|---|---|---|---|
+| Port scan | 96.5% | 5 | only if a person-checked review calls all 5 threats |
+| Brute force | 97.5% | 0 | no: nothing to review |
+| Flood | 100% | 0 | no: nothing to review |
+| C2 beaconing | 88.5% (fails) | 8 | no: condition 2 fails |
+| Data exfiltration | 98.0% | 2 | no: fewer than 5 |
+
+15,153 source windows; the rules alerted on 1,660, the model flagged 230.
+The 15 model-only windows are in a blind review mixed with 15 random unflagged
+windows (`.tmp/mfu_model/v2_fresh/ATDR_model_review_v2_fresh_anonymized.xlsx`,
+30 rows, MFU addresses anonymized). Every type stays advisory until then.
+
 ## Known limits
+
+- **Traffic nobody alerted on is trained as normal.** One campus device called
+  111.90.158[.]40 over HTTP about every 14 seconds for the whole file
+  (13:36-13:57), with no firewall threat log and no rule alert. Elastic
+  Security Labs lists that address as a GHOSTENGINE C2 server (May 2024; the
+  address may have changed hands since). Because nothing flagged it in
+  13:36-13:45, both models learned its windows as normal. v1 still caught it in
+  the test window; v2 scores it 0.93, just under its threshold. Labeling a
+  sample of unalerted training windows, or putting known indicators on ATDR's
+  watchlist so the rules alert on them, would stop this.
 
 - **Beaconing:** a 5-minute window often holds only 4-5 beacons, and a beacon
   hidden among a busy host's HTTPS traffic is hard to see. The model finds
@@ -183,7 +246,15 @@ python -m atdr.scripts.evaluate_behavior_model
 python -m atdr.scripts.evaluate_behavior_model --review-decisions .tmp/mfu_model/review_decisions.csv
 python -m atdr.scripts.evaluate_behavior_model --blind-decisions .tmp/blind_check/decisions.csv
 python -m atdr.scripts.anonymized_review_files model-review   # needs openpyxl
+
+# v2: the seen window as a second look, and the fresh windows as the clean test
+python -m atdr.scripts.evaluate_behavior_model --out-dir .tmp/mfu_model/v2_second_look --rules-db .tmp/blind_check/holdout_v5_34.db --no-review
+python -m atdr.scripts.evaluate_behavior_model --out-dir .tmp/mfu_model/v2_fresh --window "2026-05-20 13:45:00" "2026-05-20 13:50:00" --window "2026-05-20 13:55:00" "2026-05-20 14:00:00" --rules-db .tmp/blind_check/holdout_v5_34.db --seed 9000002 --review-seed 20260928 --review-prefix F --min-reviewed 5
+python -m atdr.scripts.anonymized_review_files model-review --round-dir .tmp/mfu_model/v2_fresh
 ```
+
+`holdout_v5_34.db` is a copy of the holdout with the current rules run over
+it. The v1 model is kept as `atdr/models/mfu_behavior_model_v1.joblib`.
 
 The model file (`atdr/models/mfu_behavior_model.joblib`) is not in git; the
 first command rebuilds it. The dashboard's Overview page shows the model's
