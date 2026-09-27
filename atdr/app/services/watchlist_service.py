@@ -1,6 +1,8 @@
+from collections import defaultdict
 from datetime import datetime, timezone
+from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from atdr.app.db.models import AuditLog, NormalizedLog, WatchlistItem
@@ -15,11 +17,38 @@ def _normalized_value(indicator_type: str, value: str | None) -> str:
     return value.strip()
 
 
-def list_watchlist_items(db: Session, *, active_only: bool = False) -> list[WatchlistItem]:
+def list_watchlist_items(db: Session, *, active_only: bool = False, manual_only: bool = False) -> list[WatchlistItem]:
+    """Watchlist items, newest first. ``manual_only`` leaves out indicators imported from feeds."""
+
     statement = select(WatchlistItem).order_by(WatchlistItem.created_at.desc(), WatchlistItem.id.desc())
     if active_only:
         statement = statement.where(WatchlistItem.active.is_(True))
+    if manual_only:
+        statement = statement.where(WatchlistItem.source.is_(None))
     return list(db.scalars(statement))
+
+
+def watchlist_feed_summary(db: Session) -> list[dict[str, Any]]:
+    """One row per threat intelligence feed on the watchlist."""
+
+    rows = db.execute(
+        select(
+            WatchlistItem.source,
+            func.count(WatchlistItem.id),
+            func.sum(case((WatchlistItem.active.is_(True), 1), else_=0)),
+            func.max(WatchlistItem.created_at),
+            func.sum(WatchlistItem.match_count),
+            func.max(WatchlistItem.last_matched_at),
+        )
+        .where(WatchlistItem.source.is_not(None))
+        .group_by(WatchlistItem.source)
+        .order_by(WatchlistItem.source)
+    ).all()
+    return [
+        {"source": source, "indicators": int(total), "active": int(active or 0), "last_added_at": last_added,
+         "matches": int(matches or 0), "last_matched_at": last_matched}
+        for source, total, active, last_added, matches, last_matched in rows
+    ]
 
 
 def create_watchlist_item(
@@ -82,22 +111,37 @@ def disable_watchlist_item(db: Session, item_id: int, *, actor: str) -> Watchlis
     return item
 
 
+class WatchlistIndex:
+    """Active items keyed by (type, value), so a log costs one lookup per field.
+
+    Threat intelligence feeds put thousands of addresses on the watchlist; comparing every log with
+    every item would make detection thousands of times slower.
+    """
+
+    # Countries are parsed from PAN-OS logs and matched like the other fields.
+    FIELDS = ("src_ip", "dst_ip", "app", "src_country", "dst_country")
+
+    def __init__(self, items: list[WatchlistItem]) -> None:
+        self._items: dict[tuple[str, str], list[WatchlistItem]] = defaultdict(list)
+        for item in items:
+            value = _normalized_value(item.indicator_type, item.indicator_value)
+            if value:
+                self._items[(item.indicator_type, value)].append(item)
+
+    def __len__(self) -> int:
+        return sum(len(items) for items in self._items.values())
+
+    def matches(self, log: NormalizedLog) -> list[WatchlistItem]:
+        found: list[WatchlistItem] = []
+        for field in self.FIELDS:
+            observed = _normalized_value(field, getattr(log, field, None))
+            if observed:
+                found.extend(self._items.get((field, observed), ()))
+        return found
+
+
 def matching_watchlist_items(log: NormalizedLog, active_items: list[WatchlistItem]) -> list[WatchlistItem]:
-    matches: list[WatchlistItem] = []
-    log_values = {
-        "src_ip": log.src_ip,
-        "dst_ip": log.dst_ip,
-        "app": log.app,
-        # Parsed from PAN-OS logs but previously unused by any detection logic.
-        "src_country": getattr(log, "src_country", None),
-        "dst_country": getattr(log, "dst_country", None),
-    }
-    for item in active_items:
-        expected = _normalized_value(item.indicator_type, item.indicator_value)
-        observed = _normalized_value(item.indicator_type, log_values.get(item.indicator_type))
-        if expected and expected == observed:
-            matches.append(item)
-    return matches
+    return WatchlistIndex(active_items).matches(log)
 
 
 def record_watchlist_hits(items: list[WatchlistItem], *, count: int = 1) -> None:

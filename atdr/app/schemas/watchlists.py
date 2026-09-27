@@ -41,3 +41,13 @@ class WatchlistRead(BaseModel):
     created_at: datetime
     disabled_by: str | None = None
     disabled_at: datetime | None = None
+    source: str | None = None
+
+
+class WatchlistFeedRead(BaseModel):
+    source: str
+    indicators: int
+    active: int
+    last_added_at: datetime | None = None
+    matches: int
+    last_matched_at: datetime | None = None

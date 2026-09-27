@@ -98,6 +98,7 @@ import type {
   TokenResponse,
   UncheckedDetectionBatch,
   User,
+  WatchlistFeed,
   WatchlistItem
 } from "../types/api";
 import { clearSession } from "./session";
@@ -595,6 +596,7 @@ export const api = {
       body: JSON.stringify({ review_status, review_notes })
     }),
   watchlists: (params: Params = {}) => apiRequest<WatchlistItem[]>("/api/watchlists", { params }),
+  watchlistFeeds: () => apiRequest<WatchlistFeed[]>("/api/watchlists/feeds"),
   createWatchlist: (payload: { indicator_type: string; indicator_value: string; description: string; severity_boost: number }) =>
     apiRequest<WatchlistItem>("/api/watchlists", { method: "POST", body: JSON.stringify(payload) }),
   disableWatchlist: (id: number) => apiRequest<WatchlistItem>(`/api/watchlists/${id}/disable`, { method: "POST" }),

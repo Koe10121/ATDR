@@ -4,8 +4,13 @@ from sqlalchemy.orm import Session
 from atdr.app.core.security import require_admin, require_analyst_or_admin
 from atdr.app.db.database import get_db
 from atdr.app.db.models import User
-from atdr.app.schemas.watchlists import WatchlistCreateRequest, WatchlistRead
-from atdr.app.services.watchlist_service import create_watchlist_item, disable_watchlist_item, list_watchlist_items
+from atdr.app.schemas.watchlists import WatchlistCreateRequest, WatchlistFeedRead, WatchlistRead
+from atdr.app.services.watchlist_service import (
+    create_watchlist_item,
+    disable_watchlist_item,
+    list_watchlist_items,
+    watchlist_feed_summary,
+)
 
 router = APIRouter(prefix="/api/watchlists", tags=["watchlists"])
 
@@ -14,9 +19,18 @@ router = APIRouter(prefix="/api/watchlists", tags=["watchlists"])
 def api_list_watchlist_items(
     db: Session = Depends(get_db),
     active_only: bool = False,
+    manual_only: bool = False,
     current_user: User = Depends(require_analyst_or_admin),
 ):
-    return list_watchlist_items(db, active_only=active_only)
+    return list_watchlist_items(db, active_only=active_only, manual_only=manual_only)
+
+
+@router.get("/feeds", response_model=list[WatchlistFeedRead])
+def api_list_watchlist_feeds(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+):
+    return watchlist_feed_summary(db)
 
 
 @router.post("", response_model=WatchlistRead)

@@ -918,6 +918,16 @@ export interface WatchlistItem {
   created_at: string;
   disabled_by?: string | null;
   disabled_at?: string | null;
+  source?: string | null;
+}
+
+export interface WatchlistFeed {
+  source: string;
+  indicators: number;
+  active: number;
+  last_added_at?: string | null;
+  matches: number;
+  last_matched_at?: string | null;
 }
 
 export interface AlertNote {

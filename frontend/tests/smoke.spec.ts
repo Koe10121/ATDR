@@ -7595,6 +7595,30 @@ test("playbook links open the right filtered views", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Watchlist indicator type" })).toBeVisible();
 });
 
+test("Watchlists show threat feeds as one summary row each, not thousands of cards", async ({ page }) => {
+  await mockApi(page);
+  await page.route("**/api/watchlists**", async (route) =>
+    route.fulfill({
+      json: [
+        {
+          id: 1, indicator_type: "dst_ip", indicator_value: "111.90.158.40", description: "GHOSTENGINE C2 server", severity_boost: 60,
+          active: true, match_count: 18, created_by: "Koe", created_at: "2026-09-27T11:53:23Z", source: null
+        }
+      ]
+    })
+  );
+  await page.route("**/api/watchlists/feeds", async (route) =>
+    route.fulfill({ json: [{ source: "ThreatFox recent", indicators: 1420, active: 1398, last_added_at: "2026-09-27T14:00:00Z", matches: 0, last_matched_at: null }] })
+  );
+  await seedSession(page);
+  await page.goto("/controls?tab=watchlists");
+  const feeds = page.getByTestId("watchlist-feeds");
+  await expect(feeds).toContainText("ThreatFox recent");
+  await expect(feeds).toContainText("1,398 of 1,420");
+  await expect(page.getByText("dst_ip: 111.90.158.40")).toBeVisible();
+  await expect(page.getByText("from threat feeds")).toBeVisible();
+});
+
 // Regression: while a new search or page was loading, each table got a fresh
 // empty array on every render, so TanStack Table reset its page index in a
 // loop that never yielded. The tab froze on the first keystroke or "Next".

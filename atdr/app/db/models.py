@@ -395,6 +395,8 @@ class WatchlistItem(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     disabled_by: Mapped[str | None] = mapped_column(String(128))
     disabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # None for an indicator an analyst added by hand; the feed name for one imported from threat intelligence.
+    source: Mapped[str | None] = mapped_column(String(128), index=True)
 
 
 class MLModelRun(Base):

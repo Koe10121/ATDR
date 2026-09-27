@@ -54,7 +54,7 @@ from atdr.app.services.suppression_service import (
     matching_suppression,
     record_suppression_hit,
 )
-from atdr.app.services.watchlist_service import list_watchlist_items, matching_watchlist_items, record_watchlist_hits
+from atdr.app.services.watchlist_service import WatchlistIndex, list_watchlist_items, record_watchlist_hits
 
 
 GROUP_BUCKET_MINUTES = 5
@@ -687,7 +687,7 @@ def run_detection(
             db,
             source_id=source_id,
         )
-        active_watchlist_items = list_watchlist_items(db, active_only=True)
+        watchlist = WatchlistIndex(list_watchlist_items(db, active_only=True))
         candidates: list[DetectionCandidate] = []
         evaluated = 0
         watchlist_matches = 0
@@ -705,7 +705,7 @@ def run_detection(
             if log.id in already_alerted:
                 continue
             matches = evaluate_rules(log, context)
-            matched_watchlist_items = matching_watchlist_items(log, active_watchlist_items)
+            matched_watchlist_items = watchlist.matches(log)
             if matched_watchlist_items:
                 watchlist_matches += len(matched_watchlist_items)
                 record_watchlist_hits(matched_watchlist_items)

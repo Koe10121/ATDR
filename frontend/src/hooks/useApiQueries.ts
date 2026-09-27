@@ -80,6 +80,7 @@ export const queryKeys = {
   auditPage: (params?: Record<string, unknown>) => ["audit-page", params ?? {}],
   suppressions: ["suppressions"],
   watchlists: ["watchlists"],
+  watchlistFeeds: ["watchlist-feeds"],
   tuning: ["detection-tuning"],
   mlReport: ["ml-report"],
   behaviorFindings: (windowStart?: string | null) => ["behavior-findings", windowStart ?? "latest"] as const,
@@ -125,6 +126,7 @@ function invalidateEmailAdmin(queryClient: QueryClient) {
 function invalidateThreatControls(queryClient: QueryClient) {
   void queryClient.invalidateQueries({ queryKey: queryKeys.suppressions });
   void queryClient.invalidateQueries({ queryKey: queryKeys.watchlists });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.watchlistFeeds });
   void queryClient.invalidateQueries({ queryKey: queryKeys.blockedIps });
   void queryClient.invalidateQueries({ queryKey: queryKeys.summary });
   void queryClient.invalidateQueries({ queryKey: queryKeys.tuning });
@@ -922,7 +924,12 @@ export function useSuppressions() {
 }
 
 export function useWatchlists() {
-  return useQuery({ queryKey: queryKeys.watchlists, queryFn: () => api.watchlists({ active_only: false }), refetchInterval: 30_000 });
+  // Feed indicators can number in the thousands; they are summarised per feed instead (useWatchlistFeeds).
+  return useQuery({ queryKey: queryKeys.watchlists, queryFn: () => api.watchlists({ active_only: false, manual_only: true }), refetchInterval: 30_000 });
+}
+
+export function useWatchlistFeeds() {
+  return useQuery({ queryKey: queryKeys.watchlistFeeds, queryFn: api.watchlistFeeds, refetchInterval: 60_000 });
 }
 
 export function useUsers(enabled = true) {

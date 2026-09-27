@@ -6,7 +6,7 @@ import { ErrorBanner } from "../components/ErrorBanner";
 import { MetricCard } from "../components/MetricCard";
 import { SafeSelect } from "../components/SafeSelect";
 import { useAuth } from "../hooks/useAuth";
-import { useBlockedIps, useDetectionTuning, useHealth, useResponseMutations, useSuppressions, useThreatControlMutations, useWatchlists } from "../hooks/useApiQueries";
+import { useBlockedIps, useDetectionTuning, useHealth, useResponseMutations, useSuppressions, useThreatControlMutations, useWatchlistFeeds, useWatchlists } from "../hooks/useApiQueries";
 
 type Tab = "suppressions" | "watchlists" | "blocked" | "policy";
 
@@ -19,6 +19,8 @@ export function ThreatControls() {
   });
   const suppressions = useSuppressions();
   const watchlists = useWatchlists();
+  const feeds = useWatchlistFeeds();
+  const feedIndicators = (feeds.data ?? []).reduce((total, feed) => total + feed.active, 0);
   const blocked = useBlockedIps();
   const tuning = useDetectionTuning();
   const controls = useThreatControlMutations();
@@ -76,7 +78,12 @@ export function ThreatControls() {
 
       <div className="grid gap-4 md:grid-cols-4">
         <MetricCard label="Active Suppressions" value={(suppressions.data ?? []).filter((item) => item.active).length} detail="Noise controls" tone="amber" />
-        <MetricCard label="Watchlist Items" value={(watchlists.data ?? []).filter((item) => item.active).length} detail="Priority indicators" tone="danger" />
+        <MetricCard
+          label="Watchlist Items"
+          value={(watchlists.data ?? []).filter((item) => item.active).length + feedIndicators}
+          detail={feedIndicators ? `Priority indicators, ${feedIndicators.toLocaleString()} from threat feeds` : "Priority indicators"}
+          tone="danger"
+        />
         <MetricCard label="Blocked IPs" value={blocked.data?.length ?? "-"} detail={isRealEnforcement ? "Real + simulated" : "Simulation mode only"} tone="danger" />
         <MetricCard label="Admin Controls" value={isAdmin ? "Enabled" : "Read-only"} detail="RBAC enforced by backend" tone="cyan" />
       </div>
@@ -167,6 +174,44 @@ export function ThreatControls() {
               </div>
             ))}
             {!watchlists.isLoading && !(watchlists.data ?? []).length ? <EmptyState title="No watchlist items" body="No priority indicators are configured." /> : null}
+          </section>
+          <section className="panel space-y-3 xl:col-span-2" data-testid="watchlist-feeds">
+            <div>
+              <div className="text-sm font-extrabold uppercase tracking-wide text-muted">Threat intelligence feeds</div>
+              <p className="mt-1 text-sm text-muted">
+                Known-bad addresses from public feeds. An MFU host contacting one raises a watchlist alert. Import a downloaded
+                feed file with <code>python -m atdr.scripts.import_threat_intel</code>; re-importing a feed replaces its list.
+              </p>
+            </div>
+            {(feeds.data ?? []).length ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="text-xs uppercase tracking-wide text-muted">
+                    <tr>
+                      <th className="py-2 pr-4">Feed</th>
+                      <th className="py-2 pr-4">Active addresses</th>
+                      <th className="py-2 pr-4">Last import</th>
+                      <th className="py-2 pr-4">Matches</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(feeds.data ?? []).map((feed) => (
+                      <tr key={feed.source} className="border-t border-line">
+                        <td className="py-2 pr-4 font-bold">{feed.source}</td>
+                        <td className="py-2 pr-4">{feed.active.toLocaleString()} of {feed.indicators.toLocaleString()}</td>
+                        <td className="py-2 pr-4">{feed.last_added_at ? new Date(feed.last_added_at).toLocaleString() : "-"}</td>
+                        <td className="py-2 pr-4">
+                          {feed.matches.toLocaleString()}
+                          {feed.last_matched_at ? `, last ${new Date(feed.last_matched_at).toLocaleString()}` : ""}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-sm font-semibold text-muted">No feed imported yet.</p>
+            )}
           </section>
         </div>
       ) : null}
