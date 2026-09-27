@@ -104,14 +104,33 @@ windows the model had called port scans; they are no longer flagged (185).
 The 11 model-only windows and the simulated recall above are unchanged, so the
 model review below still applies.
 
-Bar condition 1 (at least 90% of model-only alerts are real threats) is waiting
-for the team's blind review of those 11 windows
-(`.tmp/mfu_model/ATDR_model_review_anonymized.xlsx`, mixed with 11 random
-windows; MFU addresses are replaced by consistent stand-ins, row IDs match the
-first copy).
-Brute force and flood made no model-only alerts in the window, so they cannot
-pass condition 1 and stay advisory; the model adds nothing beyond the rules for
-them here.
+Bar condition 1 (at least 90% of model-only alerts are real threats): one
+team member reviewed the 11 model-only windows blind, mixed with 11 random
+unflagged windows (`.tmp/mfu_model/ATDR_model_review_anonymized.xlsx`, MFU
+addresses anonymized). The sign-off describes an independent review of the
+sheet with limited public lookups of internet addresses; it does not say
+whether AI assistance was used.
+
+| Attack type | Model-only windows judged Threat | Condition 1 |
+|---|---|---|
+| Port scan | 1 of 1 (an outside host probing 6 MFU hosts on 6 ports) | passes |
+| C2 beaconing | 1 of 7 | fails |
+| Data exfiltration | 0 of 3 | fails |
+| Brute force, flood | no model-only windows | cannot be shown |
+
+- The random unflagged windows were 10 Normal and 1 Unsure: no missed attack
+  among them.
+- C2: six of the seven were ordinary apps (Google, LINE, CDNs) checking in at
+  steady intervals. The seventh called one internet address over HTTP every
+  14 seconds; the reviewer found it listed as a GHOSTENGINE C2 indicator. The
+  rules did not alert on it.
+- Exfiltration: all three were internet clients uploading large files into
+  MFU's public web services: data coming in, not leaving.
+
+Port scan passes all three conditions as written, but on a single window, so
+it stays advisory. Every type is advisory in v1. What v2 changes in response,
+and how it is tested on fresh windows, was declared before v2 was built
+(`ML_QUALITY_BAR.md`, addendum).
 
 Bar condition 3 (rules or model does not lower F1) **passes**. On the blind
 check labels ([BLIND_CHECK.md](BLIND_CHECK.md)), with the rules as they were at
