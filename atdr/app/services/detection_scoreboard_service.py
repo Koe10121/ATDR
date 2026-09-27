@@ -108,7 +108,7 @@ def run_detection_scoreboard(
     try:
         with sessionmaker(bind=engine, future=True)() as db:
             _reset_detection_state(db)
-            run = _run_all_detection(db, batch_size=batch_size)
+            run = run_all_detection(db, batch_size=batch_size)
             report = build_scoreboard(db)
         report["run"] = {**run, "seconds": round(time.perf_counter() - started, 1)}
         report["source_database"] = source.name
@@ -145,7 +145,7 @@ def _reset_detection_state(db: Session) -> None:
     db.commit()
 
 
-def _run_all_detection(db: Session, *, batch_size: int = BATCH_SIZE) -> dict[str, int]:
+def run_all_detection(db: Session, *, batch_size: int = BATCH_SIZE) -> dict[str, int]:
     batches = 0
     checked = 0
     while True:
