@@ -54,6 +54,18 @@ def persist_parsed_log(db: Session, parsed: ParsedPaloAltoLog, *, source_id: int
     return normalized
 
 
+def _existing_raw_log_id(db: Session, raw_line: str) -> int | None:
+    """An already-stored copy of this exact line, found through the indexed fingerprint.
+
+    Comparing raw_line itself had no index, so every imported line scanned every stored line:
+    about 124 ms per line on the MFU database, 16 hours for one export.
+    """
+
+    return db.scalar(
+        select(RawLog.id).where(RawLog.raw_line_hash == raw_line_fingerprint(raw_line), RawLog.raw_line == raw_line).limit(1)
+    )
+
+
 def import_log_stream(
     db: Session,
     stream: TextIO,
@@ -100,7 +112,7 @@ def import_log_stream(
                 break
             if not line.strip():
                 continue
-            existing_raw = db.scalar(select(RawLog.id).where(RawLog.raw_line == line.rstrip("\r\n")).limit(1))
+            existing_raw = _existing_raw_log_id(db, line.rstrip("\r\n"))
             duplicate_raw_logs += 1 if existing_raw is not None else 0
             parsed_log = parse_log_line_for_profile(line, source.parser_profile)
             parser_quality = observe_parser_result(parser_quality, parsed_log)
@@ -227,7 +239,7 @@ def import_raw_log_line(
     parser_quality = finalize_runtime_parser_quality(
         observe_parser_result(empty_runtime_parser_quality(), parsed_log)
     )
-    duplicate_raw_log = db.scalar(select(RawLog.id).where(RawLog.raw_line == raw_line.rstrip("\r\n")).limit(1)) is not None
+    duplicate_raw_log = _existing_raw_log_id(db, raw_line.rstrip("\r\n")) is not None
     normalized = persist_parsed_log(db, parsed_log, source_id=source.id)
     db.flush()
     record_source_ingestion(

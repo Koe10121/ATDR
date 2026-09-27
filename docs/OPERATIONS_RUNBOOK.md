@@ -83,12 +83,24 @@ enables them.
 
 ## Log Ingestion And Detection
 
-Prefer the dashboard for normal analyst work. For an operator-controlled file
-import, keep the log outside Git and pass its private path only at runtime:
+Prefer the dashboard for normal analyst work. A whole MFU firewall export
+(about 600 MB for 21 minutes of traffic) goes through **Validation Controls >
+Queue import**: the background worker imports it in checkpointed chunks, then
+**Check all unchecked logs** runs the rules and watchlist over the new logs.
+Rehearsed on 2026-09-27 with the 13:45-13:57 part of the MFU export (351 MB,
+453,908 lines) on a copy of the database: upload 3 s, import 7.9 min, checks
+2.9 min, 883 new alerts; dashboard and lists stayed under a second. Queued
+imports take up to 1 GB by default (`OPERATION_JOB_MAX_INPUT_BYTES`).
+
+For an operator-controlled file import, keep the log outside Git and pass its
+private path only at runtime (about 1 ms per line):
 
 ```powershell
 .\.venv\Scripts\python.exe -m atdr.scripts.import_logs "D:\Private Logs\firewall.log" --limit 5000
 ```
+
+Both paths store an exact copy of a line that is already stored and count it
+as a duplicate, so importing overlapping exports stores the overlap twice.
 
 For live lab forwarding, register the source and run the UDP receiver only on
 an approved interface. Loopback is the safe default:

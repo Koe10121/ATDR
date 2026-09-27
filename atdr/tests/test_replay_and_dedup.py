@@ -381,3 +381,29 @@ def test_performance_smoke_runs_read_only(monkeypatch):
     assert "ingestion_run_history_query_seconds" in result["timings"]
     assert "detection_run_history_query_seconds" in result["timings"]
     assert "alert_list_query_seconds" in result["timings"]
+
+
+def test_the_duplicate_check_finds_exact_copies_through_the_fingerprint_index():
+    from sqlalchemy import event, text
+
+    from atdr.app.services.log_service import _existing_raw_log_id
+
+    Session = _session()
+    with Session() as db:
+        import_log_file(db, "data/samples/paloalto-demo.txt", limit=1, actor="unit_test")
+        stored = db.scalar(select(RawLog))
+        captured = []
+
+        def capture(conn, cursor, statement, parameters, context, executemany):
+            captured.append((statement, parameters))
+
+        engine = db.get_bind()
+        event.listen(engine, "before_cursor_execute", capture)
+        try:
+            assert _existing_raw_log_id(db, stored.raw_line) == stored.id
+            assert _existing_raw_log_id(db, stored.raw_line + " ") is None, "only an exact copy counts"
+        finally:
+            event.remove(engine, "before_cursor_execute", capture)
+        statement, parameters = captured[0]
+        plan = " ".join(str(row) for row in db.connection().exec_driver_sql("EXPLAIN QUERY PLAN " + statement, parameters))
+    assert "ix_raw_logs_raw_line_hash" in plan, f"one import line must not scan every stored line: {plan}"

@@ -1163,7 +1163,7 @@ def build_job_summary(
     database_check: dict[str, Any] | None = None,
     runtime_issue_count: int = 0,
     response_simulation: bool = True,
-    staging_max_total_bytes: int = 1_073_741_824,
+    staging_max_total_bytes: int = 2_147_483_648,
     staging_min_free_bytes: int = 268_435_456,
     requested_by: str | None = None,
 ) -> dict[str, Any]:

@@ -310,7 +310,7 @@ export function DemoControls() {
             {queuedImport.isPending ? "Staging..." : "Queue import"}
           </button>
           <div className="w-full text-xs text-muted">
-            Imports {allLogs || !typedLimit ? "every line" : `the first ${count(typedLimit)} lines`} of the chosen file (up to 50 MB) in the background worker, with checkpointed progress and safe resume. Check new logs afterwards with Check all unchecked logs.
+            Imports {allLogs || !typedLimit ? "every line" : `the first ${count(typedLimit)} lines`} of the chosen file (up to 1 GB, a whole MFU export) in the background worker, with checkpointed progress and safe resume. Check new logs afterwards with Check all unchecked logs.
           </div>
         </div>
         <div className="mt-4 grid gap-4 xl:grid-cols-4">
