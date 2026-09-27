@@ -145,6 +145,8 @@ def _write_workbook(path: Path, *, guide: list[tuple[str, bool]], sheets: list[d
         first_data = 3 if spec.get("example") else 2
         last = 1 + len(body)
         for key, options in spec["choices"].items():
+            if any("," in option for option in options):
+                raise ValueError(f"Excel splits dropdown choices on commas: {options}")
             letter = get_column_letter(next(i for i, column in enumerate(columns, start=1) if column[0] == key))
             rule = DataValidation(type="list", formula1=f'"{",".join(options)}"', allow_blank=True, showErrorMessage=True)
             sheet.add_data_validation(rule)
@@ -346,7 +348,7 @@ def build_blind_verification(names: MfuPseudonyms) -> Path:
         {"title": "Blind labels", "columns": BLIND_COLUMNS, "rows": rows,
          "choices": {"verdict": ["Agree", "Change"], "your_decision": ["Threat", "Normal", "Normal but unusual", "Unsure"]}},
         {"title": "BitTorrent labels", "columns": TORRENT_COLUMNS, "rows": torrents,
-         "choices": {"verdict": ["Still a threat", "Policy activity, not a threat", "Unsure"]}},
+         "choices": {"verdict": ["Still a threat", "Policy activity (not a threat)", "Unsure"]}},
     ])
     return out
 
