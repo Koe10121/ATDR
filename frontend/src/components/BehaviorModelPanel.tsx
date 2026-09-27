@@ -209,7 +209,9 @@ export function BehaviorAlertOpinionCard({ alertId }: { alertId: number }) {
     ? "sees internet background probing from this source, which it summarises rather than alerts on"
     : opinion.p2p_policy
       ? "sees mostly peer-to-peer file sharing from this source, which is policy activity rather than an attack"
-      : opinion.flagged
+      : opinion.wrong_direction
+        ? `finds this closest to ${opinion.attack_label}, but that needs traffic leaving MFU and this source's traffic mostly comes in, so it does not flag it`
+        : opinion.flagged
       ? `sees ${opinion.attack_label} behaviour (${percent(opinion.confidence)})`
       : `does not see clear attack behaviour from this source (attack score ${percent(opinion.confidence)})`;
   return (

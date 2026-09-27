@@ -9,8 +9,15 @@ import pandas as pd
 import pytest
 
 from atdr.app.ml.attack_simulation import ATTACK_TYPES, Network, Simulator
-from atdr.app.ml.behavior_features import FEATURES, POLICY_COLUMNS, is_background_probe, is_p2p_policy, window_features
-from atdr.app.ml.behavior_model import BehaviorModel, build_dataset, choose_threshold, label_real_windows
+from atdr.app.ml.behavior_features import (
+    FEATURES,
+    POLICY_COLUMNS,
+    destination_pairs,
+    is_background_probe,
+    is_p2p_policy,
+    window_features,
+)
+from atdr.app.ml.behavior_model import BehaviorModel, build_dataset, choose_threshold, label_real_windows, simulate_windows
 from atdr.app.services.behavior_model_service import label_class, score_model_review
 
 START = datetime(2026, 5, 20, 13, 40)
@@ -137,6 +144,67 @@ def test_the_dataset_leaves_out_peer_to_peer_policy_windows():
     assert dataset.summary["p2p_policy_windows_left_out"] == 1
 
 
+def test_a_beacon_to_a_server_many_devices_use_is_counted_as_popular():
+    rows = [_log(index, index * 30, "10.1.0.6", "104.16.1.7", 8443) for index in range(9)]  # only this host
+    rows += [_log(100 + index, index * 30, "10.1.0.8", "142.250.1.1", 443) for index in range(9)]
+    rows += [_log(200 + index, index, f"10.1.1.{index}", "142.250.1.1", 443) for index in range(5)]  # 5 more devices
+    logs = pd.DataFrame(rows)
+    window = pd.Timestamp(START)
+    features, _ = window_features(logs)
+    assert features.at[("10.1.0.6", window), "beacon_dst_sources"] == 1
+    assert features.at[("10.1.0.8", window), "beacon_dst_sources"] == 6
+
+    alone, _ = window_features(logs[logs["src_ip"] == "10.1.0.8"])
+    assert alone.at[("10.1.0.8", window), "beacon_dst_sources"] == 1, "one source's logs alone cannot see the others"
+    with_context, _ = window_features(logs[logs["src_ip"] == "10.1.0.8"], context_pairs=destination_pairs(logs))
+    assert with_context.at[("10.1.0.8", window), "beacon_dst_sources"] == 6
+
+
+def test_simulated_attacks_see_the_whole_window_when_counting_destination_sources():
+    rows = [_log(index, index, f"10.1.0.{5 + index % 3}", "142.250.1.1", 443) for index in range(30)]
+    dataset_features, _classes = simulate_windows(pd.DataFrame(rows), attacks_per_type=3, seed=4)
+    popular = dataset_features["beacon_dst_sources"].dropna()
+    assert (popular >= 1).all()
+    real_host_beacons = dataset_features.loc[dataset_features["beacon_dst_sources"] >= 3]
+    assert len(real_host_beacons) >= 1, "attacks on real hosts keep the window's other sources in the count"
+
+
+class _FixedType:
+    def __init__(self, attack_type):
+        self.classes_ = np.array(["normal", attack_type])
+
+    def predict_proba(self, features):
+        return np.tile([0.01, 0.99], (len(features), 1))
+
+
+def test_c2_and_exfiltration_must_leave_mfu():
+    rows = [_log(index, index * 20, "45.33.32.156", "10.1.0.5", 443, inbound=True, sent=9e6) for index in range(12)]
+    rows += [_log(100 + index, index * 20, "10.1.0.6", "185.1.2.3", 443, sent=9e6) for index in range(12)]
+    features, _ = window_features(pd.DataFrame(rows))
+    window = pd.Timestamp(START)
+    for attack_type in ("data_exfiltration_suspicion", "malware_c2"):
+        prediction = BehaviorModel(_FixedType(attack_type), 0.9, {}, {}).predict(features)
+        assert not prediction.at[("45.33.32.156", window), "flagged"] and prediction.at[("45.33.32.156", window), "wrong_direction"]
+        assert prediction.at[("10.1.0.6", window), "flagged"]
+    scan = BehaviorModel(_FixedType("port_scan"), 0.9, {}, {}).predict(features)
+    assert scan.at[("45.33.32.156", window), "flagged"], "scans and floods can come from either side"
+
+
+def test_a_model_predicts_with_the_features_it_was_trained_on():
+    rows = [_log(index, index, "10.1.0.5", "142.250.1.1", 443) for index in range(6)]
+    features, _ = window_features(pd.DataFrame(rows))
+    seen = []
+
+    class _Recorder(_FixedType):
+        def predict_proba(self, frame):
+            seen.append(list(frame.columns))
+            return super().predict_proba(frame)
+
+    BehaviorModel(_Recorder("port_scan"), 0.9, {}, {"features": FEATURES[:30]}).predict(features)
+    BehaviorModel(_Recorder("port_scan"), 0.9, {}, {}).predict(features)
+    assert seen == [FEATURES[:30], FEATURES], "a v1 model keeps its 30 features; a new one uses the current list"
+
+
 def test_the_threshold_keeps_false_alarms_within_the_cap():
     scores = np.linspace(0, 1, 1000)
     threshold = choose_threshold(scores, max_false_alarm_rate=0.01)
@@ -177,4 +245,23 @@ def test_the_model_only_review_scores_precision_per_attack_type():
     result = score_model_review(key, decisions)
     assert result["port_scan"]["precision"] == 0.9 and result["port_scan"]["passes_condition_1"]
     assert result["brute_force"]["precision"] is None and not result["brute_force"]["passes_condition_1"]
-    assert result["dos_ddos"] == {"precision": None, "passes_condition_1": False}
+    assert result["dos_ddos"] == {"judged": 0, "precision": None, "passes_condition_1": False}
+
+
+def test_from_v2_a_type_needs_five_reviewed_windows():
+    key = {"reviews": [{"review_id": f"F{index}", "group": "model_only", "attack_type": "port_scan"} for index in range(5)]}
+    four = {f"F{index}": "Threat" for index in range(4)} | {"F4": "Unsure"}
+    assert score_model_review(key, four)["port_scan"]["passes_condition_1"], "v1 rule: any number of windows"
+    assert not score_model_review(key, four, min_judged=5)["port_scan"]["passes_condition_1"]
+    five = {f"F{index}": "Threat" for index in range(5)}
+    assert score_model_review(key, five, min_judged=5)["port_scan"]["passes_condition_1"]
+
+
+def test_an_evaluation_round_never_overwrites_earlier_results(tmp_path, monkeypatch):
+    from atdr.scripts import evaluate_behavior_model
+
+    (tmp_path / "review_key.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr("sys.argv", ["evaluate_behavior_model", "--out-dir", str(tmp_path)])
+    with pytest.raises(SystemExit, match="use a new --out-dir"):
+        evaluate_behavior_model.main()
+    assert (tmp_path / "review_key.json").read_text(encoding="utf-8") == "{}"

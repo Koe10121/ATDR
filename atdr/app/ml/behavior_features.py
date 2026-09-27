@@ -49,7 +49,7 @@ FEATURES = [
     "bytes_sent_max", "bytes_received_total", "upload_ratio", "mean_elapsed", "short_session_share",
     "unknown_app_share", "max_app_risk", "high_risk_share", "outbound_share", "inbound_share", "src_is_private",
     "auth_port_share", "uncommon_port_share", "threat_logs", "n_apps", "beacon_count", "beacon_interval",
-    "beacon_cv",
+    "beacon_cv", "beacon_dst_sources",
 ]
 
 
@@ -102,10 +102,22 @@ def load_logs(database: Path, *, start: str | None = None, end: str | None = Non
     return frame
 
 
-def window_features(logs: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
+def destination_pairs(logs: pd.DataFrame) -> pd.DataFrame:
+    """Who talked to each destination in each window: distinct (window, dst_ip, src_ip) rows."""
+
+    frame = logs.dropna(subset=["src_ip", "dst_ip", "generated_time"])
+    pairs = pd.DataFrame({"window": frame["generated_time"].dt.floor(WINDOW), "dst_ip": frame["dst_ip"], "src_ip": frame["src_ip"]})
+    return pairs.drop_duplicates()
+
+
+def window_features(logs: pd.DataFrame, *, context_pairs: pd.DataFrame | None = None) -> tuple[pd.DataFrame, pd.Series]:
     """Features per (src_ip, window), and the log ids behind each row.
 
     ``logs`` has LOG_COLUMNS; rows without a source IP or time are ignored.
+    ``beacon_dst_sources`` counts every source that contacted a destination in the
+    window, so when ``logs`` holds only some sources (one alert's source, or a
+    simulated attack blended into one host), pass the whole window's
+    ``destination_pairs`` as ``context_pairs``.
     """
 
     frame = logs.dropna(subset=["src_ip", "generated_time"]).copy()
@@ -164,16 +176,28 @@ def window_features(logs: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
 
     # Beaconing: the most regular repeated connection to one destination. A beacon can hide among a
     # busy host's normal traffic, so this is the steadiest destination, not the busiest one.
+    pairs = destination_pairs(frame)
+    if context_pairs is not None:
+        pairs = pd.concat([pairs, context_pairs[["window", "dst_ip", "src_ip"]]], ignore_index=True).drop_duplicates()
+    prevalence = pairs.groupby(["window", "dst_ip"])["src_ip"].nunique()
     ordered = frame.sort_values([*key, "dst_ip", "generated_time"])
     ordered["gap"] = ordered.groupby([*key, "dst_ip"])["generated_time"].diff().dt.total_seconds()
     gaps = ordered.groupby([*key, "dst_ip"])["gap"].agg(["count", "mean", "std"])
     gaps["connections"] = gaps["count"] + 1
     gaps["cv"] = gaps["std"] / gaps["mean"].replace(0, np.nan)
     repeated = gaps[(gaps["connections"] >= MIN_BEACON_CONNECTIONS) & gaps["cv"].notna()]
-    steadiest = repeated.sort_values("cv", ascending=False).groupby(level=[0, 1]).tail(1).droplevel(2)
+    steadiest = repeated.sort_values("cv", ascending=False).groupby(level=[0, 1]).tail(1)
+    # How many sources contacted that steady destination. Campus apps check in with servers that many
+    # devices use (Google, LINE, CDNs); a C2 server usually hears from one or a few infected hosts.
+    beacon_destination = pd.MultiIndex.from_arrays(
+        [steadiest.index.get_level_values(1), steadiest.index.get_level_values(2)], names=["window", "dst_ip"]
+    )
+    steadiest = steadiest.droplevel(2)
+    steadiest["dst_sources"] = prevalence.reindex(beacon_destination).to_numpy()
     features["beacon_count"] = steadiest["connections"]
     features["beacon_interval"] = steadiest["mean"]
     features["beacon_cv"] = steadiest["cv"]
+    features["beacon_dst_sources"] = steadiest["dst_sources"]
 
     evidence = grouped["log_id"].agg(list)
     return features[[*FEATURES, *POLICY_COLUMNS]].astype(float), evidence

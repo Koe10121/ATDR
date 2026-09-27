@@ -16,6 +16,7 @@ from atdr.app.db.models import Alert, AlertEvidence, NormalizedLog, RawLog
 from atdr.app.services.blind_check_service import (
     BlindCheckError,
     build_holdout_database,
+    detect_holdout,
     draw_blind_sample,
     normalise_decision,
     score_blind_check,
@@ -128,6 +129,22 @@ def test_the_sample_is_blind_shuffled_deduplicated_and_reproducible(tmp_path):
 
     again, same_key = draw_blind_sample(holdout, window_start=START, window_end=START + timedelta(minutes=5), sizes=sizes, seed=11)
     assert again == rows and same_key == key
+
+
+def test_a_rerun_judges_every_log_again_with_the_current_rules(tmp_path):
+    sample = PROJECT_ROOT / "data" / "samples" / "paloalto-demo.txt"
+    target = tmp_path / "holdout.db"
+    build_holdout_database(sample, target, first_line=1, last_line=10_000)
+    first = detect_holdout(target)
+    engine = create_engine(f"sqlite:///{target.as_posix()}", future=True)
+    count = lambda: sessionmaker(bind=engine, future=True)().query(Alert).count()  # noqa: E731
+    alerts = count()
+    assert first["logs_checked"] > 0 and alerts > 0
+
+    assert detect_holdout(target)["logs_checked"] == 0, "without rerun, checked logs keep their old verdicts"
+    assert detect_holdout(target, rerun=True)["logs_checked"] == first["logs_checked"]
+    assert count() == alerts, "the rerun replaces the old alerts instead of adding to them"
+    engine.dispose()
 
 
 def test_the_holdout_is_a_new_database_that_is_never_overwritten(tmp_path):

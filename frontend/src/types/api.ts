@@ -495,6 +495,7 @@ export interface BehaviorAlertOpinion {
   flagged: boolean;
   background_probe: boolean;
   p2p_policy?: boolean;
+  wrong_direction?: boolean;
   agrees_with_rules: boolean;
   rules_attack_type: string;
   reasons: string[];

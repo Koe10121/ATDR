@@ -47,7 +47,7 @@ def main() -> None:
         print("Importing 13:36-13:45 into the training database ...", flush=True)
         print(build_holdout_database(Path(args.log_file), TRAIN_DB, first_line=1, last_line=LAST_TRAINING_LINE))
     print("Running the current rules on the training database ...", flush=True)
-    print(detect_holdout(TRAIN_DB))
+    print(detect_holdout(TRAIN_DB, rerun=True))
 
     human = labels_for_database(TRAIN_DB, reviewed_labels_by_fingerprint(configured_sqlite_path()))
     alerted = rule_alerted_logs(TRAIN_DB)

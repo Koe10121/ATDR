@@ -79,15 +79,22 @@ def evaluate_on_window(
     holdout: Path = HOLDOUT_DB,
     *,
     window: tuple[str, str] = TEST_WINDOW,
+    windows: list[tuple[str, str]] | None = None,
+    rules_db: Path | None = None,
     attacks_per_type: int = 200,
     seed: int = TEST_SEED,
 ) -> dict[str, Any]:
-    """Score the frozen model on real traffic and on fresh simulated attacks in the test window."""
+    """Score the frozen model on real traffic and on fresh simulated attacks in the test window(s).
 
-    logs = load_logs(holdout, start=window[0], end=window[1])
+    ``rules_db`` is a copy of the holdout with the rules as they are now; model-only means flagged
+    by the model and not alerted there. It defaults to the holdout itself.
+    """
+
+    windows = windows or [window]
+    logs = pd.concat([load_logs(holdout, start=start, end=end) for start, end in windows], ignore_index=True)
     features, evidence = window_features(logs)
     prediction = model.predict(features)
-    rule_logs = rule_alerted_logs(holdout)
+    rule_logs = rule_alerted_logs(rules_db or holdout)
     rule_flag = evidence.map(lambda log_ids: any(log_id in rule_logs for log_id in log_ids))
     flagged = prediction["flagged"]
     model_only = flagged & ~rule_flag
@@ -112,7 +119,10 @@ def evaluate_on_window(
         }
     flagged_log_ids = sorted({log_id for log_ids in evidence[flagged] for log_id in log_ids})
     return {
-        "window": {"start": window[0], "end": window[1]},
+        "window": {"start": windows[0][0], "end": windows[-1][1]},
+        "windows": [{"start": start, "end": end} for start, end in windows],
+        "model_version": model.card.get("version"),
+        "rules_database": (rules_db or holdout).name,
         "threshold": model.threshold,
         "real_windows": int(len(features)),
         "rule_alerted_windows": int(rule_flag.sum()),
@@ -164,7 +174,9 @@ def _window_summary(review_id: str, rows: pd.DataFrame) -> dict[str, Any]:
     }
 
 
-def draw_model_review(evaluation: dict[str, Any], *, per_type: int = REVIEW_PER_TYPE, seed: int = REVIEW_SEED) -> tuple[list[dict], dict]:
+def draw_model_review(
+    evaluation: dict[str, Any], *, per_type: int = REVIEW_PER_TYPE, seed: int = REVIEW_SEED, id_prefix: str = "M"
+) -> tuple[list[dict], dict]:
     """Blind review rows: up to ``per_type`` model-only alerts per type, mixed with as many random unflagged windows."""
 
     frames = evaluation["_frames"]
@@ -182,7 +194,7 @@ def draw_model_review(evaluation: dict[str, Any], *, per_type: int = REVIEW_PER_
     grouped = logs.assign(window=logs["generated_time"].dt.floor("5min")).groupby(["src_ip", "window"])
     rows, key = [], []
     for number, (index, group, attack_type, probability) in enumerate(chosen, start=1):
-        review_id = f"M{number:03d}"
+        review_id = f"{id_prefix}{number:03d}"
         rows.append(_window_summary(review_id, grouped.get_group(index)))
         key.append({"review_id": review_id, "source": index[0], "window": str(index[1]), "group": group,
                     "attack_type": attack_type, "attack_probability": round(probability, 4)})
@@ -190,8 +202,11 @@ def draw_model_review(evaluation: dict[str, Any], *, per_type: int = REVIEW_PER_
                   "groups": dict(Counter(entry["group"] for entry in key)), "reviews": key}
 
 
-def score_model_review(key: dict[str, Any], decisions: dict[str, Any]) -> dict[str, Any]:
-    """Share of reviewed model-only alerts that are real threats, per attack type (bar condition 1)."""
+def score_model_review(key: dict[str, Any], decisions: dict[str, Any], *, min_judged: int = 1) -> dict[str, Any]:
+    """Share of reviewed model-only alerts that are real threats, per attack type (bar condition 1).
+
+    From v2 on a type also needs ``min_judged`` (5) reviewed windows, so one lucky window cannot pass it.
+    """
 
     from atdr.app.services.blind_check_service import normalise_decision
 
@@ -211,6 +226,6 @@ def score_model_review(key: dict[str, Any], decisions: dict[str, Any]) -> dict[s
         counts = by_type.get(attack_type, Counter())
         judged = counts["threat"] + counts["harmless"]
         precision = counts["threat"] / judged if judged else None
-        result[attack_type] = {**dict(counts), "precision": None if precision is None else round(precision, 4),
-                               "passes_condition_1": bool(precision is not None and precision >= 0.9)}
+        result[attack_type] = {**dict(counts), "judged": judged, "precision": None if precision is None else round(precision, 4),
+                               "passes_condition_1": bool(precision is not None and precision >= 0.9 and judged >= min_judged)}
     return result

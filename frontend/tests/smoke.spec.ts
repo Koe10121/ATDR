@@ -7950,3 +7950,25 @@ test("Alert details show the behaviour model's opinion next to the rules", async
   await expect(opinion).toContainText("The model sees port scan behaviour (99.97%)");
   await expect(opinion).toContainText("Advisory only: the rules decide alerts.");
 });
+
+test("Alert details explain when a big upload comes into MFU rather than leaving it", async ({ page }) => {
+  await mockApi(page);
+  await page.route("**/api/ml/behavior/alerts/**", async (route) =>
+    route.fulfill({
+      json: {
+        ...smokeBehaviorOpinion,
+        attack_type: "data_exfiltration_suspicion",
+        attack_label: "data exfiltration",
+        flagged: false,
+        wrong_direction: true,
+        agrees_with_rules: false,
+        reasons: []
+      }
+    })
+  );
+  await seedSession(page);
+  await page.goto("/alerts?alert=1");
+  const opinion = page.getByTestId("behavior-alert-opinion");
+  await expect(opinion).toContainText("closest to data exfiltration, but that needs traffic leaving MFU");
+  await expect(opinion).not.toContainText("Agrees with the rules");
+});

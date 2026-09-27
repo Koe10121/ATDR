@@ -79,6 +79,20 @@ def _window_logs(db: Session, start: datetime, end: datetime, *, src_ip: str | N
     return frame
 
 
+def _window_pairs(db: Session, start: datetime, end: datetime) -> pd.DataFrame:
+    """Who talked to which destination in [start, end): the context for one source's features."""
+
+    rows = db.execute(
+        select(NormalizedLog.dst_ip, NormalizedLog.src_ip)
+        .where(NormalizedLog.generated_time >= start, NormalizedLog.generated_time < end,
+               NormalizedLog.src_ip.is_not(None), NormalizedLog.dst_ip.is_not(None))
+        .distinct()
+    ).all()
+    pairs = pd.DataFrame(rows, columns=["dst_ip", "src_ip"])
+    pairs.insert(0, "window", pd.Timestamp(start))
+    return pairs
+
+
 def available_windows(db: Session, *, limit: int = 24) -> list[dict[str, Any]]:
     """The most recent 5-minute windows that hold logs, newest first, with their log counts."""
 
@@ -224,7 +238,7 @@ def alert_opinion(db: Session, alert_id: int, *, model: BehaviorModel | None = N
         logs = _window_logs(db, start, start + WINDOW, src_ip=alert.src_ip)
         if logs.empty:
             continue
-        features, _evidence = window_features(logs)
+        features, _evidence = window_features(logs, context_pairs=_window_pairs(db, start, start + WINDOW))
         prediction = model.predict(features)
         index = (alert.src_ip, pd.Timestamp(start))
         if index not in prediction.index:
@@ -246,6 +260,7 @@ def alert_opinion(db: Session, alert_id: int, *, model: BehaviorModel | None = N
         "flagged": bool(row["flagged"]),
         "background_probe": bool(row["background_probe"]),
         "p2p_policy": bool(row["p2p_policy"]),
+        "wrong_direction": bool(row["wrong_direction"]),
         "agrees_with_rules": bool(row["flagged"]) and attack_type == rules_type,
         "rules_attack_type": rules_type,
         "reasons": model.explain(feature_row, attack_type) if row["flagged"] else [],

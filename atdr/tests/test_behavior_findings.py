@@ -110,6 +110,20 @@ def test_the_default_window_skips_a_handful_of_demo_logs(db, monkeypatch):
     assert latest_window_start(db) == START
 
 
+def test_one_source_is_judged_against_the_whole_window(db, monkeypatch):
+    captured = {}
+    original = behavior_findings_service.window_features
+
+    def spy(logs, **kwargs):
+        captured["pairs"] = kwargs.get("context_pairs")
+        return original(logs, **kwargs)
+
+    monkeypatch.setattr(behavior_findings_service, "window_features", spy)
+    alert_opinion(db, 1, model=_model())
+    pairs = captured["pairs"]
+    assert pairs is not None and pairs["src_ip"].nunique() == 4, "every source of the window, not just the alert's"
+
+
 def test_the_model_gives_its_opinion_on_one_alert(db):
     opinion = alert_opinion(db, 1, model=_model())
     assert opinion["attack_type"] == "port_scan" and opinion["flagged"] and opinion["agrees_with_rules"]

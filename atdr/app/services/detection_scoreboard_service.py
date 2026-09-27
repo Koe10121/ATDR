@@ -107,7 +107,7 @@ def run_detection_scoreboard(
     engine = create_engine(f"sqlite:///{copy_path.as_posix()}", future=True)
     try:
         with sessionmaker(bind=engine, future=True)() as db:
-            _reset_detection_state(db)
+            reset_detection_state(db)
             run = run_all_detection(db, batch_size=batch_size)
             report = build_scoreboard(db)
         report["run"] = {**run, "seconds": round(time.perf_counter() - started, 1)}
@@ -136,7 +136,7 @@ def snapshot_database(source: Path, target: Path) -> None:
         reader.close()
 
 
-def _reset_detection_state(db: Session) -> None:
+def reset_detection_state(db: Session) -> None:
     db.execute(delete(AlertEvidence))
     db.execute(delete(AlertNote))
     db.execute(update(ResponseAction).values(alert_id=None))

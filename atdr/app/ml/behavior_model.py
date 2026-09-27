@@ -15,7 +15,8 @@ Background probing (a few unanswered connections from an internet host, see
 alert on, so those windows are left out of training and never flagged; the
 dashboard summarises them instead. Windows that are mostly peer-to-peer file
 sharing with no firewall threat detection are policy activity: never flagged,
-summarised separately.
+summarised separately. C2 and exfiltration are flagged only when most of the
+source's traffic leaves MFU.
 
 The classifier is scikit-learn's HistGradientBoostingClassifier. The alert
 threshold is chosen on a validation split grouped by source IP, so no source
@@ -45,13 +46,17 @@ warnings.filterwarnings("ignore", message="Could not find the number of physical
 
 from atdr.app.core.config import PROJECT_ROOT
 from atdr.app.ml.attack_simulation import ATTACK_TYPES, Network, Simulator
-from atdr.app.ml.behavior_features import FEATURES, is_background_probe, is_p2p_policy, window_features
+from atdr.app.ml.behavior_features import FEATURES, destination_pairs, is_background_probe, is_p2p_policy, window_features
 
-MODEL_VERSION = "mfu_behavior_v1"
+MODEL_VERSION = "mfu_behavior_v2"
 MODEL_PATH = PROJECT_ROOT / "atdr" / "models" / "mfu_behavior_model.joblib"
 CLASSES = ("normal", *ATTACK_TYPES)
 VALIDATION_SALT = "atdr-behavior-model-v1"
 MAX_VALIDATION_FALSE_ALARM_RATE = 0.002
+# C2 and exfiltration are about traffic leaving MFU. A large upload from an internet client into an MFU
+# web service, or an outside host polling an MFU server, is not either of them.
+OUTBOUND_TYPES = frozenset({"malware_c2", "data_exfiltration_suspicion"})
+OUTBOUND_MIN_SHARE = 0.5
 
 # Features that describe each attack, with the direction that is suspicious.
 CLASS_FEATURES: dict[str, list[tuple[str, str]]] = {
@@ -61,8 +66,8 @@ CLASS_FEATURES: dict[str, list[tuple[str, str]]] = {
                     ("deny_share", "high"), ("n_logs", "high")],
     "dos_ddos": [("top_service_logs", "high"), ("n_logs", "high"), ("zero_reply_share", "high"),
                  ("short_session_share", "high")],
-    "malware_c2": [("beacon_count", "high"), ("beacon_cv", "low"), ("uncommon_port_share", "high"),
-                   ("top_dst_share", "high")],
+    "malware_c2": [("beacon_count", "high"), ("beacon_cv", "low"), ("beacon_dst_sources", "low"),
+                   ("uncommon_port_share", "high"), ("top_dst_share", "high")],
     "data_exfiltration_suspicion": [("bytes_sent_total", "high"), ("bytes_sent_max", "high"), ("upload_ratio", "high")],
 }
 FEATURE_TEXT = {
@@ -78,6 +83,7 @@ FEATURE_TEXT = {
     "n_logs": "connections in five minutes",
     "beacon_count": "repeated connections to one destination",
     "beacon_cv": "variation in the time between those connections",
+    "beacon_dst_sources": "source(s) contacting that destination",
     "uncommon_port_share": "share of connections to uncommon ports",
     "top_dst_share": "share of connections to one destination",
     "bytes_sent_total": "bytes uploaded",
@@ -146,6 +152,8 @@ def simulate_windows(
     windows = sorted(window_of.unique())
     networks = {window: Network.from_logs(real_logs[window_of == window]) for window in windows}
     by_source = {key: group for key, group in real_logs.groupby([window_of, "src_ip"])}
+    # The attack is blended into one host's traffic, but destination prevalence is counted over the whole window.
+    pairs_by_window = {pd.Timestamp(window): group for window, group in destination_pairs(real_logs).groupby("window")}
     empty = real_logs.iloc[0:0]
     rows, classes = [], []
     for index, attack_type in enumerate(ATTACK_TYPES):
@@ -155,7 +163,7 @@ def simulate_windows(
                                   seed=seed * 1000 + index * 100_000 + number)
             attack, (src, _start) = simulator.attack(attack_type)
             mixed = pd.concat([by_source.get((window, src), empty), attack], ignore_index=True)
-            features, _evidence = window_features(mixed)
+            features, _evidence = window_features(mixed, context_pairs=pairs_by_window.get(pd.Timestamp(window)))
             rows.append(features.loc[(src, pd.Timestamp(window))])
             classes.append(attack_type)
     frame = pd.DataFrame(rows)
@@ -212,8 +220,14 @@ class BehaviorModel:
     normal_quantiles: dict[str, dict[str, float]]
     card: dict[str, Any]
 
+    @property
+    def features(self) -> list[str]:
+        """The features this model was trained on (v1 had 30; newer versions add to the list)."""
+
+        return list(self.card.get("features") or FEATURES)
+
     def attack_probability(self, features: pd.DataFrame) -> pd.DataFrame:
-        probabilities = self.classifier.predict_proba(features[FEATURES])
+        probabilities = self.classifier.predict_proba(features[self.features])
         return pd.DataFrame(probabilities, columns=self.classifier.classes_, index=features.index)
 
     def predict(self, features: pd.DataFrame) -> pd.DataFrame:
@@ -228,8 +242,12 @@ class BehaviorModel:
         }, index=features.index)
         result["background_probe"] = is_background_probe(features).to_numpy()
         result["p2p_policy"] = is_p2p_policy(features).to_numpy()
+        result["wrong_direction"] = (
+            result["attack_type"].isin(OUTBOUND_TYPES) & (features["outbound_share"].fillna(0) < OUTBOUND_MIN_SHARE)
+        ).to_numpy()
         result["flagged"] = (
-            (result["attack_probability"] >= self.threshold) & ~result["background_probe"] & ~result["p2p_policy"]
+            (result["attack_probability"] >= self.threshold)
+            & ~result["background_probe"] & ~result["p2p_policy"] & ~result["wrong_direction"]
         )
         return result
 

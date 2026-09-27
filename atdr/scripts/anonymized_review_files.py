@@ -1,7 +1,7 @@
 """Build review workbooks with MFU addresses replaced by consistent stand-ins.
 
 Usage:
-    python -m atdr.scripts.anonymized_review_files model-review
+    python -m atdr.scripts.anonymized_review_files model-review [--round-dir .tmp/mfu_model/v2_fresh]
     python -m atdr.scripts.anonymized_review_files verify-blind-labels
 
 model-review         the behaviour model's 22-row blind review (same row IDs as before)
@@ -161,6 +161,11 @@ def _write_workbook(path: Path, *, guide: list[tuple[str, bool]], sheets: list[d
         cell.border = BORDER
     sign.column_dimensions["A"].width = 64
     sign.column_dimensions["B"].width = 60
+    for row, options in SIGNOFF_CHOICES.items():
+        if row <= len(signoff):
+            rule = DataValidation(type="list", formula1=f'"{",".join(options)}"', allow_blank=True, showErrorMessage=True)
+            sign.add_data_validation(rule)
+            rule.add(f"B{row}")
     path.parent.mkdir(parents=True, exist_ok=True)
     workbook.save(path)
 
@@ -170,8 +175,12 @@ PRIVACY_LINES = [
     ("mfu-pub-1.2.5 (an MFU public address). The same address always has the same stand-in in every file, and hosts that share", False),
     ("a subnet share its prefix. Internet addresses are real, so you can still weigh who the outside party is.", False),
 ]
-SIGNOFF = ["Reviewed by (names)", "Date finished", "How was it reviewed?",
+SIGNOFF = ["Reviewed by (names)", "Date finished", "How was it reviewed? (pick one)",
            "Did anyone look up these rows in ATDR, or learn which rows ATDR flagged?", "Anything we should know"]
+# Only a review done or checked by a person can switch an attack type on (ML_QUALITY_BAR.md), so the
+# sign-off must say which it was. No commas: Excel splits dropdown choices on them.
+SIGNOFF_CHOICES = {3: ["By a person without AI", "AI-assisted and a person checked every row", "AI only (not checked by a person)"],
+                   4: ["No", "Yes (explain below)"]}
 
 
 # ------------------------------------------------------------------ model review
@@ -201,14 +210,20 @@ MODEL_EXAMPLE = {
 }
 
 
-def build_model_review(names: MfuPseudonyms) -> Path:
-    rows = _anonymize_rows(json.loads((MODEL / "review_sample.json").read_text(encoding="utf-8")), names)
-    out = MODEL / "ATDR_model_review_anonymized.xlsx"
+def _period(round_dir: Path) -> str:
+    key = json.loads((round_dir / "review_key.json").read_text(encoding="utf-8"))
+    windows = sorted({entry["window"][11:16] for entry in key["reviews"]})
+    return "20 May, windows starting " + ", ".join(windows)
+
+
+def build_model_review(names: MfuPseudonyms, round_dir: Path = MODEL) -> Path:
+    rows = _anonymize_rows(json.loads((round_dir / "review_sample.json").read_text(encoding="utf-8")), names)
+    out = round_dir / ("ATDR_model_review_anonymized.xlsx" if round_dir == MODEL else f"ATDR_model_review_{round_dir.name}_anonymized.xlsx")
     guide = [
-        (f"ATDR model review: {len(rows)} short rows (anonymized copy)", True), ("", False),
-        ("Each row is what one device did during five minutes (20 May 13:50-13:55), a part of the MFU file that ATDR", False),
+        (f"ATDR model review: {len(rows)} short rows (anonymized)", True), ("", False),
+        (f"Each row is what one device did during five minutes ({_period(round_dir)}), a part of the MFU file that ATDR", False),
         ("never trained on. Some rows are things a new detection model flagged; others are random. You are not told which.", False),
-        ("Please judge every row the same way. Row IDs match the earlier copy of this file.", False), ("", False),
+        ("Please judge every row the same way.", False), ("", False),
         ("Judge only from this sheet (plus general knowledge or outside lookups of internet addresses). Do not look rows up", True),
         ("in ATDR, and do not ask Claude which rows were flagged.", True), ("", False),
         ("YOUR DECISION: Threat, Normal, Normal but unusual, or Unsure. Peer-to-peer file sharing (BitTorrent and the like) is", False),
@@ -217,6 +232,8 @@ def build_model_review(names: MfuPseudonyms) -> Path:
         ("checks in like that; so do some normal apps). 'Largest single upload' shows big data leaving the device.", False), ("", False),
         *PRIVACY_LINES, ("", False),
         ("The grey EXAMPLE row shows the format and is not scored. Fill in 'Sign-off' when done and send the file back.", False),
+        ("On 'Sign-off', say how the review was done. An attack type can only be switched on from a review done or checked", True),
+        ("by a person, so if AI helped, a person must check every row before signing.", True),
     ]
     _write_workbook(out, guide=guide, signoff=SIGNOFF, sheets=[{
         "title": "Review", "columns": MODEL_COLUMNS, "rows": rows, "example": MODEL_EXAMPLE,
@@ -356,10 +373,11 @@ def build_blind_verification(names: MfuPseudonyms) -> Path:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("what", choices=["model-review", "verify-blind-labels"])
+    parser.add_argument("--round-dir", type=Path, default=MODEL, help="model review round (default: the v1 review)")
     args = parser.parse_args()
     networks = sorted(set(mfu_networks(BLIND / "holdout.db", HOLDOUT_WINDOW)) | set(mfu_networks(LIVE_DB)))
     names = MfuPseudonyms.load(KEY, networks)
-    out = build_model_review(names) if args.what == "model-review" else build_blind_verification(names)
+    out = build_model_review(names, args.round_dir) if args.what == "model-review" else build_blind_verification(names)
     names.save(KEY)
     print(f"wrote {out}")
     print(f"MFU addresses named so far: {len(names.mapping)} (key: {KEY}, private)")

@@ -36,7 +36,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from atdr.app.db.database import Base
 from atdr.app.db.models import Alert, AlertEvidence, NormalizedLog, RawLog
 from atdr.app.parsers.paloalto_parser import parse_log_line_for_profile
-from atdr.app.services.detection_scoreboard_service import run_all_detection
+from atdr.app.services.detection_scoreboard_service import reset_detection_state, run_all_detection
 from atdr.app.services.log_service import persist_parsed_log
 from atdr.app.services.source_service import get_or_create_source
 
@@ -104,10 +104,16 @@ def build_holdout_database(
     return {"imported": imported, "parse_failures": failed, "first_line": first_line, "last_line": last_line}
 
 
-def detect_holdout(target: Path) -> dict[str, int]:
+def detect_holdout(target: Path, *, rerun: bool = False) -> dict[str, int]:
+    """Run the rules over every unchecked log. With ``rerun``, clear earlier alerts first so every log
+    is judged by the rules as they are now (a database checked under an older catalog keeps its old
+    alerts otherwise)."""
+
     engine = create_engine(f"sqlite:///{target.as_posix()}", future=True)
     try:
         with sessionmaker(bind=engine, future=True)() as db:
+            if rerun:
+                reset_detection_state(db)
             return run_all_detection(db)
     finally:
         engine.dispose()
