@@ -200,6 +200,32 @@ class Alert(Base):
     )
 
 
+class AlertArchive(Base):
+    """An alert taken off the alert list because newer rules replaced it, kept in full for history.
+
+    ``alert_json`` holds every column of the original alert and ``evidence_log_ids`` its evidence, so
+    nothing is lost; ``superseded_by_catalog`` is the rule catalog whose re-run replaced it.
+    """
+
+    __tablename__ = "alert_archive"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    original_alert_id: Mapped[int] = mapped_column(Integer, nullable=False, unique=True, index=True)
+    alert_type: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    severity: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    src_ip: Mapped[str | None] = mapped_column(String(64), index=True)
+    dst_ip: Mapped[str | None] = mapped_column(String(64))
+    threat_score: Mapped[int] = mapped_column(Integer, nullable=False)
+    alert_created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    alert_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    evidence_log_ids: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    superseded_by_catalog: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    archived_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    archived_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+
+
 class AlertNote(Base):
     __tablename__ = "alert_notes"
 
