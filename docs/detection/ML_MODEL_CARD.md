@@ -92,8 +92,21 @@ Brute force and flood made no model-only alerts in the window, so they cannot
 pass condition 1 and stay advisory; the model adds nothing beyond the rules for
 them here.
 
-Bar condition 3 (rules or model does not lower F1) is waiting for the blind
-check labels ([BLIND_CHECK.md](BLIND_CHECK.md)).
+Bar condition 3 (rules or model does not lower F1) **passes**. On the blind
+check labels ([BLIND_CHECK.md](BLIND_CHECK.md)), with the rules as they were at
+the time (v5.32.0):
+
+| Detector | Precision | Recall | False-alarm rate | F1 |
+|---|---|---|---|---|
+| Rules alone | 50.9% | 81.8% | 6.0% | 62.7% |
+| Model alone | 74.4% | 65.5% | 1.7% | 69.7% |
+| Rules or model | 53.5% | 90.9% | 6.0% | 67.4% |
+
+The model's own false alarms in that sample were BitTorrent: peers touching
+hundreds of hosts and ports look like scans. Those windows were rule-alerted
+and unlabeled in training, so they were left out and the model never learned
+that file sharing is not scanning. How to treat file sharing is a policy
+decision for the team.
 
 ## Known limits
 
