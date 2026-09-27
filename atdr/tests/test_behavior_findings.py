@@ -158,3 +158,26 @@ def test_the_status_api_reports_the_quality_bar_from_the_model_card(monkeypatch)
     body = response.json()
     assert body["available"] and body["quality_bar"]["types"]["port_scan"] == {"eligible": False}
     assert body["alerting_types"] == []
+
+
+def test_the_assistant_describes_what_the_mfu_model_sees_and_hides_ips(db, monkeypatch):
+    from atdr.app.core.config import get_settings
+    from atdr.app.services.assistant_tools import AssistantToolbox
+
+    model = _model(trained_from="2026-05-20T13:00:00", trained_to="2026-05-20T13:10:00")
+    model.card["quality_bar"] = {"types": {
+        "port_scan": {"condition_1": {"status": "pending", "model_only": 5}, "condition_2": {"found": 0.965, "passes": True}, "eligible": False},
+        "malware_c2": {"condition_1": {"status": "pending", "model_only": 8}, "condition_2": {"found": 0.885, "passes": False}, "eligible": False},
+    }}
+    monkeypatch.setattr(behavior_findings_service, "load_model", lambda *args, **kwargs: model)
+    monkeypatch.setattr(behavior_findings_service, "MIN_DEFAULT_WINDOW_LOGS", 10)
+    settings = get_settings().model_copy(update={"assistant_redact_ips": True})
+    text = AssistantToolbox(db, settings=settings).behavior_model_view({}).text
+
+    assert "advisory" in text and "it checked 4 sources and sees attack behaviour from 1 (port scan 1)" in text
+    assert "port scan (99%), the rules alerted too" in text and "First response step:" in text
+    assert "Internet background probing, summarised rather than alerted: 1 hosts" in text
+    assert "Peer-to-peer file sharing, policy activity rather than an attack: 1 devices, 12 connections" in text
+    assert "port scan: blind review of 5 windows pending" in text
+    assert "malware C2: blind review of 8 windows pending, finds 88.5% of simulated attacks (90% needed)" in text
+    assert "45.33.32.156" not in text, "IP redaction applies to the model's view too"

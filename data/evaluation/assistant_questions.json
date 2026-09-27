@@ -1,6 +1,6 @@
 {
   "version": "atdr_assistant_scoreboard_v2",
-  "description": "Realistic analyst and reviewer questions for the SOC assistant, scored automatically. 'facts' are computed from the database independently of the assistant; '{placeholders}' are filled from the database at run time. A question passes only if every listed check passes. v2 (2026-09-26) only tightened checks after reading real answers: alert IDs no longer count as numbers, how-to and concept answers must name ATDR's real pages and values, rankings must name the real top item, and no answer may show internal tool names. open-11 and rank-08 came from the held-out set after they were used to fix a problem. 2026-09-27: the assistant now also answers general questions from its own knowledge (labelled as such), so the out-of-scope checks expect a real reply or an honest 'no internet access' instead of a refusal, and gen-* was added.",
+  "description": "Realistic analyst and reviewer questions for the SOC assistant, scored automatically. 'facts' are computed from the database independently of the assistant; '{placeholders}' are filled from the database at run time. A question passes only if every listed check passes. v2 (2026-09-26) only tightened checks after reading real answers: alert IDs no longer count as numbers, how-to and concept answers must name ATDR's real pages and values, rankings must name the real top item, and no answer may show internal tool names. open-11 and rank-08 came from the held-out set after they were used to fix a problem. 2026-09-27: the assistant now also answers general questions from its own knowledge (labelled as such), so the out-of-scope checks expect a real reply or an honest 'no internet access' instead of a refusal, and gen-* was added. Later on 2026-09-27, ti-01, ti-02 and mfu-01 were added when the assistant gained the watchlist and MFU behaviour-model tools; before that it answered mfu-01 with the earlier anomaly model's status.",
   "checks": {
     "answered": "the assistant did not fall back to 'I don't have a specific built-in answer'",
     "facts": "each named fact's value appears in the answer (thousands separators ignored)",
@@ -95,7 +95,10 @@
     {"id": "gen-03", "category": "general", "q": "how long should a password be", "answered": true, "any": ["characters"]},
     {"id": "gen-04", "category": "general", "q": "write a short email to the IT team about a suspicious login on my account", "answered": true, "any": ["subject", "dear", "hi ", "hello"]},
     {"id": "gen-05", "category": "general", "q": "what does a VPN do", "answered": true, "any": ["encrypt", "tunnel"]},
-    {"id": "gen-06", "category": "general", "q": "how are you today?", "answered": true, "any": ["help", "ask", "good", "well", "fine"]}
+    {"id": "gen-06", "category": "general", "q": "how are you today?", "answered": true, "any": ["help", "ask", "good", "well", "fine"]},
+    {"id": "ti-01", "category": "system", "q": "Is 111.90.158.40 a known malicious address? Has any MFU device contacted it?", "answered": true, "all": ["watchlist"], "any": ["ghostengine", "c2"]},
+    {"id": "ti-02", "category": "system", "q": "Which threat intelligence feeds does ATDR have?", "answered": true, "any": ["threatfox", "feodo"]},
+    {"id": "mfu-01", "category": "system", "q": "What does the MFU behaviour model see right now?", "answered": true, "any": ["port scan", "background probing", "advisory"], "none": ["anomaly rate", "supervised label"]}
   ],
   "conversations": [
     {"id": "conv-01", "category": "follow_up", "turns": [

@@ -79,11 +79,14 @@ the malicious cases and the supervised classifier failed calibration.
 
 | Question set | Local model agent | Earlier rule-based router |
 |---|---|---|
-| Main set (82 questions, automatic checks) | 78 (95%) | 40 |
+| Main set (85 checks, automatic) | 84 (99%) | 40 of the first 82 |
 | Held-out set (27 questions written after tuning) | 26 automatic (96%); 25 by hand before the rebuild | 10 |
 
 Measured on 2026-09-27 with qwen3:8b running locally, after the alert
-rebuild. The held-out miss asks about "the latest Critical alert", whose
+rebuild. The main set gained three questions when the assistant got tools
+for the watchlist and the MFU behaviour model; before that it answered "what
+does the MFU behaviour model see?" with the earlier anomaly model's status.
+Scores move by a question or two between runs. The held-out miss asks about "the latest Critical alert", whose
 expected wording was written when that was a brute-force alert.
 Source: `SOC_ASSISTANT_CONVERSATIONAL.md`.
 

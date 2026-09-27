@@ -462,7 +462,10 @@ def test_a_general_answer_is_labelled_as_general_knowledge(seeded, monkeypatch):
     assert response["details"]["evidence_detail"]["evidence"][0] == "Answered from general knowledge, not from ATDR's records."
 
 
-def test_every_tool_runs_read_only_against_a_real_schema(seeded):
+def test_every_tool_runs_read_only_against_a_real_schema(seeded, monkeypatch):
+    from atdr.app.services import behavior_findings_service
+
+    monkeypatch.setattr(behavior_findings_service, "load_model", lambda *args, **kwargs: None)
     testing_session, settings = seeded
     calls = {
         "security_overview": {"time_window": "today"},
@@ -475,6 +478,8 @@ def test_every_tool_runs_read_only_against_a_real_schema(seeded):
         "explain_concept": {"topic": "severity_and_score"},
         "dashboard_how_to": {"task": "import new firewall logs"},
         "system_status": {"area": "ml"},
+        "behavior_model_view": {},
+        "watchlist_lookup": {"ip": "203.0.113.10"},
     }
     extra = {
         "logs_today": ("query_logs", {"intent": "top", "group_by": "dst_port", "time_window": "today"}),
@@ -500,3 +505,5 @@ def test_every_tool_runs_read_only_against_a_real_schema(seeded):
     assert "no way to delete alerts" in outputs["delete"]
     assert "Simulated unblock" in outputs["unblock"] and "Queue import" in outputs["import"]
     assert {tool.name for tool in tools.values() if tool.provides_steps} == {"dashboard_how_to", "get_alert_playbook"}
+    assert "No behaviour model is trained" in outputs["behavior_model_view"]
+    assert "is not on ATDR's watchlist" in outputs["watchlist_lookup"] and "not listed does not mean safe" in outputs["watchlist_lookup"]

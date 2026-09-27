@@ -11,14 +11,14 @@ the model so it can call again correctly.
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from atdr.app.core.config import Settings
-from atdr.app.db.models import Alert, DetectionRun, NormalizedLog
+from atdr.app.db.models import Alert, DetectionRun, NormalizedLog, WatchlistItem
 from atdr.app.detection.attack_mapping import ATTACK_TYPE_MAPPINGS
 from atdr.app.detection.explanations import build_alert_detection_summary
 from atdr.app.detection.playbooks import PLAYBOOK_GUIDANCE, build_alert_playbook
@@ -38,6 +38,8 @@ from atdr.app.services.assistant_data_query import (
     answer_data_question,
 )
 from atdr.app.services.assistant_help import HELP_TOPICS, answer_help_question, answer_rule_question
+from atdr.app.services.threat_intel_service import stored_log_matches
+from atdr.app.services.watchlist_service import list_watchlist_items, watchlist_feed_summary
 from atdr.app.services.detection_service import SUPPORTING_ONLY_RULES
 from atdr.app.services.log_service import get_log
 
@@ -454,6 +456,82 @@ class AssistantToolbox:
             "responses. Machine learning gives advisory scores."
         )
 
+    def behavior_model_view(self, args: dict[str, Any]) -> ToolOutput:
+        from atdr.app.services import behavior_findings_service as findings
+
+        model = findings.load_model()
+        status = findings.model_status(model)
+        citation = [("MFU behaviour model", "/api/ml/behavior/findings", None)]
+        if not status["available"]:
+            return ToolOutput(status["detail"], citation)
+        lines = [
+            f"The MFU behaviour model ({status['version']}) was trained only on MFU's own firewall traffic "
+            f"({status['trained_on']}). It is advisory: it creates no alerts, ATDR's rules do. {status['detail']}"
+        ]
+        view = findings.window_findings(self.db, None, model=model)
+        window, summary = view.get("window"), view.get("summary")
+        if window and summary:
+            start = datetime.fromisoformat(window["start"])
+            names = ", ".join(f"{ATTACK_NAMES.get(kind, kind)} {count:,}" for kind, count in summary["by_type"].items()) or "none"
+            lines.append(
+                f"Latest 5-minute window with traffic, {_log_when(start)}-{start + timedelta(minutes=5):%H:%M}: it checked "
+                f"{summary['sources_checked']:,} sources and sees attack behaviour from {summary['flagged']:,} ({names}); "
+                f"{summary['model_only']:,} of those had no rule alert."
+            )
+            if window.get("in_training_data"):
+                lines.append("That window was part of its training data, so it shows what the model learned rather than a fair test.")
+            for finding in view["findings"][:3]:
+                found_by = "the rules alerted too" if finding["found_by"] == "rules_and_model" else "found only by the model"
+                why = "; ".join(finding["reasons"][:2]) or "no single feature stands out"
+                first_step = (finding["response"].get("containment") or ["see the playbook"])[0]
+                lines.append(f"- {finding['source']}: {finding['attack_label']} ({finding['confidence']:.0%}), {found_by}. "
+                             f"Why: {why}. First response step: {first_step}")
+            probing = summary["background_probing"]
+            lines.append(f"Internet background probing, summarised rather than alerted: {probing['sources']:,} hosts made "
+                         f"{probing['connections']:,} unanswered connections to {probing['mfu_hosts_touched']:,} MFU addresses.")
+            p2p = summary.get("p2p_policy")
+            if p2p and p2p["sources"]:
+                lines.append(f"Peer-to-peer file sharing, policy activity rather than an attack: {p2p['sources']:,} devices, "
+                             f"{p2p['connections']:,} connections.")
+        bar = status.get("quality_bar")
+        if bar:
+            standing = "; ".join(f"{ATTACK_NAMES.get(kind, kind)}: {_bar_text(entry)}" for kind, entry in bar["types"].items())
+            lines.append("Quality bar (a type may raise its own alerts only after passing it): " + standing + ".")
+        return ToolOutput(self._text("\n".join(lines)), citation)
+
+    def watchlist_lookup(self, args: dict[str, Any]) -> ToolOutput:
+        feeds = watchlist_feed_summary(self.db)
+        manual = list_watchlist_items(self.db, active_only=True, manual_only=True)
+        feed_text = ", ".join(f"{feed['source']} ({feed['active']:,} active addresses)" for feed in feeds) or "none"
+        citation = [("Watchlist", "/api/watchlists", None)]
+        ip = str(args.get("ip") or "").strip()
+        if not ip:
+            return ToolOutput(
+                f"ATDR's watchlist has {len(manual):,} hand-added indicators and these threat intelligence feeds: {feed_text}. "
+                "An MFU host contacting a listed address raises a watchlist alert.",
+                citation,
+            )
+        items = list(self.db.scalars(select(WatchlistItem).where(func.lower(WatchlistItem.indicator_value) == ip.lower())))
+        lines = []
+        for item in items:
+            origin = f"from the {item.source} feed" if item.source else f"added by hand by {item.created_by} on {item.created_at:%d %b %Y}"
+            state = "active" if item.active else "disabled"
+            lines.append(f"{ip} is on ATDR's watchlist ({item.indicator_type}, {origin}, {state}, +{item.severity_boost} points): "
+                         f"{item.description}")
+        if not items:
+            lines.append(f"{ip} is not on ATDR's watchlist (feeds loaded: {feed_text}). ATDR has no internet reputation "
+                         "lookup, so not listed does not mean safe.")
+        contacted = stored_log_matches(self.db, [ip])
+        sent = int(self.db.scalar(select(func.count(NormalizedLog.id)).where(NormalizedLog.src_ip == ip)) or 0)
+        lines.append(f"Stored logs: {contacted['logs']:,} connections to it from {contacted['sources']:,} sources; {sent:,} logs from it.")
+        alerts = list(self.db.execute(
+            select(Alert.id, Alert.severity, Alert.alert_type, Alert.status)
+            .where((Alert.dst_ip == ip) | (Alert.src_ip == ip)).order_by(Alert.threat_score.desc()).limit(5)
+        ))
+        if alerts:
+            lines.append("Alerts: " + ", ".join(f"#{alert_id} {severity} {kind} ({status})" for alert_id, severity, kind, status in alerts) + ".")
+        return ToolOutput(self._text("\n".join(lines)), citation)
+
     def system_status(self, args: dict[str, Any]) -> ToolOutput:
         area = _choice(args, "area", SYSTEM_AREAS, "operations")
         db, redacted = self.db, self.redacted
@@ -574,13 +652,54 @@ class AssistantToolbox:
                 provides_steps=True,
             ),
             AgentTool(
+                "behavior_model_view",
+                "The MFU behaviour model, trained only on MFU traffic: what it sees in the latest 5-minute window (attack "
+                "behaviour per type, the top sources with reasons and first response step, background probing, file "
+                "sharing) and where each attack type stands on its quality bar. Use for any question about the MFU model, "
+                "the behaviour model, or what the model sees or found.",
+                {"type": "object", "properties": {}},
+                self.behavior_model_view,
+            ),
+            AgentTool(
+                "watchlist_lookup",
+                "Whether an IP address is on ATDR's watchlist or a threat intelligence feed (known malicious, e.g. a C2 "
+                "server), why, and how often MFU contacted it. Without ip: which feeds and indicators are loaded.",
+                {"type": "object", "properties": {"ip": {"type": "string", "description": "The IP address to look up."}}},
+                self.watchlist_lookup,
+            ),
+            AgentTool(
                 "system_status",
-                "ATDR's own health: ml (model status and why ML is advisory), detection_runs, operations (jobs and "
-                "worker), sources (log source health), recent_changes, failed_jobs.",
+                "ATDR's own health: ml (the earlier anomaly model and supervised classifier, and why ML is advisory; for "
+                "the MFU behaviour model use behavior_model_view), detection_runs, operations (jobs and worker), sources "
+                "(log source health), recent_changes, failed_jobs.",
                 {"type": "object", "properties": {"area": {"type": "string", "enum": list(SYSTEM_AREAS)}}, "required": ["area"]},
                 self.system_status,
             ),
         ]
+
+
+ATTACK_NAMES = {
+    "port_scan": "port scan",
+    "brute_force": "brute force",
+    "dos_ddos": "flood",
+    "malware_c2": "malware C2",
+    "data_exfiltration_suspicion": "data exfiltration",
+}
+
+
+def _bar_text(entry: dict[str, Any]) -> str:
+    review = entry["condition_1"]
+    if entry["eligible"]:
+        return "passes and may be switched on"
+    if review["status"] == "pending":
+        text = f"blind review of {review['model_only']} windows pending"
+    elif review["status"] == "cannot_pass":
+        text = f"only {review['model_only']} extra finds to review"
+    else:
+        text = f"review {review.get('threat', 0)} of {review.get('judged', 0)} real ({review['status'].replace('_', ' ')})"
+    if not entry["condition_2"]["passes"]:
+        text += f", finds {entry['condition_2']['found']:.1%} of simulated attacks (90% needed)"
+    return text
 
 
 def _duration(delta) -> str:

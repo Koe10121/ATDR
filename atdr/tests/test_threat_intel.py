@@ -144,3 +144,27 @@ def test_the_api_lists_feeds_apart_from_manual_items():
     assert feeds.json()[0]["last_added_at"].endswith(("Z", "+00:00")), "UTC must be marked so the browser shows local time"
     assert [item["indicator_value"] for item in manual.json()] == ["45.33.32.156"]
     assert len(everything.json()) == 3 and {item["source"] for item in everything.json()} == {None, "ThreatFox recent"}
+
+
+def test_the_assistant_says_which_feed_lists_an_address_and_how_often_mfu_contacted_it():
+    from atdr.app.core.config import get_settings
+    from atdr.app.services.assistant_tools import AssistantToolbox
+
+    db = _session()
+    import_feed(db, source="Feodo", feed=parse_feed(FEODO), actor="koe", apply=True)
+    raw = RawLog(raw_line="beacon")
+    db.add(raw)
+    db.flush()
+    db.add(NormalizedLog(raw_log_id=raw.id, generated_time=datetime(2026, 5, 20, 13, 40), log_type="TRAFFIC",
+                         src_ip="10.1.200.251", dst_ip="50.16.16.211", src_zone="WLAN-Inside", dst_zone="SG-Outside",
+                         app="web-browsing", dst_port=443, action="allow", protocol="tcp", bytes=500, packets=4, parsed_json={}))
+    db.commit()
+    run_detection(db, limit=100, use_ml=False, actor="test")
+    toolbox = AssistantToolbox(db, settings=get_settings().model_copy(update={"assistant_redact_ips": False}))
+
+    listed = toolbox.watchlist_lookup({"ip": "50.16.16.211"}).text
+    assert "50.16.16.211 is on ATDR's watchlist (dst_ip, from the Feodo feed, active, +60 points)" in listed
+    assert "QakBot C2 server" in listed and "1 connections to it from 1 sources" in listed
+    assert "Alerts: #1 " in listed and "watchlist_match" in listed
+    overview = toolbox.watchlist_lookup({}).text
+    assert "0 hand-added indicators" in overview and "Feodo (2 active addresses)" in overview
