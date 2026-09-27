@@ -11,6 +11,84 @@ async function seedSession(page: Page, role: "admin" | "analyst" = "admin") {
   }, role);
 }
 
+const smokeBehaviorModel = {
+  available: true,
+  version: "mfu_behavior_v1",
+  trained_on: "MFU export 20 May 13:36-13:45 (lines 1-319,643)",
+  trained_from: "2026-05-20T13:36:15",
+  trained_to: "2026-05-20T13:44:59",
+  threshold: 0.9688,
+  alerting_types: [],
+  detail: "Advisory: no attack type has passed the quality bar yet, so the model creates no alerts."
+};
+
+const smokeBehaviorFindings = {
+  model: smokeBehaviorModel,
+  window: { start: "2026-05-20T13:35:00", end: "2026-05-20T13:40:00", in_training_data: true },
+  windows: [{ start: "2026-05-20T13:35:00", logs: 151012 }],
+  findings: [
+    {
+      source: "203.0.113.10",
+      window_start: "2026-05-20T13:35:00",
+      attack_type: "port_scan",
+      attack_label: "port scan",
+      confidence: 0.9997,
+      connections: 600,
+      reasons: ["600 destinations tried on one port (normal MFU sources: at most 142 in 99.9% of windows)"],
+      found_by: "rules_and_model",
+      alert_ids: [1],
+      status: "advisory",
+      response: {
+        mitre: { tactic: "Discovery", technique: "Network Service Discovery", technique_id: "T1046" },
+        objective: "Decide whether this is approved scanning or someone mapping your services.",
+        containment: ["If the source is outside your network and not an approved scanner, block it and watch it."],
+        false_positive_when: "The source is an approved vulnerability scanner or asset-discovery system.",
+        escalate_when: "An allowed port later shows sessions or data transfer from the same source."
+      }
+    },
+    {
+      source: "10.20.30.40",
+      window_start: "2026-05-20T13:35:00",
+      attack_type: "data_exfiltration_suspicion",
+      attack_label: "possible data exfiltration",
+      confidence: 0.991,
+      connections: 14,
+      reasons: ["574,000,000 bytes uploaded (normal MFU sources: at most 80,000,000 in 99.9% of windows)"],
+      found_by: "model_only",
+      alert_ids: [],
+      status: "advisory",
+      response: {
+        mitre: { tactic: "Exfiltration", technique: "Exfiltration Over Alternative Protocol", technique_id: "T1048" },
+        objective: "Decide whether large uploads leaving the network are approved, or data being taken.",
+        containment: ["Identify the internal host, its owner, and the destination, and ask the owner whether the transfer was expected."],
+        escalate_when: "The owner cannot explain it, or sensitive data may be involved."
+      }
+    }
+  ],
+  summary: {
+    sources_checked: 7356,
+    flagged: 2,
+    model_only: 1,
+    by_type: { port_scan: 1, data_exfiltration_suspicion: 1 },
+    background_probing: { sources: 949, connections: 1720, mfu_hosts_touched: 890, top_ports: [{ port: 8081, connections: 29 }, { port: 22, connections: 17 }] }
+  }
+};
+
+const smokeBehaviorOpinion = {
+  alert_id: 1,
+  window_start: "2026-05-20T13:35:00",
+  attack_type: "port_scan",
+  attack_label: "port scan",
+  confidence: 0.9997,
+  flagged: true,
+  background_probe: false,
+  agrees_with_rules: true,
+  rules_attack_type: "port_scan",
+  reasons: ["600 destinations tried on one port (normal MFU sources: at most 142 in 99.9% of windows)"],
+  status: "advisory",
+  model: smokeBehaviorModel
+};
+
 async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
   let deniedResponseAttempt = false;
   let detectionReviewRevision = 0;
@@ -2396,6 +2474,8 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
         : [{ id: 1, actor: "admin", action: "login", target_type: "user", target_value: "admin", details: {}, created_at: "2026-05-22T00:00:00Z" }]
     })
   );
+  await page.route("**/api/ml/behavior/findings**", async (route) => route.fulfill({ json: smokeBehaviorFindings }));
+  await page.route("**/api/ml/behavior/alerts/**", async (route) => route.fulfill({ json: smokeBehaviorOpinion }));
   await page.route("**/api/detection/tuning", async (route) =>
     route.fulfill({ json: { summary: {}, alert_type_pressure: [], suppression_candidates: [], false_positive_learning: {}, severity_distribution: [], status_distribution: [], ml: {}, production_readiness: [], recommendations: [] } })
   );
@@ -7822,4 +7902,45 @@ test("SOC assistant labels a general-knowledge answer as not coming from ATDR re
   await expect(page.getByTestId("assistant-provenance-origin")).toHaveText(
     "Local model assistant, general knowledge (not from ATDR records)"
   );
+});
+
+test("Overview shows what the MFU behaviour model sees and how to respond", async ({ page }) => {
+  await mockApi(page);
+  await seedSession(page);
+  await page.goto("/");
+
+  const panel = page.getByTestId("behavior-model-panel");
+  await expect(panel).toContainText("What the MFU model sees");
+  await expect(page.getByTestId("behavior-training-window")).toContainText("part of the model's training data");
+  await expect(page.getByTestId("behavior-summary")).toContainText("949 hosts");
+  const findings = page.getByTestId("behavior-finding");
+  await expect(findings).toHaveCount(2);
+  await expect(findings.first()).toContainText("Port scan");
+  await expect(findings.first()).toContainText("Rules and model agree");
+  await expect(findings.first()).toContainText("600 destinations tried on one port");
+  await expect(findings.first()).toContainText("MITRE ATT&CK: Discovery / Network Service Discovery (T1046)");
+  await expect(findings.first().getByRole("link", { name: "#1" })).toHaveAttribute("href", "/alerts?alert=1");
+  await expect(findings.nth(1)).toContainText("Model only");
+  await expect(findings.nth(1)).toContainText("Identify the internal host");
+});
+
+test("Overview says plainly when no behaviour model is trained", async ({ page }) => {
+  await mockApi(page);
+  await page.route("**/api/ml/behavior/findings**", async (route) =>
+    route.fulfill({ json: { model: { available: false, detail: "No behaviour model is trained on this machine. Run python -m atdr.scripts.train_behavior_model." }, window: null, windows: [], findings: [], summary: null } })
+  );
+  await seedSession(page);
+  await page.goto("/");
+  await expect(page.getByTestId("behavior-model-missing")).toContainText("No behaviour model is trained on this machine");
+  await expect(page.getByTestId("behavior-finding")).toHaveCount(0);
+});
+
+test("Alert details show the behaviour model's opinion next to the rules", async ({ page }) => {
+  await mockApi(page);
+  await seedSession(page);
+  await page.goto("/alerts?alert=1");
+  const opinion = page.getByTestId("behavior-alert-opinion");
+  await expect(opinion).toContainText("Agrees with the rules");
+  await expect(opinion).toContainText("The model sees port scan behaviour (99.97%)");
+  await expect(opinion).toContainText("Advisory only: the rules decide alerts.");
 });

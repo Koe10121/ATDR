@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Link, useSearchParams } from "react-router-dom";
+import { BehaviorAlertOpinionCard } from "../components/BehaviorModelPanel";
 import { Badge } from "../components/Badge";
 import { DetailDrawer } from "../components/DetailDrawer";
 import { EmptyState } from "../components/EmptyState";
@@ -619,6 +620,8 @@ export function AlertsTriage() {
                 </details>
               </details>
             </section>
+
+            <BehaviorAlertOpinionCard alertId={selected.id} />
 
             <section className="rounded-lg border border-line bg-panel2 p-4">
               <div className="mb-3 text-sm font-extrabold uppercase tracking-wide text-muted">Analyst Actions</div>

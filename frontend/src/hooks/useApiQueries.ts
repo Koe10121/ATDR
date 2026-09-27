@@ -82,6 +82,8 @@ export const queryKeys = {
   watchlists: ["watchlists"],
   tuning: ["detection-tuning"],
   mlReport: ["ml-report"],
+  behaviorFindings: (windowStart?: string | null) => ["behavior-findings", windowStart ?? "latest"] as const,
+  behaviorAlertOpinion: (alertId: number) => ["behavior-alert-opinion", alertId] as const,
   mlEvidenceSnapshot: ["ml-evidence-snapshot"],
   supervisedReport: ["supervised-report"],
   supervisedModels: ["supervised-models"],
@@ -824,6 +826,23 @@ export function useAuditPage(params: Params) {
 
 export function useDetectionTuning() {
   return useQuery({ queryKey: queryKeys.tuning, queryFn: api.detectionTuning, refetchInterval: 60_000 });
+}
+
+export function useBehaviorFindings(windowStart?: string | null) {
+  return useQuery({
+    queryKey: queryKeys.behaviorFindings(windowStart),
+    queryFn: () => api.behaviorFindings(windowStart),
+    refetchInterval: 60_000
+  });
+}
+
+export function useBehaviorAlertOpinion(alertId: number | null) {
+  return useQuery({
+    queryKey: queryKeys.behaviorAlertOpinion(alertId ?? 0),
+    queryFn: () => api.behaviorAlertOpinion(alertId ?? 0),
+    enabled: Boolean(alertId),
+    retry: false
+  });
 }
 
 export function useMlReport() {

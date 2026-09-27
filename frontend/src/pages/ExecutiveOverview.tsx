@@ -9,6 +9,7 @@ import { ErrorBanner } from "../components/ErrorBanner";
 import { MetaGrid } from "../components/MetaGrid";
 import { MetricCard } from "../components/MetricCard";
 import { Badge } from "../components/Badge";
+import { BehaviorModelPanel } from "../components/BehaviorModelPanel";
 import { SocPageHeader } from "../components/SocPageHeader";
 import {
   useAlerts,
@@ -178,6 +179,8 @@ export function ExecutiveOverview() {
         <MetricCard label="Top Source IPs" value={data?.top_suspicious_source_ips?.length ?? "-"} detail="Ranked suspicious sources" tone="amber" />
         <MetricCard label="ML Anomaly Rate" value={`${data?.anomaly_rate ?? "-"}%`} detail="Assistive anomaly signal" tone="cyan" />
       </div>
+
+      <BehaviorModelPanel />
 
       <section className="panel">
         <div className="flex flex-wrap items-center justify-between gap-3">

@@ -427,6 +427,73 @@ export type AlertPlaybookAction =
   | { kind: "ask"; question: string }
   | { kind: "open"; path: string; label: string };
 
+export interface BehaviorModelStatus {
+  available: boolean;
+  version?: string;
+  trained_at?: string;
+  trained_on?: string;
+  trained_from?: string | null;
+  trained_to?: string | null;
+  code_commit?: string | null;
+  threshold?: number;
+  alerting_types?: string[];
+  detail: string;
+}
+
+export interface BehaviorFinding {
+  source: string;
+  window_start: string;
+  attack_type: string;
+  attack_label: string;
+  confidence: number;
+  connections: number;
+  reasons: string[];
+  found_by: "rules_and_model" | "model_only";
+  alert_ids: number[];
+  status: "advisory" | "alerting";
+  response: {
+    mitre: { tactic?: string | null; technique?: string | null; technique_id?: string | null };
+    objective?: string | null;
+    containment: string[];
+    false_positive_when?: string | null;
+    escalate_when?: string | null;
+  };
+}
+
+export interface BehaviorFindings {
+  model: BehaviorModelStatus;
+  window: { start: string; end: string; in_training_data?: boolean } | null;
+  windows?: { start: string; logs: number }[];
+  findings: BehaviorFinding[];
+  summary: {
+    sources_checked: number;
+    flagged: number;
+    model_only: number;
+    by_type: Record<string, number>;
+    background_probing: {
+      sources: number;
+      connections: number;
+      mfu_hosts_touched: number;
+      top_ports: { port: number; connections: number }[];
+    };
+  } | null;
+}
+
+export interface BehaviorAlertOpinion {
+  alert_id: number;
+  window_start: string;
+  attack_type: string;
+  attack_label: string;
+  confidence: number;
+  flagged: boolean;
+  background_probe: boolean;
+  agrees_with_rules: boolean;
+  rules_attack_type: string;
+  reasons: string[];
+  status: string;
+  model: BehaviorModelStatus;
+}
+
 export interface AlertPlaybookStep {
   id: string;
   text: string;

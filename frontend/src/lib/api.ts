@@ -1,5 +1,7 @@
 import type {
   Alert,
+  BehaviorAlertOpinion,
+  BehaviorFindings,
   AlertCase,
   AlertNote,
   AlertPlaybook,
@@ -529,6 +531,9 @@ export const api = {
   auditPage: (params: Params = {}) => apiListRequest<AuditLog>("/api/audit", { params }),
   detectionTuning: () => apiRequest<DetectionTuningReport>("/api/detection/tuning"),
   mlReport: () => apiRequest<MLEvaluationReport>("/api/ml/report"),
+  behaviorFindings: (windowStart?: string | null) =>
+    apiRequest<BehaviorFindings>("/api/ml/behavior/findings", { params: windowStart ? { window_start: windowStart } : {} }),
+  behaviorAlertOpinion: (alertId: number) => apiRequest<BehaviorAlertOpinion>(`/api/ml/behavior/alerts/${alertId}`),
   mlEvidenceSnapshot: () => apiRequest<MLEvidenceSnapshot>("/api/ml/evidence-snapshot"),
   supervisedReport: () => apiRequest<SupervisedModelReport>("/api/ml/supervised/report"),
   supervisedModels: () => apiRequest<SupervisedModelRegistry>("/api/ml/supervised/models"),
