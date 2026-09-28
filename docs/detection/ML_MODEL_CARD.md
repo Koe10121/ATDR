@@ -224,9 +224,12 @@ real exfiltration example came from a wrong label; the next version trains on th
 cleaned labels. The review was drawn against rules v5.34.0. It came back on 28 Sep (AI-assisted,
 a person checked every row): port scan 4 of 4 judged finds real with 1 Unsure,
 so 4 judged against the 5 the bar needs; C2 0 of 3 judged real, 5 Unsure;
-exfiltration 0 of 1, 1 Unsure. No type passes this round. Condition 3 still
-holds with the human-checked blind labels (rules or model F1 90.1% against
-85.2% for the rules alone). Rules v5.35.0 and v5.36.0 alert on
+exfiltration 0 of 1, 1 Unsure. A follow-up with more detail (same day) moved 3
+C2 rows to Normal but unusual; the port-scan row stayed Unsure and the team asked
+that it not count as a confirmed positive. Final for this round: port scan 4 of 4
+judged real (4 judged, 5 needed), C2 0 of 5, exfiltration too few finds. No type
+passes and v2 stays advisory. Condition 3 still holds with the human-checked
+blind labels (rules or model F1 90.1% against 85.2% for the rules alone). Rules v5.35.0 and v5.36.0 alert on
 fewer windows (759 of the 15,153), but every window the model flagged keeps its
 rule alert, so the model-only windows are the same 15 and the review stays
 complete.

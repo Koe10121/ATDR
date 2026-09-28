@@ -317,8 +317,8 @@ def read(pack: Path) -> None:
     (PACK_DIR / "label_decisions_followup.json").write_text(json.dumps({"note": note, "decisions": decisions}, indent=1), encoding="utf-8")
     (PACK_DIR / "signoff_followup.json").write_text(json.dumps(signoff, indent=1, ensure_ascii=False), encoding="utf-8")
 
-    print(f"A2: {len(model_changed)} of {len(key['model_rows'])} Unsure model rows decided -> {model_path}")
-    print(f"B2: {len(blind_changed)} of {len(key['blind_rows'])} Unsure blind logs decided; blind check re-scored -> "
+    print(f"A2: {len(model_changed)} of {len(key['model_rows'])} Unsure model rows now decided; the rest stay Unsure -> {model_path}")
+    print(f"B2: {len(blind_changed)} of {len(key['blind_rows'])} Unsure blind logs now decided; blind check re-scored -> "
           f"{PACK_DIR / 'blind_score_human_checked.json'}")
     relabel = [item for item in decisions if item["decision"] != "Unsure"]
     print(f"D2: {len(relabel)} of {len(key['devices'])} devices called not an attack, covering {sum(len(item['log_ids']) for item in relabel)} labels"

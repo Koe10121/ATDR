@@ -92,6 +92,22 @@ not count as conflicting evidence, since it is the rule in question. One of
 the model rows is the port-scan find that decides whether port scan meets the
 bar (5 judged).
 
+It came back on 28 Sep, signed by a person with a finish date and a clean note.
+Of the 17 entries, 4 were decided and 13 stay Unsure: 3 model rows became Normal
+but unusual (the repeated Dell TLS check-ins and the Telegram records flagged
+"Non-RFC Compliant SSL"), 5 model rows and all 5 blind-check logs stay Unsure,
+and one of the 4 devices was called not an attack (2 labels relabeled; backup
+`backups/atdr-sqlite-20260928T123814Z-97bd5afd.sqlite3`). The port-scan row stays
+Unsure and the team asked that it not count as a confirmed positive, so port scan
+stays at 4 of 4 judged against the 5 needed. With 3 of 4 devices Unsure, the
+unidentified-app rule is unchanged. The whole round is recorded as "AI-assisted
+and a person checked every row", the method of its main part.
+
+The team also asked for: full flow lists (the sheet stops at 25 flows), a
+label-by-label mapping for the device that holds 71 of the unidentified-app
+labels before any bulk relabel, and keeping unresolved labels apart from the
+labels used to train and evaluate.
+
 ## For the team lead
 
 ```

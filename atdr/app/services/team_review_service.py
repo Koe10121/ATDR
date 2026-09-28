@@ -288,7 +288,10 @@ def torrent_label_decisions(rows: dict[str, int], answers: dict[str, dict[str, s
 
 
 def merge_followup(previous: list[dict[str, str]], answers: dict[str, dict[str, str]], id_field: str) -> tuple[list[dict[str, str]], list[str]]:
-    """Earlier decisions with each row the follow-up decided replaced; returns the rows and the ids that changed."""
+    """Earlier decisions with each row the follow-up answered replaced; returns the rows and the ids whose decision changed.
+
+    An answer that repeats the earlier decision (Unsure again, say) still updates the note but is not a change.
+    """
 
     merged, changed = [], []
     for row in previous:
@@ -296,7 +299,8 @@ def merge_followup(previous: list[dict[str, str]], answers: dict[str, dict[str, 
         if answer.get("decision"):
             merged.append({**row, "decision": answer["decision"], "confidence": answer.get("confidence") or "",
                            "note": answer.get("note") or row.get("note", "")})
-            changed.append(row[id_field])
+            if answer["decision"] != row.get("decision"):
+                changed.append(row[id_field])
         else:
             merged.append(row)
     return merged, changed

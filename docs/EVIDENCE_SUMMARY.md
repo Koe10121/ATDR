@@ -130,7 +130,7 @@ raising alerts alone (rebuilt 2026-09-28; the 5 analyst-worked alerts kept):
 | v2 alone, blind check re-scored | Second look | all 20 flags labeled Threat, recall 62.7% |
 | Rules or v2, blind check re-scored | Second look | F1 86.3% vs rules 81.2% |
 | v2 on fresh simulated attacks (13:45-13:50, 13:55-13:57) | Simulated | port scan 96.5%, brute force 97.5%, flood 100%, C2 88.5%, exfiltration 98.0% |
-| v2's extra finds on the fresh windows, 30-row blind review (28 Sep) | Blind, AI-assisted and person-checked | port scan 4 of 4 judged real (1 unsure), C2 0 of 3 (5 unsure), exfiltration 0 of 1 (1 unsure) |
+| v2's extra finds on the fresh windows, 30-row blind review and follow-up (28 Sep) | Blind, AI-assisted and person-checked | port scan 4 of 4 judged real (1 unsure), C2 0 of 5 (3 unsure), exfiltration 0 of 1 (1 unsure) |
 | Rules or v2, blind check with the human-checked labels | Second look | F1 90.1% vs rules 85.2%: condition 3 holds |
 
 Every attack type is advisory. A type may raise alerts only after passing the
@@ -187,8 +187,9 @@ Source: `SOC_ASSISTANT_CONVERSATIONAL.md`.
 
 ## Open items
 
-- Team review pack returned and applied on 28 Sep (`detection/TEAM_REVIEW_PACK.md`).
-  Still open: the rows it left Unsure (8 of the model's windows, one of them
-  the port-scan find that decides the bar, and the unidentified-app label group).
+- Team review pack and its follow-up returned and applied on 28 Sep
+  (`detection/TEAM_REVIEW_PACK.md`). 13 rows stay Unsure, among them the
+  port-scan find, which the team asked not to count; the unidentified-app labels
+  stay undecided and the rule that alerts on them is unchanged.
 - Another MFU export, even an hour from a different day, would allow one clean
   end-to-end test of the whole system.

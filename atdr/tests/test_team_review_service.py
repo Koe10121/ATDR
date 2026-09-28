@@ -173,10 +173,11 @@ def test_follow_up_answers_replace_only_the_rows_they_decide():
     earlier = [{"review_id": "F001", "decision": "Threat", "confidence": "High", "note": "a"},
                {"review_id": "F006", "decision": "Unsure", "confidence": "Low", "note": "needs upload context"},
                {"review_id": "F016", "decision": "Unsure", "confidence": "Low", "note": "needs signatures"}]
-    merged, changed = merge_followup(earlier, {"F006": {"decision": "Normal", "note": "a backup job"}, "F016": {"decision": ""}}, "review_id")
-    assert changed == ["F006"]
+    answers = {"F006": {"decision": "Normal", "note": "a backup job"}, "F016": {"decision": "Unsure", "note": "still no signature"}}
+    merged, changed = merge_followup(earlier, answers, "review_id")
+    assert changed == ["F006"], "answering Unsure again is not a change"
     assert [row["decision"] for row in merged] == ["Threat", "Normal", "Unsure"]
-    assert merged[1]["note"] == "a backup job"
+    assert (merged[1]["note"], merged[2]["note"]) == ("a backup job", "still no signature")
 
 
 def test_unidentified_app_labels_are_not_blocked_by_the_alert_in_question():
