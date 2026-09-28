@@ -282,6 +282,9 @@ def test_the_quality_bar_record_says_what_each_type_still_needs():
     fresh = _round({"port_scan": 5, "malware_c2": 8, "data_exfiltration_suspicion": 2}, {"malware_c2": 0.885})
     blind = {"rules": {"estimate": {"f1": 0.81}}, "rules_or_model": {"estimate": {"f1": 0.86}}}
     pending = quality_bar_record(fresh=fresh, blind=blind)
+    assert pending["real_traffic"] is None, "a round without real-traffic totals records none"
+    assert quality_bar_record(fresh=fresh | {"real_windows": 15153, "model_flagged_windows": 230, "model_only_windows": 15},
+                              blind=blind)["real_traffic"] == {"windows": 15153, "model_flagged": 230, "model_only": 15}
     assert pending["condition_3"]["passes"]
     assert pending["types"]["port_scan"]["condition_1"]["status"] == "pending"
     assert pending["types"]["data_exfiltration_suspicion"]["condition_1"]["status"] == "cannot_pass", "2 windows, 5 needed"

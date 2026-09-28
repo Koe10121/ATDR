@@ -85,6 +85,7 @@ const smokeBehaviorStatus = {
       { start: "2026-05-20 13:45:00", end: "2026-05-20 13:50:00" },
       { start: "2026-05-20 13:55:00", end: "2026-05-20 14:00:00" }
     ],
+    real_traffic: { windows: 15153, model_flagged: 230, model_only: 15 },
     min_reviewed: 5,
     review_method: null,
     condition_3: { rules_f1: 0.8117, rules_or_model_f1: 0.863, passes: true },
@@ -4401,7 +4402,7 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByText("Config: local lab profile")).toBeVisible();
 
   await page.goto("/ml");
-  await expect(page.getByRole("heading", { name: "Model status and review operations" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "The AI in ATDR, and how far to trust it" })).toBeVisible();
   // The detailed model evidence now lives in one collapsed research-history section.
   await page.getByTestId("model-research-history").locator(":scope > summary").click();
   await expect(page.getByText("Canonical ML Evidence", { exact: true })).toBeVisible();
@@ -4533,6 +4534,18 @@ test("AI Governance leads with what decides and a plain trust summary, with rese
   await expect(bar.getByRole("row", { name: /Malware C2/ })).toContainText("88.5% found");
   await expect(bar.getByRole("row", { name: /Malware C2/ })).toContainText("Not met");
   await expect(mfuModel).toContainText("F1 86.3% vs rules alone 81.2% (holds)");
+  // Port scan fails nothing yet; C2 misses simulated beacons, exfiltration has too few extra finds.
+  await expect(mfuModel).toContainText("Port scan can still pass this round, if the team's blind review confirms the extra finds.");
+  const traffic = page.getByTestId("governance-real-traffic");
+  await expect(traffic).toContainText("15,153");
+  await expect(traffic).toContainText("215 of them also raised a rule alert.");
+  await expect(traffic).toContainText("Extra finds");
+  const runtime = page.getByTestId("detection-runtime-contract");
+  await expect(runtime).toContainText("MFU behaviour model");
+  await expect(runtime).toContainText("0 of 4 attack types switched on");
+  await expect(runtime).toContainText("Earlier anomaly model");
+  // The earlier anomaly model's report lives in the history, not in the main flow.
+  await expect(page.getByTestId("earlier-anomaly-report")).not.toBeVisible();
   await expect(mfuModel).toContainText("13:45-13:50 and 13:55-14:00");
   await expect(page.getByTestId("governance-part-decides")).toContainText("What decides");
   await expect(page.getByTestId("governance-part-trust")).toContainText("Is the AI trustworthy yet?");
@@ -4551,6 +4564,7 @@ test("AI Governance leads with what decides and a plain trust summary, with rese
   await expect(page.getByTestId("field-qualification-readiness")).not.toBeVisible();
   await history.locator(":scope > summary").click();
   await expect(page.getByTestId("field-qualification-readiness")).toBeVisible();
+  await expect(page.getByTestId("earlier-anomaly-report")).toBeVisible();
 
   const worklistRows = page.locator("table.soc-table tbody tr").filter({ hasText: "Hybrid 60" });
   await expect(worklistRows).toHaveCount(5);
@@ -4561,6 +4575,59 @@ test("AI Governance leads with what decides and a plain trust summary, with rese
   await expect(page).toHaveURL(/\/evidence-review$/);
   await page.getByRole("link", { name: "Back to AI Governance" }).click();
   await expect(page).toHaveURL(/\/ml$/);
+});
+
+test("AI Governance describes the conversational assistant that is actually running", async ({ page }) => {
+  // The trust summary used to call the assistant "Gemini, rewords only" after the local
+  // tool-using agent had replaced it.
+  await mockApi(page);
+  await page.unroute("**/api/assistant/status");
+  await page.route("**/api/assistant/status", async (route) =>
+    route.fulfill({
+      json: {
+        available: true,
+        mode: "deterministic_local",
+        external_provider_configured: false,
+        external_provider_used_by_default: false,
+        provider: "disabled",
+        model_configured: false,
+        llm_enabled: false,
+        llm_provider_configured: false,
+        llm_provider_name: "",
+        llm_ready: false,
+        llm_model_configured: false,
+        llm_secret_configured: false,
+        llm_base_url_configured: false,
+        llm_timeout_seconds: 15,
+        llm_max_retries: 2,
+        llm_max_prompt_chars: 12000,
+        llm_max_output_tokens: 800,
+        llm_max_visible_chars: 4000,
+        llm_circuit_breaker_failures: 3,
+        llm_circuit_breaker_cooldown_seconds: 60,
+        llm_operational: { status: "idle", calls_attempted: 0, calls_succeeded: 0, calls_failed: 0, fallbacks: 0, circuit_open: false, estimated_cost_usd: 0, secrets_exposed: false },
+        conversation_history_turns: 4,
+        rate_limit_requests: 30,
+        rate_limit_window_seconds: 60,
+        llm_secrets_exposed: false,
+        redaction_enabled: true,
+        raw_log_context_allowed: false,
+        max_context_rows: 20,
+        safety: ["Read Only", "Decision Support Only", "Response Automation Disabled", "Simulation Mode"],
+        agent_engine: "ollama",
+        agent_model: "qwen3:8b"
+      }
+    })
+  );
+  await seedSession(page);
+  await page.goto("/ml");
+
+  const assistant = page.getByTestId("ai-trust-assistant");
+  await expect(assistant).toContainText("SOC Assistant");
+  await expect(assistant).toContainText("Conversational");
+  await expect(assistant).toContainText("A language model running on this machine (qwen3:8b)");
+  await expect(assistant).toContainText("IP redaction on; raw logs never sent.");
+  await expect(assistant).not.toContainText("Gemini");
 });
 
 test("AI Governance explains a missing advisory anomaly capability without training it", async ({ page }) => {
@@ -7220,7 +7287,7 @@ test("dashboard dropdowns close and do not block follow-up clicks", async ({ pag
   await page.getByPlaceholder("Indicator value").click();
 
   await page.goto("/ml");
-  await expect(page.getByRole("heading", { name: "Model status and review operations" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "The AI in ATDR, and how far to trust it" })).toBeVisible();
   await page.getByTestId("model-research-history").locator(":scope > summary").click();
   const assistantGovernance = page.getByTestId("assistant-provider-governance");
   await expect(assistantGovernance).toContainText("Assistant Provider Governance");
@@ -7464,7 +7531,7 @@ test("core SOC pages fit desktop, tablet, and mobile viewports", async ({ page }
     alerts: /Prioritize, investigate, contain, and document alerts/i,
     logs: /Search raw evidence and normalized firewall events/i,
     assistant: /Evidence-grounded analyst guidance/i,
-    ml: /Model status and review operations/i,
+    ml: /The AI in ATDR, and how far to trust it/i,
     "evidence-review": /Evidence Review/i,
     response: /Containment actions stay simulated by default/i,
     users: /Manage analyst and admin access/i,

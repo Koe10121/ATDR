@@ -74,7 +74,7 @@
     {"id": "concept-04", "category": "concepts", "q": "How does ATDR decide the severity of an alert?", "answered": true, "any": ["81-100", "81 to 100", "61-80", "61 to 80"]},
     {"id": "concept-05", "category": "concepts", "q": "What does SLA overdue mean?", "answered": true, "any": ["1 hour", "one hour", "24 hours", "within an hour"]},
     {"id": "concept-06", "category": "concepts", "q": "what is MITRE ATT&CK", "answered": true, "any": ["mitre", "technique", "att&ck"]},
-    {"id": "concept-07", "category": "concepts", "q": "How many detection rules are there?", "answered": true, "any": ["20"]},
+    {"id": "concept-07", "category": "concepts", "q": "How many detection rules are there?", "answered": true, "any": ["21"]},
 
     {"id": "system-01", "category": "system", "q": "Why can't the ML model create alerts?", "answered": true, "any": ["advisory", "decision support", "quality bar", "qualif"], "all": ["rule"]},
     {"id": "system-02", "category": "system", "q": "Is the supervised model used?", "answered": true, "any": ["shadow", "unqualified", "not qualified", "advisory", "decision support"]},

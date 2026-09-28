@@ -248,10 +248,18 @@ def quality_bar_record(
             "condition_2": condition_2,
             "eligible": condition_1["status"] == "pass" and condition_2["passes"] and condition_3["passes"],
         }
+    # What the model did on the round's real traffic, for the dashboard: device-windows scored,
+    # flagged, and flagged with no rule alert (the extra finds the blind review judges).
+    real_traffic = (
+        {"windows": int(fresh["real_windows"]), "model_flagged": int(fresh["model_flagged_windows"]),
+         "model_only": int(fresh["model_only_windows"])}
+        if "real_windows" in fresh else None
+    )
     return {
         "declared_in": "docs/detection/ML_QUALITY_BAR.md",
         "model_version": fresh.get("model_version"),
         "windows": fresh.get("windows") or [fresh.get("window")],
+        "real_traffic": real_traffic,
         "min_reviewed": min_reviewed,
         "review_method": review_method,
         "condition_3": condition_3,

@@ -265,6 +265,16 @@ function reviewText(entry: BehaviorQualityBarType, bar: BehaviorQualityBar): { t
   }
 }
 
+function TrafficFigure({ label, value, detail }: { label: string; value: number; detail: string }) {
+  return (
+    <div className="min-w-0 rounded-lg border border-line bg-panel2 p-3">
+      <div className="text-xs font-extrabold uppercase tracking-wide text-muted">{label}</div>
+      <div className="mt-1 text-2xl font-black text-text">{value.toLocaleString("en-US")}</div>
+      <div className="mt-1 text-xs font-semibold text-muted">{detail}</div>
+    </div>
+  );
+}
+
 function Mark({ ok }: { ok: boolean | null }) {
   if (ok === null) return <span className="text-xs font-black uppercase text-amber">Pending</span>;
   return ok ? <span className="text-xs font-black uppercase text-success">Passes</span> : <span className="text-xs font-black uppercase text-danger">Not met</span>;
@@ -276,6 +286,14 @@ export function BehaviorModelGovernance() {
   const status = query.data;
   const bar = status?.quality_bar;
   const windows = bar?.windows.map((window) => `${window.start.slice(11, 16)}-${window.end.slice(11, 16)}`).join(" and ");
+  // Types that fail nothing yet: only the team's blind review of their extra finds is outstanding.
+  const canStillPass = bar
+    ? Object.entries(bar.types)
+        .filter(([, entry]) => !entry.eligible && entry.condition_2.passes && bar.condition_3.passes)
+        .filter(([, entry]) => entry.condition_1.status === "pending" || entry.condition_1.status === "needs_person")
+        .map(([type]) => ATTACK_TYPE_NAMES[type] ?? type)
+    : [];
+  const traffic = bar?.real_traffic;
   return (
     <section className="panel space-y-4" data-testid="governance-mfu-model">
       <div>
@@ -292,7 +310,31 @@ export function BehaviorModelGovernance() {
       {status?.available ? (
         <p className="text-sm font-semibold text-text">
           {status.version}, trained on {status.trained_on}. {status.detail}
+          {bar
+            ? canStillPass.length
+              ? ` ${canStillPass.join(" and ")} can still pass this round, if the team's blind review confirms the extra finds.`
+              : " No attack type can pass this round."
+            : ""}
         </p>
+      ) : null}
+      {status?.available && traffic ? (
+        <div className="grid gap-3 sm:grid-cols-3" data-testid="governance-real-traffic">
+          <TrafficFigure
+            label="Device-windows scored"
+            value={traffic.windows}
+            detail={`Five minutes of one device's traffic each, 20 May ${windows}: traffic the model never trained on.`}
+          />
+          <TrafficFigure
+            label="Flagged by the model"
+            value={traffic.model_flagged}
+            detail={`${(traffic.model_flagged - traffic.model_only).toLocaleString("en-US")} of them also raised a rule alert.`}
+          />
+          <TrafficFigure
+            label="Extra finds"
+            value={traffic.model_only}
+            detail="Flagged with no rule alert. The team's blind review decides whether they are real."
+          />
+        </div>
       ) : null}
       {status?.available && bar ? (
         <>

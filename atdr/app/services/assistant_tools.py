@@ -425,10 +425,15 @@ class AssistantToolbox:
             )
         if topic == "ml_models":
             return (
-                "ATDR's alerts come from its fixed rules. Machine learning is advisory: an anomaly model scores how unusual "
-                "each log is, and a supervised model is being trained on the team's reviewed labels. Their scores are shown "
-                "next to alerts as decision support, but they cannot create alerts until a model passes a quality bar on "
-                "held-out MFU data. Ask about system status (ml) for the current model state."
+                "ATDR's alerts come from its fixed rules. The machine-learning model that matters is the MFU behaviour "
+                "model: trained only on MFU's own firewall traffic, it reads each device's five minutes of traffic, names the "
+                "likely attack and explains why, on the Overview and on each alert. It is advisory. An attack type may raise "
+                "alerts on its own only after passing the quality bar the team declared before training: its extra finds "
+                "(flagged with no rule alert) must be confirmed real in a blind review, it must find at least 90% of fresh "
+                "simulated attacks, and the rules together with the model must be no less accurate than the rules alone on the "
+                "blind-check labels. Until a type passes, the rules decide every alert. Two earlier models, an anomaly model "
+                "and a supervised classifier, are advisory only as well. The behaviour model's own view shows where each "
+                "attack type stands."
             )
         if topic == "simulated_response":
             return (

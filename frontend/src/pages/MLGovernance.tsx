@@ -27,6 +27,7 @@ import {
   useClassTemporalCoverage,
   useBlindEvidenceStatus,
   useAssistantStatus,
+  useBehaviorModelStatus,
   useCandidateFreezeStatus,
   useCombinedFixedRevalidationStatus,
   useDetectionMlProductization,
@@ -76,6 +77,7 @@ function rateText(value: unknown) {
 
 export function MLGovernance() {
   const assistantStatus = useAssistantStatus();
+  const behaviorModel = useBehaviorModelStatus();
   const report = useMlReport();
   const evidenceSnapshot = useMlEvidenceSnapshot();
   const blindEvidence = useBlindEvidenceStatus();
@@ -458,9 +460,9 @@ export function MLGovernance() {
   return (
     <div className="space-y-5">
       <SocPageHeader
-        eyebrow="ML Governance"
+        eyebrow="AI Governance"
         eyebrowTone="cyan"
-        title="Model status and review operations"
+        title="The AI in ATDR, and how far to trust it"
         badges={[
           "Decision Support Only",
           "Response Automation Disabled",
@@ -519,22 +521,32 @@ export function MLGovernance() {
               tone="cyan"
             />
             <MetricCard
-              label="IsolationForest"
+              label="MFU behaviour model"
+              value={
+                behaviorModel.data?.available
+                  ? (behaviorModel.data.alerting_types ?? []).length
+                    ? "alerting"
+                    : "advisory"
+                  : "not trained"
+              }
+              detail={
+                behaviorModel.data?.available
+                  ? `${(behaviorModel.data.alerting_types ?? []).length} of ${Object.keys(behaviorModel.data.quality_bar?.types ?? {}).length || 5} attack types switched on`
+                  : "Rules decide every alert"
+              }
+              tone="cyan"
+            />
+            <MetricCard
+              label="Earlier anomaly model"
               value={metricText(detectionRuntime.data?.anomaly.state).replaceAll("_", " ")}
-              detail="Advisory anomaly score"
+              detail="IsolationForest: advisory anomaly score"
               tone={detectionRuntime.data?.anomaly.state === "active_advisory" ? "teal" : "amber"}
             />
             <MetricCard
-              label="Supervised"
+              label="Earlier supervised model"
               value={metricText(detectionRuntime.data?.supervised.state).replaceAll("_", " ")}
               detail={String(detectionRuntime.data?.supervised.reason_code ?? "No qualified runtime candidate").replaceAll("_", " ")}
               tone={detectionRuntime.data?.supervised.state === "active_shadow" ? "teal" : "amber"}
-            />
-            <MetricCard
-              label="Hybrid Triage"
-              value={metricText(detectionRuntime.data?.hybrid.state).replaceAll("_", " ")}
-              detail="Never changes alert authority"
-              tone="slate"
             />
             <MetricCard
               label="Response"
@@ -550,8 +562,9 @@ export function MLGovernance() {
         <div className="text-xs font-extrabold uppercase tracking-wide text-cyan">Part 2</div>
         <h2 className="mt-1 text-2xl font-black text-text">Is the AI trustworthy yet?</h2>
         <p className="mt-1 text-sm text-muted">
-          Where the earlier AI parts stand today, in plain words: the anomaly model and supervised classifier built before the MFU behaviour
-          model, and the assistant. The detail behind each answer is in the research history at the bottom.
+          The MFU behaviour model's standing is at the top. Here, in plain words: the assistant, the earlier independent review, and the
+          anomaly model and supervised classifier built before the MFU model. The detail behind each answer is in the research history at
+          the bottom.
         </p>
       </div>
 
@@ -750,85 +763,6 @@ export function MLGovernance() {
         )}
       </section>
 
-      <div className="grid gap-4 xl:grid-cols-[1fr_0.9fr]">
-        <ChartCard title="Top Anomalous Apps">
-          {data?.top_anomalous_apps?.length ? (
-            <div className="h-80">
-              <ResponsiveContainer>
-                <BarChart data={data.top_anomalous_apps.slice(0, 8)} layout="vertical" margin={{ left: 100 }}>
-                  <CartesianGrid stroke="#263445" strokeDasharray="3 3" />
-                  <XAxis type="number" stroke="#93a4b7" />
-                  <YAxis type="category" dataKey="name" stroke="#93a4b7" width={100} />
-                  <Tooltip contentStyle={{ background: "#0f151d", border: "1px solid #263445", color: "#e5edf6" }} />
-                  <Bar dataKey="count" fill="#22d3ee" radius={[0, 6, 6, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <EmptyState title="No anomaly groups" body="Train and score the model to populate anomaly analysis." />
-          )}
-        </ChartCard>
-        <section className="panel">
-          <div className="mb-4 flex items-center justify-between gap-2">
-            <div className="text-sm font-extrabold uppercase tracking-wide text-muted">Drift Signals</div>
-            <Badge value={data?.drift_signals?.length ? "review" : "ready"} />
-          </div>
-          <div className="space-y-3">
-            {(data?.drift_signals ?? []).slice(0, 5).map((signal, index) => (
-              <div key={index} className="rounded-lg border border-line bg-panel2 p-3 text-sm text-muted">
-                <div className="font-bold text-text">{String(signal.metric ?? "drift_signal")}</div>
-                <div className="mt-1">{String(signal.message ?? "")}</div>
-              </div>
-            ))}
-          </div>
-        </section>
-      </div>
-
-      <section className="panel">
-        <div className="mb-4 flex items-center justify-between gap-2">
-          <div>
-            <div className="text-sm font-extrabold uppercase tracking-wide text-cyan">Baseline And Drift Snapshot</div>
-            <h2 className="mt-1 text-xl font-black">Traffic distribution</h2>
-          </div>
-          <Badge value={`${drift?.anomaly_rate ?? data?.anomaly_rate ?? 0}% anomaly`} />
-        </div>
-        <div className="grid gap-4 md:grid-cols-4">
-          <MetricCard label="Unknown App Rate" value={`${drift?.unknown_app_rate ?? 0}%`} detail={`${drift?.unknown_app_count ?? 0} logs`} tone="amber" />
-          <MetricCard label="Deny/Drop/Reset" value={`${drift?.deny_drop_reset_rate ?? 0}%`} detail={`${drift?.deny_drop_reset_count ?? 0} logs`} tone="danger" />
-          <MetricCard label="Anomaly Rate" value={`${drift?.anomaly_rate ?? 0}%`} detail={`${drift?.anomaly_count ?? 0} logs`} tone="cyan" />
-          <MetricCard label="Total Logs" value={drift?.total_logs ?? 0} detail="Current normalized population" tone="teal" />
-        </div>
-        <div className="mt-4 grid gap-4 xl:grid-cols-3">
-          {[
-            ["Top Apps", drift?.app_distribution],
-            ["Top Actions", drift?.action_distribution],
-            ["Top Destination Ports", drift?.top_destination_ports]
-          ].map(([title, rows]) => (
-            <div key={String(title)} className="rounded-lg border border-line bg-panel2 p-4">
-              <div className="mb-2 text-xs font-extrabold uppercase tracking-wide text-muted">{String(title)}</div>
-              <div className="space-y-2 text-sm">
-                {(rows as Array<{ name: string; count: number }> | undefined)?.slice(0, 6).map((row) => (
-                  <div key={`${title}-${row.name}`} className="flex justify-between rounded border border-line bg-panel px-3 py-2">
-                    <span className="text-muted">{row.name}</span>
-                    <span className="font-bold text-text">{row.count}</span>
-                  </div>
-                )) ?? <EmptyState title="No distribution data" body="Import and normalize logs to populate this view." />}
-              </div>
-            </div>
-          ))}
-        </div>
-        {drift?.interpretation ? <div className="mt-4 rounded border border-line bg-panel2 p-3 text-sm text-muted">{drift.interpretation}</div> : null}
-      </section>
-
-      <section className="panel">
-        <div className="mb-3 text-sm font-extrabold uppercase tracking-wide text-muted">Recommendations</div>
-        <ul className="space-y-2 text-sm text-muted">
-          {(data?.recommendations ?? []).map((item) => (
-            <li key={item} className="rounded-lg border border-line bg-panel2 p-3">{item}</li>
-          ))}
-        </ul>
-      </section>
-
       <details className="panel" data-testid="model-research-history">
         <summary className="cursor-pointer">
           <span className="text-lg font-black text-text">Model research history and technical evidence</span>
@@ -837,6 +771,88 @@ export function MLGovernance() {
           </span>
         </summary>
         <div className="mt-5 space-y-5">
+          <div data-testid="earlier-anomaly-report">
+            <div className="text-xs font-extrabold uppercase tracking-wide text-muted">Earlier anomaly model</div>
+            <p className="mt-1 text-sm text-muted">What the IsolationForest model marks as unusual and the traffic mix it watches for drift.</p>
+          </div>
+          <div className="grid gap-4 xl:grid-cols-[1fr_0.9fr]">
+            <ChartCard title="Top Anomalous Apps">
+              {data?.top_anomalous_apps?.length ? (
+                <div className="h-80">
+                  <ResponsiveContainer>
+                    <BarChart data={data.top_anomalous_apps.slice(0, 8)} layout="vertical" margin={{ left: 100 }}>
+                      <CartesianGrid stroke="#263445" strokeDasharray="3 3" />
+                      <XAxis type="number" stroke="#93a4b7" />
+                      <YAxis type="category" dataKey="name" stroke="#93a4b7" width={100} />
+                      <Tooltip contentStyle={{ background: "#0f151d", border: "1px solid #263445", color: "#e5edf6" }} />
+                      <Bar dataKey="count" fill="#22d3ee" radius={[0, 6, 6, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <EmptyState title="No anomaly groups" body="Train and score the model to populate anomaly analysis." />
+              )}
+            </ChartCard>
+            <section className="panel">
+              <div className="mb-4 flex items-center justify-between gap-2">
+                <div className="text-sm font-extrabold uppercase tracking-wide text-muted">Drift Signals</div>
+                <Badge value={data?.drift_signals?.length ? "review" : "ready"} />
+              </div>
+              <div className="space-y-3">
+                {(data?.drift_signals ?? []).slice(0, 5).map((signal, index) => (
+                  <div key={index} className="rounded-lg border border-line bg-panel2 p-3 text-sm text-muted">
+                    <div className="font-bold text-text">{String(signal.metric ?? "drift_signal")}</div>
+                    <div className="mt-1">{String(signal.message ?? "")}</div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
+
+          <section className="panel">
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <div>
+                <div className="text-sm font-extrabold uppercase tracking-wide text-cyan">Baseline And Drift Snapshot</div>
+                <h2 className="mt-1 text-xl font-black">Traffic distribution</h2>
+              </div>
+              <Badge value={`${drift?.anomaly_rate ?? data?.anomaly_rate ?? 0}% anomaly`} />
+            </div>
+            <div className="grid gap-4 md:grid-cols-4">
+              <MetricCard label="Unknown App Rate" value={`${drift?.unknown_app_rate ?? 0}%`} detail={`${drift?.unknown_app_count ?? 0} logs`} tone="amber" />
+              <MetricCard label="Deny/Drop/Reset" value={`${drift?.deny_drop_reset_rate ?? 0}%`} detail={`${drift?.deny_drop_reset_count ?? 0} logs`} tone="danger" />
+              <MetricCard label="Anomaly Rate" value={`${drift?.anomaly_rate ?? 0}%`} detail={`${drift?.anomaly_count ?? 0} logs`} tone="cyan" />
+              <MetricCard label="Total Logs" value={drift?.total_logs ?? 0} detail="Current normalized population" tone="teal" />
+            </div>
+            <div className="mt-4 grid gap-4 xl:grid-cols-3">
+              {[
+                ["Top Apps", drift?.app_distribution],
+                ["Top Actions", drift?.action_distribution],
+                ["Top Destination Ports", drift?.top_destination_ports]
+              ].map(([title, rows]) => (
+                <div key={String(title)} className="rounded-lg border border-line bg-panel2 p-4">
+                  <div className="mb-2 text-xs font-extrabold uppercase tracking-wide text-muted">{String(title)}</div>
+                  <div className="space-y-2 text-sm">
+                    {(rows as Array<{ name: string; count: number }> | undefined)?.slice(0, 6).map((row) => (
+                      <div key={`${title}-${row.name}`} className="flex justify-between rounded border border-line bg-panel px-3 py-2">
+                        <span className="text-muted">{row.name}</span>
+                        <span className="font-bold text-text">{row.count}</span>
+                      </div>
+                    )) ?? <EmptyState title="No distribution data" body="Import and normalize logs to populate this view." />}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {drift?.interpretation ? <div className="mt-4 rounded border border-line bg-panel2 p-3 text-sm text-muted">{drift.interpretation}</div> : null}
+          </section>
+
+          <section className="panel">
+            <div className="mb-3 text-sm font-extrabold uppercase tracking-wide text-muted">Recommendations</div>
+            <ul className="space-y-2 text-sm text-muted">
+              {(data?.recommendations ?? []).map((item) => (
+                <li key={item} className="rounded-lg border border-line bg-panel2 p-3">{item}</li>
+              ))}
+            </ul>
+          </section>
           <section className="panel" data-testid="anomaly-capability-status">
             <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">

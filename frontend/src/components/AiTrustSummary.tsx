@@ -50,10 +50,30 @@ export function AiTrustSummary({
     : "";
   const supervisedOn = runtime?.supervised.state === "active_shadow";
   const reviewDone = Boolean(evaluation?.reviews_closed);
+  const agentEngine = assistant?.agent_engine && assistant.agent_engine !== "off" ? assistant.agent_engine : null;
+  const privacy = `IP redaction ${assistant?.redaction_enabled ? "on" : "off"}; raw logs ${assistant?.raw_log_context_allowed ? "allowed after review" : "never sent"}.`;
+  const assistantRow: TrustRow = agentEngine
+    ? {
+        key: "assistant",
+        label: "SOC Assistant",
+        status: "Conversational",
+        tone: "caution",
+        text: `${agentEngine === "ollama" ? `A language model running on this machine${assistant?.agent_model ? ` (${assistant.agent_model})` : ""}` : `An external language model (${agentEngine})`} answers in conversation. It looks ATDR facts up with read-only tools, and every number and address it states is checked against what the tools returned; it cannot take actions. ${privacy}`,
+        link: { to: "/assistant", label: "Open assistant" }
+      }
+    : {
+        key: "assistant",
+        label: "SOC Assistant",
+        status: assistant?.llm_ready ? "Rewords only" : "Local answers",
+        tone: assistant?.llm_ready ? "caution" : "off",
+        text: `${assistant?.llm_ready ? `${capitalize(assistant.llm_provider_name)} may reword answers built from ATDR data; it cannot add facts or take actions.` : "Answers come straight from ATDR data with no external model."} ${privacy}`,
+        link: { to: "/assistant", label: "Open assistant" }
+      };
   const rows: TrustRow[] = [
+    assistantRow,
     {
       key: "anomaly",
-      label: "Anomaly model (IsolationForest)",
+      label: "Earlier anomaly model (IsolationForest)",
       status: anomalyOn ? "Hint only" : "Off",
       tone: anomalyOn ? "caution" : "off",
       text: anomalyOn
@@ -62,7 +82,7 @@ export function AiTrustSummary({
     },
     {
       key: "supervised",
-      label: "Supervised classifier",
+      label: "Earlier supervised classifier",
       status: supervisedOn ? "Shadow only" : "Not in use",
       tone: supervisedOn ? "caution" : "off",
       text: supervisedOn
@@ -78,14 +98,6 @@ export function AiTrustSummary({
         ? `People reviewed ${evaluation.detection.reviewed}/${evaluation.detection.total} detection cases and ${evaluation.assistant.reviewed}/${evaluation.assistant.total} assistant answers without seeing the model's predictions. ${evaluation.activation_decision.model_activated ? "A model was activated." : "No model was activated."}`
         : "Review status is unavailable right now.",
       link: { to: "/evidence-review", label: "Open review records" }
-    },
-    {
-      key: "assistant",
-      label: "SOC Assistant (Gemini)",
-      status: assistant?.llm_ready ? "Rewords only" : "Local answers",
-      tone: assistant?.llm_ready ? "caution" : "off",
-      text: `${assistant?.llm_ready ? `${capitalize(assistant.llm_provider_name)} may reword answers built from ATDR data; it cannot add facts or take actions.` : "Answers come straight from ATDR data with no external model."} IP redaction ${assistant?.redaction_enabled ? "on" : "off"}; raw logs ${assistant?.raw_log_context_allowed ? "allowed after review" : "never sent"}.`,
-      link: { to: "/assistant", label: "Open assistant" }
     }
   ];
 

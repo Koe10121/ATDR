@@ -457,6 +457,8 @@ export interface BehaviorQualityBar {
   declared_in: string;
   model_version?: string | null;
   windows: { start: string; end: string }[];
+  // The round's real traffic: device-windows scored, flagged, and flagged with no rule alert.
+  real_traffic?: { windows: number; model_flagged: number; model_only: number } | null;
   min_reviewed: number;
   review_method?: string | null;
   condition_3: { rules_f1: number | null; rules_or_model_f1: number | null; passes: boolean };
