@@ -90,3 +90,13 @@ def test_the_current_rules_find_what_the_retired_alert_was_really_about():
     assert summary["new_alerts_by_type"] == {"possible_port_scan": 1}
     scan = db.scalar(select(Alert).where(Alert.id > max(_worked)))
     assert sorted(evidence.normalized_log_id for evidence in scan.evidence) == logs[:25], "logs held by kept alerts stay out"
+
+
+def test_a_second_rebuild_counts_its_new_alerts_even_when_ids_are_reused():
+    db = _session()
+    _logs, _retired, worked = _seed(db)
+    first = rebuild_alerts(db, actor="koe", reason="retired rules")
+    second = rebuild_alerts(db, actor="koe", reason="rules changed again")
+    alerts_now = db.scalar(select(func.count(Alert.id)))
+    assert first["new_alerts"] == second["new_alerts"] == alerts_now - len(worked) == 1
+    assert second["archived"] == 1, "the first rebuild's alert is archived by the second"

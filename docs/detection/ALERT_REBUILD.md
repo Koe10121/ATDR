@@ -58,3 +58,14 @@ and that ATDR now treats as policy activity (catalog v5.34.0; see
 `../DETECTION_RULE_CATALOG.md`). These labels are the team's own, made while
 the rules were tuned, so they measure agreement; the blind check
 (`BLIND_CHECK.md`) is the fair accuracy estimate.
+
+## 2026-09-28 rebuild (rule catalog v5.35.0)
+
+After the rules began summarising internet background probing, the list was
+rebuilt again (backup `backups/atdr-sqlite-20260928T042514Z-0313c07d.sqlite3`):
+the same 5 worked alerts kept, the 309 v5.34.0 alerts archived, 244 raised by
+the current rules, 249 in all (Critical 39, High 43, Medium 150, Low 17),
+still including the Critical GHOSTENGINE watchlist alert. That run's audit
+entry reports 0 new alerts: the count compared ids with the old maximum, and
+SQLite reuses ids after a deletion. The count is fixed; the audit entry is
+left as written.

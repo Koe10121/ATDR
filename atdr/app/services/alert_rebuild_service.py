@@ -84,7 +84,6 @@ def rebuild_alerts(
     detect: Callable[[Session], dict[str, Any]] = run_all_detection,
 ) -> dict[str, Any]:
     keep = worked_alert_ids(db)
-    last_old_id = int(db.scalar(select(func.max(Alert.id))) or 0)
     to_archive = [alert_id for alert_id in db.scalars(select(Alert.id).order_by(Alert.id)) if alert_id not in keep]
     archived_by_type: Counter = Counter()
     for start in range(0, len(to_archive), CHUNK):
@@ -109,7 +108,9 @@ def rebuild_alerts(
     db.commit()
 
     run = detect(db)
-    new_alerts = Counter(db.scalars(select(Alert.alert_type).where(Alert.id > last_old_id)))
+    # Every alert now on the list that was not kept is new. (Comparing ids with the old maximum fails:
+    # SQLite reuses ids above the highest remaining row, so a second rebuild numbers new alerts lower.)
+    new_alerts = Counter(db.scalars(select(Alert.alert_type).where(Alert.id.not_in(keep) if keep else True)))
     summary = {
         "catalog": RULE_CATALOG_VERSION,
         "kept": sorted(keep),
