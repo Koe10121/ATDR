@@ -67,15 +67,16 @@ type came only from which rule fired, so 133 of the 249 live alerts (53%) said
 "Unclassified", including firewall-named exploits and a known C2 server. The
 type now also comes from the evidence: the firewall's threat signature, the
 kind of watchlist indicator, and whether an inbound probe was answered. On the
-same 249 alerts, re-run on a copy, and then with rule catalog v5.36.0, which
-stops informational records that name no attack from raising alerts alone:
+same 249 alerts, re-run on a copy, and then on the live list after rule
+catalog v5.36.0, which stops informational records that name no attack from
+raising alerts alone (rebuilt 2026-09-28; the 5 analyst-worked alerts kept):
 
-| Attack type | Before | Typed from evidence | And v5.36.0 (180 alerts) |
+| Attack type | Before | Typed from evidence | Live, v5.36.0 (180 alerts) |
 |---|---|---|---|
-| Port scan | 84 | 117 | 123 |
+| Port scan | 84 | 117 | 121 |
 | Unclassified | 133 | 93 | 18 |
 | Malware / C2 | 6 | 11 | 11 |
-| Policy violation | 9 | 8 | 8 |
+| Policy violation | 9 | 8 | 10 |
 | Data exfiltration (suspected) | 7 | 7 | 7 |
 | Brute force | 6 | 6 | 6 |
 | Flood | 4 | 4 | 4 |

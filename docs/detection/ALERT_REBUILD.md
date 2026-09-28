@@ -70,6 +70,18 @@ entry reports 0 new alerts: the count compared ids with the old maximum, and
 SQLite reuses ids after a deletion. The count is fixed; the audit entry is
 left as written.
 
+## 2026-09-28 rebuild (rule catalog v5.36.0)
+
+Applied after alerts began taking their attack type from the evidence and
+informational firewall records that name no attack became supporting evidence.
+Migration `d9e3f4a5b6c7` first (backup
+`backups/atdr-sqlite-20260928T055316Z-314be493.sqlite3`), then the rebuild
+(backup `...055331Z-c9ca4af1`): the same 5 worked alerts kept, 244 archived,
+175 raised, 180 in all (Critical 40, High 44, Medium 79, Low 17). Each of the 8
+campus devices the firewall names as an XMRig miner now has its own Critical
+"Palo Alto malware or C2 threat" alert; the GHOSTENGINE watchlist alert stays.
+Unclassified alerts: 133 before the attack-type work, 18 now.
+
 ## Alert numbers after a rebuild
 
 SQLite numbers a new alert one above the highest remaining id, so a rebuild's
