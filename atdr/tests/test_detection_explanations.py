@@ -238,3 +238,16 @@ def test_an_unflagged_file_sharing_log_says_it_is_tracked_as_policy_activity():
 
     assert any("peer-to-peer file sharing" in reason for reason in explain_log_triage(torrent)["reasons"])
     assert not any("file sharing" in reason for reason in explain_log_triage(call)["reasons"])
+
+
+def test_an_unflagged_internet_probe_says_background_probing_is_summarised():
+    probe = NormalizedLog(id=13, raw_log_id=4, src_ip="45.33.32.9", dst_ip="10.0.0.50", dst_port=4040, app="incomplete",
+                          src_zone="SG-Outside", dst_zone="WLAN-Inside", bytes_received=0, action="allow", parsed_json={})
+    answered = NormalizedLog(id=14, raw_log_id=5, src_ip="45.33.32.9", dst_ip="10.0.0.50", dst_port=443, app="ssl",
+                             src_zone="SG-Outside", dst_zone="WLAN-Inside", bytes_received=900, action="allow", parsed_json={})
+    internal = NormalizedLog(id=15, raw_log_id=6, src_ip="10.9.9.9", dst_ip="10.0.0.50", dst_port=4040, app="incomplete",
+                             src_zone="SG-Outside", dst_zone="WLAN-Inside", bytes_received=0, action="allow", parsed_json={})
+
+    assert any("internet background probing" in reason for reason in explain_log_triage(probe)["reasons"])
+    assert not any("background probing" in reason for reason in explain_log_triage(answered)["reasons"])
+    assert not any("background probing" in reason for reason in explain_log_triage(internal)["reasons"])

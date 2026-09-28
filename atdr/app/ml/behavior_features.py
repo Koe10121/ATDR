@@ -17,6 +17,9 @@ import pandas as pd
 
 from atdr.app.detection.rules import (
     AUTH_SERVICE_PORTS,
+    BACKGROUND_MAX_CONNECTIONS,
+    BACKGROUND_MAX_HOSTS,
+    BACKGROUND_MAX_PORTS,
     COMMON_PORTS,
     INSIDE_ZONE_TOKENS,
     OUTSIDE_ZONE_TOKENS,
@@ -39,10 +42,10 @@ POLICY_COLUMNS = ["p2p_share"]
 P2P_POLICY_SHARE = 0.5
 # Background probing: an internet host sending a few unanswered connections to a few MFU addresses.
 # The internet does this to every public network all day, so it is summarised, not alerted on one by
-# one. A source that touches 10 or more hosts or 5 or more ports is a scan, not background.
-PROBE_MAX_HOSTS = 9
-PROBE_MAX_PORTS = 4
-PROBE_MAX_CONNECTIONS = 20
+# one. The limits are the rules' (detection/rules.py), so both engines agree on what background is.
+PROBE_MAX_HOSTS = BACKGROUND_MAX_HOSTS
+PROBE_MAX_PORTS = BACKGROUND_MAX_PORTS
+PROBE_MAX_CONNECTIONS = BACKGROUND_MAX_CONNECTIONS
 FEATURES = [
     "n_logs", "n_dst_ips", "n_dst_ports", "max_ports_per_dst", "max_dsts_per_port", "top_dst_share",
     "top_service_logs", "deny_share", "zero_reply_share", "mean_packets", "max_packets", "bytes_sent_total",

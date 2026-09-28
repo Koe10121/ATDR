@@ -168,6 +168,16 @@ Rules re-run on a copy of the holdout, model flags recomputed with the policy:
   2), an HTTP proxy (very high application risk, 1) and the SSL session on port
   4433 (beaconing, 1).
 
+### v5.35.0: internet background probing is summarised
+
+The rules now apply the background-probing policy the behaviour model already
+followed: an unanswered connection from an internet host whose source stays
+within 9 hosts, 4 ports and 20 connections is summarised, unless there is
+stronger evidence (a firewall threat or malware log, brute force, a watchlist
+match, or 5 or more denied attempts). On the same 150 labels nothing moves:
+precision 80.6%, recall 81.8%, false alarms 1.5%, F1 81.2%. The 3 samples that
+stop alerting were all unusual-port probes the reviewer labeled "Unsure".
+
 ## Human verification (pending)
 
 The team will check the AI reviewer's labels by hand: all 31 Threat labels, all

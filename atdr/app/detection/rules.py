@@ -1,3 +1,4 @@
+import ipaddress
 import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass
@@ -136,6 +137,8 @@ class CorrelationSnapshot:
     # previous and next window); the cadence fields above use the same span.
     beacon_event_count: int = 0
     beacon_repeat_count: int = 0
+    # Different destination addresses this source contacted in the window.
+    distinct_destinations: int = 0
 
 
 @dataclass(slots=True)
@@ -158,6 +161,41 @@ P2P_SUBCATEGORY = "file-sharing"
 
 def is_p2p_file_sharing(log: NormalizedLog) -> bool:
     return _lower(log.app_technology) == P2P_TECHNOLOGY and _lower(log.app_subcategory) == P2P_SUBCATEGORY
+
+
+# Internet background probing: an outside host making a few unanswered connections to a few MFU
+# addresses. Every public network receives this all day, so ATDR summarises it (the behaviour model's
+# dashboard summary uses the same limits) and alerts only on stronger evidence. A source that touches
+# 10 or more hosts or 5 or more ports is a scan, not background.
+BACKGROUND_MAX_HOSTS = 9
+BACKGROUND_MAX_PORTS = 4
+BACKGROUND_MAX_CONNECTIONS = 20
+
+
+def _is_private_address(value: str | None) -> bool:
+    try:
+        return ipaddress.ip_address(str(value)).is_private
+    except ValueError:
+        return False
+
+
+def looks_like_background_probe(log: NormalizedLog) -> bool:
+    """One unanswered connection from an internet host into MFU: background probing if its source stays small."""
+
+    return is_outside_to_inside(log) and not _is_private_address(log.src_ip) and _looks_unanswered(log)
+
+
+def is_background_probe(log: NormalizedLog, context: DetectionContext) -> bool:
+    """This log is part of background probing: its source stayed within a few hosts, ports and connections."""
+
+    snapshot = context.event_correlations.get(_event_key(log))
+    if snapshot is None or not looks_like_background_probe(log):
+        return False
+    return (
+        snapshot.distinct_destinations <= BACKGROUND_MAX_HOSTS
+        and len(snapshot.distinct_ports) <= BACKGROUND_MAX_PORTS
+        and snapshot.source_count <= BACKGROUND_MAX_CONNECTIONS
+    )
 
 
 def _looks_unanswered(log: NormalizedLog) -> bool:
@@ -500,6 +538,7 @@ def _window_snapshots(
         if _is_deny_or_drop(item) and item.dst_port in AUTH_SERVICE_PORTS
     )
     distinct_ports = frozenset(item.dst_port for item in grouped_logs if item.dst_port is not None)
+    distinct_destinations = len({item.dst_ip for item in grouped_logs if item.dst_ip})
     destination_counts: Counter[tuple[str, int | None]] = Counter()
     destination_event_counts: Counter[tuple[str, int | None]] = Counter()
     auth_target_deny_counts: Counter[tuple[str, int | None]] = Counter()
@@ -556,6 +595,7 @@ def _window_snapshots(
             large_outbound_to_destination_count=large_outbound_by_destination.get(item.dst_ip or "", 0),
             beacon_event_count=beacon_events,
             beacon_repeat_count=beacon_repeats,
+            distinct_destinations=distinct_destinations,
         )
     return snapshots
 

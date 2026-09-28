@@ -583,3 +583,55 @@ def test_malware_threat_and_country_watch_work_in_both_detection_modes():
 
     assert results["full"] == (1, "paloalto_malware_threat")
     assert results["bounded"] == results["full"]
+
+
+def _inbound_probe(db, *, src, dst, port, log_type="TRAFFIC"):
+    raw = RawLog(raw_line=f"probe {src} {dst} {port} {log_type}")
+    db.add(raw)
+    db.flush()
+    db.add(NormalizedLog(
+        raw_log_id=raw.id, generated_time=datetime(2026, 5, 20, 13, 36, 15), log_type=log_type, src_ip=src, dst_ip=dst,
+        src_zone="SG-Outside", dst_zone="WLAN-Inside", app="incomplete", app_category="unknown", dst_port=port,
+        action="allow", protocol="tcp", bytes=60, bytes_received=0, packets=1, parsed_json={},
+    ))
+
+
+def test_internet_background_probing_is_summarised_not_alerted():
+    # 20 internet hosts, one unanswered probe each: what every public network receives all day.
+    db = _session()
+    for index in range(20):
+        _inbound_probe(db, src=f"45.33.32.{index + 1}", dst="10.0.0.50", port=4040)
+    db.commit()
+    result = run_detection(db, limit=100, use_ml=False, actor="test")
+    assert result["created_alerts"] == 0
+    assert result["background_probe_logs"] == 20
+
+
+def test_a_source_beyond_background_limits_or_with_a_threat_log_still_alerts():
+    db = _session()
+    for host in range(12):  # 12 MFU hosts: a horizontal scan, not background
+        _inbound_probe(db, src="45.33.32.200", dst=f"10.0.0.{host + 1}", port=4040)
+    _inbound_probe(db, src="45.33.32.201", dst="10.0.0.99", port=4040, log_type="THREAT")  # small, but the firewall saw a threat
+    db.commit()
+    run_detection(db, limit=100, use_ml=False, actor="test")
+    alerted = {alert.src_ip for alert in db.scalars(select(Alert))}
+    assert "45.33.32.200" in alerted, "10 or more hosts is a scan"
+    assert "45.33.32.201" in alerted, "a firewall threat log escalates a small probe"
+
+
+def test_repeated_denied_attempts_from_a_small_internet_source_still_alert():
+    db = _session()
+    for attempt in range(6):  # one host, one port, six denials: repeated attempts, not background noise
+        raw = RawLog(raw_line=f"denied {attempt}")
+        db.add(raw)
+        db.flush()
+        db.add(NormalizedLog(
+            raw_log_id=raw.id, generated_time=datetime(2026, 5, 20, 13, 36, 15 + attempt), log_type="TRAFFIC",
+            src_ip="45.33.32.210", dst_ip="10.0.0.60", src_zone="SG-Outside", dst_zone="WLAN-Inside", app="incomplete",
+            app_category="unknown", dst_port=8443, action="deny", protocol="tcp", bytes=60, bytes_received=0, packets=1,
+            parsed_json={},
+        ))
+    db.commit()
+    result = run_detection(db, limit=100, use_ml=False, actor="test")
+    assert {alert.src_ip for alert in db.scalars(select(Alert))} == {"45.33.32.210"}
+    assert result["background_probe_logs"] == 0

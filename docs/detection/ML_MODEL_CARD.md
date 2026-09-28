@@ -54,7 +54,8 @@ probes should count as threats is a policy decision for the team, and the
 blind check is scored both ways. The team has decided to keep summarising
 them: a probe is escalated only with stronger evidence, such as repeated
 attempts, wider host or port coverage, a known malicious indicator,
-exploitation, or other correlated signals.
+exploitation, or other correlated signals. From rule catalog v5.35.0 the rules
+use the same limits (defined once, in `detection/rules.py`).
 
 **Peer-to-peer file sharing (from catalog v5.34.0).** BitTorrent and similar
 file sharing is policy activity, not an attack. A window in which at least half

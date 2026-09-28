@@ -27,8 +27,9 @@ mfu_behavior_v2). Details are in the linked documents.
 | Measurement | Kind | Precision | Recall | False alarms | F1 |
 |---|---|---|---|---|---|
 | Blind check, 150 logs, rules v5.32.0 (official) | Blind | 50.9% (38.6-64.9%) | 81.8% (61.9-100%) | 6.0% | 62.7% |
-| Blind check re-scored, rules v5.34.0 | Second look | 80.6% (66.7-92.7%) | 81.8% | 1.5% | 81.2% |
+| Blind check re-scored, rules v5.34.0 and v5.35.0 | Second look | 80.6% (66.7-92.7%) | 81.8% | 1.5% | 81.2% |
 | Detection scoreboard, 2,132 team labels, v5.34.0 | Agreement | 95.5% | 80.4% | 1.8% | 87.3% |
+| Detection scoreboard, 2,132 team labels, v5.35.0 | Agreement | 95.6% | 73.1% | 1.6% | 82.9% |
 | Live alert list before the rebuild (3,676 alerts) | Agreement | 48.9% | 87.6% | 43.3% | 62.8% |
 | Live alert list after the rebuild (314 alerts) | Agreement | 93.9% | 80.4% | 2.5% | 86.6% |
 
@@ -41,6 +42,13 @@ mfu_behavior_v2). Details are in the linked documents.
   labeled Threat lost its alert.
 - Most of the scoreboard's lower recall is BitTorrent the team labeled as a
   threat; with file sharing scored as policy, F1 is 95.3%.
+- v5.35.0 summarises internet background probing (isolated unanswered probes
+  from a source touching at most 9 hosts, 4 ports and 20 connections) unless
+  there is stronger evidence. It changed nothing on the blind labels (the 3
+  samples it stops alerting on were labeled "Unsure") and cut alerts on the
+  unimported 13:45-13:57 traffic by 19%. The team's labels had called 43 such
+  probes port scans, so their recall drops to 73.1%; those labels are part of
+  the pending human check.
 - Sources: `detection/BLIND_CHECK.md`, `DETECTION_RULE_CATALOG.md`,
   `detection/ALERT_REBUILD.md`.
 

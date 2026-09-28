@@ -28,6 +28,7 @@ from atdr.app.detection.rules import (
     correlation_window_start,
     evaluate_rules,
     event_time,
+    is_background_probe,
     is_outside_to_inside,
     is_p2p_file_sharing,
     outlier_threshold,
@@ -91,6 +92,9 @@ SUPPORTING_ONLY_RULES = frozenset(
 P2P_MALICIOUS_EVIDENCE_RULES = frozenset(
     {"paloalto_threat_log", "paloalto_malware_threat", "brute_force_like_attempts", "watchlist_match"}
 )
+# Internet background probing is summarised the same way. The same evidence escalates it, and so do
+# repeated denied attempts from one source (5 or more), the "repeated attempts" the policy names.
+BACKGROUND_ESCALATION_RULES = P2P_MALICIOUS_EVIDENCE_RULES | {"multiple_denied_connections"}
 CONTEXT_ONLY_PRIMARY_RULES = frozenset(
     {
         "outside_to_inside",
@@ -696,6 +700,7 @@ def run_detection(
         advisory_only_logs = 0
         supporting_only_logs = 0
         p2p_policy_logs = 0
+        background_probe_logs = 0
         authoritative_rule_signals = 0
         matched_rule_ids: set[str] = set()
         authoritative_matched_rule_ids: set[str] = set()
@@ -766,6 +771,9 @@ def run_detection(
                 continue
             if is_p2p_file_sharing(log) and not any(match.code in P2P_MALICIOUS_EVIDENCE_RULES for match in trigger_matches):
                 p2p_policy_logs += 1
+                continue
+            if is_background_probe(log, context) and not any(match.code in BACKGROUND_ESCALATION_RULES for match in trigger_matches):
+                background_probe_logs += 1
                 continue
             result = _result_from_matches(matches, scoring_matches=authoritative_matches)
             if result.threat_score >= settings.min_alert_score:
@@ -889,6 +897,7 @@ def run_detection(
             "advisory_only_logs": advisory_only_logs,
             "supporting_only_logs": supporting_only_logs,
             "p2p_policy_logs": p2p_policy_logs,
+            "background_probe_logs": background_probe_logs,
             "rule_detection_authoritative": True,
             "detection_layers": detection_layers,
             "limit": limit,
