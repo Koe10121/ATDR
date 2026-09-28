@@ -69,3 +69,14 @@ still including the Critical GHOSTENGINE watchlist alert. That run's audit
 entry reports 0 new alerts: the count compared ids with the old maximum, and
 SQLite reuses ids after a deletion. The count is fixed; the audit entry is
 left as written.
+
+## Alert numbers after a rebuild
+
+SQLite numbers a new alert one above the highest remaining id, so a rebuild's
+new alerts take the numbers of the alerts it archived, and every rebuild reuses
+the same range above the highest kept alert. An alert number quoted before a
+rebuild can therefore name a different alert afterwards; the archive keeps the
+old one. The archive can hold the same original number more than once (one row
+per rebuild that archived it; tell them apart by `archived_at` and
+`superseded_by_catalog`). Until migration `d9e3f4a5b6c7` it could not, and a
+third rebuild failed on it and rolled back without changing anything.

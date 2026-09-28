@@ -210,7 +210,8 @@ class AlertArchive(Base):
     __tablename__ = "alert_archive"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    original_alert_id: Mapped[int] = mapped_column(Integer, nullable=False, unique=True, index=True)
+    # Not unique: SQLite reuses the ids of deleted alerts, so a rebuild can archive an id twice.
+    original_alert_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     alert_type: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     severity: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
