@@ -220,7 +220,11 @@ def pattern_condition_failures(db: Session, patterns: dict[str, dict[str, Any]])
     the log's own firewall record names that type.
     """
 
-    alerted = {int(row) for row in db.scalars(select(AlertEvidence.normalized_log_id).distinct())}
+    alert_types: dict[int, set[str]] = defaultdict(set)
+    for log_id, alert_type in db.execute(
+        select(AlertEvidence.normalized_log_id, Alert.alert_type).join(Alert, Alert.id == AlertEvidence.alert_id)
+    ):
+        alert_types[int(log_id)].add(str(alert_type))
     evidence_by_source: dict[str | None, bool] = {}
     failures: dict[str, dict[int, str]] = {}
     for pattern_id, pattern in patterns.items():
@@ -231,7 +235,9 @@ def pattern_condition_failures(db: Session, patterns: dict[str, dict[str, Any]])
                 if _firewall_named_type(log) != named_type:
                     failed[int(log.id)] = f"its firewall record does not name {ATTACK_NAMES.get(named_type, named_type)}"
                 continue
-            if int(log.id) in alerted:
+            # The unidentified-app group asks about the very alert it sits in, so only another alert counts.
+            under_question = {"unknown_or_incomplete_app"} if pattern.get("key") == "unidentified_app" else set()
+            if alert_types.get(int(log.id), set()) - under_question:
                 failed[int(log.id)] = "it is in an alert"
                 continue
             if log.src_ip not in evidence_by_source:
@@ -279,6 +285,21 @@ def torrent_label_decisions(rows: dict[str, int], answers: dict[str, dict[str, s
          "note": (answers.get(row) or {}).get("note") or "", "log_ids": [log_id]}
         for row, log_id in rows.items()
     ]
+
+
+def merge_followup(previous: list[dict[str, str]], answers: dict[str, dict[str, str]], id_field: str) -> tuple[list[dict[str, str]], list[str]]:
+    """Earlier decisions with each row the follow-up decided replaced; returns the rows and the ids that changed."""
+
+    merged, changed = [], []
+    for row in previous:
+        answer = answers.get(row[id_field]) or {}
+        if answer.get("decision"):
+            merged.append({**row, "decision": answer["decision"], "confidence": answer.get("confidence") or "",
+                           "note": answer.get("note") or row.get("note", "")})
+            changed.append(row[id_field])
+        else:
+            merged.append(row)
+    return merged, changed
 
 
 def blind_comparison(ai: dict[str, str], human: dict[str, str], groups: dict[str, list[str]]) -> dict[str, Any]:

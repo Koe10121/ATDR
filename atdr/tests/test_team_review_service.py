@@ -167,6 +167,35 @@ def test_only_a_finished_person_review_counts():
     assert signoff_counts_as_person("AI-assisted and a person checked every row", "28 Sep", "AI helped us sort rows; we then checked each one.")
 
 
+def test_follow_up_answers_replace_only_the_rows_they_decide():
+    from atdr.app.services.team_review_service import merge_followup
+
+    earlier = [{"review_id": "F001", "decision": "Threat", "confidence": "High", "note": "a"},
+               {"review_id": "F006", "decision": "Unsure", "confidence": "Low", "note": "needs upload context"},
+               {"review_id": "F016", "decision": "Unsure", "confidence": "Low", "note": "needs signatures"}]
+    merged, changed = merge_followup(earlier, {"F006": {"decision": "Normal", "note": "a backup job"}, "F016": {"decision": ""}}, "review_id")
+    assert changed == ["F006"]
+    assert [row["decision"] for row in merged] == ["Threat", "Normal", "Unsure"]
+    assert merged[1]["note"] == "a backup job"
+
+
+def test_unidentified_app_labels_are_not_blocked_by_the_alert_in_question():
+    from atdr.app.services.team_review_service import pattern_condition_failures
+
+    db = _session()
+    ids = _seed(db)
+    group = {"apps": {"key": "unidentified_app", "proposal": {"decision": "Normal but unusual", "attack_type": None},
+                      "log_ids": [ids["busy_unknown_udp"]]}}
+    assert pattern_condition_failures(db, group)["apps"] == {}
+    scan = Alert(title="scan", alert_type="possible_port_scan", threat_score=40, severity="Medium", status="open",
+                 explanation="e", matched_rules_json=[], recommended_response="r")
+    db.add(scan)
+    db.flush()
+    db.add(AlertEvidence(alert_id=scan.id, normalized_log_id=ids["busy_unknown_udp"]))
+    db.commit()
+    assert pattern_condition_failures(db, group)["apps"] == {ids["busy_unknown_udp"]: "it is in an alert"}
+
+
 def test_a_group_is_relabeled_only_where_its_condition_holds():
     from atdr.app.services.team_review_service import pattern_condition_failures
 

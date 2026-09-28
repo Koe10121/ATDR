@@ -69,6 +69,29 @@ source stays within the background limits in the five minutes around it); a
 type is corrected only where the log's own firewall record names it. Labels
 that fail keep their label and are listed in `label_conditions.json`.
 
+## Follow-up for the rows left Unsure
+
+The 28 Sep return left 13 rows Unsure (8 model rows, 5 blind-check logs) and the
+unidentified-app group undecided, and asked for more detail. The follow-up
+(`python -m atdr.scripts.team_review_followup build`, then `read --pack ...`)
+gives it for every Unsure row, so the model review stays blind:
+
+- **A2** each model row's firewall threat records with their signatures, its
+  biggest uploads, traffic per destination and its individual flows;
+- **B2** the same source's flows around each blind-check log;
+- **D2** one row per device behind the unidentified-app labels (4 devices, 76
+  labels): spread, UDP share, replies, regularity, how sessions ended, and the
+  alerts ATDR raised on it. Process names and TLS certificates are not in
+  firewall logs, so neither file can show them.
+
+`read` merges the new decisions into the pack's outputs (keeping timestamped
+copies of the earlier files), re-scores the blind check the same way, and
+writes `label_decisions_followup.json`. The unidentified-app labels are
+relabeled only for devices the team calls not an attack; their own alert does
+not count as conflicting evidence, since it is the rule in question. One of
+the model rows is the port-scan find that decides whether port scan meets the
+bar (5 judged).
+
 ## For the team lead
 
 ```
