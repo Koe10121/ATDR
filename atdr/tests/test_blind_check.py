@@ -174,3 +174,25 @@ def test_a_scratch_database_from_older_models_gets_the_new_tables_and_columns(tm
     assert "alert_archive" in schema(engine).get_table_names()
     assert sync_scratch_schema(engine) == [], "running it again changes nothing"
     engine.dispose()
+
+
+def test_scoring_other_decisions_never_replaces_the_official_result(tmp_path):
+    from argparse import Namespace
+
+    from atdr.scripts.blind_check import score
+
+    samples = [{"sample_id": "a", "stratum": "alerted", "alerted": True, "alert_types": ["possible_port_scan"]}]
+    key = tmp_path / "key.json"
+    key.write_text(json.dumps(_key({"alerted": 1, "notable": 0, "other": 0}, samples)), encoding="utf-8")
+    decisions = tmp_path / "decisions.csv"
+    decisions.write_text("sample_id,decision\na,Threat\n", encoding="utf-8")
+
+    score(Namespace(key=str(key), decisions=str(decisions), out=None))
+    official = (tmp_path / "score.json").read_text(encoding="utf-8")
+    decisions.write_text("sample_id,decision\na,Normal\n", encoding="utf-8")
+    with pytest.raises(SystemExit, match="never replaced"):
+        score(Namespace(key=str(key), decisions=str(decisions), out=None))
+    assert (tmp_path / "score.json").read_text(encoding="utf-8") == official
+
+    score(Namespace(key=str(key), decisions=str(decisions), out=str(tmp_path / "second_look.json")))
+    assert json.loads((tmp_path / "second_look.json").read_text(encoding="utf-8"))["estimate"]["precision"] == 0.0

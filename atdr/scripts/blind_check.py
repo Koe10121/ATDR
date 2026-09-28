@@ -74,7 +74,11 @@ def score(args: argparse.Namespace) -> None:
     with Path(args.decisions).open(encoding="utf-8-sig", newline="") as handle:
         decisions = {row["sample_id"]: row.get("decision") for row in csv.DictReader(handle)}
     report = score_blind_check(key, decisions)
-    write_json(Path(args.key).with_name("score.json"), report)
+    # The first score next to the key is the official blind result; it is never replaced.
+    out = Path(args.out) if args.out else Path(args.key).with_name("score.json")
+    if out.exists() and not args.out:
+        raise SystemExit(f"{out} holds the official blind result and is never replaced; pass --out to score these decisions elsewhere.")
+    write_json(out, report)
     estimate, interval = report["estimate"], report["interval_95"]
     print(f"Blind check, {report['window']['start']} to {report['window']['end']}: {report['labels']}")
     for metric in ("precision", "recall", "false_alarm_rate", "f1"):
@@ -103,6 +107,7 @@ def main() -> None:
     grade = commands.add_parser("score", help="Score the team's blind labels.")
     grade.add_argument("--decisions", required=True)
     grade.add_argument("--key", default=str(OUT_DIR / "key.json"))
+    grade.add_argument("--out", help="where to write this score (default: score.json next to the key, only if none exists yet)")
     grade.set_defaults(handler=score)
     args = parser.parse_args()
     args.handler(args)

@@ -161,6 +161,9 @@ Source: `SOC_ASSISTANT_CONVERSATIONAL.md`.
 
 ## Open items
 
-- Team: check the blind labels (83 rows) and review v2's extra finds (30 rows).
+- Team: fill in the team review pack (`detection/TEAM_REVIEW_PACK.md`): v2's
+  extra finds (30 rows), the blind-check logs judged without the AI's answer
+  (83 rows), 11 BitTorrent labels, and 5 groups of team labels (207 labels)
+  that contradict the firewall's own record or the team's policies.
 - Another MFU export, even an hour from a different day, would allow one clean
   end-to-end test of the whole system.

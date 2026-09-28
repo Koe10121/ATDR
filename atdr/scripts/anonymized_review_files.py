@@ -287,7 +287,7 @@ def _torrent_rows() -> list[dict[str, Any]]:
             WHERE l.reviewed = 1 AND l.id = (SELECT MAX(id) FROM ml_labels WHERE log_id = l.log_id AND reviewed = 1)
         )
         SELECT n.generated_time, n.src_ip, n.dst_ip, n.dst_port, n.src_zone, n.dst_zone, n.app, n.action,
-               n.bytes_sent, n.bytes_received, n.session_end_reason, l.label, l.attack_type, l.label_source, l.review_note
+               n.bytes_sent, n.bytes_received, n.session_end_reason, l.label, l.attack_type, l.label_source, l.review_note, n.id
         FROM latest l JOIN normalized_logs n ON n.id = l.log_id
         WHERE lower(n.app_technology) = ? AND lower(n.app_subcategory) = ? AND l.attack_type != 'policy_violation'
         ORDER BY n.generated_time
@@ -303,19 +303,21 @@ def _torrent_rows() -> list[dict[str, Any]]:
                 (P2P_TECHNOLOGY, P2P_SUBCATEGORY, src),
             ).fetchone()
     for index, row in enumerate(found, start=1):
-        (when, src, dst, port, src_zone, dst_zone, app, action, sent, received, end, label, attack, source, note) = row
+        (when, src, dst, port, src_zone, dst_zone, app, action, sent, received, end, label, attack, source, note, log_id) = row
         logs, share, destinations, ports, threats = context[src]
         rows.append({
             "row": f"T{index:02d}", "time": str(when)[11:19], "source": src, "destination": f"{dst}:{port}",
             "direction": f"{src_zone} -> {dst_zone}", "app": app, "action": action, "bytes": f"{sent or 0:,.0f} / {received or 0:,.0f}",
             "session_end_reason": end, "source_logs": logs, "source_p2p_share": f"{(share or 0):.0%}",
             "source_destinations": destinations, "source_ports": ports, "source_threat_logs": threats or 0,
-            "team_label": f"{label} / {attack}", "label_source": source, "team_note": note or "",
+            "team_label": f"{label} / {attack}", "label_source": source, "team_note": note or "", "log_id": int(log_id),
         })
     return rows
 
 
-def build_blind_verification(names: MfuPseudonyms) -> Path:
+def blind_selection() -> dict[str, Any]:
+    """The blind-check rows a person checks: every Threat, false alarm and Unsure, plus random others, shuffled."""
+
     samples = {row["sample_id"]: row for row in json.loads((BLIND / "sample.json").read_text(encoding="utf-8"))}
     key = json.loads((BLIND / "key.json").read_text(encoding="utf-8"))
     decisions = {row["sample_id"]: row for row in csv.DictReader((BLIND / "decisions.csv").open(encoding="utf-8"))}
@@ -332,6 +334,13 @@ def build_blind_verification(names: MfuPseudonyms) -> Path:
     decoys = rng.sample(sorted(groups["other"]), min(DECOYS, len(groups["other"])))
     chosen = [*groups["threat"], *groups["false_alarm"], *groups["unsure"], *decoys]
     rng.shuffle(chosen)
+    return {"samples": samples, "decisions": decisions, "groups": groups, "decoys": decoys, "chosen": chosen}
+
+
+def build_blind_verification(names: MfuPseudonyms) -> Path:
+    selection_ = blind_selection()
+    samples, decisions, groups = selection_["samples"], selection_["decisions"], selection_["groups"]
+    decoys, chosen = selection_["decoys"], selection_["chosen"]
 
     raw_rows = []
     for sample_id in chosen:
@@ -339,7 +348,7 @@ def build_blind_verification(names: MfuPseudonyms) -> Path:
         raw_rows.append({**samples[sample_id], "ai_decision": decision["decision"], "ai_confidence": decision["confidence"],
                          "ai_note": decision["note"]})
     rows = _anonymize_rows(raw_rows, names)
-    torrents = _anonymize_rows(_torrent_rows(), names)
+    torrents = _anonymize_rows([{key: value for key, value in row.items() if key != "log_id"} for row in _torrent_rows()], names)
     selection = {"seed": SEED, "rows": len(chosen), "groups": {name: sorted(ids) for name, ids in groups.items() if name != "other"},
                  "decoys": sorted(decoys)}
     (BLIND / "verification_selection.json").write_text(json.dumps(selection, indent=1), encoding="utf-8")

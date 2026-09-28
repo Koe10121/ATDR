@@ -28,6 +28,7 @@ const ATTACK_TYPE_OPTIONS: MLAttackType[] = [
   "malware_c2",
   "policy_violation",
   "data_exfiltration_suspicion",
+  "exploit_attempt",
   "unknown_anomaly"
 ];
 const LOG_FILTER_DEFAULTS = {

@@ -192,9 +192,12 @@ sample changes its flag. On the unimported 13:45-13:57 traffic alerts go from
 The team will check the AI reviewer's labels by hand: all 31 Threat labels, all
 28 false alarms (logs the rules or the model flagged that the reviewer called
 Normal or Normal but unusual) and the 4 Unsure rows, mixed with 20 random other
-rows so the checkers cannot tell which rows ATDR flagged (83 rows,
-`.tmp/blind_check/ATDR_blind_label_verification.xlsx`). The sheet shows the
-reviewer's decision and note and asks Agree or Change. A second sheet asks
+rows so the checkers cannot tell which rows ATDR flagged (83 rows). The first
+sheet for this (`.tmp/blind_check/ATDR_blind_label_verification.xlsx`, 27 Sep)
+showed the reviewer's decision and asked Agree or Change; it came back as a
+second AI pass, not a person's check. The same 83 rows are now part B of the team
+review pack (`TEAM_REVIEW_PACK.md`), with the AI reviewer's decision hidden: a
+person decides each row from scratch and ATDR compares the two. A second sheet asks
 whether the 11 BitTorrent logs our own team labeled as threats (10 port scans,
 1 unknown anomaly) are still threats under the file-sharing policy. IP addresses are anonymized consistently: the same address
 always gets the same stand-in, MFU addresses stay recognisable as MFU and
@@ -212,7 +215,8 @@ python -m atdr.scripts.anonymized_review_files verify-blind-labels   # needs ope
 ```
 
 `prepare` reuses `holdout.db` if it exists. `score` reads a CSV with columns
-`sample_id` and `decision` and writes `.tmp/blind_check/score.json`. The files
+`sample_id` and `decision` and writes `.tmp/blind_check/score.json` once; after
+that it refuses to replace it and needs `--out` for any other scoring. The files
 under `.tmp/blind_check/` contain real MFU IP addresses and stay private to
 the team. The second looks are written next to it (`second_look.json` for
 v5.33.0, `second_look_v5_34.json` for v5.34.0); `score.json` is the official

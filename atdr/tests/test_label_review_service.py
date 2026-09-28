@@ -84,3 +84,24 @@ def test_unknown_decisions_are_rejected():
         assert "Maybe" in str(error)
     else:
         raise AssertionError("an unknown decision must be rejected")
+
+
+def test_review_can_correct_what_kind_of_threat_a_label_names():
+    db = _session()
+    miner = _labeled_log(db, 1, "suspicious", "policy_violation")   # firewall names XMRig C2
+    right = _labeled_log(db, 2, "malicious", "malware_c2")          # already correct
+    harmless = _labeled_log(db, 3, "benign_unusual", "normal")      # a threat the team missed
+    db.commit()
+    decisions = [{**_decision(log_id, "Real threat"), "attack_type": "malware_c2"} for log_id in (miner, right, harmless)]
+
+    applied = apply_label_review(db, decisions, reviewer="team", note_prefix="pack", apply=True)
+
+    assert (applied["labels_to_add"], applied["unchanged"]) == (2, 1)
+    assert (_latest(db, miner).label, _latest(db, miner).attack_type) == ("suspicious", "malware_c2"), "stays a threat, type corrected"
+    assert (_latest(db, harmless).label, _latest(db, harmless).attack_type) == ("suspicious", "malware_c2")
+    try:
+        apply_label_review(db, [{**_decision(miner, "Real threat"), "attack_type": "crypto_mining"}], reviewer="team", note_prefix="pack")
+    except ValueError as error:
+        assert "crypto_mining" in str(error)
+    else:
+        raise AssertionError("an unknown attack type must be refused")

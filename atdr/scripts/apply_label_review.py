@@ -4,7 +4,7 @@ Usage:
     python -m atdr.scripts.apply_label_review decisions.json --reviewer "Name"          # dry run
     python -m atdr.scripts.apply_label_review decisions.json --reviewer "Name" --apply  # write
 
-decisions.json: {"note": "...", "decisions": [{"source_ip", "pattern", "decision",
+decisions.json: {"note": "...", "decisions": [{"source_ip", "pattern", "decision", "attack_type" (optional),
 "note", "log_ids": [...], "atdr_alert_type"}]}. Decisions are "Real threat",
 "Normal", "Normal but unusual" or "Unsure"; each change becomes a new
 reviewed label and earlier labels are kept.

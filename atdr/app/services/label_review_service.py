@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from atdr.app.db.models import AuditLog, MLLabel
 from atdr.app.detection.attack_mapping import infer_attack_type_from_rules
 from atdr.app.services.detection_scoreboard_service import THREAT_LABELS
+from atdr.app.services.ml_label_service import VALID_ATTACK_TYPES
 
 LABEL_SOURCE = "reviewed_import"
 REVIEW_CONFIDENCE = 3
@@ -70,11 +71,19 @@ def plan_label_review(db: Session, decisions: list[dict[str, Any]]) -> dict[str,
         for log_id in item_logs:
             current = latest.get(log_id)
             if decision == THREAT_DECISION:
+                # A review may also correct what kind of threat it is, e.g. when the
+                # firewall's own signature names it (miner C2 labeled "policy violation").
+                corrected_type = item.get("attack_type")
+                if corrected_type is not None and corrected_type not in VALID_ATTACK_TYPES:
+                    raise ValueError(f"Unknown attack type {corrected_type!r} for {item.get('pattern')}.")
                 if current is not None and current.label in THREAT_LABELS:
-                    unchanged += 1
-                    continue
-                to_label = "suspicious"
-                attack_type = infer_attack_type_from_rules([{"code": item.get("atdr_alert_type") or ""}])
+                    if not corrected_type or current.attack_type == corrected_type:
+                        unchanged += 1
+                        continue
+                    to_label, attack_type = current.label, corrected_type
+                else:
+                    to_label = "suspicious"
+                    attack_type = corrected_type or infer_attack_type_from_rules([{"code": item.get("atdr_alert_type") or ""}])
             else:
                 to_label = HARMLESS_DECISIONS[decision]
                 # "benign_unusual" labels keep the attack type they resemble

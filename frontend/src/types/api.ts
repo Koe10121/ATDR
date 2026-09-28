@@ -827,6 +827,7 @@ export type MLAttackType =
   | "malware_c2"
   | "policy_violation"
   | "data_exfiltration_suspicion"
+  | "exploit_attempt"
   | "unknown_anomaly";
 
 export interface MLLabel {
