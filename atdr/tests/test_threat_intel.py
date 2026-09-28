@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from sqlalchemy import select
 
 from atdr.app.db.models import Alert, AuditLog, NormalizedLog, RawLog, WatchlistItem
+from atdr.app.detection.attack_mapping import infer_attack_type_from_rules
 from atdr.app.services.detection_service import run_detection
 from atdr.app.services.threat_intel_service import import_feed, parse_feed, stored_log_matches
 from atdr.app.services.watchlist_service import (
@@ -123,6 +124,8 @@ def test_a_host_calling_a_feed_address_raises_a_watchlist_alert():
     alert = db.scalar(select(Alert))
     assert alert is not None and alert.alert_type == "watchlist_match" and alert.threat_score >= 60
     assert db.scalar(select(WatchlistItem).where(WatchlistItem.indicator_value == "50.16.16.211")).match_count == 1
+    # A host reaching a listed C2 server is contact with malware infrastructure, not "unclassified".
+    assert infer_attack_type_from_rules(alert.matched_rules_json) == "malware_c2"
 
 
 def test_the_api_lists_feeds_apart_from_manual_items():

@@ -62,6 +62,7 @@ ATTACK_PHRASES: tuple[tuple[str, str], ...] = (
     (r"\bd?dos\b|\bdenial[ -]of[ -]service\b|\bfloods?\b|\bflooding\b", "dos_ddos"),
     (r"\bmalware\b|\bc2\b|\bcommand[ -]and[ -]control\b|\bbeacon", "malware_c2"),
     (r"\bexfil|\bdata theft\b|\bdata leak|\blarge uploads?\b", "data_exfiltration_suspicion"),
+    (r"\bexploits?\b|\bexploitation\b|\bvulnerability attacks?\b|\bweb attacks?\b", "exploit_attempt"),
     (r"\bpolicy violations?\b", "policy_violation"),
     (r"\bunclassified\b|\bunknown attack", "unknown_anomaly"),
 )
@@ -72,6 +73,7 @@ ATTACK_LABELS = {
     "dos_ddos": "flood / denial of service",
     "malware_c2": "malware / C2",
     "data_exfiltration_suspicion": "possible data exfiltration",
+    "exploit_attempt": "exploit attempt",
     "policy_violation": "policy violation",
     "unknown_anomaly": "unclassified",
     "normal": "normal",

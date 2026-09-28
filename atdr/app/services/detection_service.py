@@ -33,6 +33,7 @@ from atdr.app.detection.rules import (
     is_p2p_file_sharing,
     outlier_threshold,
 )
+from atdr.app.detection.rule_catalog import SUPPORTING_ONLY_RULES
 from atdr.app.detection.scoring import clamp_score, severity_from_score
 from atdr.app.detection.v520_schema_aware_abstention import assess_log_schema_compatibility
 from atdr.app.services.alert_service import (
@@ -55,7 +56,12 @@ from atdr.app.services.suppression_service import (
     matching_suppression,
     record_suppression_hit,
 )
-from atdr.app.services.watchlist_service import WatchlistIndex, list_watchlist_items, record_watchlist_hits
+from atdr.app.services.watchlist_service import (
+    WatchlistIndex,
+    list_watchlist_items,
+    record_watchlist_hits,
+    watchlist_attack_type,
+)
 
 
 GROUP_BUCKET_MINUTES = 5
@@ -70,22 +76,6 @@ MULTI_EVENT_PATTERN_RULES = {
     "possible_port_scan",
 }
 ADVISORY_EVIDENCE_RULES = frozenset({"ml_anomaly_detected", "low_parse_quality"})
-# Signals that describe context (a risky app, a busy source, inbound direction,
-# a large transfer) rather than suspicious behaviour. The catalog marks them
-# context-only or low confidence. They add points when a behavioural rule also
-# fires on the log, but never raise or name an alert on their own: on
-# human-reviewed MFU logs, alerts they led were right 0-37% of the time, and
-# making them supporting-only took dev false alarms from 47% to 7%.
-SUPPORTING_ONLY_RULES = frozenset(
-    {
-        "app_risk_4",
-        "suspicious_app_characteristic",
-        "repeated_source_ip",
-        "outside_to_inside",
-        "high_bytes_outlier",
-        "high_packets_outlier",
-    }
-)
 # Peer-to-peer file sharing is a policy matter, not an attack: its natural fan-out and risky-app
 # score look like scanning. It alerts only with evidence of malicious activity; otherwise it is
 # counted as policy activity for the dashboard.
@@ -724,6 +714,7 @@ def run_detection(
                         title="Watchlist indicator match",
                         score=severity_boost,
                         explanation=f"Matched active watchlist indicator(s): {indicators}.",
+                        attack_type=watchlist_attack_type(matched_watchlist_items, log),
                     )
                 )
             if not matches:

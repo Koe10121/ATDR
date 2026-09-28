@@ -425,6 +425,24 @@ RULE_CATALOG: dict[str, DetectionRuleSpec] = {
 }
 
 
+# Signals that describe context (a risky app, a busy source, inbound direction,
+# a large transfer) rather than suspicious behaviour. The catalog marks them
+# context-only or low confidence. They add points when a behavioural rule also
+# fires on the log, but never raise or name an alert on their own: on
+# human-reviewed MFU logs, alerts they led were right 0-37% of the time, and
+# making them supporting-only took dev false alarms from 47% to 7%.
+SUPPORTING_ONLY_RULES = frozenset(
+    {
+        "app_risk_4",
+        "suspicious_app_characteristic",
+        "repeated_source_ip",
+        "outside_to_inside",
+        "high_bytes_outlier",
+        "high_packets_outlier",
+    }
+)
+
+
 def rule_spec(code: str) -> DetectionRuleSpec | None:
     return RULE_CATALOG.get(code)
 
@@ -435,10 +453,13 @@ def rule_metadata(code: str) -> dict[str, Any]:
 
 
 def serialize_rule_match(match: Any) -> dict[str, Any]:
-    return {
+    payload = {
         **rule_metadata(str(match.code)),
         "code": str(match.code),
         "title": str(match.title),
         "score": int(match.score),
         "explanation": str(match.explanation),
     }
+    if getattr(match, "attack_type", None):
+        payload["attack_type"] = str(match.attack_type)
+    return payload

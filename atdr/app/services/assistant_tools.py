@@ -69,6 +69,7 @@ ATTACK_CONCEPTS = {
     "dos_ddos": "A denial-of-service flood sends so much traffic at a service that real users cannot reach it. Many sources doing it at once is a DDoS.",
     "malware_c2": "Command-and-control (C2) is how malware on an infected host talks to its operator. It often beacons: it connects to the same outside server again and again at a steady interval to ask for instructions.",
     "data_exfiltration_suspicion": "Data exfiltration is data being taken out of the network. In firewall logs the sign is unusually large uploads from an internal host to an outside destination.",
+    "exploit_attempt": "An exploit attempt is traffic aimed at a known weakness in a service, such as a web server path traversal or a remote code execution bug. The firewall recognises it by a vulnerability signature; the attempt may still have been blocked, or the service may not be vulnerable.",
     "policy_violation": "A policy violation is traffic that breaks the firewall or acceptable-use policy, such as risky applications or connections the rules deny. It is not an attack by itself.",
 }
 CONCEPT_ALIASES = {
@@ -81,6 +82,8 @@ CONCEPT_ALIASES = {
     "flood": "dos_ddos",
     "exfiltration": "data_exfiltration_suspicion",
     "data_exfiltration": "data_exfiltration_suspicion",
+    "exploit": "exploit_attempt",
+    "exploitation": "exploit_attempt",
 }
 OTHER_CONCEPTS = (
     "mitre_attack",

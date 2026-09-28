@@ -36,6 +36,13 @@ const mapping: Record<string, AttackMapping> = {
     technique_id: "Internal",
     description: "Traffic violated local firewall or acceptable-use policy."
   },
+  exploit_attempt: {
+    attack_type: "exploit_attempt",
+    tactic: "Initial Access",
+    technique: "Exploit Public-Facing Application",
+    technique_id: "T1190",
+    description: "The firewall matched the traffic to a known exploit or web-attack signature aimed at a service."
+  },
   data_exfiltration_suspicion: {
     attack_type: "data_exfiltration_suspicion",
     tactic: "Exfiltration",
@@ -53,7 +60,8 @@ const mapping: Record<string, AttackMapping> = {
 };
 
 // Fallback only: the backend sends each alert's attack_type, computed from all of
-// its matched rules. Must mirror RULE_ATTACK_HINTS in atdr/app/detection/attack_mapping.py;
+// its matched rules and the evidence behind them. Must mirror RULE_ATTACK_HINTS in
+// atdr/app/detection/attack_mapping.py (each rule's catalog default);
 // atdr/tests/test_attack_mapping_parity.py fails if the two drift.
 const ruleHints: Record<string, keyof typeof mapping> = {
   possible_port_scan: "port_scan",
@@ -65,13 +73,19 @@ const ruleHints: Record<string, keyof typeof mapping> = {
   deny_drop_action: "policy_violation",
   paloalto_threat_log: "unknown_anomaly",
   paloalto_malware_threat: "malware_c2",
+  app_risk_4: "policy_violation",
+  app_risk_5: "policy_violation",
   suspicious_app_characteristic: "policy_violation",
   high_outbound_bytes: "data_exfiltration_suspicion",
   repeated_large_outbound: "data_exfiltration_suspicion",
   high_bytes_outlier: "unknown_anomaly",
   high_packets_outlier: "unknown_anomaly",
   ml_anomaly_detected: "unknown_anomaly",
-  unknown_or_incomplete_app: "unknown_anomaly"
+  unknown_or_incomplete_app: "unknown_anomaly",
+  unusual_destination_port: "unknown_anomaly",
+  outside_to_inside: "unknown_anomaly",
+  repeated_source_ip: "unknown_anomaly",
+  watchlist_match: "unknown_anomaly"
 };
 
 export function attackMappingForType(attackType?: string | null): AttackMapping {

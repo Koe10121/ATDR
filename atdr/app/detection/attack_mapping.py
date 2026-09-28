@@ -1,5 +1,7 @@
 from typing import Any
 
+from atdr.app.detection.rule_catalog import RULE_CATALOG, SUPPORTING_ONLY_RULES
+
 
 ATTACK_TYPE_MAPPINGS: dict[str, dict[str, str]] = {
     "normal": {
@@ -50,6 +52,14 @@ ATTACK_TYPE_MAPPINGS: dict[str, dict[str, str]] = {
         "mapping_confidence": "environment_dependent",
         "claim_boundary": "This is an ATDR governance category and not a MITRE ATT&CK technique.",
     },
+    "exploit_attempt": {
+        "tactic": "Initial Access",
+        "technique": "Exploit Public-Facing Application",
+        "technique_id": "T1190",
+        "description": "The firewall matched the traffic to a known exploit or web-attack signature aimed at a service.",
+        "mapping_confidence": "medium",
+        "claim_boundary": "A signature match shows an attempt, not that it succeeded; whether the target was vulnerable needs checking.",
+    },
     "data_exfiltration_suspicion": {
         "tactic": "Exfiltration",
         "technique": "Exfiltration Over Alternative Protocol",
@@ -68,23 +78,10 @@ ATTACK_TYPE_MAPPINGS: dict[str, dict[str, str]] = {
     },
 }
 
+# Each rule's default attack type is the one its catalog entry documents.
 RULE_ATTACK_HINTS = {
-    "possible_port_scan": "port_scan",
-    "possible_horizontal_scan": "port_scan",
-    "brute_force_like_attempts": "brute_force",
-    "beaconing_like_outbound": "malware_c2",
-    "connection_flood_suspicion": "dos_ddos",
-    "multiple_denied_connections": "policy_violation",
-    "deny_drop_action": "policy_violation",
-    "paloalto_threat_log": "unknown_anomaly",
-    "paloalto_malware_threat": "malware_c2",
-    "suspicious_app_characteristic": "policy_violation",
-    "high_outbound_bytes": "data_exfiltration_suspicion",
-    "repeated_large_outbound": "data_exfiltration_suspicion",
-    "high_bytes_outlier": "unknown_anomaly",
-    "high_packets_outlier": "unknown_anomaly",
-    "ml_anomaly_detected": "unknown_anomaly",
-    "unknown_or_incomplete_app": "unknown_anomaly",
+    **{code: spec.attack_type for code, spec in RULE_CATALOG.items()},
+    "watchlist_match": "unknown_anomaly",
 }
 
 RULE_ATTACK_PRIORITY = {
@@ -98,6 +95,7 @@ RULE_ATTACK_PRIORITY = {
     "high_bytes_outlier": 80,
     "high_packets_outlier": 78,
     "paloalto_malware_threat": 91,
+    "watchlist_match": 89,
     "paloalto_threat_log": 75,
     "suspicious_app_characteristic": 70,
     # IsolationForest is advisory evidence. It must never mask a more
@@ -106,7 +104,80 @@ RULE_ATTACK_PRIORITY = {
     "unknown_or_incomplete_app": 40,
     "multiple_denied_connections": 35,
     "deny_drop_action": 30,
+    "app_risk_5": 26,
+    "app_risk_4": 25,
+    "unusual_destination_port": 20,
 }
+
+# A firewall threat signature or a known indicator names the activity, so the
+# type it names outranks one inferred from the shape of the traffic.
+IDENTIFIED_EVIDENCE_RULES = frozenset({"paloalto_malware_threat", "paloalto_threat_log", "watchlist_match"})
+
+# When one rule's evidence names different types, the alert keeps the first of these.
+ATTACK_TYPE_SPECIFICITY = (
+    "malware_c2",
+    "exploit_attempt",
+    "data_exfiltration_suspicion",
+    "brute_force",
+    "dos_ddos",
+    "port_scan",
+    "policy_violation",
+    "unknown_anomaly",
+)
+
+# Palo Alto THREAT types that name the activity on their own.
+THREAT_SUBTYPE_ATTACK_TYPES = {
+    "scan": "port_scan",
+    "flood": "dos_ddos",
+    "data": "data_exfiltration_suspicion",
+    "virus": "malware_c2",
+    "wildfire-virus": "malware_c2",
+    "spyware": "malware_c2",
+}
+# A vulnerability signature's name says what it detected.
+PROTOCOL_ANOMALY_SIGNATURE_WORDS = ("non-rfc compliant",)
+DISCOVERY_SIGNATURE_WORDS = ("nmap", "port scan", "portmapper", "discovery", "enumeration", "sweep")
+BRUTE_FORCE_SIGNATURE_WORDS = ("brute force", "brute-force", "login attempt")
+EXPLOIT_SIGNATURE_WORDS = (
+    "code execution",
+    "injection",
+    "traversal",
+    "overflow",
+    "exploit",
+    "deserialization",
+    "file inclusion",
+    "scanning attempt",
+    "privilege escalation",
+    "authentication bypass",
+)
+# Informational and low vulnerability signatures mostly flag odd but harmless
+# protocol use; from medium up they match known exploit traffic.
+EXPLOIT_SIGNATURE_SEVERITIES = frozenset({"medium", "high", "critical"})
+
+
+def threat_attack_type(threat_type: str | None, threat_name: str | None, severity: str | None) -> str:
+    """The activity a firewall THREAT record names, from its type, signature name and severity."""
+
+    kind = (threat_type or "").strip().lower()
+    name = (threat_name or "").strip().lower()
+    if kind in THREAT_SUBTYPE_ATTACK_TYPES:
+        return THREAT_SUBTYPE_ATTACK_TYPES[kind]
+    if kind != "vulnerability" or any(word in name for word in PROTOCOL_ANOMALY_SIGNATURE_WORDS):
+        return "unknown_anomaly"
+    if any(word in name for word in DISCOVERY_SIGNATURE_WORDS):
+        return "port_scan"
+    if any(word in name for word in BRUTE_FORCE_SIGNATURE_WORDS):
+        return "brute_force"
+    if any(word in name for word in EXPLOIT_SIGNATURE_WORDS) or (severity or "").strip().lower() in EXPLOIT_SIGNATURE_SEVERITIES:
+        return "exploit_attempt"
+    return "unknown_anomaly"
+
+
+def more_specific_attack_type(current: str | None, incoming: str | None) -> str | None:
+    if current is None or incoming is None:
+        return current or incoming
+    order = {attack_type: index for index, attack_type in enumerate(ATTACK_TYPE_SPECIFICITY)}
+    return incoming if order.get(incoming, len(order)) < order.get(current, len(order)) else current
 
 
 def attack_mapping_for_type(attack_type: str | None) -> dict[str, str]:
@@ -114,13 +185,30 @@ def attack_mapping_for_type(attack_type: str | None) -> dict[str, str]:
     return {"attack_type": normalized, **ATTACK_TYPE_MAPPINGS.get(normalized, ATTACK_TYPE_MAPPINGS["unknown_anomaly"])}
 
 
+def rule_attack_type(rule: dict[str, Any]) -> str | None:
+    """A matched rule's attack type: the one its evidence named, else its catalog default."""
+
+    named = str(rule.get("attack_type") or "").strip()
+    if named in ATTACK_TYPE_MAPPINGS and named != "normal":
+        return named
+    return RULE_ATTACK_HINTS.get(str(rule.get("code") or "").strip())
+
+
 def infer_attack_type_from_rules(matched_rules: list[dict[str, Any]]) -> str:
-    ranked_codes = [
-        str(rule.get("code") or "").strip()
-        for rule in matched_rules
-        if str(rule.get("code") or "").strip() in RULE_ATTACK_HINTS
-    ]
-    if ranked_codes:
-        code = max(ranked_codes, key=lambda item: RULE_ATTACK_PRIORITY.get(item, 0))
-        return RULE_ATTACK_HINTS[code]
-    return "unknown_anomaly"
+    best: tuple[tuple[bool, bool, int], str] | None = None
+    for rule in matched_rules:
+        attack_type = rule_attack_type(rule)
+        if attack_type is None:
+            continue
+        code = str(rule.get("code") or "").strip()
+        named = attack_type != "unknown_anomaly"
+        # "Needs investigation" never hides a type a behavioural rule names. A
+        # context signal (the app's vendor risk rating, say) is too weak to.
+        rank = (
+            named and code in IDENTIFIED_EVIDENCE_RULES,
+            named and code not in SUPPORTING_ONLY_RULES,
+            RULE_ATTACK_PRIORITY.get(code, 0),
+        )
+        if best is None or rank > best[0]:
+            best = (rank, attack_type)
+    return best[1] if best else "unknown_anomaly"

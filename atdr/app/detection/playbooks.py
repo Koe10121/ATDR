@@ -85,6 +85,17 @@ PLAYBOOK_GUIDANCE: dict[str, PlaybookGuidance] = {
         resolved_when="The owner is informed and the traffic stopped, or it is documented as allowed.",
         escalate_when="The same source also triggers scan, brute-force, or large-upload rules.",
     ),
+    "exploit_attempt": PlaybookGuidance(
+        label="Exploit attempt",
+        objective="Decide whether an attack on a service got through and whether the service is vulnerable.",
+        containment=(
+            "Check whether the firewall blocked it. If it was allowed, check the target service's version and its logs for the same source and time.",
+            "Block the source if it is outside your network; patch or isolate the target if it runs an affected version.",
+        ),
+        false_positive_when="The source is an approved vulnerability scanner or penetration test.",
+        resolved_when="The attempt was blocked, or the target is confirmed not vulnerable and shows no follow-up activity.",
+        escalate_when="The attempt was allowed and the target runs an affected version, or the same source then connects successfully.",
+    ),
     "data_exfiltration_suspicion": PlaybookGuidance(
         label="Possible data exfiltration",
         objective="Decide whether large uploads leaving the network are approved, or data being taken.",

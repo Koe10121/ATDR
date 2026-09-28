@@ -44,6 +44,7 @@ def _parse(question: str):
         ("How many critical alerts are open?", ("alerts", "count", "Critical", "open", None, None, "in total")),
         ("Which source IP has the most alerts this week?", ("alerts", "top", None, None, None, "src_ip", "this week (since Monday 21 Sep)")),
         ("How many port scan alerts were there yesterday?", ("alerts", "count", None, None, "port_scan", None, "yesterday")),
+        ("How many exploit attempts this week?", ("alerts", "count", None, None, "exploit_attempt", None, "this week (since Monday 21 Sep)")),
         ("What is the most common attack type?", ("alerts", "top", None, None, None, "attack_type", "in total")),
         ("How many false positives this week?", ("alerts", "count", None, "false_positive", None, None, "this week (since Monday 21 Sep)")),
         ("Alerts per day this week", ("alerts", "trend", None, None, None, None, "this week (since Monday 21 Sep)")),

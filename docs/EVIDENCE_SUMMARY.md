@@ -1,7 +1,7 @@
 # ATDR evidence summary
 
 Every number the team quotes about ATDR, what kind of number it is, and how
-much to trust it. As of 2026-09-27 (rule catalog v5.34.0, behaviour model
+much to trust it. As of 2026-09-28 (rule catalog v5.35.0, behaviour model
 mfu_behavior_v2). Details are in the linked documents.
 
 ## The data
@@ -51,6 +51,43 @@ mfu_behavior_v2). Details are in the linked documents.
   the pending human check.
 - Sources: `detection/BLIND_CHECK.md`, `DETECTION_RULE_CATALOG.md`,
   `detection/ALERT_REBUILD.md`.
+
+## Detection: what each alert says is happening
+
+Each alert names an attack type (port scan, malware / C2, exploit attempt and
+so on) with its ATT&CK technique and a response playbook. Until 2026-09-28 the
+type came only from which rule fired, so 133 of the 249 live alerts (53%) said
+"Unclassified", including firewall-named exploits and a known C2 server. The
+type now also comes from the evidence: the firewall's threat signature, the
+kind of watchlist indicator, and whether an inbound probe was answered. On the
+same 249 alerts, re-run with the current rules on a copy:
+
+| Attack type | Before | After |
+|---|---|---|
+| Port scan | 84 | 117 |
+| Unclassified | 133 | 93 |
+| Malware / C2 | 6 | 11 |
+| Policy violation | 9 | 8 |
+| Data exfiltration (suspected) | 7 | 7 |
+| Brute force | 6 | 6 |
+| Flood | 4 | 4 |
+| Exploit attempt (new) | 0 | 3 |
+
+- 30 alerts on unanswered internet probes to uncommon ports are now port scans.
+- Four alerts on campus devices whose connections the firewall identified as
+  XMRig cryptocurrency-miner command and control (140 dropped connections from
+  8 devices to mining pools) had been filed as port scans, because the
+  retries also look like one. They are now malware / C2, as is the GHOSTENGINE
+  watchlist alert.
+- Shellshock (Bash remote code execution), an Apache path traversal and a
+  `.env` file scan are exploit attempts; Nmap and RPC portmapper probes are port
+  scans.
+- The 93 still unclassified are 75 firewall threat records that name no attack
+  (informational "Non-RFC Compliant SSL/DNS/HTTP Traffic" and one SSLv2
+  negotiation) and 18 alerts on campus devices using an application the
+  firewall could not identify. Nothing in them names a technique.
+- Only the type changes; which logs alert, and every precision and recall
+  figure above, stay the same. Source: `detection/ATDR_DETECTION_TAXONOMY.md`.
 
 ## Detection: the MFU behaviour model (advises)
 
@@ -103,7 +140,8 @@ Source: `SOC_ASSISTANT_CONVERSATIONAL.md`.
 - **One export.** 21 minutes of one day from one firewall. Nothing here says
   how ATDR does on another day or another network.
 - **Attack types.** The real attacks in the data are mostly scans and
-  probing, firewall threat and malware logs, and one C2 beacon. Brute force,
+  probing, firewall threat and malware logs (including XMRig miner traffic from
+  8 campus devices, all dropped), and one C2 beacon. Brute force,
   flood and exfiltration are measured only on simulated attacks.
 - **Labels.** The team's labels were AI-assisted and team-verified; the blind
   labels are an AI reviewer's. The team's own check of the blind labels is

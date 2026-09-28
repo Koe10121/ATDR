@@ -11,6 +11,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session, joinedload, noload
 
 from atdr.app.db.models import Alert, AlertEvidence, AlertNote, AuditLog, LogSource, NormalizedLog, RawLog, ResponseAction, User
+from atdr.app.detection.attack_mapping import more_specific_attack_type
 from atdr.app.detection.explanations import build_alert_detection_summary, compact_behavior_features, recommended_response
 from atdr.app.detection.rule_catalog import serialize_rule_match
 from atdr.app.detection.rules import DetectionResult
@@ -106,9 +107,11 @@ def create_grouped_alert_from_detections(
 
     rule_by_code: dict[str, dict] = {}
     rule_counts: Counter[str] = Counter()
+    evidence_types: dict[str, str | None] = {}
     for result in results:
         for rule in result.matched_rules:
             rule_counts[rule.code] += 1
+            evidence_types[rule.code] = more_specific_attack_type(evidence_types.get(rule.code), rule.attack_type)
             existing = rule_by_code.get(rule.code)
             if existing is None or rule.score > existing["score"]:
                 rule_by_code[rule.code] = serialize_rule_match(rule)
@@ -116,6 +119,9 @@ def create_grouped_alert_from_detections(
     matched_rules = []
     for code, rule in sorted(rule_by_code.items(), key=lambda item: (-item[1]["score"], item[1]["code"])):
         rule["matched_log_count"] = rule_counts[code]
+        if evidence_types.get(code):
+            # One log's threat signature can name what the others did not.
+            rule["attack_type"] = evidence_types[code]
         matched_rules.append(rule)
 
     event_times = [_event_time(log) for log in logs]
@@ -473,6 +479,9 @@ def _merge_rule_metadata(existing_rules: list[dict], incoming_rules: list[dict])
         existing["matched_log_count"] = int(existing.get("matched_log_count") or 0) + int(
             incoming.get("matched_log_count") or 0
         )
+        attack_type = more_specific_attack_type(existing.get("attack_type"), incoming.get("attack_type"))
+        if attack_type:
+            existing["attack_type"] = attack_type
     return sorted(rules_by_code.values(), key=lambda item: (-int(item.get("score") or 0), str(item.get("code"))))
 
 

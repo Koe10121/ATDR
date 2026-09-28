@@ -1,3 +1,4 @@
+import ipaddress
 from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Any
@@ -146,6 +147,26 @@ class WatchlistIndex:
 
 def matching_watchlist_items(log: NormalizedLog, active_items: list[WatchlistItem]) -> list[WatchlistItem]:
     return WatchlistIndex(active_items).matches(log)
+
+
+def watchlist_attack_type(items: list[WatchlistItem], log: NormalizedLog) -> str | None:
+    """What a watchlist hit says is happening, when the indicator's kind says it."""
+
+    kinds = {item.indicator_type for item in items}
+    # Threat-intel feeds list malware and C2 servers as destinations: reaching
+    # one from inside is contact with known malicious infrastructure.
+    if "dst_ip" in kinds and not _is_private_address(log.dst_ip):
+        return "malware_c2"
+    if kinds & {"app", "src_country", "dst_country"}:
+        return "policy_violation"
+    return None
+
+
+def _is_private_address(value: str | None) -> bool:
+    try:
+        return ipaddress.ip_address(str(value)).is_private
+    except ValueError:
+        return False
 
 
 def record_watchlist_hits(items: list[WatchlistItem], *, count: int = 1) -> None:

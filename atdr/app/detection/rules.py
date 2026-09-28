@@ -7,6 +7,7 @@ from statistics import mean, pstdev
 from typing import Iterable
 
 from atdr.app.db.models import NormalizedLog
+from atdr.app.detection.attack_mapping import threat_attack_type
 
 
 SUSPICIOUS_CHARACTERISTICS = {
@@ -100,6 +101,9 @@ class RuleMatch:
     title: str
     score: int
     explanation: str
+    # Set when this log's evidence names the activity more precisely than the
+    # rule's catalog default (a firewall threat signature, for example).
+    attack_type: str | None = None
 
 
 @dataclass(slots=True)
@@ -650,6 +654,7 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
                     title="Palo Alto threat event",
                     score=threat_score,
                     explanation=f"The firewall classified this row as a THREAT event; {vendor_facts}.",
+                    attack_type=threat_attack_type(threat_type, threat_name, threat_severity),
                 )
             )
 
@@ -908,6 +913,8 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
                 title="Unusual destination port",
                 score=10,
                 explanation=f"Outside-to-inside traffic used uncommon destination port {log.dst_port}.",
+                # Unsolicited and unanswered, it is someone probing for a service.
+                attack_type="port_scan" if _looks_unanswered(log) else None,
             )
         )
 
@@ -952,6 +959,7 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
                 title="Unknown or incomplete application",
                 score=10,
                 explanation=f"Application is {log.app or 'not identified'} with category {log.app_category or 'unknown'}.",
+                attack_type="port_scan" if is_outside_to_inside(log) and _looks_unanswered(log) else None,
             )
         )
 
