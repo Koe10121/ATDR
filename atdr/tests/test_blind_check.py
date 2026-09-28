@@ -153,3 +153,24 @@ def test_the_holdout_is_a_new_database_that_is_never_overwritten(tmp_path):
     assert build_holdout_database(sample, target, first_line=1, last_line=2)["imported"] == 2
     with pytest.raises(BlindCheckError):
         build_holdout_database(sample, target, first_line=1, last_line=2)
+
+
+def test_a_scratch_database_from_older_models_gets_the_new_tables_and_columns(tmp_path):
+    from sqlalchemy import inspect as schema
+
+    from atdr.app.services.blind_check_service import sync_scratch_schema
+
+    engine = create_engine(f"sqlite:///{(tmp_path / 'old.db').as_posix()}", future=True)
+    Base.metadata.create_all(engine)
+    with engine.begin() as connection:
+        connection.exec_driver_sql("DROP INDEX ix_watchlist_items_source")
+        connection.exec_driver_sql("ALTER TABLE watchlist_items DROP COLUMN source")
+        connection.exec_driver_sql("DROP TABLE alert_archive")
+    assert "source" not in {column["name"] for column in schema(engine).get_columns("watchlist_items")}
+
+    added = sync_scratch_schema(engine)
+    assert added == ["watchlist_items.source"]
+    assert "source" in {column["name"] for column in schema(engine).get_columns("watchlist_items")}
+    assert "alert_archive" in schema(engine).get_table_names()
+    assert sync_scratch_schema(engine) == [], "running it again changes nothing"
+    engine.dispose()

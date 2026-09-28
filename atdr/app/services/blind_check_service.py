@@ -30,7 +30,7 @@ from itertools import islice
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
-from sqlalchemy import create_engine, func, select
+from sqlalchemy import create_engine, func, inspect, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from atdr.app.db.database import Base
@@ -104,6 +104,32 @@ def build_holdout_database(
     return {"imported": imported, "parse_failures": failed, "first_line": first_line, "last_line": last_line}
 
 
+def sync_scratch_schema(engine) -> list[str]:
+    """Bring a scratch database built with create_all up to the current models.
+
+    Holdout and training databases are made from the models, not migrations, so a later model
+    change (a new table, a new nullable column) would otherwise break detection on them.
+    """
+
+    Base.metadata.create_all(engine)
+    added = []
+    existing_tables = set(inspect(engine).get_table_names())
+    with engine.begin() as connection:
+        for table in Base.metadata.sorted_tables:
+            if table.name not in existing_tables:
+                continue
+            present = {column["name"] for column in inspect(connection).get_columns(table.name)}
+            for column in table.columns:
+                if column.name in present:
+                    continue
+                if not column.nullable and column.server_default is None:
+                    raise ValueError(f"{table.name}.{column.name} is required and cannot be added to existing rows.")
+                column_type = column.type.compile(dialect=engine.dialect)
+                connection.exec_driver_sql(f'ALTER TABLE "{table.name}" ADD COLUMN "{column.name}" {column_type}')
+                added.append(f"{table.name}.{column.name}")
+    return added
+
+
 def detect_holdout(target: Path, *, rerun: bool = False) -> dict[str, int]:
     """Run the rules over every unchecked log. With ``rerun``, clear earlier alerts first so every log
     is judged by the rules as they are now (a database checked under an older catalog keeps its old
@@ -111,6 +137,7 @@ def detect_holdout(target: Path, *, rerun: bool = False) -> dict[str, int]:
 
     engine = create_engine(f"sqlite:///{target.as_posix()}", future=True)
     try:
+        sync_scratch_schema(engine)
         with sessionmaker(bind=engine, future=True)() as db:
             if rerun:
                 reset_detection_state(db)
