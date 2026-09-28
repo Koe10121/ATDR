@@ -216,7 +216,12 @@ Validation (training period, held-back sources), simulated attacks found:
 The 15 model-only windows are in a blind review mixed with 15 random unflagged
 windows (`.tmp/mfu_model/v2_fresh/ATDR_model_review_v2_fresh_anonymized.xlsx`,
 30 rows, MFU addresses anonymized). Every type stays advisory until then.
-The review was drawn against rules v5.34.0. Rules v5.35.0 and v5.36.0 alert on
+Training labels: v1 and v2 took the team's labels by line fingerprint, including
+labels later found to describe other records (`LABEL_ARCHIVE.md`): 394 normal, 21
+port scan, 5 data exfiltration, 2 brute force. The model learns mostly from
+simulated attacks and unlabeled normal traffic, so the effect is small, but its one
+real exfiltration example came from a wrong label; the next version trains on the
+cleaned labels. The review was drawn against rules v5.34.0. Rules v5.35.0 and v5.36.0 alert on
 fewer windows (759 of the 15,153), but every window the model flagged keeps its
 rule alert, so the model-only windows are the same 15 and the review stays
 complete.

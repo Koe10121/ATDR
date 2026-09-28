@@ -31,6 +31,7 @@ mfu_behavior_v2). Details are in the linked documents.
 | Detection scoreboard, 2,132 team labels, v5.34.0 | Agreement | 95.5% | 80.4% | 1.8% | 87.3% |
 | Detection scoreboard, 2,132 team labels, v5.35.0 | Agreement | 95.6% | 73.1% | 1.6% | 82.9% |
 | Detection scoreboard, 2,132 team labels, v5.36.0 | Agreement | 95.6% | 72.4% | 1.6% | 82.4% |
+| Detection scoreboard, 1,489 team-labeled records, v5.36.0, misattached labels archived | Agreement | 97.0% | 79.3% | 1.5% | 87.3% |
 | Live alert list before the rebuild (3,676 alerts) | Agreement | 48.9% | 87.6% | 43.3% | 62.8% |
 | Live alert list after the rebuild (314 alerts) | Agreement | 93.9% | 80.4% | 2.5% | 86.6% |
 
@@ -41,6 +42,11 @@ mfu_behavior_v2). Details are in the linked documents.
 - Between v5.32.0 and v5.34.0: the flood rule stopped firing on campus apps'
   busy two-way traffic, and BitTorrent became policy activity. No sample
   labeled Threat lost its alert.
+- The scoreboard rows with 2,132 labels included 794 reviewed labels made on
+  23-25 May for logs that were re-imported on 27 May, so they described other
+  records, and counted duplicate copies of some records. Those labels are
+  archived and each record now counts once (`detection/LABEL_ARCHIVE.md`); the
+  1,489-record row is the one to quote. The live-list rows used the old labels.
 - Most of the scoreboard's lower recall is BitTorrent the team labeled as a
   threat; with file sharing scored as policy, F1 is 95.3%.
 - v5.35.0 summarises internet background probing (isolated unanswered probes
@@ -154,7 +160,9 @@ Source: `SOC_ASSISTANT_CONVERSATIONAL.md`.
   probing, firewall threat and malware logs (including XMRig miner traffic from
   8 campus devices, all dropped), and one C2 beacon. Brute force,
   flood and exfiltration are measured only on simulated attacks.
-- **Labels.** The team's labels were AI-assisted and team-verified; the blind
+- **Labels.** 1,231 early labels turned out to describe other records and were
+  archived (`detection/LABEL_ARCHIVE.md`). The team's remaining labels were
+  AI-assisted and team-verified; the blind
   labels are an AI reviewer's. The team's own check of the blind labels is
   pending.
 - **Rare misses.** Recall rests on few threats, hence intervals like 61.9-100%.
@@ -163,7 +171,8 @@ Source: `SOC_ASSISTANT_CONVERSATIONAL.md`.
 
 - Team: fill in the team review pack (`detection/TEAM_REVIEW_PACK.md`): v2's
   extra finds (30 rows), the blind-check logs judged without the AI's answer
-  (83 rows), 11 BitTorrent labels, and 5 groups of team labels (207 labels)
-  that contradict the firewall's own record or the team's policies.
+  (83 rows), 5 BitTorrent labels, and 6 groups of team labels (257 labels)
+  that contradict the firewall's own record or the team's policies. The first
+  return (28 Sep) was an AI draft by its own note and does not count.
 - Another MFU export, even an hour from a different day, would allow one clean
   end-to-end test of the whole system.

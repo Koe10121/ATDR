@@ -610,6 +610,32 @@ class MLLabel(Base):
     log: Mapped[NormalizedLog] = relationship(back_populates="ml_labels")
 
 
+class MLLabelArchive(Base):
+    """A label taken out of use because it no longer describes the log it points at, kept in full.
+
+    Labels made before the logs were wiped and re-imported kept their log ids, which then belonged to
+    other records. ``log_id`` is the id the label pointed at (no foreign key: that log is not the one
+    the label was made for) and ``label_created_at`` when the label was made.
+    """
+
+    __tablename__ = "ml_label_archive"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    original_label_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    log_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    label: Mapped[str] = mapped_column(String(32), nullable=False)
+    attack_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    confidence: Mapped[int] = mapped_column(Integer, nullable=False)
+    reviewer: Mapped[str] = mapped_column(String(128), nullable=False)
+    review_note: Mapped[str | None] = mapped_column(Text)
+    label_source: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    reviewed: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    label_created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    archived_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    archived_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+
+
 Index("ix_ml_labels_log_created", MLLabel.log_id, MLLabel.created_at)
 Index("ix_ml_labels_reviewed_label", MLLabel.reviewed, MLLabel.label)
 Index("ix_ml_labels_source_reviewed", MLLabel.label_source, MLLabel.reviewed)

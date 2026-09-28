@@ -16,6 +16,7 @@ from atdr.app.services.team_review_service import (
     label_patterns,
     pattern_label_decisions,
     signoff_counts_as_person,
+    signoff_problems,
     torrent_label_decisions,
 )
 from atdr.tests.test_detection_grouping import _session
@@ -58,12 +59,19 @@ def _seed(db) -> dict[str, int]:
         "non_rfc": _log(db, 8, "suspicious", "unknown_anomaly", source="assisted_rule", **OUTBOUND, action="alert",
                         **_threat("Non-RFC Compliant SSL Traffic on Port 443(56112)", "vulnerability", "informational")),
         "harmless": _log(db, 9, "benign", "normal", **INBOUND, src_ip="45.9.148.18", action="deny"),
+        "busy_unknown_udp": _log(db, 10, "suspicious", "unknown_anomaly", **OUTBOUND, app="unknown-udp", protocol="udp", dst_port=32100),
+        "quiet_unknown_udp": _log(db, 11, "suspicious", "unknown_anomaly", **OUTBOUND, app="unknown-udp", protocol="udp", dst_port=32100),
     }
     alert = Alert(title="scan", alert_type="possible_port_scan", threat_score=40, severity="Medium", status="open",
                   explanation="e", matched_rules_json=[], recommended_response="r")
     db.add(alert)
     db.flush()
     db.add(AlertEvidence(alert_id=alert.id, normalized_log_id=ids["alerted_probe"]))
+    unknown_app = Alert(title="app", alert_type="unknown_or_incomplete_app", threat_score=30, severity="Low", status="open",
+                        explanation="e", matched_rules_json=[], recommended_response="r")
+    db.add(unknown_app)
+    db.flush()
+    db.add(AlertEvidence(alert_id=unknown_app.id, normalized_log_id=ids["busy_unknown_udp"]))
     db.commit()
     return ids
 
@@ -74,7 +82,9 @@ def test_the_pack_questions_labels_that_contradict_the_firewall_or_the_team_poli
 
     patterns = {pattern["key"]: pattern for pattern in label_patterns(db)}
 
-    assert list(patterns) == ["file_sharing", "background_probe", "named:exploit_attempt", "named:malware_c2", "informational"]
+    assert list(patterns) == ["file_sharing", "background_probe", "named:exploit_attempt", "named:malware_c2", "unidentified_app",
+                              "informational"]
+    assert patterns["unidentified_app"]["log_ids"] == [ids["busy_unknown_udp"]], "only traffic the rules alert on for the app alone"
     assert patterns["file_sharing"]["log_ids"] == [ids["torrent_policy"]], "other file-sharing labels are asked one by one"
     assert patterns["background_probe"]["log_ids"] == [ids["probe"]], "a probe the rules still alert on is not questioned"
     assert patterns["named:malware_c2"]["log_ids"] == [ids["miner"]], "a miner already typed malware is not questioned"
@@ -82,7 +92,7 @@ def test_the_pack_questions_labels_that_contradict_the_firewall_or_the_team_poli
     assert patterns["named:exploit_attempt"]["log_ids"] == [ids["shellshock"]]
     assert patterns["informational"]["labeled_by"] == "automatically, from ATDR's rule score (1)"
     assert patterns["named:malware_c2"]["current_labels"] == "suspicious / policy violation (1)"
-    assert [pattern["id"] for pattern in patterns.values()] == ["L1", "L2", "L3", "L4", "L5"]
+    assert [pattern["id"] for pattern in patterns.values()] == ["L1", "L2", "L3", "L4", "L5", "L6"]
     assert all(ids["harmless"] not in pattern["log_ids"] for pattern in patterns.values())
     assert "XMRig" in patterns["named:malware_c2"]["examples"][0]["threat"]
 
@@ -96,7 +106,8 @@ def test_the_team_answers_become_label_changes_that_keep_history():
         "L2": {"choice": "Keep the current label", "note": "these were scans"},
         "L3": {"choice": PATTERN_CHOICES[0]},
         "L4": {"choice": PATTERN_CHOICES[0]},
-        "L5": {"choice": "Unsure"},
+        "L5": {"choice": "Keep the current label"},
+        "L6": {"choice": "Unsure"},
     }
     decisions = pattern_label_decisions(patterns, answers)
     decisions += torrent_label_decisions({"T01": ids["torrent_scan"]}, {"T01": {"verdict": TORRENT_POLICY}})
@@ -141,8 +152,15 @@ def test_human_checked_decisions_replace_only_rows_a_person_judged():
     assert merged[1]["decision"] == "Normal" and merged[1]["labeled_by"] == "ai"
 
 
-def test_only_a_person_review_counts():
-    assert signoff_counts_as_person("By a person without AI")
-    assert signoff_counts_as_person("AI-assisted and a person checked every row")
-    assert not signoff_counts_as_person("AI only (not checked by a person)")
-    assert not signoff_counts_as_person(None)
+def test_only_a_finished_person_review_counts():
+    assert signoff_counts_as_person("By a person without AI", "2026-09-30", "Two of us split parts A and B.")
+    assert signoff_counts_as_person("AI-assisted and a person checked every row", "30 Sep", "")
+    assert not signoff_counts_as_person("AI only (not checked by a person)", "30 Sep")
+    assert not signoff_counts_as_person(None, "30 Sep")
+    assert signoff_problems("By a person without AI", None) == ["'Date finished' is blank"]
+    # The first returned pack: a person method picked, but the note says otherwise.
+    note = ("AI draft prepared 28 Sep 2026. Human reviewer and completion date remain pending. "
+            "This does not yet count as human-checked validation.")
+    assert "the note says it is an AI draft or that a person has not reviewed it yet" in signoff_problems("By a person without AI", "28 Sep", note)
+    # Mentioning AI help is fine when a person checked every row.
+    assert signoff_counts_as_person("AI-assisted and a person checked every row", "28 Sep", "AI helped us sort rows; we then checked each one.")

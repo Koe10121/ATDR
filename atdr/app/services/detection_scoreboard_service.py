@@ -29,7 +29,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
 from atdr.app.core.config import PROJECT_ROOT, get_settings
-from atdr.app.db.models import Alert, AlertEvidence, AlertNote, MLLabel, NormalizedLog, ResponseAction
+from atdr.app.db.models import Alert, AlertEvidence, AlertNote, MLLabel, NormalizedLog, RawLog, ResponseAction
 from atdr.app.services.detection_service import run_detection
 
 THREAT_LABELS = frozenset({"malicious", "suspicious"})
@@ -184,30 +184,53 @@ def build_scoreboard(db: Session) -> dict[str, Any]:
             str(item.get("code")) for item in (matched or []) if isinstance(item, dict) and item.get("code")
         )
 
-    latest: dict[int, tuple[str, str, str, str | None]] = {}
+    # One firewall record counts once. Re-imports before duplicates were skipped stored some
+    # records several times, each copy with its own label; a record is alerted when any copy is.
+    record_of: dict[int, str] = {}
+    copies: dict[str, list[int]] = defaultdict(list)
+    for log_id, fingerprint in db.execute(
+        select(NormalizedLog.id, RawLog.raw_line_hash)
+        .join(RawLog, RawLog.id == NormalizedLog.raw_log_id)
+        .join(MLLabel, MLLabel.log_id == NormalizedLog.id)
+        .where(MLLabel.reviewed.is_(True))
+        .distinct()
+    ):
+        record = fingerprint or f"log:{log_id}"
+        record_of[int(log_id)] = record
+    fingerprints = sorted({record for record in record_of.values() if not record.startswith("log:")})
+    for start in range(0, len(fingerprints), 900):
+        for log_id, fingerprint in db.execute(
+            select(NormalizedLog.id, RawLog.raw_line_hash)
+            .join(RawLog, RawLog.id == NormalizedLog.raw_log_id)
+            .where(RawLog.raw_line_hash.in_(fingerprints[start:start + 900]))
+        ):
+            copies[fingerprint].append(int(log_id))
+    latest: dict[str, tuple[str, str, str, str | None, int]] = {}
     for log_id, label, attack_type, label_source, src_ip in db.execute(
         select(MLLabel.log_id, MLLabel.label, MLLabel.attack_type, MLLabel.label_source, NormalizedLog.src_ip)
         .join(NormalizedLog, NormalizedLog.id == MLLabel.log_id)
         .where(MLLabel.reviewed.is_(True))
         .order_by(MLLabel.id)
     ):
-        latest[int(log_id)] = (label, attack_type, label_source, src_ip)
+        latest[record_of[int(log_id)]] = (label, attack_type, label_source, src_ip, int(log_id))
 
     rows = []
     excluded = Counter()
-    for log_id, (label, attack_type, label_source, src_ip) in latest.items():
+    for record, (label, attack_type, label_source, src_ip, log_id) in latest.items():
         if label not in THREAT_LABELS and label not in HARMLESS_LABELS:
             excluded[label] += 1
             continue
+        record_logs = copies.get(record) or [log_id]
+        alerted_copy = next((copy for copy in record_logs if copy in alerted), None)
         rows.append(
             {
                 "threat": label in THREAT_LABELS,
-                "alerted": log_id in alerted,
+                "alerted": alerted_copy is not None,
                 "split": split_for_source(src_ip),
                 "manual": label_source == "manual",
                 "attack_type": attack_type,
-                "alert_type": (alerted.get(log_id) or {}).get("alert_type"),
-                "rules": rules_by_log.get(log_id, set()),
+                "alert_type": (alerted.get(alerted_copy) or {}).get("alert_type") if alerted_copy is not None else None,
+                "rules": set().union(*(rules_by_log.get(copy, set()) for copy in record_logs)),
             }
         )
 

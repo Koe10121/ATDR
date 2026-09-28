@@ -41,7 +41,7 @@ from atdr.app.services.team_review_service import (
     human_checked_decisions,
     label_patterns,
     pattern_label_decisions,
-    signoff_counts_as_person,
+    signoff_problems,
     torrent_label_decisions,
 )
 from atdr.scripts.anonymized_review_files import (
@@ -125,6 +125,7 @@ def build() -> None:
         (f"D. Label patterns ({len(pattern_rows)} rows, about 15 min). Each row is a group of our own labels that contradicts the", True),
         ("   firewall's own threat record or a policy the team agreed. Read the examples, then pick 'Relabel as proposed',", False),
         ("   'Keep the current label' or 'Unsure'. Nothing changes until the team lead applies the returned file.", False),
+        ("   One group (campus devices using unidentified apps) also decides whether ATDR keeps alerting on that traffic.", False),
         ("", False),
         ("Peer-to-peer file sharing is policy activity: Normal but unusual unless there is other evidence of an attack.", False),
         ("A single unanswered probe from the internet is background noise, not a Threat on its own.", False),
@@ -135,6 +136,7 @@ def build() -> None:
         ("", False),
         *PRIVACY_LINES, ("", False),
         ("The grey EXAMPLE row in part A shows the format and is not scored. Fill in 'Sign-off' when done and send the file back.", False),
+        ("'Sign-off' counts only with a person's method, the date you finished, and no note saying it is an AI draft.", True),
     ]
     _write_workbook(PACK, guide=guide, signoff=SIGNOFF, sheets=[
         {"title": SHEET_A, "columns": MODEL_COLUMNS, "rows": model_rows, "example": MODEL_EXAMPLE,
@@ -221,7 +223,8 @@ def read(pack: Path) -> None:
     (PACK_DIR / "label_decisions.json").write_text(json.dumps({"note": note, "decisions": decisions}, indent=1), encoding="utf-8")
     (PACK_DIR / "signoff.json").write_text(json.dumps(signoff, indent=1, ensure_ascii=False), encoding="utf-8")
 
-    person = signoff_counts_as_person(method)
+    problems = signoff_problems(method, signoff.get(SIGNOFF[1]), signoff.get(SIGNOFF[4]))
+    person = not problems
     print(f"A  model finds: {len(model_done)} of {len(model)} decided -> {PACK_DIR / 'model_review_decisions.csv'}")
     overall = comparison["overall"]
     print(f"B  blind-check logs: {comparison['judged']} of {len(key['blind']['rows'])} decided; same decision as the AI reviewer "
@@ -232,10 +235,15 @@ def read(pack: Path) -> None:
           + f" -> {PACK_DIR / 'blind_score_human_checked.json'}")
     relabel = [item for item in decisions if item["decision"] != "Unsure"]
     print(f"C+D label changes proposed by the team: {len(relabel)} decisions covering {sum(len(item['log_ids']) for item in relabel)} labels")
-    print(f"Sign-off: reviewed by {signoff.get(SIGNOFF[0]) or '(blank)'}; method: {method or '(blank)'}"
-          f" -> {'counts as a person' if person else 'does NOT count as a person review'}")
-    if not person:
-        print("  The model review cannot switch a type on, and the labels stay 'independent blind reference labeling'.")
+    print(f"Sign-off: reviewed by {signoff.get(SIGNOFF[0]) or '(blank)'}; method: {method or '(blank)'}; "
+          f"finished: {signoff.get(SIGNOFF[1]) or '(blank)'}")
+    print(f"  Note: {signoff.get(SIGNOFF[4]) or '(none)'}")
+    if person:
+        print("  -> counts as a person's review")
+    else:
+        print("  -> does NOT count as a person's review: " + "; ".join(problems))
+        print("  Do not apply these results: the model review cannot switch a type on, and the labels stay")
+        print("  'independent blind reference labeling'. The commands below are for a person-checked return only.")
     print("\nNext (each prints its effect before changing anything):")
     print(f"  python -m atdr.scripts.evaluate_behavior_model --out-dir {key['model_round']} "
           f"--review-decisions {PACK_DIR.relative_to(TMP.parent) / 'model_review_decisions.csv'} --min-reviewed 5")

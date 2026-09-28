@@ -150,3 +150,33 @@ def test_snapshot_refuses_to_overwrite_its_source(tmp_path):
     engine.dispose()
     with pytest.raises(ScoreboardError):
         snapshot_database(source, source)
+
+
+def test_a_firewall_record_stored_twice_counts_once_and_is_alerted_if_any_copy_is(tmp_path):
+    from atdr.app.services.detection_scoreboard_service import build_scoreboard
+
+    source = tmp_path / "source.db"
+    engine, db = _source_db(source)
+    copies = []
+    for _ in range(2):  # the same raw line imported twice, before duplicates were skipped
+        raw = RawLog(raw_line="the same firewall record")
+        db.add(raw)
+        db.flush()
+        log = NormalizedLog(raw_log_id=raw.id, src_ip="10.9.9.9", parsed_json={})
+        db.add(log)
+        db.flush()
+        copies.append(int(log.id))
+        _label(db, log.id, "malicious")
+    alert = Alert(title="Scan", alert_type="possible_port_scan", src_ip="10.9.9.9", threat_score=40, severity="Medium",
+                  status="open", explanation="e", matched_rules_json=[{"code": "possible_port_scan"}], recommended_response="-")
+    db.add(alert)
+    db.flush()
+    db.add(AlertEvidence(alert_id=alert.id, normalized_log_id=copies[1]))
+    db.commit()
+
+    report = build_scoreboard(db)
+
+    assert report["labels"]["used"] == 1
+    assert report["overall"]["all"]["tp"] == 1 and report["overall"]["all"]["fn"] == 0
+    db.close()
+    engine.dispose()

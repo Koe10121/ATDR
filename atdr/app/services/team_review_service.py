@@ -14,18 +14,20 @@ reads and writes the workbook.
 
 from __future__ import annotations
 
+import re
 from collections import Counter, defaultdict
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from atdr.app.db.models import AlertEvidence, MLLabel, NormalizedLog
+from atdr.app.db.models import Alert, AlertEvidence, MLLabel, NormalizedLog
 from atdr.app.detection.attack_mapping import threat_attack_type
 from atdr.app.detection.rules import (
     MALWARE_THREAT_CATEGORIES,
     MALWARE_THREAT_TYPES,
     is_informational_threat_record,
+    is_outside_to_inside,
     is_p2p_file_sharing,
     looks_like_background_probe,
 )
@@ -53,6 +55,12 @@ LABELED_BY = {
     "assisted_hybrid": "automatically, from a combined score",
 }
 PATTERN_CHOICES = ("Relabel as proposed", "Keep the current label", "Unsure")
+UNIDENTIFIED_APPS = frozenset({"unknown", "unknown-tcp", "unknown-udp", "incomplete", "not-applicable", "insufficient-data"})
+# A sign-off note that says the file is an AI draft, or that a person has not reviewed it yet.
+AI_DRAFT_NOTE = re.compile(
+    r"\bAI\b[^.\n]*\b(draft|only)\b|not yet count|does not (yet )?count|(human|person)[^.\n]*\bpending\b|pending[^.\n]*\b(human|person)",
+    re.IGNORECASE,
+)
 TORRENT_POLICY = "Policy activity (not a threat)"
 EXAMPLES_PER_PATTERN = 3
 
@@ -99,7 +107,11 @@ def label_patterns(db: Session) -> list[dict[str, Any]]:
     """
 
     latest = _latest_reviewed_labels(db)
-    alerted = {int(row) for row in db.scalars(select(AlertEvidence.normalized_log_id).distinct())}
+    alert_types: dict[int, set[str]] = defaultdict(set)
+    for log_id, alert_type in db.execute(
+        select(AlertEvidence.normalized_log_id, Alert.alert_type).join(Alert, Alert.id == AlertEvidence.alert_id)
+    ):
+        alert_types[int(log_id)].add(str(alert_type))
     threat_ids = sorted(log_id for log_id, label in latest.items() if label.label in THREAT_LABELS)
     groups: dict[str, list[tuple[NormalizedLog, MLLabel]]] = defaultdict(list)
     for start in range(0, len(threat_ids), 900):
@@ -113,8 +125,14 @@ def label_patterns(db: Session) -> list[dict[str, Any]]:
                 groups[f"named:{named}"].append((log, label))
             elif is_informational_threat_record(log):
                 groups["informational"].append((log, label))
-            elif looks_like_background_probe(log) and int(log.id) not in alerted:
+            elif looks_like_background_probe(log) and int(log.id) not in alert_types:
                 groups["background_probe"].append((log, label))
+            elif (
+                "unknown_or_incomplete_app" in alert_types.get(int(log.id), set())
+                and not is_outside_to_inside(log)
+                and (str(log.app or "").lower() in UNIDENTIFIED_APPS or str(log.app_category or "").lower() == "unknown")
+            ):
+                groups["unidentified_app"].append((log, label))
 
     specs = [
         ("file_sharing", "File sharing labeled as a threat",
@@ -132,6 +150,12 @@ def label_patterns(db: Session) -> list[dict[str, Any]]:
                       f"The firewall's own threat record identifies this traffic as {ATTACK_NAMES[named]} (see the threat names in "
                       "the examples), but the label gives another type. It stays a threat either way; the question is its type.",
                       {"decision": "Real threat", "attack_type": named}, f"Threat, type {ATTACK_NAMES[named]}"))
+    specs.append(("unidentified_app", "Campus devices using unidentified apps labeled as threats",
+                  "Outbound traffic from a campus device whose application the firewall could not identify, mostly UDP to "
+                  "many peers, the way peer-to-peer and camera apps behave. ATDR raises a Low alert on it only because the app "
+                  "is unidentified and the device is busy; no attack signature or known bad address is involved. Your answer "
+                  "decides whether ATDR keeps alerting on such traffic.",
+                  {"decision": "Normal but unusual", "attack_type": None}, "Normal but unusual (unidentified app)"))
     specs.append(("informational", "Informational firewall records labeled as threats",
                   "Records the firewall rates informational whose signature names no attack (such as 'Non-RFC Compliant SSL "
                   "Traffic', usually a VPN client, game or tunnel). ATDR treats them as supporting evidence since rule catalog v5.36.0.",
@@ -245,8 +269,24 @@ def human_checked_decisions(ai_rows: list[dict[str, str]], human: dict[str, dict
     return merged
 
 
-def signoff_counts_as_person(method: str | None) -> bool:
-    """Only a review done or checked by a person can switch a model type on or verify labels."""
+def signoff_problems(method: str | None, finished: str | None = None, note: str | None = None) -> list[str]:
+    """Why a returned pack does not count as a person's review; empty when it does.
 
-    return (method or "").strip() in PERSON_REVIEW_METHODS
+    Only a review done or checked by a person can switch a model type on or verify labels. The method
+    alone is not enough: a returned AI draft once picked "By a person without AI" while its own note said
+    the human review was still pending.
+    """
+
+    problems = []
+    if (method or "").strip() not in PERSON_REVIEW_METHODS:
+        problems.append(f"the method is '{(method or '').strip() or 'blank'}', not a person's review")
+    if not (finished or "").strip():
+        problems.append("'Date finished' is blank")
+    if note and AI_DRAFT_NOTE.search(note):
+        problems.append("the note says it is an AI draft or that a person has not reviewed it yet")
+    return problems
+
+
+def signoff_counts_as_person(method: str | None, finished: str | None = None, note: str | None = None) -> bool:
+    return not signoff_problems(method, finished, note)
 
