@@ -39,6 +39,36 @@ MFU addresses are replaced by the same stand-ins as every earlier review file
 (`mfu-lan-3.12.7`); internet addresses stay real. The build refuses to write a
 file that still contains an MFU address.
 
+## The 28 Sep return
+
+The second return was signed "By a person without AI", but parts A and B were
+the first return's AI draft word for word; the team lead confirmed a person
+checked every row, so it is recorded as "AI-assisted and a person checked every
+row" (`signoff.json` keeps both, with the reason). What it changed:
+
+- **A.** Port scan: 4 of 4 judged finds real, 1 Unsure; the bar needs 5 judged,
+  so no type passes this round. C2 0 of 3 judged real (5 Unsure), exfiltration
+  0 of 1 (1 Unsure). Recorded on the model card.
+- **B.** Every Threat-or-not verdict kept (74 of 74); 11 decisions changed, 5 of
+  them rule-flagged rows moved to Unsure. The blind check with these labels:
+  rules v5.32.0 precision 56.4%, recall 83.6%, F1 67.3% (the official method);
+  rules v5.36.0 93.5%, 78.2%, 85.2%, most of the precision gain from rows moved
+  to Unsure. `score.json` is unchanged.
+- **C and D.** 185 labels relabeled after each group's condition was checked
+  (backup `backups/atdr-sqlite-20260928T111657Z-4815c6a1.sqlite3`): 151 became
+  Normal but unusual (83 file sharing, 62 isolated probes, 5 BitTorrent, 1
+  informational record), 34 stay threats with the type the firewall names (30
+  malware / C2, 4 exploit attempt). One probe kept its label because its source
+  was not isolated. The unidentified-app group was left Unsure, so the rule
+  that alerts on it stays as it is.
+
+The reader checks each group's condition before relabeling, as the reviewer
+asked: a label becomes harmless only if it is in no alert and its source has no
+firewall record naming an attack (a background probe also only while its
+source stays within the background limits in the five minutes around it); a
+type is corrected only where the log's own firewall record names it. Labels
+that fail keep their label and are listed in `label_conditions.json`.
+
 ## For the team lead
 
 ```

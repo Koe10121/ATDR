@@ -187,7 +187,18 @@ nothing moves: precision 80.6%, recall 81.8%, false alarms 1.5%, F1 81.2%; no
 sample changes its flag. On the unimported 13:45-13:57 traffic alerts go from
 684 to 453.
 
-## Human verification (pending)
+## Human check (28 Sep)
+
+The 83 rows below were checked in the team review pack: the answers were an
+AI draft and a person checked every row, so the labels are "AI-assisted,
+human-checked". Every Threat-or-not verdict held (74 of 74); 11 decisions
+changed, 5 of them rows the rules flag moved from a harmless decision to Unsure.
+Scored the official way (rules v5.32.0): precision 56.4%, recall 83.6%, false
+alarms 5.4%, F1 67.3%; with rules v5.36.0: 93.5%, 78.2%, 0.5%, 85.2%, most of
+the precision gain from the rows moved to Unsure, which are not scored. The
+official `score.json` (27 Sep) is unchanged. Details: `TEAM_REVIEW_PACK.md`.
+
+## Human verification (as planned)
 
 The team will check the AI reviewer's labels by hand: all 31 Threat labels, all
 28 false alarms (logs the rules or the model flagged that the reviewer called

@@ -221,7 +221,12 @@ labels later found to describe other records (`LABEL_ARCHIVE.md`): 394 normal, 2
 port scan, 5 data exfiltration, 2 brute force. The model learns mostly from
 simulated attacks and unlabeled normal traffic, so the effect is small, but its one
 real exfiltration example came from a wrong label; the next version trains on the
-cleaned labels. The review was drawn against rules v5.34.0. Rules v5.35.0 and v5.36.0 alert on
+cleaned labels. The review was drawn against rules v5.34.0. It came back on 28 Sep (AI-assisted,
+a person checked every row): port scan 4 of 4 judged finds real with 1 Unsure,
+so 4 judged against the 5 the bar needs; C2 0 of 3 judged real, 5 Unsure;
+exfiltration 0 of 1, 1 Unsure. No type passes this round. Condition 3 still
+holds with the human-checked blind labels (rules or model F1 90.1% against
+85.2% for the rules alone). Rules v5.35.0 and v5.36.0 alert on
 fewer windows (759 of the 15,153), but every window the model flagged keeps its
 rule alert, so the model-only windows are the same 15 and the review stays
 complete.

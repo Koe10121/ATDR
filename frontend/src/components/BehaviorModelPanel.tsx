@@ -260,8 +260,15 @@ function reviewText(entry: BehaviorQualityBarType, bar: BehaviorQualityBar): { t
       return { text: counted, ok: true };
     case "needs_person":
       return { text: `${counted}, but a person must do or check the review`, ok: false };
-    default:
+    default: {
+      // Unsure rows are not judged, so a type can miss the bar on the count alone.
+      const judged = review.judged ?? 0;
+      if (judged < bar.min_reviewed) {
+        const unsure = review.model_only - judged;
+        return { text: `${counted}; ${bar.min_reviewed} judged needed${unsure > 0 ? ` (${unsure} unsure)` : ""}`, ok: false };
+      }
       return { text: `${counted} (90% needed)`, ok: false };
+    }
   }
 }
 

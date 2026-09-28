@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -40,6 +41,7 @@ from atdr.app.services.team_review_service import (
     example_text,
     human_checked_decisions,
     label_patterns,
+    pattern_condition_failures,
     pattern_label_decisions,
     signoff_problems,
     torrent_label_decisions,
@@ -187,7 +189,7 @@ def _write_csv(path: Path, rows: list[dict[str, Any]], fields: list[str]) -> Non
         writer.writerows(rows)
 
 
-def read(pack: Path) -> None:
+def read(pack: Path, *, method: str | None = None, method_reason: str | None = None) -> None:
     from openpyxl import load_workbook
 
     key = json.loads(PACK_KEY.read_text(encoding="utf-8"))
@@ -214,10 +216,30 @@ def read(pack: Path) -> None:
 
     torrents = {row["row"]: row for row in _sheet_rows(workbook, SHEET_C, TORRENT_COLUMNS) if row.get("row")}
     patterns = {row["id"]: row for row in _sheet_rows(workbook, SHEET_D, PATTERN_COLUMNS) if row.get("id")}
-    decisions = pattern_label_decisions(key["patterns"], patterns) + torrent_label_decisions(key["torrent"], torrents)
+    # Relabel only the labels that meet each group's condition; the others keep their label and are listed.
+    torrent_group = {"key": "file_sharing", "proposal": {"decision": "Normal but unusual", "attack_type": None},
+                     "log_ids": list(key["torrent"].values())}
+    with SessionLocal() as db:
+        failures = pattern_condition_failures(db, key["patterns"])
+        torrent_failures = pattern_condition_failures(db, {"C": torrent_group})["C"]
+    for row, log_id in key["torrent"].items():
+        if log_id in torrent_failures and (torrents.get(row) or {}).get("verdict") == TORRENT_POLICY:
+            print(f"   {row}: keeps its label ({torrent_failures[log_id]})")
+            torrents[row] = {**torrents[row], "verdict": "Unsure"}
+    checked_patterns = {pattern_id: {**pattern, "log_ids": [log_id for log_id in pattern["log_ids"] if log_id not in failures[pattern_id]]}
+                        for pattern_id, pattern in key["patterns"].items()}
+    (PACK_DIR / "label_conditions.json").write_text(json.dumps(
+        {pattern_id: {"labels": len(key["patterns"][pattern_id]["log_ids"]), "meeting_condition": len(checked_patterns[pattern_id]["log_ids"]),
+                      "kept_as_labeled": {str(log_id): reason for log_id, reason in failed.items()}}
+         for pattern_id, failed in failures.items()}, indent=1), encoding="utf-8")
+    decisions = pattern_label_decisions(checked_patterns, patterns) + torrent_label_decisions(key["torrent"], torrents)
     signoff_sheet = workbook["Sign-off"]
     signoff = {label: "" if value is None else str(value).strip()
                for label, value in signoff_sheet.iter_rows(min_row=1, max_row=len(SIGNOFF), max_col=2, values_only=True)}
+    if method:
+        signoff["Method as picked on the sign-off"] = signoff.get(SIGNOFF[2], "")
+        signoff[SIGNOFF[2]] = method
+        signoff["Why the method was corrected"] = method_reason or ""
     method = signoff.get(SIGNOFF[2], "")
     note = f"team review pack, returned {datetime.now(UTC).date()}, reviewed by {signoff.get(SIGNOFF[0]) or 'unnamed'}, method: {method or 'not stated'}"
     (PACK_DIR / "label_decisions.json").write_text(json.dumps({"note": note, "decisions": decisions}, indent=1), encoding="utf-8")
@@ -233,6 +255,12 @@ def read(pack: Path) -> None:
     print("   blind check re-scored with these labels (rules v5.32.0, as the official result): "
           + ", ".join(f"{name.replace('_', ' ')} {value * 100:.1f}%" for name, value in estimate.items() if value is not None)
           + f" -> {PACK_DIR / 'blind_score_human_checked.json'}")
+    for pattern_id, failed in failures.items():
+        answer = (patterns.get(pattern_id) or {}).get("choice")
+        if failed and answer == PATTERN_CHOICES[0]:
+            reasons = Counter(failed.values()).most_common(2)
+            print(f"   {pattern_id}: {len(failed)} of {len(key['patterns'][pattern_id]['log_ids'])} labels fail the group's condition and keep "
+                  f"their label ({'; '.join(f'{reason} ({count})' for reason, count in reasons)})")
     relabel = [item for item in decisions if item["decision"] != "Unsure"]
     print(f"C+D label changes proposed by the team: {len(relabel)} decisions covering {sum(len(item['log_ids']) for item in relabel)} labels")
     print(f"Sign-off: reviewed by {signoff.get(SIGNOFF[0]) or '(blank)'}; method: {method or '(blank)'}; "
@@ -259,11 +287,15 @@ def main() -> None:
     commands.add_parser("build", help="write the pack and its private key")
     reader = commands.add_parser("read", help="turn a returned pack into input for the existing tools")
     reader.add_argument("--pack", type=Path, required=True)
+    reader.add_argument("--method", help="the review method as confirmed by the team lead, when the sign-off picked another")
+    reader.add_argument("--method-reason", help="why the sign-off's method was corrected (recorded with it)")
     args = parser.parse_args()
     if args.command == "build":
         build()
     else:
-        read(args.pack)
+        if args.method and not args.method_reason:
+            parser.error("--method needs --method-reason")
+        read(args.pack, method=args.method, method_reason=args.method_reason)
 
 
 if __name__ == "__main__":

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter, defaultdict
+from datetime import timedelta
 from typing import Any
 
 from sqlalchemy import select
@@ -24,6 +25,9 @@ from sqlalchemy.orm import Session
 from atdr.app.db.models import Alert, AlertEvidence, MLLabel, NormalizedLog
 from atdr.app.detection.attack_mapping import threat_attack_type
 from atdr.app.detection.rules import (
+    BACKGROUND_MAX_CONNECTIONS,
+    BACKGROUND_MAX_HOSTS,
+    BACKGROUND_MAX_PORTS,
     MALWARE_THREAT_CATEGORIES,
     MALWARE_THREAT_TYPES,
     is_informational_threat_record,
@@ -196,6 +200,60 @@ def label_patterns(db: Session) -> list[dict[str, Any]]:
     return patterns
 
 
+def _source_has_attack_evidence(db: Session, source: str | None) -> bool:
+    """A firewall threat record from this source that names an attack or malware."""
+
+    if not source:
+        return False
+    for log in db.scalars(select(NormalizedLog).where(NormalizedLog.src_ip == source, NormalizedLog.log_type == "THREAT")):
+        if _firewall_named_type(log):
+            return True
+    return False
+
+
+def pattern_condition_failures(db: Session, patterns: dict[str, dict[str, Any]]) -> dict[str, dict[int, str]]:
+    """Labels in each group that fail the condition the reviewer attached to relabeling them.
+
+    Relabeled as harmless only without independent attack evidence: not in an alert, and no firewall
+    threat record naming an attack from the same source; a background probe also only while its source
+    stays within the background-probing limits in the five minutes around it. A type correction only when
+    the log's own firewall record names that type.
+    """
+
+    alerted = {int(row) for row in db.scalars(select(AlertEvidence.normalized_log_id).distinct())}
+    evidence_by_source: dict[str | None, bool] = {}
+    failures: dict[str, dict[int, str]] = {}
+    for pattern_id, pattern in patterns.items():
+        failed: dict[int, str] = {}
+        named_type = pattern["proposal"].get("attack_type")
+        for log in db.scalars(select(NormalizedLog).where(NormalizedLog.id.in_(pattern["log_ids"]))):
+            if named_type:
+                if _firewall_named_type(log) != named_type:
+                    failed[int(log.id)] = f"its firewall record does not name {ATTACK_NAMES.get(named_type, named_type)}"
+                continue
+            if int(log.id) in alerted:
+                failed[int(log.id)] = "it is in an alert"
+                continue
+            if log.src_ip not in evidence_by_source:
+                evidence_by_source[log.src_ip] = _source_has_attack_evidence(db, log.src_ip)
+            if evidence_by_source[log.src_ip]:
+                failed[int(log.id)] = "its source has a firewall threat record naming an attack"
+                continue
+            if pattern.get("key") == "background_probe" and log.generated_time is not None:
+                around = select(NormalizedLog.dst_ip, NormalizedLog.dst_port).where(
+                    NormalizedLog.src_ip == log.src_ip,
+                    NormalizedLog.generated_time >= log.generated_time - timedelta(seconds=150),
+                    NormalizedLog.generated_time <= log.generated_time + timedelta(seconds=150),
+                )
+                rows = db.execute(around).all()
+                hosts, ports = len({row[0] for row in rows}), len({row[1] for row in rows})
+                if hosts > BACKGROUND_MAX_HOSTS or ports > BACKGROUND_MAX_PORTS or len(rows) > BACKGROUND_MAX_CONNECTIONS:
+                    failed[int(log.id)] = (f"its source is not isolated: {hosts} hosts, {ports} ports, {len(rows)} connections "
+                                           "in the five minutes around it")
+        failures[pattern_id] = failed
+    return failures
+
+
 def pattern_label_decisions(patterns: dict[str, dict[str, Any]], answers: dict[str, dict[str, str]]) -> list[dict[str, Any]]:
     """Part D answers as label-review decisions (atdr/scripts/apply_label_review.py)."""
 
@@ -269,7 +327,7 @@ def human_checked_decisions(ai_rows: list[dict[str, str]], human: dict[str, dict
     return merged
 
 
-def signoff_problems(method: str | None, finished: str | None = None, note: str | None = None) -> list[str]:
+def signoff_problems(method: object, finished: object = None, note: object = None) -> list[str]:
     """Why a returned pack does not count as a person's review; empty when it does.
 
     Only a review done or checked by a person can switch a model type on or verify labels. The method
@@ -277,6 +335,8 @@ def signoff_problems(method: str | None, finished: str | None = None, note: str 
     the human review was still pending.
     """
 
+    # Excel hands back a typed date for "Date finished"; everything is compared as text.
+    method, finished, note = ("" if value is None else str(value) for value in (method, finished, note))
     problems = []
     if (method or "").strip() not in PERSON_REVIEW_METHODS:
         problems.append(f"the method is '{(method or '').strip() or 'blank'}', not a person's review")
@@ -287,6 +347,6 @@ def signoff_problems(method: str | None, finished: str | None = None, note: str 
     return problems
 
 
-def signoff_counts_as_person(method: str | None, finished: str | None = None, note: str | None = None) -> bool:
+def signoff_counts_as_person(method: object, finished: object = None, note: object = None) -> bool:
     return not signoff_problems(method, finished, note)
 

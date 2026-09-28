@@ -28,20 +28,34 @@ mfu_behavior_v2). Details are in the linked documents.
 |---|---|---|---|---|---|
 | Blind check, 150 logs, rules v5.32.0 (official) | Blind | 50.9% (38.6-64.9%) | 81.8% (61.9-100%) | 6.0% | 62.7% |
 | Blind check re-scored, rules v5.34.0 to v5.36.0 | Second look | 80.6% (66.7-92.7%) | 81.8% | 1.5% | 81.2% |
+| Blind check, rules v5.32.0, labels human-checked (28 Sep) | Blind, official method | 56.4% | 83.6% | 5.4% | 67.3% |
+| Blind check, rules v5.36.0, labels human-checked | Second look | 93.5% | 78.2% | 0.5% | 85.2% |
 | Detection scoreboard, 2,132 team labels, v5.34.0 | Agreement | 95.5% | 80.4% | 1.8% | 87.3% |
 | Detection scoreboard, 2,132 team labels, v5.35.0 | Agreement | 95.6% | 73.1% | 1.6% | 82.9% |
 | Detection scoreboard, 2,132 team labels, v5.36.0 | Agreement | 95.6% | 72.4% | 1.6% | 82.4% |
 | Detection scoreboard, 1,489 team-labeled records, v5.36.0, misattached labels archived | Agreement | 97.0% | 79.3% | 1.5% | 87.3% |
+| Same, after the team review relabeled 185 labels (28 Sep) | Agreement (circular) | 97.0% | 99.8% | 1.4% | 98.4% |
 | Live alert list before the rebuild (3,676 alerts) | Agreement | 48.9% | 87.6% | 43.3% | 62.8% |
 | Live alert list after the rebuild (314 alerts) | Agreement | 93.9% | 80.4% | 2.5% | 86.6% |
 
 - The blind labels were made by an AI reviewer (ChatGPT, acting as a senior
-  SOC analyst) without access to ATDR's verdicts. A second AI pass agreed with
-  all 83 rows it checked; the team's own check is pending. Until then they are
-  an independent blind reference labeling, not ground truth.
+  SOC analyst) without access to ATDR's verdicts. On 28 Sep the team checked
+  the 83 that matter (every Threat, false alarm and Unsure, plus 20 random
+  others): the answers were drafted by AI and a person checked every row, so
+  they are "AI-assisted, human-checked" labels, not an independent relabel. The
+  check kept every Threat-or-not verdict (74 of 74) and changed 11 decisions:
+  2 Unsure rows became Threats, and 5 rows the rules flag moved from Normal or
+  Normal but unusual to Unsure. Unsure rows are not scored, so those 5 leave the
+  false alarms: most of the rise to 93.5% precision under v5.36.0 is that move,
+  not rows judged to be threats. The official row above stays as scored on 27 Sep.
 - Between v5.32.0 and v5.34.0: the flood rule stopped firing on campus apps'
   busy two-way traffic, and BitTorrent became policy activity. No sample
   labeled Threat lost its alert.
+- The 98.4% row is agreement by construction: the team review relabeled
+  exactly the groups where the labels contradicted ATDR's policies (file
+  sharing, isolated internet probes) or the firewall's own record (miner,
+  Shellshock). It shows the labels now follow those policies, not that the
+  rules are 98% accurate. The blind check is the fair estimate.
 - The scoreboard rows with 2,132 labels included 794 reviewed labels made on
   23-25 May for logs that were re-imported on 27 May, so they described other
   records, and counted duplicate copies of some records. Those labels are
@@ -116,12 +130,15 @@ raising alerts alone (rebuilt 2026-09-28; the 5 analyst-worked alerts kept):
 | v2 alone, blind check re-scored | Second look | all 20 flags labeled Threat, recall 62.7% |
 | Rules or v2, blind check re-scored | Second look | F1 86.3% vs rules 81.2% |
 | v2 on fresh simulated attacks (13:45-13:50, 13:55-13:57) | Simulated | port scan 96.5%, brute force 97.5%, flood 100%, C2 88.5%, exfiltration 98.0% |
-| v2's extra finds on the fresh windows | Blind review out with the team | 5 port scan, 8 C2, 2 exfiltration windows |
+| v2's extra finds on the fresh windows, 30-row blind review (28 Sep) | Blind, AI-assisted and person-checked | port scan 4 of 4 judged real (1 unsure), C2 0 of 3 (5 unsure), exfiltration 0 of 1 (1 unsure) |
+| Rules or v2, blind check with the human-checked labels | Second look | F1 90.1% vs rules 85.2%: condition 3 holds |
 
 Every attack type is advisory. A type may raise alerts only after passing the
-bar declared before training (`detection/ML_QUALITY_BAR.md`); today port scan
-is the only type that still can, and only if the team's review finds all 5
-windows real. The AI Governance page shows each type's standing.
+bar declared before training (`detection/ML_QUALITY_BAR.md`). After the team's
+review no type passes this round: port scan's 4 judged finds were all real, but
+the bar needs 5 judged and one stayed Unsure; C2 fails on simulated beacons and
+its finds; exfiltration has too few. The AI Governance page shows each type's
+standing.
 
 The earlier models (anomaly model and supervised classifier) stay advisory.
 In the pre-presentation 40-case blind review the anomaly model found none of
@@ -162,17 +179,16 @@ Source: `SOC_ASSISTANT_CONVERSATIONAL.md`.
   flood and exfiltration are measured only on simulated attacks.
 - **Labels.** 1,231 early labels turned out to describe other records and were
   archived (`detection/LABEL_ARCHIVE.md`). The team's remaining labels were
-  AI-assisted and team-verified; the blind
+  AI-assisted and team-verified, 185 of them corrected in the 28 Sep review;
+  the blind
   labels are an AI reviewer's. The team's own check of the blind labels is
   pending.
 - **Rare misses.** Recall rests on few threats, hence intervals like 61.9-100%.
 
 ## Open items
 
-- Team: fill in the team review pack (`detection/TEAM_REVIEW_PACK.md`): v2's
-  extra finds (30 rows), the blind-check logs judged without the AI's answer
-  (83 rows), 5 BitTorrent labels, and 6 groups of team labels (257 labels)
-  that contradict the firewall's own record or the team's policies. The first
-  return (28 Sep) was an AI draft by its own note and does not count.
+- Team review pack returned and applied on 28 Sep (`detection/TEAM_REVIEW_PACK.md`).
+  Still open: the rows it left Unsure (8 of the model's windows, one of them
+  the port-scan find that decides the bar, and the unidentified-app label group).
 - Another MFU export, even an hour from a different day, would allow one clean
   end-to-end test of the whole system.

@@ -4577,6 +4577,31 @@ test("AI Governance leads with what decides and a plain trust summary, with rese
   await expect(page).toHaveURL(/\/ml$/);
 });
 
+test("AI Governance says a type missed the bar on the judged count when rows stayed unsure", async ({ page }) => {
+  await mockApi(page);
+  await page.unroute("**/api/ml/behavior/status");
+  const reviewed = {
+    ...smokeBehaviorStatus,
+    quality_bar: {
+      ...smokeBehaviorStatus.quality_bar,
+      review_method: "AI-assisted and a person checked every row",
+      types: {
+        ...smokeBehaviorStatus.quality_bar.types,
+        port_scan: { condition_1: { status: "fail", model_only: 5, judged: 4, threat: 4, precision: 1 }, condition_2: { found: 0.965, passes: true }, eligible: false },
+        malware_c2: { condition_1: { status: "fail", model_only: 8, judged: 8, threat: 3, precision: 0.375 }, condition_2: { found: 0.885, passes: false }, eligible: false }
+      }
+    }
+  };
+  await page.route("**/api/ml/behavior/status", async (route) => route.fulfill({ json: reviewed }));
+  await seedSession(page);
+  await page.goto("/ml");
+
+  const bar = page.getByTestId("governance-quality-bar");
+  await expect(bar.getByRole("row", { name: /Port scan/ })).toContainText("4 of 4 judged real; 5 judged needed (1 unsure)");
+  await expect(bar.getByRole("row", { name: /Malware C2/ })).toContainText("3 of 8 judged real (90% needed)");
+  await expect(page.getByTestId("governance-mfu-model")).toContainText("No attack type can pass this round.");
+});
+
 test("AI Governance describes the conversational assistant that is actually running", async ({ page }) => {
   // The trust summary used to call the assistant "Gemini, rewords only" after the local
   // tool-using agent had replaced it.

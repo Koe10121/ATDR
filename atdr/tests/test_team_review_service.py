@@ -158,9 +158,34 @@ def test_only_a_finished_person_review_counts():
     assert not signoff_counts_as_person("AI only (not checked by a person)", "30 Sep")
     assert not signoff_counts_as_person(None, "30 Sep")
     assert signoff_problems("By a person without AI", None) == ["'Date finished' is blank"]
+    assert signoff_problems("By a person without AI", datetime(2026, 9, 28)) == [], "Excel returns a typed date"
     # The first returned pack: a person method picked, but the note says otherwise.
     note = ("AI draft prepared 28 Sep 2026. Human reviewer and completion date remain pending. "
             "This does not yet count as human-checked validation.")
     assert "the note says it is an AI draft or that a person has not reviewed it yet" in signoff_problems("By a person without AI", "28 Sep", note)
     # Mentioning AI help is fine when a person checked every row.
     assert signoff_counts_as_person("AI-assisted and a person checked every row", "28 Sep", "AI helped us sort rows; we then checked each one.")
+
+
+def test_a_group_is_relabeled_only_where_its_condition_holds():
+    from atdr.app.services.team_review_service import pattern_condition_failures
+
+    db = _session()
+    ids = _seed(db)
+    for second in range(12):  # the probe's source hits many hosts: not isolated background noise
+        _log(db, 20 + second, "benign", "normal", **INBOUND, src_ip="45.9.148.99", dst_ip=f"10.1.4.{second}", action="deny")
+    busy = _log(db, 40, "malicious", "port_scan", **INBOUND, src_ip="45.9.148.99", action="deny")
+    db.commit()
+    groups = {
+        "probes": {"key": "background_probe", "proposal": {"decision": "Normal but unusual", "attack_type": None},
+                   "log_ids": [ids["probe"], busy, ids["alerted_probe"]]},
+        "miners": {"key": "named:malware_c2", "proposal": {"decision": "Real threat", "attack_type": "malware_c2"},
+                   "log_ids": [ids["miner"], ids["shellshock"]]},
+    }
+
+    failures = pattern_condition_failures(db, groups)
+
+    assert set(failures["probes"]) == {busy, ids["alerted_probe"]}
+    assert failures["probes"][ids["alerted_probe"]] == "it is in an alert"
+    assert failures["probes"][busy].startswith("its source is not isolated")
+    assert list(failures["miners"]) == [ids["shellshock"]], "a type is corrected only where the firewall names it"
