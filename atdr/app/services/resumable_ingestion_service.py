@@ -21,7 +21,7 @@ from atdr.app.services.job_service import (
     release_job_for_graceful_shutdown,
     renew_job_lease,
 )
-from atdr.app.services.log_service import persist_parsed_log
+from atdr.app.services.log_service import is_repeat_of_stored_record, persist_parsed_log
 from atdr.app.services.operation_run_service import complete_ingestion_run, fail_ingestion_run, safe_source_label, start_ingestion_run
 from atdr.app.services.runtime_parser_quality_service import (
     empty_runtime_parser_quality,
@@ -87,17 +87,16 @@ def _target_total(metadata: StagedInputMetadata, limit: int | None) -> int:
     return min(metadata.available_lines, max(0, int(limit)))
 
 
-def _chunk_duplicate_count(db: Session, raw_lines: list[str]) -> int:
-    """Count exact duplicates with bounded indexed lookups and bounded memory.
+def _chunk_duplicates(db: Session, raw_lines: list[str]) -> list[bool]:
+    """Which lines are exact copies of a stored line or of an earlier line in the chunk.
 
-    A hash narrows candidates, while the full line comparison preserves exact
-    semantics even in the theoretical event of a hash collision. Repeated
-    lines inside the same uncommitted chunk are counted after their first
-    occurrence, matching the prior row-by-row behavior.
+    A hash narrows candidates with bounded indexed lookups, while the full line
+    comparison preserves exact semantics even in the theoretical event of a hash
+    collision. Earlier chunks are already committed, so the lookup sees them.
     """
 
     if not raw_lines:
-        return 0
+        return []
     fingerprints = {raw_line_fingerprint(raw_line) for raw_line in raw_lines}
     existing_lines: set[str] = set()
     ordered_fingerprints = sorted(fingerprints)
@@ -108,13 +107,11 @@ def _chunk_duplicate_count(db: Session, raw_lines: list[str]) -> int:
         )
 
     seen = existing_lines
-    duplicate_count = 0
+    duplicates = []
     for raw_line in raw_lines:
-        if raw_line in seen:
-            duplicate_count += 1
-        else:
-            seen.add(raw_line)
-    return duplicate_count
+        duplicates.append(raw_line in seen)
+        seen.add(raw_line)
+    return duplicates
 
 
 def _initialize_run(
@@ -352,9 +349,15 @@ def run_resumable_import(
             chunk_failed = 0
             chunk_parser_quality = empty_runtime_parser_quality()
             raw_texts = [line.rstrip("\r\n") for _, line in records]
-            chunk_duplicates = _chunk_duplicate_count(db, raw_texts)
-            for (line_number, line), _raw_text in zip(records, raw_texts, strict=True):
+            duplicate_flags = _chunk_duplicates(db, raw_texts)
+            chunk_duplicates = sum(duplicate_flags)
+            chunk_skipped = 0
+            for (line_number, line), is_duplicate in zip(records, duplicate_flags, strict=True):
                 parsed_log = parse_log_line_for_profile(line, source.parser_profile)
+                if is_duplicate and is_repeat_of_stored_record(parsed_log, source.parser_profile):
+                    # The same firewall record imported again (overlapping exports): counted, not stored twice.
+                    chunk_skipped += 1
+                    continue
                 chunk_parser_quality = observe_parser_result(
                     chunk_parser_quality,
                     parsed_log,
@@ -386,7 +389,7 @@ def run_resumable_import(
                 parser_quality=chunk_parser_quality,
             )
             run.total_lines_received += committed_count
-            run.raw_logs_created += committed_count
+            run.raw_logs_created += committed_count - chunk_skipped
             run.parsed_successfully += chunk_parsed
             run.parse_failures += chunk_failed
             run.duplicate_raw_logs += chunk_duplicates

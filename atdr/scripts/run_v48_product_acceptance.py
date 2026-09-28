@@ -63,6 +63,7 @@ from atdr.app.services.persistence_service import (
 from atdr.app.services.resumable_ingestion_service import CooperativeImportCancelled, run_resumable_import
 from atdr.app.services.source_service import create_source, source_health
 from atdr.app.services.staging_service import stage_upload_for_job, staged_payload_fields
+from atdr.scripts.run_source_scenario import _same_traffic_later
 
 
 _ACTOR = "v48-product-acceptance"
@@ -194,8 +195,19 @@ def _isolated_runtime(database_url: str, staging_root: Path, *, chunk_size: int)
             get_settings.cache_clear()
 
 
+def _bulk_duplicate_interval(count: int) -> int:
+    return max(5, count // 10) if count else 5
+
+
+def _bulk_duplicates(count: int) -> int:
+    """Repeated lines in the bulk file after the first copy: counted on import, not stored again."""
+
+    repeats = len(range(_bulk_duplicate_interval(count), count, _bulk_duplicate_interval(count)))
+    return max(0, repeats - 1)
+
+
 def _write_bulk_syslog(path: Path, count: int) -> None:
-    duplicate_interval = max(5, count // 10) if count else 5
+    duplicate_interval = _bulk_duplicate_interval(count)
     repeated = "2026-07-16T08:00:00Z v48-router event_id=duplicate action=allow protocol=tcp service=https"
     with path.open("w", encoding="utf-8", newline="\n") as handle:
         for index in range(count):
@@ -786,9 +798,11 @@ def run_v48_product_acceptance(
                     )
                     detection_seconds += seconds
 
+                # The same scan continuing: an identical line would be the same event re-imported and
+                # stored once, so the repeat carries the next timestamps.
                 second_scan_job = _stage_and_enqueue(
                     db,
-                    path=port_scan_path,
+                    path=_same_traffic_later(port_scan_path, temp_root),
                     source=sources["firewall"],
                     limit=10,
                     name="v48-port-scan-repeat.log",
@@ -842,6 +856,10 @@ def run_v48_product_acceptance(
                     db.scalar(select(func.count(RawLog.id)).where(func.length(func.trim(RawLog.raw_line)) == 0)) or 0
                 )
                 duplicate_total = int(db.scalar(select(func.sum(IngestionRun.duplicate_raw_logs))) or 0)
+                # Repeats of a stored Palo Alto record are counted, not stored; other repeats stay evidence.
+                repeats_not_stored = int(
+                    db.scalar(select(func.sum(IngestionRun.total_lines_received - IngestionRun.raw_logs_created))) or 0
+                )
                 parse_failure_total = int(db.scalar(select(func.sum(IngestionRun.parse_failures))) or 0)
 
                 alert = None
@@ -897,7 +915,7 @@ def run_v48_product_acceptance(
                 occurrence_count, related_log_count = _alert_group_counts(alert)
                 ingestion_run_consistency = all(
                     run.status == "completed"
-                    and run.total_lines_received == run.raw_logs_created
+                    and 0 <= run.total_lines_received - run.raw_logs_created <= run.duplicate_raw_logs
                     and run.raw_logs_created == run.parsed_successfully + run.parse_failures
                     for run in db.scalars(select(IngestionRun))
                 )
@@ -930,14 +948,15 @@ def run_v48_product_acceptance(
 
                 checks = {
                     "migration_at_head": bool(migration_state["at_head"]),
-                    "exact_raw_log_count": counts["raw_logs"] == log_count,
-                    "exact_normalized_log_count": counts["normalized_logs"] == log_count,
+                    # Every attempted line is stored, or counted as a repeat of a stored firewall record.
+                    "exact_raw_log_count": counts["raw_logs"] + repeats_not_stored == log_count,
+                    "exact_normalized_log_count": counts["normalized_logs"] + repeats_not_stored == log_count,
                     "all_raw_evidence_preserved": empty_raw_evidence == 0,
                     "all_logs_source_linked": missing_source_links == 0,
                     "source_counters_match": sum(item["logs_received"] for item in source_states.values()) == log_count,
                     "parse_accounting_consistent": ingestion_run_consistency,
                     "parse_failures_tracked": parse_failure_total >= 3,
-                    "duplicates_tracked": duplicate_total >= 10,
+                    "duplicates_tracked": duplicate_total == _bulk_duplicates(bulk_count) >= 1,
                     "bulk_import_completed": bool(bulk_result.get("ok")),
                     "recovery_import_completed": bool(recovery_result.get("ok")),
                     "scenario_imports_completed": all(
@@ -1010,6 +1029,7 @@ def run_v48_product_acceptance(
                         "normalized_logs_created": counts["normalized_logs"],
                         "parse_failures": parse_failure_total,
                         "duplicate_raw_logs": duplicate_total,
+                        "repeats_not_stored": repeats_not_stored,
                         "missing_source_links": missing_source_links,
                         "empty_raw_evidence": empty_raw_evidence,
                     },

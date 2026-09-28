@@ -90,6 +90,7 @@ def _product_summary(result: dict[str, Any]) -> dict[str, Any]:
         "normalized_logs_created": int(ingestion.get("normalized_logs_created") or 0),
         "parse_failures": int(ingestion.get("parse_failures") or 0),
         "duplicates_tracked": int(ingestion.get("duplicate_raw_logs") or 0),
+        "repeats_not_stored": int(ingestion.get("repeats_not_stored") or 0),
         "source_links_complete": int(ingestion.get("missing_source_links") or 0) == 0,
         "raw_evidence_preserved": int(ingestion.get("empty_raw_evidence") or 0) == 0,
         "interruption_recovered": bool(
@@ -285,8 +286,9 @@ def build_v525_report(
     checks = {
         "collection_and_normalization_passed": bool(
             product.get("passed")
-            and product.get("raw_logs_imported") == product.get("attempted")
-            and product.get("normalized_logs_created") == product.get("attempted")
+            # Every attempted line is stored, or counted as a repeat of a stored firewall record.
+            and product.get("raw_logs_imported") + product.get("repeats_not_stored", 0) == product.get("attempted")
+            and product.get("normalized_logs_created") + product.get("repeats_not_stored", 0) == product.get("attempted")
             and product.get("source_links_complete")
             and product.get("raw_evidence_preserved")
         ),

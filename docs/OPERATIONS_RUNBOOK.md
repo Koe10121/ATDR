@@ -99,8 +99,14 @@ private path only at runtime (about 1 ms per line):
 .\.venv\Scripts\python.exe -m atdr.scripts.import_logs "D:\Private Logs\firewall.log" --limit 5000
 ```
 
-Both paths store an exact copy of a line that is already stored and count it
-as a duplicate, so importing overlapping exports stores the overlap twice.
+Overlapping exports are safe to import. A parsed Palo Alto record carries the
+firewall's own serial and sequence number, so an exact copy of a stored one is
+the same record imported again: every import path (queued, command line and
+syslog) counts it as a duplicate and does not store it twice. A generic syslog
+line, or a line that did not parse, has no such identity and can repeat for
+real events (a burst of identical failed logins), so its repeats are counted
+and kept as evidence. The counts appear in each import's result and in the
+dashboard's data-quality figures.
 
 For live lab forwarding, register the source and run the UDP receiver only on
 an approved interface. Loopback is the safe default:

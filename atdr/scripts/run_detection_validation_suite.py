@@ -1,5 +1,6 @@
 import argparse
 import json
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -15,7 +16,7 @@ from atdr.app.services.alert_service import list_alerts
 from atdr.app.services.detection_service import run_detection
 from atdr.app.services.log_service import count_nonblank_log_lines, import_log_file
 from atdr.app.services.source_service import get_or_create_source, source_to_dict
-from atdr.scripts.run_source_scenario import SCENARIOS, _temp_session_factory
+from atdr.scripts.run_source_scenario import SCENARIOS, _same_traffic_later, _temp_session_factory
 
 
 SCENARIO_DIR = PROJECT_ROOT / "data" / "samples" / "scenarios"
@@ -344,15 +345,16 @@ def run_detection_validation_scenario(
             detection_results = [detection_result]
             import_results = [import_result]
             if spec.repeat_import_detection:
-                import_results.append(
-                    import_log_file(
-                        db,
-                        path,
-                        actor="detection_validation",
-                        source_id=source.id,
-                        parser_profile=spec.default_parser_profile,
+                with tempfile.TemporaryDirectory() as directory:
+                    import_results.append(
+                        import_log_file(
+                            db,
+                            _same_traffic_later(path, Path(directory)),
+                            actor="detection_validation",
+                            source_id=source.id,
+                            parser_profile=spec.default_parser_profile,
+                        )
                     )
-                )
                 detection_results.append(
                     run_detection(
                         db,

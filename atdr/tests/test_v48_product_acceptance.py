@@ -67,10 +67,13 @@ def test_v48_ingestion_resume_and_failure_recovery_are_exact(full_acceptance: di
     recovery = full_acceptance["recovery"]
 
     assert ingestion["attempted"] == 64
+    # The bulk router file repeats one generic syslog line 6 times. Generic lines carry no record
+    # identity, so the 5 repeats are counted as duplicates and kept as evidence.
+    assert ingestion["duplicate_raw_logs"] == 5
+    assert ingestion["repeats_not_stored"] == 0
     assert ingestion["raw_logs_imported"] == 64
     assert ingestion["normalized_logs_created"] == 64
     assert ingestion["parse_failures"] == 3
-    assert ingestion["duplicate_raw_logs"] >= 10
     assert ingestion["missing_source_links"] == 0
     assert ingestion["empty_raw_evidence"] == 0
     assert recovery["bulk_graceful_interruption"]["resume_completed"] is True

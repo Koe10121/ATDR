@@ -46,6 +46,7 @@ def run_udp_syslog_receiver(
     received = 0
     parsed = 0
     failed = 0
+    duplicates = 0
     parser_quality = empty_runtime_parser_quality()
     timed_out = False
     sender_hosts: set[str] = set()
@@ -92,12 +93,15 @@ def run_udp_syslog_receiver(
                     port=address[1],
                 )
                 received += 1
-                parsed += 1 if result["parsed"] else 0
-                failed += 0 if result["parsed"] else 1
-                parser_quality = merge_runtime_parser_quality(
-                    parser_quality,
-                    result.get("parser_quality"),
-                )
+                if not result.get("stored", True):
+                    duplicates += 1
+                else:
+                    parsed += 1 if result["parsed"] else 0
+                    failed += 0 if result["parsed"] else 1
+                    parser_quality = merge_runtime_parser_quality(
+                        parser_quality,
+                        result.get("parser_quality"),
+                    )
                 pending += 1
                 if pending >= flush_every:
                     db.add(
@@ -110,6 +114,7 @@ def run_udp_syslog_receiver(
                                 "received": received,
                                 "parsed": parsed,
                                 "failed": failed,
+                                "duplicates": duplicates,
                                 "sender_count": len(sender_hosts),
                                 "non_loopback_sender_observed": non_loopback_sender_observed,
                                 "parser_quality": parser_quality,
@@ -129,6 +134,7 @@ def run_udp_syslog_receiver(
                             "received": received,
                             "parsed": parsed,
                             "failed": failed,
+                            "duplicates": duplicates,
                             "sender_count": len(sender_hosts),
                             "non_loopback_sender_observed": non_loopback_sender_observed,
                             "parser_quality": parser_quality,
@@ -139,9 +145,10 @@ def run_udp_syslog_receiver(
                 db,
                 run,
                 total_lines_received=received,
-                raw_logs_created=received,
+                raw_logs_created=received - duplicates,
                 parsed_successfully=parsed,
                 parse_failures=failed,
+                duplicate_raw_logs=duplicates,
                 details={
                     "timed_out": timed_out,
                     "sender_count": len(sender_hosts),
@@ -159,6 +166,7 @@ def run_udp_syslog_receiver(
         "received": received,
         "parsed": parsed,
         "failed": failed,
+        "duplicates": duplicates,
         "timed_out": timed_out,
         "sender_count": len(sender_hosts),
         "non_loopback_sender_observed": non_loopback_sender_observed,

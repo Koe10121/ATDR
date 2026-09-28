@@ -93,7 +93,7 @@ def test_v514_resumes_with_source_traceability_and_no_unsafe_side_effects() -> N
     }
 
 
-def test_v514_counts_repeated_evidence_without_resume_duplication(
+def test_v514_counts_repeated_records_without_resume_duplication(
     tmp_path: Path,
 ) -> None:
     first_line = SCENARIO_PATH.read_text(encoding="utf-8").splitlines()[0]
@@ -112,12 +112,14 @@ def test_v514_counts_repeated_evidence_without_resume_duplication(
         resume=True,
     )
 
+    # Eight copies of one Palo Alto record: stored once, the other seven counted, across a resume.
     assert result["ok"] is True
-    assert result["ingestion"]["raw_logs"] == 8
-    assert result["ingestion"]["normalized_logs"] == 8
-    assert result["ingestion"]["exact_duplicates_observed_and_preserved"] == 7
+    assert result["ingestion"]["raw_logs"] == 1
+    assert result["ingestion"]["normalized_logs"] == 1
+    assert result["ingestion"]["exact_duplicates_observed"] == 7
+    assert result["ingestion"]["exact_repeats_not_stored"] == 7
     assert result["ingestion"]["checks"]["no_extra_rows_after_resume"] is True
-    assert "counted and preserved" in result["ingestion"]["duplicate_policy"]
+    assert "counted, not stored again" in result["ingestion"]["duplicate_policy"]
 
 
 def test_v514_output_redacts_private_path_raw_evidence_and_ips(

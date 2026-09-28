@@ -136,7 +136,7 @@ def test_v515_combined_recovery_preserves_exact_evidence_and_traceability() -> N
     }
 
 
-def test_v515_repeated_evidence_is_preserved_without_checkpoint_replay(
+def test_v515_repeated_records_are_counted_without_checkpoint_replay(
     tmp_path: Path,
 ) -> None:
     first_line = SCENARIO_PATH.read_text(encoding="utf-8").splitlines()[0]
@@ -154,10 +154,12 @@ def test_v515_repeated_evidence_is_preserved_without_checkpoint_replay(
         fault_plan="combined",
     )
 
+    # Eight copies of one Palo Alto record: stored once, the other seven counted, across every fault.
     assert result["ok"] is True
-    assert result["ingestion"]["raw_logs"] == 8
-    assert result["ingestion"]["normalized_logs"] == 8
-    assert result["ingestion"]["exact_duplicates_observed_and_preserved"] == 7
+    assert result["ingestion"]["raw_logs"] == 1
+    assert result["ingestion"]["normalized_logs"] == 1
+    assert result["ingestion"]["exact_duplicates_observed"] == 7
+    assert result["ingestion"]["exact_repeats_not_stored"] == 7
     assert result["ingestion"]["checks"]["no_checkpoint_replay_rows"] is True
 
 

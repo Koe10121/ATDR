@@ -1,5 +1,7 @@
 import argparse
 import json
+import shutil
+import tempfile
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -19,6 +21,7 @@ from atdr.app.services.detection_service import run_detection
 from atdr.app.services.log_service import count_nonblank_log_lines, import_log_file
 from atdr.app.services.source_service import get_or_create_source, source_health, source_to_dict
 from atdr.scripts.run_detection_validation_suite import _allowed_attack_types, _load_expectations
+from atdr.scripts.run_source_scenario import _same_traffic_later
 from atdr.scripts.run_source_scenario import SCENARIOS, ScenarioSpec, _temp_session_factory
 
 
@@ -392,6 +395,7 @@ def run_no_hardware_soak(
         init_db()
         SessionFactory = SessionLocal
 
+    replay_dir = Path(tempfile.mkdtemp(prefix="atdr-soak-"))
     try:
         with SessionFactory() as db:
             before_counts = _count_db_state(db)
@@ -413,6 +417,12 @@ def run_no_hardware_soak(
                     break
                 spec = SCENARIOS[event.scenario]
                 path = _scenario_path(spec)
+                if event.iteration > 1:
+                    # Later rounds are the same traffic arriving again, seconds later: an identical
+                    # line is the same event re-imported and is stored once.
+                    round_dir = replay_dir / f"round-{event.iteration}"
+                    round_dir.mkdir(exist_ok=True)
+                    path = _same_traffic_later(path, round_dir, rounds=event.iteration - 1)
                 source = get_or_create_source(
                     db,
                     name=event.source_name,
@@ -525,6 +535,7 @@ def run_no_hardware_soak(
                 "runtime_seconds": round(time.perf_counter() - started, 3),
             }
     finally:
+        shutil.rmtree(replay_dir, ignore_errors=True)
         if temp_engine is not None:
             temp_engine.dispose()
 

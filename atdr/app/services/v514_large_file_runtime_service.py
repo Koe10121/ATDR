@@ -422,10 +422,16 @@ def _cancellation_probe(
                 raw_count = int(db.scalar(select(func.count(RawLog.id))) or 0)
                 response_count = int(db.scalar(select(func.count(ResponseAction.id))) or 0)
                 eligible, _reason = resume_eligibility(persisted) if persisted is not None else (False, None)
+                # The boundary is in lines processed: repeats of a stored record are counted, not stored.
+                at_boundary = bool(
+                    persisted is not None
+                    and int(persisted.checkpoint_line or 0) == min(chunk_size, staged.available_lines)
+                    and raw_count <= int(persisted.checkpoint_line or 0)
+                )
                 ok = bool(
                     persisted is not None
                     and persisted.status == "cancelled"
-                    and raw_count == min(chunk_size, staged.available_lines)
+                    and at_boundary
                     and eligible
                     and response_count == 0
                     and staged.path.exists()
@@ -434,7 +440,7 @@ def _cancellation_probe(
                     "ok": ok,
                     "status": persisted.status if persisted is not None else "missing",
                     "committed_rows": raw_count,
-                    "cancelled_at_committed_boundary": raw_count == min(chunk_size, staged.available_lines),
+                    "cancelled_at_committed_boundary": at_boundary,
                     "resume_eligible": eligible,
                     "staged_input_retained": staged.path.exists(),
                     "cancellation_latency_seconds": (
@@ -1148,6 +1154,11 @@ def run_v514_large_file_runtime_acceptance(
                 duplicate_counts = sum(
                     int(run.duplicate_raw_logs or 0) for run in ingestion_runs
                 )
+                # Repeats of an already-stored Palo Alto record are counted, not stored again.
+                repeats_not_stored = sum(
+                    int(run.total_lines_received or 0) - int(run.raw_logs_created or 0)
+                    for run in ingestion_runs
+                )
                 all_completed = (
                     len(import_summaries) == len(partitions)
                     and all(summary["completed"] for summary in import_summaries)
@@ -1163,7 +1174,7 @@ def run_v514_large_file_runtime_acceptance(
                         for summary in import_summaries
                     ),
                     "idempotent_enqueue_reused_existing_job": idempotency_reused,
-                    "no_extra_rows_after_resume": completed_rows
+                    "no_extra_rows_after_resume": completed_rows + repeats_not_stored
                     == sum(
                         int(summary["rows"])
                         for summary in import_summaries
@@ -1173,7 +1184,7 @@ def run_v514_large_file_runtime_acceptance(
                     "source_counts_match": sum(
                         int(source["logs_received"]) for source in source_summaries
                     )
-                    == completed_rows,
+                    == completed_rows + repeats_not_stored,
                     "staging_cleaned_after_completion": all(
                         bool(summary.get("staged_input_cleaned"))
                         for summary in import_summaries
@@ -1213,9 +1224,11 @@ def run_v514_large_file_runtime_acceptance(
                         "parse_failures": sum(
                             int(run.parse_failures or 0) for run in ingestion_runs
                         ),
-                        "exact_duplicates_observed_and_preserved": duplicate_counts,
+                        "exact_duplicates_observed": duplicate_counts,
+                        "exact_repeats_not_stored": repeats_not_stored,
                         "duplicate_policy": (
-                            "Exact repeats are counted and preserved as raw evidence; "
+                            "An exact repeat of a stored Palo Alto record is counted, not stored again; "
+                            "unparsed or generic repeats are counted and kept as evidence; "
                             "checkpoint resume creates no extra committed rows."
                         ),
                         "runtime_seconds": round(ingestion_seconds, 4),

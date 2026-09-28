@@ -91,7 +91,10 @@ def _stage(monkeypatch, tmp_path: Path, *, count: int = 5):
     root = tmp_path / "staging"
     monkeypatch.setattr(staging_service, "STAGING_ROOT", root)
     monkeypatch.setattr(staged_input_retention_service, "STAGING_ROOT", root)
-    content = "".join(f"{TRAFFIC_LINE}\n" for _ in range(count)).encode("utf-8")
+    # Distinct events, as a firewall writes them: identical lines are duplicates and are stored once.
+    content = "".join(
+        f"{TRAFFIC_LINE.replace('198.51.100.10', f'198.51.100.{10 + index}')}\n" for index in range(count)
+    ).encode("utf-8")
     return stage_upload_for_job(
         BytesIO(content),
         filename="private-firewall.log",
@@ -353,3 +356,19 @@ def test_resume_is_admin_only_and_running_cancel_request_is_persisted(monkeypatc
         assert requested.json()["cancellation_requested"] is True
     finally:
         app.dependency_overrides.clear()
+
+
+def test_a_queued_import_of_an_overlapping_export_stores_only_the_new_lines(monkeypatch, tmp_path):
+    engine = _engine()
+    with Session(engine) as db:
+        first = _enqueue_import(db, _stage(monkeypatch, tmp_path / "first", count=5))
+        run_worker_once(db, worker_id="v393-worker")
+        second = _enqueue_import(db, _stage(monkeypatch, tmp_path / "second", count=8))  # the same 5 lines, then 3 new
+        run_worker_once(db, worker_id="v393-worker")
+        persisted = db.get(OperationJob, second.id)
+        run = db.get(IngestionRun, persisted.related_ingestion_run_id)
+
+        assert db.get(OperationJob, first.id).status == "completed" and persisted.status == "completed"
+        assert persisted.progress_current == 8, "every line of the file is processed"
+        assert run.total_lines_received == 8 and run.raw_logs_created == 3 and run.duplicate_raw_logs == 5
+        assert db.scalar(select(func.count(RawLog.id))) == 8, "the 5 overlapping lines are stored once"

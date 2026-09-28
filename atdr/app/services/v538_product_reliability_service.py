@@ -230,6 +230,7 @@ def _workflow_summary(core: dict[str, Any]) -> dict[str, Any]:
         "normalized_logs_created": int(ingestion.get("normalized_logs_created") or 0),
         "parse_failures_tracked": int(ingestion.get("parse_failures") or 0),
         "duplicates_tracked": int(ingestion.get("duplicate_raw_logs") or 0),
+        "repeats_not_stored": int(ingestion.get("repeats_not_stored") or 0),
         "source_links_complete": int(ingestion.get("missing_source_links") or 0) == 0,
         "evidence_preserved": int(ingestion.get("empty_raw_evidence") or 0) == 0,
         "alert_type": detection.get("alert_type"),
@@ -317,8 +318,9 @@ def build_v538_report(
     gates = {
         "startup_and_shell_contract": bool(contracts.get("passed")),
         "disposable_primary_workflow": bool(core.get("ok"))
-        and workflow["raw_logs_imported"] == workflow["logs_attempted"]
-        and workflow["normalized_logs_created"] == workflow["logs_attempted"]
+        # Every attempted line is stored, or counted as a repeat of a stored firewall record.
+        and workflow["raw_logs_imported"] + workflow["repeats_not_stored"] == workflow["logs_attempted"]
+        and workflow["normalized_logs_created"] + workflow["repeats_not_stored"] == workflow["logs_attempted"]
         and workflow["source_links_complete"]
         and workflow["evidence_preserved"],
         "failure_modes_recover_safely": _all_true(failure_modes),

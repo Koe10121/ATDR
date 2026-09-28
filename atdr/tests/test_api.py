@@ -1720,9 +1720,11 @@ def test_source_management_and_import_fallback_source():
         assert disabled_logs.status_code == 200
         assert int(disabled_logs.headers["X-Total-Count"]) >= 1
 
+        # New records: the demo file's two lines are already stored under lab-firewall-1, and an
+        # identical Palo Alto record is counted as a duplicate rather than stored again.
         imported = client.post(
             "/api/logs/import",
-            data={"file_path": "data/samples/paloalto-demo.txt", "limit": "2"},
+            data={"file_path": "data/samples/scenarios/port_scan_like_traffic.txt", "limit": "2"},
             headers=admin_headers,
         )
         assert imported.status_code == 200

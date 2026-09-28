@@ -15,7 +15,7 @@ from atdr.app.core.log_fingerprint import raw_line_fingerprint
 from atdr.app.db.database import Base
 from atdr.app.db.models import OperationJob, RawLog
 from atdr.app.services.metrics_service import render_prometheus_metrics
-from atdr.app.services.resumable_ingestion_service import _chunk_duplicate_count
+from atdr.app.services.resumable_ingestion_service import _chunk_duplicates
 from atdr.scripts.validate_large_ingestion import validate_large_ingestion
 
 
@@ -45,7 +45,7 @@ def test_raw_log_fingerprint_is_stable_indexed_and_populated_for_direct_inserts(
         assert any(index.name == "ix_raw_logs_raw_line_hash" for index in RawLog.__table__.indexes)
 
 
-def test_chunk_duplicate_count_is_exact_and_uses_bounded_queries():
+def test_chunk_duplicates_are_exact_and_use_bounded_queries():
     engine = _engine()
     statements: list[str] = []
 
@@ -59,7 +59,8 @@ def test_chunk_duplicate_count_is_exact_and_uses_bounded_queries():
         db.commit()
         rows = ["already stored", *[f"new line {index}" for index in range(400)], "new line 0"]
 
-        assert _chunk_duplicate_count(db, rows) == 2
+        flags = _chunk_duplicates(db, rows)
+        assert sum(flags) == 2 and flags[0] and flags[-1] and not any(flags[1:-1])
         assert len(statements) == 2
 
 

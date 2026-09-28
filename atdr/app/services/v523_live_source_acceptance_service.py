@@ -55,6 +55,7 @@ from atdr.app.services.operation_worker import run_worker_once
 from atdr.app.services.source_service import create_source, source_to_dict
 from atdr.app.services.syslog_service import run_udp_syslog_receiver
 from atdr.scripts.replay_logs import replay_logs
+from atdr.scripts.run_source_scenario import _same_traffic_later
 
 
 V523_VERSION = "v5.23-live-source-acceptance-v1"
@@ -395,10 +396,12 @@ def _run_udp_transport(
     received = int(receiver.get("received") or 0)
     parsed = int(receiver.get("parsed") or 0)
     failed = int(receiver.get("failed") or 0)
+    # A re-sent copy of a stored Palo Alto record is received and counted as a duplicate.
+    duplicates = int(receiver.get("duplicates") or 0)
     non_loopback = bool(receiver.get("non_loopback_sender_observed"))
     transport_passed = bool(
         received == message_count
-        and parsed + failed == message_count
+        and parsed + failed + duplicates == message_count
         and not receiver.get("timed_out")
         and (
             int(sender_result.get("sent") or 0) == message_count
@@ -601,9 +604,10 @@ def run_v523_live_source_acceptance(
                     source_name=file_source.name,
                     source_type=file_source.source_type,
                 )
+                # The scan continuing: an identical Palo Alto line is the same record and is stored once.
                 second_file = import_log_file(
                     db,
-                    scan_path,
+                    _same_traffic_later(scan_path, temp_root),
                     limit=10,
                     actor=_ACTOR,
                     source_id=file_source.id,

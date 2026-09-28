@@ -756,16 +756,18 @@ def _integrity_summary(
         (
             integrity_value.lower() == "ok",
             not foreign_key_rows,
-            counts["raw_logs"] == target_rows,
-            counts["normalized_logs"] == target_rows,
+            # Every line is received; repeats of a stored Palo Alto record are counted, not stored,
+            # so stored rows match what the import runs report creating.
+            counts["raw_logs"] == run_raw,
+            counts["normalized_logs"] == run_raw,
+            0 < run_raw <= target_rows,
             orphan_normalized == 0,
             raw_without_normalized == 0,
             raw_without_source == 0,
             orphan_alert_evidence == 0,
             source_received == target_rows,
-            source_parsed == target_rows,
+            source_parsed == run_raw,
             run_received == target_rows,
-            run_raw == target_rows,
         )
     )
     return {
@@ -1243,6 +1245,11 @@ def run_v515_runtime_soak_acceptance(
         duplicate_rows = sum(
             int(run.duplicate_raw_logs or 0) for run in ingestion_runs
         )
+        # Repeats of an already-stored Palo Alto record are counted, not stored again.
+        repeats_not_stored = sum(
+            int(run.total_lines_received or 0) - int(run.raw_logs_created or 0)
+            for run in ingestion_runs
+        )
         unsafe_counts = {
             "response_actions": final_counts["response_actions"],
             "labels": final_counts["labels"],
@@ -1270,7 +1277,7 @@ def run_v515_runtime_soak_acceptance(
                 bool(stage["import"]["source_last_seen_monotonic"])
                 for stage in stage_summaries
             ),
-            "no_checkpoint_replay_rows": final_counts["raw_logs"]
+            "no_checkpoint_replay_rows": final_counts["raw_logs"] + repeats_not_stored
             == selected_rows,
             "raw_normalized_counts_match": final_counts["raw_logs"]
             == final_counts["normalized_logs"],
@@ -1311,10 +1318,12 @@ def run_v515_runtime_soak_acceptance(
                 "parse_failures": sum(
                     int(run.parse_failures or 0) for run in ingestion_runs
                 ),
-                "exact_duplicates_observed_and_preserved": duplicate_rows,
+                "exact_duplicates_observed": duplicate_rows,
+                "exact_repeats_not_stored": repeats_not_stored,
                 "duplicate_policy": (
-                    "Repeated raw events remain evidence; committed checkpoint "
-                    "rows are not replayed by resume."
+                    "An exact repeat of a stored Palo Alto record is counted, not stored again; "
+                    "unparsed or generic repeats remain evidence; committed checkpoint rows "
+                    "are not replayed by resume."
                 ),
                 "fault_plan": selected_fault_plan,
                 "total_worker_handoffs": sum(

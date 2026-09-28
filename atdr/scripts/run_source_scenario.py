@@ -1,7 +1,9 @@
 import argparse
 import json
+import re
+import tempfile
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -428,6 +430,41 @@ def _validate_expected(
     }
 
 
+_LOG_TIMESTAMP = re.compile(r"(\d{4})([/-])(\d{2})\2(\d{2})([T ])(\d{2}):(\d{2}):(\d{2})")
+
+
+def _stamp(match: re.Match) -> datetime:
+    year, _sep, month, day, _joiner, hour, minute, second = match.groups()
+    return datetime(int(year), int(month), int(day), int(hour), int(minute), int(second))
+
+
+def _same_traffic_later(path: Path, directory: Path, *, rounds: int = 1) -> Path:
+    """The scenario's traffic again, continuing where it ended.
+
+    An identical line is the same firewall event imported twice and is stored once, so repeated
+    traffic is replayed with every timestamp moved forward by the file's own period: its duration
+    plus one average gap between events. A beacon keeps its rhythm and a short burst repeats a few
+    seconds later, as a firewall would log the same activity continuing.
+    """
+
+    text = path.read_text(encoding="utf-8")
+    starts = sorted({_stamp(match) for line in text.splitlines() if (match := _LOG_TIMESTAMP.search(line))})
+    if len(starts) >= 2:
+        span = (starts[-1] - starts[0]).total_seconds()
+        period = max(1, round(span + span / (len(starts) - 1)))
+    else:
+        period = 60
+    offset = timedelta(seconds=period * rounds)
+
+    def shift(match: re.Match) -> str:
+        _year, sep, _month, _day, joiner, *_ = match.groups()
+        return (_stamp(match) + offset).strftime(f"%Y{sep}%m{sep}%d{joiner}%H:%M:%S")
+
+    later = directory / f"later-{rounds}-{path.name}"
+    later.write_text(_LOG_TIMESTAMP.sub(shift, text), encoding="utf-8")
+    return later
+
+
 def run_source_scenario(
     *,
     scenario: str,
@@ -538,15 +575,16 @@ def run_source_scenario(
                     )
                 )
                 if spec.repeat_import_detection:
-                    import_results.append(
-                        import_log_file(
-                            db,
-                            path,
-                            actor="source_scenario",
-                            source_id=source.id,
-                            parser_profile=resolved_parser_profile,
+                    with tempfile.TemporaryDirectory() as directory:
+                        import_results.append(
+                            import_log_file(
+                                db,
+                                _same_traffic_later(path, Path(directory)),
+                                actor="source_scenario",
+                                source_id=source.id,
+                                parser_profile=resolved_parser_profile,
+                            )
                         )
-                    )
                     detection_results.append(
                         run_detection(
                             db,

@@ -1,3 +1,4 @@
+from io import StringIO
 from pathlib import Path
 
 from sqlalchemy import create_engine, func, select
@@ -18,7 +19,7 @@ from atdr.app.db.models import (
 )
 from atdr.app.services.dashboard_service import build_dashboard_summary, build_dashboard_summary_cached, clear_dashboard_summary_cache
 from atdr.app.services.detection_service import run_detection
-from atdr.app.services.log_service import import_log_file, import_raw_log_line
+from atdr.app.services.log_service import import_log_file, import_log_stream, import_raw_log_line
 from atdr.app.services.source_service import get_or_create_source, recent_source_detection_runs
 from atdr.scripts.performance_smoke import run_performance_smoke
 from atdr.scripts.register_log_source import register_log_source
@@ -208,7 +209,46 @@ def test_parser_profiles_preserve_raw_evidence_without_crashing():
     assert rows[1].parsed_json["raw_fallback"] is True
 
 
-def test_alert_dedup_updates_existing_alert_and_keeps_raw_logs():
+def _repeat_of_sample(tmp_path, seconds: int) -> Path:
+    """The demo sample's activity again, a few seconds later: new firewall events, not a re-import."""
+
+    text = Path("data/samples/paloalto-demo.txt").read_text(encoding="utf-8")
+    for minute in ("36", "37"):
+        for stamp in (f"13:{minute}:15", f"13:{minute}:16"):
+            second = int(stamp[-2:]) + seconds
+            text = text.replace(stamp, f"13:{minute}:{second:02d}")
+    path = tmp_path / f"repeat-{seconds}.txt"
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+def test_importing_the_same_lines_again_stores_nothing_new_and_reports_the_duplicates():
+    Session = _session()
+    sample_path = Path("data/samples/paloalto-demo.txt")
+    with Session() as db:
+        first = import_log_file(db, sample_path, actor="unit_test")
+        again = import_log_file(db, sample_path, actor="unit_test")
+        raw_count = int(db.scalar(select(func.count(RawLog.id))) or 0)
+        runs = list(db.scalars(select(IngestionRun).order_by(IngestionRun.id.asc())))
+
+    assert first["imported"] == 2 and first["duplicate_raw_logs"] == 0
+    assert again["lines_received"] == 2 and again["imported"] == 0 and again["duplicate_raw_logs"] == 2
+    assert raw_count == 2, "overlapping exports must not store the overlap twice"
+    assert runs[-1].total_lines_received == 2 and runs[-1].raw_logs_created == 0 and runs[-1].duplicate_raw_logs == 2
+
+
+def test_a_repeated_line_inside_one_file_is_stored_once(tmp_path):
+    Session = _session()
+    line = Path("data/samples/paloalto-demo.txt").read_text(encoding="utf-8").splitlines()[0]
+    path = tmp_path / "twice.txt"
+    path.write_text(f"{line}\n{line}\n", encoding="utf-8")
+    with Session() as db:
+        result = import_log_file(db, path, actor="unit_test")
+        raw_count = int(db.scalar(select(func.count(RawLog.id))) or 0)
+    assert result["imported"] == 1 and result["duplicate_raw_logs"] == 1 and raw_count == 1
+
+
+def test_alert_dedup_updates_existing_alert_and_keeps_raw_logs(tmp_path):
     Session = _session()
     sample_path = Path("data/samples/paloalto-demo.txt")
     with Session() as db:
@@ -217,7 +257,7 @@ def test_alert_dedup_updates_existing_alert_and_keeps_raw_logs():
         first_alert_count = int(db.scalar(select(func.count(Alert.id))) or 0)
         first_evidence_count = int(db.scalar(select(func.count(AlertEvidence.id))) or 0)
 
-        second_import = import_log_file(db, sample_path, actor="unit_test")
+        second_import = import_log_file(db, _repeat_of_sample(tmp_path, 2), actor="unit_test")
         second_detection = run_detection(db, limit=50, use_ml=False, actor="unit_test")
         second_alert_count = int(db.scalar(select(func.count(Alert.id))) or 0)
         second_evidence_count = int(db.scalar(select(func.count(AlertEvidence.id))) or 0)
@@ -243,7 +283,7 @@ def test_alert_dedup_updates_existing_alert_and_keeps_raw_logs():
     assert detection_runs[-1].alerts_deduplicated >= 1
 
 
-def test_repeated_dedup_merges_keep_a_single_merge_note_in_the_explanation():
+def test_repeated_dedup_merges_keep_a_single_merge_note_in_the_explanation(tmp_path):
     # Each merge used to prepend another "Deduplicated alert updated with N new
     # evidence logs." sentence, so an alert merged K times opened with K stacked
     # copies ahead of the real explanation shown in the alert drawer.
@@ -253,8 +293,8 @@ def test_repeated_dedup_merges_keep_a_single_merge_note_in_the_explanation():
         import_log_file(db, sample_path, actor="unit_test")
         run_detection(db, limit=50, use_ml=False, actor="unit_test")
         original = db.scalar(select(Alert).where(Alert.alert_type == "deny_drop_action")).explanation
-        for _ in range(2):
-            import_log_file(db, sample_path, actor="unit_test")
+        for seconds in (2, 4):
+            import_log_file(db, _repeat_of_sample(tmp_path, seconds), actor="unit_test")
             run_detection(db, limit=50, use_ml=False, actor="unit_test")
         alert = db.scalar(select(Alert).where(Alert.alert_type == "deny_drop_action"))
         merges = int(
@@ -333,7 +373,7 @@ def test_dashboard_data_quality_counts_parser_errors_and_duplicates():
         runs = list(db.scalars(select(IngestionRun).order_by(IngestionRun.id.asc())))
 
     assert summary["ingestion_stats"]["parse_failure_count"] == 1
-    assert summary["ingestion_stats"]["parse_success_count"] == 2
+    assert summary["ingestion_stats"]["parse_success_count"] == 1, "the second copy is counted, not stored"
     assert summary["ingestion_stats"]["duplicate_raw_line_groups"] == 1
     assert "syslog timestamp" in summary["data_quality"]["parser_error_examples"][0]["parser_error"]
     assert len(runs) == 2
@@ -348,7 +388,7 @@ def test_dashboard_summary_cache_hits_and_invalidates_after_ingestion():
 
         first = build_dashboard_summary_cached(db)
         second = build_dashboard_summary_cached(db)
-        import_log_file(db, "data/samples/paloalto-demo.txt", limit=1, actor="unit_test")
+        import_log_file(db, "data/samples/paloalto-demo.txt", limit=2, actor="unit_test")
         third = build_dashboard_summary_cached(db)
 
     clear_dashboard_summary_cache()
@@ -407,3 +447,26 @@ def test_the_duplicate_check_finds_exact_copies_through_the_fingerprint_index():
         statement, parameters = captured[0]
         plan = " ".join(str(row) for row in db.connection().exec_driver_sql("EXPLAIN QUERY PLAN " + statement, parameters))
     assert "ix_raw_logs_raw_line_hash" in plan, f"one import line must not scan every stored line: {plan}"
+
+
+def test_a_resent_syslog_line_is_counted_but_stored_once():
+    Session = _session()
+    line = Path("data/samples/paloalto-demo.txt").read_text(encoding="utf-8").splitlines()[0]
+    with Session() as db:
+        first = import_raw_log_line(db, line, actor="unit_test")
+        again = import_raw_log_line(db, line, actor="unit_test")
+        raw_count = int(db.scalar(select(func.count(RawLog.id))) or 0)
+    assert first["stored"] and first["normalized_log_id"] is not None
+    assert not again["stored"] and again["duplicate_raw_log"] and again["normalized_log_id"] is None
+    assert raw_count == 1
+
+
+def test_generic_syslog_repeats_are_counted_but_kept_as_evidence():
+    # A generic line has no record identity: two identical failed logins in one second are two events.
+    Session = _session()
+    line = "2026-05-22T00:00:01Z auth-server sshd: Failed password for admin from 45.33.32.9"
+    with Session() as db:
+        result = import_log_stream(db, StringIO(f"{line}\n{line}\n"), source_name="generic.log", parser_profile="generic_syslog",
+                                   actor="unit_test")
+        raw_count = int(db.scalar(select(func.count(RawLog.id))) or 0)
+    assert result["duplicate_raw_logs"] == 1 and result["imported"] == 2 and raw_count == 2

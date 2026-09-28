@@ -65,14 +65,16 @@ def test_udp_syslog_receiver_ingests_live_datagrams(monkeypatch):
     thread.join(7)
 
     assert thread.is_alive() is False
+    # The second datagram is a re-sent copy of the same Palo Alto record: received, counted, stored once.
     assert result["received"] == 2
-    assert result["parsed"] == 2
+    assert result["duplicates"] == 1
+    assert result["parsed"] == 1
     assert result["sender_count"] == 1
     assert result["non_loopback_sender_observed"] is False
-    assert result["parser_quality"]["observed_rows"] == 2
+    assert result["parser_quality"]["observed_rows"] == 1
     with TestingSession() as db:
-        assert db.scalar(select(func.count(RawLog.id))) == 2
-        assert db.scalar(select(func.count(NormalizedLog.id))) == 2
+        assert db.scalar(select(func.count(RawLog.id))) == 1
+        assert db.scalar(select(func.count(NormalizedLog.id))) == 1
         assert db.scalar(select(func.count(ResponseAction.id))) == 0
         audit = db.scalar(select(AuditLog).where(AuditLog.action == "ingest_syslog_batch"))
         source = db.scalar(select(LogSource).where(LogSource.source_type == "syslog_udp"))
@@ -83,6 +85,7 @@ def test_udp_syslog_receiver_ingests_live_datagrams(monkeypatch):
         assert source is not None
         assert source.parser_profile == "palo_alto"
         assert source.logs_received_count == 2
-        assert source.parse_success_count == 2
-        assert source.parser_quality_json["observed_rows"] == 2
-        assert audit.details["parser_quality"]["observed_rows"] == 2
+        assert source.parse_success_count == 1
+        assert source.parser_quality_json["observed_rows"] == 1
+        assert audit.details["parser_quality"]["observed_rows"] == 1
+        assert audit.details["duplicates"] == 1

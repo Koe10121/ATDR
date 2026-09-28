@@ -179,7 +179,10 @@ def test_shared_worker_does_not_claim_legacy_local_import():
 def test_graceful_stop_releases_import_at_committed_checkpoint(monkeypatch):
     from atdr.app.services import resumable_ingestion_service
 
-    content = "".join(f"{TRAFFIC_LINE}\n" for _ in range(5)).encode()
+    # Five distinct records: identical Palo Alto lines are one record and are stored once.
+    content = "".join(
+        f"{TRAFFIC_LINE.replace('198.51.100.10', f'198.51.100.{10 + index}')}\n" for index in range(5)
+    ).encode()
     staged = stage_upload_for_job(BytesIO(content), filename="graceful.log")
     engine = _engine()
     stop_event = Event()

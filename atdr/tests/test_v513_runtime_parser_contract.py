@@ -256,7 +256,7 @@ def test_file_import_records_contract_aggregates_without_ml_or_response_writes()
         before = _counts(db)
         result = import_log_stream(
             db,
-            StringIO(f"{TRAFFIC_LINE}\n{TRAFFIC_LINE}\n"),
+            StringIO(f"{TRAFFIC_LINE}\n{TRAFFIC_LINE.replace('198.51.100.10', '198.51.100.11')}\n"),  # two distinct records
             source_name="synthetic-runtime.log",
             source_type="file_import",
             actor="unit_test",

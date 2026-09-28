@@ -54,6 +54,23 @@ def persist_parsed_log(db: Session, parsed: ParsedPaloAltoLog, *, source_id: int
     return normalized
 
 
+# A parsed Palo Alto record carries the firewall's own serial and sequence number, so an identical line
+# is the same record imported again (overlapping exports): counted, not stored twice. A line that did
+# not parse, or a generic syslog line, has no such identity and can repeat for real events in the same
+# second (a burst of identical failed logins), so there an exact repeat is counted and kept as evidence.
+SKIP_EXACT_REPEATS_PROFILES = frozenset({"palo_alto"})
+
+
+def skips_exact_repeats(parser_profile: str | None) -> bool:
+    return (parser_profile or "palo_alto") in SKIP_EXACT_REPEATS_PROFILES
+
+
+def is_repeat_of_stored_record(parsed_log, parser_profile: str | None) -> bool:
+    """For a line already stored: true when it is the same firewall record, so it must not be stored again."""
+
+    return skips_exact_repeats(parser_profile) and not parsed_log.error
+
+
 def _existing_raw_log_id(db: Session, raw_line: str) -> int | None:
     """An already-stored copy of this exact line, found through the indexed fingerprint.
 
@@ -79,11 +96,13 @@ def import_log_stream(
     parser_profile: str | None = None,
     available_lines: int | None = None,
 ) -> dict:
+    received = 0
     imported = 0
     parsed = 0
     parsed_partial = 0
     failed = 0
     duplicate_raw_logs = 0
+    stored_this_import: set[str] = set()
     parser_quality = empty_runtime_parser_quality()
     source_label = safe_source_label(source_name) or DEFAULT_SOURCE_NAME
     source_record_name = DEFAULT_SOURCE_NAME if source_id is None and source_type == "file_import" else source_label
@@ -105,16 +124,25 @@ def import_log_stream(
         else None
     )
     latest_error: str | None = None
+    skip_repeats = skips_exact_repeats(source.parser_profile)
 
     try:
         for line_number, line in enumerate(stream, start=1):
-            if limit is not None and imported >= limit:
+            if limit is not None and received >= limit:
                 break
             if not line.strip():
                 continue
-            existing_raw = _existing_raw_log_id(db, line.rstrip("\r\n"))
-            duplicate_raw_logs += 1 if existing_raw is not None else 0
+            received += 1
+            raw_text = line.rstrip("\r\n")
+            # An exact copy of a stored line is the same firewall event imported again (overlapping
+            # exports): count it, do not store it twice.
+            is_repeat = raw_text in stored_this_import or _existing_raw_log_id(db, raw_text) is not None
             parsed_log = parse_log_line_for_profile(line, source.parser_profile)
+            if is_repeat:
+                duplicate_raw_logs += 1
+                if skip_repeats and not parsed_log.error:
+                    continue
+            stored_this_import.add(raw_text)
             parser_quality = observe_parser_result(parser_quality, parsed_log)
             persist_parsed_log(db, parsed_log, source_id=source.id)
             imported += 1
@@ -152,6 +180,7 @@ def import_log_stream(
         target_type=source_type,
         target_value=safe_source_label(source_name) or source_name,
         details={
+            "lines_received": received,
             "imported": imported,
             "parsed": parsed,
             "parsed_partial": parsed_partial,
@@ -166,7 +195,7 @@ def import_log_stream(
     db.add(audit)
     record_source_ingestion(
         source,
-        logs_received=imported,
+        logs_received=received,
         parsed_successfully=parsed,
         parse_failures=failed,
         latest_error=latest_error,
@@ -176,7 +205,7 @@ def import_log_stream(
         complete_ingestion_run(
             db,
             run,
-            total_lines_received=imported,
+            total_lines_received=received,
             raw_logs_created=imported,
             parsed_successfully=parsed,
             parse_failures=failed,
@@ -195,6 +224,7 @@ def import_log_stream(
         "source_label": safe_source_label(source_name) or source_label,
         "requested_limit": limit,
         "available_lines": available_lines,
+        "lines_received": received,
         "imported": imported,
         "raw_logs_imported": imported,
         "normalized_logs_created": imported,
@@ -235,11 +265,28 @@ def import_raw_log_line(
         host=host,
         port=port,
     )
+    duplicate_raw_log = _existing_raw_log_id(db, raw_line.rstrip("\r\n")) is not None
     parsed_log = parse_log_line_for_profile(raw_line, source.parser_profile)
+    if duplicate_raw_log and is_repeat_of_stored_record(parsed_log, source.parser_profile):
+        # A re-sent copy of a stored Palo Alto record: received and counted as a duplicate, like a file
+        # import, not parsed or stored again.
+        record_source_ingestion(source, logs_received=1, parsed_successfully=0, parse_failures=0)
+        if commit:
+            db.commit()
+        return {
+            "parsed": False,
+            "parsed_partial": False,
+            "error": None,
+            "normalized_log_id": None,
+            "duplicate_raw_log": True,
+            "stored": False,
+            "source_id": source.id,
+            "parser_quality": None,
+        }
+    skipped = False
     parser_quality = finalize_runtime_parser_quality(
         observe_parser_result(empty_runtime_parser_quality(), parsed_log)
     )
-    duplicate_raw_log = _existing_raw_log_id(db, raw_line.rstrip("\r\n")) is not None
     normalized = persist_parsed_log(db, parsed_log, source_id=source.id)
     db.flush()
     record_source_ingestion(
@@ -259,6 +306,7 @@ def import_raw_log_line(
                 target_value=source_name,
                 details={
                     "parsed": not bool(parsed_log.error),
+                    "stored": not skipped,
                     "normalized_log_id": getattr(normalized, "id", None),
                     "source_id": source.id,
                     "parser_quality": parser_quality,
@@ -272,6 +320,7 @@ def import_raw_log_line(
         "error": parsed_log.error,
         "normalized_log_id": getattr(normalized, "id", None),
         "duplicate_raw_log": duplicate_raw_log,
+        "stored": not skipped,
         "source_id": source.id,
         "parser_quality": parser_quality,
     }

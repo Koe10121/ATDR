@@ -67,10 +67,12 @@ def test_v538_ingestion_detection_and_explanation_are_consistent(full_acceptance
     workflow = full_acceptance["workflow"]
 
     assert workflow["logs_attempted"] == 64
+    # One generic syslog line repeats 6 times in the bulk file: the 5 repeats are counted and kept.
+    assert workflow["duplicates_tracked"] == 5
+    assert workflow["repeats_not_stored"] == 0
     assert workflow["raw_logs_imported"] == 64
     assert workflow["normalized_logs_created"] == 64
     assert workflow["parse_failures_tracked"] == 3
-    assert workflow["duplicates_tracked"] >= 1
     assert workflow["source_links_complete"] is True
     assert workflow["evidence_preserved"] is True
     assert workflow["alert_type"] == "possible_port_scan"
