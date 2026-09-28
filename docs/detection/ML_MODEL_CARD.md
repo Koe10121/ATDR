@@ -229,7 +229,13 @@ C2 rows to Normal but unusual; the port-scan row stayed Unsure and the team aske
 that it not count as a confirmed positive. Final for this round: port scan 4 of 4
 judged real (4 judged, 5 needed), C2 0 of 5, exfiltration too few finds. No type
 passes and v2 stays advisory. Condition 3 still holds with the human-checked
-blind labels (rules or model F1 90.1% against 85.2% for the rules alone). Rules v5.35.0 and v5.36.0 alert on
+blind labels (rules or model F1 90.1% against 85.2% for the rules alone).
+
+No v3 for now. No further MFU export is available (team lead, 28 Sep), and every
+part of the 20 May export has been used for training, tuning or review, so a
+model retrained on the cleaned labels could only be checked on traffic the team
+has already seen: a second look, which cannot pass the bar declared before
+training. v2 stays the advisory model until new MFU traffic exists to test on. Rules v5.35.0 and v5.36.0 alert on
 fewer windows (759 of the 15,153), but every window the model flagged keeps its
 rule alert, so the model-only windows are the same 15 and the review stays
 complete.

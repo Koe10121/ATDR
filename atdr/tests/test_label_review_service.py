@@ -105,3 +105,15 @@ def test_review_can_correct_what_kind_of_threat_a_label_names():
         assert "crypto_mining" in str(error)
     else:
         raise AssertionError("an unknown attack type must be refused")
+
+
+def test_a_label_the_evidence_cannot_settle_becomes_needs_context():
+    db = _session()
+    unresolved = _labeled_log(db, 1, "suspicious", "port_scan")
+    db.commit()
+
+    applied = apply_label_review(db, [_decision(unresolved, "Needs context")], reviewer="team", note_prefix="follow-up", apply=True)
+
+    assert applied["labels_to_add"] == 1
+    assert (_latest(db, unresolved).label, _latest(db, unresolved).attack_type) == ("needs_context", "port_scan")
+    assert apply_label_review(db, [_decision(unresolved, "Needs context")], reviewer="team", note_prefix="again")["unchanged"] == 1

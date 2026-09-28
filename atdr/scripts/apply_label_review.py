@@ -6,8 +6,9 @@ Usage:
 
 decisions.json: {"note": "...", "decisions": [{"source_ip", "pattern", "decision", "attack_type" (optional),
 "note", "log_ids": [...], "atdr_alert_type"}]}. Decisions are "Real threat",
-"Normal", "Normal but unusual" or "Unsure"; each change becomes a new
-reviewed label and earlier labels are kept.
+"Normal", "Normal but unusual", "Needs context" (out of scoring and training)
+or "Unsure" (no change); each change becomes a new reviewed label and earlier
+labels are kept.
 """
 
 import argparse

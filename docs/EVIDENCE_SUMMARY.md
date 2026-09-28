@@ -35,6 +35,7 @@ mfu_behavior_v2). Details are in the linked documents.
 | Detection scoreboard, 2,132 team labels, v5.36.0 | Agreement | 95.6% | 72.4% | 1.6% | 82.4% |
 | Detection scoreboard, 1,489 team-labeled records, v5.36.0, misattached labels archived | Agreement | 97.0% | 79.3% | 1.5% | 87.3% |
 | Same, after the team review relabeled 185 labels (28 Sep) | Agreement (circular) | 97.0% | 99.8% | 1.4% | 98.4% |
+| Same, with the 74 unresolved unidentified-app labels set aside as "needs context" | Agreement (circular) | 96.0% | 99.7% | 1.6% | 97.8% |
 | Live alert list before the rebuild (3,676 alerts) | Agreement | 48.9% | 87.6% | 43.3% | 62.8% |
 | Live alert list after the rebuild (314 alerts) | Agreement | 93.9% | 80.4% | 2.5% | 86.6% |
 
@@ -51,7 +52,7 @@ mfu_behavior_v2). Details are in the linked documents.
 - Between v5.32.0 and v5.34.0: the flood rule stopped firing on campus apps'
   busy two-way traffic, and BitTorrent became policy activity. No sample
   labeled Threat lost its alert.
-- The 98.4% row is agreement by construction: the team review relabeled
+- The last two rows are agreement by construction: the team review relabeled
   exactly the groups where the labels contradicted ATDR's policies (file
   sharing, isolated internet probes) or the firewall's own record (miner,
   Shellshock). It shows the labels now follow those policies, not that the

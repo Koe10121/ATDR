@@ -25,6 +25,8 @@ LABEL_SOURCE = "reviewed_import"
 REVIEW_CONFIDENCE = 3
 HARMLESS_DECISIONS = {"Normal": "benign", "Normal but unusual": "benign_unusual"}
 THREAT_DECISION = "Real threat"
+# The evidence cannot settle it: the label leaves scoring and model training but keeps its history.
+CONTEXT_DECISION = "Needs context"
 NO_CHANGE_DECISIONS = {"Unsure", "Decide per source", "", None}
 
 
@@ -66,7 +68,7 @@ def plan_label_review(db: Session, decisions: list[dict[str, Any]]) -> dict[str,
         if decision in NO_CHANGE_DECISIONS:
             skipped += len(item_logs)
             continue
-        if decision != THREAT_DECISION and decision not in HARMLESS_DECISIONS:
+        if decision not in (THREAT_DECISION, CONTEXT_DECISION) and decision not in HARMLESS_DECISIONS:
             raise ValueError(f"Unknown review decision {decision!r} for {item.get('source_ip')}.")
         for log_id in item_logs:
             current = latest.get(log_id)
@@ -84,6 +86,9 @@ def plan_label_review(db: Session, decisions: list[dict[str, Any]]) -> dict[str,
                 else:
                     to_label = "suspicious"
                     attack_type = corrected_type or infer_attack_type_from_rules([{"code": item.get("atdr_alert_type") or ""}])
+            elif decision == CONTEXT_DECISION:
+                to_label = "needs_context"
+                attack_type = current.attack_type if current is not None else "unknown_anomaly"
             else:
                 to_label = HARMLESS_DECISIONS[decision]
                 # "benign_unusual" labels keep the attack type they resemble

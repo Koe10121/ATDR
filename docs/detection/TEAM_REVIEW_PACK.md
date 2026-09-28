@@ -106,7 +106,12 @@ and a person checked every row", the method of its main part.
 The team also asked for: full flow lists (the sheet stops at 25 flows), a
 label-by-label mapping for the device that holds 71 of the unidentified-app
 labels before any bulk relabel, and keeping unresolved labels apart from the
-labels used to train and evaluate.
+labels used to train and evaluate. The last was done the same day: the 74
+unidentified-app labels on the 3 devices left Unsure became "needs context"
+(a label-review decision that keeps the label's history and attack type but
+takes it out of scoring and model training; backup
+`backups/atdr-sqlite-20260928T124506Z-3b4fb3c6.sqlite3`). Team-label agreement
+moved from F1 98.4% to 97.8% (1,415 records).
 
 ## For the team lead
 
