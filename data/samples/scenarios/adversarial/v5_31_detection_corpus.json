@@ -139,8 +139,8 @@
       "category": "near_miss",
       "pattern": "threat",
       "params": {"source_id": 1, "severity": "informational", "threat_name": "Synthetic informational signature"},
-      "expected_present": ["paloalto_threat_log"],
-      "expected_absent": [],
+      "expected_present": ["paloalto_threat_informational"],
+      "expected_absent": ["paloalto_threat_log"],
       "expected_alert_count": 0
     },
     {

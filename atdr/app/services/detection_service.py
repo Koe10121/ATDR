@@ -99,7 +99,10 @@ PRIMARY_RULE_PRIORITY = {
     "brute_force_like_attempts": 97,
     "beaconing_like_outbound": 96,
     "multiple_denied_connections": 95,
-    "paloalto_malware_threat": 91,
+    # A firewall-named malware or C2 record leads its alert even when the same
+    # log's retries also look like a scan: XMRig miners trying dozens of pools
+    # were titled "Possible horizontal scan".
+    "paloalto_malware_threat": 101,
     "paloalto_threat_log": 90,
     "watchlist_match": 88,
     "deny_drop_action": 80,

@@ -1,7 +1,7 @@
 # ATDR evidence summary
 
 Every number the team quotes about ATDR, what kind of number it is, and how
-much to trust it. As of 2026-09-28 (rule catalog v5.35.0, behaviour model
+much to trust it. As of 2026-09-28 (rule catalog v5.36.0, behaviour model
 mfu_behavior_v2). Details are in the linked documents.
 
 ## The data
@@ -27,9 +27,10 @@ mfu_behavior_v2). Details are in the linked documents.
 | Measurement | Kind | Precision | Recall | False alarms | F1 |
 |---|---|---|---|---|---|
 | Blind check, 150 logs, rules v5.32.0 (official) | Blind | 50.9% (38.6-64.9%) | 81.8% (61.9-100%) | 6.0% | 62.7% |
-| Blind check re-scored, rules v5.34.0 and v5.35.0 | Second look | 80.6% (66.7-92.7%) | 81.8% | 1.5% | 81.2% |
+| Blind check re-scored, rules v5.34.0 to v5.36.0 | Second look | 80.6% (66.7-92.7%) | 81.8% | 1.5% | 81.2% |
 | Detection scoreboard, 2,132 team labels, v5.34.0 | Agreement | 95.5% | 80.4% | 1.8% | 87.3% |
 | Detection scoreboard, 2,132 team labels, v5.35.0 | Agreement | 95.6% | 73.1% | 1.6% | 82.9% |
+| Detection scoreboard, 2,132 team labels, v5.36.0 | Agreement | 95.6% | 72.4% | 1.6% | 82.4% |
 | Live alert list before the rebuild (3,676 alerts) | Agreement | 48.9% | 87.6% | 43.3% | 62.8% |
 | Live alert list after the rebuild (314 alerts) | Agreement | 93.9% | 80.4% | 2.5% | 86.6% |
 
@@ -49,6 +50,12 @@ mfu_behavior_v2). Details are in the linked documents.
   unimported 13:45-13:57 traffic by 19%. The team's labels had called 43 such
   probes port scans, so their recall drops to 73.1%; those labels are part of
   the pending human check.
+- v5.36.0 stops informational firewall records that name no attack ("Non-RFC
+  Compliant SSL Traffic" from VPN clients, games and tunnels) from raising
+  alerts on their own; they had led 30% of the live alerts. Alerts on a full
+  re-run: live 249 to 180, unimported traffic 684 to 453. Blind labels
+  unchanged; on the team's labels 5 logs labeled threats stop alerting, 4 of
+  whose labels were generated from ATDR's own rule scores.
 - Sources: `detection/BLIND_CHECK.md`, `DETECTION_RULE_CATALOG.md`,
   `detection/ALERT_REBUILD.md`.
 
@@ -60,18 +67,19 @@ type came only from which rule fired, so 133 of the 249 live alerts (53%) said
 "Unclassified", including firewall-named exploits and a known C2 server. The
 type now also comes from the evidence: the firewall's threat signature, the
 kind of watchlist indicator, and whether an inbound probe was answered. On the
-same 249 alerts, re-run with the current rules on a copy:
+same 249 alerts, re-run on a copy, and then with rule catalog v5.36.0, which
+stops informational records that name no attack from raising alerts alone:
 
-| Attack type | Before | After |
-|---|---|---|
-| Port scan | 84 | 117 |
-| Unclassified | 133 | 93 |
-| Malware / C2 | 6 | 11 |
-| Policy violation | 9 | 8 |
-| Data exfiltration (suspected) | 7 | 7 |
-| Brute force | 6 | 6 |
-| Flood | 4 | 4 |
-| Exploit attempt (new) | 0 | 3 |
+| Attack type | Before | Typed from evidence | And v5.36.0 (180 alerts) |
+|---|---|---|---|
+| Port scan | 84 | 117 | 123 |
+| Unclassified | 133 | 93 | 18 |
+| Malware / C2 | 6 | 11 | 11 |
+| Policy violation | 9 | 8 | 8 |
+| Data exfiltration (suspected) | 7 | 7 | 7 |
+| Brute force | 6 | 6 | 6 |
+| Flood | 4 | 4 | 4 |
+| Exploit attempt (new) | 0 | 3 | 3 |
 
 - 30 alerts on unanswered internet probes to uncommon ports are now port scans.
 - Four alerts on campus devices whose connections the firewall identified as
@@ -82,12 +90,14 @@ same 249 alerts, re-run with the current rules on a copy:
 - Shellshock (Bash remote code execution), an Apache path traversal and a
   `.env` file scan are exploit attempts; Nmap and RPC portmapper probes are port
   scans.
-- The 93 still unclassified are 75 firewall threat records that name no attack
-  (informational "Non-RFC Compliant SSL/DNS/HTTP Traffic" and one SSLv2
-  negotiation) and 18 alerts on campus devices using an application the
-  firewall could not identify. Nothing in them names a technique.
-- Only the type changes; which logs alert, and every precision and recall
-  figure above, stay the same. Source: `detection/ATDR_DETECTION_TAXONOMY.md`.
+- Of the 93 still unclassified, 75 were firewall threat records that name no
+  attack (informational "Non-RFC Compliant SSL/DNS/HTTP Traffic" and one SSLv2
+  negotiation); v5.36.0 made them supporting evidence (see above). The other 18
+  are alerts on campus devices using an application the firewall could not
+  identify; nothing in them names a technique.
+- Typing from evidence changes only the type; which logs alert, and every
+  precision and recall figure, stay the same. Source:
+  `detection/ATDR_DETECTION_TAXONOMY.md`.
 
 ## Detection: the MFU behaviour model (advises)
 

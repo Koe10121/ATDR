@@ -358,6 +358,27 @@ def _parsed_value(log: NormalizedLog, key: str) -> str:
     return str(parsed.get(key) or "").strip()
 
 
+INFORMATIONAL_THREAT_SEVERITIES = frozenset({"informational", "info"})
+
+
+def is_informational_threat_record(log: NormalizedLog) -> bool:
+    """A firewall THREAT record the vendor rates informational whose signature names no attack.
+
+    Mostly "Non-RFC Compliant SSL/DNS/HTTP Traffic": odd protocol use such as a VPN client or a game
+    tunnelling over port 443. It is context for other evidence, not an attack on its own.
+    """
+
+    if str(log.log_type or "").upper() != "THREAT":
+        return False
+    threat_type = _lower(log.subtype)
+    if threat_type in MALWARE_THREAT_TYPES or _lower(getattr(log, "category", None)) in MALWARE_THREAT_CATEGORIES:
+        return False
+    severity = _parsed_value(log, "parsed_threat_severity").lower()
+    return severity in INFORMATIONAL_THREAT_SEVERITIES and threat_attack_type(
+        threat_type, _parsed_value(log, "parsed_threat_name"), severity
+    ) == "unknown_anomaly"
+
+
 def _threat_event_score(log: NormalizedLog) -> tuple[int, str]:
     severity = _parsed_value(log, "parsed_threat_severity").lower()
     scores = {
@@ -645,6 +666,16 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
                     title="Palo Alto malware or C2 threat",
                     score=threat_score + MALWARE_THREAT_BONUS,
                     explanation=f"The firewall classified this row as a malware-class THREAT event; {vendor_facts}.",
+                )
+            )
+        elif is_informational_threat_record(log):
+            matches.append(
+                RuleMatch(
+                    code="paloalto_threat_informational",
+                    title="Informational Palo Alto threat record",
+                    score=threat_score,
+                    explanation=f"The firewall logged an informational THREAT record that names no attack; {vendor_facts}.",
+                    attack_type="unknown_anomaly",
                 )
             )
         else:

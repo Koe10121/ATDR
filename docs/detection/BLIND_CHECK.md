@@ -178,6 +178,15 @@ match, or 5 or more denied attempts). On the same 150 labels nothing moves:
 precision 80.6%, recall 81.8%, false alarms 1.5%, F1 81.2%. The 3 samples that
 stop alerting were all unusual-port probes the reviewer labeled "Unsure".
 
+### v5.36.0: informational firewall records support, malware leads
+
+Informational firewall threat records that name no attack ("Non-RFC Compliant
+SSL Traffic" and the like) no longer raise alerts on their own, and a
+firewall-confirmed malware record leads its alert. On the same 150 labels
+nothing moves: precision 80.6%, recall 81.8%, false alarms 1.5%, F1 81.2%; no
+sample changes its flag. On the unimported 13:45-13:57 traffic alerts go from
+684 to 453.
+
 ## Human verification (pending)
 
 The team will check the AI reviewer's labels by hand: all 31 Threat labels, all

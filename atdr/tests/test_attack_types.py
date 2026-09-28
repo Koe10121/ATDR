@@ -37,8 +37,11 @@ def _threat(name: str, *, subtype: str = "vulnerability", severity: str = "infor
     return NormalizedLog(**values)
 
 
+THREAT_RULES = {"paloalto_threat_log", "paloalto_threat_informational"}
+
+
 def _threat_rule(log: NormalizedLog):
-    return next(match for match in evaluate_rules(log, build_detection_context([log])) if match.code == "paloalto_threat_log")
+    return next(match for match in evaluate_rules(log, build_detection_context([log])) if match.code in THREAT_RULES)
 
 
 # Signatures seen in the MFU firewall export, plus a few PAN-OS types it has not shown yet.
@@ -122,15 +125,16 @@ def test_a_watchlist_hit_says_what_kind_of_indicator_matched():
     assert watchlist_attack_type(items("src_ip"), outbound) is None
 
 
-@pytest.mark.parametrize("order", [("Non-RFC Compliant HTTP Traffic on Port 80(56376)", "ENV File Scanning Attempt(93397)"),
-                                   ("ENV File Scanning Attempt(93397)", "Non-RFC Compliant HTTP Traffic on Port 80(56376)")])
+# Both low severity, so both stay alert-worthy threat records with the same score.
+@pytest.mark.parametrize("order", [("Unknown HTTP Request Header(30000)", "ENV File Scanning Attempt(93397)"),
+                                   ("ENV File Scanning Attempt(93397)", "Unknown HTTP Request Header(30000)")])
 def test_a_grouped_alert_keeps_the_most_specific_type_any_of_its_logs_named(order):
     db = _session()
     for second, name in enumerate(order):
         raw = RawLog(raw_line=name)
         db.add(raw)
         db.flush()
-        db.add(_threat(name, raw_log_id=raw.id, generated_time=datetime(2026, 5, 20, 10, 0, second)))
+        db.add(_threat(name, severity="low", raw_log_id=raw.id, generated_time=datetime(2026, 5, 20, 10, 0, second)))
     db.commit()
 
     run_detection(db, limit=100, use_ml=False, actor="test")

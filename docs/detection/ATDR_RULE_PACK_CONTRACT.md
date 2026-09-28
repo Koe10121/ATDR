@@ -2,7 +2,7 @@
 
 ## Status
 
-v5.32 source-backed contract for catalog `atdr_rule_catalog_v5.35.0` (v5.31.1 added `repeated_large_outbound` and `paloalto_malware_threat`; v5.32.0 makes `app_risk_4`, `suspicious_app_characteristic`, `repeated_source_ip`, `outside_to_inside`, `high_bytes_outlier` and `high_packets_outlier` supporting-only; v5.33.0 narrows the flood rule; v5.34.0 alerts on peer-to-peer file sharing only with malicious evidence; v5.35.0 summarises internet background probing unless there is stronger evidence). Deterministic rules remain ATDR's alert-authoritative layer. IsolationForest and supervised ML remain advisory decision support and cannot create, suppress, classify, or change an authoritative alert.
+v5.32 source-backed contract for catalog `atdr_rule_catalog_v5.36.0` (v5.31.1 added `repeated_large_outbound` and `paloalto_malware_threat`; v5.32.0 makes `app_risk_4`, `suspicious_app_characteristic`, `repeated_source_ip`, `outside_to_inside`, `high_bytes_outlier` and `high_packets_outlier` supporting-only; v5.33.0 narrows the flood rule; v5.34.0 alerts on peer-to-peer file sharing only with malicious evidence; v5.35.0 summarises internet background probing unless there is stronger evidence; v5.36.0 makes informational firewall records that name no attack supporting-only and lets firewall-confirmed malware lead its alert). Deterministic rules remain ATDR's alert-authoritative layer. IsolationForest and supervised ML remain advisory decision support and cannot create, suppress, classify, or change an authoritative alert.
 
 ## Source Evidence
 
@@ -29,7 +29,8 @@ v5.32 source-backed contract for catalog `atdr_rule_catalog_v5.35.0` (v5.31.1 ad
 | Catalog ID / Code | Evidence | Scope | Attack Hint | Claim Boundary |
 | --- | --- | --- | --- | --- |
 | `ATDR-NET-001` / `deny_drop_action` | Deny, drop, or reset action/session metadata | event | `policy_violation` | A firewall policy action does not prove hostile intent. |
-| `ATDR-NET-002` / `paloalto_threat_log` | Vendor `THREAT` event scored by vendor severity with name retained | event | `unknown_anomaly` | Subtype, severity, signature/name, action, and corroborating telemetry require review. |
+| `ATDR-NET-002` / `paloalto_threat_log` | Vendor `THREAT` event (not malware-class, not an informational record naming no attack) scored by vendor severity with name retained; the signature can narrow the attack type | event | `unknown_anomaly` | Subtype, severity, signature/name, action, and corroborating telemetry require review. |
+| `ATDR-NET-021` / `paloalto_threat_informational` | Vendor `THREAT` rated informational whose signature names no attack (for example Non-RFC Compliant SSL Traffic); supporting-only | event | `unknown_anomaly` | Unusual protocol use, not an attack; context for other evidence only. |
 | `ATDR-NET-020` / `paloalto_malware_threat` | Vendor `THREAT` whose type is virus, wildfire-virus, or spyware, or whose category is command-and-control, backdoor, or botnet; vendor severity score plus 10 | event | `malware_c2`, T1071 | Vendor malware classification; file, infection, and channel are not independently verified. |
 | `ATDR-NET-003` / `app_risk_4` | PAN-OS app risk 4 | event | `policy_violation` | Vendor risk is context, not a malware finding. |
 | `ATDR-NET-004` / `app_risk_5` | PAN-OS app risk at least 5 | event | `policy_violation` | Approved high-risk applications can be benign. |

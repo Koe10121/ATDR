@@ -4,7 +4,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 
-RULE_CATALOG_VERSION = "atdr_rule_catalog_v5.35.0"
+RULE_CATALOG_VERSION = "atdr_rule_catalog_v5.36.0"
 
 PAN_TRAFFIC_FIELDS = (
     "https://docs.paloaltonetworks.com/ngfw/administration/monitoring/"
@@ -111,13 +111,34 @@ RULE_CATALOG: dict[str, DetectionRuleSpec] = {
             "paloalto_threat_log",
             "Palo Alto threat event",
             required_fields=("log_type", "subtype"),
-            condition="vendor log type equals THREAT",
+            condition=(
+                "vendor log type equals THREAT, except malware-class records and informational records "
+                "whose signature names no attack"
+            ),
             level="high",
             confidence="high",
             references=(PAN_THREAT_FIELDS, SIGMA_RULE_SPEC),
-            false_positives=("Informational or low-severity vendor threat signatures",),
-            version="2.0.0",
+            false_positives=("Low-severity vendor threat signatures",),
+            version="2.1.0",
             claim_boundary="The firewall reported a THREAT event; subtype, severity, signature, and action still require review.",
+        ),
+        _spec(
+            "ATDR-NET-021",
+            "paloalto_threat_informational",
+            "Informational Palo Alto threat record",
+            required_fields=("log_type", "subtype"),
+            condition=(
+                "vendor log type equals THREAT, vendor severity is informational, and the signature names no "
+                "attack (for example Non-RFC Compliant SSL Traffic on Port 443)"
+            ),
+            level="low",
+            confidence="low",
+            references=(PAN_THREAT_FIELDS, SIGMA_RULE_SPEC),
+            false_positives=("VPN clients, games and tunnels sending non-standard traffic over common ports",),
+            claim_boundary=(
+                "The firewall logged unusual protocol use, not an attack; it adds context to other evidence "
+                "and never raises an alert on its own."
+            ),
         ),
         _spec(
             "ATDR-NET-020",
@@ -430,10 +451,13 @@ RULE_CATALOG: dict[str, DetectionRuleSpec] = {
 # context-only or low confidence. They add points when a behavioural rule also
 # fires on the log, but never raise or name an alert on their own: on
 # human-reviewed MFU logs, alerts they led were right 0-37% of the time, and
-# making them supporting-only took dev false alarms from 47% to 7%.
+# making them supporting-only took dev false alarms from 47% to 7%. An
+# informational firewall record that names no attack joined them in v5.36.0:
+# it led 75 of 249 live alerts, all "unclassified", from 75 campus devices.
 SUPPORTING_ONLY_RULES = frozenset(
     {
         "app_risk_4",
+        "paloalto_threat_informational",
         "suspicious_app_characteristic",
         "repeated_source_ip",
         "outside_to_inside",

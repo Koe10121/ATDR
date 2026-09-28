@@ -97,6 +97,7 @@ RULE_ATTACK_PRIORITY = {
     "paloalto_malware_threat": 91,
     "watchlist_match": 89,
     "paloalto_threat_log": 75,
+    "paloalto_threat_informational": 10,
     "suspicious_app_characteristic": 70,
     # IsolationForest is advisory evidence. It must never mask a more
     # specific alert-authoritative rule when an attack type is inferred.

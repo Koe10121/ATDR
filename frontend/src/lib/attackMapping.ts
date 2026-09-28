@@ -72,6 +72,7 @@ const ruleHints: Record<string, keyof typeof mapping> = {
   multiple_denied_connections: "policy_violation",
   deny_drop_action: "policy_violation",
   paloalto_threat_log: "unknown_anomaly",
+  paloalto_threat_informational: "unknown_anomaly",
   paloalto_malware_threat: "malware_c2",
   app_risk_4: "policy_violation",
   app_risk_5: "policy_violation",

@@ -7,7 +7,12 @@ from atdr.app.db.models import Alert, AlertEvidence, MLLabel, NormalizedLog
 from atdr.app.detection.attack_mapping import attack_mapping_for_type, infer_attack_type_from_rules
 from atdr.app.detection.hybrid_scoring import hybrid_risk_score
 from atdr.app.detection.rule_catalog import rule_spec
-from atdr.app.detection.rules import is_outside_to_inside, is_p2p_file_sharing, looks_like_background_probe
+from atdr.app.detection.rules import (
+    is_informational_threat_record,
+    is_outside_to_inside,
+    is_p2p_file_sharing,
+    looks_like_background_probe,
+)
 from atdr.app.detection.scoring import SEVERITY_CRITICAL, SEVERITY_HIGH, SEVERITY_MEDIUM
 from atdr.app.detection.supervised_detector import predict_supervised_log
 from atdr.app.ml.features import build_log_features
@@ -41,6 +46,10 @@ RULE_ANALYST_CHECKS: dict[str, tuple[str, ...]] = {
     "paloalto_threat_log": (
         "Verify the vendor threat subtype, severity, signature or threat name, and firewall action.",
         "Correlate the THREAT row with its traffic session and endpoint or service telemetry.",
+    ),
+    "paloalto_threat_informational": (
+        "Find which application sent the non-standard traffic; a VPN client, game or tunnel is typical.",
+        "Treat it as context: it matters only alongside other evidence from the same source.",
     ),
     "paloalto_malware_threat": (
         "Check whether the firewall blocked the file or connection, and isolate the internal host if it did not.",
@@ -275,6 +284,11 @@ def explain_log_triage(log: NormalizedLog) -> dict[str, Any]:
                 "summarises such probes and alerts only when the source goes beyond a few hosts, ports and connections "
                 "in five minutes, or there is stronger evidence (a firewall threat detection, brute force or a "
                 "watchlist match)."
+            )
+        if is_informational_threat_record(log):
+            reasons.append(
+                "It is an informational firewall threat record that names no attack (such as Non-RFC Compliant SSL "
+                "traffic). ATDR keeps it as supporting evidence and alerts only when other rules fire on it."
             )
         if is_p2p_file_sharing(log):
             reasons.append(
