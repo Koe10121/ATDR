@@ -164,6 +164,16 @@ class AssistantToolbox:
     def _data(self, question: DataQuestion) -> str:
         return core._data_result(answer_data_question(self.db, question), redacted=self.redacted).answer
 
+    def _alerts(self, question: DataQuestion) -> str:
+        answer = answer_data_question(self.db, question)
+        text = core._data_result(answer, redacted=self.redacted).answer
+        if question.window.bounded and not answer.counts.get("total"):
+            # A window filters by creation date, and "0 created today" is easily misread as "none open now";
+            # give the same count over all time beside it.
+            overall = core._data_result(answer_data_question(self.db, replace(question, window=ALL_TIME)), redacted=self.redacted).answer
+            text += "\nCreated at any time instead:\n" + overall
+        return text
+
     def _logs(self, question: DataQuestion) -> str:
         answer = answer_data_question(self.db, question)
         text = core._data_result(answer, redacted=self.redacted).answer
@@ -188,7 +198,7 @@ class AssistantToolbox:
             limit=_integer(args, "limit", low=1, high=10, default=5),
             **_ip_filters(args),
         )
-        return ToolOutput(self._data(question), [("Alert records", "/api/alerts", None)])
+        return ToolOutput(self._alerts(question), [("Alert records", "/api/alerts", None)])
 
     def query_logs(self, args: dict[str, Any]) -> ToolOutput:
         intent = _choice(args, "intent", ("count", "top", "trend"), "count")
@@ -212,7 +222,8 @@ class AssistantToolbox:
         window = _window(args, "today")
         db = self.db
         parts = [f"Security overview for alerts created {window.phrase if window.bounded else 'at any time'}."]
-        parts.append(self._data(DataQuestion(subject="alerts", intent="count", window=window)))
+        parts.append(self._alerts(DataQuestion(subject="alerts", intent="count", window=window)))
+        parts.append(self._data(DataQuestion(subject="alerts", intent="count", status="open")))
         parts.append(self._data(DataQuestion(subject="alerts", intent="top", window=window, group_by="attack_type", limit=4)))
         parts.append(self._data(DataQuestion(subject="alerts", intent="top", window=window, group_by="src_ip", limit=3)))
         open_list = DataQuestion(subject="alerts", intent="list", window=window, status="open", limit=5)
@@ -227,6 +238,16 @@ class AssistantToolbox:
         if window.bounded:
             log_line += "\n" + self._data(DataQuestion(subject="logs", intent="count", window=window))
         parts.append(log_line)
+        new_alerts = answer_data_question(db, DataQuestion(subject="alerts", intent="count", window=window)).counts.get("total")
+        if window.bounded and not new_alerts:
+            # A quiet period once led to "we are not under attack" while Critical alerts sat open.
+            still_open = int(db.scalar(select(func.count(Alert.id)).where(Alert.status == "open")) or 0)
+            critical = int(db.scalar(select(func.count(Alert.id)).where(Alert.status == "open", Alert.severity == "Critical")) or 0)
+            parts.insert(1, (
+                f"No new alerts {window.phrase} is not an all-clear: {still_open:,} alerts are still open ({critical:,} Critical), "
+                f"and the newest stored firewall log is from {_log_when(last)} (firewall local time), so ATDR has seen no "
+                "traffic since then."
+            ))
         run = db.scalar(select(DetectionRun).order_by(DetectionRun.started_at.desc(), DetectionRun.id.desc()).limit(1))
         if run is not None:
             parts.append(
@@ -597,7 +618,8 @@ class AssistantToolbox:
                 "query_alerts",
                 "Count, rank, trend or list alerts with filters. intent=count for 'how many'; top to rank by group_by; "
                 "trend for per-day counts; list for the highest-scoring matching alerts with their IDs. Alerts are dated "
-                "by when ATDR created them.",
+                "by when ATDR created them, so time_window means created in that period: for what is open right now or "
+                "currently, leave time_window out and set status=open.",
                 {
                     "type": "object",
                     "properties": {

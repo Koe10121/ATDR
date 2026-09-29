@@ -19,6 +19,11 @@ ATDR continues to use SQLite by default. MongoDB is required only by the separat
 - Python 3.11.
 - Node.js `20.19.0` or newer and npm. Node 16 and Node 20 releases below 20.19 are unsupported by the current Vite/Playwright toolchain.
 - MongoDB Community Server for the shell.
+- For the conversational SOC Assistant: Ollama with the `qwen3:8b` model
+  (`winget install Ollama.Ollama`, then `ollama pull qwen3:8b`, a 5.2 GB
+  download that uses about 6 GB of memory while loaded) and
+  `ASSISTANT_AGENT_ENGINE=ollama` in the private ATDR `.env`. Without it the
+  Assistant gives its built-in answers only.
 - Redis is optional for local use because the shell rate limiter has an
   in-memory fallback. A shared deployment should use its approved cache service.
 - Git, or a GitHub zip download.
@@ -120,6 +125,15 @@ on launcher-recorded processes.
 
 After entering ATDR, confirm Overview, Alerts, Investigation, SOC Assistant, AI Governance, and Response & Audit load. Response must show simulation/automation-disabled status.
 
+Ask the SOC Assistant "How many alerts are open?". An answer marked "Local
+model assistant" means the conversational model is working; "ATDR
+deterministic analysis" means Ollama is not running and the built-in answers
+were used.
+
+A fresh clone has no MFU behaviour model: the Overview says "No behaviour
+model is trained on this machine". The model is trained from MFU's private
+firewall export (`docs/detection/ML_MODEL_CARD.md`), which is never in Git.
+
 Safe CLI validation:
 
 ```powershell
@@ -201,7 +215,8 @@ Do not migrate ATDR to MongoDB as part of teammate setup; the shell and ATDR int
 | Node version is rejected | Install Node.js 20.19 or newer. `node --version` must report at least `v20.19.0`. |
 | Shell package not found or rejected | Obtain the approved archive and use `-ShellPackage`. Do not rename, edit, or re-zip it. |
 | Windows extraction reports a long path | Move the clone to a shorter location such as `C:\ATDR Team\ATDR`; spaces are supported. |
-| MongoDB unavailable | Start the MongoDB service, then run `check_system.cmd`. |
+| MongoDB unavailable | Start the MongoDB service, then run `check_system.cmd`. Starting a Windows service needs an administrator terminal (`net start MongoDB`) or the Services app. If its log ends with "out of memory", close other heavy programs first; loading the Assistant's model takes about 6 GB. |
+| SOC Assistant answers are marked "ATDR deterministic analysis" | Ollama is not running (it does not always start after a restart). Start the Ollama app, check `http://127.0.0.1:11434/api/tags` lists `qwen3:8b`, then ask again. |
 | Shell log shows a Redis timeout | Local fallback is supported; wait for `/healthz` and run `check_system.cmd`. Configure an approved Redis service only for shared operation. |
 | Port 8000/5173/8214/8080 busy | Run `stop_system.cmd`; stop any non-launcher process using the reported port. |
 | Configuration incomplete | Run `check_system.cmd` and correct only the named fields in private configuration. |

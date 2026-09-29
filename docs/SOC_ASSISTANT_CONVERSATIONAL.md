@@ -80,6 +80,19 @@ How to read these numbers:
 - The checks are automatic and fairly lenient, which is why every answer was also read by hand. Earlier versions scored well on the checks while answering ATDR questions from memory and inventing dashboard steps; each such finding became one of the checks above.
 - Gemini could not be compared: the free tier's daily quota ran out after a few questions, and every later call was refused. A free tier is not enough for a chat assistant used through the day.
 
+### 29 September fix and re-run
+
+A browser check found "How many critical alerts are open right now, and what
+attack types are they?" answered "0 open Critical alerts" while 35 were open.
+The model had read "right now" as "created today", and the tool's "0 created
+today" as "none open". The alert tools now give the all-time count beside an
+empty period, the overview says a quiet period is not an all-clear, and the
+instructions say "right now" means open now and forbid calling the network
+safe. Re-run on the 181-alert database: main set 84 of 85 (was 83),
+held-out 25 of 27 (was 26). The held-out misses were a Thai summary that
+passed 6 of 7 re-asks and a concept question that called no tool; neither
+touches the fix.
+
 ## Measuring it again
 
 ```

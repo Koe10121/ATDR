@@ -507,3 +507,28 @@ def test_every_tool_runs_read_only_against_a_real_schema(seeded, monkeypatch):
     assert {tool.name for tool in tools.values() if tool.provides_steps} == {"dashboard_how_to", "get_alert_playbook"}
     assert "No behaviour model is trained" in outputs["behavior_model_view"]
     assert "is not on ATDR's watchlist" in outputs["watchlist_lookup"] and "not listed does not mean safe" in outputs["watchlist_lookup"]
+
+
+def test_an_empty_window_of_alerts_also_gives_the_count_over_all_time(seeded):
+    from datetime import datetime, timedelta, timezone
+
+    from sqlalchemy import update
+
+    from atdr.app.db.models import Alert
+
+    testing_session, settings = seeded
+    with testing_session() as db:
+        db.execute(update(Alert).values(created_at=datetime.now(timezone.utc) - timedelta(days=3), status="open"))
+        db.commit()
+        open_alerts = db.scalar(select(func.count(Alert.id)))
+        tools = {tool.name: tool for tool in build_assistant_tools(db, settings=settings)}
+        today = tools["query_alerts"].run({"intent": "count", "status": "open", "time_window": "today"}).text
+        overview = tools["security_overview"].run({"time_window": "today"}).text
+
+    assert open_alerts > 0
+    # "0 created today" read as "none open" once told an analyst there were no open Critical alerts.
+    assert today.startswith("0 open alerts were created today.")
+    assert "Created at any time instead:" in today and f"{open_alerts} open alert" in today
+    assert f"{open_alerts} open alert" in overview
+    # A quiet day once read as "we are not under attack" while Critical alerts sat open.
+    assert f"No new alerts today is not an all-clear: {open_alerts} alerts are still open" in overview
