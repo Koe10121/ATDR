@@ -71,8 +71,8 @@ mfu_behavior_v2). Details are in the linked documents.
   there is stronger evidence. It changed nothing on the blind labels (the 3
   samples it stops alerting on were labeled "Unsure") and cut alerts on the
   unimported 13:45-13:57 traffic by 19%. The team's labels had called 43 such
-  probes port scans, so their recall drops to 73.1%; those labels are part of
-  the pending human check.
+  probes port scans, so their recall drops to 73.1%; the 28 Sep team review
+  relabeled them as isolated probes.
 - v5.36.0 stops informational firewall records that name no attack ("Non-RFC
   Compliant SSL Traffic" from VPN clients, games and tunnels) from raising
   alerts on their own; they had led 30% of the live alerts. Alerts on a full
@@ -171,9 +171,10 @@ the malicious cases and the supervised classifier failed calibration.
 |---|---|---|
 | Main set (85 checks, automatic) | 84 (99%) | 40 of the first 82 |
 | Held-out set (27 questions written after tuning) | 26 automatic (96%); 25 by hand before the rebuild | 10 |
+| Re-run on 29 Sep after the "open right now" fix | main 84 of 85; held-out 25 of 27 | |
 
 Measured on 2026-09-27 with qwen3:8b running locally, after the alert
-rebuild. The main set gained three questions when the assistant got tools
+rebuild, and again on 2026-09-29 on the 181-alert list. The main set gained three questions when the assistant got tools
 for the watchlist and the MFU behaviour model; before that it answered "what
 does the MFU behaviour model see?" with the earlier anomaly model's status.
 Scores move by a question or two between runs. The held-out miss asks about "the latest Critical alert", whose
@@ -192,8 +193,9 @@ Source: `SOC_ASSISTANT_CONVERSATIONAL.md`.
   archived (`detection/LABEL_ARCHIVE.md`). The team's remaining labels were
   AI-assisted and team-verified, 185 of them corrected in the 28 Sep review;
   the blind
-  labels are an AI reviewer's. The team's own check of the blind labels is
-  pending.
+  labels are an AI reviewer's, checked by the team on 28 Sep with AI-drafted
+  answers and a person checking every row, so neither set is independent
+  ground truth.
 - **Rare misses.** Recall rests on few threats, hence intervals like 61.9-100%.
 
 ## Open items
