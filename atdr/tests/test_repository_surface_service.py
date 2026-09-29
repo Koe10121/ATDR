@@ -38,6 +38,17 @@ def test_repository_surface_accepts_valid_links_commands_and_imports(tmp_path):
     assert report["filesystem_writes_performed"] is False
 
 
+def test_repository_surface_reads_a_command_at_the_end_of_a_sentence(tmp_path):
+    _write(tmp_path / "README.md", "# Home\n\nNo model yet. Run python -m atdr.scripts.tool.\n")
+    _write(tmp_path / "atdr" / "__init__.py", "")
+    _write(tmp_path / "atdr" / "scripts" / "__init__.py", "")
+    _write(tmp_path / "atdr" / "scripts" / "tool.py", "if __name__ == '__main__':\n    pass\n")
+
+    report = build_repository_surface_report(tmp_path)
+
+    assert report["python"]["missing_command_count"] == 0
+    assert report["ok"] is True
+
 def test_repository_surface_reports_broken_and_nonportable_references(tmp_path):
     _write(
         tmp_path / "README.md",

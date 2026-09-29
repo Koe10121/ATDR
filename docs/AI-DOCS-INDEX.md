@@ -22,14 +22,8 @@ and do not define ATDR's runtime stack.
 
 | Document | Purpose |
 | --- | --- |
-| `docs/CURRENT_SYSTEM_STATE_LOCK.md` | Current product truth and readiness boundary |
-| `docs/CURRENT_AI_ML_PRODUCT_STATUS.md` | Current detection, model, and Assistant authority |
-| `docs/V5_60_CLEAN_MACHINE_RELEASE_CANDIDATE_ACCEPTANCE.md` | Current clean-clone setup, lifecycle, workflow, and safety evidence |
-| `docs/V5_61_GOVERNED_ANOMALY_BOOTSTRAP.md` | Explicit clean-clone IsolationForest preflight, bootstrap, privacy, and advisory authority contract |
-| `docs/V5_62_SUPERVISED_QUALIFICATION_CAMPAIGN.md` | Fresh supervised evidence lock, protected review, fixed gates, and qualification blockers |
-| `docs/V5_63_FRESH_COMPARABLE_EVIDENCE_EXPANSION.md` | Append-only 700-row expansion, batched review, second-source preflight, and current qualification gates |
-| `docs/V5_63_1_ADVISOR_DEMO_RELIABILITY_LOCK.md` | Current anomaly telemetry, candidate decision, Assistant/Gemini proof, and advisor acceptance |
-| `docs/V5_64_WINDOW_AWARE_ADVISORY_ANOMALY_REDESIGN.md` | Chronological anomaly protocol, context/cohort comparison, drift/OOD findings, and no-candidate decision |
+| `docs/EVIDENCE_SUMMARY.md` | Every current figure, what kind it is, and how far to trust it |
+| `docs/IMPROVEMENT_PHASE_REPORT.md` | What changed after the 26 September 2026 presentation and where ATDR stands |
 | `docs/ADVISOR_DEMO_RUNBOOK.md` | Five-minute advisor workflow, preflight, talking points, limitations, and recovery |
 | `docs/prd/PRD-ATDR.md` | Current product requirements |
 | `docs/ATDR_REQUIREMENT_TRACEABILITY.md` | Requirement-to-source/test mapping |
@@ -43,6 +37,8 @@ and do not define ATDR's runtime stack.
 | --- | --- |
 | `docs/DETECTION_RULE_CATALOG.md` | Active deterministic rule intent, evidence, and analyst guidance |
 | `docs/AI_TRAINING_RUNBOOK.md` | Label integrity, supervised qualification, anomaly, and Assistant governance |
+| `docs/detection/ML_MODEL_CARD.md` | MFU behaviour model: training data, quality bar results, experimental alerting |
+| `docs/SOC_ASSISTANT_CONVERSATIONAL.md` | Conversational Assistant: tools, answer checks, setup, and scores |
 | `docs/detection/` | Active field, evidence, schema, and frozen-protocol contracts |
 | `docs/security/ATDR_DETECTION_RULE_STANDARD.md` | Rule quality and safety standard |
 | `docs/security/ATDR_DETECTION_LABELING_POLICY.md` | Label provenance and decision policy |
@@ -63,6 +59,9 @@ and do not define ATDR's runtime stack.
 - `docs/PRESENTATION_BRIEF.md` is the single current demonstration summary.
 - `docs/archive/README.md` explains the preserved history.
 - `docs/archive/V5_59_ARCHIVE_MANIFEST.md` records the archive mapping.
+- The v5.59-v5.64 round records, their commit allowlists, and the former
+  `CURRENT_SYSTEM_STATE_LOCK.md` and `CURRENT_AI_ML_PRODUCT_STATUS.md` (last
+  current on 19 September 2026) moved to `docs/archive/` on 29 September 2026.
 - Four root-level v3 citation files are small compatibility pointers retained
   for stable Assistant response contracts; their full records remain archived.
 - `docs/reference/NewSystem/REFERENCE_SCOPE.md` defines the selected sanitized

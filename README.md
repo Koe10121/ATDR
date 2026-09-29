@@ -16,49 +16,29 @@ enforcement (see [Response And Containment](#response-and-containment)); no
 real network-firewall connector is implemented, and shared/production
 deployments remain simulation-only regardless of configuration.
 
-## Current State (28 Sep 2026)
+## Current State (29 Sep 2026)
 
-Rule catalog v5.36.0; every alert names its attack type, MITRE technique and
-response playbook; the MFU behaviour model (v2) gives its view on the Overview and
-on each alert, and raises experimental alerts where the rules raise none; the SOC
-Assistant is a local tool-using model (qwen3:8b) whose numbers are checked against
-ATDR's data. What every figure is, and how far to trust it:
-`docs/EVIDENCE_SUMMARY.md`. The section below describes the earlier v5.6x
-baseline.
+- **Detection:** rule catalog v5.36.0 (22 rules). Context-only rules add points
+  but never raise an alert alone. Every alert names its attack type, MITRE
+  ATT&CK technique and response playbook. The live list holds 185 alerts after
+  a rebuild with the current rules; the 3,676 older alerts are archived in full.
+- **MFU behaviour model (v2):** trained only on MFU's firewall traffic plus
+  simulated attacks blended into it. It gives its view on the Overview and on
+  every alert, and raises alerts marked experimental where it flags a device
+  and no rule alert covers it. No attack type passed its quality bar; the
+  experimental alerts are a recorded exception (`docs/detection/ML_QUALITY_BAR.md`).
+- **SOC Assistant:** a conversational model running on the laptop (qwen3:8b via
+  Ollama) that looks facts up through read-only tools; every number it states
+  is checked against what the tools returned. Built-in answers remain the
+  fallback (`docs/SOC_ASSISTANT_CONVERSATIONAL.md`).
+- **Evidence:** every figure, what kind it is and how far to trust it is in
+  [Evidence Summary](docs/EVIDENCE_SUMMARY.md). What changed after the
+  26 September presentation is in the
+  [Improvement Phase Report](docs/IMPROVEMENT_PHASE_REPORT.md).
 
-## Current Truth
-
-The published baseline is v5.63.1 at commit `fea2857`. The current uncommitted
-v5.64 work adds a locked window-aware anomaly comparison with chronology,
-behavior context, cohort calibration, OOD abstention, and rule-overlap proof.
-Detection-layer authority remains explicit: rules are
-`active_authoritative`; IsolationForest is `active_advisory` when available;
-supervised runtime is `unqualified`; hybrid triage is advisory; and response is
-`simulation_only`.
-
-The previously reported anomaly value of 0.98 was all-row prevalence in
-percent, not a 98% anomaly rate. Current telemetry reports 2.36% among scored
-rows and 41.47% scoring coverage. No candidate replacement passed the fixed
-controlled reliability gates. v5.64 compared 32 fixed strategy/queue variants
-(28 methodologically distinct; 4 were a disclosed dispatch-defect duplicate of
-an already-run strategy, fixed with no effect on any gate or ranking); the
-best diagnostic reached 0% controlled benign anomaly, 85.71% suspicious
-scenario capture, and 50% malicious scenario capture. It still failed the
-malicious gate, so the existing advisory artifact was not changed.
-
-Current governed ML truth:
-
-- the immutable v5.49b protocol consumed 180 genuine protected decisions once;
-- all eight fixed strategies were evaluated;
-- zero supervised candidates qualified;
-- no artifact was activated or promoted;
-- historical lifecycle remains `shadow_observation`, but effective runtime is
-  `unqualified` and ordinary scoring is refused;
-- consumed protected evidence must never be rerun or tuned.
-
-See [Current System State](docs/CURRENT_SYSTEM_STATE_LOCK.md), [Current AI/ML
-Status](docs/CURRENT_AI_ML_PRODUCT_STATUS.md), and the [Operations
-Runbook](docs/OPERATIONS_RUNBOOK.md).
+The earlier supervised classifier and IsolationForest anomaly scores remain
+advisory and are not the MFU behaviour model. Their v5.6x history is archived
+under `docs/archive/phases/`.
 
 ## What ATDR Does
 
@@ -70,14 +50,15 @@ Runbook](docs/OPERATIONS_RUNBOOK.md).
    generic syslog and raw fallback produce consistent investigation fields.
 4. **Detects threats:** a versioned deterministic rule catalog performs
    source/time correlation, grouping, scoring, and deduplication.
-5. **Adds advisory AI/ML:** IsolationForest and governed supervised strategies
-   can rank or enrich evidence only when their runtime contracts allow it.
-   The current supervised contract fails closed and cannot create or suppress
-   authoritative alerts.
+5. **Adds an MFU-trained model:** the MFU behaviour model reads each device's
+   five minutes of traffic, names the likely attack and explains why; where
+   no rule alert covers a device it flags, it raises an experimental,
+   low-confidence alert. Older IsolationForest and supervised scores stay
+   advisory and cannot create or suppress alerts.
 6. **Explains findings:** alerts show why they were flagged, evidence strength,
    related logs, parser caveats, ATT&CK-style context, and recommended checks.
-7. **Assists analysts:** deterministic retrieval and optional Gemini synthesis
-   provide concise, cited, read-only answers over bounded ATDR context.
+7. **Assists analysts:** a conversational assistant answers from ATDR's own
+   read-only tools, with built-in deterministic answers as the fallback.
 8. **Records decisions:** assignments, notes, labels, simulated response
    requests, and account/security events are audited.
 
@@ -223,22 +204,25 @@ real physical-source qualification.
 
 ## Detection And ML Status
 
-The deterministic detector has 19 versioned rules and controlled coverage for
-benign traffic, port/service probing, brute-force patterns, C2-like beaconing,
-exfiltration suspicion, floods, policy violations, parser fallbacks, and
-deduplication. The controlled suites are regression evidence, not real-world
-accuracy claims.
+The deterministic detector has 22 versioned rules covering port/service
+probing, brute-force patterns, C2-like beaconing, firewall threat and malware
+records, exploit attempts, exfiltration suspicion, floods, policy violations,
+watchlist matches, parser fallbacks, and deduplication. See the
+[Detection Rule Catalog](docs/DETECTION_RULE_CATALOG.md).
 
-Supervised ML is deliberately not active. v5.49b selected no candidate due
-insufficient evaluation-role support and calibration-gate failures. A second
-physical source, fresh untouched future windows, prediction-blind human labels,
-stable performance, and separate activation approval remain mandatory.
+The MFU behaviour model, its quality bar and its experimental alerting switch
+are described in `docs/detection/ML_MODEL_CARD.md` and the
+[Operations Runbook](docs/OPERATIONS_RUNBOOK.md). Turn its alerts off with
+`python -m atdr.scripts.model_alerts disable`.
 
-IsolationForest remains an unusual-behavior signal only. It is not an
-authoritative threat detector. The v5.64 redesign selected no replacement:
-its best queue was 99.01% overlapping with existing rule evidence and still
-missed two controlled C2-like scenarios. Further threshold tuning on the same
-evidence is not justified.
+All accuracy figures come from one 21-minute MFU export, so they are
+low-confidence estimates. The official blind check and the other scores are
+explained in `docs/detection/BLIND_CHECK.md` and the
+[Evidence Summary](docs/EVIDENCE_SUMMARY.md). Another MFU export, even one
+hour from another day, is what would raise confidence.
+
+The older supervised classifier is deliberately not active (v5.49b selected no
+candidate), and IsolationForest remains an unusual-behaviour signal only.
 
 Before an advisor demonstration, run the complete disposable acceptance:
 
@@ -254,15 +238,17 @@ access or reset the configured database.
 
 ## SOC Assistant
 
-Assistant context is assembled from bounded ATDR records through the service
-layer: alert details, related normalized logs, source health, operation/jobs,
-AI governance, and approved runbook guidance. Answers include citations and
-provenance.
+The SOC Assistant holds a normal conversation. Questions about ATDR's data are
+answered through 10 read-only tools that wrap the same services the dashboard
+uses: alerts, logs, rules, playbooks, concepts, dashboard guides and system
+status. Before an answer is shown, ATDR checks every number against the tool
+results and removes IP addresses and secrets; if the check fails or the model
+is unavailable, the built-in answers are used.
 
-Gemini is supported through private configuration. ATDR sends only bounded,
-redacted context; raw logs are excluded by default and IP redaction is enabled.
-The key is never returned to the UI or audit log. Deterministic fallback remains
-available if the provider fails.
+The default engine is a local model (qwen3:8b through Ollama), so no data
+leaves the laptop. Gemini is supported through private configuration with IP
+redaction on; the key is never returned to the UI or audit log. Setup and
+scores are in `docs/SOC_ASSISTANT_CONVERSATIONAL.md`.
 
 The Assistant cannot run detection, create response actions, alter labels,
 activate models, modify users, or delete data.
@@ -371,8 +357,9 @@ include its optional browser smoke path; normal frontend verification uses
 - [Release Checklist](docs/RELEASE_CHECKLIST.md)
 - [Deployment Guide](docs/DEPLOYMENT_GUIDE.md)
 - [External Acceptance](docs/EXTERNAL_ACCEPTANCE.md)
-- [Current System State](docs/CURRENT_SYSTEM_STATE_LOCK.md)
-- [Current AI/ML Product Status](docs/CURRENT_AI_ML_PRODUCT_STATUS.md)
+- [Evidence Summary](docs/EVIDENCE_SUMMARY.md)
+- [Improvement Phase Report](docs/IMPROVEMENT_PHASE_REPORT.md)
+- [Conversational SOC Assistant](docs/SOC_ASSISTANT_CONVERSATIONAL.md)
 - [Advisor Demonstration Runbook](docs/ADVISOR_DEMO_RUNBOOK.md)
 - [AI And Model Governance](docs/AI_TRAINING_RUNBOOK.md)
 - [Detection Rule Catalog](docs/DETECTION_RULE_CATALOG.md)
@@ -389,7 +376,8 @@ The release candidate remains externally constrained by:
 2. an approved shared PostgreSQL/HTTPS host and operations evidence;
 3. institutional Gemini privacy, retention, quota, cost, and key governance;
 4. a separate physical teammate and real MFU-account sign-in exercise;
-5. independent physical-source detection evidence and future blind labels.
+5. another MFU firewall export, or another physical source, for a clean
+   end-to-end test, and future blind labels.
 
 Exact owner actions are in [External Acceptance](docs/EXTERNAL_ACCEPTANCE.md).
 Until they are satisfied, `production_ready=false`.

@@ -137,7 +137,7 @@ pipeline can be reproduced, run its write-free preflight:
 ```
 
 Do not execute training until you have read
-`docs/V5_61_GOVERNED_ANOMALY_BOOTSTRAP.md`. Setup and startup never train a
+`docs/archive/phases/V5_61_GOVERNED_ANOMALY_BOOTSTRAP.md`. Setup and startup never train a
 model silently, and an available anomaly artifact remains decision support
 only rather than proof of threat accuracy.
 
@@ -222,7 +222,7 @@ Do not migrate ATDR to MongoDB as part of teammate setup; the shell and ATDR int
 - Deployment boundary: `docs/DEPLOYMENT_GUIDE.md`
 - IAM acceptance boundary: `docs/security/ATDR_MFU_IAM_PREPROD_VALIDATION.md`
 - External owner actions: `docs/EXTERNAL_ACCEPTANCE.md`
-- Current product truth: `docs/CURRENT_SYSTEM_STATE_LOCK.md`
+- Current product truth: `docs/EVIDENCE_SUMMARY.md` and `docs/IMPROVEMENT_PHASE_REPORT.md`
 
 ## Clean-Machine Acceptance
 

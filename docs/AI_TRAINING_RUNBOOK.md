@@ -152,7 +152,7 @@ Private evidence may be supplied through `-EvidencePath` at runtime. The
 command never returns that path, raw rows, IPs, or fingerprints. Training and
 acceptance use disposable SQLite; only the ignored configured artifact and
 sanitized `.bootstrap.json` manifest remain. This validates capability, not
-threat accuracy. See `docs/V5_61_GOVERNED_ANOMALY_BOOTSTRAP.md`.
+threat accuracy. See `docs/archive/phases/V5_61_GOVERNED_ANOMALY_BOOTSTRAP.md`.
 
 ## SOC Assistant Governance
 

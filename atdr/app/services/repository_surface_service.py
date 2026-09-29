@@ -13,7 +13,7 @@ from urllib.parse import unquote, urlsplit
 MARKDOWN_LINK_RE = re.compile(r"!?\[[^\]]*\]\((?P<target><[^>]+>|[^\s)]+)(?:\s+[^)]*)?\)")
 HTML_LINK_RE = re.compile(r"(?:href|src)=[\"'](?P<target>[^\"']+)[\"']", re.IGNORECASE)
 MODULE_COMMAND_RE = re.compile(
-    r"(?:python(?:\.exe)?|py(?:\s+-\d+(?:\.\d+)?)?)\s+-m\s+(?P<module>[A-Za-z_][\w.]*)",
+    r"(?:python(?:\.exe)?|py(?:\s+-\d+(?:\.\d+)?)?)\s+-m\s+(?P<module>[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)",
     re.IGNORECASE,
 )
 SCRIPT_COMMAND_RE = re.compile(

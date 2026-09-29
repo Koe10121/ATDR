@@ -32,3 +32,12 @@ Use `docs/AI-DOCS-INDEX.md` for active guidance.
 
 The archive operation moved records within Git and did not delete their
 contents. See `docs/archive/V5_59_ARCHIVE_MANIFEST.md` for the mapping.
+
+## 29 September 2026 move
+
+After the improvement phase, the v5.59-v5.64 round records moved from `docs/`
+into `phases/`, their commit allowlists into `allowlists/`, the two
+`SYSTEM_DEEP_ANALYSIS` audit plans into `legacy/`, and the former
+`CURRENT_SYSTEM_STATE_LOCK.md` and `CURRENT_AI_ML_PRODUCT_STATUS.md` (last
+current on 19 September 2026) into `phases/`. Their contents are unchanged.
+Current figures are in `docs/EVIDENCE_SUMMARY.md`.

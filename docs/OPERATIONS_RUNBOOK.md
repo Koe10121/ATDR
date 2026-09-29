@@ -92,7 +92,7 @@ preflight:
 
 Only a reviewed, exact-confirmation run may train. It uses disposable SQLite
 and writes only an ignored artifact and sanitized manifest. Follow
-`docs/V5_61_GOVERNED_ANOMALY_BOOTSTRAP.md`; never copy a developer artifact to
+`docs/archive/phases/V5_61_GOVERNED_ANOMALY_BOOTSTRAP.md`; never copy a developer artifact to
 a teammate, commit it, or describe availability as validated threat accuracy.
 
 API liveness is `GET /health/live`; operational health is `GET /health`.

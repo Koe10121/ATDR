@@ -29,7 +29,7 @@ Use this template for non-trivial ATDR changes. Keep source evidence concrete an
 | Frontend route truth | `frontend/src/App.tsx` | |
 | Frontend API/pages | `frontend/src/lib/api.ts`, `frontend/src/pages/*` | |
 | Tests/scripts | `atdr/tests/*`, `frontend/package.json`, `atdr/scripts/*` | |
-| Current runbooks/status | `docs/LAB_RUNBOOK.md`, `docs/CURRENT_SYSTEM_STATE_LOCK.md` | |
+| Current runbooks/status | `docs/LAB_RUNBOOK.md`, `docs/EVIDENCE_SUMMARY.md` | |
 
 ## T4 Current Behavior
 
@@ -169,7 +169,7 @@ Skipped checks:
 | `docs/prd/PRD-ATDR.md` | yes/no | |
 | `docs/ATDR_AI_WORKFLOW.md` | yes/no | |
 | `docs/LAB_RUNBOOK.md` | yes/no | |
-| `docs/CURRENT_SYSTEM_STATE_LOCK.md` or current phase status | yes/no | |
+| `docs/EVIDENCE_SUMMARY.md` or current phase status | yes/no | |
 | README | yes/no | |
 
 ## T18 Risks / Blockers / Assumptions / Decisions
