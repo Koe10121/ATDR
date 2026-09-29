@@ -94,3 +94,18 @@ def test_no_hardware_soak_never_creates_response_actions_or_model_runs():
     assert result["safety"]["real_firewall_blocking_enabled"] is False
     assert result["safety"]["ml_activated_or_promoted"] is False
     assert result["safety"]["ml_model_runs_created"] == 0
+
+
+def test_no_hardware_soak_uses_a_temporary_database_unless_told_otherwise(monkeypatch):
+    from atdr.scripts import run_no_hardware_soak as soak
+
+    def configured_database_touched(*_args, **_kwargs):
+        raise AssertionError("the soak wrote to the configured database by default")
+
+    monkeypatch.setattr(soak, "SessionLocal", configured_database_touched)
+    monkeypatch.setattr(soak, "init_db", configured_database_touched)
+
+    result = run_no_hardware_soak(iterations=1, source_count=1, scenario_mix=["normal_allowed_traffic"])
+
+    assert result["use_temp_db"] is True
+    assert result["current_database_mutated"] is False

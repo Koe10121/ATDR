@@ -355,7 +355,7 @@ def run_no_hardware_soak(
     source_count: int = 3,
     scenario_mix: list[str] | None = None,
     dry_run: bool = False,
-    use_temp_db: bool = False,
+    use_temp_db: bool = True,
     run_detection_after: bool = False,
 ) -> dict[str, Any]:
     started = time.perf_counter()
@@ -547,7 +547,12 @@ def main() -> None:
     parser.add_argument("--source-count", type=int, default=3)
     parser.add_argument("--scenario-mix", default=None, help="Comma-separated scenario names. Defaults to v3.19 soak mix.")
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--use-temp-db", action="store_true")
+    parser.add_argument("--use-temp-db", action="store_true", help="Kept for older commands; a temporary database is the default.")
+    parser.add_argument(
+        "--use-configured-db",
+        action="store_true",
+        help="Write the synthetic soak logs into the configured database instead of a temporary one.",
+    )
     parser.add_argument("--run-detection", action="store_true")
     parser.add_argument("--pretty", action="store_true")
     args = parser.parse_args()
@@ -558,7 +563,7 @@ def main() -> None:
         source_count=args.source_count,
         scenario_mix=_parse_scenario_mix(args.scenario_mix),
         dry_run=args.dry_run,
-        use_temp_db=args.use_temp_db,
+        use_temp_db=not args.use_configured_db,
         run_detection_after=args.run_detection,
     )
     print(json.dumps(result, default=_json_default, indent=2 if args.pretty else None))
