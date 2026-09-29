@@ -4,6 +4,8 @@ Every number the team quotes about ATDR, what kind of number it is, and how
 much to trust it. As of 2026-09-28 (rule catalog v5.36.0, behaviour model
 mfu_behavior_v2). Details are in the linked documents.
 
+**All accuracy figures come from one 21-minute MFU export (20 May 2026); treat them as low-confidence estimates until tested on more traffic.** ATDR shows this line wherever it quotes accuracy.
+
 ## The data
 
 - One firewall (MFU-FW), one export: 20 May 2026, 13:36-13:57, 773,551 lines.
@@ -121,7 +123,7 @@ raising alerts alone (rebuilt 2026-09-28; the 5 analyst-worked alerts kept):
   precision and recall figure, stay the same. Source:
   `detection/ATDR_DETECTION_TAXONOMY.md`.
 
-## Detection: the MFU behaviour model (advises)
+## Detection: the MFU behaviour model (advises, and raises experimental alerts)
 
 | Measurement | Kind | Result |
 |---|---|---|
@@ -134,9 +136,12 @@ raising alerts alone (rebuilt 2026-09-28; the 5 analyst-worked alerts kept):
 | v2's extra finds on the fresh windows, 30-row blind review and follow-up (28 Sep) | Blind, AI-assisted and person-checked | port scan 4 of 4 judged real (1 unsure), C2 0 of 5 (3 unsure), exfiltration 0 of 1 (1 unsure) |
 | Rules or v2, blind check with the human-checked labels | Second look | F1 90.1% vs rules 85.2%: condition 3 holds |
 
-Every attack type is advisory. A type may raise alerts only after passing the
-bar declared before training (`detection/ML_QUALITY_BAR.md`). After the team's
-review no type passes this round: port scan's 4 judged finds were all real, but
+No attack type passed the bar declared before training
+(`detection/ML_QUALITY_BAR.md`). With no further data, the team lead switched
+every type on as a recorded exception on 28 Sep: where the model flags a device
+and no rule alert covers it, ATDR raises an alert marked experimental and low
+confidence (5 on the live data: 4 malware / C2, 1 port scan). Where the review
+stands: port scan's 4 judged finds were all real, but
 the bar needs 5 judged and one stayed Unsure; C2 fails on simulated beacons and
 its finds; exfiltration has too few. The AI Governance page shows each type's
 standing.

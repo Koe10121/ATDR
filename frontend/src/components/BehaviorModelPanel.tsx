@@ -23,6 +23,13 @@ function capitalise(text: string): string {
 }
 
 function FoundBy({ finding }: { finding: BehaviorFinding }) {
+  if (finding.model_alert_ids?.length) {
+    return (
+      <span className="rounded-full border border-amber/50 bg-amber/10 px-2 py-0.5 text-xs font-black uppercase tracking-wide text-amber">
+        Model only: experimental alert
+      </span>
+    );
+  }
   return finding.found_by === "rules_and_model" ? (
     <span className="rounded-full border border-success/40 bg-success/10 px-2 py-0.5 text-xs font-black uppercase tracking-wide text-success">
       Rules and model agree
@@ -46,6 +53,14 @@ function FindingCard({ finding }: { finding: BehaviorFinding }) {
       </div>
       <div className="mt-1 text-sm font-semibold text-muted">
         Source <span className="font-bold text-text">{finding.source}</span>, {finding.connections.toLocaleString()} connections in five minutes
+        {finding.model_alert_ids?.length ? (
+          <>
+            {" "}· experimental alert{" "}
+            <Link className="font-bold text-cyan hover:underline" to={`/alerts?alert=${finding.model_alert_ids[0]}`}>
+              #{finding.model_alert_ids[0]}
+            </Link>
+          </>
+        ) : null}
         {finding.alert_ids.length ? (
           <>
             {" "}· alerts{" "}
@@ -107,8 +122,13 @@ export function BehaviorModelPanel() {
           <div className="text-sm font-extrabold uppercase tracking-wide text-muted">What the MFU model sees</div>
           <p className="mt-1 text-sm font-semibold text-muted">
             A behaviour model trained only on MFU traffic names the attack each source is carrying out, explains why, and shows how to respond.
-            It is advisory: it does not create alerts until an attack type passes the quality bar.
+            {data?.model?.alerting_types?.length
+              ? " Where the rules raise no alert it raises its own experimental alerts, marked low confidence: no attack type passed its quality bar."
+              : " It is advisory: it does not create alerts until an attack type passes the quality bar."}
           </p>
+          {data?.model?.data_limit ? (
+            <p className="mt-1 text-xs font-bold text-amber" data-testid="data-limit-note">{data.model.data_limit}</p>
+          ) : null}
         </div>
         {data?.windows?.length ? (
           <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-muted">
@@ -313,6 +333,7 @@ export function BehaviorModelGovernance() {
         </p>
       </div>
       {query.isError ? <ErrorBanner error={query.error} fallback="The behaviour model's status is unavailable." /> : null}
+      {status?.data_limit ? <p className="text-sm font-bold text-amber" data-testid="governance-data-limit">{status.data_limit}</p> : null}
       {status && !status.available ? <p className="text-sm font-semibold text-muted">{status.detail}</p> : null}
       {status?.available ? (
         <p className="text-sm font-semibold text-text">
@@ -322,6 +343,13 @@ export function BehaviorModelGovernance() {
               ? ` ${canStillPass.join(" and ")} can still pass this round, if the team's blind review confirms the extra finds.`
               : " No attack type can pass this round."
             : ""}
+        </p>
+      ) : null}
+      {status?.experimental_alerting ? (
+        <p className="rounded-lg border border-amber/50 bg-amber/10 px-4 py-3 text-sm font-semibold text-amber" data-testid="governance-experimental">
+          Experimental model alerts are on for {status.experimental_alerting.types.map((type) => ATTACK_TYPE_NAMES[type] ?? type).join(", ")}:
+          switched on by {status.experimental_alerting.enabled_by} on {status.experimental_alerting.enabled_at.slice(0, 10)}.{" "}
+          {status.experimental_alerting.reason} Each such alert says it is experimental and low confidence, and none triggers a response.
         </p>
       ) : null}
       {status?.available && traffic ? (
@@ -367,7 +395,9 @@ export function BehaviorModelGovernance() {
                       <td className="py-2 pr-4">
                         <Mark ok={entry.condition_2.passes} /> <span className="text-muted">{(entry.condition_2.found * 100).toFixed(1)}% found</span>
                       </td>
-                      <td className="py-2 pr-4 font-bold">{entry.eligible ? "Can be switched on" : "Advisory"}</td>
+                      <td className="py-2 pr-4 font-bold">
+                        {entry.eligible ? "Can be switched on" : status.alerting_types?.includes(type) ? "Experimental" : "Advisory"}
+                      </td>
                     </tr>
                   );
                 })}

@@ -424,16 +424,25 @@ class AssistantToolbox:
                 "MFU traffic they were mostly normal activity."
             )
         if topic == "ml_models":
+            from atdr.app.services import behavior_findings_service as findings
+
+            status = findings.model_status(findings.load_model())
+            role = (
+                "No attack type has passed the quality bar the team declared before training, and there is no more MFU traffic "
+                "to test on, so the team switched every type on as an experimental exception: where the rules raise no alert, "
+                "the model raises its own, each marked experimental and low confidence. It never triggers a response on its own."
+                if status.get("alerting_types") else
+                "It is advisory: until an attack type passes the quality bar the team declared before training, the rules "
+                "decide every alert."
+            )
             return (
-                "ATDR's alerts come from its fixed rules. The machine-learning model that matters is the MFU behaviour "
+                "ATDR's alerts come mainly from its fixed rules. The machine-learning model that matters is the MFU behaviour "
                 "model: trained only on MFU's own firewall traffic, it reads each device's five minutes of traffic, names the "
-                "likely attack and explains why, on the Overview and on each alert. It is advisory. An attack type may raise "
-                "alerts on its own only after passing the quality bar the team declared before training: its extra finds "
-                "(flagged with no rule alert) must be confirmed real in a blind review, it must find at least 90% of fresh "
-                "simulated attacks, and the rules together with the model must be no less accurate than the rules alone on the "
-                "blind-check labels. Until a type passes, the rules decide every alert. Two earlier models, an anomaly model "
-                "and a supervised classifier, are advisory only as well. The behaviour model's own view shows where each "
-                "attack type stands."
+                "likely attack and explains why, on the Overview and on each alert. The quality bar asks that its extra finds "
+                "(flagged with no rule alert) be confirmed real in a blind review, that it find at least 90% of fresh simulated "
+                f"attacks, and that rules plus model be no less accurate than the rules alone on the blind-check labels. {role} "
+                "Two earlier models, an anomaly model and a supervised classifier, are advisory only. "
+                f"{status['data_limit']}"
             )
         if topic == "simulated_response":
             return (
@@ -472,9 +481,13 @@ class AssistantToolbox:
         citation = [("MFU behaviour model", "/api/ml/behavior/findings", None)]
         if not status["available"]:
             return ToolOutput(status["detail"], citation)
+        role = (
+            "Where the rules raise no alert it raises its own experimental alerts, marked low confidence."
+            if status.get("alerting_types") else "It is advisory: it creates no alerts, ATDR's rules do."
+        )
         lines = [
             f"The MFU behaviour model ({status['version']}) was trained only on MFU's own firewall traffic "
-            f"({status['trained_on']}). It is advisory: it creates no alerts, ATDR's rules do. {status['detail']}"
+            f"({status['trained_on']}). {role} {status['detail']}"
         ]
         view = findings.window_findings(self.db, None, model=model)
         window, summary = view.get("window"), view.get("summary")
@@ -489,7 +502,11 @@ class AssistantToolbox:
             if window.get("in_training_data"):
                 lines.append("That window was part of its training data, so it shows what the model learned rather than a fair test.")
             for finding in view["findings"][:3]:
-                found_by = "the rules alerted too" if finding["found_by"] == "rules_and_model" else "found only by the model"
+                found_by = (
+                    "the rules alerted too" if finding["found_by"] == "rules_and_model"
+                    else "found only by the model, raised as an experimental alert" if finding.get("model_alert_ids")
+                    else "found only by the model"
+                )
                 why = "; ".join(finding["reasons"][:2]) or "no single feature stands out"
                 first_step = (finding["response"].get("containment") or ["see the playbook"])[0]
                 lines.append(f"- {finding['source']}: {finding['attack_label']} ({finding['confidence']:.0%}), {found_by}. "
@@ -505,6 +522,7 @@ class AssistantToolbox:
         if bar:
             standing = "; ".join(f"{ATTACK_NAMES.get(kind, kind)}: {_bar_text(entry)}" for kind, entry in bar["types"].items())
             lines.append("Quality bar (a type may raise its own alerts only after passing it): " + standing + ".")
+        lines.append(status["data_limit"])
         return ToolOutput(self._text("\n".join(lines)), citation)
 
     def watchlist_lookup(self, args: dict[str, Any]) -> ToolOutput:

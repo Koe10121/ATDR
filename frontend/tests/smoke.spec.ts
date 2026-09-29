@@ -4602,6 +4602,70 @@ test("AI Governance says a type missed the bar on the judged count when rows sta
   await expect(page.getByTestId("governance-mfu-model")).toContainText("No attack type can pass this round.");
 });
 
+test("AI Governance shows experimental model alerts and how far to trust the figures", async ({ page }) => {
+  await mockApi(page);
+  await page.unroute("**/api/ml/behavior/status");
+  const dataLimit = "All accuracy figures come from one 21-minute MFU export (20 May 2026); treat them as low-confidence estimates until tested on more traffic.";
+  const experimental = {
+    ...smokeBehaviorStatus,
+    alerting_types: ["brute_force", "data_exfiltration_suspicion", "dos_ddos", "malware_c2", "port_scan"],
+    alerting_mode: "experimental",
+    data_limit: dataLimit,
+    experimental_alerting: {
+      types: ["brute_force", "data_exfiltration_suspicion", "dos_ddos", "malware_c2", "port_scan"],
+      enabled_by: "Sai Myat Thura Koe",
+      enabled_at: "2026-09-28T13:00:00+00:00",
+      reason: "No more MFU data to test on; run every type experimentally.",
+      quality_bar_passed: []
+    },
+    detail: "Experimental: 5 attack types may raise alerts where the rules raised none, each marked low confidence."
+  };
+  await page.route("**/api/ml/behavior/status", async (route) => route.fulfill({ json: experimental }));
+  await seedSession(page);
+  await page.goto("/ml");
+
+  const runtime = page.getByTestId("detection-runtime-contract");
+  await expect(runtime).toContainText("experimental alerts");
+  await expect(runtime).toContainText("5 of 5 attack types switched on (low confidence)");
+  await expect(page.getByTestId("governance-part-decides")).toContainText("experimental, low-confidence alerts where the rules raise none");
+  await expect(page.getByTestId("governance-experimental")).toContainText("switched on by Sai Myat Thura Koe on 2026-09-28");
+  await expect(page.getByTestId("governance-data-limit")).toHaveText(dataLimit);
+  await expect(page.getByTestId("governance-quality-bar").getByRole("row", { name: /Port scan/ })).toContainText("Experimental");
+});
+
+test("an experimental model alert says the model found it and that it is low confidence", async ({ page }) => {
+  await mockApi(page);
+  await seedSession(page);
+  await page.route("**/api/alerts/1", (route) =>
+    route.fulfill({
+      json: {
+        id: 1,
+        title: "Low: Experimental: MFU model sees possible port scan from 10.1.0.20",
+        alert_type: "mfu_behavior_model",
+        src_ip: "10.1.0.20",
+        dst_ip: null,
+        threat_score: 30,
+        severity: "Low",
+        status: "open",
+        explanation: "Found by the MFU behaviour model, not the rules.",
+        matched_rules_json: [{ code: "mfu_behavior_model", title: "MFU behaviour model (experimental)", explanation: "Found by the model.", attack_type: "port_scan", experimental: true }],
+        recommended_response: "Experimental model alert: confirm before acting.",
+        created_at: "2026-09-28T00:00:00Z",
+        updated_at: "2026-09-28T00:00:00Z",
+        evidence_count: 12,
+        evidence_log_ids: [1],
+        source_ids: [1],
+        source_names: ["generic-source"],
+        attack_type: "port_scan"
+      }
+    })
+  );
+  await page.goto("/alerts?alert=1");
+  const banner = page.getByTestId("experimental-model-alert");
+  await expect(banner).toContainText("Found by the MFU behaviour model: experimental, low confidence");
+  await expect(banner).toContainText("It never triggers a response on its own.");
+});
+
 test("AI Governance describes the conversational assistant that is actually running", async ({ page }) => {
   // The trust summary used to call the assistant "Gemini, rewords only" after the local
   // tool-using agent had replaced it.

@@ -82,6 +82,8 @@ ATTACK_TYPE_MAPPINGS: dict[str, dict[str, str]] = {
 RULE_ATTACK_HINTS = {
     **{code: spec.attack_type for code, spec in RULE_CATALOG.items()},
     "watchlist_match": "unknown_anomaly",
+    # The MFU behaviour model's experimental alerts; each names its type on the match itself.
+    "mfu_behavior_model": "unknown_anomaly",
 }
 
 RULE_ATTACK_PRIORITY = {

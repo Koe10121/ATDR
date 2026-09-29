@@ -96,3 +96,26 @@ rule stay the same.
 - Condition 3 uses the blind-check labels; since those have been read, it is
   a second look.
 - All results are reported, including the types that fail.
+
+## Addendum: experimental exception (declared 2026-09-28, after the v2 review)
+
+No attack type passed the bar. Port scan came closest (4 of 4 judged extra finds
+real, one left Unsure, against 5 needed); C2's reviewed finds were routine
+check-ins; brute force, flood and exfiltration had too few or no extra finds.
+Every part of the 20 May export has now been used, and no further MFU traffic is
+available, so a better-tested model is not possible for now.
+
+The team lead (Sai Myat Thura Koe) therefore switched every attack type on as an
+**experimental exception**, recorded on the model card and in the audit log. This
+does not change the bar or its result: no type has passed. What it allows:
+
+- The model raises its own alert only where it flags a device's five minutes of
+  traffic and no rule alert covers them. Where the rules alerted, its opinion
+  stays on that alert.
+- Every such alert says it was found by the MFU model, is experimental and low
+  confidence, and why; it is Low severity, or Medium at 99.5% model confidence or
+  more, and never triggers a response on its own.
+- The scoreboard and the blind check keep measuring the rules alone.
+- `python -m atdr.scripts.model_alerts disable` switches it off again.
+
+All accuracy figures come from one 21-minute MFU export (20 May 2026); treat them as low-confidence estimates until tested on more traffic.

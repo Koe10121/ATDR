@@ -437,6 +437,9 @@ export interface BehaviorModelStatus {
   code_commit?: string | null;
   threshold?: number;
   alerting_types?: string[];
+  alerting_mode?: "advisory" | "experimental";
+  experimental_alerting?: { types: string[]; enabled_by: string; enabled_at: string; reason: string; quality_bar_passed: string[] } | null;
+  data_limit?: string;
   detail: string;
   quality_bar?: BehaviorQualityBar | null;
 }
@@ -475,7 +478,8 @@ export interface BehaviorFinding {
   reasons: string[];
   found_by: "rules_and_model" | "model_only";
   alert_ids: number[];
-  status: "advisory" | "alerting";
+  model_alert_ids?: number[];
+  status: "advisory" | "alerting" | "experimental_alert";
   response: {
     mitre: { tactic?: string | null; technique?: string | null; technique_id?: string | null };
     objective?: string | null;

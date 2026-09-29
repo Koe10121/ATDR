@@ -235,7 +235,16 @@ No v3 for now. No further MFU export is available (team lead, 28 Sep), and every
 part of the 20 May export has been used for training, tuning or review, so a
 model retrained on the cleaned labels could only be checked on traffic the team
 has already seen: a second look, which cannot pass the bar declared before
-training. v2 stays the advisory model until new MFU traffic exists to test on. Rules v5.35.0 and v5.36.0 alert on
+training. v2 stays the advisory model until new MFU traffic exists to test on.
+
+Experimental alerts (28 Sep 2026): with no further data, the team lead switched
+every attack type on as a recorded exception, not a pass
+(`ML_QUALITY_BAR.md`, addendum of the same date). Where v2 flags a device's five
+minutes of traffic and no rule alert covers them, ATDR raises an alert marked
+"Found by the MFU behaviour model: experimental, low confidence". On the live
+data that added 5 alerts (4 malware / C2, 1 port scan), all in a window the model
+trained on, which each alert says. The C2 ones resemble the finds the team review
+judged routine check-ins, so expect false alarms among them. All accuracy figures come from one 21-minute MFU export (20 May 2026); treat them as low-confidence estimates until tested on more traffic. Rules v5.35.0 and v5.36.0 alert on
 fewer windows (759 of the 15,153), but every window the model flagged keeps its
 rule alert, so the model-only windows are the same 15 and the review stays
 complete.

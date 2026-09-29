@@ -519,6 +519,17 @@ export function AlertsTriage() {
               ]}
             />
 
+            {selected.alert_type === "mfu_behavior_model" ? (
+              <section className="rounded-lg border border-amber/50 bg-amber/10 p-4 text-sm font-semibold text-amber" data-testid="experimental-model-alert">
+                <div className="font-black uppercase tracking-wide">Found by the MFU behaviour model: experimental, low confidence</div>
+                <p className="mt-1">
+                  The rules raised no alert on this traffic; the model did. No attack type passed the model's quality bar, and the model
+                  was trained and tested on one 21-minute MFU export, so confirm with the evidence logs before acting. It never triggers a
+                  response on its own.
+                </p>
+              </section>
+            ) : null}
+
             <section className="rounded-lg border border-cyan/25 bg-cyan/5 p-4" data-testid="alert-investigation-summary">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <div>

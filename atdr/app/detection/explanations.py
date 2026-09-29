@@ -47,6 +47,10 @@ RULE_ANALYST_CHECKS: dict[str, tuple[str, ...]] = {
         "Verify the vendor threat subtype, severity, signature or threat name, and firewall action.",
         "Correlate the THREAT row with its traffic session and endpoint or service telemetry.",
     ),
+    "mfu_behavior_model": (
+        "Experimental model alert: the MFU model has not passed its quality bar, so check its reasons against the evidence logs.",
+        "Confirm with the device owner or other telemetry before any response; treat it as a lead, not a verdict.",
+    ),
     "paloalto_threat_informational": (
         "Find which application sent the non-standard traffic; a VPN client, game or tunnel is typical.",
         "Treat it as context: it matters only alongside other evidence from the same source.",

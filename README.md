@@ -6,13 +6,25 @@ analyst-ready alerts, and supporting investigations with a read-only AI
 Assistant.
 
 ATDR is a controlled release candidate, not certified production software.
-Deterministic rules remain alert-authoritative. Supervised ML and anomaly
-scores are advisory. Response is analyst-confirmed and simulated by default;
+Deterministic rules remain alert-authoritative. The MFU behaviour model, trained
+only on MFU's firewall traffic, adds experimental, low-confidence alerts where the
+rules raise none (a recorded exception: no attack type passed its quality bar).
+Supervised ML and anomaly scores are advisory. All accuracy figures come from one 21-minute MFU export (20 May 2026); treat them as low-confidence estimates until tested on more traffic. Response is analyst-confirmed and simulated by default;
 automatic (unattended) response remains disabled in every profile. An
 operator may explicitly opt a local/lab profile into real, host-scoped
 enforcement (see [Response And Containment](#response-and-containment)); no
 real network-firewall connector is implemented, and shared/production
 deployments remain simulation-only regardless of configuration.
+
+## Current State (28 Sep 2026)
+
+Rule catalog v5.36.0; every alert names its attack type, MITRE technique and
+response playbook; the MFU behaviour model (v2) gives its view on the Overview and
+on each alert, and raises experimental alerts where the rules raise none; the SOC
+Assistant is a local tool-using model (qwen3:8b) whose numbers are checked against
+ATDR's data. What every figure is, and how far to trust it:
+`docs/EVIDENCE_SUMMARY.md`. The section below describes the earlier v5.6x
+baseline.
 
 ## Current Truth
 

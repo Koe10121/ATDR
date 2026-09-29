@@ -43,11 +43,23 @@ def load_model(path: Path = MODEL_PATH) -> BehaviorModel | None:
     return _MODEL_CACHE["model"]
 
 
+# Shown wherever ATDR quotes its accuracy: every figure rests on one short export.
+DATA_LIMIT = (
+    "All accuracy figures come from one 21-minute MFU export (20 May 2026); treat them as low-confidence "
+    "estimates until tested on more traffic."
+)
+MODEL_ALERT_CODE = "mfu_behavior_model"
+
+
 def model_status(model: BehaviorModel | None) -> dict[str, Any]:
     if model is None:
-        return {"available": False, "detail": "No behaviour model is trained on this machine. Run python -m atdr.scripts.train_behavior_model."}
+        return {"available": False, "data_limit": DATA_LIMIT,
+                "detail": "No behaviour model is trained on this machine. Run python -m atdr.scripts.train_behavior_model."}
     card = model.card
+    switch = card.get("experimental_alerting") or {}
+    alerting = sorted(switch.get("types") or [])
     return {
+        "data_limit": DATA_LIMIT,
         "available": True,
         "trained_from": card.get("trained_from"),
         "trained_to": card.get("trained_to"),
@@ -56,8 +68,15 @@ def model_status(model: BehaviorModel | None) -> dict[str, Any]:
         "trained_on": card.get("trained_on"),
         "code_commit": card.get("code_commit"),
         "threshold": round(model.threshold, 4),
-        "alerting_types": [],
-        "detail": "Advisory: no attack type is switched on yet, so the model creates no alerts.",
+        "alerting_types": alerting,
+        "alerting_mode": "experimental" if alerting else "advisory",
+        "experimental_alerting": switch or None,
+        "detail": (
+            f"Experimental: {len(alerting)} attack type{'s' if len(alerting) != 1 else ''} may raise alerts where the rules "
+            "raised none, each marked low confidence, because none passed the quality bar and all testing used one "
+            "21-minute MFU export."
+            if alerting else "Advisory: no attack type is switched on yet, so the model creates no alerts."
+        ),
         "quality_bar": card.get("quality_bar"),
     }
 
@@ -151,15 +170,18 @@ def window_findings(db: Session, window_start: datetime | None = None, *, model:
                 "windows": available_windows(db), "findings": [], "summary": None}
     features, evidence = window_features(logs)
     prediction = model.predict(features)
+    # The model's own experimental alerts are not rule alerts: a finding they cover is still model-only.
     alerts_by_log: dict[int, set[int]] = {}
+    model_alerts_by_log: dict[int, set[int]] = {}
     window_ids = logs["log_id"].tolist()
     for chunk in range(0, len(window_ids), 900):
-        for alert_id, log_id in db.execute(
-            select(AlertEvidence.alert_id, AlertEvidence.normalized_log_id).where(
-                AlertEvidence.normalized_log_id.in_(window_ids[chunk:chunk + 900])
-            )
+        for alert_id, log_id, alert_type in db.execute(
+            select(AlertEvidence.alert_id, AlertEvidence.normalized_log_id, Alert.alert_type)
+            .join(Alert, Alert.id == AlertEvidence.alert_id)
+            .where(AlertEvidence.normalized_log_id.in_(window_ids[chunk:chunk + 900]))
         ):
-            alerts_by_log.setdefault(int(log_id), set()).add(int(alert_id))
+            target = model_alerts_by_log if alert_type == MODEL_ALERT_CODE else alerts_by_log
+            target.setdefault(int(log_id), set()).add(int(alert_id))
 
     flagged = prediction[prediction["flagged"]].sort_values("attack_probability", ascending=False)
     findings = []
@@ -167,6 +189,7 @@ def window_findings(db: Session, window_start: datetime | None = None, *, model:
         src_ip, window = index
         attack_type = str(row["attack_type"])
         alert_ids = sorted({alert for log_id in evidence.loc[index] for alert in alerts_by_log.get(int(log_id), ())})
+        model_alert_ids = sorted({alert for log_id in evidence.loc[index] for alert in model_alerts_by_log.get(int(log_id), ())})
         findings.append({
             "source": src_ip,
             "window_start": pd.Timestamp(window).isoformat(),
@@ -177,7 +200,8 @@ def window_findings(db: Session, window_start: datetime | None = None, *, model:
             "reasons": model.explain(features.loc[index], attack_type),
             "found_by": "rules_and_model" if alert_ids else "model_only",
             "alert_ids": alert_ids[:10],
-            "status": "advisory",
+            "model_alert_ids": model_alert_ids[:10],
+            "status": "experimental_alert" if model_alert_ids else "advisory",
             "response": _response(attack_type),
         })
 

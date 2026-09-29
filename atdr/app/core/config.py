@@ -52,6 +52,8 @@ class Settings(BaseSettings):
 
     # ---- Response and detection defaults ----
     response_simulation: bool = Field(default=True, alias="RESPONSE_SIMULATION")
+    # Experimental alerts from the MFU behaviour model, for the types switched on its model card.
+    model_alerts_enabled: bool = Field(default=True, alias="ATDR_MODEL_ALERTS")
     response_provider: str = Field(default="simulation", alias="RESPONSE_PROVIDER")
     response_max_block_minutes: int = Field(default=1440, alias="RESPONSE_MAX_BLOCK_MINUTES")
     default_import_limit: int | None = Field(default=5000, alias="DEFAULT_IMPORT_LIMIT")

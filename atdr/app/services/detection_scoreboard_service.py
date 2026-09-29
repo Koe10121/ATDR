@@ -155,6 +155,8 @@ def run_all_detection(db: Session, *, batch_size: int = BATCH_SIZE) -> dict[str,
             use_ml=False,
             actor="detection_scoreboard",
             only_unchecked=True,
+            # The scoreboard and the blind check measure the rules alone.
+            model_alerts=False,
         )
         batches += 1
         checked += int(result.get("evaluated") or 0)

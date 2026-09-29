@@ -26,9 +26,11 @@ from typing import Any
 from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.orm import Session
 
+from atdr.app.core.config import get_settings
 from atdr.app.db.models import Alert, AlertArchive, AlertEvidence, AlertNote, AuditLog, NormalizedLog, ResponseAction
 from atdr.app.detection.rule_catalog import RULE_CATALOG_VERSION
 from atdr.app.services.detection_scoreboard_service import run_all_detection
+from atdr.app.services.model_alert_service import create_model_alerts
 
 CHUNK = 500
 
@@ -108,6 +110,8 @@ def rebuild_alerts(
     db.commit()
 
     run = detect(db)
+    # The live list also carries the MFU model's experimental alerts, when they are switched on.
+    model_run = create_model_alerts(db, actor=actor) if get_settings().model_alerts_enabled else None
     # Every alert now on the list that was not kept is new. (Comparing ids with the old maximum fails:
     # SQLite reuses ids above the highest remaining row, so a second rebuild numbers new alerts lower.)
     new_alerts = Counter(db.scalars(select(Alert.alert_type).where(Alert.id.not_in(keep) if keep else True)))
@@ -119,6 +123,7 @@ def rebuild_alerts(
         "new_alerts": int(sum(new_alerts.values())),
         "new_alerts_by_type": dict(new_alerts.most_common()),
         "detection": run,
+        "model_alerts": model_run,
         "reason": reason,
     }
     db.add(AuditLog(actor=actor, action="alerts_rebuilt", target_type="alerts", target_value=RULE_CATALOG_VERSION,

@@ -61,6 +61,24 @@ service.
 6. Review audit events for failed logins, account changes, alert actions, and
    simulated response requests.
 
+## MFU Behaviour Model Alerts
+
+The MFU behaviour model raises experimental, low-confidence alerts where the
+rules raise none, for the attack types switched on its model card. Every
+detection run (the dashboard's Check all unchecked logs included) raises them for
+the windows it checked; the scoreboard and blind check never do.
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.model_alerts status
+.\.venv\Scripts\python.exe -m atdr.scripts.model_alerts disable --actor "Name" --reason "Why"
+.\.venv\Scripts\python.exe -m atdr.scripts.model_alerts enable --types all --actor "Name" --reason "Why"
+.\.venv\Scripts\python.exe -m atdr.scripts.model_alerts run --actor "Name"
+```
+
+Each switch is written to the model card and the audit log; restart ATDR after
+switching. `ATDR_MODEL_ALERTS=false` in the environment stops model alerts
+without changing the card.
+
 ## Advisory Anomaly Capability
 
 IsolationForest is optional supporting context. Its absence never prevents

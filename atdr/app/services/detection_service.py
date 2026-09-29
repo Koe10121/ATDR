@@ -448,6 +448,20 @@ def _result_from_matches(
     return DetectionResult(threat_score=score, severity=severity, explanation=explanation, matched_rules=matches)
 
 
+def _experimental_model_alerts(db: Session, windows: list[datetime], *, actor: str) -> dict[str, Any] | None:
+    """After the rules, the MFU model's experimental alerts for the windows just checked; never breaks rule detection."""
+
+    if not windows or not getattr(get_settings(), "model_alerts_enabled", False):
+        return None
+    from atdr.app.services.model_alert_service import create_model_alerts
+
+    try:
+        return create_model_alerts(db, windows=windows, actor=actor)
+    except Exception as error:  # the rules' results are committed; the model is advisory context
+        db.rollback()
+        return {"enabled": True, "created": 0, "error": f"{type(error).__name__}: {error}"[:300]}
+
+
 def _primary_rule(matches: list[RuleMatch]) -> RuleMatch:
     return max(matches, key=lambda item: (PRIMARY_RULE_PRIORITY.get(item.code, 0), item.score))
 
@@ -548,6 +562,7 @@ def run_detection(
     runtime_profile: dict[str, Any] | None = None,
     coordination_timeout_seconds: float = 30.0,
     only_unchecked: bool = False,
+    model_alerts: bool = True,
 ) -> dict:
     """Evaluate a batch of logs against the rules.
 
@@ -873,6 +888,8 @@ def run_detection(
             alerts_updated=deduplicated_alert_updates,
         )
         _mark_logs_checked(db, evaluated_log_ids, int(run.id))
+        # The five-minute windows this run checked, for the MFU model's experimental alerts afterwards.
+        checked_windows = sorted({moment for moment in (_event_time(log) for log in logs) if moment is not None})
         run_details = {
             "evaluated": evaluated,
             "selection": "unchecked_oldest_first" if only_unchecked else "newest",
@@ -947,10 +964,12 @@ def run_detection(
             db.expunge_all()
             gc.collect()
             _runtime_profile_sample(db, runtime_profile, "session_released")
+        model_alert_summary = _experimental_model_alerts(db, checked_windows, actor=actor) if model_alerts else None
         response = {
             **run_details,
             "use_ml": use_ml,
             "detection_run_id": detection_run_id,
+            "model_alerts": model_alert_summary,
             "remaining_unchecked": count_unchecked_logs(db, source_id=source_id),
             "group_bucket_minutes": GROUP_BUCKET_MINUTES,
             "low_severity_group_min_evidence": LOW_SEVERITY_GROUP_MIN_EVIDENCE,

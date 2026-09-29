@@ -494,7 +494,11 @@ export function MLGovernance() {
       <div className="pt-2" data-testid="governance-part-decides">
         <div className="text-xs font-extrabold uppercase tracking-wide text-cyan">Part 1</div>
         <h2 className="mt-1 text-2xl font-black text-text">What decides</h2>
-        <p className="mt-1 text-sm text-muted">Only the rules create alerts. Every AI part on this page only advises.</p>
+        <p className="mt-1 text-sm text-muted">
+          {(behaviorModel.data?.alerting_types ?? []).length
+            ? "The rules create alerts; the MFU behaviour model adds experimental, low-confidence alerts where the rules raise none. Every other AI part only advises."
+            : "Only the rules create alerts. Every AI part on this page only advises."}
+        </p>
       </div>
 
       <section data-testid="detection-runtime-contract">
@@ -525,13 +529,13 @@ export function MLGovernance() {
               value={
                 behaviorModel.data?.available
                   ? (behaviorModel.data.alerting_types ?? []).length
-                    ? "alerting"
+                    ? "experimental alerts"
                     : "advisory"
                   : "not trained"
               }
               detail={
                 behaviorModel.data?.available
-                  ? `${(behaviorModel.data.alerting_types ?? []).length} of ${Object.keys(behaviorModel.data.quality_bar?.types ?? {}).length || 5} attack types switched on`
+                  ? `${(behaviorModel.data.alerting_types ?? []).length} of ${Math.max(Object.keys(behaviorModel.data.quality_bar?.types ?? {}).length, (behaviorModel.data.alerting_types ?? []).length) || 5} attack types switched on${(behaviorModel.data.alerting_types ?? []).length ? " (low confidence)" : ""}`
                   : "Rules decide every alert"
               }
               tone="cyan"
