@@ -355,6 +355,63 @@ function Test-HttpEndpoint {
     }
 }
 
+# The SOC Assistant's conversational model is optional: without it the assistant
+# gives its built-in answers. Configured is not running, so report which it is.
+function Get-AssistantModelStatus {
+    param([Parameter(Mandatory = $true)][System.Collections.IDictionary]$EnvValues)
+    $engine = if ($EnvValues.Contains("ASSISTANT_AGENT_ENGINE")) { ([string]$EnvValues["ASSISTANT_AGENT_ENGINE"]).Trim().ToLowerInvariant() } else { "" }
+    if (-not $engine -or $engine -eq "off") {
+        return [pscustomobject]@{ engine = "off"; state = "off"; model = "" }
+    }
+    if ($engine -ne "ollama") {
+        return [pscustomobject]@{ engine = $engine; state = "not_checked"; model = "" }
+    }
+    $model = if ($EnvValues.Contains("ASSISTANT_AGENT_MODEL") -and [string]$EnvValues["ASSISTANT_AGENT_MODEL"]) { [string]$EnvValues["ASSISTANT_AGENT_MODEL"] } else { "qwen3:8b" }
+    $baseUrl = if ($EnvValues.Contains("ASSISTANT_AGENT_BASE_URL") -and [string]$EnvValues["ASSISTANT_AGENT_BASE_URL"]) { ([string]$EnvValues["ASSISTANT_AGENT_BASE_URL"]).TrimEnd("/") } else { "http://127.0.0.1:11434" }
+    try {
+        $tags = Invoke-RestMethod -Uri "$baseUrl/api/tags" -TimeoutSec 3 -ErrorAction Stop
+    }
+    catch {
+        return [pscustomobject]@{ engine = "ollama"; state = "not_running"; model = $model }
+    }
+    $names = @($tags.models | ForEach-Object { [string]$_.name })
+    $state = if ($names -contains $model -or $names -contains "${model}:latest") { "ready" } else { "model_missing" }
+    return [pscustomobject]@{ engine = "ollama"; state = $state; model = $model }
+}
+
+function Get-AssistantModelSummary {
+    param([Parameter(Mandatory = $true)]$Status)
+    switch ($Status.state) {
+        "ready" { return "ready ($($Status.model))" }
+        "not_running" { return "Ollama not running; the SOC Assistant gives built-in answers only. Start the Ollama app." }
+        "model_missing" { return "Ollama is running but $($Status.model) is not downloaded; run: ollama pull $($Status.model)" }
+        "not_checked" { return "$($Status.engine) (hosted, not checked)" }
+        default { return "off (built-in answers)" }
+    }
+}
+
+# Starts the installed Ollama app when the configured model is not running, and
+# waits briefly for it. Never fails the launcher: the assistant has a fallback.
+function Start-AssistantModelIfStopped {
+    param([Parameter(Mandatory = $true)][System.Collections.IDictionary]$EnvValues)
+    $status = Get-AssistantModelStatus $EnvValues
+    if ($status.state -ne "not_running") { return $status }
+    $app = Join-Path $env:LOCALAPPDATA "Programs\Ollama\ollama app.exe"
+    if (-not (Test-Path -LiteralPath $app -PathType Leaf)) { return $status }
+    try {
+        Start-Process -FilePath $app -WindowStyle Hidden -ErrorAction Stop | Out-Null
+    }
+    catch {
+        return $status
+    }
+    for ($attempt = 0; $attempt -lt 20; $attempt++) {
+        Start-Sleep -Seconds 1
+        $status = Get-AssistantModelStatus $EnvValues
+        if ($status.state -ne "not_running") { break }
+    }
+    return $status
+}
+
 function Get-SafeDatabaseDialect {
     param([AllowNull()][string]$DatabaseUrl)
     if ([string]::IsNullOrWhiteSpace($DatabaseUrl)) { return "not_configured" }

@@ -372,6 +372,8 @@ export interface AssistantStatusResponse {
   agent_engine?: string;
   agent_model?: string;
   agent_local?: boolean;
+  agent_state?: "off" | "ready" | "not_running" | "model_missing" | "not_checked";
+  agent_state_detail?: string;
   safety: string[];
 }
 

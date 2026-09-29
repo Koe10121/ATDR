@@ -17,7 +17,14 @@ from atdr.app.detection.supervised_detector import supervised_model_report
 from atdr.app.detection.explanations import build_alert_detection_summary, explain_log_triage
 from atdr.app.services.case_service import list_alert_cases
 from atdr.app.services.assistant_data_query import DataAnswer, answer_data_question, parse_data_question
-from atdr.app.services.assistant_agent import ACTION_REQUEST, AgentOutcome, engine_from_settings, is_loopback_url, run_agent
+from atdr.app.services.assistant_agent import (
+    ACTION_REQUEST,
+    AgentOutcome,
+    OllamaEngine,
+    engine_from_settings,
+    is_loopback_url,
+    run_agent,
+)
 from atdr.app.services.assistant_help import HelpAnswer, RuleAnswer, answer_help_question, answer_rule_question
 from atdr.app.services.alert_service import get_alert, list_alerts
 from atdr.app.core.redaction import IP_PATTERN
@@ -577,6 +584,11 @@ def assistant_status(settings: Settings) -> dict[str, Any]:
         provider = settings.assistant_llm_provider.strip()
     elif legacy_external_configured:
         provider = settings.assistant_provider.strip()
+    agent = engine_from_settings(settings)
+    # Only the local model is asked; a hosted engine would cost a call on every page load.
+    agent_state, agent_state_detail = (
+        ("off", "") if agent is None else agent.health() if isinstance(agent, OllamaEngine) else ("not_checked", "")
+    )
     return {
         "available": True,
         "mode": "deterministic_local" if not external_configured else "external_llm_configured",
@@ -608,8 +620,10 @@ def assistant_status(settings: Settings) -> dict[str, Any]:
         "raw_log_context_allowed": settings.assistant_allow_raw_log_context,
         "max_context_rows": settings.assistant_max_context_rows,
         "agent_engine": settings.assistant_agent_engine.strip().lower() or "off",
-        "agent_model": (agent.model if (agent := engine_from_settings(settings)) is not None else ""),
+        "agent_model": agent.model if agent is not None else "",
         "agent_local": agent is None or (agent.name == "ollama" and is_loopback_url(getattr(agent, "base_url", ""))),
+        "agent_state": agent_state,
+        "agent_state_detail": agent_state_detail,
         "safety": _safety_notes(),
     }
 

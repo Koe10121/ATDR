@@ -303,6 +303,38 @@ def test_ollama_engine_turns_thinking_off_sets_the_context_and_sends_tool_names(
     assert reply.tool_calls[0].arguments == {"intent": "count"} and reply.usage["input_tokens"] == 50
 
 
+def test_the_status_says_whether_the_local_model_can_answer_not_just_that_it_is_configured(monkeypatch):
+    # After a restart Ollama was down and the card still said "Ready" while every answer came from the built-in set.
+    class Tags:
+        def __init__(self, names):
+            self.names = names
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"models": [{"name": name} for name in self.names]}
+
+    def down(url, timeout):
+        raise assistant_agent.requests.ConnectionError("refused")
+
+    engine = OllamaEngine(base_url="http://127.0.0.1:11434", model="qwen3:8b", timeout=5, context_tokens=12288, keep_alive="30m")
+    monkeypatch.setattr(assistant_agent.requests, "get", down)
+    assert engine.health()[0] == "not_running" and "Start the Ollama app" in engine.health()[1]
+    monkeypatch.setattr(assistant_agent.requests, "get", lambda url, timeout: Tags(["llama3:latest"]))
+    assert engine.health() == ("model_missing", engine.health()[1]) and "ollama pull qwen3:8b" in engine.health()[1]
+    monkeypatch.setattr(assistant_agent.requests, "get", lambda url, timeout: Tags(["qwen3:8b"]))
+    assert engine.health() == ("ready", "")
+
+    monkeypatch.setattr(assistant_agent.requests, "get", down)
+    base = get_settings().model_copy(update={"assistant_agent_base_url": "http://127.0.0.1:11434", "assistant_agent_model": "qwen3:8b"})
+    status = assistant_service.assistant_status(base.model_copy(update={"assistant_agent_engine": "ollama"}))
+    assert status["agent_state"] == "not_running" and "built-in answers" in status["agent_state_detail"]
+    assert assistant_service.assistant_status(base.model_copy(update={"assistant_agent_engine": "off"}))["agent_state"] == "off"
+    hosted = assistant_service.assistant_status(base.model_copy(update={"assistant_agent_engine": "gemini", "assistant_agent_base_url": ""}))
+    assert hosted["agent_state"] == "not_checked"
+
+
 def test_openai_compatible_engine_uses_a_bearer_key_and_parses_string_arguments(monkeypatch):
     sent = {}
 

@@ -69,6 +69,7 @@ try {
     foreach ($keyName in @("ASSISTANT_LLM_API_KEY", "ASSISTANT_API_KEY", "GEMINI_API_KEY")) {
         if ($envValues.Contains($keyName) -and -not (Test-PlaceholderValue ([string]$envValues[$keyName]))) { $geminiKeyConfigured = $true }
     }
+    $assistantModel = Get-AssistantModelStatus $envValues
 
     $installationReady = [bool](
         $structure.valid -and
@@ -135,6 +136,11 @@ try {
             database_dialect = $databaseDialect
             response_simulation = $responseSimulation
             gemini_configured = $geminiKeyConfigured
+            assistant_model = [ordered]@{
+                engine = $assistantModel.engine
+                state = $assistantModel.state
+                model = $assistantModel.model
+            }
             secrets_exposed = $false
         }
         identity_provider = [ordered]@{
@@ -176,6 +182,7 @@ try {
         Write-Host "  Database: $databaseDialect"
         Write-Host "  Response simulation: $responseSimulation"
         Write-Host "  Gemini configured: $geminiKeyConfigured"
+        Write-Host "  SOC Assistant model: $(Get-AssistantModelSummary $assistantModel)" -ForegroundColor $(if ($assistantModel.state -in @('not_running', 'model_missing')) { 'Yellow' } else { 'Gray' })
         if ($missingAuth.Count) { Write-Host "  Missing ATDR settings: $($missingAuth -join ', ')" -ForegroundColor Yellow }
         if (-not $providerReady) { Write-Host "  Provider blocker: $providerBlocker" -ForegroundColor Yellow }
         Write-Host "  Running services: $(@($services.Values | Where-Object reachable).Count)/4"

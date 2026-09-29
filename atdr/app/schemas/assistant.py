@@ -163,6 +163,8 @@ class AssistantStatusResponse(BaseModel):
     agent_engine: str = "off"
     agent_model: str = ""
     agent_local: bool = True
+    agent_state: str = "off"
+    agent_state_detail: str = ""
     safety: list[str] = Field(default_factory=list)
 
 

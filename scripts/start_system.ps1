@@ -85,6 +85,11 @@ try {
                 Write-Host "  MFU sign in: http://localhost:8080/#/pages/login"
                 Write-Host "  Status: .\scripts\check_system.cmd -RequireReady"
                 Write-Host "  Stop: .\scripts\stop_system.cmd"
+                $runningEnv = Read-DotEnvFile (Join-Path $root ".env")
+                $assistantModel = try {
+                    if ($DryRun) { Get-AssistantModelStatus $runningEnv } else { Start-AssistantModelIfStopped $runningEnv }
+                } catch { [pscustomobject]@{ engine = "ollama"; state = "not_running"; model = "" } }
+                Write-Host "  SOC Assistant model: $(Get-AssistantModelSummary $assistantModel)" -ForegroundColor $(if ($assistantModel.state -in @('not_running', 'model_missing')) { 'Yellow' } else { 'Gray' })
                 if (-not $NoBrowser -and -not $DryRun) { Start-Process "http://localhost:8080/#/pages/login" | Out-Null }
                 exit 0
             }
@@ -246,10 +251,14 @@ try {
     # its first cold compile on a teammate machine.
     Wait-ServiceReady -Name "MFU shell frontend" -Url "http://127.0.0.1:8080" -TimeoutSeconds 240
 
+    # Optional: the SOC Assistant falls back to built-in answers without it, so this never fails startup.
+    $assistantModel = try { Start-AssistantModelIfStopped $envValues } catch { [pscustomobject]@{ engine = "ollama"; state = "not_running"; model = "" } }
+
     Write-Host "All components are ready." -ForegroundColor Green
     Write-Host "  MFU sign in: http://localhost:8080/#/pages/login"
     Write-Host "  ATDR API: http://127.0.0.1:8000"
     Write-Host "  ATDR React: http://127.0.0.1:5173 (entered through secure shell handoff)"
+    Write-Host "  SOC Assistant model: $(Get-AssistantModelSummary $assistantModel)" -ForegroundColor $(if ($assistantModel.state -in @('not_running', 'model_missing')) { 'Yellow' } else { 'Gray' })
     if (-not $NoBrowser) { Start-Process "http://localhost:8080/#/pages/login" | Out-Null }
 }
 catch {

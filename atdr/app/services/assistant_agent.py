@@ -240,6 +240,26 @@ class OllamaEngine:
         self.context_tokens = context_tokens
         self.keep_alive = keep_alive
 
+    def health(self, timeout: float = 1.5) -> tuple[str, str]:
+        """Whether the model can answer now: "ready", "not_running" or "model_missing", with what to do about it.
+
+        Configured is not the same as running: after a restart Ollama may not be up, and the assistant then
+        answers from its built-in answers while claiming nothing is wrong.
+        """
+        try:
+            response = requests.get(f"{self.base_url}/api/tags", timeout=timeout)
+            response.raise_for_status()
+            models = response.json().get("models") or []
+        except (requests.RequestException, ValueError, AttributeError):
+            return "not_running", "Ollama is not running, so the assistant uses its built-in answers. Start the Ollama app."
+        names = {str(item.get("name") or "") for item in models if isinstance(item, dict)}
+        if self.model not in names and f"{self.model}:latest" not in names:
+            return "model_missing", (
+                f"Ollama is running but {self.model} is not downloaded, so the assistant uses its built-in answers. "
+                f"Run: ollama pull {self.model}"
+            )
+        return "ready", ""
+
     @staticmethod
     def _messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
         converted = []

@@ -4719,6 +4719,49 @@ test("AI Governance describes the conversational assistant that is actually runn
   await expect(assistant).not.toContainText("Gemini");
 });
 
+test("a configured local model that is not running is shown as offline, not ready", async ({ page }) => {
+  // After a restart Ollama was down while the card said "Ready" and every answer came from the built-in set.
+  await mockApi(page);
+  await page.unroute("**/api/assistant/status");
+  await page.route("**/api/assistant/status", async (route) =>
+    route.fulfill({
+      json: {
+        available: true,
+        mode: "deterministic_local",
+        external_provider_configured: false,
+        external_provider_used_by_default: false,
+        provider: "disabled",
+        model_configured: false,
+        llm_enabled: false,
+        llm_provider_configured: false,
+        llm_provider_name: "",
+        llm_ready: false,
+        llm_operational: { status: "idle", calls_attempted: 0, calls_succeeded: 0, calls_failed: 0, fallbacks: 0, circuit_open: false, estimated_cost_usd: 0, secrets_exposed: false },
+        llm_secrets_exposed: false,
+        redaction_enabled: true,
+        raw_log_context_allowed: false,
+        max_context_rows: 20,
+        safety: ["Read Only"],
+        agent_engine: "ollama",
+        agent_model: "qwen3:8b",
+        agent_state: "not_running",
+        agent_state_detail: "Ollama is not running, so the assistant uses its built-in answers. Start the Ollama app."
+      }
+    })
+  );
+  await seedSession(page);
+  await page.goto("/assistant");
+  await expect(page.getByText("Local model offline: built-in answers")).toBeVisible();
+  await expect(page.getByTestId("assistant-model-offline")).toContainText("Start the Ollama app.");
+  await expect(page.getByText("Local model Assistant Ready")).toHaveCount(0);
+
+  await page.goto("/ml");
+  const assistant = page.getByTestId("ai-trust-assistant");
+  await expect(assistant).toContainText("Model offline");
+  await expect(assistant).toContainText("Start the Ollama app.");
+  await expect(assistant).not.toContainText("Conversational");
+});
+
 test("AI Governance explains a missing advisory anomaly capability without training it", async ({ page }) => {
   await mockApi(page);
   await page.unroute("**/api/ml/report");

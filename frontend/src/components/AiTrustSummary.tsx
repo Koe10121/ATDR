@@ -52,7 +52,17 @@ export function AiTrustSummary({
   const reviewDone = Boolean(evaluation?.reviews_closed);
   const agentEngine = assistant?.agent_engine && assistant.agent_engine !== "off" ? assistant.agent_engine : null;
   const privacy = `IP redaction ${assistant?.redaction_enabled ? "on" : "off"}; raw logs ${assistant?.raw_log_context_allowed ? "allowed after review" : "never sent"}.`;
-  const assistantRow: TrustRow = agentEngine
+  const agentOffline = assistant?.agent_state === "not_running" || assistant?.agent_state === "model_missing";
+  const assistantRow: TrustRow = agentEngine && agentOffline
+    ? {
+        key: "assistant",
+        label: "SOC Assistant",
+        status: "Model offline",
+        tone: "off",
+        text: `${assistant?.agent_state_detail ?? ""} Built-in answers come straight from ATDR data. ${privacy}`,
+        link: { to: "/assistant", label: "Open assistant" }
+      }
+    : agentEngine
     ? {
         key: "assistant",
         label: "SOC Assistant",

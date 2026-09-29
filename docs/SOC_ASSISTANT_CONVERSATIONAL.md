@@ -53,6 +53,13 @@ The recommended engine runs on the same computer, so no data leaves it:
 3. The first answer after the model has been unloaded takes about a minute while it loads into the graphics card. After that, answers take 6 to 8 seconds on average. The model stays loaded for 30 minutes after the last question (`ASSISTANT_AGENT_KEEP_ALIVE`).
 
 `ASSISTANT_AGENT_ENGINE=off` (the default) keeps the old built-in answers only.
+
+Configured is not the same as running. `scripts/start_system.cmd` starts the
+Ollama app when it is installed but not running, and prints "SOC Assistant
+model: ready (qwen3:8b)" or what is wrong; `scripts/check_system.cmd` prints
+the same line. On the SOC Assistant page the Answer Provider card says "Local
+model offline: built-in answers" with the fix when Ollama is down or the model
+is not downloaded, and AI Governance marks the assistant "Model offline".
 Gemini is also supported (`ASSISTANT_AGENT_ENGINE=gemini`, reusing
 `ASSISTANT_LLM_API_KEY`), but see the free-tier note below.
 

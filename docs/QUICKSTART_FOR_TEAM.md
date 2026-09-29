@@ -216,7 +216,7 @@ Do not migrate ATDR to MongoDB as part of teammate setup; the shell and ATDR int
 | Shell package not found or rejected | Obtain the approved archive and use `-ShellPackage`. Do not rename, edit, or re-zip it. |
 | Windows extraction reports a long path | Move the clone to a shorter location such as `C:\ATDR Team\ATDR`; spaces are supported. |
 | MongoDB unavailable | Start the MongoDB service, then run `check_system.cmd`. Starting a Windows service needs an administrator terminal (`net start MongoDB`) or the Services app. If its log ends with "out of memory", close other heavy programs first; loading the Assistant's model takes about 6 GB. |
-| SOC Assistant answers are marked "ATDR deterministic analysis" | Ollama is not running (it does not always start after a restart). Start the Ollama app, check `http://127.0.0.1:11434/api/tags` lists `qwen3:8b`, then ask again. |
+| SOC Assistant answers are marked "ATDR deterministic analysis" | Ollama is not running (it does not always start after a restart). `start_system.cmd` starts the installed Ollama app for you; `check_system.cmd` shows its state on the "SOC Assistant model" line. If it still says not running, start the Ollama app yourself and ask again. |
 | Shell log shows a Redis timeout | Local fallback is supported; wait for `/healthz` and run `check_system.cmd`. Configure an approved Redis service only for shared operation. |
 | Port 8000/5173/8214/8080 busy | Run `stop_system.cmd`; stop any non-launcher process using the reported port. |
 | Configuration incomplete | Run `check_system.cmd` and correct only the named fields in private configuration. |

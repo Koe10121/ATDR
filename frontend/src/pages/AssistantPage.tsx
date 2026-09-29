@@ -648,6 +648,8 @@ export function AssistantPage() {
     return "Create investigation brief for the latest critical alert.";
   }, [lastContext]);
 
+  // Configured is not running: after a restart the local model may be down, and answers then come from the built-in set.
+  const agentOffline = status.data?.agent_state === "not_running" || status.data?.agent_state === "model_missing";
   const providerLabel = useMemo(() => {
     if (!status.data) return "Checking";
     const responseLlm = response ? llmDetails(response) : null;
@@ -663,6 +665,7 @@ export function AssistantPage() {
       return `${agentEngineLabel(agentDetails(response)?.engine)} Assistant`;
     }
     if (status.data.agent_engine && status.data.agent_engine !== "off") {
+      if (agentOffline) return `${agentEngineLabel(status.data.agent_engine)} offline: built-in answers`;
       return `${agentEngineLabel(status.data.agent_engine)} Assistant Ready`;
     }
     if (status.data.external_provider_configured) {
@@ -672,7 +675,7 @@ export function AssistantPage() {
       return "Provider Not Configured";
     }
     return "Local Evidence Assistant";
-  }, [response, status.data]);
+  }, [agentOffline, response, status.data]);
   const providerOperations = status.data?.llm_operational;
   const providerTotalTokens = providerOperations?.token_usage?.total_tokens ?? 0;
   const providerUsageThreshold = providerOperations?.usage_warning_threshold_tokens ?? 0;
@@ -902,6 +905,7 @@ export function AssistantPage() {
       },
       {
         onSuccess: (data) => {
+          if (agentDetails(data)?.fallback_reason?.startsWith("engine_")) void status.refetch();
           setPersistedResponse(data);
           setConversationId(data.conversation_id);
           setConversationTurns((current) => appendAssistantConversationTurn(
@@ -1040,7 +1044,13 @@ export function AssistantPage() {
         <div className="metric-card">
           <div className="metric-label">Answer Provider</div>
           <div className="metric-value text-lg">{providerLabel}</div>
-          <div className="metric-help">Gemini labels appear only on answers that used Gemini.</div>
+          {agentOffline ? (
+            <div className="metric-help font-semibold text-amber" data-testid="assistant-model-offline">
+              {status.data?.agent_state_detail}
+            </div>
+          ) : (
+            <div className="metric-help">Gemini labels appear only on answers that used Gemini.</div>
+          )}
         </div>
         <div className="metric-card">
           <div className="metric-label">Provider Health</div>
