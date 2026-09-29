@@ -82,6 +82,24 @@ campus devices the firewall names as an XMRig miner now has its own Critical
 "Palo Alto malware or C2 threat" alert; the GHOSTENGINE watchlist alert stays.
 Unclassified alerts: 133 before the attack-type work, 18 now.
 
+## 2026-09-29 synthetic test data removed
+
+A readiness check found three Critical alerts from 203.0.113.x, a documentation
+address range, on the live list. On 27 Sep, `run_no_hardware_soak` had been run
+with its defaults, which then wrote its synthetic lab logs into the configured
+database: 46 logs from sources `soak-firewall-1`, `soak-router-1` and
+`soak-workstation-source`. The 28 Sep rebuild turned them into 4 alerts
+(#3848-#3851: 3 Critical, 1 High). They had no notes, labels, assignments or
+responses; the model's training set, the blind and holdout sets and the labels
+never contained these logs.
+
+After a backup (`backups/atdr-sqlite-20260929T042429Z-7620c8dd.sqlite3`), the 4
+alerts were archived in full, and the 46 logs, their 9 import runs and the 3
+sources removed. The audit trail keeps the original import records and a
+`synthetic_test_data_removed` entry. The live list went from 185 to 181 alerts
+(Critical 37, High 43, Medium 81, Low 20). The soak tool now uses a temporary
+database unless given `--use-configured-db`.
+
 ## Alert numbers after a rebuild
 
 SQLite numbers a new alert one above the highest remaining id, so a rebuild's

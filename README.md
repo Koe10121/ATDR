@@ -20,7 +20,7 @@ deployments remain simulation-only regardless of configuration.
 
 - **Detection:** rule catalog v5.36.0 (22 rules). Context-only rules add points
   but never raise an alert alone. Every alert names its attack type, MITRE
-  ATT&CK technique and response playbook. The live list holds 185 alerts after
+  ATT&CK technique and response playbook. The live list holds 181 alerts after
   a rebuild with the current rules; the 3,676 older alerts are archived in full.
 - **MFU behaviour model (v2):** trained only on MFU's firewall traffic plus
   simulated attacks blended into it. It gives its view on the Overview and on

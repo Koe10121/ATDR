@@ -47,7 +47,7 @@ attacks. The assistant answered from a fixed list of question types.
 - **Threat intelligence.** 2,324 known-bad addresses from Feodo Tracker and
   ThreatFox are on the watchlist.
 - **Rebuilt the alert list** with the current rules, keeping analyst-worked
-  alerts and archiving the rest in full: 3,676 alerts became 185.
+  alerts and archiving the rest in full: 3,676 alerts became 181.
 
 ### 2. A model trained on MFU traffic
 
@@ -112,10 +112,16 @@ attacks. The assistant answered from a fixed list of question types.
 | Assistant | 83 of 85, and 26 of 27 held-out questions | Automatic scoring |
 | Tests | about 1,480 backend and 80 browser tests passing | |
 
-The live dashboard holds 185 alerts (Critical 40, High 44, Medium 81, Low 20).
-Each names its attack type: port scan 122, malware / C2 15, policy violation 10,
-data exfiltration 7, brute force 6, flood 4, exploit attempt 3, unclassified 18.
+The live dashboard holds 181 alerts (Critical 37, High 43, Medium 81, Low 20).
+Each names its attack type: port scan 121, malware / C2 14, policy violation 10,
+data exfiltration 7, brute force 4, flood 4, exploit attempt 3, unclassified 18.
 Five are the MFU model's experimental alerts.
+
+On 29 September a check of the live list found 4 alerts (3 Critical, 1 High)
+built on 46 synthetic lab logs that a test tool had written into the live
+database on 27 September. They were archived and the logs removed; the tool now
+uses a temporary database by default. The model, the labels and the blind check
+never contained them.
 
 ## What the numbers cannot tell us
 

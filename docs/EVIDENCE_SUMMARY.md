@@ -105,6 +105,11 @@ raising alerts alone (rebuilt 2026-09-28; the 5 analyst-worked alerts kept):
 | Flood | 4 | 4 | 4 |
 | Exploit attempt (new) | 0 | 3 | 3 |
 
+Four of the 180 (1 port scan, 2 brute force, 1 malware / C2) were built on
+synthetic lab logs a test tool wrote into the live database by mistake on
+27 Sep; they were archived on 29 Sep (`docs/detection/ALERT_REBUILD.md`). The
+live list is now 181 alerts, 5 of them the MFU model's experimental alerts.
+
 - 30 alerts on unanswered internet probes to uncommon ports are now port scans.
 - Four alerts on campus devices whose connections the firewall identified as
   XMRig cryptocurrency-miner command and control (140 dropped connections from
