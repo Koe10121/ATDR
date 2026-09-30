@@ -100,6 +100,26 @@ sources removed. The audit trail keeps the original import records and a
 (Critical 37, High 43, Medium 81, Low 20). The soak tool now uses a temporary
 database unless given `--use-configured-db`.
 
+## 2026-09-30 demo and lab data removed
+
+Looking for more of the same, a second check found three Critical alerts whose
+evidence was demo or lab data with documentation-range addresses: #3224 and
+#3225 (port scans from 203.0.113.44, built on the June demo sources
+`final-demo-firewall`, `final-demo-firewall-live` and `lab-firewall-sim-1`) and
+#3676 (brute force from 198.51.100.23, five of its six logs from a
+`lab-fw.example.invalid` test import on 23 Sep). They had survived the 28 Sep
+rebuild because they were assigned or marked investigating.
+
+After a backup (`backups/atdr-sqlite-20260930T104122Z-7be51505.sqlite3`), the 3
+alerts were archived in full, and the 240 synthetic logs, their 10 import
+records, the 3 demo sources, 7 empty lab source registrations from May and 5
+July shadow observations recorded on the demo sources were removed; the audit
+entries (`synthetic_test_data_removed`) keep the details. Five finished import
+jobs were unlinked from the deleted import records. The one log that carries
+the MFU firewall's own name stays. The live list went from 181 to 178 alerts
+(Critical 34, High 43, Medium 81, Low 20), and every stored log (151,002) is now
+MFU firewall traffic from 20 May 13:36-13:39.
+
 ## Alert numbers after a rebuild
 
 SQLite numbers a new alert one above the highest remaining id, so a rebuild's

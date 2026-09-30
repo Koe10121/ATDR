@@ -47,7 +47,7 @@ attacks. The assistant answered from a fixed list of question types.
 - **Threat intelligence.** 2,324 known-bad addresses from Feodo Tracker and
   ThreatFox are on the watchlist.
 - **Rebuilt the alert list** with the current rules, keeping analyst-worked
-  alerts and archiving the rest in full: 3,676 alerts became 181.
+  alerts and archiving the rest in full: 3,676 alerts became 178.
 
 ### 2. A model trained on MFU traffic
 
@@ -98,8 +98,20 @@ attacks. The assistant answered from a fixed list of question types.
   not deleted, and the scoreboard now counts each firewall record once.
 - **One evidence summary** lists every number with what kind it is (blind,
   second look, agreement, simulated) and how far to trust it.
+- **An outside code review** (30 September) found five issues. Four were fixed
+  the same day: the assistant's checks trusted numbers from the question and
+  sent unredacted text to a hosted engine; the experimental model alerts were
+  worded and reported inconsistently ("99.5% confident" for what is 1 minus
+  the probability of normal traffic); an unblock could mark a real firewall
+  block removed after a mode switch; and one query worked only on SQLite. The
+  fifth, live syslog saving small batches, is deferred: ATDR's data comes from
+  a file export.
+- **Test and lab data out of the live system.** Checks on 29 and 30 September
+  found 7 alerts built on synthetic test, demo and lab logs rather than MFU
+  traffic. They are archived and those logs removed, so every stored log is
+  MFU firewall traffic.
 
-## Where we are now (29 September)
+## Where we are now (30 September)
 
 | | Result | Kind |
 |---|---|---|
@@ -109,19 +121,21 @@ attacks. The assistant answered from a fixed list of question types.
 | Rules plus MFU model, same labels | F1 90.1% | Second look |
 | MFU model on fresh simulated attacks | port scan 96.5%, brute force 97.5%, flood 100%, C2 88.5%, exfiltration 98.0% | Simulated |
 | Team labels, current rules | precision 96.0%, recall 99.7% | Agreement, not accuracy |
-| Assistant | 83 of 85, and 26 of 27 held-out questions | Automatic scoring |
-| Tests | about 1,480 backend and 80 browser tests passing | |
+| Assistant | 84 of 85, and 26 of 27 held-out questions (30 Sep) | Automatic scoring |
+| Tests | about 1,510 backend and 80 browser tests passing | |
 
-The live dashboard holds 181 alerts (Critical 37, High 43, Medium 81, Low 20).
-Each names its attack type: port scan 121, malware / C2 14, policy violation 10,
-data exfiltration 7, brute force 4, flood 4, exploit attempt 3, unclassified 18.
+The live dashboard holds 178 alerts (Critical 34, High 43, Medium 81, Low 20).
+Each names its attack type: port scan 119, malware / C2 14, policy violation 10,
+data exfiltration 7, flood 4, brute force 3, exploit attempt 3, unclassified 18.
 Five are the MFU model's experimental alerts.
 
 On 29 September a check of the live list found 4 alerts (3 Critical, 1 High)
 built on 46 synthetic lab logs that a test tool had written into the live
 database on 27 September. They were archived and the logs removed; the tool now
 uses a temporary database by default. The model, the labels and the blind check
-never contained them.
+never contained them. On 30 September three more Critical alerts, built on demo
+and lab logs imported in June and on 23 September, were archived with those 240
+logs, so every stored log is now MFU firewall traffic.
 
 ## What the numbers cannot tell us
 

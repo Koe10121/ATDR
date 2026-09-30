@@ -11,7 +11,7 @@ unavailable, the page falls back to the old built-in answers.
 
 ## How it works
 
-1. The question goes to the model together with a list of 10 tools. Every tool
+1. The question goes to the model together with a list of 12 tools. Every tool
    wraps a service the dashboard already uses, so the facts are the same ones
    the other pages show:
 
@@ -27,20 +27,24 @@ unavailable, the page falls back to the old built-in answers.
    | explain_concept | Security terms and ATDR concepts (severity, SLA, MITRE, ML, data sources) |
    | dashboard_how_to | The dashboard guides (block, suppress, notes, import logs, and so on) |
    | system_status | ML status, detection runs, jobs, source health |
+   | behavior_model_view | What the MFU behaviour model sees in a five-minute window: its findings, their non-normal estimates, its experimental alerts and each attack type's standing against the quality bar |
+   | watchlist_lookup | Whether an address is on ATDR's watchlist (Feodo Tracker, ThreatFox or the team's own entries) and which alerts it appears in |
 
 2. The model calls the tools it needs (several calls, up to 5 rounds) and writes the answer.
 3. ATDR decides from the question whether it is about ATDR (alerts, logs, rules, severity, SLA, the dashboard, blocking, an IP, and so on). Such a question must be answered from the tools: an answer from memory is sent back once to look it up, and rejected if it still is not. Other questions may be answered from general knowledge, and the page then says "general knowledge (not from ATDR records)".
 4. ATDR checks the answer before showing it (`verify_answer` in `atdr/app/services/assistant_agent.py`):
-   - in an answer built from the tools, every number must appear in a tool result, the question or the conversation, and any named page, button, menu or tab must appear in the tool results;
+   - in an answer built from the tools, every number and every alert or record number must appear in a tool result; a number that only the analyst's question contains does not count, so "we have 500 alerts, right?" cannot be confirmed by repeating it. The assistant's own earlier answers in the conversation do count, since they were checked when given; a follow-up that points back at them ("tell me more about the second one") is sent to look the item up again rather than answered from memory. Any named page, button, menu or tab must appear in the tool results;
+   - the answer stays within the conversation word limit (220 words);
    - in a general-knowledge answer, ordinary facts are allowed ("at least 12 characters"), but figures about ATDR's own data ("41 alerts", "alert #3676") are not;
    - no IP address from ATDR's records (they stay redacted), and no configured secret;
    - no claim that the assistant did something ("I have blocked…"): it can only read;
    - ATDR dashboard directions only if a guide tool was used;
    - requests for raw logs, passwords or keys must be refused;
    - internal tool names and leaked model markup are removed from the text.
-5. If a check fails, the model gets one chance to correct the answer. If it still fails, the built-in answer is shown instead and the page says why.
-6. Requests to *do* something ("block 10.1.1.1", "close these alerts") get the real dashboard guide fetched before the model answers, and the answer always says the assistant did not do it.
-7. Investigation briefs, empty questions and unsafe or prompt-injection requests still go straight to the built-in handlers.
+5. If a check fails, the model gets one chance to correct the answer. If it still fails, the built-in answer is shown instead and the page says why. The whole exchange, every model call and tool call together, has one time limit (`ASSISTANT_AGENT_TIMEOUT_SECONDS`, 120 seconds by default); past it, the built-in answer is used.
+6. With a hosted engine such as Gemini, ATDR removes IP addresses, secrets, email addresses and pasted log lines from the question, the earlier turns and the tool results before they leave the laptop. An IP the analyst typed is replaced by a placeholder, which ATDR swaps back only inside its own lookups. The local model sees the question as typed, since nothing leaves the laptop. The audit trail stores the question with secrets, email addresses and IP addresses removed.
+7. Requests to *do* something ("block 10.1.1.1", "close these alerts") get the real dashboard guide fetched before the model answers, and the answer always says the assistant did not do it.
+8. Investigation briefs, empty questions and unsafe or prompt-injection requests still go straight to the built-in handlers.
 
 Nothing the assistant can call writes to the database, and raw log lines are never sent to the model. It has no internet access, so it says so when asked about the weather, news or sports.
 
@@ -99,6 +103,30 @@ safe. Re-run on the 181-alert database: main set 84 of 85 (was 83),
 held-out 25 of 27 (was 26). The held-out misses were a Thai summary that
 passed 6 of 7 re-asks and a concept question that called no tool; neither
 touches the fix.
+
+### 30 September: external review and re-run
+
+An outside code review found the checks trusted numbers that appeared in the
+analyst's own question, that answers could run past the word limit, that
+there was no time limit across a whole exchange, and that a hosted engine
+received questions and history unredacted. All four are fixed (see the rules
+above). Tightening the checks exposed four side effects, each fixed with a
+test: a word the analyst typed ("critical") counted as an invented screen
+name; a follow-up such as "tell me more about the second one" was answered
+from memory and rejected; a rewrite a few words over the limit was thrown
+away instead of cut at a whole sentence; and "5 minutes" was rejected when
+the tool said "five-minute window". The model's instructions gained routing
+lines for the watchlist and model tools, and the description of the older
+models now says the supervised classifier is not used at all. One held-out
+expectation was corrected: "explain the latest Critical alert" expected login
+words, written when that alert was a brute force; it now accepts the plain
+words for each attack type.
+
+Final run on the 178-alert database: main set 84 of 85 (the brute-force
+threshold question, which misses in every run), held-out 26 of 27 (the Thai
+summary, which passes most re-asks). The model answered every question itself;
+none fell back to the built-in answers. Average answer time 7.5 s on the main
+set and 8.9 s on the held-out set.
 
 ## Measuring it again
 

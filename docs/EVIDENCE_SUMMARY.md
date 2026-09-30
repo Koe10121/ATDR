@@ -9,7 +9,8 @@ mfu_behavior_v2). Details are in the linked documents.
 ## The data
 
 - One firewall (MFU-FW), one export: 20 May 2026, 13:36-13:57, 773,551 lines.
-- The live database holds 13:36:15-13:39:30 (151,242 logs); the team's labels
+- The live database holds 13:36:15-13:39:30 (151,002 logs, all from the MFU
+  firewall since 240 synthetic demo and lab logs were removed on 30 Sep); the team's labels
   are there. The behaviour model trained on 13:36-13:45. The 13:45-13:57 part
   was never imported into the live system, labeled or tuned on; it is the
   holdout for the blind check and the model's tests.
@@ -107,8 +108,10 @@ raising alerts alone (rebuilt 2026-09-28; the 5 analyst-worked alerts kept):
 
 Four of the 180 (1 port scan, 2 brute force, 1 malware / C2) were built on
 synthetic lab logs a test tool wrote into the live database by mistake on
-27 Sep; they were archived on 29 Sep (`docs/detection/ALERT_REBUILD.md`). The
-live list is now 181 alerts, 5 of them the MFU model's experimental alerts.
+27 Sep; they were archived on 29 Sep (`docs/detection/ALERT_REBUILD.md`). On
+30 Sep three more (2 port scans, 1 brute force), built on June demo and lab logs
+with documentation-range addresses, were archived too. The live list is now 178
+alerts, 5 of them the MFU model's experimental alerts.
 
 - 30 alerts on unanswered internet probes to uncommon ports are now port scans.
 - Four alerts on campus devices whose connections the firewall identified as
@@ -172,6 +175,7 @@ the malicious cases and the supervised classifier failed calibration.
 | Main set (85 checks, automatic) | 84 (99%) | 40 of the first 82 |
 | Held-out set (27 questions written after tuning) | 26 automatic (96%); 25 by hand before the rebuild | 10 |
 | Re-run on 29 Sep after the "open right now" fix | main 84 of 85; held-out 25 of 27 | |
+| Re-run on 30 Sep after the external review's fixes | main 84 of 85; held-out 26 of 27, one expectation corrected for the rebuilt list | |
 
 Measured on 2026-09-27 with qwen3:8b running locally, after the alert
 rebuild, and again on 2026-09-29 on the 181-alert list. The main set gained three questions when the assistant got tools

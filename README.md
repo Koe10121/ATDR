@@ -20,7 +20,7 @@ deployments remain simulation-only regardless of configuration.
 
 - **Detection:** rule catalog v5.36.0 (22 rules). Context-only rules add points
   but never raise an alert alone. Every alert names its attack type, MITRE
-  ATT&CK technique and response playbook. The live list holds 181 alerts after
+  ATT&CK technique and response playbook. The live list holds 178 alerts after
   a rebuild with the current rules; the 3,676 older alerts are archived in full.
 - **MFU behaviour model (v2):** trained only on MFU's firewall traffic plus
   simulated attacks blended into it. It gives its view on the Overview and on
@@ -239,9 +239,9 @@ access or reset the configured database.
 ## SOC Assistant
 
 The SOC Assistant holds a normal conversation. Questions about ATDR's data are
-answered through 10 read-only tools that wrap the same services the dashboard
-uses: alerts, logs, rules, playbooks, concepts, dashboard guides and system
-status. Before an answer is shown, ATDR checks every number against the tool
+answered through 12 read-only tools that wrap the same services the dashboard
+uses: alerts, logs, rules, playbooks, concepts, dashboard guides, system
+status, the MFU behaviour model's view and the watchlist. Before an answer is shown, ATDR checks every number against the tool
 results and removes IP addresses and secrets; if the check fails or the model
 is unavailable, the built-in answers are used.
 
