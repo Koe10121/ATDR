@@ -2,10 +2,10 @@
 
 Read-only: the model runs over one 5-minute window of stored logs and never
 creates or changes an alert. Each finding says what the model thinks is going
-on (attack type, confidence and plain reasons), whether the rules alerted on
+on (suspected attack type, non-normal score and plain reasons), whether the rules alerted on
 the same activity, the MITRE ATT&CK technique, and the response steps from
-ATDR's playbooks. Every attack type stays advisory until it passes the quality
-bar in docs/detection/ML_QUALITY_BAR.md.
+ATDR's playbooks. A separate, explicitly experimental alert path exists;
+that exception is not qualification under docs/detection/ML_QUALITY_BAR.md.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
-from sqlalchemy import Integer, cast, func, select
+from sqlalchemy import Integer, cast, extract, func, select
 from sqlalchemy.orm import Session
 
 from atdr.app.db.models import Alert, AlertEvidence, NormalizedLog, RawLog
@@ -116,16 +116,19 @@ def _window_pairs(db: Session, start: datetime, end: datetime) -> pd.DataFrame:
 def available_windows(db: Session, *, limit: int = 24) -> list[dict[str, Any]]:
     """The most recent 5-minute windows that hold logs, newest first, with their log counts."""
 
-    minute = cast(func.strftime("%M", NormalizedLog.generated_time), Integer)
-    bucket = func.printf("%s%02d", func.strftime("%Y-%m-%d %H:", NormalizedLog.generated_time), (minute // 5) * 5)
+    # SQLAlchemy compiles extract for both SQLite and PostgreSQL. Group by
+    # calendar parts so neither formatting functions nor a private SQL UDF is needed.
+    parts = [cast(extract(part, NormalizedLog.generated_time), Integer) for part in ("year", "month", "day", "hour")]
+    minute = cast(extract("minute", NormalizedLog.generated_time), Integer)
+    parts.append((minute // 5) * 5)
     rows = db.execute(
-        select(bucket.label("bucket"), func.count(NormalizedLog.id))
+        select(*parts, func.count(NormalizedLog.id))
         .where(NormalizedLog.generated_time.is_not(None))
-        .group_by("bucket")
-        .order_by(bucket.desc())
+        .group_by(*parts)
+        .order_by(*(part.desc() for part in parts))
         .limit(limit)
     ).all()
-    return [{"start": datetime.strptime(value, "%Y-%m-%d %H:%M").isoformat(), "logs": int(count)} for value, count in rows]
+    return [{"start": datetime(*(int(value) for value in row[:5])).isoformat(), "logs": int(row[5])} for row in rows]
 
 
 def latest_window_start(db: Session) -> datetime | None:
@@ -196,6 +199,8 @@ def window_findings(db: Session, window_start: datetime | None = None, *, model:
             "attack_type": attack_type,
             "attack_label": ATTACK_LABELS.get(attack_type, attack_type),
             "confidence": round(float(row["attack_probability"]), 4),
+            "confidence_basis": "one_minus_normal_probability",
+            "confidence_calibrated": False,
             "connections": int(features.at[index, "n_logs"]),
             "reasons": model.explain(features.loc[index], attack_type),
             "found_by": "rules_and_model" if alert_ids else "model_only",
@@ -282,6 +287,8 @@ def alert_opinion(db: Session, alert_id: int, *, model: BehaviorModel | None = N
         "attack_type": attack_type,
         "attack_label": ATTACK_LABELS.get(attack_type, attack_type),
         "confidence": round(float(row["attack_probability"]), 4),
+        "confidence_basis": "one_minus_normal_probability",
+        "confidence_calibrated": False,
         "flagged": bool(row["flagged"]),
         "background_probe": bool(row["background_probe"]),
         "p2p_policy": bool(row["p2p_policy"]),

@@ -18,10 +18,6 @@ function percent(value: number): string {
   return `${(value * 100).toFixed(value >= 0.999 ? 2 : 1)}%`;
 }
 
-function capitalise(text: string): string {
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
-
 function FoundBy({ finding }: { finding: BehaviorFinding }) {
   if (finding.model_alert_ids?.length) {
     return (
@@ -47,7 +43,10 @@ function FindingCard({ finding }: { finding: BehaviorFinding }) {
     <article className="rounded-lg border border-line bg-panel2 p-4" data-testid="behavior-finding">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="text-base font-black text-text">
-          {capitalise(finding.attack_label)} <span className="text-sm font-bold text-muted">{percent(finding.confidence)}</span>
+          Possible {finding.attack_label}
+          <span className="block text-sm font-bold text-muted" title="1 minus the model's normal-class probability. Not confidence in this attack type or calibrated certainty.">
+            Non-normal estimate: {percent(finding.confidence)}
+          </span>
         </div>
         <FoundBy finding={finding} />
       </div>
@@ -121,10 +120,10 @@ export function BehaviorModelPanel() {
         <div>
           <div className="text-sm font-extrabold uppercase tracking-wide text-muted">What the MFU model sees</div>
           <p className="mt-1 text-sm font-semibold text-muted">
-            A behaviour model trained only on MFU traffic names the attack each source is carrying out, explains why, and shows how to respond.
+            A behaviour model trained on MFU traffic and simulated attacks suggests activity to investigate, explains its signals, and offers response guidance.
             {data?.model?.alerting_types?.length
               ? " Where the rules raise no alert it raises its own experimental alerts, marked low confidence: no attack type passed its quality bar."
-              : " It is advisory: it does not create alerts until an attack type passes the quality bar."}
+              : " Findings here are advisory. Experimental alerting requires an explicit recorded exception; it does not imply qualification."}
           </p>
           {data?.model?.data_limit ? (
             <p className="mt-1 text-xs font-bold text-amber" data-testid="data-limit-note">{data.model.data_limit}</p>
@@ -232,8 +231,8 @@ export function BehaviorAlertOpinionCard({ alertId }: { alertId: number }) {
       : opinion.wrong_direction
         ? `finds this closest to ${opinion.attack_label}, but that needs traffic leaving MFU and this source's traffic mostly comes in, so it does not flag it`
         : opinion.flagged
-      ? `sees ${opinion.attack_label} behaviour (${percent(opinion.confidence)})`
-      : `does not see clear attack behaviour from this source (attack score ${percent(opinion.confidence)})`;
+      ? `suggests possible ${opinion.attack_label} behaviour (non-normal estimate ${percent(opinion.confidence)}, not confidence in that attack type)`
+      : `does not flag this source (non-normal estimate ${percent(opinion.confidence)}; not proof of safety)`;
   return (
     <section className="rounded-lg border border-line bg-panel2 p-4" data-testid="behavior-alert-opinion">
       <div className="flex flex-wrap items-center justify-between gap-2">

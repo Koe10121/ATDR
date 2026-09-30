@@ -10,7 +10,7 @@ from sqlalchemy import Float, cast, func, literal, select, update
 from sqlalchemy.orm import Session, joinedload
 
 from atdr.app.core.config import get_settings
-from atdr.app.db.models import Alert, AuditLog, NormalizedLog, RawLog
+from atdr.app.db.models import Alert, AuditLog, DetectionRun, NormalizedLog, RawLog
 from atdr.app.detection.ml_detector import apply_model_to_db
 from atdr.app.detection.runtime_contract import (
     anomaly_runtime_status,
@@ -933,15 +933,14 @@ def run_detection(
             top_attack_types=run_attack_types,
             details=run_details,
         )
-        db.add(
-            AuditLog(
-                actor=actor,
-                action="run_detection",
-                target_type="normalized_logs",
-                target_value="unchecked_batch" if only_unchecked else "latest_batch",
-                details={**run_details, "detection_run_id": run.id},
-            )
+        detection_audit = AuditLog(
+            actor=actor,
+            action="run_detection",
+            target_type="normalized_logs",
+            target_value="unchecked_batch" if only_unchecked else "latest_batch",
+            details={**run_details, "detection_run_id": run.id},
         )
+        db.add(detection_audit)
         detection_run_id = int(run.id)
         if bounded_rule_mode:
             grouped.clear()
@@ -959,12 +958,40 @@ def run_detection(
                 "buffers_released_before_commit",
             )
         db.commit()
+        detection_audit_id = detection_audit.id
         _runtime_profile_sample(db, runtime_profile, "committed")
         if release_session_state:
             db.expunge_all()
             gc.collect()
             _runtime_profile_sample(db, runtime_profile, "session_released")
         model_alert_summary = _experimental_model_alerts(db, checked_windows, actor=actor) if model_alerts else None
+        model_created = int((model_alert_summary or {}).get("created", 0))
+        run_details.update(
+            rule_alerts_created=created,
+            model_alerts_created=model_created,
+            created_alerts=created + model_created,
+            alerts_created=created + model_created,
+            model_alerts=model_alert_summary,
+        )
+        experimental = detection_layers["experimental_model"]
+        experimental.update(
+            invocation_observed=model_alert_summary is not None,
+            used_for_alert_creation=model_created > 0,
+            alerts_created=model_created,
+            usage_scope="this_detection_run",
+        )
+        # Rule results are already durable. Complete accounting only after the
+        # separate experimental path; never count its alerts as rule detections.
+        recorded_run = db.get(DetectionRun, detection_run_id)
+        complete_detection_run(
+            db, recorded_run, logs_evaluated=evaluated, alerts_created=created + model_created,
+            alerts_deduplicated=deduplicated_alert_updates, alerts_suppressed=suppressed_groups + suppressed_by_rules,
+            top_attack_types=run_attack_types, details=run_details,
+        )
+        audit = db.get(AuditLog, detection_audit_id)
+        if audit is not None:
+            audit.details = {**run_details, "detection_run_id": detection_run_id}
+        db.commit()
         response = {
             **run_details,
             "use_ml": use_ml,

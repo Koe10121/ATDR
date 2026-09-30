@@ -8177,7 +8177,8 @@ test("Overview shows what the MFU behaviour model sees and how to respond", asyn
   await expect(page.getByTestId("behavior-summary")).toContainText("Attack behaviour found2");
   const findings = page.getByTestId("behavior-finding");
   await expect(findings).toHaveCount(2);
-  await expect(findings.first()).toContainText("Port scan");
+  await expect(findings.first()).toContainText("Possible port scan");
+  await expect(findings.first()).toContainText("Non-normal estimate: 99.97%");
   await expect(findings.first()).toContainText("Rules and model agree");
   await expect(findings.first()).toContainText("600 destinations tried on one port");
   await expect(findings.first()).toContainText("MITRE ATT&CK: Discovery / Network Service Discovery (T1046)");
@@ -8203,7 +8204,7 @@ test("Alert details show the behaviour model's opinion next to the rules", async
   await page.goto("/alerts?alert=1");
   const opinion = page.getByTestId("behavior-alert-opinion");
   await expect(opinion).toContainText("Agrees with the rules");
-  await expect(opinion).toContainText("The model sees port scan behaviour (99.97%)");
+  await expect(opinion).toContainText("suggests possible port scan behaviour (non-normal estimate 99.97%, not confidence in that attack type)");
   await expect(opinion).toContainText("Advisory only: the rules decide alerts.");
 });
 

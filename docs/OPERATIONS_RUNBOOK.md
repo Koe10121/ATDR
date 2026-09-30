@@ -66,7 +66,10 @@ service.
 The MFU behaviour model raises experimental, low-confidence alerts where the
 rules raise none, for the attack types switched on its model card. Every
 detection run (the dashboard's Check all unchecked logs included) raises them for
-the windows it checked; the scoreboard and blind check never do.
+the windows it checked; the scoreboard and blind check never do. A run's alert
+count includes them, and its details separate rule alerts from model alerts. The
+detection runtime status reports them as permitted by a recorded exception, not
+as qualified.
 
 ```powershell
 .\.venv\Scripts\python.exe -m atdr.scripts.model_alerts status

@@ -113,8 +113,11 @@ does not change the bar or its result: no type has passed. What it allows:
   traffic and no rule alert covers them. Where the rules alerted, its opinion
   stays on that alert.
 - Every such alert says it was found by the MFU model, is experimental and low
-  confidence, and why; it is Low severity, or Medium at 99.5% model confidence or
-  more, and never triggers a response on its own.
+  confidence, and why; it is Low severity, or Medium when the model's
+  non-normal estimate is 99.5% or more, and never triggers a response on its
+  own. That estimate is 1 minus the model's probability that the traffic is
+  normal: it is not confidence in the named attack type, and it is not
+  calibrated.
 - The scoreboard and the blind check keep measuring the rules alone.
 - `python -m atdr.scripts.model_alerts disable` switches it off again.
 

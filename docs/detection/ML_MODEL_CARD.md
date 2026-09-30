@@ -244,7 +244,12 @@ minutes of traffic and no rule alert covers them, ATDR raises an alert marked
 "Found by the MFU behaviour model: experimental, low confidence". On the live
 data that added 5 alerts (4 malware / C2, 1 port scan), all in a window the model
 trained on, which each alert says. The C2 ones resemble the finds the team review
-judged routine check-ins, so expect false alarms among them. All accuracy figures come from one 21-minute MFU export (20 May 2026); treat them as low-confidence estimates until tested on more traffic. Rules v5.35.0 and v5.36.0 alert on
+judged routine check-ins, so expect false alarms among them. The percentage each
+finding and alert shows is the model's non-normal estimate (1 minus its
+probability that the traffic is normal), not confidence in the named attack type,
+and it is not calibrated. The 5 live alerts raised on 28 Sep first called it
+"confident"; their stored text was reworded on 30 Sep (audit entry
+`model_alert_wording_updated`, backup `atdr-sqlite-20260930T103503Z-29799424`). All accuracy figures come from one 21-minute MFU export (20 May 2026); treat them as low-confidence estimates until tested on more traffic. Rules v5.35.0 and v5.36.0 alert on
 fewer windows (759 of the 15,153), but every window the model flagged keeps its
 rule alert, so the model-only windows are the same 15 and the review stays
 complete.

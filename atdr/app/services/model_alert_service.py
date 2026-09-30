@@ -79,7 +79,8 @@ def _alert(finding: dict[str, Any], logs: list[NormalizedLog], *, in_training: b
     training = " This traffic was part of the model's training data." if in_training else ""
     explanation = (
         f"Found by the MFU behaviour model, not the rules: it reads this device's five minutes of traffic as "
-        f"{finding['attack_label']} ({finding['confidence']:.1%} confident), and no rule alert covers them. Why: {reasons}. "
+        f"possible {finding['attack_label']} (non-normal probability estimate {finding['confidence']:.1%}, "
+        f"not confidence in that attack type), and no rule alert covers them. Why: {reasons}. "
         f"{EXPERIMENTAL_NOTE}{training}"
     )
     guidance = PLAYBOOK_GUIDANCE.get(attack_type)
@@ -107,6 +108,8 @@ def _alert(finding: dict[str, Any], logs: list[NormalizedLog], *, in_training: b
                 "explanation": explanation,
                 "attack_type": attack_type,
                 "confidence": finding["confidence"],
+                "confidence_basis": "one_minus_normal_probability",
+                "confidence_calibrated": False,
                 "window_start": start.isoformat(),
                 "experimental": True,
                 "reasons": finding["reasons"],

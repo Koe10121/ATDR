@@ -1,4 +1,4 @@
-"""The MFU behaviour model: names the attack a source is carrying out, and why.
+"""The MFU behaviour model: suggests an attack type for investigation, and why.
 
 Training data (``build_dataset``), for each source's 5-minute window:
 
@@ -231,7 +231,11 @@ class BehaviorModel:
         return pd.DataFrame(probabilities, columns=self.classifier.classes_, index=features.index)
 
     def predict(self, features: pd.DataFrame) -> pd.DataFrame:
-        """Per window: the most likely attack type, its probability, and whether it crosses the threshold."""
+        """Per window: likely attack type, 1-P(normal), and unchanged threshold decision.
+
+        attack_probability is the combined non-normal estimate, not the
+        selected class's probability and not independently calibrated certainty.
+        """
 
         probabilities = self.attack_probability(features)
         attack_columns = [name for name in probabilities.columns if name != "normal"]

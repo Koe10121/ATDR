@@ -5,7 +5,7 @@ from typing import Any, Iterable
 
 from sqlalchemy.orm import Session
 
-from atdr.app.core.config import get_settings
+from atdr.app.core.config import Settings, get_settings
 from atdr.app.db.models import NormalizedLog
 from atdr.app.detection.v51_supervised_lifecycle import (
     V51_FEATURE_SET_VERSION,
@@ -309,6 +309,54 @@ def anomaly_runtime_status(
     }
 
 
+def experimental_model_runtime_status(settings: Settings | None = None) -> dict[str, Any]:
+    """Configured permission is not qualification, invocation, or proof of an alert."""
+    settings = settings or get_settings()
+    status: dict[str, Any] = {
+        "configured": getattr(settings, "model_alerts_enabled", False),
+        "artifact_available": None,
+        "state": "disabled",
+        "enabled_types": [],
+        "model_only_alert_creation_allowed": False,
+        "qualified": False,
+        "used_for_alert_creation": None,
+        "invocation_observed": None,
+        "usage_scope": "not_observed_by_status",
+    }
+    if not status["configured"]:
+        return status
+    from atdr.app.services.behavior_findings_service import load_model
+
+    try:
+        model = load_model()
+    except (OSError, ValueError, TypeError, KeyError, EOFError):
+        status["state"] = "artifact_unavailable"
+        status["artifact_available"] = False
+        return status
+    status["artifact_available"] = model is not None
+    enabled = sorted((model.card.get("experimental_alerting") or {}).get("types") or []) if model else []
+    status.update(
+        state="experimental_permitted" if enabled else "advisory" if model else "artifact_unavailable",
+        enabled_types=enabled,
+        model_only_alert_creation_allowed=bool(enabled),
+    )
+    return status
+
+
+def response_runtime_status(settings: Settings | None = None, *, simulation: bool | None = None) -> dict[str, Any]:
+    settings = settings or get_settings()
+    provider = getattr(settings, "response_provider", "simulation").lower()
+    simulated = (settings.response_simulation if simulation is None else simulation) or provider == "simulation"
+    enabled = not simulated and provider == "windows_firewall" and getattr(settings, "environment", "development").lower() != "production"
+    return {
+        "state": "simulation_only" if simulated else "manual_host_enforcement" if enabled else "unsafe_configuration",
+        "provider": provider,
+        "automatic_response_enabled": False,
+        "real_firewall_blocking_enabled": enabled,
+        "enforcement_verified": False,
+    }
+
+
 def detection_layer_contract(
     *,
     rules_evaluated: int,
@@ -321,6 +369,7 @@ def detection_layer_contract(
     candidate_logs: int = 0,
     alerts_created: int = 0,
     alerts_updated: int = 0,
+    experimental_model: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     def bounded_rule_ids(values: Iterable[str], *, limit: int = 20) -> dict[str, Any]:
         unique = sorted({str(value) for value in values if value})
@@ -331,6 +380,7 @@ def detection_layer_contract(
         }
 
     rule_ids = bounded_rule_ids(matched_rule_ids)
+    experimental = experimental_model if experimental_model is not None else experimental_model_runtime_status()
     authoritative_ids = bounded_rule_ids(authoritative_matched_rule_ids)
     supervised_layer = dict(supervised)
     score_summary = supervised_layer.get("score_summary") or _score_summary([])
@@ -424,11 +474,8 @@ def detection_layer_contract(
             "used_for_severity": False,
             "used_for_suppression": False,
         },
-        "response": {
-            "state": "simulation_only" if response_simulation else "unsafe_configuration",
-            "automatic_response_enabled": False,
-            "real_firewall_blocking_enabled": False,
-        },
+        "experimental_model": experimental,
+        "response": response_runtime_status(simulation=response_simulation),
         "analyst_summary": {
             "evidence_strength": evidence_strength,
             "missing_context": missing_context[:3],
@@ -436,7 +483,7 @@ def detection_layer_contract(
             "bounded": True,
         },
         "rule_detection_authoritative": True,
-        "model_only_alert_creation_allowed": False,
+        "model_only_alert_creation_allowed": experimental["model_only_alert_creation_allowed"],
         "production_promoted": False,
         "response_automation_allowed": False,
     }
@@ -481,15 +528,8 @@ def current_detection_runtime_status(db: Session) -> dict[str, Any]:
             "used_for_alert_creation": False,
             "decision_support_only": True,
         },
-        "response": {
-            "state": (
-                "simulation_only"
-                if settings.response_simulation
-                else "unsafe_configuration"
-            ),
-            "automatic_response_enabled": False,
-            "real_firewall_blocking_enabled": False,
-        },
+        "experimental_model": experimental_model_runtime_status(settings),
+        "response": response_runtime_status(settings),
         "production_promoted": False,
         "response_automation_allowed": False,
         "secrets_exposed": False,
