@@ -356,6 +356,31 @@ def _safe_source_lines(*, synthetic: bool, sample_path: Path | None) -> list[str
     return lines
 
 
+# PAN-OS TRAFFIC/THREAT records: the session ID is the 23rd comma-separated field of the syslog line.
+_PANOS_SESSION_FIELD = 22
+
+
+def _cycled_line(line: str, cycle: int) -> str:
+    """The line as its ``cycle``-th repeat: a new firewall session, so a distinct record.
+
+    Imports store each identical firewall record once, so a repeated copy needs its own session ID to count
+    as a new record; no detection rule reads the session ID. The first pass keeps every line exactly as is.
+    """
+
+    if cycle == 0:
+        return line
+    parts = line.split(",")
+    if (
+        '"' not in line
+        and len(parts) > _PANOS_SESSION_FIELD + 1
+        and parts[3] in {"TRAFFIC", "THREAT"}
+        and parts[_PANOS_SESSION_FIELD].isdigit()
+    ):
+        parts[_PANOS_SESSION_FIELD] = str(int(parts[_PANOS_SESSION_FIELD]) + cycle)
+        return ",".join(parts)
+    return f"{line} cycle={cycle}"
+
+
 def _write_cycled_input(
     path: Path,
     *,
@@ -366,7 +391,8 @@ def _write_cycled_input(
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8", newline="\n") as handle:
         for index in range(count):
-            handle.write(lines[(offset + index) % len(lines)])
+            position = offset + index
+            handle.write(_cycled_line(lines[position % len(lines)], position // len(lines)))
             handle.write("\n")
 
 

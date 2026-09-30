@@ -377,3 +377,28 @@ def test_v517_migration_failure_cleans_disposable_targets(
     assert dropped == [restore_url, target_url]
     assert "postgresql://" not in rendered.lower()
     assert "user:secret" not in rendered.lower()
+
+
+def test_v517_cycled_synthetic_input_is_stored_as_distinct_records(tmp_path: Path) -> None:
+    # CI cycled 21 scenario lines to 2,000 rows; imports store each identical record once, so only 21 were
+    # stored and the PostgreSQL acceptance failed its 2,000-row check.
+    from sqlalchemy import func, select
+
+    from atdr.app.db.models import RawLog
+    from atdr.app.services.log_service import import_log_file
+
+    lines = v517_service._safe_source_lines(synthetic=True, sample_path=None)
+    first, second = tmp_path / "worker-1.log", tmp_path / "worker-2.log"
+    v517_service._write_cycled_input(first, lines=lines, count=1000, offset=0)
+    v517_service._write_cycled_input(second, lines=lines, count=1000, offset=1000)
+    written = first.read_text(encoding="utf-8").splitlines() + second.read_text(encoding="utf-8").splitlines()
+    assert len(written) == 2000 and len(set(written)) == 2000
+    assert written[: len(lines)] == lines
+
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    Base.metadata.create_all(engine)
+    with Session(engine) as db:
+        import_log_file(db, first)
+        import_log_file(db, second)
+        stored = db.scalar(select(func.count(RawLog.id)))
+    assert stored == 2000
