@@ -457,12 +457,17 @@ class AssistantToolbox:
                 "decide every alert."
             )
             return (
-                "ATDR's alerts come mainly from its fixed rules. The machine-learning model that matters is the MFU behaviour "
-                "model: trained only on MFU's own firewall traffic, it reads each device's five minutes of traffic, names the "
-                "likely attack and explains why, on the Overview and on each alert. The quality bar asks that its extra finds "
-                "(flagged with no rule alert) be confirmed real in a blind review, that it find at least 90% of fresh simulated "
-                f"attacks, and that rules plus model be no less accurate than the rules alone on the blind-check labels. {role} "
-                "Two earlier models, an anomaly model and a supervised classifier, are advisory only. "
+                "ATDR's alerts come mainly from its fixed rules. The machine-learning (ML) model that matters is the MFU "
+                "behaviour model: trained only on MFU's own firewall traffic, it reads each device's five minutes of traffic, "
+                "suggests the likely attack type to investigate and explains why, on the Overview and on each alert. The "
+                "percentage it shows is its non-normal estimate (1 minus its probability that the traffic is normal), not "
+                "confidence in the attack type. The quality bar asks that its extra finds (flagged with no rule alert) be "
+                "confirmed real in a blind review, that it find at least 90% of fresh simulated attacks, and that rules plus "
+                f"model be no less accurate than the rules alone on the blind-check labels. {role} "
+                # "Advisory only" for both once read as "the supervised model is used"; it never runs.
+                "Two earlier models are not part of detection: the anomaly model (IsolationForest) at most marks unusual logs "
+                "as a hint beside the rule evidence, and the supervised classifier is not used at all: it never passed its "
+                "qualification, so its runtime state is unqualified and it refuses to score. "
                 f"{status['data_limit']}"
             )
         if topic == "simulated_response":
@@ -530,7 +535,7 @@ class AssistantToolbox:
                 )
                 why = "; ".join(finding["reasons"][:2]) or "no single feature stands out"
                 first_step = (finding["response"].get("containment") or ["see the playbook"])[0]
-                lines.append(f"- {finding['source']}: {finding['attack_label']} ({finding['confidence']:.0%}), {found_by}. "
+                lines.append(f"- {finding['source']}: possible {finding['attack_label']} (non-normal estimate {finding['confidence']:.0%}, not attack-type confidence), {found_by}. "
                              f"Why: {why}. First response step: {first_step}")
             probing = summary["background_probing"]
             lines.append(f"Internet background probing, summarised rather than alerted: {probing['sources']:,} hosts made "

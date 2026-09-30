@@ -12,6 +12,7 @@ import requests
 
 from atdr.app.core.config import Settings
 from atdr.app.core.redaction import IP_PATTERN
+from atdr.app.services.assistant_privacy import assistant_secret_values, sanitize_assistant_text
 from atdr.app.services.assistant_response_contracts import AssistantResponseMode, response_contract
 
 PROMPT_CONTRACT_VERSION = "soc_intent_aware_concise_v5"
@@ -835,9 +836,9 @@ def _provider_for(provider_name: str) -> AssistantLLMProvider | None:
 
 
 def _redact_if_needed(value: str, *, settings: Settings) -> str:
-    if not settings.assistant_redact_ips:
-        return value
-    return IP_PATTERN.sub("[redacted-ip]", value)
+    return sanitize_assistant_text(
+        value, forbidden_values=assistant_secret_values(settings), redact_ips=settings.assistant_redact_ips,
+    )
 
 
 def _http_failure_reason(response: requests.Response) -> str:

@@ -37,7 +37,7 @@ class ScriptedEngine:
         self.replies = list(replies)
         self.requests: list[tuple[list[dict], list[dict] | None]] = []
 
-    def chat(self, messages, tools):
+    def chat(self, messages, tools, *, timeout=None):
         self.requests.append((json.loads(json.dumps(messages)), tools))
         reply = self.replies.pop(0)
         if isinstance(reply, Exception):
@@ -65,12 +65,13 @@ def _count_tool(text: str = "7 High alerts were created today.") -> AgentTool:
 # ------------------------------------------------------------------ verifier
 
 
-def test_numbers_must_come_from_a_tool_the_question_or_the_conversation():
+def test_numbers_must_come_from_tools_not_the_question_or_conversation():
     evidence = ["Top source: 1,351 alerts, e.g. alert #3676. Score 95."]
     assert verify_answer("Alert #3676 leads with 1351 alerts (score 95).", evidence=evidence, asked=["top?"], redacted=True, forbidden_values=[]) == []
     problems = verify_answer("There are 9 critical alerts.", evidence=evidence, asked=["how many?"], redacted=True, forbidden_values=[])
-    assert problems == ["numbers not found in any tool result: 9"]
-    assert verify_answer("You asked about alert 42; I found nothing.", evidence=[], asked=["alert 42?"], redacted=True, forbidden_values=[]) == []
+    assert "numbers not found in any tool result: 9" in problems
+    assert verify_answer("You asked about alert 42; I found nothing.", evidence=[], asked=["alert 42?"], redacted=True, forbidden_values=[])
+    assert verify_answer("No alert #42 was found.", evidence=["No alert #42 was found."], asked=["alert 42?"], redacted=True, forbidden_values=[]) == []
     listed = "Steps:\n1. Open Alerts.\n2. Click the row.\n4. Assign it."
     assert verify_answer(listed, evidence=[], asked=["how?"], redacted=True, forbidden_values=[]) == []
 
@@ -144,9 +145,9 @@ def test_general_knowledge_may_use_ordinary_facts_but_not_atdr_figures():
     general = dict(evidence=[], asked=["how long should a password be?"], redacted=True, forbidden_values=[], grounded=False)
     assert verify_answer("Use at least 12 characters, and TLS 1.3 for transport. Private ranges include 192.168.0.0.", **general) == []
     invented = verify_answer("You currently have 41 open alerts, and alert #3676 is the worst.", **general)
-    assert invented and invented[0].startswith("states figures about ATDR's data without looking them up: 41 open alerts")
+    assert any(item.startswith("states figures about ATDR's data without looking them up: 41 open alerts") for item in invented)
     remembered = dict(general, asked=["and critical?", "41 High alerts were created today."])
-    assert verify_answer("Earlier I found 41 High alerts.", **remembered) == []
+    assert verify_answer("Earlier I found 41 High alerts.", **remembered)
     assert verify_answer("Press Ctrl+Alt+Del, then click Change a password.", steps_checked=False, **general) == []
     ui = verify_answer("Open the Alerts page in the dashboard and click Resolve.", steps_checked=False, **general)
     assert ui and "without checking the dashboard guide" in ui[0]
@@ -244,14 +245,28 @@ def test_the_last_round_forces_a_written_answer_and_engine_failures_fall_back():
     assert not outcome.ok and outcome.fallback_reason == "engine_timeout"
 
 
-def test_earlier_turns_are_sent_as_conversation_and_count_as_known_facts():
-    engine = ScriptedEngine(_call("query_alerts", severity="Critical"), _say("Earlier you had 41 High alerts; now 7 match alert #5's filter."))
-    history = [{"question": "How many High alerts today?", "answer_summary": "41 High alerts were created today."}]
+def test_earlier_answers_count_as_known_but_earlier_questions_do_not():
+    # The assistant's earlier answers were checked against tools when given; the analyst's questions never were.
+    history = [{"question": "We have 500 critical alerts, right?", "answer_summary": "41 High alerts were created today."}]
+    engine = ScriptedEngine(_call("query_alerts", severity="Critical"), _say("Earlier you had 41 High alerts; now 7 match."))
     outcome = run_agent(question="and critical?", engine=engine, tools=[_count_tool()], history=history, context_note="The analyst's current context: alert #5.")
-    assert outcome.ok
+    assert outcome.ok and outcome.answer == "Earlier you had 41 High alerts; now 7 match."
     messages = engine.requests[0][0]
     assert [message["role"] for message in messages] == ["system", "user", "assistant", "user"]
     assert "alert #5" in messages[0]["content"]
+
+    repeated = ScriptedEngine(_call("query_alerts"), _say("Yes, 500 critical alerts."), _say("Yes, 500 critical alerts."))
+    outcome = run_agent(question="and critical?", engine=repeated, tools=[_count_tool()], history=history)
+    assert not outcome.ok and any("500" in problem for problem in outcome.verifier_problems)
+
+
+def test_a_follow_up_about_an_earlier_answer_is_looked_up_again():
+    # "Tell me more about the second one" was answered from memory, rejected, and fell back.
+    history = [{"question": "show me the top 3 attack types", "answer_summary": "Port scan 121, unclassified 18, malware / C2 14."}]
+    engine = ScriptedEngine(_say("It has 18 alerts."), _call("query_alerts"), _say("7 High alerts."))
+    outcome = run_agent(question="tell me more about the second one", engine=engine, tools=[_count_tool()], history=history)
+    assert outcome.ok and outcome.grounded and outcome.answer == "7 High alerts."
+    assert "look it up" in engine.requests[1][0][-1]["content"]
 
 
 def test_an_answer_from_general_knowledge_is_sent_back_to_check_the_tools_once():

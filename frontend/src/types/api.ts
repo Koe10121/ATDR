@@ -212,6 +212,7 @@ export interface AssistantAnswerProvenance {
   raw_logs_included: boolean;
   rules_authoritative: boolean;
   ml_advisory_only: boolean;
+  experimental_model_alerts_permitted?: boolean;
 }
 
 export type AssistantResponseMode =

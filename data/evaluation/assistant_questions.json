@@ -77,7 +77,7 @@
     {"id": "concept-07", "category": "concepts", "q": "How many detection rules are there?", "answered": true, "any": ["21"]},
 
     {"id": "system-01", "category": "system", "q": "Why can't the ML model create alerts?", "answered": true, "any": ["advisory", "decision support", "quality bar", "qualif"], "all": ["rule"]},
-    {"id": "system-02", "category": "system", "q": "Is the supervised model used?", "answered": true, "any": ["shadow", "unqualified", "not qualified", "advisory", "decision support"]},
+    {"id": "system-02", "category": "system", "q": "Is the supervised model used?", "answered": true, "any": ["shadow", "unqualified", "not qualified", "advisory", "decision support", "not used", "not passed"], "none": ["supervised model is used", "supervised classifier is used", "supervised model is part of"]},
     {"id": "system-03", "category": "system", "q": "What can you do?", "answered": true, "any": ["ask", "alert", "count"]},
     {"id": "system-04", "category": "system", "q": "Is the system healthy?", "answered": true, "any": ["health", "ready", "ok", "healthy"]},
     {"id": "system-05", "category": "system", "q": "where does your data come from", "answered": true, "any": ["database", "log", "atdr"]},

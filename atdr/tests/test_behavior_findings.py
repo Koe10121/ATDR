@@ -175,7 +175,8 @@ def test_the_assistant_describes_what_the_mfu_model_sees_and_hides_ips(db, monke
     text = AssistantToolbox(db, settings=settings).behavior_model_view({}).text
 
     assert "advisory" in text and "it checked 4 sources and sees attack behaviour from 1 (port scan 1)" in text
-    assert "port scan (99%), the rules alerted too" in text and "First response step:" in text
+    assert "possible port scan (non-normal estimate 99%, not attack-type confidence), the rules alerted too" in text
+    assert "First response step:" in text
     assert "Internet background probing, summarised rather than alerted: 1 hosts" in text
     assert "Peer-to-peer file sharing, policy activity rather than an attack: 1 devices, 12 connections" in text
     assert "port scan: blind review of 5 windows pending" in text

@@ -42,6 +42,7 @@ class AssistantAnswerProvenance(BaseModel):
     raw_logs_included: bool = False
     rules_authoritative: bool = True
     ml_advisory_only: bool = True
+    experimental_model_alerts_permitted: bool = False
 
 
 class AssistantChatResponse(BaseModel):

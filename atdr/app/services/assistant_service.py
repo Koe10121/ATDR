@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from atdr.app.core.config import PROJECT_ROOT, Settings
 from atdr.app.db.models import Alert, AssistantFeedback, AuditLog, DetectionRun, NormalizedLog, OperationJob, User
 from atdr.app.detection.supervised_detector import supervised_model_report
+from atdr.app.detection.runtime_contract import experimental_model_runtime_status
 from atdr.app.detection.explanations import build_alert_detection_summary, explain_log_triage
 from atdr.app.services.case_service import list_alert_cases
 from atdr.app.services.assistant_data_query import DataAnswer, answer_data_question, parse_data_question
@@ -28,6 +29,7 @@ from atdr.app.services.assistant_agent import (
 from atdr.app.services.assistant_help import HelpAnswer, RuleAnswer, answer_help_question, answer_rule_question
 from atdr.app.services.alert_service import get_alert, list_alerts
 from atdr.app.core.redaction import IP_PATTERN
+from atdr.app.services.assistant_privacy import assistant_secret_values, sanitize_assistant_text
 from atdr.app.services.assistant_llm import (
     AssistantLLMRequest,
     AssistantLLMResult,
@@ -394,6 +396,7 @@ def _active_context_from_result(
 def _record_assistant_audit(
     db: Session,
     *,
+    settings: Settings,
     actor: str,
     question: str,
     context_used: list[str],
@@ -415,7 +418,7 @@ def _record_assistant_audit(
         actor=actor,
         action="assistant_question",
         target_type="assistant",
-        target_value=question.strip()[:255] or "empty-question",
+        target_value=sanitize_assistant_text(question.strip(), forbidden_values=assistant_secret_values(settings))[:255] or "empty-question",
         details={
             "context_used": context_used,
             "external_provider_used": external_provider_used,
@@ -431,7 +434,7 @@ def _record_assistant_audit(
             "active_context": active_context,
             "question_category": question_category,
             "latency_ms": latency_ms,
-            "answer_summary": answer_summary[:600],
+            "answer_summary": sanitize_assistant_text(answer_summary, forbidden_values=assistant_secret_values(settings))[:600],
             "answer_origin": provenance["answer_origin"],
             "evidence_scope": provenance["evidence_scope"],
         },
@@ -634,7 +637,9 @@ def _answer_provenance(
     *,
     external_provider_used: bool,
     provider: str | None,
+    settings: Settings,
 ) -> dict[str, Any]:
+    experimental = experimental_model_runtime_status(settings)
     citation_text = " ".join(f"{item.label} {item.source}" for item in citations).lower()
     context_text = " ".join(context_used).lower()
     database_records_used = any(item.source.startswith("/api/") for item in citations)
@@ -676,7 +681,8 @@ def _answer_provenance(
         "documentation_used": documentation_used,
         "raw_logs_included": False,
         "rules_authoritative": True,
-        "ml_advisory_only": True,
+        "ml_advisory_only": not experimental["model_only_alert_creation_allowed"],
+        "experimental_model_alerts_permitted": experimental["model_only_alert_creation_allowed"],
     }
 
 
@@ -703,7 +709,8 @@ def _grounding_details(citations: list[Citation], provenance: dict[str, Any]) ->
         "answer_origin": provenance["answer_origin"],
         "evidence_scope": provenance["evidence_scope"],
         "rules_authoritative": True,
-        "ml_advisory_only": True,
+        "ml_advisory_only": provenance["ml_advisory_only"],
+        "experimental_model_alerts_permitted": provenance["experimental_model_alerts_permitted"],
     }
 
 
@@ -896,6 +903,7 @@ def _agent_response(
     db: Session,
     outcome: AgentOutcome,
     *,
+    settings: Settings,
     question: str,
     actor: str,
     actor_user_id: int | None,
@@ -925,7 +933,7 @@ def _agent_response(
         *([] if outcome.grounded else ["agent_general_knowledge"]),
     ]
     checked = list(dict.fromkeys(_describe_agent_tool_call(item, redacted=redacted) for item in outcome.tool_trace))
-    provenance = _answer_provenance(citations, context_used, external_provider_used=external, provider=outcome.engine)
+    provenance = _answer_provenance(citations, context_used, external_provider_used=external, provider=outcome.engine, settings=settings)
     provenance["answer_origin"] = "assistant_agent"
     provenance["provider"] = outcome.engine
     contract = response_contract("conversation")
@@ -958,6 +966,7 @@ def _agent_response(
     }
     audit_id = _record_assistant_audit(
         db,
+        settings=settings,
         actor=actor,
         question=question,
         context_used=context_used,
@@ -1083,17 +1092,15 @@ def answer_assistant_question(
             # Asked to act ("close these alerts"): give the model the real dashboard guide to relay.
             prefetch=[("dashboard_how_to", {"task": clean_question})] if ACTION_REQUEST.search(clean_question) else None,
             redacted=redacted,
-            forbidden_values=[
-                settings.assistant_llm_api_key,
-                settings.assistant_api_key,
-                settings.assistant_agent_api_key,
-            ],
+            forbidden_values=assistant_secret_values(settings),
             max_rounds=settings.assistant_agent_max_rounds,
+            total_timeout=float(settings.assistant_agent_timeout_seconds),
         )
         if outcome.ok and outcome.answer:
             return _agent_response(
                 db,
                 outcome,
+                settings=settings,
                 question=clean_question,
                 actor=actor,
                 actor_user_id=actor_user_id,
@@ -1442,6 +1449,7 @@ def answer_assistant_question(
         response["context_used"],
         external_provider_used=bool(response["external_provider_used"]),
         provider=llm_result.provider,
+        settings=settings,
     )
     response["provenance"] = provenance
     response["details"]["grounding"] = _grounding_details(result.citations, provenance)
@@ -1456,6 +1464,7 @@ def answer_assistant_question(
         response["context_used"] = [*response["context_used"], f"agent_fallback:{agent_details['engine']}"]
     audit_id = _record_assistant_audit(
         db,
+        settings=settings,
         actor=actor,
         question=clean_question,
         context_used=response["context_used"],
@@ -3108,7 +3117,7 @@ def _answer_ml_question(db: Session, *, redacted: bool) -> AssistantResult:
             ),
             "answer_sections": {
                 "summary": [
-                    "ML remains advisory decision support; deterministic rules are alert-authoritative.",
+                    "Earlier ML signals remain advisory decision support; deterministic rules are alert-authoritative. Experimental MFU model alerts are separate and unqualified.",
                     f"Supervised runtime: {runtime_state}; production promoted: {production_promoted}.",
                 ],
                 "evidence": [

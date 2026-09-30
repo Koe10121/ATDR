@@ -160,7 +160,8 @@ function safeProvenance(
     documentation_used: row.documentation_used === true,
     raw_logs_included: false,
     rules_authoritative: row.rules_authoritative !== false,
-    ml_advisory_only: row.ml_advisory_only !== false
+    ml_advisory_only: row.ml_advisory_only !== false,
+    experimental_model_alerts_permitted: row.experimental_model_alerts_permitted === true
   };
 }
 
@@ -240,7 +241,8 @@ function safeGrounding(value: unknown): Record<string, unknown> | null {
     answer_origin: boundedString(row.answer_origin, 64),
     evidence_scope: boundedStrings(row.evidence_scope, 8, 120),
     rules_authoritative: row.rules_authoritative !== false,
-    ml_advisory_only: row.ml_advisory_only !== false
+    ml_advisory_only: row.ml_advisory_only !== false,
+    experimental_model_alerts_permitted: row.experimental_model_alerts_permitted === true
   };
 }
 
