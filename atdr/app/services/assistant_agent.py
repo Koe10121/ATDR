@@ -405,6 +405,20 @@ def engine_from_settings(settings: Settings) -> AgentEngine | None:
 # ------------------------------------------------------------------- verifier
 
 
+_WORD_NUMBERS = {
+    "one": "1", "two": "2", "three": "3", "four": "4", "five": "5", "six": "6", "seven": "7", "eight": "8",
+    "nine": "9", "ten": "10", "eleven": "11", "twelve": "12", "fifteen": "15", "twenty": "20", "thirty": "30",
+    "forty": "40", "fifty": "50", "sixty": "60", "hundred": "100",
+}
+_WORD_NUMBER = re.compile(r"\b(" + "|".join(_WORD_NUMBERS) + r")\b", re.IGNORECASE)
+
+
+def _known_numbers(text: str) -> set[str]:
+    """Numbers a tool result supports: its digits, and its number words ("five-minute window" supports 5)."""
+
+    return _numbers(text) | {_WORD_NUMBERS[word.lower()] for word in _WORD_NUMBER.findall(text)}
+
+
 def _numbers(text: str) -> set[str]:
     """Numbers as normalised strings; a percentage keeps its "%" so "1%" is never a free small number."""
 
@@ -502,8 +516,8 @@ def verify_answer(
         if secret and len(secret) >= 8 and secret in answer:
             problems.append("answer contains a configured secret")
     known_text = "\n".join(evidence)
-    known_numbers = _numbers(known_text) | FREE_NUMBERS
-    strict_numbers = _numbers(known_text)
+    strict_numbers = _known_numbers(known_text)
+    known_numbers = strict_numbers | FREE_NUMBERS
     references = set(_entity_references(known_text))
     unsupported_entities = [
         f"{kind} #{identifier}" for kind, identifier in _entity_references(answer)
@@ -590,7 +604,7 @@ For anything about ATDR or MFU's data (alerts, logs, counts, IPs, rules, ATDR's 
 - What is going on, are we under attack, summaries, biggest risks, what to look at first: security_overview.
 - One alert: get_alert. What to do about an alert, how to respond or fix it: get_alert_playbook.
 - How to do something in ATDR's dashboard, including things you cannot do yourself (block an IP, close, delete or assign alerts, notes, suppression, audit trail, importing logs, running detection): dashboard_how_to, then give its steps. Never describe an ATDR page, button or step that the guide did not give; if there is no guide, say the dashboard has no such feature.
-- Security terms ATDR uses (port scan, beaconing, MITRE ATT&CK), how ATDR's severity, SLA or ML work, where the data comes from: explain_concept. What a detection rule checks, its threshold ("what does the brute force rule check?"), or how many rules exist: explain_detection_rules, not explain_concept.
+- Security terms ATDR uses (port scan, beaconing, MITRE ATT&CK), how ATDR's severity, SLA or ML work, where the data comes from: explain_concept. What a detection rule checks, its threshold, or how many rules exist: explain_detection_rules.
 - Threat intelligence, the watchlist, known-bad addresses or feeds, whether an IP is known to be malicious: watchlist_lookup (leave the IP empty to list the feeds).
 - What the MFU behaviour model sees, its findings, its experimental alerts or how far to trust it: behavior_model_view.
 - ATDR's own health, jobs, sources, model status: system_status.

@@ -17,7 +17,7 @@
     {"id": "h-05", "category": "counts", "q": "list the open port scan alerts", "answered": true, "any": ["#"]},
     {"id": "h-06", "category": "counts", "q": "Is 10.10.10.10 in any alerts?", "answered": true, "any": ["no ", "0 ", "not", "none"]},
     {"id": "h-07", "category": "rankings", "q": "who is attacking us the most", "answered": true, "any": ["source", "[redacted-ip]"]},
-    {"id": "h-09", "category": "alert_explanation", "q": "explain alert {latest_critical_alert} to a non-technical manager", "answered": true, "any": ["login", "password", "attempt", "sign"]},
+    {"id": "h-09", "category": "alert_explanation", "q": "explain alert {latest_critical_alert} to a non-technical manager", "answered": true, "any": ["login", "password", "attempt", "sign", "outbound", "upload", "sent", "leaving", "scan", "probe", "malware", "exploit", "flood"]},
     {"id": "h-10", "category": "alert_explanation", "q": "Is alert {latest_critical_alert} dangerous?", "answered": true, "any": ["critical", "score"]},
     {"id": "h-11", "category": "alert_explanation", "q": "what should an analyst do first when a brute force alert comes in?", "answered": true, "any": ["login", "sign-in", "authentication"]},
     {"id": "h-12", "category": "concepts", "q": "what's the difference between a port scan and a horizontal scan", "answered": true, "any": ["same port", "many hosts", "multiple hosts"]},

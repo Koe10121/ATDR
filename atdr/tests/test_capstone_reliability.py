@@ -66,6 +66,18 @@ def test_the_ml_concept_says_the_supervised_classifier_is_not_used(seeded, monke
     assert "non-normal estimate" in text and "not confidence in the attack type" in text
 
 
+def test_a_number_word_in_a_tool_result_supports_its_digits():
+    # The tool said "five-minute window"; "5 minutes" in the answer was rejected as invented.
+    evidence = ["71 session events in the source-scoped five-minute correlation window."]
+    check = lambda answer: assistant_agent.verify_answer(  # noqa: E731
+        answer, evidence=evidence, asked=["explain it"], redacted=True, forbidden_values=[],
+    )
+    assert check("It made 71 connections within 5 minutes.") == []
+    assert any("9" in problem for problem in check("It made 9 connections within 5 minutes."))
+    # Only tool text is read this way: an answer's own number words are not turned into digits.
+    assert check("Take five steps: check the source first.") == []
+
+
 def test_failed_tool_arguments_are_not_evidence():
     engine = ScriptedEngine(_call("absent_tool", alert_id=987), _say("Alert #987 exists."), _say("Alert #987 exists."))
     outcome = assistant_agent.run_agent(question="alert 987?", engine=engine, tools=[_count_tool()])
