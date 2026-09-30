@@ -132,11 +132,21 @@ def _execute_block(target_ip: str) -> tuple[str, str, str, bool]:
     return "enforcement_failed", result.message, "windows_firewall", False
 
 
-def _execute_unblock(target_ip: str) -> tuple[str, str, str, bool]:
+def _execute_unblock(target_ip: str, *, previous_enforcement: str | None = None) -> tuple[str, str, str, bool]:
     """Returns (status, message, enforcement_label, applied). Always attempts
     real removal when real enforcement is configured, even if no tracked row
     exists, so a firewall rule can never be silently orphaned."""
     settings = get_settings()
+    if previous_enforcement == "windows_firewall" and (
+        settings.response_simulation or settings.response_provider.lower() != "windows_firewall"
+    ):
+        return (
+            "enforcement_failed",
+            "Removal is unconfirmed: this block was enforced by Windows Firewall, but the current response mode "
+            "does not permit that connector. The block remains active; an authorized operator must reconcile it.",
+            "windows_firewall",
+            False,
+        )
     if settings.response_simulation or settings.response_provider.lower() == "simulation":
         return (
             "simulated",
@@ -168,6 +178,9 @@ def _sweep_expired_blocks(db: Session, *, actor: str = "system") -> None:
     changed = False
     for row in expired:
         if row.enforcement == "windows_firewall":
+            settings = get_settings()
+            if settings.response_simulation or settings.response_provider.lower() != "windows_firewall":
+                continue
             result = windows_firewall_connector.remove_block(row.ip_address)
             if not result.ok:
                 # Leave active; the next sweep (or a manual unblock) retries.
@@ -312,10 +325,12 @@ def unblock_ip(
             actor=actor,
         )
 
-    status, result_message, enforcement, applied = _execute_unblock(target_ip)
+    blocked = db.scalar(select(BlockedIP).where(BlockedIP.ip_address == target_ip, BlockedIP.active.is_(True)))
+    status, result_message, enforcement, applied = _execute_unblock(
+        target_ip, previous_enforcement=blocked.enforcement if blocked is not None else None,
+    )
 
     if applied:
-        blocked = db.scalar(select(BlockedIP).where(BlockedIP.ip_address == target_ip, BlockedIP.active.is_(True)))
         if blocked is not None:
             blocked.active = False
 
