@@ -10,6 +10,8 @@ the model so it can call again correctly.
 
 from __future__ import annotations
 
+import ipaddress
+import re
 from dataclasses import replace
 from datetime import datetime, timedelta
 from typing import Any
@@ -86,6 +88,10 @@ CONCEPT_ALIASES = {
     "exploitation": "exploit_attempt",
     "accuracy": "detection_accuracy",
     "assistant": "how_you_work",
+    # Asked how the rules and the AI model differ, the local model picked the accuracy topic and compared the old
+    # rules' official F1 with the new rules plus model.
+    "rules_vs_model": "ml_models",
+    "ai_model": "ml_models",
 }
 OTHER_CONCEPTS = (
     "mitre_attack",
@@ -110,11 +116,12 @@ OTHER_CONCEPTS = (
 # result comes first: further down, the local model quoted only the better second look as "the blind check".
 DETECTION_ACCURACY = (
     "ATDR's accuracy comes from one blind check: 150 randomly chosen MFU logs, labeled without seeing ATDR's verdicts.\n"
-    "- Official blind result, the fair estimate (the rules at the first presentation, catalog v5.32.0): precision "
-    "50.9%, recall 81.8%, F1 62.7%, 6.0% false alarms.\n"
-    "- Second look, the current rules alone (v5.36.0, same logs, after a person checked the labels): precision 93.5%, "
+    "- Official blind result, the fair estimate (the rules as they were at the first presentation, on the labels as "
+    "first made): precision 50.9%, recall 81.8%, F1 62.7%, 6.0% false alarms.\n"
+    "- Second look, the current rules alone (same logs, after a person checked the labels): precision 93.5%, "
     "recall 78.2%, F1 85.2%.\n"
-    "- Second look, the current rules plus the MFU behaviour model: F1 90.1%.\n"
+    "- Second look, the current rules plus the MFU behaviour model: F1 90.1%, against 85.2% for the same rules alone. "
+    "The official 62.7% measured older rules on unchecked labels, so it is not the comparison for the model.\n"
     "- Both second looks are optimistic: the changes were made with those labels in view, and most of the precision "
     "gain came from 5 flagged rows the label check moved to Unsure.\n"
     "- Agreement with the team's own labels is higher (95.6% to 97.0% precision), but those labels were made while "
@@ -151,8 +158,24 @@ def _window(args: dict[str, Any], default: str = "all_time") -> TimeWindow:
     return ALL_TIME if phrase is None else _parse_window(phrase, _local_now())
 
 
+# A country typed where an IP belongs ("alerts from China"); log countries are stored as names.
+_PLACE_NAME = re.compile(r"[A-Za-z][A-Za-z .'-]{1,40}")
+
+
+class _NotAnAddress(ValueError):
+    def __init__(self, value: str) -> None:
+        super().__init__(f"ip must be one IP address, not {value!r}, so leave ip empty.")
+        self.value = value
+
+
 def _ip_filters(args: dict[str, Any]) -> dict[str, str | None]:
     ip = str(args.get("ip") or "").strip() or None
+    if ip is not None:
+        try:
+            ipaddress.ip_address(ip)
+        except ValueError:
+            # "Show me alerts from China" passed ip="China", matched nothing and was answered "no alerts from China".
+            raise _NotAnAddress(ip) from None
     role = _choice(args, "ip_role", ("source", "destination", "either"), "either")
     return {
         "src_ip": ip if role == "source" else None,
@@ -207,8 +230,34 @@ class AssistantToolbox:
 
     # ------------------------------------------------------------ tools
 
+    def _country_answer(self, error: _NotAnAddress, subject: str) -> ToolOutput:
+        """A country typed where an IP belongs: alerts carry no country, so give the logs' counts for it."""
+
+        name = error.value
+        if not _PLACE_NAME.fullmatch(name):
+            raise error
+        counts = {
+            side: int(self.db.scalar(select(func.count(NormalizedLog.id)).where(func.lower(column) == name.lower())) or 0)
+            for side, column in (("source", NormalizedLog.src_country), ("destination", NormalizedLog.dst_country))
+        }
+        opening = (
+            "Alerts are not tagged with a country, so they cannot be listed by country."
+            if subject == "alerts"
+            else "Logs are filtered by IP address, not by country."
+        )
+        top = self._data(DataQuestion(subject="logs", intent="top", group_by="src_country", limit=5))
+        return ToolOutput(
+            f"{opening} In the stored firewall logs, {name} is the source country of {counts['source']:,} logs and the "
+            f"destination country of {counts['destination']:,}.\n{top}",
+            [("Firewall log records", "/api/logs", None)],
+        )
+
     def query_alerts(self, args: dict[str, Any]) -> ToolOutput:
         intent = _choice(args, "intent", ("count", "top", "trend", "list"), "count")
+        try:
+            filters = _ip_filters(args)
+        except _NotAnAddress as error:
+            return self._country_answer(error, "alerts")
         question = DataQuestion(
             subject="alerts",
             intent=intent,
@@ -218,7 +267,7 @@ class AssistantToolbox:
             attack_type=_choice(args, "attack_type", ATTACK_TYPES),
             group_by=_choice(args, "group_by", ALERT_GROUPS, "attack_type") if intent == "top" else None,
             limit=_integer(args, "limit", low=1, high=10, default=5),
-            **_ip_filters(args),
+            **filters,
         )
         return ToolOutput(self._alerts(question), [("Alert records", "/api/alerts", None)])
 
@@ -227,6 +276,10 @@ class AssistantToolbox:
         action = _choice(args, "action", tuple(LOG_ACTIONS))
         actions, action_label = LOG_ACTIONS[action] if action else ((), None)
         min_risk = args.get("min_app_risk")
+        try:
+            filters = _ip_filters(args)
+        except _NotAnAddress as error:
+            return self._country_answer(error, "logs")
         question = DataQuestion(
             subject="logs",
             intent=intent,
@@ -236,14 +289,34 @@ class AssistantToolbox:
             min_app_risk=_integer(args, "min_app_risk", low=1, high=5) if min_risk not in (None, "") else None,
             group_by=_choice(args, "group_by", LOG_GROUPS, "app") if intent == "top" else None,
             limit=_integer(args, "limit", low=1, high=10, default=5),
-            **_ip_filters(args),
+            **filters,
         )
-        return ToolOutput(self._logs(question), [("Firewall log records", "/api/logs", None)])
+        text = self._logs(question)
+        if intent == "count":
+            # "How many logs and from when?" got the count without the dates.
+            first, last = self.db.execute(
+                select(func.min(NormalizedLog.generated_time), func.max(NormalizedLog.generated_time))
+            ).one()
+            # Given only the span, the model called a three-minute export from May "very recent ... up to date".
+            text += (
+                f"\nStored logs span {_log_when(first)} to {_log_when(last)} (firewall local time); nothing newer has "
+                "been imported."
+            )
+        return ToolOutput(text, [("Firewall log records", "/api/logs", None)])
 
     def security_overview(self, args: dict[str, Any]) -> ToolOutput:
         window = _window(args, "today")
         db = self.db
-        parts = [f"Security overview for alerts created {window.phrase if window.bounded else 'at any time'}."]
+        first, last = db.execute(select(func.min(NormalizedLog.generated_time), func.max(NormalizedLog.generated_time))).one()
+        # First, because the model answers from the top: asked "is MFU under attack right now?", it said "not
+        # currently under attack" from a quiet day, though ATDR's newest traffic was months old.
+        parts = [
+            "ATDR cannot tell whether MFU is under attack right now: it sees only imported firewall logs, and the "
+            f"newest is from {_log_when(last)} (firewall local time).",
+            # Today's date is given because, without it, a Thai summary called the newest alert's date "today".
+            f"Security overview for alerts created {window.phrase if window.bounded else 'at any time'}. "
+            f"Today is {_local_now():%d %b %Y} (server local time).",
+        ]
         parts.append(self._alerts(DataQuestion(subject="alerts", intent="count", window=window)))
         parts.append(self._data(DataQuestion(subject="alerts", intent="count", status="open")))
         parts.append(self._data(DataQuestion(subject="alerts", intent="top", window=window, group_by="attack_type", limit=4)))
@@ -255,7 +328,6 @@ class AssistantToolbox:
         parts.append("Open alerts to look at first (highest score first):\n" + text)
 
         total_logs = int(db.scalar(select(func.count(NormalizedLog.id))) or 0)
-        first, last = db.execute(select(func.min(NormalizedLog.generated_time), func.max(NormalizedLog.generated_time))).one()
         log_line = f"Stored firewall logs: {total_logs:,}, with event times from {_log_when(first)} to {_log_when(last)} (firewall local time)."
         if window.bounded:
             log_line += "\n" + self._data(DataQuestion(subject="logs", intent="count", window=window))
@@ -265,8 +337,9 @@ class AssistantToolbox:
             # A quiet period once led to "we are not under attack" while Critical alerts sat open.
             still_open = int(db.scalar(select(func.count(Alert.id)).where(Alert.status == "open")) or 0)
             critical = int(db.scalar(select(func.count(Alert.id)).where(Alert.status == "open", Alert.severity == "Critical")) or 0)
-            parts.insert(1, (
-                f"No new alerts {window.phrase} is not an all-clear: {still_open:,} alerts are still open ({critical:,} Critical), "
+            parts.insert(2, (
+                # No "all-clear" or "safe": Thai answers turned both into "not 100% safe", a figure no tool gave.
+                f"No new alerts were created {window.phrase}, but {still_open:,} alerts are still open ({critical:,} Critical), "
                 f"and the newest stored firewall log is from {_log_when(last)} (firewall local time), so ATDR has seen no "
                 "traffic since then."
             ))
@@ -478,22 +551,26 @@ class AssistantToolbox:
             from atdr.app.services import behavior_findings_service as findings
 
             status = findings.model_status(findings.load_model())
+            # Whether the model raises alerts comes second, straight after the rules: placed after the quality bar, it
+            # was missed, and "why can't the ML model create alerts?" was answered "it cannot create alerts on its own".
             role = (
-                "No attack type has passed the quality bar the team declared before training, and there is no more MFU traffic "
-                "to test on, so the team switched every type on as an experimental exception: where the rules raise no alert, "
-                "the model raises its own, each marked experimental and low confidence. It never triggers a response on its own."
+                "The machine-learning (ML) model that matters, the MFU behaviour model, also raises its own alerts, but only "
+                "where the rules raise none, each marked experimental and low confidence, and never with a response: no "
+                "attack type has passed the quality bar the team declared before training, and there is no more MFU "
+                "traffic to test on, so the team switched every type on as a recorded experimental exception."
                 if status.get("alerting_types") else
-                "It is advisory: until an attack type passes the quality bar the team declared before training, the rules "
-                "decide every alert."
+                "The machine-learning (ML) model that matters, the MFU behaviour model, is advisory: until an attack type "
+                "passes the quality bar the team declared before training, the rules decide every alert."
             )
             return (
-                "ATDR's alerts come mainly from its fixed rules. The machine-learning (ML) model that matters is the MFU "
-                "behaviour model: trained only on MFU's own firewall traffic, it reads each device's five minutes of traffic, "
-                "suggests the likely attack type to investigate and explains why, on the Overview and on each alert. The "
+                f"ATDR's alerts come mainly from its fixed rules. {role} The MFU behaviour model is trained only on MFU's "
+                "own firewall traffic; it reads each device's five minutes of traffic, suggests the likely attack type to "
+                "investigate and explains why, on the Overview and on each alert. It does not learn by itself after "
+                "training; it changes only when the team retrains it. The "
                 "percentage it shows is its non-normal estimate (1 minus its probability that the traffic is normal), not "
                 "confidence in the attack type. The quality bar asks that its extra finds (flagged with no rule alert) be "
                 "confirmed real in a blind review, that it find at least 90% of fresh simulated attacks, and that rules plus "
-                f"model be no less accurate than the rules alone on the blind-check labels. {role} "
+                "model be no less accurate than the rules alone on the blind-check labels. "
                 # "Advisory only" for both once read as "the supervised model is used"; it never runs.
                 "Two earlier models are not part of detection: the anomaly model (IsolationForest) at most marks unusual logs "
                 "as a hint beside the rule evidence, and the supervised classifier is not used at all: it never passed its "

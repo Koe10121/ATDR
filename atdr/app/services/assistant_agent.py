@@ -86,8 +86,9 @@ ATDR_QUESTION = re.compile(
     # Questions about the assistant itself: answered from how ATDR checks it, not from the model's self-image.
     r"trust (?:you|your answers?|the assistant)|how do you work|how (?:accurate|reliable) are you|"
     r"are you (?:accurate|reliable)|where do your answers come from|do you make (?:things|stuff) up|hallucinat\w*)\b"
-    # Thai has no spaces between words, so these match anywhere: alert, (security) situation, log, attack.
-    r"|แจ้งเตือน|สถานการณ์|ล็อก|โจมตี",
+    # Thai has no spaces between words, so these match anywhere: alert, (security) situation, log, attack, model,
+    # this system, accurate ("what can the AI model do?" was answered from memory).
+    r"|แจ้งเตือน|สถานการณ์|ล็อก|โจมตี|โมเดล|ระบบนี้|แม่นยำ",
     re.IGNORECASE,
 )
 # "show me the raw logs / passwords / the API key": always refused, never looked up.
@@ -110,10 +111,21 @@ ATDR_UI = re.compile(
 )
 SAYS_CANNOT = re.compile(r"\b(?:cannot|can't|can not|unable to|not able to|only read)\b", re.IGNORECASE)
 CANNOT_ACT = "I can't do that myself; I only read ATDR's data. Here is how you can do it:"
+# Any character of the Thai script block (U+0E00 to U+0E7F).
+THAI_TEXT = re.compile(r"[฀-๿]")
 ACTION_CLAIM = re.compile(
     r"\b(?:i|i've|i have|we've|we have)\s+(?:now\s+|just\s+|already\s+|successfully\s+)?"
     r"(?:blocked|unblocked|deleted|closed|resolved|removed|disabled|isolated|quarantined|assigned|escalated|"
     r"marked|suppressed|changed|updated|executed)\b",
+    re.IGNORECASE,
+)
+# ATDR sees only imported logs, so it cannot say whether MFU is under attack now. Asked exactly that, the model
+# answered "MFU is not currently under attack" from a quiet day of alerts while its newest log was months old.
+ATTACK_STATUS_CLAIM = re.compile(
+    r"\b(?:is|are)\s+not\s+(?:currently\s+|being\s+)?(?:under\s+(?:an?\s+)?attack|attacked)\b"
+    r"|\bno\s+(?:active|ongoing|current)\s+attacks?\b"
+    r"|(?<!whether )(?<!if )(?<!not mean )(?<!n't mean )\b(?:MFU|we|the network|our network)\s+(?:is|are)\s+(?:currently\s+|now\s+)?"
+    r"under\s+(?:an?\s+)?(?:active\s+)?attack\b",
     re.IGNORECASE,
 )
 
@@ -520,6 +532,8 @@ def verify_answer(
             problems.append("answer contains a configured secret")
     known_text = "\n".join(evidence)
     strict_numbers = _known_numbers(known_text)
+    # A Thai answer gives a year in the Buddhist era: 2026 is 2569.
+    strict_numbers |= {str(int(value) + 543) for value in strict_numbers if value.isdigit() and 1900 <= int(value) <= 2100}
     known_numbers = strict_numbers | FREE_NUMBERS
     references = set(_entity_references(known_text))
     unsupported_entities = [
@@ -555,9 +569,11 @@ def verify_answer(
         # A name the analyst typed ("close all critical alerts") is not an invented screen element;
         # only numbers and record references must come from the tools.
         known_lower = "\n".join([known_text, *asked]).lower()
+        # ATDR's screens are in English, so a quoted Thai phrase is a translation, not a screen element.
         invented = [
             term for match in UI_TERM.finditer(answer)
             if (term := (match.group(1) or match.group(2) or "").strip(" .,:;")) and term.lower() not in known_lower
+            and not THAI_TEXT.search(term)
         ]
         if invented:
             problems.append(
@@ -578,6 +594,15 @@ def verify_answer(
         problems.append(
             "the analyst asked for something to be done: say you cannot do it yourself, then give the real dashboard "
             "steps (call dashboard_how_to with the task)"
+        )
+    # Asked in Thai "how accurate is this system?", the model copied the English tool text instead.
+    if asked and THAI_TEXT.search(asked[0]) and not THAI_TEXT.search(answer):
+        problems.append("the analyst wrote in Thai: write the whole answer in Thai")
+    status_claim = ATTACK_STATUS_CLAIM.search(answer)
+    if status_claim:
+        problems.append(
+            f"says whether MFU is under attack ({status_claim.group(0)!r}), which ATDR cannot know: it only sees imported "
+            "logs, so say what it found, what is still open and how recent its newest log is"
         )
     return problems
 

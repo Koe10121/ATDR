@@ -165,6 +165,95 @@ def test_the_assistant_explains_how_its_answers_are_checked(seeded):  # noqa: F8
     assert named and set(named) <= set(CONCEPTS)
 
 
+def test_reviewer_questions_round_two_get_the_facts_they_need(seeded, monkeypatch):  # noqa: F811
+    # Each line below was missing when a reviewer-style question was asked of the real model on 1 October.
+    from atdr.app.services.assistant_tools import CONCEPT_ALIASES
+
+    monkeypatch.setattr(behavior_findings_service, "load_model", lambda *args, **kwargs: None)
+    sessions, settings = seeded
+    with sessions() as session:
+        tools = _concept_tools(session, settings)
+        accuracy = tools["explain_concept"].run({"topic": "accuracy"}).text
+        overview = tools["security_overview"].run({"time_window": "all_time"}).text
+        count = tools["query_logs"].run({"intent": "count"}).text
+        models = tools["explain_concept"].run({"topic": "ml_models"}).text
+        # "Show me alerts from China" passed ip="China" and was told "no alerts from China".
+        china = tools["query_alerts"].run({"intent": "list", "ip": "China"}).text
+        with pytest.raises(ValueError, match="one IP address"):
+            tools["query_logs"].run({"intent": "count", "ip": "[redacted-ip]"})
+        listed = tools["query_alerts"].run({"intent": "list", "ip": "203.0.113.10"}).text
+    # "Rules alone 62.7%, with the model 90.1%" compared old rules with new: the model's gain is 85.2 -> 90.1.
+    assert "F1 90.1%, against 85.2% for the same rules alone" in accuracy and "v5." not in accuracy
+    # "Is MFU under attack right now?" was answered "not currently under attack" from a quiet day.
+    assert overview.split("\n\n")[0].startswith("ATDR cannot tell whether MFU is under attack right now")
+    assert "Stored logs span" in count and "nothing newer has been imported" in count
+    assert china.startswith("Alerts are not tagged with a country") and "China is the source country of 0 logs" in china
+    assert "does not learn by itself after training" in models and CONCEPT_ALIASES["rules_vs_model"] == "ml_models"
+    assert "#1" in listed
+
+
+def test_the_ml_concept_says_first_that_the_model_raises_experimental_alerts(seeded, monkeypatch):  # noqa: F811
+    # Placed after the quality bar, the fact was missed: "why can't the ML model create alerts?" got "it cannot".
+    monkeypatch.setattr(behavior_findings_service, "load_model", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        behavior_findings_service, "model_status", lambda model: {"alerting_types": ["port_scan"], "data_limit": "Limit."}
+    )
+    sessions, settings = seeded
+    with sessions() as session:
+        text = _concept_tools(session, settings)["explain_concept"].run({"topic": "ml_models"}).text
+    first_two = text.split(": no attack type")[0]
+    assert first_two.startswith("ATDR's alerts come mainly from its fixed rules. The machine-learning (ML) model")
+    assert "also raises its own alerts, but only where the rules raise none" in first_two
+
+
+def test_a_thai_question_gets_a_thai_answer_and_counts_as_an_atdr_question():
+    check = lambda answer, question: assistant_agent.verify_answer(  # noqa: E731
+        answer, evidence=["Official blind result: F1 62.7%."], asked=[question], redacted=True, forbidden_values=[],
+    )
+    thai = "ระบบนี้แม่นยำแค่ไหน"
+    assert "the analyst wrote in Thai: write the whole answer in Thai" in check("The official F1 is 62.7%.", thai)
+    assert check("ผลการตรวจแบบปิดตาอย่างเป็นทางการ: F1 62.7%", thai) == []
+    assert check("The official F1 is 62.7%.", "how accurate is ATDR?") == []
+    for question in (thai, "โมเดล AI ทำอะไรได้บ้าง"):
+        assert assistant_agent.ATDR_QUESTION.search(question), question
+    # A Thai answer gives 2026 as the Buddhist-era year 2569, and quotes Thai translations of English terms.
+    dated = ["The newest log is from 20 May 2026."]
+    thai_check = lambda answer: assistant_agent.verify_answer(  # noqa: E731
+        answer, evidence=dated, asked=[thai], redacted=True, forbidden_values=[],
+    )
+    assert thai_check('ล็อกล่าสุดคือ 20 พฤษภาคม 2569 จาก "โมเดลพฤติกรรมของ MFU"') == []
+    assert any("2570" in problem for problem in thai_check("ล็อกล่าสุดคือ 20 พฤษภาคม 2570"))
+
+
+def test_the_assistant_never_says_whether_mfu_is_under_attack():
+    # Asked "is MFU under attack right now?", it answered "MFU is not currently under attack" from a quiet day,
+    # though ATDR's newest log was months old.
+    check = lambda answer: assistant_agent.verify_answer(  # noqa: E731
+        answer, evidence=["178 alerts are still open."], asked=["Is MFU under attack right now?"], redacted=True,
+        forbidden_values=[],
+    )
+    for claim in ("MFU is not currently under attack.", "There are no active attacks.", "We are under attack."):
+        assert any("says whether MFU is under attack" in problem for problem in check(claim)), claim
+    assert check("ATDR cannot tell whether MFU is under attack: it only sees imported logs. 178 alerts are still open.") == []
+    assert check("Review the open alerts to make sure the network is secure. 178 alerts are still open.") == []
+    assert check("178 open alerts do not mean we are under attack.") == []
+    assert check("178 open alerts don't mean we are under attack.") == []
+    for claim in ("178 open alerts mean we are under attack.", "This means we are under attack."):
+        assert any("says whether MFU is under attack" in problem for problem in check(claim)), claim
+
+
+def test_a_request_to_act_on_a_named_alert_looks_the_alert_up_first(seeded, monkeypatch):  # noqa: F811
+    # "block the IP in alert 3738" was rejected for naming an alert no tool had returned, and fell back.
+    sessions, settings = seeded
+    engine = ScriptedEngine(_say("I can't block it myself. Alert #1 comes from [redacted-ip]; an admin can block it."))
+    monkeypatch.setattr(assistant_service, "engine_from_settings", lambda _settings: engine)
+    with sessions() as db:
+        response = _ask(db, settings, "block the IP in alert 1")
+    tools_seen = [message["name"] for message in engine.requests[0][0] if message["role"] == "tool"]
+    assert tools_seen == ["dashboard_how_to", "get_alert"]
+    assert response["mode"] == "assistant_agent_scripted" and "Alert #1" in response["answer"]
+
+
 def test_a_number_word_in_a_tool_result_supports_its_digits():
     # The tool said "five-minute window"; "5 minutes" in the answer was rejected as invented.
     evidence = ["71 session events in the source-scoped five-minute correlation window."]

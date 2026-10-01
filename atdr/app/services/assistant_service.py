@@ -20,6 +20,7 @@ from atdr.app.services.case_service import list_alert_cases
 from atdr.app.services.assistant_data_query import DataAnswer, answer_data_question, parse_data_question
 from atdr.app.services.assistant_agent import (
     ACTION_REQUEST,
+    ENTITY_REFERENCE,
     AgentOutcome,
     OllamaEngine,
     engine_from_settings,
@@ -769,6 +770,13 @@ def _is_how_to_question(lowered: str) -> bool:
     )
 
 
+def _named_alert_lookup(question: str) -> list[tuple[str, dict[str, Any]]]:
+    """The alert an action request names, looked up before the model answers."""
+
+    match = next((match for match in ENTITY_REFERENCE.finditer(question) if match["alert"]), None)
+    return [("get_alert", {"alert_id": int(match["alert"])})] if match else []
+
+
 def _unsafe_action_requested(lowered: str) -> bool:
     if any(
         phrase in lowered
@@ -1089,8 +1097,13 @@ def answer_assistant_question(
                 source_id=requested_source_id,
                 case_id=requested_case_id,
             ),
-            # Asked to act ("close these alerts"): give the model the real dashboard guide to relay.
-            prefetch=[("dashboard_how_to", {"task": clean_question})] if ACTION_REQUEST.search(clean_question) else None,
+            # Asked to act ("close these alerts"): give the model the real dashboard guide to relay, and the alert the
+            # request names ("block the IP in alert 3738" was rejected for naming an alert no tool had returned).
+            prefetch=(
+                [("dashboard_how_to", {"task": clean_question}), *_named_alert_lookup(clean_question)]
+                if ACTION_REQUEST.search(clean_question)
+                else None
+            ),
             redacted=redacted,
             forbidden_values=assistant_secret_values(settings),
             max_rounds=settings.assistant_agent_max_rounds,

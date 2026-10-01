@@ -587,4 +587,4 @@ def test_an_empty_window_of_alerts_also_gives_the_count_over_all_time(seeded):
     assert "Created at any time instead:" in today and f"{open_alerts} open alert" in today
     assert f"{open_alerts} open alert" in overview
     # A quiet day once read as "we are not under attack" while Critical alerts sat open.
-    assert f"No new alerts today is not an all-clear: {open_alerts} alerts are still open" in overview
+    assert f"No new alerts were created today, but {open_alerts} alerts are still open" in overview
