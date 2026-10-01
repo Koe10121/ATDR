@@ -237,12 +237,23 @@ Thai daily summary turned "no new alerts today is not an all-clear" into "not
 The overview now says "no new alerts were created today, but N are still open"
 and states today's date.
 
-Final run after this round: main set 88 of 88, held-out 27 of 27, no
-fallbacks; average answer time 7.9 s and 11.0 s (a Thai answer sometimes needs
-a second pass to come back in Thai). A run that shared the laptop with the test
-suite scored 25 of 27 on the held-out set: part of the model runs on the CPU,
-so heavy CPU load changes its wording slightly, and scores move by a question
-or two between runs.
+Three multi-turn conversations found two more. "Show me the top 3 critical
+alerts" ranked alerts by severity while keeping only Critical, a single group,
+and the answer named alert numbers no tool had returned; "explain the first one"
+then went to an unrelated alert. Ranking by a field already kept to one value
+now lists the highest-scoring alerts instead (#3839, #3838, #3792), and the
+follow-ups explain and plan for #3839. "Why is it only experimental?" was
+answered from memory ("still in development"); "experimental" now marks a
+question about ATDR, so it is looked up ("it has not passed its quality bar").
+
+Final run on the final code: main set 88 of 88, held-out 26 of 27, no
+fallbacks; average answer time 7.6 s and 10.5 s (a Thai answer sometimes needs
+a second pass to come back in Thai). The miss, "What does the ML model do in
+ATDR?", leaves out how the model relates to the rules in some runs and passes
+in others; the run before scored 27 of 27. A run that shared the laptop with
+the test suite scored 25 of 27: part of the model runs on the CPU, so heavy
+CPU load changes its wording slightly, and scores move by a question or two
+between runs.
 
 ## Measuring it again
 
