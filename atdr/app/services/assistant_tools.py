@@ -92,6 +92,9 @@ CONCEPT_ALIASES = {
     # rules' official F1 with the new rules plus model.
     "rules_vs_model": "ml_models",
     "ai_model": "ml_models",
+    # "Are there any crypto miners on campus?" looked up data exfiltration; ATDR's miners are malware / C2 alerts.
+    "crypto_mining": "malware_c2",
+    "cryptominer": "malware_c2",
 }
 OTHER_CONCEPTS = (
     "mitre_attack",
@@ -153,13 +156,22 @@ def _integer(args: dict[str, Any], key: str, *, low: int, high: int, default: in
 
 
 def _window(args: dict[str, Any], default: str = "all_time") -> TimeWindow:
-    key = _choice(args, "time_window", tuple(TIME_WINDOWS), default)
+    try:
+        key = _choice(args, "time_window", tuple(TIME_WINDOWS), default)
+    except ValueError as error:
+        # "What happened on 20 May?" passed time_window="2023-05-20", then fell back to last month's alerts.
+        raise ValueError(
+            f"{error}. A single date cannot be chosen; the stored firewall logs are historical, so use all_time for them."
+        ) from None
     phrase = TIME_WINDOWS[key or default]
     return ALL_TIME if phrase is None else _parse_window(phrase, _local_now())
 
 
 # A country typed where an IP belongs ("alerts from China"); log countries are stored as names.
 _PLACE_NAME = re.compile(r"[A-Za-z][A-Za-z .'-]{1,40}")
+# The firewall's threat signature, as an alert explanation records it: "threat name is XMRig Miner ... (85886)."
+_THREAT_NAME = re.compile(r"threat name is ([^.;(]+?)\s*(?:\(\d+\))?[.;]")
+_LISTED_ALERT = re.compile(r"^- Alert #(\d+):[^\n]*$", re.MULTILINE)
 
 
 class _NotAnAddress(ValueError):
@@ -230,6 +242,22 @@ class AssistantToolbox:
 
     # ------------------------------------------------------------ tools
 
+    def _with_threat_names(self, text: str) -> str:
+        """Name the firewall's threat signature on listed alerts: "crypto miners on campus?" needs "XMRig Miner"."""
+
+        ids = [int(value) for value in _LISTED_ALERT.findall(text)]
+        if not ids:
+            return text
+        names = {}
+        for alert_id, explanation in self.db.execute(select(Alert.id, Alert.explanation).where(Alert.id.in_(ids))):
+            match = _THREAT_NAME.search(explanation or "")
+            if match:
+                names[alert_id] = match.group(1).strip()
+        return _LISTED_ALERT.sub(
+            lambda line: line.group(0) + (f", threat: {names[int(line.group(1))]}" if int(line.group(1)) in names else ""),
+            text,
+        )
+
     def _country_answer(self, error: _NotAnAddress, subject: str) -> ToolOutput:
         """A country typed where an IP belongs: alerts carry no country, so give the logs' counts for it."""
 
@@ -282,7 +310,7 @@ class AssistantToolbox:
             **kept,
             **filters,
         )
-        return ToolOutput(note + self._alerts(question), [("Alert records", "/api/alerts", None)])
+        return ToolOutput(note + self._with_threat_names(self._alerts(question)), [("Alert records", "/api/alerts", None)])
 
     def query_logs(self, args: dict[str, Any]) -> ToolOutput:
         intent = _choice(args, "intent", ("count", "top", "trend"), "count")
@@ -305,6 +333,10 @@ class AssistantToolbox:
             **filters,
         )
         text = self._logs(question)
+        if question.group_by == "app" and question.min_app_risk is None:
+            # "Which applications are the riskiest?" was answered with the busiest ones (quic, ssl), ranked by count.
+            risky = self._data(DataQuestion(subject="logs", intent="top", group_by="app", min_app_risk=5, limit=5))
+            text += "\nThat ranking is by number of logs, not risk. Applications Palo Alto rates at its highest risk (5):\n" + risky
         if intent == "count":
             # "How many logs and from when?" got the count without the dates.
             first, last = self.db.execute(
@@ -338,10 +370,16 @@ class AssistantToolbox:
         text = self._data(open_list)
         if text.startswith("No "):
             text = self._data(DataQuestion(subject="alerts", intent="list", status="open", limit=5))
-        parts.append("Open alerts to look at first (highest score first):\n" + text)
+        parts.append("Open alerts to look at first (highest score first):\n" + self._with_threat_names(text))
 
         total_logs = int(db.scalar(select(func.count(NormalizedLog.id))) or 0)
-        log_line = f"Stored firewall logs: {total_logs:,}, with event times from {_log_when(first)} to {_log_when(last)} (firewall local time)."
+        # Alert dates are when detection ran: asked "what happened on 20 May?", the model said no alerts were created
+        # that day, though every alert describes 20 May traffic.
+        log_line = (
+            f"Stored firewall logs: {total_logs:,}, with event times from {_log_when(first)} to {_log_when(last)} "
+            "(firewall local time). Every alert describes traffic from these logs; an alert's date is when ATDR's "
+            "detection ran, not when the traffic happened."
+        )
         if window.bounded:
             log_line += "\n" + self._data(DataQuestion(subject="logs", intent="count", window=window))
         parts.append(log_line)
@@ -504,6 +542,10 @@ class AssistantToolbox:
             f"MITRE ATT&CK: {mapping['tactic']} / {mapping['technique']} ({mapping['technique_id']}). {mapping['claim_boundary']}",
             f"How ATDR's playbook handles it: {guidance.objective} {' '.join(guidance.containment)}",
             f"Usually harmless when: {guidance.false_positive_when}",
+            # ATDR's own records last: asked "are there any crypto miners on campus?", the model answered from the
+            # definition that ATDR does not detect miners, while 8 alerts named the XMRig miner signature.
+            "In ATDR's records now: "
+            + self._with_threat_names(self._data(DataQuestion(subject="alerts", intent="list", attack_type=attack_type, limit=3))),
         ]
         return "\n".join(lines)
 
@@ -736,9 +778,24 @@ class AssistantToolbox:
         citation = [("Watchlist", "/api/watchlists", None)]
         ip = str(args.get("ip") or "").strip()
         if not ip:
+            # Asked "are any MFU devices talking to a known malicious server?", the model saw only the feed list and
+            # answered "no", while alert #3738 was exactly that: a campus device contacting a hand-added C2 address.
+            matched = list(self.db.execute(
+                select(Alert.id, Alert.severity, Alert.status)
+                .where(Alert.alert_type == "watchlist_match").order_by(Alert.threat_score.desc(), Alert.id.desc()).limit(5)
+            ))
+            matched_text = (
+                "Alerts where an MFU host contacted a watchlist address: "
+                + ", ".join(f"#{alert_id} {severity} ({status})" for alert_id, severity, status in matched) + "."
+                if matched else "No alert has matched the watchlist."
+            )
+            hand_added = "; ".join(f"{item.indicator_value}: {item.description}" for item in manual[:3])
             return ToolOutput(
-                f"ATDR's watchlist has {len(manual):,} hand-added indicators and these threat intelligence feeds: {feed_text}. "
-                "An MFU host contacting a listed address raises a watchlist alert.",
+                self._text(
+                    f"ATDR's watchlist has {len(manual):,} hand-added indicators"
+                    + (f" ({hand_added})" if hand_added else "")
+                    + f" and these threat intelligence feeds: {feed_text}. {matched_text}"
+                ),
                 citation,
             )
         items = list(self.db.scalars(select(WatchlistItem).where(func.lower(WatchlistItem.indicator_value) == ip.lower())))

@@ -219,6 +219,87 @@ def test_ranking_alerts_by_a_field_already_kept_to_one_value_lists_the_alerts(se
     assert assistant_agent.ATDR_QUESTION.search("why is it only experimental?")
 
 
+def test_reviewer_questions_round_four_get_the_records_they_need(seeded):  # noqa: F811
+    # 1 Oct evening: "Are any MFU devices talking to a known malicious server?" was answered "no" although an alert had
+    # matched the watchlist; "crypto miners on campus?" could not see the XMRig signature; "the riskiest applications"
+    # were ranked by log count; "What happened on 20 May?" passed a date as the time window.
+    from atdr.app.db.models import Alert
+
+    sessions, settings = seeded
+    with sessions() as session:
+        alert = session.scalar(select(Alert).order_by(Alert.id).limit(1))
+        alert_id = alert.id
+        alert.alert_type = "watchlist_match"
+        alert.explanation = (
+            "The firewall classified this row as a malware-class THREAT event; threat name is "
+            "XMRig Miner Command and Control Traffic Detection(85886). More detail."
+        )
+        session.commit()
+        tools = _concept_tools(session, settings)
+        watch = tools["watchlist_lookup"].run({"ip": ""}).text
+        listed = tools["query_alerts"].run({"intent": "list"}).text
+        apps = tools["query_logs"].run({"intent": "top", "group_by": "app"}).text
+        with pytest.raises(ValueError, match="use all_time"):
+            tools["query_alerts"].run({"intent": "count", "time_window": "2026-05-20"})
+    assert f"Alerts where an MFU host contacted a watchlist address: #{alert_id} " in watch
+    assert "threat: XMRig Miner Command and Control Traffic Detection" in listed
+    assert "not risk. Applications Palo Alto rates at its highest risk (5)" in apps
+    assert assistant_agent.ATDR_QUESTION.search("Are there any crypto miners on campus?")
+
+
+def test_reviewer_round_four_second_pass(seeded, monkeypatch):  # noqa: F811
+    # Re-asked, "crypto miners on campus?" looked up a concept and said ATDR does not detect miners; "how do I contain
+    # a malware infection?" was rejected for quoting "malware C2"; "what happened on 20 May?" said no alerts that day.
+    from atdr.app.services.assistant_tools import CONCEPT_ALIASES
+
+    monkeypatch.setattr(behavior_findings_service, "load_model", lambda *args, **kwargs: None)
+    sessions, settings = seeded
+    with sessions() as session:
+        tools = _concept_tools(session, settings)
+        concept = tools["explain_concept"].run({"topic": "crypto_mining"}).text
+        overview = tools["security_overview"].run({"time_window": "all_time"}).text
+    assert CONCEPT_ALIASES["crypto_mining"] == "malware_c2"
+    assert concept.index("In ATDR's records now:") > concept.index("Usually harmless when:")
+    assert "an alert's date is when ATDR's detection ran, not when the traffic happened" in overview
+    check = lambda answer: assistant_agent.verify_answer(  # noqa: E731
+        answer, evidence=["Command-and-control (C2) is how malware on an infected host talks to its operator."],
+        asked=["How do I contain a malware infection?"], redacted=True, forbidden_values=[],
+    )
+    assert check('Treat it as a "malware C2" case first.') == []
+    assert any("screen elements" in problem for problem in check('Press the "malware C2" button.'))
+
+
+def test_an_answer_denying_that_the_model_raises_alerts_is_sent_back(seeded, monkeypatch):  # noqa: F811
+    # "Why can't the ML model create alerts?" was answered "the MFU behaviour model does not create alerts on its own".
+    monkeypatch.setattr(behavior_findings_service, "load_model", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        behavior_findings_service, "model_status", lambda model: {"alerting_types": ["port_scan"], "data_limit": "Limit."}
+    )
+    sessions, settings = seeded
+    with sessions() as session:
+        text = _concept_tools(session, settings)["explain_concept"].run({"topic": "ml_models"}).text
+    # The guard keys on this phrase of the tool text; if the text changes, this test says so.
+    assert assistant_agent.MODEL_RAISES_ALERTS in text
+    check = lambda answer, evidence=text: assistant_agent.verify_answer(  # noqa: E731
+        answer, evidence=[evidence], asked=["Why can't the ML model create alerts?"], redacted=True, forbidden_values=[],
+    )
+    denial = "The ML model, specifically the MFU behaviour model, does not create alerts on its own."
+    assert any("says the model cannot raise alerts" in problem for problem in check(denial))
+    assert check("The assistant (this chat) cannot create alerts.") == []
+    assert check("The MFU behaviour model also raises its own experimental alerts where the rules raise none.") == []
+    # With experimental alerting off, the tool says the model only advises, and the same sentence is true.
+    assert check(denial, "The MFU behaviour model is advisory: the rules decide every alert.") == []
+
+
+def test_the_run_detection_guide_counts_the_rules_from_the_catalog():
+    # The guide said "the 20 rules" while the rule answer counted 21 from the catalog.
+    from atdr.app.services.assistant_help import HELP_TOPICS, answer_rule_question
+
+    step = next(topic for topic in HELP_TOPICS if topic.key == "run_detection").steps[1]
+    count = answer_rule_question("how many rules").summary.split(" fixed detection rules")[0].split()[-1]
+    assert f"against the {count} detection rules" in step
+
+
 def test_a_thai_question_gets_a_thai_answer_and_counts_as_an_atdr_question():
     check = lambda answer, question: assistant_agent.verify_answer(  # noqa: E731
         answer, evidence=["Official blind result: F1 62.7%."], asked=[question], redacted=True, forbidden_values=[],
@@ -253,6 +334,14 @@ def test_the_assistant_never_says_whether_mfu_is_under_attack():
     assert check("178 open alerts don't mean we are under attack.") == []
     for claim in ("178 open alerts mean we are under attack.", "This means we are under attack."):
         assert any("says whether MFU is under attack" in problem for problem in check(claim)), claim
+    # The same claims in Thai: "MFU is not being attacked at the moment" was answered to a Thai question.
+    thai_check = lambda answer: assistant_agent.verify_answer(  # noqa: E731
+        answer, evidence=["178 alerts are still open."], asked=["MFU ถูกโจมตีอยู่ไหม"], redacted=True, forbidden_values=[],
+    )
+    for claim in ("MFU ไม่ได้ถูกโจมตีอยู่ในขณะนี้", "MFU กำลังถูกโจมตี"):
+        assert any("says whether MFU is under attack" in problem for problem in thai_check(claim)), claim
+    for hedged in ("ATDR ไม่สามารถบอกได้ว่า MFU กำลังถูกโจมตีหรือไม่ มี 178 แจ้งเตือน", "MFU อาจกำลังถูกโจมตี มี 178 แจ้งเตือน"):
+        assert thai_check(hedged) == [], hedged
 
 
 def test_a_request_to_act_on_a_named_alert_looks_the_alert_up_first(seeded, monkeypatch):  # noqa: F811

@@ -73,6 +73,28 @@ def test_a_zero_count_said_in_words_counts_only_for_the_same_count():
     ]
 
 
+def test_the_watchlist_alert_is_a_fact_written_as_its_alert_number(tmp_path):
+    # "Are any MFU devices talking to a known malicious server?" must name the alert the watchlist matched.
+    from sqlalchemy import select
+
+    from atdr.app.services.assistant_scoreboard_service import compute_facts
+
+    engine = create_engine(f"sqlite:///{_source(tmp_path).as_posix()}", future=True)
+    with sessionmaker(bind=engine, future=True)() as db:
+        assert compute_facts(db)["top_watchlist_alert"] is None
+        db.add(Alert(title="w", alert_type="watchlist_match", threat_score=88, severity="Critical", status="open",
+                     explanation="x", matched_rules_json=[], recommended_response="-",
+                     created_at=datetime.now(UTC).replace(tzinfo=None)))
+        db.commit()
+        watch_id = db.scalar(select(Alert.id).where(Alert.alert_type == "watchlist_match"))
+        facts = compute_facts(db)
+    engine.dispose()
+    assert facts["top_watchlist_alert"] == f"#{watch_id}"
+    spec = {"mentions_facts": ["top_watchlist_alert"]}
+    assert check_answer(spec, {"answer": f"Yes: alert #{watch_id} is a campus device contacting a listed C2 server."}, facts) == []
+    assert check_answer(spec, {"answer": "No MFU device is known to contact a malicious server."}, facts)
+
+
 def test_scoreboard_fills_facts_keeps_conversations_and_never_writes_the_source(tmp_path):
     source = _source(tmp_path)
     before = hashlib.sha256(source.read_bytes()).hexdigest()

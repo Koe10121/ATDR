@@ -83,8 +83,9 @@ ATDR_QUESTION = re.compile(
     r"ips|(?:which|this|that|the) ip|traffic|ports?|false positives?|port[- ]?scans?|horizontal scans?|scann\w+|"
     r"brute[- ]?force|beacon\w*|mitre|att&ck|attacking us|under attack|attack types?|attackers?|exfiltration|malware|"
     r"c2|policy violations?|security situation|data come from|how many attacks?|right now|worry about|overview|"
-    # "Why is it only experimental?" was answered from memory ("still in development").
-    r"experimental|"
+    # "Why is it only experimental?" was answered from memory ("still in development"); "crypto miners on campus?"
+    # got generic advice while ATDR had XMRig alerts from 8 campus devices.
+    r"experimental|campus|miners?|mining|crypto\w*|xmrig|"
     # Questions about the assistant itself: answered from how ATDR checks it, not from the model's self-image.
     r"trust (?:you|your answers?|the assistant)|how do you work|how (?:accurate|reliable) are you|"
     r"are you (?:accurate|reliable)|where do your answers come from|do you make (?:things|stuff) up|hallucinat\w*)\b"
@@ -113,6 +114,8 @@ ATDR_UI = re.compile(
 )
 SAYS_CANNOT = re.compile(r"\b(?:cannot|can't|can not|unable to|not able to|only read)\b", re.IGNORECASE)
 CANNOT_ACT = "I can't do that myself; I only read ATDR's data. Here is how you can do it:"
+# A screen word straight after a quoted name: 'the "Bulk Close" button' names a screen element.
+UI_WORD_AFTER = re.compile(r"\s*(?:section|button|menu|tab|page|box|panel|link)\b", re.IGNORECASE)
 # Any character of the Thai script block (U+0E00 to U+0E7F).
 THAI_TEXT = re.compile(r"[฀-๿]")
 ACTION_CLAIM = re.compile(
@@ -129,6 +132,20 @@ ATTACK_STATUS_CLAIM = re.compile(
     r"|(?<!whether )(?<!if )(?<!not mean )(?<!n't mean )\b(?:MFU|we|the network|our network)\s+(?:is|are)\s+(?:currently\s+|now\s+)?"
     r"under\s+(?:an?\s+)?(?:active\s+)?attack\b",
     re.IGNORECASE,
+)
+# "Why can't the ML model create alerts?" was answered "the MFU behaviour model does not create alerts on its own",
+# though it raises experimental alerts where the rules raise none (checked only when the tool said so).
+MODEL_ALERT_DENIAL = re.compile(
+    r"\b(?:ML|machine[- ]learning|behaviou?r|MFU)\s+model\b[^.]{0,80}?\b(?:does not|doesn't|cannot|can't|never|is not able to)"
+    r"\s+(?:create|raise|generate|produce)\s+(?:any\s+)?(?:alerts|them)\b",
+    re.IGNORECASE,
+)
+MODEL_RAISES_ALERTS = "also raises its own alerts"
+# The same claims in Thai: "ไม่ได้ถูกโจมตี" (is not being attacked) was answered to "MFU ถูกโจมตีอยู่ไหม", and
+# "กำลังถูกโจมตี" (is being attacked) unless asked as "whether" (หรือไม่) or hedged with "may" (อาจ).
+THAI_ATTACK_STATUS_CLAIM = re.compile(
+    r"ไม่(?:ได้)?(?:กำลัง)?ถูกโจมตี"
+    r"|(?<!อาจ)(?<!อาจจะ)กำลังถูกโจมตี(?!(?:อยู่)?(?:หรือไม่|หรือเปล่า|ไหม))"
 )
 
 
@@ -571,11 +588,17 @@ def verify_answer(
         # A name the analyst typed ("close all critical alerts") is not an invented screen element;
         # only numbers and record references must come from the tools.
         known_lower = "\n".join([known_text, *asked]).lower()
-        # ATDR's screens are in English, so a quoted Thai phrase is a translation, not a screen element.
+        # ATDR's screens are in English, so a quoted Thai phrase is a translation, not a screen element. A quoted
+        # phrase whose every word the tools used ("malware C2") is emphasis, unless a UI word follows it ("button").
         invented = [
             term for match in UI_TERM.finditer(answer)
             if (term := (match.group(1) or match.group(2) or "").strip(" .,:;")) and term.lower() not in known_lower
             and not THAI_TEXT.search(term)
+            and not (
+                match.group(1)
+                and not UI_WORD_AFTER.match(answer, match.end())
+                and all(word in known_lower for word in re.findall(r"\w+", term.lower()))
+            )
         ]
         if invented:
             problems.append(
@@ -600,7 +623,13 @@ def verify_answer(
     # Asked in Thai "how accurate is this system?", the model copied the English tool text instead.
     if asked and THAI_TEXT.search(asked[0]) and not THAI_TEXT.search(answer):
         problems.append("the analyst wrote in Thai: write the whole answer in Thai")
-    status_claim = ATTACK_STATUS_CLAIM.search(answer)
+    denial = MODEL_ALERT_DENIAL.search(answer)
+    if denial and MODEL_RAISES_ALERTS in known_text:
+        problems.append(
+            f"says the model cannot raise alerts ({denial.group(0)!r}), but the tool result says the MFU behaviour model "
+            "also raises its own experimental, low-confidence alerts where the rules raise none: say that"
+        )
+    status_claim = ATTACK_STATUS_CLAIM.search(answer) or THAI_ATTACK_STATUS_CLAIM.search(answer)
     if status_claim:
         problems.append(
             f"says whether MFU is under attack ({status_claim.group(0)!r}), which ATDR cannot know: it only sees imported "
@@ -659,7 +688,8 @@ Rules for the answer:
 
 CHECK_FIRST_ATDR = (
     "Before answering \"{question}\", look it up: it is about ATDR or MFU's data. Call the tool from your instructions "
-    "that covers it (for a security term or ATDR concept, explain_concept), then answer from its result."
+    "that covers it (doing something in ATDR's dashboard: dashboard_how_to; a security term, an attack type, responding "
+    "to an attack, or an ATDR concept: explain_concept), then answer from its result."
 )
 
 CORRECTION = (

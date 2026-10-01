@@ -21,6 +21,12 @@ from atdr.app.services.assistant_data_query import ATTACK_LABELS, ATTACK_PHRASES
 from atdr.app.services.detection_service import SUPPORTING_ONLY_RULES
 
 
+def _network_rules() -> list[DetectionRuleSpec]:
+    """The fixed detection rules; the legacy ML anomaly rule no longer creates alerts."""
+
+    return [spec for spec in RULE_CATALOG.values() if spec.code != "ml_anomaly_detected"]
+
+
 @dataclass(frozen=True, slots=True)
 class HelpTopic:
     key: str
@@ -181,7 +187,9 @@ HELP_TOPICS: tuple[HelpTopic, ...] = (
         patterns=(r"\brun (?:the )?detection\b", r"\b(?:start|trigger) (?:the )?detection\b", r"\bdetect (?:new )?alerts\b"),
         steps=(
             "Open Validation Controls (left menu, under Admin / Settings).",
-            "Click Run detection. It checks recent logs against the 20 rules and creates or merges alerts.",
+            # Counted from the catalog: a written "20" had drifted from the 21 rules the rule answer counts.
+            f"Click Run detection. It checks recent logs against the {len(_network_rules())} detection rules and creates "
+            "or merges alerts.",
             "Open Alerts to see new or updated alerts; repeats are merged into open alerts instead of duplicated.",
         ),
         page="Validation Controls",
@@ -344,7 +352,7 @@ def answer_rule_question(question: str) -> RuleAnswer | None:
     if not text or not RULE_QUESTION.search(text):
         return None
     specs = list(RULE_CATALOG.values())
-    network = [spec for spec in specs if spec.code != "ml_anomaly_detected"]
+    network = _network_rules()
 
     if RULE_LIST.search(text):
         by_type = Counter(ATTACK_LABELS.get(spec.attack_type, spec.attack_type) for spec in network)

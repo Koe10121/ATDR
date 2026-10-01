@@ -76,6 +76,9 @@ def compute_facts(db: Session) -> dict[str, Any]:
 
     top_rule = most_common(Alert.alert_type)
     top_rule_spec = rule_spec(top_rule) if top_rule else None
+    watchlist_alert = db.scalar(
+        select(Alert.id).where(Alert.alert_type == "watchlist_match").order_by(Alert.threat_score.desc(), Alert.id.desc()).limit(1)
+    )
     return {
         "logs_total": int(db.scalar(select(func.count(NormalizedLog.id))) or 0),
         "alerts_total": count(),
@@ -87,6 +90,8 @@ def compute_facts(db: Session) -> dict[str, Any]:
         "top_log_dst_port": most_common(NormalizedLog.dst_port),
         "top_log_app": most_common(NormalizedLog.app),
         "top_rule_title": top_rule_spec.title if top_rule_spec else top_rule,
+        # As "#3738", so an answer naming the alert the watchlist matched passes a mentions_facts check.
+        "top_watchlist_alert": f"#{watchlist_alert}" if watchlist_alert is not None else None,
     }
 
 
