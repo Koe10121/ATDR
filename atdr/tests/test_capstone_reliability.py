@@ -206,6 +206,19 @@ def test_the_ml_concept_says_first_that_the_model_raises_experimental_alerts(see
     assert "also raises its own alerts, but only where the rules raise none" in first_two
 
 
+def test_ranking_alerts_by_a_field_already_kept_to_one_value_lists_the_alerts(seeded):  # noqa: F811
+    # "Show me the top 3 critical alerts" ranked by severity while keeping only Critical (one group), and the model
+    # then wrote alert numbers that no tool had returned.
+    sessions, settings = seeded
+    with sessions() as session:
+        tools = _concept_tools(session, settings)
+        text = tools["query_alerts"].run({"intent": "top", "group_by": "severity", "severity": "Critical", "limit": 3}).text
+        ranked = tools["query_alerts"].run({"intent": "top", "group_by": "attack_type", "severity": "Critical"}).text
+    assert text.startswith("Ranking by severity while keeping only Critical gives a single group") and "#1" in text
+    assert not ranked.startswith("Ranking by")
+    assert assistant_agent.ATDR_QUESTION.search("why is it only experimental?")
+
+
 def test_a_thai_question_gets_a_thai_answer_and_counts_as_an_atdr_question():
     check = lambda answer, question: assistant_agent.verify_answer(  # noqa: E731
         answer, evidence=["Official blind result: F1 62.7%."], asked=[question], redacted=True, forbidden_values=[],

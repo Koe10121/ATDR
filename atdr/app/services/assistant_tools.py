@@ -258,18 +258,31 @@ class AssistantToolbox:
             filters = _ip_filters(args)
         except _NotAnAddress as error:
             return self._country_answer(error, "alerts")
+        kept = {
+            "severity": _choice(args, "severity", SEVERITIES),
+            "status": _choice(args, "status", STATUSES),
+            "attack_type": _choice(args, "attack_type", ATTACK_TYPES),
+        }
+        group_by = _choice(args, "group_by", ALERT_GROUPS, "attack_type") if intent == "top" else None
+        note = ""
+        if group_by and kept.get(group_by):
+            # "Show me the top 3 critical alerts" ranked by severity while keeping only Critical: one group, so the
+            # model wrote alert numbers no tool had returned. The highest-scoring alerts are what was asked for.
+            note = (
+                f"Ranking by {group_by} while keeping only {kept[group_by]} gives a single group, so these are the "
+                "highest-scoring matching alerts instead:\n"
+            )
+            intent, group_by = "list", None
         question = DataQuestion(
             subject="alerts",
             intent=intent,
             window=_window(args),
-            severity=_choice(args, "severity", SEVERITIES),
-            status=_choice(args, "status", STATUSES),
-            attack_type=_choice(args, "attack_type", ATTACK_TYPES),
-            group_by=_choice(args, "group_by", ALERT_GROUPS, "attack_type") if intent == "top" else None,
+            group_by=group_by,
             limit=_integer(args, "limit", low=1, high=10, default=5),
+            **kept,
             **filters,
         )
-        return ToolOutput(self._alerts(question), [("Alert records", "/api/alerts", None)])
+        return ToolOutput(note + self._alerts(question), [("Alert records", "/api/alerts", None)])
 
     def query_logs(self, args: dict[str, Any]) -> ToolOutput:
         intent = _choice(args, "intent", ("count", "top", "trend"), "count")

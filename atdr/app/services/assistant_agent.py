@@ -83,6 +83,8 @@ ATDR_QUESTION = re.compile(
     r"ips|(?:which|this|that|the) ip|traffic|ports?|false positives?|port[- ]?scans?|horizontal scans?|scann\w+|"
     r"brute[- ]?force|beacon\w*|mitre|att&ck|attacking us|under attack|attack types?|attackers?|exfiltration|malware|"
     r"c2|policy violations?|security situation|data come from|how many attacks?|right now|worry about|overview|"
+    # "Why is it only experimental?" was answered from memory ("still in development").
+    r"experimental|"
     # Questions about the assistant itself: answered from how ATDR checks it, not from the model's self-image.
     r"trust (?:you|your answers?|the assistant)|how do you work|how (?:accurate|reliable) are you|"
     r"are you (?:accurate|reliable)|where do your answers come from|do you make (?:things|stuff) up|hallucinat\w*)\b"
