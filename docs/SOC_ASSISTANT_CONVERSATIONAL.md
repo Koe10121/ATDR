@@ -349,6 +349,39 @@ and 4.5 s. Three answers came from the built-in answers, all passing: the
 trust and "under attack" questions, whose model drafts still fail the checks
 at this setting, and the approved-scanner steps.
 
+### 1 October, night: the Overview's plain words reach the assistant
+
+Reading the answers by hand after the speed change found three weak ones:
+
+- "What happened on 20 May?" was answered "no new alerts were created on that
+  day" or "ATDR has not detected any attacks", though every alert describes the
+  stored traffic of 20 May: the model read the alerts' creation dates (late
+  September). The overview tool now gives a short form of the plain-words
+  summary the Overview page shows: how many alerts are open and from which
+  traffic, one line per kind of attack, the threats the firewall or the
+  watchlist named for the most dangerous kind, and the alert to open first. (The
+  full form made overview answers long enough to be rewritten: "Are we under
+  attack?" took 17 s instead of 5.) An answer that says there were no alerts on a day
+  the stored logs cover is sent back, and the built-in answer for a question
+  about a day gives that day's traffic in plain words. The question joined the
+  main set (rev-14).
+- "Are there any crypto miners on campus?" said there were no confirmed miners
+  and named one XMRig alert of eight. With the summary it names the XMRig
+  traffic from 8 MFU devices. (It still muddled which blocked-connection count
+  belonged to the miners in one run.)
+- The demo's follow-up, "What should I check first on the most urgent one?",
+  got generic advice without a lookup. "most urgent", "check first" and "look at
+  first" now mark a question about ATDR's data, so the model looks the alert up
+  first. A list intro such as "To investigate further, you can:" is also removed
+  when every step under it named an internal tool and was dropped.
+
+The open-alerts list in the overview is now called "Open alerts, highest score
+first", so that it does not compete with the summary's "Open first" alert.
+
+Final run: main set 102 of 102 (rev-14 added) and held-out 27 of 27, 4.4 s on
+average for both. Only "Why should I trust your answers?" used the built-in
+answer; "Is MFU under attack right now?" was answered by the model.
+
 ## Measuring it again
 
 ```
@@ -365,5 +398,5 @@ is used to fix something, move it to the main set and write a new held-out one.
 - An 8-billion-parameter model sometimes phrases things loosely or stays general when the tool gave specifics. Numbers and screen names are checked; wording is not.
 - General-knowledge answers are the model's own knowledge and can be wrong or out of date, like any chat assistant; they are labelled so the analyst knows.
 - Long answers take 10 to 20 seconds, most of it the model writing the answer.
-- Asked "Why should I trust your answers?" or "Is MFU under attack right now?", the model's own wording keeps failing the checks, so these get the built-in answers (labelled "ATDR deterministic analysis").
+- Asked "Why should I trust your answers?", the model's own wording keeps leaving the checks out, so that question gets the built-in answer (labelled "ATDR deterministic analysis"). "Is MFU under attack right now?" does in some runs.
 - It only knows what ATDR's tools return about MFU. It cannot see the internet or other MFU systems, and it cannot yet filter alerts by who they are assigned to.
