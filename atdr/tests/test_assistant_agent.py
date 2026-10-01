@@ -285,6 +285,15 @@ def test_an_answer_from_general_knowledge_is_sent_back_to_check_the_tools_once()
     assert outcome.ok and outcome.answer == "Soft paws at dawn, a quiet purr." and len(poem.requests) == 1
 
 
+def test_the_unchecked_draft_is_not_sent_back_with_the_request_to_look_it_up():
+    # Given its own unchecked draft, the model repeated it word for word after the lookup and ignored the tool.
+    engine = ScriptedEngine(_say("Severity depends on the attack type."), _call("query_alerts"), _say("7 High alerts."))
+    outcome = run_agent(question="how is severity decided?", engine=engine, tools=[_count_tool()])
+    assert outcome.ok and outcome.answer == "7 High alerts."
+    for messages, _tools in engine.requests[1:]:
+        assert all("Severity depends on the attack type." not in str(message.get("content")) for message in messages)
+
+
 # ------------------------------------------------------------------- engines
 
 

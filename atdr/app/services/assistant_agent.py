@@ -784,7 +784,8 @@ def run_agent(
 
         if about_atdr and not outcome.tool_trace and not nudged and not final_round:
             nudged = True
-            messages.append({"role": "assistant", "content": reply.content or ""})
+            # The unchecked draft is not handed back: given its own draft, the model repeated it word for word
+            # after the lookup ("why should I trust your answers?" ignored the tool's account of the checks).
             messages.append({"role": "user", "content": CHECK_FIRST_ATDR.format(question=question)})
             continue
 
