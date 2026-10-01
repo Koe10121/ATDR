@@ -1037,6 +1037,12 @@ export interface DashboardSummary {
   status_counts: Record<string, number>;
   top_alert_types: CountRow[];
   top_attack_types?: CountRow[];
+  /** The open alerts in plain words, written by ATDR (not the AI) for the top of the Overview. */
+  situation?: {
+    headline: string;
+    points: string[];
+    open_first: { alert_id: number; severity: string; title: string; reason: string } | null;
+  };
   top_suspicious_source_ips: CountRow[];
   top_destination_countries: CountRow[];
   action_distribution: CountRow[];

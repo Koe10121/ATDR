@@ -173,6 +173,30 @@ export function ExecutiveOverview() {
         />
       ) : null}
 
+      {data?.situation ? (
+        <section className="rounded-lg border border-cyan/25 bg-cyan/5 p-4" data-testid="overview-plain-summary">
+          <div className="text-sm font-extrabold uppercase tracking-wide text-cyan">What's happening, in plain words</div>
+          <p className="mt-2 text-base leading-relaxed text-text">{data.situation.headline}</p>
+          {data.situation.points.length ? (
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-relaxed text-text">
+              {data.situation.points.map((point) => (
+                <li key={point}>{point}</li>
+              ))}
+            </ul>
+          ) : null}
+          {data.situation.open_first ? (
+            <p className="mt-3 text-sm text-text">
+              <span className="font-bold">Open first: </span>
+              <Link className="font-bold text-cyan underline" to={`/alerts?alert=${data.situation.open_first.alert_id}`}>
+                Alert #{data.situation.open_first.alert_id} ({data.situation.open_first.severity})
+              </Link>
+              , {data.situation.open_first.reason}.
+            </p>
+          ) : null}
+          <p className="mt-2 text-xs text-muted">Written by ATDR from the open alerts and their logs, not by the AI.</p>
+        </section>
+      ) : null}
+
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Logs Ingested" value={data?.total_logs ?? "-"} detail="Normalized firewall events" tone="teal" />
         <MetricCard label="High/Critical Open" value={highCritical} detail="Priority SOC queue" tone="danger" />

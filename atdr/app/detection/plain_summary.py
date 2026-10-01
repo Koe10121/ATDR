@@ -13,10 +13,11 @@ from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from atdr.app.db.models import Alert, AlertEvidence, NormalizedLog, WatchlistItem
+from atdr.app.detection.attack_mapping import infer_attack_type_from_rules
 from atdr.app.detection.playbooks import PLAYBOOK_GUIDANCE
 from atdr.app.detection.rules import (
     INSIDE_ZONE_TOKENS,
@@ -144,13 +145,15 @@ def _firewall(rows: Sequence[Any]) -> str:
     return f"blocked {blocked:,} of the {total:,} and allowed the rest"
 
 
-def _watchlist_notes(db: Session, alert: Alert) -> list[str]:
-    """'111.90.158.40 is on ATDR's watchlist: GHOSTENGINE C2 server (...)' for each indicator the alert matched."""
+def _watchlist_matches(db: Session, alert: Alert) -> list[tuple[str, str | None]]:
+    """Each indicator the alert matched, with the first sentence of its watchlist note."""
 
-    notes = []
+    matches = []
     for rule in alert.matched_rules_json or []:
-        text = str(rule.get("explanation") or "") if isinstance(rule, dict) else ""
-        if rule.get("code") != "watchlist_match" or not text.startswith(WATCHLIST_PREFIX):
+        if not isinstance(rule, dict) or rule.get("code") != "watchlist_match":
+            continue
+        text = str(rule.get("explanation") or "")
+        if not text.startswith(WATCHLIST_PREFIX):
             continue
         for indicator in text.removeprefix(WATCHLIST_PREFIX).rstrip(".").split(", "):
             indicator_type, _, value = indicator.partition(":")
@@ -161,8 +164,17 @@ def _watchlist_notes(db: Session, alert: Alert) -> list[str]:
                 .limit(1)
             )
             first = FIRST_SENTENCE.match(description or "")
-            notes.append(f"{value} is on ATDR's watchlist" + (f": {first.group(1)}." if first else "."))
-    return notes
+            matches.append((value, first.group(1) if first else None))
+    return matches
+
+
+def _watchlist_notes(db: Session, alert: Alert) -> list[str]:
+    """'111.90.158.40 is on ATDR's watchlist: GHOSTENGINE C2 server (...)' for each indicator the alert matched."""
+
+    return [
+        f"{value} is on ATDR's watchlist" + (f": {note}." if note else ".")
+        for value, note in _watchlist_matches(db, alert)
+    ]
 
 
 def build_plain_summary(db: Session, alert: Alert, attack_type: str | None) -> str:
@@ -198,3 +210,173 @@ def build_plain_summary(db: Session, alert: Alert, attack_type: str | None) -> s
     if guidance:
         sentences.append(f"Next: {guidance.objective[0].lower()}{guidance.objective[1:]}")
     return " ".join(sentences)
+
+
+# The Overview's lines, most dangerous first.
+SITUATION_ORDER = (
+    "malware_c2",
+    "exploit_attempt",
+    "data_exfiltration_suspicion",
+    "brute_force",
+    "dos_ddos",
+    "port_scan",
+    "policy_violation",
+    "unknown_anomaly",
+)
+SITUATION_LABELS = {
+    "malware_c2": "Malware calling out",
+    "exploit_attempt": "Break-in attempts",
+    "data_exfiltration_suspicion": "Possible data theft",
+    "brute_force": "Password guessing",
+    "dos_ddos": "Floods",
+    "port_scan": "Scanning",
+    "policy_violation": "Policy breaches",
+    "unknown_anomaly": "Unclassified",
+}
+# The same kinds as an adjective: "Also open: 4 flood, 119 scanning and 18 unclassified alerts."
+SITUATION_ADJECTIVES = {
+    "malware_c2": "malware",
+    "exploit_attempt": "break-in",
+    "data_exfiltration_suspicion": "possible data-theft",
+    "brute_force": "password-guessing",
+    "dos_ddos": "flood",
+    "port_scan": "scanning",
+    "policy_violation": "policy",
+    "unknown_anomaly": "unclassified",
+}
+SEVERITY_RANK = {"Critical": 4, "High": 3, "Medium": 2, "Low": 1}
+# Evidence from outside ATDR's own rules: the firewall's threat signature, or an indicator on the watchlist.
+NAMED_THREAT_RULES = {"paloalto_malware_threat", "paloalto_threat_log", "watchlist_match"}
+SITUATION_LINES = 4
+
+
+def _count(number: int, one: str, many: str) -> str:
+    return f"{number:,} {one if number == 1 else many}"
+
+
+def _source_noun(rows: Sequence[Any]) -> tuple[str, str]:
+    return ("MFU device", "MFU devices") if _main_side(rows, "src") == "campus" else ("outside address", "outside addresses")
+
+
+def _connections_verdict(blocked: int, total: int) -> str:
+    if blocked == total:
+        return f"the firewall blocked {'it' if total == 1 else f'all {total:,} connections'}"
+    if blocked == 0:
+        return f"the firewall let {'it' if total == 1 else f'all {total:,} connections'} through"
+    return f"the firewall blocked {blocked:,} of {total:,} connections"
+
+
+def _short_threat_name(name: str) -> str:
+    """'XMRig Miner Command and Control Traffic Detection' -> 'XMRig Miner Command and Control'."""
+
+    return re.sub(r"(?:\s+(?:Traffic|Detection))+$", "", name)
+
+
+def build_situation_summary(db: Session) -> dict[str, Any]:
+    """The open alerts in plain words, for the top of the Overview; written by ATDR, never by a language model.
+
+    A headline (how many are open, from which traffic, and that it is not live), one line per kind of attack, most
+    dangerous first, naming the threats the firewall or the watchlist recognised, and the alert to open first: a named
+    threat the firewall let through, then the most severe and highest-scoring.
+    """
+
+    # The newest log rides along with the alerts: the Overview's first load has a budget of 35 queries.
+    found = db.execute(
+        select(Alert, select(func.max(NormalizedLog.generated_time)).scalar_subquery()).where(Alert.status == "open")
+    ).all()
+    if not found:
+        return {"headline": "No alerts are open.", "points": [], "open_first": None}
+    alerts = {alert.id: alert for alert, _ in found}
+    newest = found[0][1]
+    rows = db.execute(
+        select(AlertEvidence.alert_id, *_EVIDENCE_COLUMNS)
+        .join(NormalizedLog, NormalizedLog.id == AlertEvidence.normalized_log_id)
+        .join(Alert, Alert.id == AlertEvidence.alert_id)
+        .where(Alert.status == "open")
+    ).all()
+    by_alert: dict[int, list[Any]] = {}
+    for row in rows:
+        by_alert.setdefault(row.alert_id, []).append(row)
+    blocked = {alert_id: sum(1 for row in group if _is_deny_or_drop(row)) for alert_id, group in by_alert.items()}
+    kinds: dict[str, list[Alert]] = {}
+    for alert in alerts.values():
+        kinds.setdefault(infer_attack_type_from_rules(alert.matched_rules_json or []), []).append(alert)
+
+    critical = sum(1 for alert in alerts.values() if alert.severity == "Critical")
+    times = [row.generated_time for row in rows if row.generated_time is not None]
+    when = _when(times).removeprefix("On ").removeprefix("From ") if times else ""
+    headline = f"{_count(len(alerts), 'alert is', 'alerts are')} open ({critical:,} Critical)"
+    headline += f", from MFU's firewall logs of {when}." if when else "."
+    if newest is not None:
+        headline += f" The newest log ATDR has is from {newest.day} {newest:%b %Y %H:%M}, so this is not live traffic."
+
+    points = []
+    ordered = [kind for kind in SITUATION_ORDER if kind in kinds] + sorted(set(kinds) - set(SITUATION_ORDER))
+    for kind in ordered[:SITUATION_LINES]:
+        group = kinds[kind]
+        evidence = [row for alert in group for row in by_alert.get(alert.id, [])]
+        sources = {row.src_ip for row in evidence if row.src_ip}
+        line = f"{SITUATION_LABELS.get(kind, kind)}: {_count(len(group), 'alert', 'alerts')}"
+        if sources:
+            line += f" from {_count(len(sources), *_source_noun(evidence))}"
+        if evidence:
+            line += f"; {_connections_verdict(sum(blocked.get(alert.id, 0) for alert in group), len(evidence))}"
+        named: dict[str, list[Alert]] = {}
+        for alert in group:
+            for value, note in _watchlist_matches(db, alert):
+                # "GHOSTENGINE C2 server (Elastic Security Labs, May 2024)": the alert's own box keeps the source.
+                label = re.sub(r"\s*\([^)]*\)$", "", note) if note else value
+                named.setdefault(f"{label}, on ATDR's watchlist", []).append(alert)
+            if name := threat_name(alert.explanation):
+                named.setdefault(_short_threat_name(name), []).append(alert)
+        if named:
+            parts = []
+            for name, matched in named.items():
+                rows_for_name = [row for alert in matched for row in by_alert.get(alert.id, [])]
+                devices = {row.src_ip for row in rows_for_name if row.src_ip}
+                stopped = sum(blocked.get(alert.id, 0) for alert in matched)
+                outcome = "blocked" if stopped == len(rows_for_name) else "let through" if stopped == 0 else "partly blocked"
+                parts.append((outcome == "blocked", -len(matched), f"{name} ({_count(len(devices), *_source_noun(rows_for_name))}, {outcome})"))
+            # What got through first.
+            line += ". Named by the firewall or the watchlist: " + "; ".join(text for *_, text in sorted(parts)[:3])
+        points.append(line + ".")
+    rest = ordered[SITUATION_LINES:]
+    if rest:
+        counts = [f"{len(kinds[kind]):,} {SITUATION_ADJECTIVES.get(kind, kind)}" for kind in rest]
+        listed = ", ".join(counts[:-1]) + f" and {counts[-1]}" if len(counts) > 1 else counts[0]
+        points.append(f"Also open: {listed} {'alert' if len(rest) == 1 and len(kinds[rest[0]]) == 1 else 'alerts'}.")
+
+    def priority(alert: Alert) -> tuple:
+        total = len(by_alert.get(alert.id, []))
+        let_through = total > blocked.get(alert.id, 0)
+        named_threat = any(isinstance(rule, dict) and rule.get("code") in NAMED_THREAT_RULES for rule in alert.matched_rules_json or [])
+        return (named_threat and let_through, SEVERITY_RANK.get(alert.severity, 0), let_through, alert.threat_score, alert.id)
+
+    first = max(alerts.values(), key=priority)
+    named_first, _, let_through, _, _ = priority(first)
+    reason = (
+        "a threat the firewall or the watchlist named, and the firewall let it through"
+        if named_first
+        else "the most serious alert whose traffic the firewall let through"
+        if let_through
+        else "the most serious open alert"
+    )
+    return {
+        "headline": headline,
+        "points": points,
+        "open_first": {"alert_id": first.id, "severity": first.severity, "title": first.title, "reason": reason},
+    }
+
+
+def brief_situation(situation: dict[str, Any]) -> list[str]:
+    """The situation's lines, shorter, for the assistant: only the most dangerous kind keeps its named threats.
+
+    The full lines made overview answers run past the length limit and get rewritten ("Are we under attack?" took
+    17 s instead of 5), and the open-alerts list beside them already names each alert's threat.
+    """
+
+    lines = [point if index == 0 else point.split(". Named by")[0].rstrip(".") + "." for index, point in enumerate(situation["points"])]
+    if situation["open_first"]:
+        first = situation["open_first"]
+        lines.append(f"Open first: alert #{first['alert_id']} ({first['severity']}), {first['reason']}.")
+    return lines

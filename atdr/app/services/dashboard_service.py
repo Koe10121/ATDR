@@ -19,6 +19,7 @@ from atdr.app.db.models import (
     WatchlistItem,
 )
 from atdr.app.detection.attack_mapping import infer_attack_type_from_rules
+from atdr.app.detection.plain_summary import build_situation_summary
 from atdr.app.services.alert_service import alert_sla
 from atdr.app.services.operation_run_service import detection_run_to_dict, ingestion_run_to_dict
 
@@ -342,6 +343,8 @@ def build_dashboard_summary(db: Session) -> dict:
                 alert_operations["attack_type_counts"].items(), key=lambda item: (-item[1], item[0])
             )[:10]
         ],
+        # The open alerts in plain words, for the top of the Overview.
+        "situation": build_situation_summary(db),
         "top_suspicious_source_ips": [{"name": str(src_ip), "count": int(count)} for src_ip, count in suspicious_rows],
         "top_destination_countries": _group_counts(db, NormalizedLog.dst_country),
         "action_distribution": _group_counts(db, NormalizedLog.action),

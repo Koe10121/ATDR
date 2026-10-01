@@ -17,6 +17,7 @@ from atdr.app.detection.supervised_detector import supervised_model_report
 from atdr.app.detection.runtime_contract import experimental_model_runtime_status
 from atdr.app.detection.attack_mapping import infer_attack_type_from_rules
 from atdr.app.detection.explanations import build_alert_detection_summary, explain_log_triage
+from atdr.app.detection.plain_summary import brief_situation, build_situation_summary
 from atdr.app.services.case_service import list_alert_cases
 from atdr.app.services.assistant_data_query import ATTACK_LABELS, DataAnswer, answer_data_question, parse_data_question
 from atdr.app.services.assistant_agent import (
@@ -25,6 +26,8 @@ from atdr.app.services.assistant_agent import (
     TRUST_QUESTION,
     AgentOutcome,
     OllamaEngine,
+    calendar_days,
+    day_in_span,
     engine_from_settings,
     is_loopback_url,
     run_agent,
@@ -66,6 +69,10 @@ ATTACK_STATUS_QUESTION = re.compile(
     r"|\b(?:are|is) (?:we|mfu|the (?:network|campus|university)) (?:safe|secure|compromised)\b|ถูกโจมตี",
     re.IGNORECASE,
 )
+# "What happened on 20 May?": alerts are dated by when detection ran, so a question about a day gets what ATDR's stored
+# logs of that day show, in the plain words the Overview uses ("no alerts were created that day" was the model's answer).
+TRAFFIC_DAY_QUESTION = re.compile(r"\b(?:what|happen\w*|alerts?|attacks?|traffic|activity|events?)\b", re.IGNORECASE)
+HOW_TO_START = re.compile(r"\s*how (?:do|can|to|should)\b")
 
 SENSITIVE_CONTEXT_KEYS = {
     "api_key",
@@ -1180,6 +1187,8 @@ def answer_assistant_question(
         result = _answer_attack_status(db, redacted=redacted)
     elif TRUST_QUESTION.search(clean_question):
         result = _answer_trust(db, settings=settings, redacted=redacted)
+    elif calendar_days([clean_question]) and TRAFFIC_DAY_QUESTION.search(clean_question) and not HOW_TO_START.match(lowered):
+        result = _answer_traffic_day(db, clean_question, redacted=redacted)
     elif (help_answer := answer_help_question(clean_question)) is not None:
         result = _help_result(help_answer, redacted=redacted)
     elif (rule_answer := answer_rule_question(clean_question)) is not None:
@@ -2424,6 +2433,50 @@ def _answer_attack_status(db: Session, *, redacted: bool) -> AssistantResult:
             "How do I import firewall logs?",
             "How do I run detection?",
         ],
+    )
+
+
+def _answer_traffic_day(db: Session, question: str, *, redacted: bool) -> AssistantResult:
+    """Asked about a calendar day: what ATDR's stored logs of that day show, from the Overview's plain-words summary."""
+
+    first, last = db.execute(select(func.min(NormalizedLog.generated_time), func.max(NormalizedLog.generated_time))).one()
+    month, day = calendar_days([question])[0]
+    asked = f"{day} {datetime(2000, month, 1):%B}"
+    if first and last:
+        same_day = first.date() == last.date()
+        span = (
+            f"{first.day} {first:%b %Y}, {first:%H:%M}–{last:%H:%M}"
+            if same_day
+            else f"{first.day} {first:%b %Y %H:%M} to {last.day} {last:%b %Y %H:%M}"
+        )
+    else:
+        span = ""
+    if not span or day_in_span(month, day, first.date(), last.date()) is None:
+        summary = f"ATDR has no firewall logs from {asked}" + (f": its stored logs are from {span} (firewall local time)." if span else ".")
+        lines = ["An alert's own date is when ATDR's detection ran, not when the traffic happened."]
+    else:
+        situation = build_situation_summary(db)
+        summary = (
+            f"ATDR's stored firewall logs are from {span} (firewall local time); the open alerts describe that traffic, "
+            "though each is dated by when detection ran."
+        )
+        # Past 160 words the rows are run together, so the brief lines.
+        lines = brief_situation(situation)
+    citations = [Citation("Firewall log records", "/api/logs"), Citation("Alert records", "/api/alerts")]
+    return AssistantResult(
+        answer=_text("\n".join([summary, *[f"- {line}" for line in lines]]), redacted=redacted),
+        # Shown as a data answer: the summary and its rows, unshortened.
+        context_used=["log_query", "traffic_day"],
+        citations=citations,
+        details={
+            "answer_sections": {
+                "summary": [summary],
+                "evidence": lines,
+                "related_context": [],
+                "citations": [_citation_reference(citation) for citation in citations],
+            }
+        },
+        suggested_followups=["Which alert should I look at first?", "What does the MFU behaviour model see?"],
     )
 
 

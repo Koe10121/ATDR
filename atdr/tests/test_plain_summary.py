@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy import func, select
 
@@ -178,6 +178,185 @@ def test_asked_for_all_of_the_system_status_the_tool_gives_one_health_view(seede
         parts = [status.run({"area": area}).text for area in ("sources", "operations", "detection_runs", "failed_jobs")]
 
     assert overview == "\n\n".join(parts)
+
+
+def _typed_alert(db, alert_type, rule_codes, logs, *, severity="High", score=70, status="open", explanation=""):
+    alert = _alert(db, alert_type, logs, explanation=explanation, rules=[{"code": code} for code in rule_codes])
+    alert.severity, alert.threat_score, alert.status = severity, score, status
+    db.flush()
+    return alert
+
+
+def test_the_overview_says_what_the_open_alerts_show_most_dangerous_first():
+    from atdr.app.detection.plain_summary import build_situation_summary
+
+    db = _session()
+    db.add(WatchlistItem(indicator_type="dst_ip", indicator_value="111.90.158.40", created_by="koe",
+                         description="GHOSTENGINE C2 server (Elastic Security Labs, May 2024). Found later."))
+    miners = [
+        _typed_alert(db, "paloalto_malware_threat", ["paloalto_malware_threat"], [
+            _log(db, src=f"10.1.44.{n}", dst="51.222.106.1", port=14444, src_zone="WLAN-Inside", dst_zone="SG-Outside", action="drop")
+        ], severity="Critical", score=100, explanation=XMRIG)
+        for n in range(2)
+    ]
+    watchlist = _typed_alert(db, "watchlist_match", [], [
+        _log(db, src="10.1.200.251", dst="111.90.158.40", port=80, src_zone="WLAN-Inside", dst_zone="SG-Outside")
+        for _ in range(3)
+    ], severity="Critical", score=90)
+    watchlist.matched_rules_json = [{
+        "code": "watchlist_match", "attack_type": "malware_c2",
+        "explanation": "Matched active watchlist indicator(s): dst_ip:111.90.158.40.",
+    }]
+    scans = [
+        _typed_alert(db, "possible_port_scan", ["possible_port_scan"], [
+            _log(db, src="45.82.76.10", dst=f"202.28.44.{n}", port=22, src_zone="SG-Outside", dst_zone="WLAN-Inside")
+        ], severity="Critical", score=100)
+        for n in range(3)
+    ]
+    _typed_alert(db, "brute_force_like_attempts", ["brute_force_like_attempts"], [
+        _log(db, src="189.140.30.191", dst="202.28.45.230", port=22, src_zone="SG-Outside", dst_zone="WLAN-Inside", action="deny")
+    ])
+    _typed_alert(db, "high_outbound_bytes", ["high_outbound_bytes"], [
+        _log(db, src="10.1.5.27", dst="57.145.10.145", port=443, src_zone="WLAN-Inside", dst_zone="SG-Outside")
+    ])
+    _typed_alert(db, "app_risk_5", ["app_risk_5"], [
+        _log(db, src="10.1.5.28", dst="57.145.10.146", port=443, src_zone="WLAN-Inside", dst_zone="SG-Outside")
+    ])
+    _typed_alert(db, "connection_flood_suspicion", ["connection_flood_suspicion"], [
+        _log(db, src="10.1.5.29", dst="192.168.1.5", port=53, src_zone="WLAN-Inside", dst_zone="WLAN-Inside")
+    ])
+    _typed_alert(db, "possible_port_scan", ["possible_port_scan"], [
+        _log(db, src="45.82.76.99", dst="202.28.44.99", port=23, src_zone="SG-Outside", dst_zone="WLAN-Inside")
+    ], severity="Critical", score=100, status="resolved")
+    situation = build_situation_summary(db)
+
+    # The resolved scan is left out of everything but the newest-log date.
+    assert situation["headline"] == (
+        "10 alerts are open (6 Critical), from MFU's firewall logs of 20 May at 13:36. The newest log ATDR has is "
+        "from 20 May 2026 13:36, so this is not live traffic."
+    )
+    malware, data_theft, guessing, floods, rest = situation["points"]
+    assert malware == (
+        "Malware calling out: 3 alerts from 3 MFU devices; the firewall blocked 2 of 5 connections. Named by the "
+        "firewall or the watchlist: GHOSTENGINE C2 server, on ATDR's watchlist (1 MFU device, let through); XMRig "
+        "Miner Command and Control (2 MFU devices, blocked)."
+    )
+    assert data_theft == "Possible data theft: 1 alert from 1 MFU device; the firewall let it through."
+    assert guessing == "Password guessing: 1 alert from 1 outside address; the firewall blocked it."
+    assert floods.startswith("Floods: 1 alert from 1 MFU device")
+    assert rest == "Also open: 3 scanning and 1 policy alerts."
+    # A named threat the firewall let through comes before Critical alerts the firewall blocked or that name nothing.
+    assert situation["open_first"]["alert_id"] == watchlist.id
+    assert situation["open_first"]["reason"] == "a threat the firewall or the watchlist named, and the firewall let it through"
+    assert miners and scans
+
+
+def test_the_dashboard_summary_carries_the_plain_words_situation():
+    from atdr.app.detection.plain_summary import build_situation_summary
+    from atdr.app.services.dashboard_service import build_dashboard_summary
+
+    db = _session()
+    scan = _typed_alert(db, "possible_port_scan", ["possible_port_scan"], [
+        _log(db, src="45.82.76.10", dst="202.28.44.1", port=22, src_zone="SG-Outside", dst_zone="WLAN-Inside")
+    ])
+    db.commit()
+    situation = build_dashboard_summary(db)["situation"]
+
+    assert situation == build_situation_summary(db)
+    assert situation["points"] == ["Scanning: 1 alert from 1 outside address; the firewall let it through."]
+    assert situation["open_first"]["alert_id"] == scan.id
+
+
+def test_the_overview_with_nothing_open_says_so():
+    from atdr.app.detection.plain_summary import build_situation_summary
+
+    db = _session()
+    _typed_alert(db, "possible_port_scan", ["possible_port_scan"], [
+        _log(db, src="45.82.76.10", dst="202.28.44.1", port=22, src_zone="SG-Outside", dst_zone="WLAN-Inside")
+    ], status="resolved")
+    assert build_situation_summary(db) == {"headline": "No alerts are open.", "points": [], "open_first": None}
+
+
+def test_no_alerts_on_a_day_the_stored_logs_cover_is_sent_back():
+    # "What happened on 20 May?" was answered "no new alerts were created on that day".
+    from atdr.app.services.assistant_agent import calendar_days, verify_answer
+
+    logs = ["Stored firewall logs: 151,002, with event times from 20 May 2026 13:36 to 20 May 2026 13:39 (firewall local time)."]
+    check = lambda answer, asked="What happened on 20 May?": verify_answer(  # noqa: E731
+        answer, evidence=logs, asked=[asked], redacted=True, forbidden_values=[],
+    )
+    for claim in ("On 20 May there were no new alerts created on that day.", "No alerts were triggered on 20 May."):
+        assert any("every alert describes the stored firewall traffic" in problem for problem in check(claim)), claim
+    assert check("On 20 May the firewall logs show malware calling out from MFU devices.") == []
+    assert check("No new alerts were created today.", asked="What happened today?") == []
+    assert check("There were no alerts on that day.", asked="What happened on 21 May?") == []
+    assert calendar_days(["May 20th", "2026-05-20", "at 13:36", "May 2026"]) == [(5, 20), (5, 20)]
+
+
+def test_a_question_about_a_day_falls_back_to_that_days_traffic_in_plain_words(seeded, monkeypatch):  # noqa: F811
+    testing_session, settings = seeded
+    claim = "There were no new alerts created on that day."
+    engine = ScriptedEngine(_call("security_overview", time_window="all_time"), _say(claim), _say(claim))
+    monkeypatch.setattr(assistant_service, "engine_from_settings", lambda _settings: engine)
+    with testing_session() as db:
+        first, last = db.execute(select(func.min(NormalizedLog.generated_time), func.max(NormalizedLog.generated_time))).one()
+        logged = _ask(db, settings, f"What happened on {last.day} {last:%B}?")
+        later = last.date() + timedelta(days=1)
+        unlogged = assistant_service._answer_traffic_day(db, f"What happened on {later.day} {later:%B}?", redacted=True)
+
+    assert logged["details"]["agent"]["fallback_reason"] == "answer_failed_verification"
+    assert logged["answer"].startswith("ATDR's stored firewall logs are from ")
+    assert "the open alerts describe that traffic, though each is dated by when detection ran." in logged["answer"]
+    assert "Open first: alert #" in logged["answer"]
+    assert unlogged.answer.startswith(f"ATDR has no firewall logs from {later.day} {later:%B}: its stored logs are from ")
+    assert first is not None
+
+
+def test_the_overview_tool_tells_what_the_stored_traffic_showed_in_plain_words(seeded):  # noqa: F811
+    # Asked "what happened on 20 May?", the model read the alerts' creation dates and said nothing was detected.
+    from atdr.app.detection.plain_summary import brief_situation, build_situation_summary
+    from atdr.app.services.assistant_tools import build_assistant_tools
+
+    testing_session, settings = seeded
+    with testing_session() as db:
+        overview = {tool.name: tool for tool in build_assistant_tools(db, settings=settings)}["security_overview"]
+        text = overview.run({"time_window": "today"}).text
+        situation = build_situation_summary(db)
+
+    headline = situation["headline"].split(" The newest log")[0]
+    assert f"What the open alerts show, in plain words: {headline}" in text
+    assert all(f"- {line}" in text for line in brief_situation(situation))
+    assert text.index("What the open alerts show") < text.index("Open alerts, highest score first:")
+    assert "to look at first" not in text
+
+
+def test_the_assistants_copy_keeps_named_threats_only_on_the_most_dangerous_line():
+    # The full lines made "Are we under attack?" run past the length limit and get rewritten: 17 s instead of 5.
+    from atdr.app.detection.plain_summary import brief_situation
+
+    situation = {
+        "headline": "2 alerts are open.",
+        "points": [
+            "Malware calling out: 1 alert from 1 MFU device; the firewall blocked it. Named by the firewall or the watchlist: XMRig (1 MFU device, blocked).",
+            "Break-in attempts: 1 alert from 1 outside address; the firewall blocked it. Named by the firewall or the watchlist: Bash RCE (1 outside address, blocked).",
+        ],
+        "open_first": {"alert_id": 7, "severity": "Critical", "title": "t", "reason": "the most serious open alert"},
+    }
+    assert brief_situation(situation) == [
+        situation["points"][0],
+        "Break-in attempts: 1 alert from 1 outside address; the firewall blocked it.",
+        "Open first: alert #7 (Critical), the most serious open alert.",
+    ]
+
+
+def test_a_list_left_empty_by_removing_tool_names_takes_its_intro_with_it():
+    from atdr.app.services.assistant_agent import ATDR_QUESTION, drop_tool_mentions
+
+    answer = "Alert #3773 is XMRig.\n\nTo investigate further, you can:\n- Use query_alerts to list them.\n\nLet me know!"
+    assert drop_tool_mentions(answer, ["query_alerts"]) == "Alert #3773 is XMRig.\n\nLet me know!"
+    assert drop_tool_mentions("Steps:\n- Open Alerts.\n- Use get_alert.", ["get_alert"]) == "Steps:\n- Open Alerts."
+    # The demo's follow-up got generic advice without a lookup.
+    assert ATDR_QUESTION.search("What should I check first on the most urgent one?")
 
 
 def test_a_trust_answer_must_say_that_answers_are_checked():

@@ -24,7 +24,7 @@ from atdr.app.db.models import Alert, DetectionRun, NormalizedLog, WatchlistItem
 from atdr.app.detection.attack_mapping import ATTACK_TYPE_MAPPINGS
 from atdr.app.detection.explanations import build_alert_detection_summary
 from atdr.app.detection.playbooks import PLAYBOOK_GUIDANCE, build_alert_playbook
-from atdr.app.detection.plain_summary import threat_name
+from atdr.app.detection.plain_summary import brief_situation, build_situation_summary, threat_name
 from atdr.app.detection.rule_catalog import RULE_CATALOG
 from atdr.app.detection.scoring import severity_from_score
 from atdr.app.services import assistant_service as core
@@ -361,6 +361,13 @@ class AssistantToolbox:
             f"Security overview for alerts created {window.phrase if window.bounded else 'at any time'}. "
             f"Today is {_local_now():%d %b %Y} (server local time).",
         ]
+        # What the stored traffic showed, as the Overview says it: asked "what happened on 20 May?", the model read the
+        # alerts' creation dates and said nothing was detected; asked about crypto miners, it found one XMRig alert of 8.
+        situation = build_situation_summary(db)
+        # The newest-log sentence is left out: the first line above already gives it.
+        headline = situation["headline"].split(" The newest log")[0]
+        story = [f"What the open alerts show, in plain words: {headline}", *(f"- {line}" for line in brief_situation(situation))]
+        parts.append("\n".join(story))
         parts.append(self._alerts(DataQuestion(subject="alerts", intent="count", window=window)))
         parts.append(self._data(DataQuestion(subject="alerts", intent="count", status="open")))
         parts.append(self._data(DataQuestion(subject="alerts", intent="top", window=window, group_by="attack_type", limit=4)))
@@ -369,7 +376,8 @@ class AssistantToolbox:
         text = self._data(open_list)
         if text.startswith("No "):
             text = self._data(DataQuestion(subject="alerts", intent="list", status="open", limit=5))
-        parts.append("Open alerts to look at first (highest score first):\n" + self._with_threat_names(text))
+        # Not "to look at first": that is the plain-words "Open first" above, a named threat the firewall let through.
+        parts.append("Open alerts, highest score first:\n" + self._with_threat_names(text))
 
         total_logs = int(db.scalar(select(func.count(NormalizedLog.id))) or 0)
         # Alert dates are when detection ran: asked "what happened on 20 May?", the model said no alerts were created

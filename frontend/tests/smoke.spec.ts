@@ -2068,6 +2068,20 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
         severity_counts: { Critical: 1, High: 2, Medium: 6, Low: 3 },
         status_counts: { open: 4, resolved: 8 },
         top_alert_types: [{ name: "policy_deny", count: 4 }],
+        situation: {
+          headline:
+            "4 alerts are open (1 Critical), from MFU's firewall logs of 20 May, 13:36-13:39. The newest log ATDR has is from 20 May 2026 13:39, so this is not live traffic.",
+          points: [
+            "Malware calling out: 1 alert from 1 MFU device; the firewall let all 18 connections through. Named by the firewall or the watchlist: GHOSTENGINE C2 server, on ATDR's watchlist (1 MFU device, let through).",
+            "Scanning: 3 alerts from 2 outside addresses; the firewall blocked 12 of 40 connections."
+          ],
+          open_first: {
+            alert_id: 1,
+            severity: "Critical",
+            title: "Critical: Smoke alert",
+            reason: "a threat the firewall or the watchlist named, and the firewall let it through"
+          }
+        },
         top_suspicious_source_ips: [{ name: "203.0.113.10", count: 3 }],
         top_destination_countries: [],
         action_distribution: [],
@@ -8194,6 +8208,22 @@ test("Overview shows what the MFU behaviour model sees and how to respond", asyn
   await expect(findings.first().getByRole("link", { name: "#1" })).toHaveAttribute("href", "/alerts?alert=1");
   await expect(findings.nth(1)).toContainText("Model only");
   await expect(findings.nth(1)).toContainText("Identify the internal host");
+});
+
+test("Overview says what is happening in plain words and which alert to open first", async ({ page }) => {
+  await mockApi(page);
+  await seedSession(page);
+  await page.goto("/");
+
+  const box = page.getByTestId("overview-plain-summary");
+  await expect(box).toContainText("What's happening, in plain words");
+  await expect(box).toContainText("4 alerts are open (1 Critical)");
+  await expect(box).toContainText("so this is not live traffic");
+  await expect(box.getByRole("listitem")).toHaveCount(2);
+  await expect(box).toContainText("GHOSTENGINE C2 server, on ATDR's watchlist (1 MFU device, let through)");
+  await expect(box.getByRole("link", { name: "Alert #1 (Critical)" })).toHaveAttribute("href", "/alerts?alert=1");
+  await expect(box).toContainText("the firewall let it through.");
+  await expect(box).toContainText("not by the AI");
 });
 
 test("Overview says plainly when no behaviour model is trained", async ({ page }) => {

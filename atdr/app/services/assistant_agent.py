@@ -20,6 +20,7 @@ import json
 import re
 import time
 from dataclasses import dataclass, field
+from datetime import date, datetime
 from typing import Any, Callable, Protocol
 from urllib.parse import urlparse
 
@@ -86,6 +87,8 @@ ATDR_QUESTION = re.compile(
     # "Why is it only experimental?" was answered from memory ("still in development"); "crypto miners on campus?"
     # got generic advice while ATDR had XMRig alerts from 8 campus devices.
     r"experimental|campus|miners?|mining|crypto\w*|xmrig|"
+    # The demo's follow-up "What should I check first on the most urgent one?" got generic advice and no lookup.
+    r"most urgent|check first|look at first|"
     # Questions about the assistant itself: answered from how ATDR checks it, not from the model's self-image.
     r"trust (?:you|your answers?|the assistant)|how do you work|how (?:accurate|reliable) are you|"
     r"are you (?:accurate|reliable)|where do your answers come from|do you make (?:things|stuff) up|hallucinat\w*)\b"
@@ -160,6 +163,62 @@ TRUST_QUESTION = re.compile(
 )
 ANSWERS_CHECKED = "ATDR checks that every number"
 SAYS_CHECKED = re.compile(r"\b(?:check|verif)", re.IGNORECASE)
+# "What happened on 20 May?" was answered "no new alerts were created on that day", though every alert describes
+# the stored 20 May traffic: an alert is dated by when detection ran (checked only when a tool gave the log dates).
+MONTHS = ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
+CALENDAR_DAY = re.compile(
+    r"\b(?P<d1>\d{1,2})(?:st|nd|rd|th)?\s+(?P<m1>jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b"
+    r"|\b(?P<m2>jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(?P<d2>\d{1,2})(?:st|nd|rd|th)?\b(?!:)"
+    r"|\b\d{4}-(?P<m3>\d{2})-(?P<d3>\d{2})\b",
+    re.IGNORECASE,
+)
+LOG_DATES = re.compile(r"event times from (\d{1,2} [A-Z][a-z]{2} \d{4}) [\d:]+ to (\d{1,2} [A-Z][a-z]{2} \d{4})")
+NO_ALERTS_CLAIM = re.compile(
+    r"\bno (?:new )?alerts?\b(?!\s+(?:of|with)\s)|\b(?:were|was) no (?:new )?alerts?\b|\bno alerts? (?:were|was) "
+    r"(?:created|triggered|raised|generated)",
+    re.IGNORECASE,
+)
+
+
+def calendar_days(texts: list[str]) -> list[tuple[int, int]]:
+    """(month, day) for each calendar day the texts name: "20 May", "May 20"."""
+
+    days = []
+    for text in texts:
+        for match in CALENDAR_DAY.finditer(text):
+            if match["m3"]:
+                month, day = int(match["m3"]), int(match["d3"])
+            else:
+                month = MONTHS.index((match["m1"] or match["m2"])[:3].lower()) + 1
+                day = int(match["d1"] or match["d2"])
+            if 1 <= month <= 12 and 1 <= day <= 31:
+                days.append((month, day))
+    return days
+
+
+def day_in_span(month: int, day: int, first: date, last: date) -> date | None:
+    """The date with that month and day between first and last (inclusive), in any year they cover."""
+
+    for year in range(first.year, last.year + 1):
+        try:
+            candidate = date(year, month, day)
+        except ValueError:
+            continue
+        if first <= candidate <= last:
+            return candidate
+    return None
+
+
+def _logged_day_asked(asked: list[str], known_text: str) -> date | None:
+    spans = [
+        (datetime.strptime(start, "%d %b %Y").date(), datetime.strptime(end, "%d %b %Y").date())
+        for start, end in LOG_DATES.findall(known_text)
+    ]
+    for month, day in calendar_days(asked):
+        for first, last in spans:
+            if found := day_in_span(month, day, first, last):
+                return found
+    return None
 # The same claims in Thai: "ไม่ได้ถูกโจมตี" (is not being attacked) was answered to "MFU ถูกโจมตีอยู่ไหม", and
 # "กำลังถูกโจมตี" (is being attacked) unless asked as "whether" (หรือไม่) or hedged with "may" (อาจ).
 THAI_ATTACK_STATUS_CLAIM = re.compile(
@@ -654,6 +713,13 @@ def verify_answer(
             "does not say how answers are checked: start with the tool's account of the checks (every number, alert "
             "number, IP address and page name must appear in what the tools returned), then the limits"
         )
+    logged_day = _logged_day_asked(asked, known_text)
+    if logged_day and (claim := NO_ALERTS_CLAIM.search(answer)):
+        problems.append(
+            f"says {claim.group(0)!r} about {logged_day.day} {logged_day:%b}, but every alert describes the stored firewall "
+            "traffic of that day; an alert's own date is when ATDR's detection ran, not when the traffic happened: say what "
+            "the alerts found in that traffic"
+        )
     status_claim = ATTACK_STATUS_CLAIM.search(answer) or THAI_ATTACK_STATUS_CLAIM.search(answer)
     if status_claim:
         problems.append(
@@ -661,6 +727,9 @@ def verify_answer(
             "logs, so say what it found, what is still open and how recent its newest log is"
         )
     return problems
+
+
+LIST_ITEM = re.compile(r"\s*(?:[-*\u2022]|\d+[.)])\s")
 
 
 def drop_tool_mentions(answer: str, tool_names: list[str]) -> str:
@@ -676,6 +745,12 @@ def drop_tool_mentions(answer: str, tool_names: list[str]) -> str:
         sentences = [part for part in SENTENCE_END.split(line) if not any(name in part for name in tool_names)]
         if sentences:
             kept_lines.append(" ".join(sentences))
+    # "To investigate further, you can:" was left hanging once every step under it named a tool.
+    kept_lines = [
+        line for index, line in enumerate(kept_lines)
+        if not line.rstrip().endswith(":")
+        or LIST_ITEM.match(next((rest for rest in kept_lines[index + 1:] if rest.strip()), ""))
+    ]
     return re.sub(r"\n{3,}", "\n\n", "\n".join(kept_lines)).strip()
 
 
