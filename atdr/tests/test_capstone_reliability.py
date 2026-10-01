@@ -66,6 +66,22 @@ def test_the_ml_concept_says_the_supervised_classifier_is_not_used(seeded, monke
     assert "non-normal estimate" in text and "not confidence in the attack type" in text
 
 
+def test_an_attack_concept_gives_atdr_rule_and_numbers_right_after_the_definition(seeded):  # noqa: F811
+    # With the rule further down, the local model answered "what does the brute force rule check?" from the
+    # textbook definition, without the rule's threshold and with an invented "user account" check.
+    from atdr.app.services.assistant_tools import build_assistant_tools
+
+    sessions, settings = seeded
+    with sessions() as session:
+        tools = {tool.name: tool for tool in build_assistant_tools(session, settings=settings)}
+        lines = tools["explain_concept"].run({"topic": "brute_force"}).text.splitlines()
+        scan = tools["explain_concept"].run({"topic": "horizontal_scan"}).text.splitlines()
+    assert lines[0].startswith("Brute force is")
+    assert lines[1].startswith('How ATDR detects it: the "Brute-force-like service attempts" rule (ATDR-NET-009) checks:')
+    assert "at least 5 denied/reset attempts" in lines[1] and "in five minutes" in lines[1]
+    assert scan[1].startswith("How ATDR detects it:") and "ATDR-NET-018" in scan[1]
+
+
 def test_a_number_word_in_a_tool_result_supports_its_digits():
     # The tool said "five-minute window"; "5 minutes" in the answer was rejected as invented.
     evidence = ["71 session events in the source-scoped five-minute correlation window."]

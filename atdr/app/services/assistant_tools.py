@@ -381,11 +381,19 @@ class AssistantToolbox:
         mapping = ATTACK_TYPE_MAPPINGS[attack_type]
         guidance = PLAYBOOK_GUIDANCE[attack_type]
         rules = [spec for spec in RULE_CATALOG.values() if spec.attack_type == attack_type and spec.code != "ml_anomaly_detected"]
+        # ATDR's own rule and its numbers come straight after the definition: further down, the local model
+        # summarised the textbook definition instead and answered "what does the brute force rule check?"
+        # without the rule ("multiple failed logins from one IP or user account").
         lines = [
             ATTACK_CONCEPTS[attack_type],
+            "How ATDR detects it: "
+            + (
+                "; ".join(f'the "{spec.title}" rule ({spec.rule_id}) checks: {spec.condition}' for spec in rules)
+                if rules
+                else "no rule looks for it directly"
+            )
+            + ".",
             f"MITRE ATT&CK: {mapping['tactic']} / {mapping['technique']} ({mapping['technique_id']}). {mapping['claim_boundary']}",
-            "ATDR rules that look for it: "
-            + ("; ".join(f"{spec.title}: {spec.condition}" for spec in rules) if rules else "none directly"),
             f"How ATDR's playbook handles it: {guidance.objective} {' '.join(guidance.containment)}",
             f"Usually harmless when: {guidance.false_positive_when}",
         ]
