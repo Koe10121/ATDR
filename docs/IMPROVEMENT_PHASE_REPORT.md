@@ -104,14 +104,15 @@ attacks. The assistant answered from a fixed list of question types.
   worded and reported inconsistently ("99.5% confident" for what is 1 minus
   the probability of normal traffic); an unblock could mark a real firewall
   block removed after a mode switch; and one query worked only on SQLite. The
-  fifth, live syslog saving small batches, is deferred: ATDR's data comes from
-  a file export.
+  fifth was fixed on 1 October: the live syslog receiver kept records unsaved
+  until a batch of 100 filled, and meanwhile held the database's only write
+  lock. It now saves within 2 seconds of a record arriving.
 - **Test and lab data out of the live system.** Checks on 29 and 30 September
   found 7 alerts built on synthetic test, demo and lab logs rather than MFU
   traffic. They are archived and those logs removed, so every stored log is
   MFU firewall traffic.
 
-## Where we are now (30 September)
+## Where we are now (1 October)
 
 | | Result | Kind |
 |---|---|---|
@@ -121,8 +122,8 @@ attacks. The assistant answered from a fixed list of question types.
 | Rules plus MFU model, same labels | F1 90.1% | Second look |
 | MFU model on fresh simulated attacks | port scan 96.5%, brute force 97.5%, flood 100%, C2 88.5%, exfiltration 98.0% | Simulated |
 | Team labels, current rules | precision 96.0%, recall 99.7% | Agreement, not accuracy |
-| Assistant | 84 of 85, and 26 of 27 held-out questions (30 Sep) | Automatic scoring |
-| Tests | about 1,510 backend and 80 browser tests passing | |
+| Assistant | 87 of 88, and 27 of 27 held-out questions (1 Oct; 84 of 85 and 26 of 27 on 30 Sep) | Automatic scoring |
+| Tests | 1,525 backend and 80 browser tests passing | |
 
 The live dashboard holds 178 alerts (Critical 34, High 43, Medium 81, Low 20).
 Each names its attack type: port scan 119, malware / C2 14, policy violation 10,

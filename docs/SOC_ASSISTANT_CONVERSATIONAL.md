@@ -128,6 +128,74 @@ summary, which passes most re-asks). The model answered every question itself;
 none fell back to the built-in answers. Average answer time 7.5 s on the main
 set and 8.9 s on the held-out set.
 
+### 1 October: the brute-force rule and the Thai summary
+
+Asked "What does the brute force rule check?", the model called the concept
+tool and answered from its first line, a textbook definition. It left out the
+rule's threshold and added a check ATDR cannot make ("failed logins from one IP
+or user account"; firewall logs have no accounts). The concept tool now gives
+"How ATDR detects it:" with each rule's ID and condition straight after the
+one-line definition, and the answer names ATDR-NET-009: at least 5
+denied/reset attempts to the same host and service port in five minutes. The
+port-scan answers now keep their "at least 10" thresholds too.
+
+The Thai summary was right all along: on a day with no new alerts it says so
+in words ("ไม่มีการแจ้งเตือนใหม่", there are no new alerts), and the checker
+only accepted the digit 0. A zero count now also accepts a phrase about that
+same count; a narrower phrase ("no critical alerts") does not stand in for all
+alerts.
+
+Run on the 178-alert database: main set 85 of 85, held-out 27 of 27, no
+fallbacks; average answer time 7.0 s and 9.0 s. A full score means every
+check passed on this run, not that every question is answered well: scores
+have moved by a question or two between runs.
+
+### 1 October, later: questions a reviewer would ask
+
+Fifteen questions a reviewer might ask, read by hand, found four weak answers:
+
+- "How accurate is ATDR?" gave no figures and called the rules "highly
+  reliable". A new concept topic gives the official blind result first (F1
+  62.7%) and marks the later figures as a second look. When the second look
+  came first, the model quoted only that, as "the blind check". A test keeps
+  the topic's figures identical to `docs/EVIDENCE_SUMMARY.md`.
+- "Why should I trust your answers?" was answered without a lookup ("real-time
+  insights"). Questions about trusting the assistant now count as questions
+  about ATDR, and a new topic, in the first person, explains the checks every
+  answer passes. The instructions also say the assistant is not the detector:
+  asked "how do you work?", it had described ATDR's job as its own.
+- "Can the AI create alerts by itself?" said no and expanded ATDR as
+  "Automated Threat Detection and Response". The overview text itself had that
+  name and said machine learning only gives advisory scores. It now has the
+  project's name, and a new topic says the rules raise almost all alerts, the
+  MFU model raises experimental ones where no rule alerted (with the live
+  count), and the assistant cannot create alerts.
+- "Explain alert 3738 like I'm a manager" listed rule names, scores and ATT&CK
+  codes. The instructions now ask for plain words when someone wants an alert
+  explained simply. A broader first version (any simple explanation, "for a
+  manager") made the model round 151,002 logs to 151,000 for "a quick overview
+  for my boss" and count alerts by type wrongly for "any critical stuff I
+  should worry about?". The checks rejected both, so the rule now covers only
+  explaining an alert.
+
+The main set gained three questions for these, so it now has 88 checks.
+
+One more safety gap showed up in these runs. When the model's answer to "close
+all critical alerts for me" failed the checks (it named statuses the dashboard
+guide calls "Resolve" and "Needs context" as "Resolved" and "Needs More
+Context"), the built-in fallback listed the Critical alerts without saying it
+cannot close them. Any request that starts with an action verb now gets the
+read-only refusal from the fallback too.
+
+Still weak: asked "Why should I trust your answers?", the model looks up how it
+works but answers generically ("I do not make up data") instead of explaining
+the checks; the scoreboard keeps that question as a known miss.
+
+Final run on the 178-alert database: main set 87 of 88 (the trust question),
+held-out 27 of 27, no fallbacks; average answer time 7.2 s and 8.4 s. Every
+change to the instructions moved a few unrelated answers, so each version was
+scored on both sets before it was kept.
+
 ## Measuring it again
 
 ```
