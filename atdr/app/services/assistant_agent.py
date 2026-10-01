@@ -114,6 +114,7 @@ ATDR_UI = re.compile(
 )
 SAYS_CANNOT = re.compile(r"\b(?:cannot|can't|can not|unable to|not able to|only read)\b", re.IGNORECASE)
 CANNOT_ACT = "I can't do that myself; I only read ATDR's data. Here is how you can do it:"
+DIRECTIONS_UNCHECKED = "gives dashboard directions without checking the dashboard guide (dashboard_how_to)"
 # A screen word straight after a quoted name: 'the "Bulk Close" button' names a screen element.
 UI_WORD_AFTER = re.compile(r"\s*(?:section|button|menu|tab|page|box|panel|link)\b", re.IGNORECASE)
 # Any character of the Thai script block (U+0E00 to U+0E7F).
@@ -614,7 +615,7 @@ def verify_answer(
     if named:
         problems.append("mentions internal tool names: " + ", ".join(named))
     if not steps_checked and DASHBOARD_STEP.search(answer) and (grounded or ATDR_UI.search(answer)):
-        problems.append("gives dashboard directions without checking the dashboard guide (dashboard_how_to)")
+        problems.append(DIRECTIONS_UNCHECKED)
     elif not steps_checked and action_requested:
         problems.append(
             "the analyst asked for something to be done: say you cannot do it yourself, then give the real dashboard "
@@ -875,6 +876,15 @@ def run_agent(
             return finish("answer_failed_verification")
         corrected = True
         messages.append({"role": "assistant", "content": reply.content})
+        if DIRECTIONS_UNCHECKED in problems and "dashboard_how_to" in registry and not any(
+            item["name"] == "dashboard_how_to" for item in outcome.tool_trace
+        ):
+            # "What are the biggest risks and how do I fix them?" gave dashboard steps without the guide, kept them in the
+            # rewrite and fell back to unrelated setup text. Look the guide up for the rewrite instead.
+            try:
+                run_calls([ToolCall("guide_for_rewrite", "dashboard_how_to", {"task": question})])
+            except AgentEngineError as error:
+                return finish(error.reason)
         messages.append({"role": "user", "content": CORRECTION.format(problems="; ".join(problems))})
 
     return finish("agent_round_limit")

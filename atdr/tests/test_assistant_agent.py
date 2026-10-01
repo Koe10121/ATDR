@@ -107,6 +107,13 @@ def test_dashboard_directions_must_come_from_a_guide_tool():
     engine = ScriptedEngine(_call("dashboard_how_to"), _say("Open the Alerts page and click Resolve."))
     assert run_agent(question="close an alert", engine=engine, tools=[guide]).ok
 
+    # Directions given without the guide: the guide is looked up for the rewrite, so verified steps can pass.
+    engine = ScriptedEngine(
+        _call("query_alerts"), _say("Open the Alerts page and click Delete."), _say("Open the Alerts page and click Resolve."),
+    )
+    outcome = run_agent(question="what are the biggest risks and how do I fix them?", engine=engine, tools=[_count_tool(), guide])
+    assert outcome.ok and [item["name"] for item in outcome.tool_trace] == ["query_alerts", "dashboard_how_to"]
+
 
 def test_sentences_about_internal_tools_are_removed_and_the_rest_kept():
     answer = "Alert #5 is the worst. Use get_alert_playbook to see steps.\n- Check the source\n- Call get_alert for more"
