@@ -44,6 +44,15 @@ attacks. The assistant answered from a fixed list of question types.
   T1190), covers Shellshock and path-traversal attacks. Unclassified alerts
   fell from 53% to 10%. Each type has its MITRE technique and a response
   playbook.
+- **Every alert in plain words** (1 October). The alert drawer opens with a few
+  sentences written from all of the alert's evidence logs, not by the language
+  model: when it happened, which device contacted what, what the firewall
+  recognised and whether it blocked it, what that may mean, and the first
+  question to answer. For #3773: "On 20 May, 13:36–13:39, an MFU device
+  ([address]) made 7 connections to 4 outside servers on port 14444. The
+  firewall recognised it as 'XMRig Miner Command and Control Traffic Detection'
+  and blocked all 7." The assistant reads the same sentences when it explains
+  an alert.
 - **Threat intelligence.** 2,324 known-bad addresses from Feodo Tracker and
   ThreatFox are on the watchlist.
 - **Rebuilt the alert list** with the current rules, keeping analyst-worked
@@ -84,6 +93,9 @@ attacks. The assistant answered from a fixed list of question types.
 - On a set of 85 realistic analyst questions it answered 83 well; on 27
   questions written after tuning, 26. The older menu-style assistant answered
   about half.
+- Since 1 October an answer takes about 4 seconds instead of 10: the model's
+  working memory was cut to 8,192 tokens so the whole model fits on the
+  laptop's graphics card. The latest run answered 101 of 101 and 27 of 27.
 
 ### 4. Honest evidence
 
@@ -122,8 +134,8 @@ attacks. The assistant answered from a fixed list of question types.
 | Rules plus MFU model, same labels | F1 90.1% | Second look |
 | MFU model on fresh simulated attacks | port scan 96.5%, brute force 97.5%, flood 100%, C2 88.5%, exfiltration 98.0% | Simulated |
 | Team labels, current rules | precision 96.0%, recall 99.7% | Agreement, not accuracy |
-| Assistant | 100 of 101 (13 reviewer questions added), and 27 of 27 held-out questions (1 Oct; 84 of 85 and 26 of 27 on 30 Sep; runs vary by a question or two) | Automatic scoring |
-| Tests | 1,537 backend and 80 browser tests passing | |
+| Assistant | 101 of 101 (13 reviewer questions added), and 27 of 27 held-out questions, in about 4 seconds per answer (1 Oct; 84 of 85 and 26 of 27 on 30 Sep; runs vary by a question or two) | Automatic scoring |
+| Tests | 1,552 backend and 80 browser tests passing | |
 
 The live dashboard holds 178 alerts (Critical 34, High 43, Medium 81, Low 20).
 Each names its attack type: port scan 119, malware / C2 14, policy violation 10,

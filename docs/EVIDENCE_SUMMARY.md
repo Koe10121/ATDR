@@ -182,6 +182,7 @@ the malicious cases and the supervised classifier failed calibration.
 | Re-run on 1 Oct after the second round of reviewer questions (Thai, "under attack right now", countries) | main 88 of 88; held-out 27 of 27 (25 of 27 in a run that shared the CPU with the test suite) | |
 | Re-run on 1 Oct after the conversation fixes ("top 3 critical alerts", "why only experimental?") | main 88 of 88; held-out 26 of 27 ("What does the ML model do?" passes in some runs, not others) | |
 | Re-run on 1 Oct evening after reviewer round 4; main set now 101 checks with 13 reviewer questions | main 100 of 101; held-out 27 of 27 | |
+| Re-run on 1 Oct late evening with the model's working memory at 8,192 tokens (answers 4.2 s on average instead of 10.0 s), after the "under attack", system-health, example-value and trust fixes | main 101 of 101; held-out 27 of 27; 3 answers from the built-in answers, all passing | |
 
 Measured on 2026-09-27 with qwen3:8b running locally, after the alert
 rebuild, and again on 2026-09-29 on the 181-alert list. The main set gained three questions when the assistant got tools

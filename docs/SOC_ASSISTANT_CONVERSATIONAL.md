@@ -54,7 +54,9 @@ The recommended engine runs on the same computer, so no data leaves it:
 
 1. Install Ollama (`winget install Ollama.Ollama`) and download the model: `ollama pull qwen3:8b` (5.2 GB).
 2. In `.env` set `ASSISTANT_AGENT_ENGINE=ollama` and restart ATDR (`scripts/stop_system.cmd`, then `scripts/start_system.cmd`).
-3. The first answer after the model has been unloaded takes about a minute while it loads into the graphics card. After that, answers take 6 to 8 seconds on average. The model stays loaded for 30 minutes after the last question (`ASSISTANT_AGENT_KEEP_ALIVE`).
+3. The first answer after the model has been unloaded takes about a minute while it loads into the graphics card. After that, answers take about 4 seconds on average on the team laptop (an 8 GB RTX 5070 Laptop GPU). The model stays loaded for 30 minutes after the last question (`ASSISTANT_AGENT_KEEP_ALIVE`).
+
+The model's working memory, `ASSISTANT_AGENT_CONTEXT_TOKENS`, is 8,192 tokens so that the whole model fits on an 8 GB graphics card. At 12,288 (the setting until 1 October) 15% of it ran on the processor and answers took 10 seconds on average. The largest request in a full scoreboard run used 6,256 tokens, and Ollama's log shows no request cut short.
 
 `ASSISTANT_AGENT_ENGINE=off` (the default) keeps the old built-in answers only.
 
@@ -301,6 +303,52 @@ I trust your answers?" explains that it only reports what the tools show but
 does not say the answers are checked), held-out 27 of 27, no fallbacks; average
 answer time 10.0 s and 10.2 s.
 
+### 1 October, late evening: faster answers and better fallbacks
+
+- **About 4 seconds per answer.** The model's working memory went from 12,288
+  to 8,192 tokens, so the whole model now fits on the laptop's 8 GB graphics
+  card. On the main set the average answer time fell from 10.0 s to 4.2 s, and
+  the slowest 5% from 16.8 s to 9.8 s. The largest request used 6,256 tokens,
+  and none was cut short.
+- At 8,192 tokens the model wrote different drafts for a few questions. The
+  checks caught every bad one, and these fixes followed:
+  - "Is MFU under attack right now?": the first draft said "MFU is not under
+    attack right now", the second made up "the last 24 hours", and the fallback
+    said it had no built-in answer. The built-in answers now cover this
+    question in English and Thai: ATDR cannot tell, its newest log is from 20
+    May 2026 13:39, how many alerts are still open, the three highest-scoring,
+    and how to check current traffic.
+  - A scripted test then showed that a second draft, "MFU is safe and not under
+    attack", passed. "and not", "isn't", "not currently being attacked" and "MFU
+    is safe" are now caught; "make sure the network is secure" is advice and
+    still passes.
+  - "Is the system healthy?" asked the status tool for "all" areas, got an
+    error, then asked for one area at a time until it ran out of rounds. "all"
+    now returns sources, operations, detection runs and failed jobs together.
+    It stays out of the tool's description, because changing the tool list
+    changes every answer.
+  - The steps for suppressing an approved scanner's alerts were rejected twice
+    because the example reason, "Approved scanner activity", was taken for a
+    screen name. A quoted value after "e.g.", "for example", "such as" or "for
+    instance" now counts as an example.
+  - "Why should I trust your answers?" never said that answers are checked. An
+    answer to a trust question that leaves the checks out is now sent back; if
+    the rewrite still leaves them out, the built-in answer gives the same
+    account of the checks the tool gives. Before, that fallback explained alert
+    #3839.
+  - A correct Thai summary saying "ไม่พบการแจ้งเตือนใหม่" ("found no new alerts")
+    failed the scoreboard, which knew only "ไม่มี" ("there are no"). It now reads
+    both.
+- **Alerts in plain words.** The alert lookup now gives the model the alert
+  drawer's new plain-words summary (when it happened, who contacted whom, what
+  the firewall recognised and whether it blocked it), so an answer can say "the
+  firewall blocked all 7" without working it out from rule names.
+
+Final run: main set 101 of 101 and held-out 27 of 27, average answer time 4.2 s
+and 4.5 s. Three answers came from the built-in answers, all passing: the
+trust and "under attack" questions, whose model drafts still fail the checks
+at this setting, and the approved-scanner steps.
+
 ## Measuring it again
 
 ```
@@ -316,5 +364,6 @@ is used to fix something, move it to the main set and write a new held-out one.
 
 - An 8-billion-parameter model sometimes phrases things loosely or stays general when the tool gave specifics. Numbers and screen names are checked; wording is not.
 - General-knowledge answers are the model's own knowledge and can be wrong or out of date, like any chat assistant; they are labelled so the analyst knows.
-- Long overview answers can take 10 to 25 seconds, most of it the model writing the answer.
+- Long answers take 10 to 20 seconds, most of it the model writing the answer.
+- Asked "Why should I trust your answers?" or "Is MFU under attack right now?", the model's own wording keeps failing the checks, so these get the built-in answers (labelled "ATDR deterministic analysis").
 - It only knows what ATDR's tools return about MFU. It cannot see the internet or other MFU systems, and it cannot yet filter alerts by who they are assigned to.
