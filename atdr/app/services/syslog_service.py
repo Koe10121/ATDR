@@ -2,6 +2,7 @@ from collections.abc import Callable
 import ipaddress
 import logging
 import socket
+import time
 
 from sqlalchemy.orm import Session
 
@@ -26,21 +27,27 @@ def run_udp_syslog_receiver(
     *,
     max_messages: int | None = None,
     socket_timeout: float | None = None,
+    flush_seconds: float | None = None,
     session_factory: Callable[[], Session] | None = None,
     initialize_database: bool = True,
     on_ready: Callable[[], None] | None = None,
 ) -> dict:
+    """Receive UDP syslog until max_messages datagrams, or until socket_timeout seconds pass without one.
+
+    Every batch_size records are audited and saved. Records are also saved once the oldest unsaved one
+    is flush_seconds old, so a quiet stream neither leaves them unsaved nor holds the database's write
+    lock while the receiver waits for more traffic.
+    """
     settings = get_settings()
     bind_host = host or settings.syslog_host
     bind_port = port or settings.syslog_port
     flush_every = batch_size or settings.syslog_batch_size
+    save_within = flush_seconds or settings.syslog_flush_seconds
 
     if initialize_database:
         init_db()
     make_session = session_factory or SessionLocal
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    if socket_timeout is not None:
-        sock.settimeout(socket_timeout)
 
     pending = 0
     received = 0
@@ -64,12 +71,33 @@ def run_udp_syslog_receiver(
                 input_name=f"udp:{bind_host}:{bind_port}",
                 details={"batch_size": flush_every, "max_messages": max_messages},
             )
+            # Save the run now: an open write would hold SQLite's only write lock while no traffic arrives.
+            db.commit()
+            last_datagram = time.monotonic()
+            unsaved_since: float | None = None
             while max_messages is None or received < max_messages:
-                try:
-                    payload, address = sock.recvfrom(65535)
-                except (TimeoutError, socket.timeout):
-                    timed_out = True
-                    break
+                deadlines = [] if socket_timeout is None else [last_datagram + socket_timeout]
+                if unsaved_since is not None:
+                    deadlines.append(unsaved_since + save_within)
+                wait = min(deadlines) - time.monotonic() if deadlines else None
+                datagram = None
+                if wait is None or wait > 0:
+                    sock.settimeout(wait)
+                    try:
+                        datagram = sock.recvfrom(65535)
+                    except (TimeoutError, socket.timeout):
+                        pass
+                now = time.monotonic()
+                if unsaved_since is not None and now - unsaved_since >= save_within:
+                    db.commit()
+                    unsaved_since = None
+                if datagram is None:
+                    if socket_timeout is not None and now - last_datagram >= socket_timeout:
+                        timed_out = True
+                        break
+                    continue
+                payload, address = datagram
+                last_datagram = now
                 line = payload.decode("utf-8", errors="replace").strip()
                 if not line:
                     continue
@@ -123,6 +151,9 @@ def run_udp_syslog_receiver(
                     )
                     db.commit()
                     pending = 0
+                    unsaved_since = None
+                elif unsaved_since is None:
+                    unsaved_since = now
             if pending:
                 db.add(
                     AuditLog(

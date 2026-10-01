@@ -136,6 +136,10 @@ an approved interface. Loopback is the safe default:
 .\.venv\Scripts\python.exe -m atdr.scripts.run_syslog_receiver --host 127.0.0.1 --port 5514
 ```
 
+The receiver saves records every `SYSLOG_BATCH_SIZE` records, and within
+`SYSLOG_FLUSH_SECONDS` (default 2) of a record arriving, so a quiet stream never
+leaves records unsaved or holds the database's write lock while it waits.
+
 Raw evidence is preserved before parsing. Parser failure does not discard the
 row. Run detection from the dashboard after checking source/parser quality.
 Rule findings create authoritative alerts; anomaly and supervised scores add

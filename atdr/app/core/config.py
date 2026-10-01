@@ -198,6 +198,9 @@ class Settings(BaseSettings):
     syslog_host: str = Field(default="127.0.0.1", alias="SYSLOG_HOST")
     syslog_port: int = Field(default=5514, alias="SYSLOG_PORT")
     syslog_batch_size: int = Field(default=100, alias="SYSLOG_BATCH_SIZE")
+    # Received records are saved once the oldest unsaved one is this old, even when a quiet stream never
+    # fills a batch; an unsaved batch also holds SQLite's single write lock.
+    syslog_flush_seconds: float = Field(default=2.0, alias="SYSLOG_FLUSH_SECONDS")
 
     # ---- Login rate limiting ----
     login_rate_limit_attempts: int = Field(default=5, alias="LOGIN_RATE_LIMIT_ATTEMPTS")
@@ -667,6 +670,8 @@ def validate_runtime_settings(settings: Settings) -> list[str]:
             break
     if settings.syslog_enabled and settings.syslog_host in {"0.0.0.0", "::"} and settings.environment.lower() != "production":
         issues.append("SYSLOG_HOST binds publicly outside production; use 127.0.0.1 for lab demo mode.")
+    if settings.syslog_flush_seconds <= 0:
+        issues.append("SYSLOG_FLUSH_SECONDS must be greater than zero.")
     if not settings.response_simulation and settings.response_provider.lower() in {"simulation", "none", "manual"}:
         issues.append("RESPONSE_PROVIDER must name an approved connector before RESPONSE_SIMULATION is disabled.")
     if not settings.response_simulation and settings.response_provider.lower() == "windows_firewall":

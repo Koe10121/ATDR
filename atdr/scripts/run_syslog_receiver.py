@@ -11,15 +11,24 @@ def main() -> None:
     parser.add_argument("--host", default=settings.syslog_host)
     parser.add_argument("--port", type=int, default=settings.syslog_port)
     parser.add_argument("--batch-size", type=int, default=settings.syslog_batch_size)
+    parser.add_argument(
+        "--flush-seconds",
+        type=float,
+        default=settings.syslog_flush_seconds,
+        help="Save received records at most this many seconds after they arrive, even on a quiet stream.",
+    )
     parser.add_argument("--max-messages", type=int, default=None, help="Stop after N datagrams. Useful for lab smoke tests.")
-    parser.add_argument("--timeout", type=float, default=None, help="Socket timeout in seconds. Useful with --max-messages.")
+    parser.add_argument("--timeout", type=float, default=None, help="Stop after this many seconds without a datagram. Useful with --max-messages.")
     args = parser.parse_args()
+    if args.flush_seconds <= 0:
+        parser.error("--flush-seconds must be greater than zero")
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     result = run_udp_syslog_receiver(
         host=args.host,
         port=args.port,
         batch_size=args.batch_size,
+        flush_seconds=args.flush_seconds,
         max_messages=args.max_messages,
         socket_timeout=args.timeout,
     )
