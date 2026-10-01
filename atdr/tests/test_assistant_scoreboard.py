@@ -56,6 +56,23 @@ def test_an_alert_id_never_counts_as_a_matching_total():
     assert never == ["says forbidden 'dashboard_how_to'"]
 
 
+def test_a_zero_count_said_in_words_counts_only_for_the_same_count():
+    zero = {"alerts_today": 0, "critical_alerts_today": 0, "high_alerts_today": 0}
+    today = {"facts": ["alerts_today"]}
+    assert check_answer(today, {"answer": "No new alerts were created today; 178 are still open."}, zero) == []
+    assert check_answer(today, {"answer": "วันนี้ไม่มีการแจ้งเตือนใหม่ แต่ยังมี 178 รายการที่เปิดอยู่"}, zero) == []
+    assert check_answer(today, {"answer": "0 alerts were created today."}, zero) == []
+    # A phrase about a narrower count, or a zero phrase when the real count is not zero, does not pass.
+    assert check_answer(today, {"answer": "There are no critical alerts today."}, zero) == ["missing alerts_today=0"]
+    assert check_answer(today, {"answer": "There are no alerts of Critical severity today."}, zero) == ["missing alerts_today=0"]
+    assert check_answer(today, {"answer": "วันนี้ไม่มีการแจ้งเตือนระดับวิกฤต"}, zero) == ["missing alerts_today=0"]
+    assert check_answer(today, {"answer": "No new alerts today."}, {"alerts_today": 3}) == ["missing alerts_today=3"]
+    assert check_answer({"facts": ["critical_alerts_today"]}, {"answer": "No new Critical alerts today."}, zero) == []
+    assert check_answer({"facts": ["high_alerts_today"]}, {"answer": "No critical alerts today."}, zero) == [
+        "missing high_alerts_today=0"
+    ]
+
+
 def test_scoreboard_fills_facts_keeps_conversations_and_never_writes_the_source(tmp_path):
     source = _source(tmp_path)
     before = hashlib.sha256(source.read_bytes()).hexdigest()

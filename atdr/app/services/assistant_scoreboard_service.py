@@ -34,6 +34,18 @@ FALLBACK_CONTEXT = "unmatched_question"
 _NUMBER = re.compile(r"\d[\d,]*")
 # "alert #3676" is an ID, not a count; it must not satisfy a count fact that happens to match.
 _RECORD_ID = re.compile(r"\balert\s*#?\s*\d[\d,]*|#\d[\d,]*", re.IGNORECASE)
+# A correct zero is often said in words: "no new alerts today", or in Thai "ไม่มีการแจ้งเตือน" ("there are no
+# alerts"). Each count accepts only a phrase about that same count, so "no critical alerts" (Thai puts the
+# level after the noun: "การแจ้งเตือนระดับวิกฤต") cannot stand in for all alerts.
+_ZERO_PHRASES = {
+    "alerts_today": re.compile(
+        r"\bno\s+(?:new\s+)?alerts?\b(?!\s+(?:of|with)\s+(?:critical|high|medium|low))"
+        r"|ไม่มี\s*(?:การ)?แจ้งเตือน(?!\s*(?:ใหม่\s*)?(?:ระดับ|ความรุนแรง))",
+        re.IGNORECASE,
+    ),
+    "critical_alerts_today": re.compile(r"\bno\s+(?:new\s+)?critical\s+alerts?\b", re.IGNORECASE),
+    "high_alerts_today": re.compile(r"\bno\s+(?:new\s+)?high(?:-severity)?\s+alerts?\b", re.IGNORECASE),
+}
 
 
 def _today_utc_bounds() -> tuple[datetime, datetime]:
@@ -100,7 +112,9 @@ def check_answer(
         expected = facts.get(name)
         if expected is None:
             problems.append(f"fact {name} is unavailable in this database")
-        elif int(expected) not in found:
+        elif int(expected) not in found and not (
+            int(expected) == 0 and name in _ZERO_PHRASES and _ZERO_PHRASES[name].search(answer)
+        ):
             problems.append(f"missing {name}={expected}")
     for name in spec.get("mentions_facts", []):
         expected = facts.get(name)
