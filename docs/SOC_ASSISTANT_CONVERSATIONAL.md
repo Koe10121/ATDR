@@ -187,14 +187,62 @@ Context"), the built-in fallback listed the Critical alerts without saying it
 cannot close them. Any request that starts with an action verb now gets the
 read-only refusal from the fallback too.
 
-Still weak: asked "Why should I trust your answers?", the model looks up how it
-works but answers generically ("I do not make up data") instead of explaining
-the checks; the scoreboard keeps that question as a known miss.
+Asked "Why should I trust your answers?", the model looked up the right topic
+and still answered generically ("I am designed to provide accurate
+information"). Tracing every call showed why: it first answered from memory,
+was sent back to look the facts up, and then repeated that unchecked first
+draft word for word, because the draft stayed in the conversation. The draft
+is no longer sent back, so the answer is built from the lookup. "How do you
+work?" also stopped describing ATDR's detection as the assistant's own job.
 
-Final run on the 178-alert database: main set 87 of 88 (the trust question),
-held-out 27 of 27, no fallbacks; average answer time 7.2 s and 8.4 s. Every
-change to the instructions moved a few unrelated answers, so each version was
-scored on both sets before it was kept.
+Run on the 178-alert database: main set 88 of 88, held-out 27 of 27, no
+fallbacks; average answer time 7.0 s and 8.2 s. Every change to the
+instructions moved a few unrelated answers, so each version was scored on both
+sets before it was kept.
+
+### 1 October, afternoon: a second round of reviewer questions
+
+Sixteen more questions, four of them in Thai, found these; each is fixed:
+
+- "Is MFU under attack right now?" was answered "MFU is not currently under
+  attack" from a quiet day. The overview now opens with "ATDR cannot tell
+  whether MFU is under attack right now" and the date of its newest log, and an
+  answer that says MFU is, or is not, under attack is sent back.
+- "What's the difference between the rules and the AI model?" compared the old
+  rules' official F1 (62.7%) with the new rules plus the model (90.1%), and said
+  the model adapts over time. The accuracy topic now sets 90.1% against 85.2%
+  for the same rules, and the model topic says it does not learn after
+  training.
+- "Show me alerts from China" searched for an IP address called "China" and
+  reported none. Alerts carry no country, so the tools now say so and give the
+  logs' counts for that country (640 from China, 981 to it).
+- "How many logs, and from when?" left out the dates, and then called a
+  three-minute export from May "up to date". The count now gives the span and
+  says nothing newer has been imported.
+- Thai: "how accurate is this system?" was answered in English, and Thai
+  answers were rejected for Buddhist-era years (2569 for 2026) and for quoted
+  Thai translations of English terms. An answer to a Thai question must now be
+  in Thai, a Buddhist-era year counts as its Gregorian year, and quoted Thai is
+  not taken for a screen name. "What can the AI model do?" in Thai is now looked
+  up instead of answered from memory.
+- "Block the IP in alert 3738" was rejected for naming an alert that no tool
+  had returned. A request to act now also looks up the alert it names, so the
+  answer gives the dashboard steps for that alert.
+
+Scoring these changes found two more. "Why can't the ML model create alerts?"
+was answered "it cannot create alerts on its own": the model text mentioned the
+experimental alerts only after the quality bar, so they now come second. The
+Thai daily summary turned "no new alerts today is not an all-clear" into "not
+100% safe", a figure no tool gave, and called the newest alert's date "today".
+The overview now says "no new alerts were created today, but N are still open"
+and states today's date.
+
+Final run after this round: main set 88 of 88, held-out 27 of 27, no
+fallbacks; average answer time 7.9 s and 11.0 s (a Thai answer sometimes needs
+a second pass to come back in Thai). A run that shared the laptop with the test
+suite scored 25 of 27 on the held-out set: part of the model runs on the CPU,
+so heavy CPU load changes its wording slightly, and scores move by a question
+or two between runs.
 
 ## Measuring it again
 

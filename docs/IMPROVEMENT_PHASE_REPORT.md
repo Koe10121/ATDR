@@ -122,7 +122,7 @@ attacks. The assistant answered from a fixed list of question types.
 | Rules plus MFU model, same labels | F1 90.1% | Second look |
 | MFU model on fresh simulated attacks | port scan 96.5%, brute force 97.5%, flood 100%, C2 88.5%, exfiltration 98.0% | Simulated |
 | Team labels, current rules | precision 96.0%, recall 99.7% | Agreement, not accuracy |
-| Assistant | 87 of 88, and 27 of 27 held-out questions (1 Oct; 84 of 85 and 26 of 27 on 30 Sep) | Automatic scoring |
+| Assistant | 88 of 88, and 27 of 27 held-out questions (1 Oct; 84 of 85 and 26 of 27 on 30 Sep; runs vary by a question or two) | Automatic scoring |
 | Tests | 1,525 backend and 80 browser tests passing | |
 
 The live dashboard holds 178 alerts (Critical 34, High 43, Medium 81, Low 20).

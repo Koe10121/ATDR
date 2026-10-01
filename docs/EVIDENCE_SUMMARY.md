@@ -178,6 +178,8 @@ the malicious cases and the supervised classifier failed calibration.
 | Re-run on 30 Sep after the external review's fixes | main 84 of 85; held-out 26 of 27, one expectation corrected for the rebuilt list | |
 | Re-run on 1 Oct after the rule-wording fix | main 85 of 85; held-out 27 of 27 (the checker now reads a zero said in words, such as the Thai "no new alerts") | |
 | Re-run on 1 Oct after the reviewer-question fixes (main set now 88 checks) | main 87 of 88 (miss: "Why should I trust your answers?" answered generically); held-out 27 of 27 | |
+| Re-run on 1 Oct after the unchecked draft stopped being sent back | main 88 of 88; held-out 27 of 27 | |
+| Re-run on 1 Oct after the second round of reviewer questions (Thai, "under attack right now", countries) | main 88 of 88; held-out 27 of 27 (25 of 27 in a run that shared the CPU with the test suite) | |
 
 Measured on 2026-09-27 with qwen3:8b running locally, after the alert
 rebuild, and again on 2026-09-29 on the 181-alert list. The main set gained three questions when the assistant got tools
