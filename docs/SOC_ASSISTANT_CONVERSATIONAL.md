@@ -255,6 +255,52 @@ the test suite scored 25 of 27: part of the model runs on the CPU, so heavy
 CPU load changes its wording slightly, and scores move by a question or two
 between runs.
 
+### 1 October, evening: a fourth round of reviewer questions
+
+Eighteen more questions, four of them in Thai, found:
+
+- "Are any MFU devices talking to a known malicious server?" was answered
+  "no": asked without an address, the watchlist tool listed only the feeds. It
+  now names the hand-added indicators and the alerts that matched them (#3738,
+  the GHOSTENGINE C2 server).
+- "Are there any crypto miners on campus?" got general advice, then "ATDR does
+  not detect crypto miners", while 8 alerts named the XMRig miner signature.
+  Alert lists now give each alert's threat name, an attack-type explanation ends
+  with ATDR's own alerts of that type, and "campus", "miner" and "crypto" mark
+  a question about ATDR.
+- In Thai, "is MFU under attack?" was answered "MFU is not being attacked at
+  the moment". The claim check now reads Thai as well as English.
+- "Which applications are the riskiest?" listed the busiest. A ranking by log
+  count now adds the applications Palo Alto rates at its highest risk:
+  BitTorrent, SMTP, an HTTP proxy, IP-in-IP tunnelling and the Hola unblocker.
+- "How do I contain a malware infection?" fell back to the steps for blocking
+  an IP. The request to look things up now names the dashboard guide for
+  how-to questions and the concept tool for attacks, and a quoted phrase made
+  of words the tools used ("malware C2") is no longer taken for a screen name.
+- The run-detection guide said "the 20 rules" while the rule answer counts 21;
+  both now count the catalog.
+- A date passed as a time window ("2023-05-20") now gets a hint that the stored
+  logs are historical, and the overview says an alert's date is when detection
+  ran, not when the traffic happened. "What happened on 20 May?" is still
+  answered weakly.
+- "Why can't the ML model create alerts?" kept accepting the question's premise
+  ("the MFU behaviour model does not create alerts on its own"). An answer that
+  denies the model raises alerts is now sent back whenever the tool says it
+  does, and the rewrite says it raises experimental alerts where the rules
+  raise none. That question's check, written when the model only advised, now
+  also accepts "experimental".
+- "What are the biggest risks right now and how do I fix them?" gave dashboard
+  steps without looking up the dashboard guide, kept them in the rewrite, and
+  fell back to unrelated setup commands in one run of two. When the only
+  problem the guide could settle is unchecked steps, the guide is now looked up
+  before the rewrite (3 of 3 runs then passed).
+
+The main set gained 13 reviewer questions from today's rounds, so it now has
+101 checks. Final run after round 4: main set 100 of 101 (the miss: "Why should
+I trust your answers?" explains that it only reports what the tools show but
+does not say the answers are checked), held-out 27 of 27, no fallbacks; average
+answer time 10.0 s and 10.2 s.
+
 ## Measuring it again
 
 ```

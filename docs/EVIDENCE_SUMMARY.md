@@ -180,7 +180,8 @@ the malicious cases and the supervised classifier failed calibration.
 | Re-run on 1 Oct after the reviewer-question fixes (main set now 88 checks) | main 87 of 88 (miss: "Why should I trust your answers?" answered generically); held-out 27 of 27 | |
 | Re-run on 1 Oct after the unchecked draft stopped being sent back | main 88 of 88; held-out 27 of 27 | |
 | Re-run on 1 Oct after the second round of reviewer questions (Thai, "under attack right now", countries) | main 88 of 88; held-out 27 of 27 (25 of 27 in a run that shared the CPU with the test suite) | |
-| Re-run on 1 Oct after the conversation fixes ("top 3 critical alerts", "why only experimental?"), final code | main 88 of 88; held-out 26 of 27 ("What does the ML model do?" passes in some runs, not others) | |
+| Re-run on 1 Oct after the conversation fixes ("top 3 critical alerts", "why only experimental?") | main 88 of 88; held-out 26 of 27 ("What does the ML model do?" passes in some runs, not others) | |
+| Re-run on 1 Oct evening after reviewer round 4; main set now 101 checks with 13 reviewer questions | main 100 of 101; held-out 27 of 27 | |
 
 Measured on 2026-09-27 with qwen3:8b running locally, after the alert
 rebuild, and again on 2026-09-29 on the 181-alert list. The main set gained three questions when the assistant got tools
