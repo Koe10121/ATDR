@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from atdr.app.db.models import Alert, AlertEvidence, MLLabel, NormalizedLog
 from atdr.app.detection.attack_mapping import attack_mapping_for_type, infer_attack_type_from_rules
 from atdr.app.detection.hybrid_scoring import hybrid_risk_score
+from atdr.app.detection.plain_summary import build_plain_summary
 from atdr.app.detection.rule_catalog import rule_spec
 from atdr.app.detection.rules import (
     is_informational_threat_record,
@@ -710,6 +711,7 @@ def build_alert_detection_summary(db: Session, alert: Alert) -> dict[str, Any]:
             "risk_score": alert.threat_score,
         },
         "what_happened": alert.explanation,
+        "plain_summary": build_plain_summary(db, alert, attack_type),
         "detection_source": detection_sources,
         "attack_type": attack_type,
         "attack_mapping": mapping,

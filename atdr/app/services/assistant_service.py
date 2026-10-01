@@ -15,12 +15,14 @@ from atdr.app.core.config import PROJECT_ROOT, Settings
 from atdr.app.db.models import Alert, AssistantFeedback, AuditLog, DetectionRun, NormalizedLog, OperationJob, User
 from atdr.app.detection.supervised_detector import supervised_model_report
 from atdr.app.detection.runtime_contract import experimental_model_runtime_status
+from atdr.app.detection.attack_mapping import infer_attack_type_from_rules
 from atdr.app.detection.explanations import build_alert_detection_summary, explain_log_triage
 from atdr.app.services.case_service import list_alert_cases
-from atdr.app.services.assistant_data_query import DataAnswer, answer_data_question, parse_data_question
+from atdr.app.services.assistant_data_query import ATTACK_LABELS, DataAnswer, answer_data_question, parse_data_question
 from atdr.app.services.assistant_agent import (
     ACTION_REQUEST,
     ENTITY_REFERENCE,
+    TRUST_QUESTION,
     AgentOutcome,
     OllamaEngine,
     engine_from_settings,
@@ -57,6 +59,13 @@ LOG_ID_PATTERN = re.compile(r"\b(?:log|row|event)(?:\s+id)?\s*#?\s*(\d{1,10})\b"
 SOURCE_ID_PATTERN = re.compile(r"\b(?:source|sensor)(?:\s+id)?\s*#?\s*(\d{1,10})\b", re.IGNORECASE)
 CASE_ID_PATTERN = re.compile(r"\bcase\s*#?\s*([a-zA-Z0-9_-]{4,120})\b", re.IGNORECASE)
 CONVERSATION_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
+# "Is MFU under attack right now?" ("ถูกโจมตี": being attacked). When the model's drafts fail the checks (one
+# said "not under attack", the next made up "the last 24 hours"), the fallback answered "no built-in answer".
+ATTACK_STATUS_QUESTION = re.compile(
+    r"\bunder (?:an? )?attack\b|\bbeing (?:attacked|hacked|targeted)\b|\b(?:been|got|get) hacked\b"
+    r"|\b(?:are|is) (?:we|mfu|the (?:network|campus|university)) (?:safe|secure|compromised)\b|ถูกโจมตี",
+    re.IGNORECASE,
+)
 
 SENSITIVE_CONTEXT_KEYS = {
     "api_key",
@@ -1167,6 +1176,10 @@ def answer_assistant_question(
         result = _answer_unsafe_action_refusal(clean_question, redacted=redacted)
     elif any(term in lowered for term in ["response safety", "safety rules", "can assistant block", "can the assistant block", "can chatbot block"]):
         result = _answer_response_safety(redacted=redacted)
+    elif ATTACK_STATUS_QUESTION.search(clean_question):
+        result = _answer_attack_status(db, redacted=redacted)
+    elif TRUST_QUESTION.search(clean_question):
+        result = _answer_trust(db, settings=settings, redacted=redacted)
     elif (help_answer := answer_help_question(clean_question)) is not None:
         result = _help_result(help_answer, redacted=redacted)
     elif (rule_answer := answer_rule_question(clean_question)) is not None:
@@ -2368,6 +2381,93 @@ Safe alternative
             "What can I safely do next for this alert?",
             "Summarize source health.",
         ],
+    )
+
+
+def _answer_attack_status(db: Session, *, redacted: bool) -> AssistantResult:
+    """What ATDR can say to "are we under attack?": not now, only what its imported logs and open alerts show."""
+
+    newest = db.scalar(select(func.max(NormalizedLog.generated_time)))
+    open_count = int(db.scalar(select(func.count(Alert.id)).where(Alert.status == "open")) or 0)
+    critical = int(db.scalar(select(func.count(Alert.id)).where(Alert.status == "open", Alert.severity == "Critical")) or 0)
+    top = list_alerts(db, status="open", sort_by="score", limit=3)
+    summary = (
+        "ATDR cannot tell whether MFU is under attack right now: it sees only imported firewall logs, and the newest "
+        + (f"is from {newest:%d %b %Y %H:%M} (firewall local time)." if newest else "has not arrived yet.")
+    )
+    lines = [
+        f"{open_count:,} alerts are still open ({critical:,} Critical); the highest-scoring:" if top
+        else f"{open_count:,} alerts are open.",
+        *[
+            f"#{alert.id} {alert.severity}, "
+            f"{ATTACK_LABELS.get(infer_attack_type_from_rules(alert.matched_rules_json or []), 'unclassified')}, score {alert.threat_score}"
+            for alert in top
+        ],
+    ]
+    basis = "To check current traffic, import the newest firewall logs and run detection."
+    citations = [Citation("Alert records", "/api/alerts"), Citation("Firewall log records", "/api/logs")]
+    return AssistantResult(
+        answer=_text("\n".join([summary, *[f"- {line}" for line in lines], basis]), redacted=redacted),
+        # Shown as a data answer: the summary, up to eight rows and one closing line.
+        context_used=["alert_query", "attack_status"],
+        citations=citations,
+        details={
+            "answer_sections": {
+                "summary": [summary],
+                "evidence": lines,
+                "related_context": [basis],
+                "citations": [_citation_reference(citation) for citation in citations],
+            }
+        },
+        suggested_followups=[
+            *([f"Explain alert {top[0].id}."] if top else []),
+            "How do I import firewall logs?",
+            "How do I run detection?",
+        ],
+    )
+
+
+def _answer_trust(db: Session, *, settings: Settings, redacted: bool) -> AssistantResult:
+    """Asked "why should I trust your answers?": the same account of the checks the model reads (the fallback
+    explained alert #3839 instead)."""
+
+    if settings.assistant_agent_engine.strip().lower() in {"", "off"}:
+        summary = (
+            "These are ATDR's built-in answers: each one is computed directly from ATDR's database, rule catalog and "
+            "guides, without a language model."
+        )
+        lines = [
+            "They cannot block, change, close or delete anything.",
+            "They cover fixed kinds of questions, and an alert is a lead, not proof: open it and its evidence before acting.",
+        ]
+    else:
+        from atdr.app.services.assistant_tools import build_assistant_tools
+
+        tools = {tool.name: tool for tool in build_assistant_tools(db, settings=settings)}
+        first, *rest = tools["explain_concept"].run({"topic": "how_you_work"}).text.split("\n")
+        # "You can check my answers: before you see one, ..." The summary line is cut at 32 words, rows are not, but
+        # past 160 words the rows are run together; the checks stay whole, the other rows keep their first sentence.
+        head, _, checks = first.partition(": ")
+        summary = f"{head}." if checks else first
+        lines = [
+            *([checks[0].upper() + checks[1:]] if checks else []),
+            *(re.split(r"(?<=\.)\s+", line.removeprefix("- "), maxsplit=1)[0] for line in rest if line.strip()),
+        ]
+    citations = [Citation("SOC assistant", "docs/SOC_ASSISTANT_CONVERSATIONAL.md")]
+    return AssistantResult(
+        answer=_text("\n".join([summary, *[f"- {line}" for line in lines]]), redacted=redacted),
+        # Shown as a data answer: the summary and its rows, unshortened.
+        context_used=["assistant_capabilities", "assistant_trust"],
+        citations=citations,
+        details={
+            "answer_sections": {
+                "summary": [summary],
+                "evidence": lines,
+                "related_context": [],
+                "citations": [_citation_reference(citation) for citation in citations],
+            }
+        },
+        suggested_followups=["How accurate is ATDR?", "What can you do?"],
     )
 
 

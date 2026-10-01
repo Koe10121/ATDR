@@ -627,6 +627,7 @@ export interface AttackMapping {
 
 export interface DetectionSummary {
   what_happened?: string;
+  plain_summary?: string;
   detection_source: string[];
   attack_type: string;
   attack_mapping: AttackMapping;

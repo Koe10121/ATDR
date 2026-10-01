@@ -504,7 +504,10 @@ class Settings(BaseSettings):
     assistant_agent_api_key: str = Field(default="", alias="ASSISTANT_AGENT_API_KEY")
     assistant_agent_timeout_seconds: float = Field(default=120.0, alias="ASSISTANT_AGENT_TIMEOUT_SECONDS")
     assistant_agent_max_rounds: int = Field(default=5, alias="ASSISTANT_AGENT_MAX_ROUNDS")
-    assistant_agent_context_tokens: int = Field(default=12288, alias="ASSISTANT_AGENT_CONTEXT_TOKENS")
+    # 8,192 lets qwen3:8b fit wholly on the laptop's graphics card: answers took 4.4 s on average instead of
+    # 10.0 s at 12,288, where 15% of the model ran on the processor. The largest request in a full
+    # scoreboard run used 6,256 tokens.
+    assistant_agent_context_tokens: int = Field(default=8192, alias="ASSISTANT_AGENT_CONTEXT_TOKENS")
     assistant_agent_keep_alive: str = Field(default="30m", alias="ASSISTANT_AGENT_KEEP_ALIVE")
 
     @property

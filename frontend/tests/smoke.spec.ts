@@ -207,7 +207,9 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
         { field: "dst_port", value: 22 }
       ],
       top_evidence_points: ["Policy deny: Denied traffic.", "Source touched 32 unique destination ports in 5 minutes."],
-      why_flagged: "Flagged as suspicious because action=deny and source touched 32 unique destination ports in 5 minutes."
+      why_flagged: "Flagged as suspicious because action=deny and source touched 32 unique destination ports in 5 minutes.",
+      plain_summary:
+        "On 20 May, 13:36–13:39, an outside address (203.0.113.10, Netherlands) made 150 connections to 32 MFU devices on 32 different ports. The firewall blocked all 150. Next: decide whether this is approved scanning or someone mapping your services."
     }
   };
   const smokeLog = {
@@ -5512,6 +5514,10 @@ test("deep-linked alert and log drawers render", async ({ page }) => {
   await seedSession(page);
   await page.goto("/alerts?alert=1");
   await expect(page.getByRole("heading", { name: "Critical: Smoke alert" })).toBeVisible();
+  // The plain-words summary comes first, above the rule-by-rule detail.
+  const plainSummary = page.getByTestId("alert-plain-summary");
+  await expect(plainSummary).toContainText("In plain words");
+  await expect(plainSummary).toContainText("made 150 connections to 32 MFU devices on 32 different ports. The firewall blocked all 150.");
   await expect(page.getByText("Why flagged?")).toBeVisible();
   // Regression: observed_evidence is a {field, value} pair list, not plain
   // strings; rendering it raw crashed the whole page on every real alert.
@@ -5655,6 +5661,9 @@ test("alert detail shows supervised schema abstention without a false score", as
   );
 
   await page.goto("/alerts?alert=1");
+  await expect(page.getByRole("heading", { name: "Critical: Schema-gated alert" })).toBeVisible();
+  // No plain-words summary was sent (an alert without evidence logs), so none is shown.
+  await expect(page.getByTestId("alert-plain-summary")).toHaveCount(0);
   await page.getByText("Detection layer detail", { exact: true }).click();
   const shadow = page.getByText("Supervised Signal").locator("..");
   await expect(shadow).toContainText("Abstained");

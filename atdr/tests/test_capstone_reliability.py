@@ -344,6 +344,24 @@ def test_the_assistant_never_says_whether_mfu_is_under_attack():
         assert thai_check(hedged) == [], hedged
 
 
+def test_other_ways_of_saying_mfu_is_not_under_attack_are_caught_too():
+    # A second draft, "MFU is safe and not under attack.", passed the check that had stopped the first.
+    check = lambda answer: assistant_agent.verify_answer(  # noqa: E731
+        answer, evidence=["178 alerts are still open."], asked=["Is MFU under attack right now?"], redacted=True,
+        forbidden_values=[],
+    )
+    for claim in (
+        "MFU is safe and not under attack.",
+        "MFU isn't under attack.",
+        "The network is not currently being attacked.",
+        "MFU is safe.",
+        "We are secure right now.",
+    ):
+        assert any("says whether MFU is under attack" in problem for problem in check(claim)), claim
+    for advice in ("It is safe to close an alert once it is checked.", "Ensure the network is secure. 178 alerts are still open."):
+        assert check(advice) == [], advice
+
+
 def test_a_request_to_act_on_a_named_alert_looks_the_alert_up_first(seeded, monkeypatch):  # noqa: F811
     # "block the IP in alert 3738" was rejected for naming an alert no tool had returned, and fell back.
     sessions, settings = seeded

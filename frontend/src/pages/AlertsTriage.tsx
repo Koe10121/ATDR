@@ -498,6 +498,12 @@ export function AlertsTriage() {
             </div>
             <div>
               <h2 className="text-2xl font-black">{selected.title}</h2>
+              {detectionSummary?.plain_summary ? (
+                <section className="mt-3 rounded-lg border border-cyan/25 bg-cyan/5 p-4" data-testid="alert-plain-summary">
+                  <div className="text-xs font-extrabold uppercase tracking-wide text-cyan">In plain words</div>
+                  <p className="mt-1 text-base leading-relaxed text-text">{detectionSummary.plain_summary}</p>
+                </section>
+              ) : null}
               <p className="mt-2 text-sm text-muted">{selected.explanation}</p>
             </div>
             <MetaGrid

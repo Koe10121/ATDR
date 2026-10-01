@@ -117,6 +117,9 @@ CANNOT_ACT = "I can't do that myself; I only read ATDR's data. Here is how you c
 DIRECTIONS_UNCHECKED = "gives dashboard directions without checking the dashboard guide (dashboard_how_to)"
 # A screen word straight after a quoted name: 'the "Bulk Close" button' names a screen element.
 UI_WORD_AFTER = re.compile(r"\s*(?:section|button|menu|tab|page|box|panel|link)\b", re.IGNORECASE)
+# A quoted example value is not a screen element: the suppression steps were rejected twice for
+# 'Reason (e.g., "Approved scanner activity")'.
+EXAMPLE_BEFORE = re.compile(r"\b(?:e\.g\.|for example|for instance|such as)[,:]?\s*$", re.IGNORECASE)
 # Any character of the Thai script block (U+0E00 to U+0E7F).
 THAI_TEXT = re.compile(r"[฀-๿]")
 ACTION_CLAIM = re.compile(
@@ -127,11 +130,17 @@ ACTION_CLAIM = re.compile(
 )
 # ATDR sees only imported logs, so it cannot say whether MFU is under attack now. Asked exactly that, the model
 # answered "MFU is not currently under attack" from a quiet day of alerts while its newest log was months old.
+# A scripted second draft, "MFU is safe and not under attack", passed: "and not", "isn't", "not currently being
+# attacked" and "MFU is safe" are the same claim.
 ATTACK_STATUS_CLAIM = re.compile(
-    r"\b(?:is|are)\s+not\s+(?:currently\s+|being\s+)?(?:under\s+(?:an?\s+)?attack|attacked)\b"
+    r"(?:\b(?:is|are)\s+not|\b(?:is|are)n['’]t|\band\s+not|\bnor)\s+(?:currently\s+|now\s+)?(?:being\s+)?"
+    r"(?:under\s+(?:an?\s+)?(?:active\s+)?attack|attacked|hacked)\b"
     r"|\bno\s+(?:active|ongoing|current)\s+attacks?\b"
     r"|(?<!whether )(?<!if )(?<!not mean )(?<!n't mean )\b(?:MFU|we|the network|our network)\s+(?:is|are)\s+(?:currently\s+|now\s+)?"
-    r"under\s+(?:an?\s+)?(?:active\s+)?attack\b",
+    r"under\s+(?:an?\s+)?(?:active\s+)?attack\b"
+    # "make sure the network is secure" is advice, not a claim.
+    r"|(?<!whether )(?<!if )(?<!sure )(?<!that )\b(?:MFU|we|the network|our network)\s+(?:is|are)\s+(?:currently\s+|now\s+)?"
+    r"(?:safe|secure)\b(?!\s+to\b)",
     re.IGNORECASE,
 )
 # "Why can't the ML model create alerts?" was answered "the MFU behaviour model does not create alerts on its own",
@@ -142,6 +151,15 @@ MODEL_ALERT_DENIAL = re.compile(
     re.IGNORECASE,
 )
 MODEL_RAISES_ALERTS = "also raises its own alerts"
+# "Why should I trust your answers?" was answered "I can only explain what the tools show" in run after run, never
+# saying that ATDR checks every answer, though the tool's account starts with the checks (checked only when it was read).
+TRUST_QUESTION = re.compile(
+    r"\b(?:trust|believe|rely on)\s+(?:you|your|the assistant|this assistant|the answers?|what you say)\b"
+    r"|\bhallucinat\w*|\bmak(?:e|es|ing)\s+(?:things|stuff|it)\s+up\b",
+    re.IGNORECASE,
+)
+ANSWERS_CHECKED = "ATDR checks that every number"
+SAYS_CHECKED = re.compile(r"\b(?:check|verif)", re.IGNORECASE)
 # The same claims in Thai: "ไม่ได้ถูกโจมตี" (is not being attacked) was answered to "MFU ถูกโจมตีอยู่ไหม", and
 # "กำลังถูกโจมตี" (is being attacked) unless asked as "whether" (หรือไม่) or hedged with "may" (อาจ).
 THAI_ATTACK_STATUS_CLAIM = re.compile(
@@ -595,6 +613,7 @@ def verify_answer(
             term for match in UI_TERM.finditer(answer)
             if (term := (match.group(1) or match.group(2) or "").strip(" .,:;")) and term.lower() not in known_lower
             and not THAI_TEXT.search(term)
+            and not (match.group(1) and EXAMPLE_BEFORE.search(answer, max(0, match.start() - 20), match.start()))
             and not (
                 match.group(1)
                 and not UI_WORD_AFTER.match(answer, match.end())
@@ -629,6 +648,11 @@ def verify_answer(
         problems.append(
             f"says the model cannot raise alerts ({denial.group(0)!r}), but the tool result says the MFU behaviour model "
             "also raises its own experimental, low-confidence alerts where the rules raise none: say that"
+        )
+    if ANSWERS_CHECKED in known_text and any(TRUST_QUESTION.search(text) for text in asked) and not SAYS_CHECKED.search(answer):
+        problems.append(
+            "does not say how answers are checked: start with the tool's account of the checks (every number, alert "
+            "number, IP address and page name must appear in what the tools returned), then the limits"
         )
     status_claim = ATTACK_STATUS_CLAIM.search(answer) or THAI_ATTACK_STATUS_CLAIM.search(answer)
     if status_claim:

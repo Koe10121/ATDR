@@ -40,7 +40,8 @@ _RECORD_ID = re.compile(r"\balert\s*#?\s*\d[\d,]*|#\d[\d,]*", re.IGNORECASE)
 _ZERO_PHRASES = {
     "alerts_today": re.compile(
         r"\bno\s+(?:new\s+)?alerts?\b(?!\s+(?:of|with)\s+(?:critical|high|medium|low))"
-        r"|ไม่มี\s*(?:การ)?แจ้งเตือน(?!\s*(?:ใหม่\s*)?(?:ระดับ|ความรุนแรง))",
+        # "ไม่มี" (there are no) or "ไม่พบ" (found no): "ไม่พบการแจ้งเตือนใหม่" failed a correct Thai summary.
+        r"|ไม่(?:มี|พบ)\s*(?:การ)?แจ้งเตือน(?!\s*(?:ใหม่\s*)?(?:ระดับ|ความรุนแรง))",
         re.IGNORECASE,
     ),
     "critical_alerts_today": re.compile(r"\bno\s+(?:new\s+)?critical\s+alerts?\b", re.IGNORECASE),

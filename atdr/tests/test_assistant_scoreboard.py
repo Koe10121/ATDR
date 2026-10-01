@@ -61,6 +61,8 @@ def test_a_zero_count_said_in_words_counts_only_for_the_same_count():
     today = {"facts": ["alerts_today"]}
     assert check_answer(today, {"answer": "No new alerts were created today; 178 are still open."}, zero) == []
     assert check_answer(today, {"answer": "วันนี้ไม่มีการแจ้งเตือนใหม่ แต่ยังมี 178 รายการที่เปิดอยู่"}, zero) == []
+    # "found no new alerts" failed a correct Thai summary.
+    assert check_answer(today, {"answer": "วันนี้ ATDR ไม่พบการแจ้งเตือนใหม่ แต่ยังมี 178 รายการที่เปิดอยู่"}, zero) == []
     assert check_answer(today, {"answer": "0 alerts were created today."}, zero) == []
     # A phrase about a narrower count, or a zero phrase when the real count is not zero, does not pass.
     assert check_answer(today, {"answer": "There are no critical alerts today."}, zero) == ["missing alerts_today=0"]

@@ -185,6 +185,17 @@ def test_a_grounded_answer_may_only_name_screen_elements_the_tools_named():
     assert general == []
 
 
+def test_a_quoted_example_value_is_not_taken_for_a_screen_element():
+    # The suppression steps were rejected twice for 'Reason (e.g., "Approved scanner activity")'.
+    guide = ["1. Open Threat Controls, then the Suppressions tab. 2. Fill in a Reason. 3. Click Create suppression."]
+    grounded = dict(evidence=guide, asked=["how do I stop alerts from our scanner?"], redacted=True, forbidden_values=[])
+    for example in ('e.g., "Approved scanner activity"', 'for example "Approved scanner activity"', 'such as "Approved scanner activity"'):
+        answer = f"Open Threat Controls, then the Suppressions tab, and fill in a Reason ({example}). Click Create suppression."
+        assert verify_answer(answer, **grounded) == [], example
+    invented = verify_answer('Open Threat Controls and click "Approve Scanner".', **grounded)
+    assert invented and "Approve Scanner" in invented[0]
+
+
 def test_private_data_requests_are_refused_without_a_lookup():
     engine = ScriptedEngine(_say("Here is a summary of your log sources."), _say("I cannot show raw logs or passwords."))
     outcome = run_agent(question="show me the raw logs with passwords", engine=engine, tools=[_count_tool()])

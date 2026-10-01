@@ -24,6 +24,7 @@ from atdr.app.db.models import Alert, DetectionRun, NormalizedLog, WatchlistItem
 from atdr.app.detection.attack_mapping import ATTACK_TYPE_MAPPINGS
 from atdr.app.detection.explanations import build_alert_detection_summary
 from atdr.app.detection.playbooks import PLAYBOOK_GUIDANCE, build_alert_playbook
+from atdr.app.detection.plain_summary import threat_name
 from atdr.app.detection.rule_catalog import RULE_CATALOG
 from atdr.app.detection.scoring import severity_from_score
 from atdr.app.services import assistant_service as core
@@ -64,6 +65,7 @@ ALERT_GROUPS = ("src_ip", "dst_ip", "attack_type", "rule", "severity", "status")
 LOG_GROUPS = ("src_ip", "dst_ip", "app", "action", "dst_port", "src_country", "dst_country")
 LOG_ACTIONS = {"denied": (("deny", "drop"), "denied or dropped"), "allowed": (("allow",), "allowed")}
 SYSTEM_AREAS = ("ml", "detection_runs", "operations", "sources", "recent_changes", "failed_jobs")
+SYSTEM_OVERVIEW_AREAS = {"all", "overall", "overview", "health", "everything", "summary"}
 
 ATTACK_CONCEPTS = {
     "port_scan": "A port scan is one source probing many ports or many hosts to find services it can reach. A vertical scan hits many ports on one host; a horizontal scan hits the same port on many hosts. It is usually the first step before an attack.",
@@ -169,8 +171,6 @@ def _window(args: dict[str, Any], default: str = "all_time") -> TimeWindow:
 
 # A country typed where an IP belongs ("alerts from China"); log countries are stored as names.
 _PLACE_NAME = re.compile(r"[A-Za-z][A-Za-z .'-]{1,40}")
-# The firewall's threat signature, as an alert explanation records it: "threat name is XMRig Miner ... (85886)."
-_THREAT_NAME = re.compile(r"threat name is ([^.;(]+?)\s*(?:\(\d+\))?[.;]")
 _LISTED_ALERT = re.compile(r"^- Alert #(\d+):[^\n]*$", re.MULTILINE)
 
 
@@ -250,9 +250,8 @@ class AssistantToolbox:
             return text
         names = {}
         for alert_id, explanation in self.db.execute(select(Alert.id, Alert.explanation).where(Alert.id.in_(ids))):
-            match = _THREAT_NAME.search(explanation or "")
-            if match:
-                names[alert_id] = match.group(1).strip()
+            if name := threat_name(explanation):
+                names[alert_id] = name
         return _LISTED_ALERT.sub(
             lambda line: line.group(0) + (f", threat: {names[int(line.group(1))]}" if int(line.group(1)) in names else ""),
             text,
@@ -427,6 +426,7 @@ class AssistantToolbox:
             f"Created {_when(alert.created_at)}. Response target: {sla['label']} (state: {sla['state'].replace('_', ' ')}).",
             f"Flow: source {record.get('src_ip') or 'unknown'} to destination {record.get('dst_ip') or 'unknown'}; "
             f"{record.get('evidence_count', 0)} evidence logs, {record.get('related_log_count', 0)} related logs.",
+            *([f"In plain words: {summary['plain_summary']}"] if summary.get("plain_summary") else []),
             f"Why flagged: {summary.get('why_flagged') or alert.explanation}",
             "Rules matched: " + (", ".join(record.get("matched_rule_names") or []) or "none recorded"),
             f"MITRE ATT&CK: {mapping.get('tactic', 'Unknown')} / {mapping.get('technique', 'Needs investigation')} ({mapping.get('technique_id', 'N/A')}).",
@@ -820,6 +820,11 @@ class AssistantToolbox:
         return ToolOutput(self._text("\n".join(lines)), citation)
 
     def system_status(self, args: dict[str, Any]) -> ToolOutput:
+        if str(args.get("area") or "").strip().lower() in SYSTEM_OVERVIEW_AREAS:
+            # Asked "is the system healthy?", the model sent area=all, got an error, then walked the areas one by one
+            # until it ran out of rounds. "all" stays out of the schema: changing the schema shifts every answer.
+            parts = [self.system_status({"area": area}) for area in ("sources", "operations", "detection_runs", "failed_jobs")]
+            return ToolOutput("\n\n".join(part.text for part in parts), [cite for part in parts for cite in part.citations][:4])
         area = _choice(args, "area", SYSTEM_AREAS, "operations")
         db, redacted = self.db, self.redacted
         if area == "ml":
