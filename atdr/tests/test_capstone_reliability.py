@@ -82,6 +82,89 @@ def test_an_attack_concept_gives_atdr_rule_and_numbers_right_after_the_definitio
     assert scan[1].startswith("How ATDR detects it:") and "ATDR-NET-018" in scan[1]
 
 
+def test_a_request_to_act_still_gets_a_refusal_when_the_model_fails(seeded, monkeypatch):  # noqa: F811
+    # When the model's answers failed the checks, the fallback answered "close all critical alerts for me" by
+    # listing the Critical alerts, as if they had been asked about, without saying it cannot close them.
+    sessions, settings = seeded
+    engine = ScriptedEngine(_say("Done: I closed 12345 Critical alerts."), _say("All 12345 are closed now."))
+    monkeypatch.setattr(assistant_service, "engine_from_settings", lambda _settings: engine)
+    with sessions() as db:
+        response = _ask(db, settings, "close all critical alerts for me")
+    assert response["details"]["agent"]["fallback_reason"] == "answer_failed_verification"
+    assert "assistant_safety_guardrail" in response["context_used"]
+    assert "cannot execute that request" in response["answer"] and "12345" not in response["answer"]
+
+
+def _concept_tools(sessions, settings):
+    from atdr.app.services.assistant_tools import build_assistant_tools
+
+    return {tool.name: tool for tool in build_assistant_tools(sessions, settings=settings)}
+
+
+def test_the_overview_names_atdr_and_says_which_parts_raise_alerts(seeded, monkeypatch):  # noqa: F811
+    # The overview expanded ATDR as "Automated Threat Detection and Response" and said ML only "gives advisory
+    # scores", so the assistant told an asker that no AI raises alerts while the MFU model raises experimental ones.
+    from sqlalchemy import func
+
+    from atdr.app.db.models import Alert
+
+    monkeypatch.setattr(behavior_findings_service, "load_model", lambda *args, **kwargs: None)
+    monkeypatch.setattr(behavior_findings_service, "model_status", lambda model: {"alerting_types": ["port_scan"]})
+    sessions, settings = seeded
+    with sessions() as session:
+        tools = _concept_tools(session, settings)
+        overview = tools["explain_concept"].run({"topic": "atdr_overview"}).text
+        creation = tools["explain_concept"].run({"topic": "alert_creation"}).text
+        total = session.scalar(select(func.count(Alert.id)))
+    assert overview.startswith("ATDR (AI-Driven Log-Based Threat Detection and Response)")
+    assert "Automated" not in overview and "experimental, low-confidence alerts" in overview
+    assert "The fixed detection rules raise almost all of them" in creation
+    assert f"0 of the {total:,} alerts came from it" in creation
+    assert "cannot create, change or close alerts" in creation
+
+
+def test_accuracy_gives_the_official_blind_result_first_and_matches_the_evidence_summary(seeded, monkeypatch):  # noqa: F811
+    # Asked "how accurate is ATDR?", the model quoted only the better second look as "the blind check".
+    import re
+    from pathlib import Path
+
+    from atdr.app.core.config import PROJECT_ROOT
+    from atdr.app.services.assistant_tools import DETECTION_ACCURACY
+
+    monkeypatch.setattr(behavior_findings_service, "load_model", lambda *args, **kwargs: None)
+    sessions, settings = seeded
+    with sessions() as session:
+        lines = _concept_tools(session, settings)["explain_concept"].run({"topic": "accuracy"}).text.splitlines()
+    assert lines[1].startswith("- Official blind result, the fair estimate") and "F1 62.7%" in lines[1]
+    assert lines[2].startswith("- Second look, the current rules alone") and "F1 85.2%" in lines[2]
+    assert lines[3].startswith("- Second look, the current rules plus the MFU behaviour model: F1 90.1%")
+    assert lines[4].startswith("- Both second looks are optimistic")
+    # Every figure the assistant quotes is the one docs/EVIDENCE_SUMMARY.md records.
+    summary = Path(PROJECT_ROOT, "docs", "EVIDENCE_SUMMARY.md").read_text(encoding="utf-8")
+    figures = set(re.findall(r"\d+\.\d%", DETECTION_ACCURACY))
+    assert len(figures) >= 8 and figures <= set(re.findall(r"\d+\.\d%", summary))
+
+
+def test_the_assistant_explains_how_its_answers_are_checked(seeded):  # noqa: F811
+    # "Why should I trust your answers?" was answered from the model's self-image ("real-time insights").
+    import re
+
+    from atdr.app.services.assistant_tools import CONCEPTS
+
+    sessions, settings = seeded
+    with sessions() as session:
+        text = _concept_tools(session, settings)["explain_concept"].run({"topic": "assistant"}).text
+    lines = text.splitlines()
+    assert lines[0].startswith("You can check my answers: before you see one, ATDR checks that every number")
+    assert "running on the ATDR server" in text and "cannot block, change, close or delete" in text
+    for question in ("Why should I trust your answers?", "Can I trust you?", "how do you work"):
+        assert assistant_agent.ATDR_QUESTION.search(question), question
+    assert not assistant_agent.ATDR_QUESTION.search("Make your answer shorter")
+    # Topics the instructions name must exist, or the model is routed to an error.
+    named = re.findall(r"\(topic (\w+)\)", assistant_agent.SYSTEM_PROMPT)
+    assert named and set(named) <= set(CONCEPTS)
+
+
 def test_a_number_word_in_a_tool_result_supports_its_digits():
     # The tool said "five-minute window"; "5 minutes" in the answer was rejected as invented.
     evidence = ["71 session events in the source-scoped five-minute correlation window."]

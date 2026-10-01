@@ -84,6 +84,8 @@ CONCEPT_ALIASES = {
     "data_exfiltration": "data_exfiltration_suspicion",
     "exploit": "exploit_attempt",
     "exploitation": "exploit_attempt",
+    "accuracy": "detection_accuracy",
+    "assistant": "how_you_work",
 }
 OTHER_CONCEPTS = (
     "mitre_attack",
@@ -93,10 +95,30 @@ OTHER_CONCEPTS = (
     "alert_grouping",
     "supporting_signals",
     "ml_models",
+    # The local model asked for this topic when asked "can the AI create alerts by itself?".
+    "alert_creation",
+    "detection_accuracy",
     "simulated_response",
     "privacy_redaction",
     "data_sources",
+    # The local model's own guess for "how do you work?"; "assistant" made it describe ATDR as itself.
+    "how_you_work",
     "atdr_overview",
+)
+# The measured results as docs/EVIDENCE_SUMMARY.md records them (a test keeps the two in step). The official
+# blind result is never re-scored; later figures on the same labels are "second look" numbers. The official
+# result comes first: further down, the local model quoted only the better second look as "the blind check".
+DETECTION_ACCURACY = (
+    "ATDR's accuracy comes from one blind check: 150 randomly chosen MFU logs, labeled without seeing ATDR's verdicts.\n"
+    "- Official blind result, the fair estimate (the rules at the first presentation, catalog v5.32.0): precision "
+    "50.9%, recall 81.8%, F1 62.7%, 6.0% false alarms.\n"
+    "- Second look, the current rules alone (v5.36.0, same logs, after a person checked the labels): precision 93.5%, "
+    "recall 78.2%, F1 85.2%.\n"
+    "- Second look, the current rules plus the MFU behaviour model: F1 90.1%.\n"
+    "- Both second looks are optimistic: the changes were made with those labels in view, and most of the precision "
+    "gain came from 5 flagged rows the label check moved to Unsure.\n"
+    "- Agreement with the team's own labels is higher (95.6% to 97.0% precision), but those labels were made while "
+    "the rules were tuned, so it is agreement, not accuracy."
 )
 CONCEPTS = (*ATTACK_CONCEPTS, *CONCEPT_ALIASES, *OTHER_CONCEPTS)
 
@@ -478,6 +500,55 @@ class AssistantToolbox:
                 "qualification, so its runtime state is unqualified and it refuses to score. "
                 f"{status['data_limit']}"
             )
+        if topic == "detection_accuracy":
+            from atdr.app.services import behavior_findings_service as findings
+
+            return f"{DETECTION_ACCURACY}\n{findings.DATA_LIMIT}"
+        if topic == "alert_creation":
+            from atdr.app.services import behavior_findings_service as findings
+
+            if findings.model_status(findings.load_model()).get("alerting_types"):
+                model_alerts = int(
+                    self.db.scalar(select(func.count(Alert.id)).where(Alert.alert_type == findings.MODEL_ALERT_CODE)) or 0
+                )
+                total = int(self.db.scalar(select(func.count(Alert.id))) or 0)
+                model = (
+                    "The MFU behaviour model, machine learning trained only on MFU's traffic, also raises its own alerts, "
+                    "but only where no rule alerted, each marked experimental and low confidence and never with an "
+                    f"automatic response: {model_alerts:,} of the {total:,} alerts came from it."
+                )
+            else:
+                model = "The MFU behaviour model only advises; it raises no alerts."
+            return (
+                f"Alerts in ATDR come from two places. The fixed detection rules raise almost all of them. {model} "
+                "The assistant (this chat) cannot create, change or close alerts."
+            )
+        if topic == "how_you_work":
+            # First person, checks first: in the third person the model described ATDR's job as its own.
+            engine = self.settings.assistant_agent_engine.strip().lower()
+            if engine == "ollama":
+                from atdr.app.services.assistant_agent import OLLAMA_DEFAULT_MODEL
+
+                runs = (
+                    f"I am a language model ({self.settings.assistant_agent_model or OLLAMA_DEFAULT_MODEL}) running on the "
+                    "ATDR server, so your questions and ATDR's records stay on that machine."
+                )
+            else:
+                runs = "I am a hosted language model; IP addresses and secrets are removed before anything is sent to me."
+            # The checks come first and without a heading: the model answered "why should I trust you?" from a
+            # heading line alone ("I am designed to provide accurate information").
+            return (
+                "You can check my answers: before you see one, ATDR checks that every number, alert number, IP address "
+                "and page name in it appears in what my read-only tools returned (a number that only your question "
+                "contains does not count), and that it does not claim anything was done. If it fails, I rewrite it "
+                "once; if it still fails, a built-in answer is shown instead.\n"
+                f"- {runs} For anything about ATDR's data I look facts up in ATDR's database, rule catalog and guides; "
+                "general knowledge is labelled as not from ATDR's records.\n"
+                "- I cannot block, change, close or delete anything. ATDR's rules and the MFU model find the alerts; "
+                "I only explain them.\n"
+                "- Limits: I know only the logs imported into ATDR, I can still misread or leave something out, and an "
+                "alert is a lead, not proof, so open the alert and its evidence before acting."
+            )
         if topic == "simulated_response":
             return (
                 "Responses such as blocking an IP are simulated by default: ATDR records the action and its reason in the "
@@ -500,11 +571,20 @@ class AssistantToolbox:
                 "created from them, analyst notes and actions, and ATDR's rule catalog and guides. It does not browse the "
                 "internet."
             )
+        from atdr.app.services import behavior_findings_service as findings
+
+        model_role = (
+            "suggests the likely attack type, and where the rules raise no alert it raises its own experimental, "
+            "low-confidence alerts"
+            if findings.model_status(findings.load_model()).get("alerting_types")
+            else "suggests the likely attack type as advice; the rules decide every alert"
+        )
         return (
-            "ATDR (Automated Threat Detection and Response) is the MFU security team's system for firewall logs. It imports "
-            "Palo Alto logs, checks them with fixed detection rules, groups findings into alerts with evidence, MITRE "
-            "ATT&CK mapping and a response playbook, and helps analysts investigate, record decisions and simulated "
-            "responses. Machine learning gives advisory scores."
+            "ATDR (AI-Driven Log-Based Threat Detection and Response) is the MFU security team's system for firewall logs. "
+            "It imports Palo Alto logs, checks them with fixed detection rules, groups findings into alerts with evidence, "
+            "MITRE ATT&CK mapping and a response playbook, and helps analysts investigate, record decisions and simulated "
+            f"responses. The MFU behaviour model, trained only on MFU's firewall traffic, {model_role}. The assistant "
+            "answers questions but cannot change anything."
         )
 
     def behavior_model_view(self, args: dict[str, Any]) -> ToolOutput:

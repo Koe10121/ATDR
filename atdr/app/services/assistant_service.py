@@ -1148,7 +1148,9 @@ def answer_assistant_question(
         result = _answer_scenario_help(redacted=redacted)
     elif any(term in lowered for term in ["import reviewed", "reviewed labels", "label import", "import labels"]):
         result = _answer_reviewed_label_import_help(redacted=redacted)
-    elif _unsafe_action_requested(lowered):
+    elif _unsafe_action_requested(lowered) or ACTION_REQUEST.search(clean_question):
+        # The agent answers "close all critical alerts for me" with a refusal and the dashboard steps; when it
+        # cannot, the fallback still refuses instead of listing the alerts as if they had been asked about.
         result = _answer_unsafe_action_refusal(clean_question, redacted=redacted)
     elif any(term in lowered for term in ["response safety", "safety rules", "can assistant block", "can the assistant block", "can chatbot block"]):
         result = _answer_response_safety(redacted=redacted)
