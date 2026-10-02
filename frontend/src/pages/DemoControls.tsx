@@ -52,7 +52,7 @@ export function DemoControls() {
 
   const cleanedSamplePath = samplePath.trim().replace(/^["']|["']$/g, "").trim();
   const samplePathPayload = cleanedSamplePath ? cleanedSamplePath : null;
-  const samplePathHint = samplePathPayload ? "Custom sample path will be used for import/reset." : "Blank uses the safe 2-line demo sample.";
+  const samplePathHint = samplePathPayload ? "The file at this path is used for import and reset." : "Leave blank to use the built-in 2-line sample.";
 
   async function checkUncheckedLogs() {
     stopSweep.current = false;
@@ -89,8 +89,8 @@ export function DemoControls() {
       actions: [
         {
           label: "Import sample logs",
-          description: "Load safe sample or the custom file path below.",
-          uses: `Reads ${lines} of ${samplePathPayload ? "the file at that path" : "the 2-line safe sample"}.`,
+          description: "Load the built-in sample, or the file at the path below.",
+          uses: `Reads ${lines} of ${samplePathPayload ? "the file at that path" : "the built-in 2-line sample"}.`,
           disabled: false,
           run: () => demo.importSample.mutate({ limit, sample_path: samplePathPayload })
         }
@@ -149,8 +149,8 @@ export function DemoControls() {
     <div className="space-y-5">
       <section className="hero-panel">
         <div className="text-sm font-extrabold uppercase tracking-wide text-danger">Validation Controls</div>
-        <h1 className="mt-2 text-3xl font-black">Manage controlled data and evidence.</h1>
-        <p className="mt-2 text-muted">Admin-only workflow with technical outputs collapsed.</p>
+        <h1 className="mt-2 text-3xl font-black">Import logs, run detection and refresh the models.</h1>
+        <p className="mt-2 text-muted">Admin only.</p>
       </section>
 
       <div className="grid gap-4 md:grid-cols-4">
@@ -223,7 +223,7 @@ export function DemoControls() {
       <section className="panel">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-sm font-extrabold uppercase tracking-wide text-muted">Controlled Validation Workflow</div>
+            <div className="text-sm font-extrabold uppercase tracking-wide text-muted">Workflow</div>
             <div className="mt-1 text-sm text-muted">Recommended order: import, detect, train/apply ML, export bundle.</div>
           </div>
           <Badge value="ready" />
@@ -250,11 +250,11 @@ export function DemoControls() {
             </div>
           </div>
           <label className="grid gap-1">
-            <span className="text-xs font-extrabold uppercase tracking-wide text-muted">Optional sample file path</span>
+            <span className="text-xs font-extrabold uppercase tracking-wide text-muted">Log file path (optional)</span>
             <input
               aria-label="Sample log file path"
               className="input"
-              placeholder='Blank = data/samples/paloalto-demo.txt. Example: D:\Private Logs\paloalto-firewall.log'
+              placeholder='Blank = the built-in sample. Example: D:\Logs\paloalto-firewall.log'
               value={samplePath}
               onChange={(event) => setSamplePath(event.target.value)}
             />
@@ -267,17 +267,17 @@ export function DemoControls() {
         </div>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
           <div className="text-xs text-muted">
-            Import sample logs reads from the selected file. The default safe sample has only 2 logs, so requesting 1000 still imports only 2.
+            Import reads the file above. The built-in sample has only 2 logs, so asking for 1,000 still imports 2.
           </div>
           <button
             className="btn-secondary"
             onClick={() => {
-              if (window.confirm("Reset demo data? This is destructive for local demo data.")) {
+              if (window.confirm("Delete every log, alert and their history, then load the sample file? This cannot be undone.")) {
                 demo.reset.mutate({ limit, use_ml: useMl, sample_path: samplePathPayload });
               }
             }}
           >
-            Reset demo data
+            Reset to sample data
           </button>
         </div>
         <div className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-line bg-panel2 p-3" data-testid="durable-import-control">

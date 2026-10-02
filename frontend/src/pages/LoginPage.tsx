@@ -129,7 +129,7 @@ export function LoginPage() {
           <div className="text-sm font-extrabold uppercase tracking-wide text-cyan">MFU ATDR SOC Console</div>
           <h1 className="mt-3 text-4xl font-black leading-tight">AI-driven log-based threat detection and response.</h1>
           <p className="mt-4 max-w-xl text-muted">
-            SOC lab console for firewall logs, explainable alerts, AI-assisted review, simulated response, and audit evidence.
+            Security operations console for MFU's firewall logs, with explainable alerts, AI-assisted investigation, simulated response and an audit trail.
           </p>
           <div className="mt-8 grid gap-3 sm:grid-cols-3">
             {["Rule-first", "ML assistive", "Response simulated"].map((item) => (

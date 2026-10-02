@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import inspect
+import re
 from datetime import timedelta
+from pathlib import Path
 
 from sqlalchemy import func, select
 
@@ -107,3 +110,14 @@ def test_detection_raises_model_alerts_for_the_windows_it_checked_but_the_scoreb
         monkeypatch.delenv("ATDR_MODEL_ALERTS")
         get_settings.cache_clear()
     assert db.scalar(select(func.count(Alert.id))) >= 1
+
+
+def test_the_alert_drawer_leaves_out_exactly_the_caveat_this_service_writes():
+    """The drawer's amber banner already says the alert is experimental, so AlertsTriage drops these sentences.
+    Reword them here without updating the drawer and the caveat shows twice."""
+
+    drawer = (Path(__file__).resolve().parents[2] / "frontend" / "src" / "pages" / "AlertsTriage.tsx").read_text(encoding="utf-8")
+    training = re.search(r'training = " (.+?)" if in_training', inspect.getsource(model_alert_service._alert))
+    assert training, "the training-data sentence moved; update this test and the drawer"
+    assert model_alert_service.EXPERIMENTAL_NOTE in drawer
+    assert training.group(1) in drawer

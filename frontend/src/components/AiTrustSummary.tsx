@@ -46,7 +46,7 @@ export function AiTrustSummary({
   // it. Incomplete bootstrap provenance is noted but does not mean "off".
   const anomalyOn = runtime?.anomaly.state === "active_advisory" && report?.model_status.artifact_exists !== false;
   const provenanceNote = report?.model_status.bootstrap_required
-    ? " Its training provenance is incomplete; details are in the research history."
+    ? " Its training provenance is incomplete."
     : "";
   const supervisedOn = runtime?.supervised.state === "active_shadow";
   const reviewDone = Boolean(evaluation?.reviews_closed);
@@ -83,7 +83,7 @@ export function AiTrustSummary({
     assistantRow,
     {
       key: "anomaly",
-      label: "Earlier anomaly model (IsolationForest)",
+      label: "Anomaly model (IsolationForest)",
       status: anomalyOn ? "Hint only" : "Off",
       tone: anomalyOn ? "caution" : "off",
       text: anomalyOn
@@ -92,7 +92,7 @@ export function AiTrustSummary({
     },
     {
       key: "supervised",
-      label: "Earlier supervised classifier",
+      label: "Supervised classifier",
       status: supervisedOn ? "Shadow only" : "Not in use",
       tone: supervisedOn ? "caution" : "off",
       text: supervisedOn
@@ -101,7 +101,7 @@ export function AiTrustSummary({
     },
     {
       key: "review",
-      label: "Independent human review",
+      label: "Human review",
       status: reviewDone ? "Complete" : evaluation ? "In progress" : "Unavailable",
       tone: reviewDone ? "good" : "caution",
       text: evaluation

@@ -462,17 +462,12 @@ export function MLGovernance() {
       <SocPageHeader
         eyebrow="AI Governance"
         eyebrowTone="cyan"
-        title="The AI in ATDR, and how far to trust it"
-        badges={[
-          "Decision Support Only",
-          "Response Automation Disabled",
-          "Not Production Promoted",
-          "Manual Approval Required"
-        ]}
+        title="AI models and their status"
+        badges={["Decision Support Only", "Response Automation Disabled"]}
         badgePlacement="under-title"
         actions={
           <>
-            <Link className="btn-secondary" to={`/assistant?prompt=${encodeURIComponent("Explain current ML model status and why it is not production promoted.")}`}>
+            <Link className="btn-secondary" to={`/assistant?prompt=${encodeURIComponent("Explain the current status of ATDR's AI models.")}`}>
               Ask Assistant
             </Link>
             <button className="btn-secondary" type="button" onClick={refreshGovernance}>
@@ -492,8 +487,7 @@ export function MLGovernance() {
       <BehaviorModelGovernance />
 
       <div className="pt-2" data-testid="governance-part-decides">
-        <div className="text-xs font-extrabold uppercase tracking-wide text-cyan">Part 1</div>
-        <h2 className="mt-1 text-2xl font-black text-text">What decides</h2>
+        <h2 className="text-2xl font-black text-text">Who decides alerts</h2>
         <p className="mt-1 text-sm text-muted">
           {(behaviorModel.data?.alerting_types ?? []).length
             ? "The rules create alerts; the MFU behaviour model adds experimental, low-confidence alerts where the rules raise none. Every other AI part only advises."
@@ -541,13 +535,13 @@ export function MLGovernance() {
               tone="cyan"
             />
             <MetricCard
-              label="Earlier anomaly model"
+              label="Anomaly model"
               value={metricText(detectionRuntime.data?.anomaly.state).replaceAll("_", " ")}
               detail="IsolationForest: advisory anomaly score"
               tone={detectionRuntime.data?.anomaly.state === "active_advisory" ? "teal" : "amber"}
             />
             <MetricCard
-              label="Earlier supervised model"
+              label="Supervised model"
               value={metricText(detectionRuntime.data?.supervised.state).replaceAll("_", " ")}
               detail={String(detectionRuntime.data?.supervised.reason_code ?? "No qualified runtime candidate").replaceAll("_", " ")}
               tone={detectionRuntime.data?.supervised.state === "active_shadow" ? "teal" : "amber"}
@@ -563,13 +557,8 @@ export function MLGovernance() {
       </section>
 
       <div className="pt-2" data-testid="governance-part-trust">
-        <div className="text-xs font-extrabold uppercase tracking-wide text-cyan">Part 2</div>
-        <h2 className="mt-1 text-2xl font-black text-text">Is the AI trustworthy yet?</h2>
-        <p className="mt-1 text-sm text-muted">
-          The MFU behaviour model's standing is at the top. Here, in plain words: the assistant, the earlier independent review, and the
-          anomaly model and supervised classifier built before the MFU model. The detail behind each answer is in the research history at
-          the bottom.
-        </p>
+        <h2 className="text-2xl font-black text-text">Other AI components</h2>
+        <p className="mt-1 text-sm text-muted">The SOC Assistant, the anomaly model and the supervised classifier, and what each may do.</p>
       </div>
 
       <AiTrustSummary
@@ -581,8 +570,7 @@ export function MLGovernance() {
       />
 
       <div className="pt-2" data-testid="governance-part-work">
-        <div className="text-xs font-extrabold uppercase tracking-wide text-cyan">Part 3</div>
-        <h2 className="mt-1 text-2xl font-black text-text">Data and analyst review</h2>
+        <h2 className="text-2xl font-black text-text">Data and analyst review</h2>
         <p className="mt-1 text-sm text-muted">The day-to-day work: data quality, the label review worklist, and drift in the traffic the models see.</p>
       </div>
 
@@ -769,9 +757,9 @@ export function MLGovernance() {
 
       <details className="panel" data-testid="model-research-history">
         <summary className="cursor-pointer">
-          <span className="text-lg font-black text-text">Model research history and technical evidence</span>
+          <span className="text-lg font-black text-text">Model evaluation history</span>
           <span className="mt-1 block text-sm text-muted">
-            Every validation round, model registry, shadow run and metric behind the summary above. Nothing here changes what decides alerts.
+            Every evaluation, model version, shadow run and metric behind the status above. Nothing here changes what decides alerts.
           </span>
         </summary>
         <div className="mt-5 space-y-5">
@@ -2406,7 +2394,7 @@ export function MLGovernance() {
                   </div>
                   <div className="flex justify-between rounded border border-line bg-panel px-3 py-2">
                     <span>Deployment Mode</span>
-                    <span className="font-bold text-text">{productionPromoted ? "Promoted" : "Lab only"}</span>
+                    <span className="font-bold text-text">{productionPromoted ? "Promoted" : "Not promoted"}</span>
                   </div>
                   <div className="flex justify-between rounded border border-line bg-panel px-3 py-2">
                     <span>Automation</span>

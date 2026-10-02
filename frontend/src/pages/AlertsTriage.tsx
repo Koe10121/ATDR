@@ -68,6 +68,17 @@ const BULK_STATUS_ACTIONS: Array<{ status: AlertStatus; label: string; done: str
   { status: "false_positive", label: "False positive", done: "false positive", confirm: true }
 ];
 
+// Model alerts store the experimental caveat in their explanation (model_alert_service); the amber banner already
+// says it, so the drawer leaves these sentences out. test_model_alerts keeps the two copies in step.
+const MODEL_ALERT_CAVEATS = [
+  "Experimental, low confidence: this attack type did not pass the model's quality bar, and the model was trained and tested on one 21-minute MFU export (20 May 2026).",
+  "This traffic was part of the model's training data."
+];
+
+function withoutModelCaveats(text: string): string {
+  return MODEL_ALERT_CAVEATS.reduce((current, caveat) => current.split(caveat).join(""), text).replace(/ {2,}/g, " ").trim();
+}
+
 function normalizeAlertFilters(value: unknown): AlertFilters {
   return normalizeStringState(ALERT_FILTER_DEFAULTS, value, {
     sort_by: ALERT_SORT_VALUES,
@@ -121,6 +132,7 @@ export function AlertsTriage() {
   const timeline = useAlertTimeline(selected?.id);
   const report = useAlertReport(selected?.id);
   const detectionSummary = selected?.detection_summary ?? report.data?.detection_summary;
+  const narrative = (text: string) => (selected?.alert_type === "mfu_behavior_model" ? withoutModelCaveats(text) : text);
   const attackMapping =
     detectionSummary?.attack_mapping ?? attackMappingForType(selected?.attack_type ?? inferAttackTypeFromAlertType(selected?.alert_type));
   const anomalySummary = detectionSummary?.anomaly;
@@ -504,7 +516,7 @@ export function AlertsTriage() {
                   <p className="mt-1 text-base leading-relaxed text-text">{detectionSummary.plain_summary}</p>
                 </section>
               ) : null}
-              <p className="mt-2 text-sm text-muted">{selected.explanation}</p>
+              <p className="mt-2 text-sm text-muted">{narrative(selected.explanation)}</p>
             </div>
             <MetaGrid
               rows={[
@@ -529,8 +541,7 @@ export function AlertsTriage() {
               <section className="rounded-lg border border-amber/50 bg-amber/10 p-4 text-sm font-semibold text-amber" data-testid="experimental-model-alert">
                 <div className="font-black uppercase tracking-wide">Found by the MFU behaviour model: experimental, low confidence</div>
                 <p className="mt-1">
-                  The rules raised no alert on this traffic; the model did. No attack type passed the model's quality bar, and the model
-                  was trained and tested on one 21-minute MFU export, so confirm with the evidence logs before acting. It never triggers a
+                  The rules raised no alert on this traffic; the model did. Confirm with the evidence logs before acting. It never triggers a
                   response on its own.
                 </p>
               </section>
@@ -540,7 +551,7 @@ export function AlertsTriage() {
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <div className="text-sm font-extrabold uppercase tracking-wide text-cyan">Why flagged?</div>
-                  <p className="mt-1 text-sm text-muted">{detectionSummary?.why_flagged ?? selected.explanation}</p>
+                  <p className="mt-1 text-sm text-muted">{narrative(detectionSummary?.why_flagged ?? selected.explanation)}</p>
                 </div>
                 <Badge value={detectionSummary?.attack_type ?? selected.attack_type ?? inferAttackTypeFromAlertType(selected.alert_type)} />
               </div>
@@ -548,7 +559,7 @@ export function AlertsTriage() {
                 <div className="rounded border border-line bg-panel2 p-3">
                   <div className="text-xs font-bold uppercase tracking-wide text-muted">What happened</div>
                   <div className="mt-1 text-sm font-semibold text-text">
-                    {detectionSummary?.what_happened ?? selected.explanation}
+                    {narrative(detectionSummary?.what_happened ?? selected.explanation)}
                   </div>
                 </div>
                 <div className="rounded border border-line bg-panel2 p-3">
@@ -682,7 +693,7 @@ export function AlertsTriage() {
                 {selected.matched_rules_json.filter((rule) => rule.code !== "group_metadata").map((rule, index) => (
                   <div key={index} className="rounded border border-line bg-shell p-3 text-sm text-muted">
                     <div className="font-bold text-text">{String(rule.title ?? rule.code ?? `Rule ${index + 1}`)}</div>
-                    <div className="mt-1">{String(rule.explanation ?? "No explanation provided.")}</div>
+                    <div className="mt-1">{narrative(String(rule.explanation ?? "No explanation provided."))}</div>
                   </div>
                 ))}
               </div>

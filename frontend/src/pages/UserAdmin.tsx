@@ -10,7 +10,6 @@ import {
   useEmailStatus,
   useMfuIamStatus,
   useOidcStatus,
-  useReleaseReadiness,
   useUserMutations,
   useUsers
 } from "../hooks/useApiQueries";
@@ -115,7 +114,6 @@ export function UserAdmin() {
   const users = useUsers();
   const oidcStatus = useOidcStatus();
   const mfuIamStatus = useMfuIamStatus();
-  const releaseReadiness = useReleaseReadiness();
   const emailStatus = useEmailStatus();
   const devOutbox = useDevEmailOutbox(Boolean(emailStatus.data?.dev_outbox_available));
   const mutations = useUserMutations();
@@ -178,19 +176,6 @@ export function UserAdmin() {
     : mfuIamStatus.data?.last_safe_validation_status === "failed"
       ? "Failed"
       : "Not run";
-  const deploymentReadiness = releaseReadiness.data?.sections.deployment;
-  const readinessLabel = (state?: string) => {
-    if (releaseReadiness.isError) return "Unavailable";
-    if (releaseReadiness.isLoading) return "Unavailable";
-    const labels: Record<string, string> = {
-      locally_verified: "Locally Verified",
-      externally_accepted: "Externally Accepted",
-      externally_pending: "Externally Pending",
-      unavailable: "Unavailable",
-      failed: "Failed"
-    };
-    return labels[state ?? ""] ?? "Unavailable";
-  };
 
   return (
     <div className="space-y-5">
@@ -211,7 +196,7 @@ export function UserAdmin() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="text-sm font-extrabold uppercase tracking-wide text-muted">External IAM</div>
-            <h2 className="mt-1 text-xl font-black">School-email login groundwork</h2>
+            <h2 className="mt-1 text-xl font-black">School-email sign-in (OIDC)</h2>
           </div>
           <Badge value={oidcStatus.data?.enabled ? "OIDC Ready" : "Local login only"} />
         </div>
@@ -263,7 +248,7 @@ export function UserAdmin() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="text-sm font-extrabold uppercase tracking-wide text-muted">MFU IAM Adapter</div>
-            <h2 className="mt-1 text-xl font-black">School-email integration readiness</h2>
+            <h2 className="mt-1 text-xl font-black">Sign-in through the MFU shell</h2>
           </div>
           <Badge value={mfuModeLabel} />
         </div>
@@ -341,76 +326,11 @@ export function UserAdmin() {
         {mfuIamStatus.isError ? <ErrorBanner error={mfuIamStatus.error} fallback="MFU IAM status is unavailable." /> : null}
       </section>
 
-      <section className="panel" data-testid="release-readiness-panel">
-        <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="text-sm font-extrabold uppercase tracking-wide text-muted">Release Readiness</div>
-            <h2 className="mt-1 text-xl font-black">Shared-lab acceptance</h2>
-            <p className="mt-1 text-sm text-muted">Local controls and externally approved evidence are tracked separately.</p>
-          </div>
-          <Badge value={releaseReadiness.data?.shared_lab_ready ? "Shared lab ready" : "External acceptance required"} />
-        </div>
-        <details className="mt-4">
-          <summary className="cursor-pointer text-xs font-extrabold uppercase tracking-wide text-muted">Details</summary>
-        <dl className="mt-3 grid min-w-0 gap-x-4 gap-y-3 border-y border-line py-4 sm:grid-cols-2 xl:grid-cols-4">
-          {[
-            ["Local controls", releaseReadiness.data?.readiness_states?.local_controls],
-            ["External evidence", releaseReadiness.data?.readiness_states?.external_evidence],
-            ["Approved host", releaseReadiness.data?.readiness_states?.approved_host],
-            ["Shared lab", releaseReadiness.data?.readiness_states?.shared_lab]
-          ].map(([label, state]) => (
-            <div className="min-w-0" key={String(label)}>
-              <dt className="text-xs font-extrabold uppercase tracking-wide text-muted">{String(label)}</dt>
-              <dd className="mt-1"><Badge value={readinessLabel(state)} /></dd>
-            </div>
-          ))}
-        </dl>
-        <dl className="grid min-w-0 gap-x-4 gap-y-3 border-b border-line py-4 sm:grid-cols-2 xl:grid-cols-4">
-          {[
-            ["Database", String(deploymentReadiness?.database_profile ?? "Not evaluated")],
-            ["Workers", deploymentReadiness?.workers_ready === true ? "Ready" : "Pending"],
-            ["Backup / restore", deploymentReadiness?.backup_ready === true ? "Ready" : "Pending"],
-            ["Monitoring", deploymentReadiness?.monitoring_ready === true ? "Ready" : "Pending"],
-            ["HTTPS", deploymentReadiness?.https_ready === true ? "Ready" : "Pending"],
-            ["Managed secrets", deploymentReadiness?.managed_secrets_ready === true ? "Ready" : "Pending"],
-            ["Migrations", deploymentReadiness?.database_migration_ready === true ? "At head" : "Probe required"],
-            ["Recovery evidence", deploymentReadiness?.recovery_evidence_ready === true ? "Accepted" : "Pending"]
-          ].map(([label, value]) => (
-            <div className="min-w-0" key={label}>
-              <dt className="text-xs font-extrabold uppercase tracking-wide text-muted">{label}</dt>
-              <dd className="mt-1 break-words font-bold">{value}</dd>
-            </div>
-          ))}
-        </dl>
-        </details>
-        <div className="mt-4 grid min-w-0 gap-3 lg:grid-cols-[1fr_auto] lg:items-start">
-          <div className="min-w-0">
-            <div className="text-xs font-extrabold uppercase tracking-wide text-muted">Remaining external actions</div>
-            {releaseReadiness.data?.remaining_external_actions.length ? (
-              <ul className="mt-2 space-y-1 text-sm text-muted">
-                {releaseReadiness.data.remaining_external_actions.map((action) => (
-                  <li className="break-words" key={action}>{action}</li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-2 text-sm text-muted">No outstanding shared-lab acceptance evidence.</p>
-            )}
-          </div>
-          <div className="flex flex-wrap gap-2 lg:justify-end">
-            <Badge value="Production Not Claimed" />
-            <Badge value="Response Automation Disabled" />
-          </div>
-        </div>
-        {releaseReadiness.isError ? (
-          <ErrorBanner error={releaseReadiness.error} fallback="Release readiness status is unavailable." />
-        ) : null}
-      </section>
-
       <section className="panel">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="text-sm font-extrabold uppercase tracking-wide text-muted">Account Notifications</div>
-            <h2 className="mt-1 text-xl font-black">Email verification foundation</h2>
+            <h2 className="mt-1 text-xl font-black">Email verification</h2>
           </div>
           <Badge value={emailStatus.data?.verification_enabled ? "Verification enabled" : "Verification disabled"} />
         </div>

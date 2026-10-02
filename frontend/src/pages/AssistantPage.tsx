@@ -96,7 +96,6 @@ const promptGroups = [
       { label: "Investigation Brief", question: "Create investigation brief for this alert." },
       { label: "Source Health", question: "Summarize source health.", resetContext: true },
       { label: "AI Governance Summary", question: "What supervised ML output is safe?", resetContext: true },
-      { label: "Controlled Validation Scenario", question: "How do I run a controlled validation scenario?", resetContext: true },
       { label: "Response Safety", question: "What are response safety rules?", resetContext: true }
     ]
   },
@@ -137,8 +136,7 @@ const promptGroups = [
   {
     label: "AI Governance",
     prompts: [
-      { label: "ML Status", question: "Explain current ML model status.", resetContext: true },
-      { label: "Promotion Gate", question: "Why is the model not production promoted?", resetContext: true }
+      { label: "ML Status", question: "Explain current ML model status.", resetContext: true }
     ]
   },
   {
@@ -146,8 +144,7 @@ const promptGroups = [
     prompts: [
       { label: "Detection Runs", question: "Summarize recent detection runs.", resetContext: true },
       { label: "Failed Jobs", question: "Summarize failed jobs.", resetContext: true },
-      { label: "Import Labels", question: "How do I import reviewed labels?", resetContext: true },
-      { label: "Controlled Scenario", question: "How do I run a controlled validation scenario?", resetContext: true }
+      { label: "Import Labels", question: "How do I import reviewed labels?", resetContext: true }
     ]
   }
 ];
@@ -1002,14 +999,12 @@ export function AssistantPage() {
     <div className="space-y-5" data-testid="assistant-page">
       <SocPageHeader
         eyebrow="SOC Assistant"
-        title="Evidence-grounded analyst guidance"
-        description="Bounded ATDR context, concise triage guidance, no action execution."
+        title="Ask about alerts, logs and detections"
+        description="Answers come from ATDR's data. The assistant can look things up but cannot take actions."
         icon={<Bot size={18} />}
         compact
         badges={[
           "Read Only",
-          "Decision Support Only",
-          "Response Automation Disabled",
           status.data?.raw_log_context_allowed ? "Raw Log Context Restricted" : "Raw Logs Disabled"
         ]}
         context={
@@ -1049,7 +1044,7 @@ export function AssistantPage() {
               {status.data?.agent_state_detail}
             </div>
           ) : (
-            <div className="metric-help">Gemini labels appear only on answers that used Gemini.</div>
+            <div className="metric-help">Numbers and addresses in answers are checked against ATDR's data.</div>
           )}
         </div>
         <div className="metric-card">
@@ -1101,7 +1096,7 @@ export function AssistantPage() {
                 askQuestion(question);
               }
             }}
-            placeholder="Ask about alerts, sources, ML governance, operations, or lab workflow."
+            placeholder="Ask about alerts, logs, sources, detections or responses."
           />
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <button className="btn-primary flex items-center gap-2" type="submit" disabled={assistant.isPending || !question.trim()}>

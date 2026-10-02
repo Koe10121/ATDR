@@ -244,19 +244,19 @@ def build_detection_tuning_report(db: Session) -> dict[str, Any]:
             "Alert Noise",
             "review" if alerts_per_1000_logs > 30 else "ready",
             f"{alerts_per_1000_logs} alerts per 1,000 logs.",
-            recommendation="Tune noisy rules and reviewed suppressions before a live SOC pilot." if alerts_per_1000_logs > 30 else None,
+            recommendation="Tune noisy rules and add reviewed suppressions to cut alert noise." if alerts_per_1000_logs > 30 else None,
         ),
         _readiness_item(
             "Ownership",
             "review" if high_critical_unassigned else "ready",
             f"{high_critical_unassigned} unassigned active High/Critical alerts.",
-            recommendation="Assign High/Critical alerts before supervisor or lab-pilot handoff." if high_critical_unassigned else None,
+            recommendation="Assign each High or Critical alert to an analyst." if high_critical_unassigned else None,
         ),
         _readiness_item(
             "Live Ingestion",
             "available" if settings.syslog_host == "127.0.0.1" else "review",
             f"UDP receiver command available on {settings.syslog_host}:{settings.syslog_port}.",
-            recommendation="Run as a supervised service and bind only to approved lab interfaces for pilot use.",
+            recommendation="Run the receiver as a service and listen only on approved network interfaces.",
         ),
         _readiness_item(
             "Response Safety",

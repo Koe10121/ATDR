@@ -60,6 +60,11 @@ attacks. The assistant answered from a fixed list of question types.
   firewall or the watchlist named and whether the firewall blocked them, and
   the alert to open first: a named threat the firewall let through, which is
   #3738, the GHOSTENGINE server.
+- **A dashboard that reads like a product** (2 October). Presentation, lab and
+  research wording left the pages: data caveats, documentation paths, the
+  release checklist, "lab" and "demo" labels, and the Overview's validation
+  panel. The evidence and its limits are in the slides and in this report.
+  Every page and feature still works, and the assistant is unchanged.
 - **Threat intelligence.** 2,324 known-bad addresses from Feodo Tracker and
   ThreatFox are on the watchlist.
 - **Rebuilt the alert list** with the current rules, keeping analyst-worked

@@ -4359,30 +4359,14 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(detectionOperations.getByRole("link", { name: /local_import/ })).toHaveAttribute("href", "/overview?source=1");
   await expect(detectionOperations).toContainText("Analyst Dispositions");
   await expect(detectionOperations).toContainText("Occurrences / Alert");
-  await expect(page.getByTestId("detection-accuracy-state")).toContainText("not accuracy");
+  await expect(page.getByTestId("detection-accuracy-state")).toHaveCount(0);
   await expect(page.getByTestId("detection-parser-context")).toContainText("Unknown application values limit context");
   await expect(page.getByTestId("detection-run-trend")).not.toHaveAttribute("open", "");
-  await expect(page.getByText("Controlled Validation", { exact: true })).toBeVisible();
-  await expect(page.getByText("Validation reports")).toBeVisible();
-  await page.getByText("Validation reports").click();
-  await expect(page.getByText("Generalization", { exact: true })).toBeVisible();
-  await expect(page.getByText("70/70 variants")).toBeVisible();
-  await expect(page.getByText("FP 0 | FN 0")).toHaveCount(3);
-  await expect(page.getByText("Layered Modes")).toBeVisible();
-  await expect(page.getByText("168/168 mode runs")).toBeVisible();
-  await expect(page.getByText("E2E Workflow")).toBeVisible();
-  await expect(page.getByText("3/3 passed")).toBeVisible();
-  await expect(page.getByText("Reliability")).toBeVisible();
-  await expect(page.getByText("14/14 scenarios")).toBeVisible();
-  await expect(page.getByText("Canonical ML Evidence", { exact: true })).toBeVisible();
-  await expect(page.getByText("3 development splits | Snapshot v41-test-snapshot")).toBeVisible();
-  await expect(page.getByText("candidate only | controlled development validation")).toBeVisible();
-  await expect(page.getByText("Drift", { exact: true })).toBeVisible();
-  await expect(page.getByText("0 warnings")).toBeVisible();
-  await expect(page.getByText("Lab-Scale Validation")).toBeVisible();
-  await expect(page.getByText("Manual Approval Required", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Canonical Evidence Available", { exact: true })).toBeVisible();
-  await expect(page.getByText("Real device validation remains future work.")).not.toBeVisible();
+  // Lab validation reports and governance badges are not product content; the evidence is in the slides.
+  await expect(page.getByText("Controlled Validation", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Validation reports")).toHaveCount(0);
+  await expect(page.getByText("Lab-Scale Validation")).toHaveCount(0);
+  await expect(page.getByText("Not Production Promoted")).toHaveCount(0);
   await expect(page.getByText("Operations Health")).toBeVisible();
   await expect(page.getByTestId("operational-warnings")).toContainText("Database migration revision is not at Alembic head.");
   await expect(page.getByText("Log Sources")).toBeVisible();
@@ -4415,10 +4399,10 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByText("Stale Jobs")).toBeVisible();
   await expect(page.getByText("Response Mode")).toBeVisible();
   await page.getByText("More system detail").click();
-  await expect(page.getByText("Config: local lab profile")).toBeVisible();
+  await expect(page.getByText("Config: local lab profile")).toHaveCount(0);
 
   await page.goto("/ml");
-  await expect(page.getByRole("heading", { name: "The AI in ATDR, and how far to trust it" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "AI models and their status" })).toBeVisible();
   // The detailed model evidence now lives in one collapsed research-history section.
   await page.getByTestId("model-research-history").locator(":scope > summary").click();
   await expect(page.getByText("Canonical ML Evidence", { exact: true })).toBeVisible();
@@ -4544,14 +4528,14 @@ test("AI Governance leads with what decides and a plain trust summary, with rese
   const mfuModel = page.getByTestId("governance-mfu-model");
   await expect(mfuModel).toContainText("The MFU behaviour model");
   const bar = page.getByTestId("governance-quality-bar");
-  await expect(bar.getByRole("row", { name: /Port scan/ })).toContainText("Blind review in progress (5 windows)");
+  await expect(bar.getByRole("row", { name: /Port scan/ })).toContainText("Review in progress (5 windows)");
   await expect(bar.getByRole("row", { name: /Data exfiltration/ })).toContainText("Only 2 model-only windows; 5 needed");
   await expect(bar.getByRole("row", { name: /Brute force/ })).toContainText("Nothing to review");
   await expect(bar.getByRole("row", { name: /Malware C2/ })).toContainText("88.5% found");
   await expect(bar.getByRole("row", { name: /Malware C2/ })).toContainText("Not met");
   await expect(mfuModel).toContainText("F1 86.3% vs rules alone 81.2% (holds)");
-  // Port scan fails nothing yet; C2 misses simulated beacons, exfiltration has too few extra finds.
-  await expect(mfuModel).toContainText("Port scan can still pass this round, if the team's blind review confirms the extra finds.");
+  // The round-by-round research narrative stays out of the product page.
+  await expect(mfuModel).not.toContainText("this round");
   const traffic = page.getByTestId("governance-real-traffic");
   await expect(traffic).toContainText("15,153");
   await expect(traffic).toContainText("215 of them also raised a rule alert.");
@@ -4559,12 +4543,12 @@ test("AI Governance leads with what decides and a plain trust summary, with rese
   const runtime = page.getByTestId("detection-runtime-contract");
   await expect(runtime).toContainText("MFU behaviour model");
   await expect(runtime).toContainText("0 of 4 attack types switched on");
-  await expect(runtime).toContainText("Earlier anomaly model");
+  await expect(runtime).toContainText("Anomaly model");
   // The earlier anomaly model's report lives in the history, not in the main flow.
   await expect(page.getByTestId("earlier-anomaly-report")).not.toBeVisible();
   await expect(mfuModel).toContainText("13:45-13:50 and 13:55-14:00");
-  await expect(page.getByTestId("governance-part-decides")).toContainText("What decides");
-  await expect(page.getByTestId("governance-part-trust")).toContainText("Is the AI trustworthy yet?");
+  await expect(page.getByTestId("governance-part-decides")).toContainText("Who decides alerts");
+  await expect(page.getByTestId("governance-part-trust")).toContainText("Other AI components");
   await expect(page.getByTestId("governance-part-work")).toContainText("Data and analyst review");
   await expect(page.getByTestId("ai-trust-anomaly")).toContainText("Hint only");
   await expect(page.getByTestId("ai-trust-anomaly")).toContainText("3% of 600 scored logs");
@@ -4615,10 +4599,9 @@ test("AI Governance says a type missed the bar on the judged count when rows sta
   const bar = page.getByTestId("governance-quality-bar");
   await expect(bar.getByRole("row", { name: /Port scan/ })).toContainText("4 of 4 judged real; 5 judged needed (1 unsure)");
   await expect(bar.getByRole("row", { name: /Malware C2/ })).toContainText("3 of 8 judged real (90% needed)");
-  await expect(page.getByTestId("governance-mfu-model")).toContainText("No attack type can pass this round.");
 });
 
-test("AI Governance shows experimental model alerts and how far to trust the figures", async ({ page }) => {
+test("AI Governance shows experimental model alerts without report caveats", async ({ page }) => {
   await mockApi(page);
   await page.unroute("**/api/ml/behavior/status");
   const dataLimit = "All accuracy figures come from one 21-minute MFU export (20 May 2026); treat them as low-confidence estimates until tested on more traffic.";
@@ -4644,8 +4627,10 @@ test("AI Governance shows experimental model alerts and how far to trust the fig
   await expect(runtime).toContainText("experimental alerts");
   await expect(runtime).toContainText("5 of 5 attack types switched on (low confidence)");
   await expect(page.getByTestId("governance-part-decides")).toContainText("experimental, low-confidence alerts where the rules raise none");
-  await expect(page.getByTestId("governance-experimental")).toContainText("switched on by Sai Myat Thura Koe on 2026-09-28");
-  await expect(page.getByTestId("governance-data-limit")).toHaveText(dataLimit);
+  await expect(page.getByTestId("governance-experimental")).toContainText("since 2026-09-28 (switched on by Sai Myat Thura Koe)");
+  // The data caveat and the decision narrative belong in the slides, not on the page.
+  await expect(page.getByTestId("governance-experimental")).not.toContainText("No more MFU data");
+  await expect(page.getByText(dataLimit)).toHaveCount(0);
   await expect(page.getByTestId("governance-quality-bar").getByRole("row", { name: /Port scan/ })).toContainText("Experimental");
 });
 
@@ -4663,8 +4648,10 @@ test("an experimental model alert says the model found it and that it is low con
         threat_score: 30,
         severity: "Low",
         status: "open",
-        explanation: "Found by the MFU behaviour model, not the rules.",
-        matched_rules_json: [{ code: "mfu_behavior_model", title: "MFU behaviour model (experimental)", explanation: "Found by the model.", attack_type: "port_scan", experimental: true }],
+        // Stored as model_alert_service writes it: the experimental caveat follows the finding.
+        explanation:
+          "Found by the MFU behaviour model, not the rules. Experimental, low confidence: this attack type did not pass the model's quality bar, and the model was trained and tested on one 21-minute MFU export (20 May 2026). This traffic was part of the model's training data.",
+        matched_rules_json: [{ code: "mfu_behavior_model", title: "MFU behaviour model (experimental)", explanation: "Found by the model. Experimental, low confidence: this attack type did not pass the model's quality bar, and the model was trained and tested on one 21-minute MFU export (20 May 2026).", attack_type: "port_scan", experimental: true }],
         recommended_response: "Experimental model alert: confirm before acting.",
         created_at: "2026-09-28T00:00:00Z",
         updated_at: "2026-09-28T00:00:00Z",
@@ -4680,6 +4667,10 @@ test("an experimental model alert says the model found it and that it is low con
   const banner = page.getByTestId("experimental-model-alert");
   await expect(banner).toContainText("Found by the MFU behaviour model: experimental, low confidence");
   await expect(banner).toContainText("It never triggers a response on its own.");
+  // The banner states the caveat once; the stored narrative shows without it.
+  await expect(page.getByText("Found by the MFU behaviour model, not the rules.", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText(/21-minute MFU export/)).toHaveCount(0);
+  await expect(page.getByText(/part of the model's training data/)).toHaveCount(0);
 });
 
 test("AI Governance describes the conversational assistant that is actually running", async ({ page }) => {
@@ -5884,13 +5875,13 @@ test("analyst cannot access admin routes", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Access denied" })).toBeVisible();
 });
 
-test("admin settings shows external IAM groundwork", async ({ page }) => {
+test("admin settings shows the sign-in setup without a release checklist", async ({ page }) => {
   await mockApi(page);
   await seedSession(page);
   await page.goto("/users");
 
   await expect(page.getByText("External IAM")).toBeVisible();
-  await expect(page.getByText("School-email login groundwork")).toBeVisible();
+  await expect(page.getByText("School-email sign-in (OIDC)")).toBeVisible();
   await expect(page.getByText("Local login only").first()).toBeVisible();
   await page.getByText("Details").nth(0).click();
   await expect(page.getByText("School Email Policy")).toBeVisible();
@@ -5899,28 +5890,18 @@ test("admin settings shows external IAM groundwork", async ({ page }) => {
   expect(await page.getByText("Not configured").count()).toBeGreaterThanOrEqual(2);
   await expect(page.getByText("Normal access uses the MFU application shell.")).toBeVisible();
   await expect(page.getByText("MFU IAM Adapter")).toBeVisible();
-  await expect(page.getByText("School-email integration readiness")).toBeVisible();
+  await expect(page.getByText("Sign-in through the MFU shell")).toBeVisible();
   await page.getByText("Details").nth(1).click();
   await expect(page.getByText("B2B Client")).toBeVisible();
   await expect(page.getByText("Admin API")).toBeVisible();
   await expect(page.getByText("Permission Bootstrap")).toBeVisible();
   await expect(page.getByText("Secrets", { exact: true })).toBeVisible();
-  const releaseReadiness = page.getByTestId("release-readiness-panel");
-  await expect(releaseReadiness).toContainText("Shared-lab acceptance");
-  await expect(releaseReadiness).toContainText("Local controls");
-  await expect(releaseReadiness).toContainText("Locally Verified");
-  await expect(releaseReadiness).toContainText("Externally Pending");
-  await expect(releaseReadiness).toContainText("External acceptance required");
-  await expect(releaseReadiness).toContainText("MFU provider lifecycle acceptance");
-  await expect(releaseReadiness).toContainText("Production Not Claimed");
-  await expect(releaseReadiness).toContainText("local SQLite");
-  await expect(releaseReadiness).toContainText("Workers");
-  await expect(releaseReadiness).toContainText("Backup / restore");
-  await expect(releaseReadiness).toContainText("Managed secrets");
+  await expect(page.getByTestId("release-readiness-panel")).toHaveCount(0);
+  await expect(page.getByText("Production Not Claimed")).toHaveCount(0);
   await expect(page.getByText("Account Notifications")).toBeVisible();
-  await expect(page.getByText("Email verification foundation")).toBeVisible();
+  await expect(page.getByText("Email verification", { exact: true })).toBeVisible();
   await expect(page.getByText("Verification disabled")).toBeVisible();
-  await page.getByText("Details").nth(3).click();
+  await page.getByText("Details").nth(2).click();
   await expect(page.getByText("Delivery Mode")).toBeVisible();
   await expect(page.getByText("Login Requirement")).toBeVisible();
   await expect(page.getByText("Admin Action Requirement")).toBeVisible();
@@ -6055,10 +6036,8 @@ test("SOC assistant page is read-only and contains long responses safely", async
   await seedSession(page);
   await page.goto("/assistant");
 
-  await expect(page.getByRole("heading", { name: "Evidence-grounded analyst guidance" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ask about alerts, logs and detections" })).toBeVisible();
   await expect(page.getByText("Read Only", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Decision Support Only", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Response Automation Disabled", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Raw Logs Disabled", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Raw logs are excluded by default.")).toBeVisible();
   await page.getByText("More questions").click();
@@ -6071,14 +6050,14 @@ test("SOC assistant page is read-only and contains long responses safely", async
   await expect(page.getByTestId("assistant-presets")).toContainText("Quick questions");
   await expect(page.getByRole("button", { name: "Latest Critical Alert", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "AI Governance Summary", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Controlled Validation Scenario", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Controlled Validation Scenario", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Response Safety", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Latest Critical", exact: true })).toBeVisible();
   await expect(page.getByTestId("assistant-presets").getByRole("button", { name: "Explain Current Alert", exact: true }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Likely False Positive?", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Detection Runs", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "ML Status", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Controlled Scenario", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Controlled Scenario", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Alert Brief", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Leadership Brief", exact: true })).toBeVisible();
   await expect(page.getByTestId("assistant-history")).toContainText("Summarize failed jobs.");
@@ -6086,8 +6065,6 @@ test("SOC assistant page is read-only and contains long responses safely", async
 
   await page.getByRole("button", { name: "AI Governance Summary", exact: true }).click();
   await expect(page.getByLabel("Analyst question")).toHaveValue("What supervised ML output is safe?");
-  await page.getByRole("button", { name: "Controlled Validation Scenario", exact: true }).click();
-  await expect(page.getByLabel("Analyst question")).toHaveValue("How do I run a controlled validation scenario?");
   await page.getByRole("button", { name: "Response Safety", exact: true }).click();
   await expect(page.getByLabel("Analyst question")).toHaveValue("What are response safety rules?");
   await page.getByRole("button", { name: "Source Warnings", exact: true }).click();
@@ -6101,8 +6078,6 @@ test("SOC assistant page is read-only and contains long responses safely", async
   await expect(panel.getByTestId("assistant-direct-answer")).toContainText("Alert explanation");
   await expect(panel.getByTestId("assistant-direct-answer")).toContainText("Alert #1 was flagged");
   await expect(page.getByText("Read Only", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Decision Support Only", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Response Automation Disabled", { exact: true }).first()).toBeVisible();
   await expect(panel.getByText("Simulation Mode", { exact: true })).toHaveCount(0);
   await expect(panel.getByTestId("assistant-answer-provenance")).toContainText("ATDR deterministic analysis");
   await expect(panel.getByTestId("assistant-answer-provenance")).toContainText("Deterministic detection rules");
@@ -7442,7 +7417,7 @@ test("dashboard dropdowns close and do not block follow-up clicks", async ({ pag
   await page.getByPlaceholder("Indicator value").click();
 
   await page.goto("/ml");
-  await expect(page.getByRole("heading", { name: "The AI in ATDR, and how far to trust it" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "AI models and their status" })).toBeVisible();
   await page.getByTestId("model-research-history").locator(":scope > summary").click();
   const assistantGovernance = page.getByTestId("assistant-provider-governance");
   await expect(assistantGovernance).toContainText("Assistant Provider Governance");
@@ -7682,18 +7657,18 @@ test("core SOC pages fit desktop, tablet, and mobile viewports", async ({ page }
   ];
   const routes = ["overview", "alerts", "logs", "assistant", "ml", "evidence-review", "response", "users", "audit", "controls", "tuning", "demo"];
   const routeHeadings: Record<string, RegExp> = {
-    overview: /ATDR lab SOC status/i,
+    overview: /Security status at a glance/i,
     alerts: /Prioritize, investigate, contain, and document alerts/i,
     logs: /Search raw evidence and normalized firewall events/i,
-    assistant: /Evidence-grounded analyst guidance/i,
-    ml: /The AI in ATDR, and how far to trust it/i,
+    assistant: /Ask about alerts, logs and detections/i,
+    ml: /AI models and their status/i,
     "evidence-review": /Evidence Review/i,
     response: /Containment actions stay simulated by default/i,
     users: /Manage analyst and admin access/i,
     audit: /Read-only evidence for analyst and admin actions/i,
     controls: /Govern alert noise, watchlists, and containment/i,
     tuning: /Convert SOC feedback into lower-noise detections/i,
-    demo: /Manage controlled data and evidence/i
+    demo: /Import logs, run detection and refresh the models/i
   };
 
   for (const viewport of viewports) {
@@ -8191,12 +8166,13 @@ test("Overview shows what the MFU behaviour model sees and how to respond", asyn
 
   const panel = page.getByTestId("behavior-model-panel");
   await expect(panel).toContainText("What the MFU model sees");
-  await expect(page.getByTestId("behavior-training-window")).toContainText("part of the model's training data");
+  await expect(page.getByTestId("behavior-training-window")).toContainText("This time window was used to train the model.");
+  await expect(panel).not.toContainText("docs/");
   await expect(page.getByTestId("behavior-summary")).toContainText("949 hosts");
   const p2p = page.getByTestId("behavior-p2p-policy");
   await expect(p2p).toContainText("14 devices");
   await expect(p2p).toContainText("2,310 connections to 1,875 peers (bittorrent, xunlei)");
-  await expect(p2p).toContainText("not counted as attack behaviour");
+  await expect(p2p).toContainText("Policy activity, not an attack");
   await expect(page.getByTestId("behavior-summary")).toContainText("Attack behaviour found2");
   const findings = page.getByTestId("behavior-finding");
   await expect(findings).toHaveCount(2);
@@ -8223,7 +8199,7 @@ test("Overview says what is happening in plain words and which alert to open fir
   await expect(box).toContainText("GHOSTENGINE C2 server, on ATDR's watchlist (1 MFU device, let through)");
   await expect(box.getByRole("link", { name: "Alert #1 (Critical)" })).toHaveAttribute("href", "/alerts?alert=1");
   await expect(box).toContainText("the firewall let it through.");
-  await expect(box).toContainText("not by the AI");
+  await expect(box).not.toContainText("not by the AI");
 });
 
 test("Overview says plainly when no behaviour model is trained", async ({ page }) => {

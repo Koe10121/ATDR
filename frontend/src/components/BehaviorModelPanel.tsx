@@ -18,6 +18,11 @@ function percent(value: number): string {
   return `${(value * 100).toFixed(value >= 0.999 ? 2 : 1)}%`;
 }
 
+// "MFU export 20 May 13:36-13:45 (lines 1-319,643)": the line range is build detail, not something an analyst reads.
+function trainedOn(value?: string | null): string {
+  return (value ?? "").replace(/\s*\(lines [^)]*\)/, "");
+}
+
 function FoundBy({ finding }: { finding: BehaviorFinding }) {
   if (finding.model_alert_ids?.length) {
     return (
@@ -120,14 +125,11 @@ export function BehaviorModelPanel() {
         <div>
           <div className="text-sm font-extrabold uppercase tracking-wide text-muted">What the MFU model sees</div>
           <p className="mt-1 text-sm font-semibold text-muted">
-            A behaviour model trained on MFU traffic and simulated attacks suggests activity to investigate, explains its signals, and offers response guidance.
+            Activity the behaviour model suggests investigating, with its reasons and what to do.
             {data?.model?.alerting_types?.length
-              ? " Where the rules raise no alert it raises its own experimental alerts, marked low confidence: no attack type passed its quality bar."
-              : " Findings here are advisory. Experimental alerting requires an explicit recorded exception; it does not imply qualification."}
+              ? " Where the rules raise no alert, it raises its own alert, marked experimental and low confidence."
+              : " Its findings are advisory; the rules decide alerts."}
           </p>
-          {data?.model?.data_limit ? (
-            <p className="mt-1 text-xs font-bold text-amber" data-testid="data-limit-note">{data.model.data_limit}</p>
-          ) : null}
         </div>
         {data?.windows?.length ? (
           <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-muted">
@@ -161,8 +163,7 @@ export function BehaviorModelPanel() {
         <div className="mt-4 space-y-4">
           {data.window.in_training_data ? (
             <div className="rounded-lg border border-amber/50 bg-amber/10 px-4 py-3 text-sm font-bold text-amber" data-testid="behavior-training-window">
-              This window was part of the model's training data, so it shows what the model learned rather than a fair test.
-              The fair test used traffic the model never saw (docs/detection/ML_QUALITY_BAR.md).
+              This time window was used to train the model.
             </div>
           ) : null}
           {summary ? (
@@ -192,7 +193,7 @@ export function BehaviorModelPanel() {
                 <div className="mt-1 text-xl font-black text-text">{p2p?.sources.toLocaleString() ?? 0} devices</div>
                 <div className="text-xs font-semibold text-muted">
                   {p2p?.connections.toLocaleString() ?? 0} connections to {p2p?.peers.toLocaleString() ?? 0} peers
-                  {p2p?.apps.length ? ` (${p2p.apps.map((item) => item.app).join(", ")})` : ""}. A policy matter, not an attack: not counted as attack behaviour, alerted only with malicious evidence.
+                  {p2p?.apps.length ? ` (${p2p.apps.map((item) => item.app).join(", ")})` : ""}. Policy activity, not an attack; alerted only with malicious evidence.
                 </div>
               </div>
             </div>
@@ -212,7 +213,7 @@ export function BehaviorModelPanel() {
             <p className="text-sm font-semibold text-muted" data-testid="behavior-no-findings">The model sees no attack behaviour in this window.</p>
           )}
           <p className="text-xs font-semibold text-muted">
-            Model {data.model.version}, trained on {data.model.trained_on}. {data.model.detail}
+            Model {data.model.version}, trained on {trainedOn(data.model.trained_on)}.
           </p>
         </div>
       ) : null}
@@ -270,7 +271,7 @@ function reviewText(entry: BehaviorQualityBarType, bar: BehaviorQualityBar): { t
   const counted = `${review.threat ?? 0} of ${review.judged ?? 0} judged real`;
   switch (review.status) {
     case "pending":
-      return { text: `Blind review in progress (${review.model_only} windows)`, ok: null };
+      return { text: `Review in progress (${review.model_only} windows)`, ok: null };
     case "cannot_pass":
       return review.model_only === 0
         ? { text: "Nothing to review: it found nothing the rules missed", ok: false }
@@ -312,43 +313,30 @@ export function BehaviorModelGovernance() {
   const status = query.data;
   const bar = status?.quality_bar;
   const windows = bar?.windows.map((window) => `${window.start.slice(11, 16)}-${window.end.slice(11, 16)}`).join(" and ");
-  // Types that fail nothing yet: only the team's blind review of their extra finds is outstanding.
-  const canStillPass = bar
-    ? Object.entries(bar.types)
-        .filter(([, entry]) => !entry.eligible && entry.condition_2.passes && bar.condition_3.passes)
-        .filter(([, entry]) => entry.condition_1.status === "pending" || entry.condition_1.status === "needs_person")
-        .map(([type]) => ATTACK_TYPE_NAMES[type] ?? type)
-    : [];
   const traffic = bar?.real_traffic;
   return (
     <section className="panel space-y-4" data-testid="governance-mfu-model">
       <div>
-        <div className="text-xs font-extrabold uppercase tracking-wide text-cyan">Start here</div>
+        <div className="text-xs font-extrabold uppercase tracking-wide text-cyan">Behaviour model</div>
         <h2 className="mt-1 text-2xl font-black text-text">The MFU behaviour model</h2>
         <p className="mt-1 text-sm text-muted">
-          Trained only on MFU's own firewall traffic. For each device's five minutes of traffic it names the attack, explains why and shows how
-          to respond, on the Overview and on every alert. It may raise alerts on its own only for attack types that pass the quality bar
-          declared before training; until then it advises and the rules decide.
+          Trained on MFU's firewall traffic. For each device's five minutes of traffic it names the likely attack, explains why and suggests a
+          response, on the Overview and on every alert. An attack type may raise alerts on its own only after it meets the criteria below;
+          until then it advises and the rules decide.
         </p>
       </div>
       {query.isError ? <ErrorBanner error={query.error} fallback="The behaviour model's status is unavailable." /> : null}
-      {status?.data_limit ? <p className="text-sm font-bold text-amber" data-testid="governance-data-limit">{status.data_limit}</p> : null}
       {status && !status.available ? <p className="text-sm font-semibold text-muted">{status.detail}</p> : null}
       {status?.available ? (
         <p className="text-sm font-semibold text-text">
-          {status.version}, trained on {status.trained_on}. {status.detail}
-          {bar
-            ? canStillPass.length
-              ? ` ${canStillPass.join(" and ")} can still pass this round, if the team's blind review confirms the extra finds.`
-              : " No attack type can pass this round."
-            : ""}
+          {status.version}, trained on {trainedOn(status.trained_on)}.
         </p>
       ) : null}
       {status?.experimental_alerting ? (
         <p className="rounded-lg border border-amber/50 bg-amber/10 px-4 py-3 text-sm font-semibold text-amber" data-testid="governance-experimental">
-          Experimental model alerts are on for {status.experimental_alerting.types.map((type) => ATTACK_TYPE_NAMES[type] ?? type).join(", ")}:
-          switched on by {status.experimental_alerting.enabled_by} on {status.experimental_alerting.enabled_at.slice(0, 10)}.{" "}
-          {status.experimental_alerting.reason} Each such alert says it is experimental and low confidence, and none triggers a response.
+          Experimental model alerts are on for {status.experimental_alerting.types.map((type) => ATTACK_TYPE_NAMES[type] ?? type).join(", ")}, since{" "}
+          {status.experimental_alerting.enabled_at.slice(0, 10)} (switched on by {status.experimental_alerting.enabled_by}). Each is marked
+          experimental and low confidence, and none triggers a response.
         </p>
       ) : null}
       {status?.available && traffic ? (
@@ -366,7 +354,7 @@ export function BehaviorModelGovernance() {
           <TrafficFigure
             label="Extra finds"
             value={traffic.model_only}
-            detail="Flagged with no rule alert. The team's blind review decides whether they are real."
+            detail="Flagged where no rule alerted."
           />
         </div>
       ) : null}
@@ -377,8 +365,8 @@ export function BehaviorModelGovernance() {
               <thead className="text-xs uppercase tracking-wide text-muted">
                 <tr>
                   <th className="py-2 pr-4">Attack type</th>
-                  <th className="py-2 pr-4">1. Its extra finds are real (blind review, 90%+)</th>
-                  <th className="py-2 pr-4">2. Finds fresh simulated attacks (90%+)</th>
+                  <th className="py-2 pr-4">1. Extra finds confirmed real (90%+)</th>
+                  <th className="py-2 pr-4">2. Detects simulated attacks (90%+)</th>
                   <th className="py-2 pr-4">Model alerts</th>
                 </tr>
               </thead>
@@ -404,9 +392,9 @@ export function BehaviorModelGovernance() {
             </table>
           </div>
           <p className="text-xs font-semibold text-muted">
-            3. Rules or model must not lower accuracy on the blind-check labels: F1 {bar.condition_3.rules_or_model_f1 === null ? "-" : percent(bar.condition_3.rules_or_model_f1)} vs
-            rules alone {bar.condition_3.rules_f1 === null ? "-" : percent(bar.condition_3.rules_f1)} ({bar.condition_3.passes ? "holds" : "not met"}). Tested on 20 May{" "}
-            {windows}, traffic the model never trained on. The bar is in docs/detection/ML_QUALITY_BAR.md; the full record in ML_MODEL_CARD.md.
+            3. Rules plus model must not lower accuracy: F1 {bar.condition_3.rules_or_model_f1 === null ? "-" : percent(bar.condition_3.rules_or_model_f1)} vs
+            rules alone {bar.condition_3.rules_f1 === null ? "-" : percent(bar.condition_3.rules_f1)} ({bar.condition_3.passes ? "holds" : "not met"}), on 20 May{" "}
+            {windows}, traffic the model never trained on.
           </p>
         </>
       ) : null}

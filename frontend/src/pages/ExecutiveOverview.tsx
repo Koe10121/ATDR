@@ -16,14 +16,12 @@ import {
   useAuditPage,
   useCancelJobMutation,
   useDashboardSummary,
-  useDashboardValidationSummary,
   useDetectionRuns,
   useHealth,
   useIngestionRuns,
   useJobs,
   useJobsSummary,
   useMlReport,
-  useMlEvidenceSnapshot,
   useResumeJobMutation,
   useRetryJobMutation,
   useSource,
@@ -62,10 +60,8 @@ export function ExecutiveOverview() {
   const { isAdmin } = useAuth();
   const [searchParams] = useSearchParams();
   const summary = useDashboardSummary();
-  const validationSummary = useDashboardValidationSummary();
   const health = useHealth();
   const mlReport = useMlReport();
-  const evidenceSnapshot = useMlEvidenceSnapshot();
   const supervised = useSupervisedReport();
   const latestDetectionAudit = useAuditPage({ action: "run_detection", limit: 1 });
   const latestAudit = useAuditPage({ limit: 1 });
@@ -78,7 +74,6 @@ export function ExecutiveOverview() {
   const resumeJob = useResumeJobMutation();
   const sources = useSources({ limit: 5 });
   const [selectedSourceId, setSelectedSourceId] = useState<number | null>(null);
-  const [validationReportsOpen, setValidationReportsOpen] = useState(false);
   const sourceParam = Number(searchParams.get("source"));
   const sourceParamId = Number.isFinite(sourceParam) && sourceParam > 0 ? sourceParam : null;
   const sourceDetail = useSource(selectedSourceId);
@@ -123,16 +118,6 @@ export function ExecutiveOverview() {
       sourceId: source.source_id
     }))
   );
-  const latestScenarioRun =
-    (ingestionRuns.data ?? []).find(
-      (run) =>
-        String(run.details?.actor ?? "").includes("source_scenario") ||
-        String(run.input_name ?? "").includes("_traffic") ||
-        String(run.input_name ?? "").includes("syslog")
-    ) ?? null;
-  const demoSource = (sources.data ?? []).find((source) => source.name.startsWith("scenario-")) ?? (sources.data ?? [])[0] ?? null;
-  const validation = validationSummary.data;
-  const canonicalEvidence = evidenceSnapshot.data?.canonical_evidence;
   const detectionOperations = data?.detection_operations;
   const dispositionRows = Object.entries(detectionOperations?.analyst_dispositions ?? {})
     .map(([name, count]) => ({ name, count }))
@@ -164,7 +149,7 @@ export function ExecutiveOverview() {
 
   return (
     <div className="space-y-5">
-      <SocPageHeader eyebrow="Overview" title="ATDR lab SOC status." />
+      <SocPageHeader eyebrow="Overview" title="Security status at a glance." />
 
       {summary.isError || health.isError ? (
         <ErrorBanner
@@ -193,7 +178,6 @@ export function ExecutiveOverview() {
               , {data.situation.open_first.reason}.
             </p>
           ) : null}
-          <p className="mt-2 text-xs text-muted">Written by ATDR from the open alerts and their logs, not by the AI.</p>
         </section>
       ) : null}
 
@@ -227,9 +211,6 @@ export function ExecutiveOverview() {
         </div>
         <details className="mt-4">
           <summary className="cursor-pointer text-xs font-extrabold uppercase tracking-wide text-muted">More system detail</summary>
-          <div className="mt-3 rounded-lg border border-cyan/30 bg-cyan/10 p-3 text-sm text-cyan">
-            Config: local lab profile. Replace demo secrets before shared lab use.
-          </div>
           <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             {[
               ["Latest Ingestion", latestIngestion],
@@ -260,7 +241,6 @@ export function ExecutiveOverview() {
             <div className="text-sm font-extrabold uppercase tracking-wide text-muted">Detection Operations</div>
             <p className="mt-1 text-sm text-muted">Current alert workload, evidence grouping, and source context.</p>
           </div>
-          <Badge value="Insufficient Evidence" />
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -329,7 +309,7 @@ export function ExecutiveOverview() {
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+          <div className="mt-4">
             <div className="rounded-lg border border-line bg-panel2 p-3" data-testid="detection-parser-context">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="text-xs font-extrabold uppercase tracking-wide text-muted">Parser Context</div>
@@ -337,13 +317,6 @@ export function ExecutiveOverview() {
               </div>
               <p className="mt-2 text-sm text-muted">
                 {detectionOperations?.parser_warning_context.message ?? "Parser context is unavailable."}
-              </p>
-            </div>
-            <div className="rounded-lg border border-line bg-panel2 p-3" data-testid="detection-accuracy-state">
-              <div className="text-xs font-extrabold uppercase tracking-wide text-muted">Accuracy Evidence</div>
-              <p className="mt-2 text-sm text-muted">
-                {detectionOperations?.accuracy_evidence.message ??
-                  "Operational alert volume is not an accuracy metric. Independent labeled validation is required."}
               </p>
             </div>
           </div>
@@ -384,156 +357,8 @@ export function ExecutiveOverview() {
       <section className="panel">
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="text-sm font-extrabold uppercase tracking-wide text-muted">Controlled Validation</div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Badge value="Lab-Scale Validation" />
-            <Badge value={validation?.available ? (validation.ok ? "Validation Passing" : "Validation Review") : "Run Validation Suite"} />
-            <Badge value="Manual Approval Required" />
-          </div>
-        </div>
-        <div className="mt-3">
-          <button
-            type="button"
-            className="inline-flex w-full items-center justify-between rounded-lg border border-line bg-panel2 px-3 py-2 text-left text-sm font-extrabold uppercase tracking-wide text-muted transition hover:border-cyan/50 hover:text-text"
-            aria-expanded={validationReportsOpen}
-            onClick={() => setValidationReportsOpen((open) => !open)}
-          >
-            <span>Validation reports</span>
-            <span aria-hidden="true">{validationReportsOpen ? "Hide" : "Show"}</span>
-          </button>
-        {validationReportsOpen ? <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <div className="rounded-lg border border-line bg-panel2 p-3">
-            <div className="text-xs font-bold uppercase tracking-wide text-muted">Validation Suite</div>
-            <div className="mt-1 font-bold text-text">
-              {validation?.available ? `${validation.passed_count ?? 0}/${validation.scenario_count ?? 0} passed` : "No report yet"}
-            </div>
-            <div className="mt-1 text-xs text-muted">
-              {validation?.available ? `Generated ${validation.generated_at ?? "-"}` : validation?.message ?? "Run detection validation to publish a report."}
-            </div>
-          </div>
-          <div className="rounded-lg border border-line bg-panel2 p-3">
-            <div className="text-xs font-bold uppercase tracking-wide text-muted">Generalization</div>
-            <div className="mt-1 font-bold text-text">
-              {validation?.generalization?.available
-                ? `${validation.generalization.passed_count ?? 0}/${validation.generalization.variant_count ?? 0} variants`
-                : "No variant run yet"}
-            </div>
-            <div className="mt-1 text-xs text-muted">
-              {validation?.generalization?.available
-                ? `FP ${validation.generalization.false_positive_count ?? 0} | FN ${validation.generalization.false_negative_count ?? 0}`
-                : validation?.generalization?.message ?? "Run detection generalization to publish a report."}
-            </div>
-          </div>
-          <div className="rounded-lg border border-line bg-panel2 p-3">
-            <div className="text-xs font-bold uppercase tracking-wide text-muted">Layered Modes</div>
-            <div className="mt-1 font-bold text-text">
-              {validation?.layered?.available
-                ? `${validation.layered.passed_count ?? 0}/${validation.layered.mode_run_count ?? 0} mode runs`
-                : "No layered run yet"}
-            </div>
-            <div className="mt-1 text-xs text-muted">
-              {validation?.layered?.available
-                ? `FP ${validation.layered.false_positive_count ?? 0} | FN ${validation.layered.false_negative_count ?? 0}`
-                : validation?.layered?.message ?? "Run layered detection validation to publish a report."}
-            </div>
-          </div>
-          <div className="rounded-lg border border-line bg-panel2 p-3">
-            <div className="text-xs font-bold uppercase tracking-wide text-muted">E2E Workflow</div>
-            <div className="mt-1 font-bold text-text">
-              {validation?.e2e_workflow?.available
-                ? `${validation.e2e_workflow.passed_count ?? 0}/${validation.e2e_workflow.scenario_count ?? 0} passed`
-                : "No e2e run yet"}
-            </div>
-            <div className="mt-1 text-xs text-muted">
-              {validation?.e2e_workflow?.available
-                ? `${validation.e2e_workflow.alert_count ?? 0} alerts | ${validation.e2e_workflow.case_count ?? 0} cases`
-                : validation?.e2e_workflow?.message ?? "Run e2e workflow validation to publish a report."}
-            </div>
-          </div>
-          <div className="rounded-lg border border-line bg-panel2 p-3">
-            <div className="text-xs font-bold uppercase tracking-wide text-muted">Reliability</div>
-            <div className="mt-1 font-bold text-text">
-              {validation?.reliability?.available
-                ? `${validation.reliability.scenario_passed_count ?? 0}/${validation.reliability.scenario_count ?? 0} scenarios`
-                : "No v1.1 baseline yet"}
-            </div>
-            <div className="mt-1 text-xs text-muted">
-              {validation?.reliability?.available
-                ? `FP ${validation.reliability.false_positive_count ?? 0} | FN ${validation.reliability.false_negative_count ?? 0}`
-                : validation?.reliability?.message ?? "Run detection reliability baseline."}
-            </div>
-          </div>
-          <div className="rounded-lg border border-line bg-panel2 p-3">
-            <div className="text-xs font-bold uppercase tracking-wide text-muted">Canonical ML Evidence</div>
-            <div className="mt-1 font-bold text-text">
-              {canonicalEvidence?.available
-                ? `${canonicalEvidence.evaluated_splits ?? 0} development splits | Snapshot ${canonicalEvidence.snapshot_id}`
-                : "Canonical evidence unavailable"}
-            </div>
-            <div className="mt-1 text-xs text-muted">
-              {canonicalEvidence?.available
-                ? `${(canonicalEvidence.readiness_decision ?? "candidate_only").replaceAll("_", " ")} | ${(
-                    canonicalEvidence.evidence_type ?? "controlled_validation"
-                  ).replaceAll("_", " ")}`
-                : canonicalEvidence?.reason ?? "No historical ML metric fallback is used."}
-            </div>
-          </div>
-          <div className="rounded-lg border border-line bg-panel2 p-3">
-            <div className="text-xs font-bold uppercase tracking-wide text-muted">Drift</div>
-            <div className="mt-1 font-bold text-text">
-              {validation?.drift?.available ? `${validation.drift.warning_count ?? 0} warnings` : "No drift report yet"}
-            </div>
-            <div className="mt-1 text-xs text-muted">
-              {validation?.drift?.available
-                ? `Alert rate ${validation.drift.alert_rate ?? "-"}`
-                : validation?.drift?.message ?? "Run detection drift monitor."}
-            </div>
-          </div>
-          <div className="rounded-lg border border-line bg-panel2 p-3">
-            <div className="text-xs font-bold uppercase tracking-wide text-muted">Demo Source</div>
-            <div className="mt-1 break-words font-bold text-text">{demoSource?.name ?? "No source yet"}</div>
-            <div className="mt-1 text-xs text-muted">
-              {demoSource ? `${demoSource.source_type} / ${demoSource.parser_profile}` : "Run a source scenario or replay first."}
-            </div>
-          </div>
-          <div className="rounded-lg border border-line bg-panel2 p-3">
-            <div className="text-xs font-bold uppercase tracking-wide text-muted">Source Health</div>
-            <div className="mt-1 font-bold text-text">{demoSource?.health.status ?? "-"}</div>
-            <div className="mt-1 text-xs text-muted">Last log {demoSource?.last_log_received_at ?? "-"}</div>
-          </div>
-          <div className="rounded-lg border border-line bg-panel2 p-3">
-            <div className="text-xs font-bold uppercase tracking-wide text-muted">Latest Scenario Run</div>
-            <div className="mt-1 break-words font-bold text-text">{latestScenarioRun?.input_name ?? latestIngestionRun?.input_name ?? "-"}</div>
-            <div className="mt-1 text-xs text-muted">
-              Parsed {latestScenarioRun?.parsed_successfully ?? latestIngestionRun?.parsed_successfully ?? "-"} | failed{" "}
-              {latestScenarioRun?.parse_failures ?? latestIngestionRun?.parse_failures ?? "-"}
-            </div>
-          </div>
-          <div className="rounded-lg border border-line bg-panel2 p-3">
-            <div className="text-xs font-bold uppercase tracking-wide text-muted">Risk Calibration</div>
-            <div className="mt-1 break-words font-bold text-text">{validation?.latest_risk_calibration_name ?? "Not generated"}</div>
-            <div className="mt-1 text-xs text-muted">
-              Latest report {validation?.latest_report_name ?? "-"}
-            </div>
-          </div>
-        </div> : null}
-        </div>
-        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-lg border border-cyan/30 bg-cyan/10 p-3 text-sm text-cyan">Decision Support Only</div>
-          <div className="rounded-lg border border-amber/30 bg-amber/10 p-3 text-sm text-amber">Response Automation Disabled</div>
-          <div className="rounded-lg border border-line bg-panel2 p-3 text-sm text-muted">Not Production Promoted</div>
-          <div className="rounded-lg border border-success/30 bg-success/10 p-3 text-sm text-success">
-            {canonicalEvidence?.available ? "Canonical Evidence Available" : "Canonical Evidence Pending"}
-          </div>
-        </div>
-      </section>
-
-      <section className="panel">
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-          <div>
             <div className="text-sm font-extrabold uppercase tracking-wide text-muted">Log Sources</div>
-            <p className="mt-1 text-sm text-muted">Lab sensors and ingestion sources tracked without requiring source selection for normal imports.</p>
+            <p className="mt-1 text-sm text-muted">Where ATDR's logs come from, and whether each source is healthy.</p>
           </div>
           <Badge value={`${sources.data?.length ?? 0} sources`} />
         </div>
@@ -633,7 +458,7 @@ export function ExecutiveOverview() {
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="text-sm font-extrabold uppercase tracking-wide text-muted">Operations Health</div>
-            <p className="mt-1 text-sm text-muted">Latest ingestion and detection runs for lab SOC visibility.</p>
+            <p className="mt-1 text-sm text-muted">Latest imports, detection runs and background jobs.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Badge value={jobsSummary.data?.health_status ?? "healthy"} />
@@ -976,7 +801,7 @@ export function ExecutiveOverview() {
               <div className="mt-2 space-y-2 text-sm text-muted">
                 {!sourceDetail.data.enabled ? (
                   <div className="rounded border border-cyan/30 bg-cyan/10 p-2 text-cyan">
-                    Disabled sources keep all historical raw logs, normalized rows, alerts, labels, and audit evidence. Re-enable only when the lab sender should be monitored again.
+                    Disabled sources keep all historical raw logs, normalized rows, alerts, labels, and audit evidence. Re-enable it when the sender should be monitored again.
                   </div>
                 ) : null}
                 <div>{sourceDetail.data.health.recommendation}</div>

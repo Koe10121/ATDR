@@ -165,8 +165,6 @@ export function AppShell() {
             <div className="flex flex-wrap items-center gap-2">
               <Badge value={health.data?.status === "ok" ? "ready" : "review"} />
               <Badge value={responseMode === "simulation" ? "Simulation Mode" : "blocked"} />
-              <Badge value="Decision Support Only" />
-              <Badge value="Response Automation Disabled" />
               <span className="max-w-xs truncate rounded-full border border-line px-3 py-1 text-sm font-bold text-muted" title={accountLabel}>
                 {me.data?.username ?? session?.username} ({me.data?.role ?? session?.role})
               </span>
