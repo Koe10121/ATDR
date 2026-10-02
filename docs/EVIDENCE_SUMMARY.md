@@ -184,6 +184,7 @@ the malicious cases and the supervised classifier failed calibration.
 | Re-run on 1 Oct evening after reviewer round 4; main set now 101 checks with 13 reviewer questions | main 100 of 101; held-out 27 of 27 | |
 | Re-run on 1 Oct late evening with the model's working memory at 8,192 tokens (answers 4.2 s on average instead of 10.0 s), after the "under attack", system-health, example-value and trust fixes | main 101 of 101; held-out 27 of 27; 3 answers from the built-in answers, all passing | |
 | Re-run on 1 Oct night after the Overview's plain-words summary reached the assistant; main set now 102 checks ("What happened on 20 May?" added) | main 102 of 102; held-out 27 of 27; 1 answer from the built-in answers (the trust question) | |
+| Re-run on 2 Oct after "the most urgent one" started looking up the alert the Overview opens first | main 102 of 102; held-out 27 of 27; 4.7 s and 4.9 s per answer on average; 1 answer from the built-in answers (the trust question) | |
 
 Measured on 2026-09-27 with qwen3:8b running locally, after the alert
 rebuild, and again on 2026-09-29 on the 181-alert list. The main set gained three questions when the assistant got tools

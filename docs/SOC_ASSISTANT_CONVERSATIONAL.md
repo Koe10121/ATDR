@@ -54,7 +54,7 @@ The recommended engine runs on the same computer, so no data leaves it:
 
 1. Install Ollama (`winget install Ollama.Ollama`) and download the model: `ollama pull qwen3:8b` (5.2 GB).
 2. In `.env` set `ASSISTANT_AGENT_ENGINE=ollama` and restart ATDR (`scripts/stop_system.cmd`, then `scripts/start_system.cmd`).
-3. The first answer after the model has been unloaded takes about a minute while it loads into the graphics card. After that, answers take about 4 seconds on average on the team laptop (an 8 GB RTX 5070 Laptop GPU). The model stays loaded for 30 minutes after the last question (`ASSISTANT_AGENT_KEEP_ALIVE`).
+3. The first answer after the model has been unloaded takes about a minute while it loads into the graphics card. After that, answers take under 5 seconds on average on the team laptop (an 8 GB RTX 5070 Laptop GPU). The model stays loaded for 30 minutes after the last question (`ASSISTANT_AGENT_KEEP_ALIVE`).
 
 The model's working memory, `ASSISTANT_AGENT_CONTEXT_TOKENS`, is 8,192 tokens so that the whole model fits on an 8 GB graphics card. At 12,288 (the setting until 1 October) 15% of it ran on the processor and answers took 10 seconds on average. The largest request in a full scoreboard run used 6,256 tokens, and Ollama's log shows no request cut short.
 
@@ -381,6 +381,24 @@ first", so that it does not compete with the summary's "Open first" alert.
 Final run: main set 102 of 102 (rev-14 added) and held-out 27 of 27, 4.4 s on
 average for both. Only "Why should I trust your answers?" used the built-in
 answer; "Is MFU under attack right now?" was answered by the model.
+
+### 2 October: the most urgent alert is the one the Overview opens first
+
+The demo's follow-up, "What should I check first on the most urgent one?", now
+looked alerts up but listed the most urgent alert types (port scans, malware)
+with #3778 and #3773 as examples, while the Overview says to open #3738 first.
+A question about "the most urgent one", the "most important", "most dangerous"
+or "highest-priority" alert or one, or what to check, look at, open,
+investigate or handle first now gets that alert looked up before the model
+answers (or the alert the question names), with a note saying why the Overview
+puts it first and asking for under 150 words: the first draft ran to 230 words
+and its rewrite doubled the wait. The answer names #3738, a known C2 server on
+the watchlist that the firewall let through, in about 5 seconds. "Which ip is
+the most dangerous" asks for a ranking of addresses and keeps its own lookups.
+
+Final run: main set 102 of 102 and held-out 27 of 27, 4.7 s and 4.9 s on
+average. "Which alert should I look at first?" now names #3738 in 3.9 s. Only
+"Why should I trust your answers?" used the built-in answer.
 
 ## Measuring it again
 
