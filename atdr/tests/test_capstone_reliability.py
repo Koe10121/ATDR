@@ -9,6 +9,7 @@ from sqlalchemy.dialects import postgresql
 
 from atdr.app.db.models import AuditLog, BlockedIP, DetectionRun
 from atdr.app.detection import runtime_contract
+from atdr.app.detection.plain_summary import build_situation_summary
 from atdr.app.services import assistant_agent, assistant_service, behavior_findings_service, response_service
 from atdr.app.services.assistant_response_contracts import response_contract
 from atdr.tests.test_assistant_agent import ScriptedEngine, _ask, _call, _count_tool, _say, seeded  # noqa: F401
@@ -372,6 +373,31 @@ def test_a_request_to_act_on_a_named_alert_looks_the_alert_up_first(seeded, monk
     tools_seen = [message["name"] for message in engine.requests[0][0] if message["role"] == "tool"]
     assert tools_seen == ["dashboard_how_to", "get_alert"]
     assert response["mode"] == "assistant_agent_scripted" and "Alert #1" in response["answer"]
+
+
+def test_the_most_urgent_one_is_the_alert_the_overview_opens_first(seeded, monkeypatch):  # noqa: F811
+    # The demo's follow-up "What should I check first on the most urgent one?" listed alert types instead of one alert,
+    # while the Overview said which alert to open first.
+    sessions, settings = seeded
+    with sessions() as db:
+        first = build_situation_summary(db)["open_first"]
+    assert first, "the seeded alerts give the Overview an alert to open first"
+    engine = ScriptedEngine(_say(f"Alert #{first['alert_id']} comes first: check what it contacted."))
+    monkeypatch.setattr(assistant_service, "engine_from_settings", lambda _settings: engine)
+    with sessions() as db:
+        response = _ask(db, settings, "What should I check first on the most urgent one?")
+    messages = engine.requests[0][0]
+    assert [message["name"] for message in messages if message["role"] == "tool"] == ["get_alert"]
+    assert any(f"open alert #{first['alert_id']} first" in message["content"] for message in messages if message["role"] == "system")
+    assert response["mode"] == "assistant_agent_scripted" and f"#{first['alert_id']}" in response["answer"]
+
+
+def test_only_questions_about_one_alert_count_as_asking_for_the_most_urgent_one():
+    urgent = assistant_service.URGENT_ALERT_QUESTION
+    for question in ("which alert should I look at first?", "What should I check first on the most urgent one?", "what is the most dangerous alert?"):
+        assert urgent.search(question), question
+    # A ranking of addresses keeps its own lookups.
+    assert not urgent.search("which ip is the most dangerous")
 
 
 def test_a_number_word_in_a_tool_result_supports_its_digits():

@@ -381,13 +381,13 @@ export function ExecutiveOverview() {
                   <Badge value={source.health.status} />
                 </div>
                 <div className="mt-3 grid gap-2 text-sm text-muted sm:grid-cols-2">
-                  <div>Logs: <span className="font-bold text-text">{source.logs_received_count}</span></div>
-                  <div>Parsed: <span className="font-bold text-text">{source.parse_success_count}</span></div>
+                  <div>Lines received: <span className="font-bold text-text">{source.logs_received_count.toLocaleString("en-US")}</span></div>
+                  <div>Lines parsed: <span className="font-bold text-text">{source.parse_success_count.toLocaleString("en-US")}</span></div>
                   <div>Fallback / Failed: <span className="font-bold text-text">{source.parse_failure_count}</span></div>
                   <div>Stored Parse Success: <span className="font-bold text-text">{source.health.parse_success_rate}%</span></div>
                   <div>Contract: <span className="font-bold text-text">{(source.health.parser_contract_state ?? "legacy_contract").replaceAll("_", " ")}</span></div>
                   <div>Quality: <span className="font-bold text-text">{(source.health.parser_quality_state ?? "legacy").replaceAll("_", " ")}</span></div>
-                  <div className="sm:col-span-2">Last log: <span className="font-bold text-text">{source.last_log_received_at ?? "-"}</span></div>
+                  <div className="sm:col-span-2">Last received (UTC): <span className="font-bold text-text">{source.last_log_received_at?.slice(0, 19) ?? "-"}</span></div>
                 </div>
                 {source.latest_error ? <div className="mt-2 text-xs text-amber">{source.latest_error}</div> : null}
               </button>
@@ -767,9 +767,9 @@ export function ExecutiveOverview() {
                 { label: "Host / Port", value: `${sourceDetail.data.host ?? "-"}:${sourceDetail.data.port ?? "-"}` },
                 { label: "Enabled", value: sourceDetail.data.enabled ? "yes" : "no" },
                 { label: "Last Seen", value: sourceDetail.data.last_seen },
-                { label: "Last Log", value: sourceDetail.data.last_log_received_at },
-                { label: "Logs Received", value: sourceDetail.data.logs_received_count },
-                { label: "Parsed", value: sourceDetail.data.parse_success_count },
+                { label: "Last Received (UTC)", value: sourceDetail.data.last_log_received_at?.slice(0, 19) },
+                { label: "Lines Received", value: sourceDetail.data.logs_received_count },
+                { label: "Lines Parsed", value: sourceDetail.data.parse_success_count },
                 { label: "Fallback / Failed Rows", value: sourceDetail.data.parse_failure_count },
                 { label: "Contract State", value: (sourceDetail.data.health.parser_contract_state ?? "legacy_contract").replaceAll("_", " ") },
                 { label: "Parser Quality", value: (sourceDetail.data.health.parser_quality_state ?? "legacy").replaceAll("_", " ") },

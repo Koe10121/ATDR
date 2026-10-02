@@ -4371,6 +4371,9 @@ test("overview system health panel and ML governance wording render", async ({ p
   await expect(page.getByTestId("operational-warnings")).toContainText("Database migration revision is not at Alembic head.");
   await expect(page.getByText("Log Sources")).toBeVisible();
   await expect(page.getByRole("button", { name: /local_import file_import/ })).toBeVisible();
+  // Source counters count lines received at import time; they are not stored logs or log times.
+  await expect(page.getByRole("button", { name: /local_import file_import/ })).toContainText("Lines received:");
+  await expect(page.getByRole("button", { name: /local_import file_import/ })).toContainText("Last received (UTC):");
   await expect(page.getByRole("button", { name: /scenario-raw-fallback/ })).toBeVisible();
   await page.getByRole("button", { name: /local_import file_import/ }).click();
   await expect(page.getByText("Parser Profile", { exact: true })).toBeVisible();
@@ -8184,6 +8187,10 @@ test("Overview shows what the MFU behaviour model sees and how to respond", asyn
   await expect(findings.first().getByRole("link", { name: "#1" })).toHaveAttribute("href", "/alerts?alert=1");
   await expect(findings.nth(1)).toContainText("Model only");
   await expect(findings.nth(1)).toContainText("Identify the internal host");
+  // Each finding is a short card; its reasons and response steps open on click.
+  await expect(findings.first().getByText("Why the model thinks so", { exact: true })).toBeHidden();
+  await findings.first().getByText("Reasons and what to do").click();
+  await expect(findings.first().getByText("Why the model thinks so", { exact: true })).toBeVisible();
 });
 
 test("Overview says what is happening in plain words and which alert to open first", async ({ page }) => {

@@ -73,6 +73,14 @@ ATTACK_STATUS_QUESTION = re.compile(
 # logs of that day show, in the plain words the Overview uses ("no alerts were created that day" was the model's answer).
 TRAFFIC_DAY_QUESTION = re.compile(r"\b(?:what|happen\w*|alerts?|attacks?|traffic|activity|events?)\b", re.IGNORECASE)
 HOW_TO_START = re.compile(r"\s*how (?:do|can|to|should)\b")
+# The demo's follow-up "What should I check first on the most urgent one?" listed alert types instead of one alert.
+# The Overview already names the alert to open first, so the model gets that alert and both name the same one.
+URGENT_ALERT_QUESTION = re.compile(
+    r"\b(?:most urgent|check first|look at first|open first|investigate first|handle first|"
+    # Not "which ip is the most dangerous": that asks for a ranking of addresses.
+    r"(?:most important|most dangerous|highest[- ]priority) (?:alert|one))\b",
+    re.IGNORECASE,
+)
 
 SENSITIVE_CONTEXT_KEYS = {
     "api_key",
@@ -793,6 +801,28 @@ def _named_alert_lookup(question: str) -> list[tuple[str, dict[str, Any]]]:
     return [("get_alert", {"alert_id": int(match["alert"])})] if match else []
 
 
+def _urgent_alert_lookup(db: Session, question: str) -> tuple[list[tuple[str, dict[str, Any]]], str | None]:
+    """For "the most urgent one": the alert the question names, or else the one the Overview says to open first.
+
+    The note keeps the answer short: the first draft about the whole alert ran past the word limit and its rewrite
+    doubled the wait.
+    """
+
+    if not URGENT_ALERT_QUESTION.search(question):
+        return [], None
+    named = _named_alert_lookup(question)
+    if named:
+        return named, "Answer in under 150 words: the first things to check on that alert."
+    first = build_situation_summary(db)["open_first"]
+    if not first:
+        return [], None
+    return (
+        [("get_alert", {"alert_id": first["alert_id"]})],
+        f"The Overview says to open alert #{first['alert_id']} first: {first['reason']}. "
+        "Answer in under 150 words: which alert it is, why it comes first, and the first things to check.",
+    )
+
+
 def _unsafe_action_requested(lowered: str) -> bool:
     if any(
         phrase in lowered
@@ -1097,6 +1127,14 @@ def answer_assistant_question(
     if engine is not None:
         from atdr.app.services.assistant_tools import build_assistant_tools
 
+        action_request = bool(ACTION_REQUEST.search(clean_question))
+        urgent_lookup, urgent_note = ([], None) if action_request else _urgent_alert_lookup(db, clean_question)
+        context_note = _agent_context_note(
+            alert_id=requested_alert_id,
+            log_id=requested_log_id,
+            source_id=requested_source_id,
+            case_id=requested_case_id,
+        )
         outcome = run_agent(
             question=clean_question,
             engine=engine,
@@ -1107,18 +1145,13 @@ def answer_assistant_question(
                 conversation_id=resolved_conversation_id,
                 limit=settings.assistant_conversation_history_turns if include_recent_context else 0,
             ),
-            context_note=_agent_context_note(
-                alert_id=requested_alert_id,
-                log_id=requested_log_id,
-                source_id=requested_source_id,
-                case_id=requested_case_id,
-            ),
+            context_note=" ".join(note for note in (context_note, urgent_note) if note) or None,
             # Asked to act ("close these alerts"): give the model the real dashboard guide to relay, and the alert the
             # request names ("block the IP in alert 3738" was rejected for naming an alert no tool had returned).
             prefetch=(
                 [("dashboard_how_to", {"task": clean_question}), *_named_alert_lookup(clean_question)]
-                if ACTION_REQUEST.search(clean_question)
-                else None
+                if action_request
+                else urgent_lookup or None
             ),
             redacted=redacted,
             forbidden_values=assistant_secret_values(settings),

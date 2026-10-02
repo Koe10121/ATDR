@@ -77,33 +77,36 @@ function FindingCard({ finding }: { finding: BehaviorFinding }) {
           </>
         ) : null}
       </div>
-      <div className="mt-3 grid gap-3 lg:grid-cols-2">
-        <div>
-          <div className="text-xs font-black uppercase tracking-wide text-muted">Why the model thinks so</div>
-          <ul className="mt-1 list-disc space-y-1 pl-4 text-sm font-semibold text-text">
-            {(finding.reasons.length ? finding.reasons : ["Its overall behaviour matches the attacks the model learned, although no single measure stands out."]).map((reason) => (
-              <li key={reason}>{reason}</li>
-            ))}
-          </ul>
-          {mitre.technique ? (
-            <div className="mt-2 text-xs font-bold text-muted">
-              MITRE ATT&CK: {mitre.tactic} / {mitre.technique} ({mitre.technique_id})
-            </div>
-          ) : null}
+      <details className="mt-2">
+        <summary className="cursor-pointer text-xs font-black uppercase tracking-wide text-cyan">Reasons and what to do</summary>
+        <div className="mt-3 grid gap-3 xl:grid-cols-2">
+          <div>
+            <div className="text-xs font-black uppercase tracking-wide text-muted">Why the model thinks so</div>
+            <ul className="mt-1 list-disc space-y-1 pl-4 text-sm font-semibold text-text">
+              {(finding.reasons.length ? finding.reasons : ["Its overall behaviour matches the attacks the model learned, although no single measure stands out."]).map((reason) => (
+                <li key={reason}>{reason}</li>
+              ))}
+            </ul>
+            {mitre.technique ? (
+              <div className="mt-2 text-xs font-bold text-muted">
+                MITRE ATT&CK: {mitre.tactic} / {mitre.technique} ({mitre.technique_id})
+              </div>
+            ) : null}
+          </div>
+          <div>
+            <div className="text-xs font-black uppercase tracking-wide text-muted">What to do</div>
+            {finding.response.objective ? <p className="mt-1 text-sm font-semibold text-text">{finding.response.objective}</p> : null}
+            <ol className="mt-1 list-decimal space-y-1 pl-4 text-sm font-semibold text-text">
+              {finding.response.containment.map((step) => (
+                <li key={step}>{step}</li>
+              ))}
+            </ol>
+            {finding.response.escalate_when ? (
+              <p className="mt-2 text-xs font-bold text-muted">Escalate when: {finding.response.escalate_when}</p>
+            ) : null}
+          </div>
         </div>
-        <div>
-          <div className="text-xs font-black uppercase tracking-wide text-muted">What to do</div>
-          {finding.response.objective ? <p className="mt-1 text-sm font-semibold text-text">{finding.response.objective}</p> : null}
-          <ol className="mt-1 list-decimal space-y-1 pl-4 text-sm font-semibold text-text">
-            {finding.response.containment.map((step) => (
-              <li key={step}>{step}</li>
-            ))}
-          </ol>
-          {finding.response.escalate_when ? (
-            <p className="mt-2 text-xs font-bold text-muted">Escalate when: {finding.response.escalate_when}</p>
-          ) : null}
-        </div>
-      </div>
+      </details>
     </article>
   );
 }
@@ -200,9 +203,11 @@ export function BehaviorModelPanel() {
           ) : null}
           {findings.length ? (
             <div className="space-y-3">
-              {visible.map((finding) => (
-                <FindingCard key={`${finding.source}-${finding.window_start}`} finding={finding} />
-              ))}
+              <div className="grid items-start gap-3 lg:grid-cols-2">
+                {visible.map((finding) => (
+                  <FindingCard key={`${finding.source}-${finding.window_start}`} finding={finding} />
+                ))}
+              </div>
               {findings.length > VISIBLE_FINDINGS ? (
                 <button className="btn-secondary text-xs" type="button" onClick={() => setShowAll((value) => !value)}>
                   {showAll ? "Show fewer" : `Show all ${findings.length} findings`}
