@@ -107,7 +107,7 @@ attacks. The assistant answered from a fixed list of question types.
   about half.
 - Since 1 October an answer takes under 5 seconds instead of 10: the model's
   working memory was cut to 8,192 tokens so the whole model fits on the
-  laptop's graphics card. The latest run answered 102 of 102 and 27 of 27.
+  laptop's graphics card. The latest run answered 116 of 116 and 27 of 27.
 
 ### 4. Honest evidence
 
@@ -146,8 +146,8 @@ attacks. The assistant answered from a fixed list of question types.
 | Rules plus MFU model, same labels | F1 90.1% | Second look |
 | MFU model on fresh simulated attacks | port scan 96.5%, brute force 97.5%, flood 100%, C2 88.5%, exfiltration 98.0% | Simulated |
 | Team labels, current rules | precision 96.0%, recall 99.7% | Agreement, not accuracy |
-| Assistant | 102 of 102 (14 reviewer questions added), and 27 of 27 held-out questions, in under 5 seconds per answer (2 Oct; 84 of 85 and 26 of 27 on 30 Sep; runs vary by a question or two) | Automatic scoring |
-| Tests | 1,560 backend and 81 browser tests passing | |
+| Assistant | 116 of 116 (28 reviewer questions added), and 27 of 27 held-out questions, in under 5 seconds per answer (2 Oct; 84 of 85 and 26 of 27 on 30 Sep; runs vary by a question or two) | Automatic scoring |
+| Tests | 1,596 backend and 81 browser tests passing | |
 
 The live dashboard holds 178 alerts (Critical 34, High 43, Medium 81, Low 20).
 Each names its attack type: port scan 119, malware / C2 14, policy violation 10,

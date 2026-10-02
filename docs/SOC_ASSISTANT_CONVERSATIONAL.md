@@ -33,7 +33,7 @@ unavailable, the page falls back to the old built-in answers.
 2. The model calls the tools it needs (several calls, up to 5 rounds) and writes the answer.
 3. ATDR decides from the question whether it is about ATDR (alerts, logs, rules, severity, SLA, the dashboard, blocking, an IP, and so on). Such a question must be answered from the tools: an answer from memory is sent back once to look it up, and rejected if it still is not. Other questions may be answered from general knowledge, and the page then says "general knowledge (not from ATDR records)".
 4. ATDR checks the answer before showing it (`verify_answer` in `atdr/app/services/assistant_agent.py`):
-   - in an answer built from the tools, every number and every alert or record number must appear in a tool result; a number that only the analyst's question contains does not count, so "we have 500 alerts, right?" cannot be confirmed by repeating it. The assistant's own earlier answers in the conversation do count, since they were checked when given; a follow-up that points back at them ("tell me more about the second one") is sent to look the item up again rather than answered from memory. Any named page, button, menu or tab must appear in the tool results;
+   - in an answer built from the tools, every number and every alert or record number must appear in a tool result; a number that only the analyst's question contains does not count, so "we have 500 alerts, right?" cannot be confirmed by repeating it. A figure of 10,000 or more may be rounded to two or three significant figures ("over 95 MB" for 95,186,027 bytes), but a count of alerts, logs or connections must match exactly. The assistant's own earlier answers in the conversation do count, since they were checked when given; a follow-up that points back at them ("tell me more about the second one") is sent to look the item up again rather than answered from memory. Any named page, button, menu or tab must appear in the tool results;
    - the answer stays within the conversation word limit (220 words);
    - in a general-knowledge answer, ordinary facts are allowed ("at least 12 characters"), but figures about ATDR's own data ("41 alerts", "alert #3676") are not;
    - no IP address from ATDR's records (they stay redacted), and no configured secret;
@@ -400,6 +400,92 @@ Final run: main set 102 of 102 and held-out 27 of 27, 4.7 s and 4.9 s on
 average. "Which alert should I look at first?" now names #3738 in 3.9 s. Only
 "Why should I trust your answers?" used the built-in answer.
 
+### 2 October, afternoon: questions a professor might ask during the demo
+
+Twenty-four questions a professor might type during the demo were asked and the
+answers read by hand. Six stated something wrong and four stayed vague:
+
+- "What is the most dangerous thing happening on our network right now?" named
+  #3839 and said, wrongly, that the firewall had not blocked it. "The most
+  dangerous thing", "the biggest threat" and similar now count as asking for the
+  alert the Overview opens first, so the answer names #3738.
+- "Show me the traffic from Malaysia" was answered with the count of every
+  stored log. A country the question names is now looked up in the logs first:
+  186 logs from Malaysia and 1,766 to it. Country fields that are not places
+  ("Unknown", private address ranges) never count.
+- "Does ATDR work with live traffic?" got "it only processes historical data",
+  and "Is the data in this system real?" said yes without a word about the
+  export. The data topic now says the logs are one exported file, so nothing on
+  the dashboard is live, and that ATDR's syslog receiver can take the firewall's
+  logs live (UDP port 5514, each record saved within 2 seconds). Questions about
+  live, real-time or real data get that topic first, with a note to say all
+  three: the stored logs are one export, logs can also arrive live, and
+  detection checks them only when someone runs it. With the topic alone, the
+  data answer still left the export out; with only the first part of the note,
+  one answer opened "ATDR does not work with live traffic directly"; with the
+  syslog part added, another said ATDR detects attacks "as it happens".
+- "Which attack types can ATDR not detect yet?" guessed that crypto mining might
+  go unseen, though ATDR names XMRig miners. A new topic, looked up first for
+  such questions, says what the firewall's logs cannot show (what happens inside
+  a device, email and phishing, what was inside the traffic, misuse that looks
+  like normal use), that brute force, flood and exfiltration were tested only on
+  simulated attacks, and that detection runs when started, not continuously.
+- "Where does the watchlist come from?" got "threat intelligence feeds" with no
+  names. The answer now names Feodo Tracker, ThreatFox and the team's
+  hand-added GHOSTENGINE address.
+- "What changed between the first version and now?" described system jobs, and
+  "Tell me about the experimental alerts" listed rule-backed findings as the
+  model's alerts after 30 seconds. Two new topics answer them: the changes since
+  the version presented on 26 September, and the model's five alerts (#3852 to
+  #3856), why they are experimental and how to use them, in about 4 seconds.
+- "How accurate is the MFU behaviour model?" got ATDR's overall accuracy. It now
+  gets the model's own figures first, with a note to say they were measured on
+  simulated attacks blended into MFU traffic: given the figures alone, the model
+  listed them as its accuracy.
+- "What happens to my data when I ask you a question?" and "Are my questions
+  stored?" got "your questions are not stored", though ATDR saves each question
+  and answer in its audit log and assistant history. Privacy questions now get
+  the built-in answer, which says so and that nothing leaves the laptop.
+- "How do you know the GHOSTENGINE alert is not a false positive?" was answered
+  from the definition of a false positive. A threat the question names
+  (GHOSTENGINE, XMRig) now gets its alert looked up first; words every scan
+  signature shares, such as "port" and "scan", pick out none.
+- "Brief the IT director in two sentences" got "I'm here to assist", and "Which
+  MFU devices might be infected with malware?" ended with "Let me look up the
+  source IPs" and no lookup. A briefing now gets the security overview first,
+  and a question about infected or compromised devices gets the malware topic
+  and the watchlist, so it names the XMRig alerts and #3738.
+
+The first scoreboard run after these changes failed two answers that had passed
+before, probably because the new topics changed the tool list the model reads:
+
+- "Are any MFU devices talking to a known malicious server?" looked up the
+  address "[redacted-ip]" itself, read "not on the watchlist, 0 connections" and
+  answered "no". A hidden address now gets the whole watchlist, which lists
+  #3738.
+- "what should I do about it?", after "Why was alert 3842 flagged?", also
+  listed the five highest-scoring alerts and answered with those. Asked what to
+  do about the alert in context or an alert it names, the model now gets that
+  alert's playbook first, with a note asking for under 150 words; the answer
+  takes under 5 seconds. The overview's suggested follow-up "What should I do
+  about the top alert?" now reads "What should I do about the most urgent
+  alert?", which the assistant knows as the alert the Overview opens first.
+
+"Why was alert 3842 flagged?" also ended on the built-in answer's raw evidence
+lines: the model wrote "over 95 MB sent" and "over 172,000 packets" for
+95,186,027 bytes and 172,912 packets, and the checker rejected both. A figure of
+10,000 or more may now be rounded to two or three significant figures, written
+in full or with its scale ("95 MB"); small counts and counts of ATDR's records
+must still match exactly.
+
+Fourteen of the questions joined the main set as rev-15 to rev-28, each with the
+wrong answer it gave before as a forbidden phrase where one applies.
+
+Final run: main set 116 of 116 (rev-15 to rev-28 added) and held-out 27 of 27,
+4.4 s and 5.1 s on average. The investigation brief and the privacy answer come
+from the built-in answers by design; the model answered every other main-set
+question.
+
 ## Measuring it again
 
 ```
@@ -418,3 +504,5 @@ is used to fix something, move it to the main set and write a new held-out one.
 - Long answers take 10 to 20 seconds, most of it the model writing the answer.
 - Asked "Why should I trust your answers?", the model's own wording keeps leaving the checks out, so that question gets the built-in answer (labelled "ATDR deterministic analysis"). "Is MFU under attack right now?" does in some runs.
 - It only knows what ATDR's tools return about MFU. It cannot see the internet or other MFU systems, and it cannot yet filter alerts by who they are assigned to.
+- A number is checked against the tools, but not what it counts: asked in Thai what attacks are happening now, it once gave the Critical count (34) as the number of exploit attempts.
+- Asked "Why are there so many port scan alerts?", it explains scanning in general and can over-read the overview: one answer said some scans "managed to bypass the firewall".

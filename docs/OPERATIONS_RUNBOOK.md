@@ -105,7 +105,7 @@ enables them.
 ## Log Ingestion And Detection
 
 Prefer the dashboard for normal analyst work. A whole MFU firewall export
-(about 600 MB for 21 minutes of traffic) goes through **Validation Controls >
+(about 600 MB for 21 minutes of traffic) goes through **Data & Detection >
 Queue import**: the background worker imports it in checkpointed chunks, then
 **Check all unchecked logs** runs the rules and watchlist over the new logs.
 Rehearsed on 2026-09-27 with the 13:45-13:57 part of the MFU export (351 MB,

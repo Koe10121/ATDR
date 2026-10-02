@@ -72,7 +72,7 @@ starts this one worker for you (tracked as `atdr-worker` and stopped by
 tests (v48, v525, v538) prove a test run never changes the configured
 `atdr.db` files, and the running worker's heartbeat legitimately does.
 
-After an import, open Validation Controls and use **Check all unchecked logs**.
+After an import, open Data & Detection and use **Check all unchecked logs**.
 Each log records the detection run that checked it, so this checks every
 unchecked log once, oldest first, in batches, instead of only the newest batch.
 
