@@ -43,7 +43,9 @@ export function App() {
           <Route path="/ml" element={<PageSuspense><MLGovernance /></PageSuspense>} />
           <Route element={<AdminRoute />}>
             <Route path="/users" element={<PageSuspense><UserAdmin /></PageSuspense>} />
-            <Route path="/demo" element={<PageSuspense><DemoControls /></PageSuspense>} />
+            <Route path="/data" element={<PageSuspense><DemoControls /></PageSuspense>} />
+            {/* The page's old address, kept so saved links still open it. */}
+            <Route path="/demo" element={<Navigate to="/data" replace />} />
           </Route>
         </Route>
       </Route>

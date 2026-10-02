@@ -272,7 +272,7 @@ def test_frontend_has_admin_route_guard_and_role_aware_navigation():
     assert "isAdmin" in admin_route
     assert "adminOnly" in app_shell
     assert "User Admin" in app_shell
-    assert "Validation Controls" in app_shell
+    assert "Data & Detection" in app_shell
 
 
 def test_logout_revokes_the_token_that_was_used_to_call_it():

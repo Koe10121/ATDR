@@ -97,6 +97,16 @@ CONCEPT_ALIASES = {
     # "Are there any crypto miners on campus?" looked up data exfiltration; ATDR's miners are malware / C2 alerts.
     "crypto_mining": "malware_c2",
     "cryptominer": "malware_c2",
+    "limitations": "detection_coverage",
+    "blind_spots": "detection_coverage",
+    "what_changed": "improvements",
+    # "How accurate is the MFU behaviour model?" asked for "behavior_model", got an error and fell back to
+    # ATDR's overall accuracy.
+    "behavior_model": "ml_models",
+    "behaviour_model": "ml_models",
+    "mfu_model": "ml_models",
+    "experimental": "experimental_alerts",
+    "live_traffic": "data_sources",
 }
 OTHER_CONCEPTS = (
     "mitre_attack",
@@ -115,6 +125,14 @@ OTHER_CONCEPTS = (
     # The local model's own guess for "how do you work?"; "assistant" made it describe ATDR as itself.
     "how_you_work",
     "atdr_overview",
+    # Asked "which attack types can ATDR not detect yet?", the model guessed from the accuracy topic that crypto
+    # mining might go unseen, while ATDR names XMRig miners from the firewall's own records.
+    "detection_coverage",
+    # Asked "what changed between the first version and now?", the model read system jobs and described imports.
+    "improvements",
+    # "Tell me about the experimental alerts" got the model's window view, listed rule-backed findings as its
+    # experimental alerts and said the model is "still learning".
+    "experimental_alerts",
 )
 # The measured results as docs/EVIDENCE_SUMMARY.md records them (a test keeps the two in step). The official
 # blind result is never re-scored; later figures on the same labels are "second look" numbers. The official
@@ -410,7 +428,8 @@ class AssistantToolbox:
         return ToolOutput(
             self._text("\n\n".join(parts)),
             [("Alert records", "/api/alerts", None), ("Firewall log records", "/api/logs", None)],
-            ["Which alert should I look at first?", "What should I do about the top alert?"],
+            # "the most urgent alert", not "the top alert": the router knows it as the one the Overview opens first.
+            ["Which alert should I look at first?", "What should I do about the most urgent alert?"],
         )
 
     def _alert(self, args: dict[str, Any]) -> Alert:
@@ -625,6 +644,26 @@ class AssistantToolbox:
                 "The machine-learning (ML) model that matters, the MFU behaviour model, is advisory: until an attack type "
                 "passes the quality bar the team declared before training, the rules decide every alert."
             )
+            # "How accurate is the MFU behaviour model?" got ATDR's overall accuracy and none of the model's own figures.
+            bar = status.get("quality_bar")
+            measured = (
+                "On fresh simulated attacks blended into MFU traffic it found "
+                + ", ".join(
+                    f"{ATTACK_NAMES.get(kind, kind)[:1].lower()}{ATTACK_NAMES.get(kind, kind)[1:]} {entry['condition_2']['found']:.1%}"
+                    for kind, entry in bar["types"].items()
+                )
+                + " (the bar asks for 90%)"
+                + (
+                    f"; with the rules it gave F1 {bar['condition_3']['rules_or_model_f1']:.1%} against "
+                    f"{bar['condition_3']['rules_f1']:.1%} for the rules alone on the blind-check labels (a second look)"
+                    if bar.get("condition_3", {}).get("rules_or_model_f1") is not None
+                    and bar["condition_3"].get("rules_f1") is not None
+                    else ""
+                )
+                + ". "
+                if bar
+                else ""
+            )
             return (
                 f"ATDR's alerts come mainly from its fixed rules. {role} The MFU behaviour model is trained only on MFU's "
                 "own firewall traffic; it reads each device's five minutes of traffic, suggests the likely attack type to "
@@ -634,6 +673,7 @@ class AssistantToolbox:
                 "confidence in the attack type. The quality bar asks that its extra finds (flagged with no rule alert) be "
                 "confirmed real in a blind review, that it find at least 90% of fresh simulated attacks, and that rules plus "
                 "model be no less accurate than the rules alone on the blind-check labels. "
+                f"{measured}"
                 # "Advisory only" for both once read as "the supervised model is used"; it never runs.
                 "Two earlier models are not part of detection: the anomaly model (IsolationForest) at most marks unusual logs "
                 "as a hint beside the rule evidence, and the supervised classifier is not used at all: it never passed its "
@@ -671,7 +711,8 @@ class AssistantToolbox:
 
                 runs = (
                     f"I am a language model ({self.settings.assistant_agent_model or OLLAMA_DEFAULT_MODEL}) running on the "
-                    "ATDR server, so your questions and ATDR's records stay on that machine."
+                    "ATDR server, so your questions and ATDR's records stay on that machine. Each question and answer "
+                    "is saved there, in ATDR's audit log and assistant history."
                 )
             else:
                 runs = "I am a hosted language model; IP addresses and secrets are removed before anything is sent to me."
@@ -689,6 +730,56 @@ class AssistantToolbox:
                 "- Limits: I know only the logs imported into ATDR, I can still misread or leave something out, and an "
                 "alert is a lead, not proof, so open the alert and its evidence before acting."
             )
+        if topic == "detection_coverage":
+            names = ", ".join(label[:1].lower() + label[1:] for label in (ATTACK_LABELS.get(kind, kind) for kind in ATTACK_CONCEPTS))
+            return (
+                f"{answer_rule_question('how many rules').summary} They name {len(ATTACK_CONCEPTS)} attack types: {names}.\n"
+                "- ATDR reads only the firewall's logs: who connected to what, on which port and app, how much data moved, "
+                "and what the firewall itself recognised. What leaves no trace there is outside its view: what happens "
+                "inside a device, email and phishing, what was inside the traffic (it sees log records, not packets), and "
+                "misuse that looks like normal use of an approved app.\n"
+                "- A new kind of attack with no rule, firewall signature or watchlist entry is caught only if the MFU "
+                "behaviour model sees unusual behaviour, and the model's own alerts are experimental.\n"
+                "- Brute force, flood and data exfiltration were tested only on simulated attacks.\n"
+                "- Detection checks new logs when it runs (started from the dashboard or as a background job), not "
+                "continuously."
+            )
+        if topic == "experimental_alerts":
+            from atdr.app.services import behavior_findings_service as findings
+
+            if not findings.model_status(findings.load_model()).get("alerting_types"):
+                return "The MFU behaviour model raises no alerts of its own now: it only advises, and the rules decide every alert."
+            ids = list(self.db.scalars(select(Alert.id).where(Alert.alert_type == findings.MODEL_ALERT_CODE).order_by(Alert.id)))
+            listed = f" ({', '.join(f'#{alert_id}' for alert_id in ids[:5])})" if ids else ""
+            return (
+                f"Experimental alerts are the MFU behaviour model's own alerts: {len(ids):,} on the alert list now{listed}. "
+                "The model raises one only where it reads a device's five minutes of traffic as an attack and no rule "
+                "alerted. Each is marked experimental and low confidence, is Low severity (Medium when its non-normal "
+                "estimate is 99.5% or more), and never triggers a response on its own.\n"
+                "- Why only experimental: before training, the team set a quality bar: its extra finds confirmed real in a "
+                "review, at least 90% of fresh simulated attacks found, and rules plus model no less accurate than the "
+                "rules alone. No attack type passed all three, and there is no more MFU traffic to test on, so the team "
+                "switched every type on as a recorded exception, not as proven detection.\n"
+                "- The model does not learn by itself after training; it changes only when the team retrains it.\n"
+                "- To use one: open it, read its plain-words box and evidence logs, and confirm before acting."
+            )
+        if topic == "improvements":
+            alerts = int(self.db.scalar(select(func.count(Alert.id))) or 0)
+            return (
+                "Compared with ATDR's first version, presented on 26 September 2026:\n"
+                "- Fewer, clearer alerts: rules that only describe context (a risky app, a busy source) now add points but "
+                f"never raise an alert alone, so the list went from 3,676 alerts to {alerts:,}.\n"
+                "- Every alert names its attack type from the evidence, such as the firewall's own threat signature, with "
+                "its MITRE ATT&CK technique and a response playbook; unclassified alerts fell from 53% to 10%.\n"
+                "- Plain words: each alert and the Overview say what happened in a few sentences ATDR writes from the "
+                "evidence logs.\n"
+                "- A watchlist of known-bad addresses from public threat feeds.\n"
+                "- The MFU behaviour model, trained only on MFU's traffic, which raises experimental alerts where the rules "
+                "raise none.\n"
+                "- This assistant: a language model on the laptop that answers in conversation, with every number checked.\n"
+                "- Measured accuracy: a blind check on logs nobody tuned on (official F1 62.7% for the first version's "
+                "rules; 85.2% for the current rules on the same labels, a second look)."
+            )
         if topic == "simulated_response":
             return (
                 "Responses such as blocking an IP are simulated by default: ATDR records the action and its reason in the "
@@ -696,20 +787,51 @@ class AssistantToolbox:
                 "can block or unblock, and the assistant never takes any action."
             )
         if topic == "privacy_redaction":
+            # "What happens to my data?" was answered "I do not store your questions": the storage comes first.
+            engine = self.settings.assistant_agent_engine.strip().lower()
+            online = self.settings.assistant_llm_enabled
+            if engine == "ollama" and not online:
+                where = "nothing is sent outside: the language model runs on this machine and the online fallback is off"
+            elif engine == "ollama":
+                where = (
+                    "the language model runs on this machine; only when its answer fails the checks may an online model "
+                    "reword the built-in answer, with IP addresses and secrets removed first"
+                )
+            elif engine in {"", "off"}:
+                where = "the answers come straight from ATDR's records" + (
+                    "; an online model may reword them, with IP addresses and secrets removed first" if online else ""
+                )
+            else:
+                where = "questions go to a hosted language model, with IP addresses and secrets removed first"
             return (
-                "The assistant shows IP addresses as [redacted-ip] and never shares raw firewall log lines, passwords or keys. "
-                "Analysts can see full details on the Alerts and Investigation pages, which require a login."
+                "Your questions and the assistant's answers are saved on this machine, in ATDR's audit log and "
+                f"assistant history; {where}. In answers the assistant shows IP addresses as [redacted-ip] and never "
+                "shares raw firewall log lines, passwords or keys. Analysts can see full details on the Alerts and "
+                "Investigation pages, which require a login."
             )
         if topic == "data_sources":
             db = self.db
             total = int(db.scalar(select(func.count(NormalizedLog.id))) or 0)
             first, last = db.execute(select(func.min(NormalizedLog.generated_time), func.max(NormalizedLog.generated_time))).one()
             alerts = int(db.scalar(select(func.count(Alert.id))) or 0)
+            feeds = ", ".join(
+                f"{feed['source']} ({feed['active']:,} address{'' if feed['active'] == 1 else 'es'})"
+                for feed in watchlist_feed_summary(db)
+            )
+            manual = list_watchlist_items(db, active_only=True, manual_only=True)
+            added = f", plus {len(manual):,} added by the team, such as {manual[0].description.split('. ')[0]}" if manual else ""
             return (
                 "Everything the assistant says comes from ATDR's own database: Palo Alto firewall logs imported from MFU's "
                 f"firewall ({total:,} logs, event times {_log_when(first)} to {_log_when(last)}), the {alerts:,} alerts ATDR's rules "
                 "created from them, analyst notes and actions, and ATDR's rule catalog and guides. It does not browse the "
-                "internet."
+                "internet.\n"
+                # "Does ATDR work with live traffic?" was answered "no, it only processes historical data".
+                "- The logs are real MFU firewall traffic from one exported file, so nothing on the dashboard is live. ATDR "
+                f"can also take the firewall's logs live: its syslog receiver listens on UDP port {self.settings.syslog_port} "
+                f"and saves each record within {self.settings.syslog_flush_seconds:g} seconds, and detection checks new "
+                "logs whenever it runs.\n"
+                # "Where does the watchlist come from?" got "threat intelligence feeds" with no names.
+                f"- The watchlist of known-bad addresses comes from the public threat feeds {feeds or 'none'}{added}."
             )
         from atdr.app.services import behavior_findings_service as findings
 
@@ -743,6 +865,13 @@ class AssistantToolbox:
             f"The MFU behaviour model ({status['version']}) was trained only on MFU's own firewall traffic "
             f"({status['trained_on']}). {role} {status['detail']}"
         ]
+        if status.get("alerting_types"):
+            # "Tell me about the experimental alerts" got the model's window view and no alerts.
+            ids = list(self.db.scalars(
+                select(Alert.id).where(Alert.alert_type == findings.MODEL_ALERT_CODE).order_by(Alert.id)
+            ))
+            listed = f" (alerts {', '.join(f'#{alert_id}' for alert_id in ids[:5])})" if ids else ""
+            lines.append(f"Its experimental alerts on the alert list now: {len(ids):,}{listed}.")
         view = findings.window_findings(self.db, None, model=model)
         window, summary = view.get("window"), view.get("summary")
         if window and summary:
@@ -751,7 +880,9 @@ class AssistantToolbox:
             lines.append(
                 f"Latest 5-minute window with traffic, {_log_when(start)}-{start + timedelta(minutes=5):%H:%M}: it checked "
                 f"{summary['sources_checked']:,} sources and sees attack behaviour from {summary['flagged']:,} ({names}); "
-                f"{summary['model_only']:,} of those had no rule alert."
+                # "0 of those had no rule alert" was read as "none of them were flagged by the rules".
+                f"{summary['flagged'] - summary['model_only']:,} of them also raised a rule alert and "
+                f"{summary['model_only']:,} were found only by the model."
             )
             if window.get("in_training_data"):
                 lines.append("That window was part of its training data, so it shows what the model learned rather than a fair test.")
@@ -785,6 +916,10 @@ class AssistantToolbox:
         feed_text = ", ".join(f"{feed['source']} ({feed['active']:,} active addresses)" for feed in feeds) or "none"
         citation = [("Watchlist", "/api/watchlists", None)]
         ip = str(args.get("ip") or "").strip()
+        if "redacted" in ip.lower():
+            # Asked the same question on 2 October, the model looked up "[redacted-ip]" itself, read "not on the
+            # watchlist, 0 connections" and answered "no". A hidden address names no address: list the whole watchlist.
+            ip = ""
         if not ip:
             # Asked "are any MFU devices talking to a known malicious server?", the model saw only the feed list and
             # answered "no", while alert #3738 was exactly that: a campus device contacting a hand-added C2 address.
@@ -797,10 +932,11 @@ class AssistantToolbox:
                 + ", ".join(f"#{alert_id} {severity} ({status})" for alert_id, severity, status in matched) + "."
                 if matched else "No alert has matched the watchlist."
             )
-            hand_added = "; ".join(f"{item.indicator_value}: {item.description}" for item in manual[:3])
+            # Only the name: the rest of a note ("Found 2026-09-27: ... no rule alerted") was read as today's state.
+            hand_added = "; ".join(f"{item.indicator_value}: {item.description.split('. ')[0]}" for item in manual[:3])
             return ToolOutput(
                 self._text(
-                    f"ATDR's watchlist has {len(manual):,} hand-added indicators"
+                    f"ATDR's watchlist has {len(manual):,} hand-added indicator{'' if len(manual) == 1 else 's'}"
                     + (f" ({hand_added})" if hand_added else "")
                     + f" and these threat intelligence feeds: {feed_text}. {matched_text}"
                 ),

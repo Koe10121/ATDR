@@ -49,6 +49,11 @@ ENTITY_REFERENCE = re.compile(
     re.IGNORECASE,
 )
 NUMBER = re.compile(r"(?<![\w.])\d[\d,]*(?:\.\d+)?")
+# A large figure written with its scale ("95 MB", "172K", "30.8 million"), checked by _rounded_figures.
+SCALED_FIGURE = re.compile(r"(?<![\w.,])(\d+(?:\.\d+)?)\s*(k|kb|thousand|m|mb|million|g|gb|billion)\b", re.IGNORECASE)
+FIGURE_SCALES = {
+    "k": 1e3, "kb": 1e3, "thousand": 1e3, "m": 1e6, "mb": 1e6, "million": 1e6, "g": 1e9, "gb": 1e9, "billion": 1e9,
+}
 LIST_MARKER = re.compile(r"^\s*\d{1,2}[.)]\s+", re.MULTILINE)
 # Dashboard directions ("click Resolve", "open the Alerts page") must come from a guide, not the model's memory.
 DASHBOARD_STEP = re.compile(
@@ -89,6 +94,9 @@ ATDR_QUESTION = re.compile(
     r"experimental|campus|miners?|mining|crypto\w*|xmrig|"
     # The demo's follow-up "What should I check first on the most urgent one?" got generic advice and no lookup.
     r"most urgent|check first|look at first|"
+    # "Brief the IT director in two sentences" got "I'm here to assist"; "is the data in this system real?" and
+    # "what happens to my data?" were answered from memory ("I do not store or retain your questions").
+    r"brief(?:ing)?|director|executives?|management|this system|the data|real data|my data|our data|privacy|"
     # Questions about the assistant itself: answered from how ATDR checks it, not from the model's self-image.
     r"trust (?:you|your answers?|the assistant)|how do you work|how (?:accurate|reliable) are you|"
     r"are you (?:accurate|reliable)|where do your answers come from|do you make (?:things|stuff) up|hallucinat\w*)\b"
@@ -111,7 +119,7 @@ UI_TERM = re.compile(
 MODEL_MARKUP = re.compile(r"<think>.*?</think>|<tool_call>.*?</tool_call>|</?(?:think|tool_call)>", re.IGNORECASE | re.DOTALL)
 # Pages and controls of ATDR's own dashboard; general computer steps ("press Ctrl+Alt+Del") do not name these.
 ATDR_UI = re.compile(
-    r"\b(?:dashboard|atdr|alerts page|threat controls|validation controls|response & audit|audit trail|"
+    r"\b(?:dashboard|atdr|alerts page|threat controls|data & detection|validation controls|response & audit|audit trail|"
     r"analyst actions|investigation page|soc assistant)\b",
     re.IGNORECASE,
 )
@@ -531,6 +539,33 @@ def _known_numbers(text: str) -> set[str]:
     return _numbers(text) | {_WORD_NUMBERS[word.lower()] for word in _WORD_NUMBER.findall(text)}
 
 
+def _rounded_figures(answer: str, known: set[str]) -> set[str]:
+    """Numbers in the answer that round a large figure a tool returned, as _numbers writes them.
+
+    "over 95 MB sent" for 95,186,027 bytes and "over 172,000 packets" for 172,912 were rejected, and the answer fell back
+    to the raw evidence lines. Only figures of 10,000 or more round this way, to two or three significant figures and
+    written in full or with their scale ("95 MB", "30.8 million"), so a rounded figure never stands in for a small count.
+    """
+
+    large = [int(value) for value in known if value.isdigit() and int(value) >= 10_000]
+    if not large:
+        return set()
+
+    def rounds_a_figure(number: float) -> bool:
+        for figure in large:
+            for kept in (2, 3):
+                step = 10 ** max(len(str(figure)) - kept, 0)
+                if round(number) in (figure // step * step, round(figure / step) * step):
+                    return True
+        return False
+
+    rounded = {value for value in _numbers(answer) if not value.endswith("%") and float(value) >= 10_000 and rounds_a_figure(float(value))}
+    for match in SCALED_FIGURE.finditer(answer):
+        if rounds_a_figure(float(match[1]) * FIGURE_SCALES[match[2].lower()]):
+            rounded |= _numbers(match[1])
+    return rounded
+
+
 def _numbers(text: str) -> set[str]:
     """Numbers as normalised strings; a percentage keeps its "%" so "1%" is never a free small number."""
 
@@ -651,7 +686,7 @@ def verify_answer(
             elif not redacted and ip not in known_text:
                 problems.append(f"names IP address {ip}, which no tool returned")
         unknown = sorted(
-            _numbers(LIST_MARKER.sub("", answer)) - known_numbers,
+            _numbers(LIST_MARKER.sub("", answer)) - known_numbers - _rounded_figures(answer, strict_numbers),
             key=lambda value: float(value.rstrip("%")),
         )
         if unknown:
@@ -730,6 +765,8 @@ def verify_answer(
 
 
 LIST_ITEM = re.compile(r"\s*(?:[-*\u2022]|\d+[.)])\s")
+MARKER_ONLY = re.compile(r"\s*(?:[-*\u2022]|\d+[.)])\s*")
+NUMBERED_ITEM = re.compile(r"(\s*)(\d+)([.)]\s)")
 
 
 def drop_tool_mentions(answer: str, tool_names: list[str]) -> str:
@@ -743,7 +780,8 @@ def drop_tool_mentions(answer: str, tool_names: list[str]) -> str:
             kept_lines.append(line)
             continue
         sentences = [part for part in SENTENCE_END.split(line) if not any(name in part for name in tool_names)]
-        if sentences:
+        # A step that only named a tool left a bare "3." behind.
+        if sentences and not MARKER_ONLY.fullmatch(" ".join(sentences)):
             kept_lines.append(" ".join(sentences))
     # "To investigate further, you can:" was left hanging once every step under it named a tool.
     kept_lines = [
@@ -751,7 +789,22 @@ def drop_tool_mentions(answer: str, tool_names: list[str]) -> str:
         if not line.rstrip().endswith(":")
         or LIST_ITEM.match(next((rest for rest in kept_lines[index + 1:] if rest.strip()), ""))
     ]
-    return re.sub(r"\n{3,}", "\n\n", "\n".join(kept_lines)).strip()
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(_renumbered(kept_lines))).strip()
+
+
+def _renumbered(lines: list[str]) -> list[str]:
+    """Number a list's steps in order again after one was dropped ("1. 2. 4." becomes "1. 2. 3.")."""
+
+    numbered, previous = [], None
+    for line in lines:
+        match = NUMBERED_ITEM.match(line)
+        if match:
+            previous = int(match.group(2)) if previous is None else previous + 1
+            line = f"{match.group(1)}{previous}{match.group(3)}{line[match.end():]}"
+        elif line.strip() and not line[:1].isspace():
+            previous = None
+        numbered.append(line)
+    return numbered
 
 
 # ----------------------------------------------------------------------- loop

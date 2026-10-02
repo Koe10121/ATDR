@@ -7510,7 +7510,7 @@ test("demo import limit is editable and custom sample path is sent", async ({ pa
   await expect(page.getByText("contains 2 non-empty log lines")).not.toBeVisible();
 });
 
-test("validation controls say which logs each action uses and check every unchecked log", async ({ page }) => {
+test("data & detection says which logs each action uses and checks every unchecked log", async ({ page }) => {
   // Detection used to take the newest N logs each run and remember nothing,
   // so logs between batches were never checked. The page must show coverage,
   // name the exact logs, and walk every unchecked log in batches.
@@ -7580,7 +7580,7 @@ test("validation controls say which logs each action uses and check every unchec
   expect(importBodies[0].limit).toBe(0);
 });
 
-test("validation controls can stop checking unchecked logs after the current batch", async ({ page }) => {
+test("data & detection can stop checking unchecked logs after the current batch", async ({ page }) => {
   let requests = 0;
   await mockApi(page);
   await page.route("**/api/demo/detection-coverage**", async (route) =>

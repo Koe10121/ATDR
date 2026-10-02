@@ -15,10 +15,17 @@ import re
 from collections import Counter
 from dataclasses import dataclass, field
 
+from atdr.app.core.config import Settings
 from atdr.app.detection.explanations import RULE_ANALYST_CHECKS
 from atdr.app.detection.rule_catalog import RULE_CATALOG, DetectionRuleSpec
 from atdr.app.services.assistant_data_query import ATTACK_LABELS, ATTACK_PHRASES
 from atdr.app.services.detection_service import SUPPORTING_ONLY_RULES
+
+
+def _import_limit() -> str:
+    """The queued-import size limit, "1 GB", from the setting's default: a written "50 MB" had drifted from it."""
+
+    return f"{Settings.model_fields['operation_job_max_input_bytes'].default / 1024**3:g} GB"
 
 
 def _network_rules() -> list[DetectionRuleSpec]:
@@ -177,7 +184,7 @@ HELP_TOPICS: tuple[HelpTopic, ...] = (
         steps=(
             "Open Alerts and click the alert's row to open its details.",
             "Click Download CSV, Download HTML or Download PDF.",
-            "For a full evidence bundle, an admin can use Export evidence bundle in Validation Controls.",
+            "For a full evidence bundle, an admin can use Export evidence bundle in Data & Detection.",
         ),
         page="Alerts",
     ),
@@ -186,13 +193,13 @@ HELP_TOPICS: tuple[HelpTopic, ...] = (
         title="Run detection",
         patterns=(r"\brun (?:the )?detection\b", r"\b(?:start|trigger) (?:the )?detection\b", r"\bdetect (?:new )?alerts\b"),
         steps=(
-            "Open Validation Controls (left menu, under Admin / Settings).",
+            "Open Data & Detection (left menu, under Admin / Settings).",
             # Counted from the catalog: a written "20" had drifted from the 21 rules the rule answer counts.
             f"Click Run detection. It checks recent logs against the {len(_network_rules())} detection rules and creates "
             "or merges alerts.",
             "Open Alerts to see new or updated alerts; repeats are merged into open alerts instead of duplicated.",
         ),
-        page="Validation Controls",
+        page="Data & Detection",
         note="Only admins can run detection from the dashboard. The assistant cannot run it for you.",
     ),
     HelpTopic(
@@ -204,12 +211,12 @@ HELP_TOPICS: tuple[HelpTopic, ...] = (
             r"\b(?:add|load) (?:new |more )?(?:firewall )?logs\b",
         ),
         steps=(
-            "Open Validation Controls (left menu, under Admin / Settings).",
+            "Open Data & Detection (left menu, under Admin / Settings).",
             "Set Log limit to the number of lines to import, or tick All for the whole file.",
-            "Under Durable file import, choose the Palo Alto log file (.log, .txt or .csv, up to 50 MB) and click Queue import. The background worker imports it with progress and safe resume.",
+            f"Under Durable file import, choose the Palo Alto log file (.log, .txt or .csv, up to {_import_limit()}) and click Queue import. The background worker imports it with progress and safe resume.",
             "When the import finishes, click Check all unchecked logs so detection checks the new logs.",
         ),
-        page="Validation Controls",
+        page="Data & Detection",
         note="Only admins can import logs. The assistant cannot import files for you.",
     ),
     HelpTopic(

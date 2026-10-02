@@ -312,7 +312,7 @@ export function LogExplorer() {
             </tbody>
           </table>
         </div>
-        {!logs.isLoading && !logRows.length ? <EmptyState title="No logs match" body="Adjust filters or import controlled logs from Validation Controls." /> : null}
+        {!logs.isLoading && !logRows.length ? <EmptyState title="No logs match" body="Adjust filters or import logs from Data & Detection." /> : null}
       </section>
 
       <PaginationControls limit={limit} offset={offset} resultCount={logRows.length} totalCount={logs.data?.totalCount} onLimitChange={setLimit} onOffsetChange={setOffset} />

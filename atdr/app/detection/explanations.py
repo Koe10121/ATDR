@@ -275,7 +275,7 @@ def explain_log_triage(log: NormalizedLog) -> dict[str, Any]:
             summary = "Detection has not checked this log yet."
             reasons = [
                 "No alert evidence row currently references this normalized log.",
-                "No detection run has evaluated it against the rules yet; Validation Controls > Check all unchecked logs will check it.",
+                "No detection run has evaluated it against the rules yet; Data & Detection > Check all unchecked logs will check it.",
             ]
         else:
             summary = f"Detection run #{checked_by} checked this log and did not link it to an alert."

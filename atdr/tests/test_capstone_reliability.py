@@ -301,6 +301,19 @@ def test_the_run_detection_guide_counts_the_rules_from_the_catalog():
     assert f"against the {count} detection rules" in step
 
 
+def test_the_import_guide_states_the_size_limit_the_upload_enforces():
+    # The guide said "up to 50 MB" while the queued import took files up to 1 GB, as the page itself says.
+    from pathlib import Path
+
+    from atdr.app.core.config import Settings
+    from atdr.app.services.assistant_help import HELP_TOPICS
+
+    limit = f"up to {Settings.model_fields['operation_job_max_input_bytes'].default / 1024**3:g} GB"
+    step = next(topic for topic in HELP_TOPICS if topic.key == "import_logs").steps[2]
+    page = (Path(__file__).resolve().parents[2] / "frontend" / "src" / "pages" / "DemoControls.tsx").read_text(encoding="utf-8")
+    assert limit == "up to 1 GB" and limit in step and limit in page
+
+
 def test_a_thai_question_gets_a_thai_answer_and_counts_as_an_atdr_question():
     check = lambda answer, question: assistant_agent.verify_answer(  # noqa: E731
         answer, evidence=["Official blind result: F1 62.7%."], asked=[question], redacted=True, forbidden_values=[],
@@ -410,6 +423,20 @@ def test_a_number_word_in_a_tool_result_supports_its_digits():
     assert any("9" in problem for problem in check("It made 9 connections within 5 minutes."))
     # Only tool text is read this way: an answer's own number words are not turned into digits.
     assert check("Take five steps: check the source first.") == []
+
+
+def test_a_large_figure_may_be_rounded_but_a_small_count_may_not():
+    # "over 95 MB sent" and "over 172,000 packets" for 95,186,027 bytes and 172,912 packets were rejected, and the
+    # answer fell back to the raw evidence lines.
+    evidence = ["Outbound bytes_sent value 95186027 is above the outlier threshold 30798276. Packet count 172912."]
+    check = lambda answer: assistant_agent.verify_answer(  # noqa: E731
+        answer, evidence=evidence, asked=["why was it flagged?"], redacted=True, forbidden_values=[],
+    )
+    assert check("It sent over 95 MB in over 172,000 packets, above the 30.8 million byte threshold.") == []
+    # A rounding that is off, a small count, and a count of ATDR's records stay unsupported.
+    assert check("It sent about 97 MB.")
+    assert check("It reached 95 devices.")
+    assert check("It sent 95,000,000 bytes over 172,000 connections.")
 
 
 def test_failed_tool_arguments_are_not_evidence():

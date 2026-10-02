@@ -148,7 +148,7 @@ export function DemoControls() {
   return (
     <div className="space-y-5">
       <section className="hero-panel">
-        <div className="text-sm font-extrabold uppercase tracking-wide text-danger">Validation Controls</div>
+        <div className="text-sm font-extrabold uppercase tracking-wide text-danger">Data &amp; Detection</div>
         <h1 className="mt-2 text-3xl font-black">Import logs, run detection and refresh the models.</h1>
         <p className="mt-2 text-muted">Admin only.</p>
       </section>

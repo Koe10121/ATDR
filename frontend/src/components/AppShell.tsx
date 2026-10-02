@@ -45,7 +45,7 @@ const fullNavGroups: Array<{ label: string; items: NavItem[] }> = [
     label: "Admin / Settings",
     items: [
       { to: "/users", label: "User Admin", icon: Users, adminOnly: true },
-      { to: "/demo", label: "Validation Controls", icon: Settings2, adminOnly: true }
+      { to: "/data", label: "Data & Detection", icon: Settings2, adminOnly: true }
     ]
   }
 ];
@@ -66,7 +66,7 @@ const presentationNavGroups: Array<{ label: string; items: NavItem[] }> = [
     label: "Admin",
     items: [
       { to: "/users", label: "Admin", icon: Users, adminOnly: true },
-      { to: "/demo", label: "Validation Controls", icon: Settings2, adminOnly: true }
+      { to: "/data", label: "Data & Detection", icon: Settings2, adminOnly: true }
     ]
   }
 ];

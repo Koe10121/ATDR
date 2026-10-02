@@ -97,6 +97,25 @@ def test_the_watchlist_alert_is_a_fact_written_as_its_alert_number(tmp_path):
     assert check_answer(spec, {"answer": "No MFU device is known to contact a malicious server."}, facts)
 
 
+def test_the_alert_the_overview_opens_first_is_a_fact_written_as_its_alert_number(tmp_path):
+    # "What is the most dangerous thing happening on our network right now?" must name the alert the Overview opens first.
+    from atdr.app.detection.plain_summary import build_situation_summary
+    from atdr.app.services.assistant_scoreboard_service import compute_facts
+
+    engine = create_engine(f"sqlite:///{_source(tmp_path).as_posix()}", future=True)
+    with sessionmaker(bind=engine, future=True)() as db:
+        first = build_situation_summary(db)["open_first"]["alert_id"]
+        facts = compute_facts(db)
+        db.query(Alert).update({"status": "contained"})
+        db.commit()
+        none_open = compute_facts(db)
+    engine.dispose()
+    assert facts["open_first_alert"] == f"#{first}"
+    assert none_open["open_first_alert"] is None
+    spec = {"mentions_facts": ["open_first_alert"]}
+    assert check_answer(spec, {"answer": f"Open alert #{first} first: it is Critical."}, facts) == []
+
+
 def test_scoreboard_fills_facts_keeps_conversations_and_never_writes_the_source(tmp_path):
     source = _source(tmp_path)
     before = hashlib.sha256(source.read_bytes()).hexdigest()

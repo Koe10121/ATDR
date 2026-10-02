@@ -495,7 +495,7 @@ export function AlertsTriage() {
             </tbody>
           </table>
         </div>
-        {!alerts.isLoading && !alertRows.length ? <EmptyState title="No alerts found" body="Adjust filters or run detection from Validation Controls." /> : null}
+        {!alerts.isLoading && !alertRows.length ? <EmptyState title="No alerts found" body="Adjust filters or run detection from Data & Detection." /> : null}
       </section>
 
       <PaginationControls limit={limit} offset={offset} resultCount={alertRows.length} totalCount={alerts.data?.totalCount} onLimitChange={setLimit} onOffsetChange={setOffset} />

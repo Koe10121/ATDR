@@ -147,7 +147,7 @@ def run_demo_detection(
 
 
 def detection_coverage(db: Session, *, limit: int | None = None) -> dict:
-    """Say which logs the Validation Controls actions would use right now."""
+    """Say which logs the Data & Detection actions would use right now."""
 
     total = int(db.scalar(select(func.count(NormalizedLog.id))) or 0)
     unchecked = count_unchecked_logs(db)

@@ -12,12 +12,21 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
 from atdr.app.core.config import PROJECT_ROOT, Settings
-from atdr.app.db.models import Alert, AssistantFeedback, AuditLog, DetectionRun, NormalizedLog, OperationJob, User
+from atdr.app.db.models import (
+    Alert,
+    AssistantFeedback,
+    AuditLog,
+    DetectionRun,
+    NormalizedLog,
+    OperationJob,
+    User,
+    WatchlistItem,
+)
 from atdr.app.detection.supervised_detector import supervised_model_report
 from atdr.app.detection.runtime_contract import experimental_model_runtime_status
 from atdr.app.detection.attack_mapping import infer_attack_type_from_rules
 from atdr.app.detection.explanations import build_alert_detection_summary, explain_log_triage
-from atdr.app.detection.plain_summary import brief_situation, build_situation_summary
+from atdr.app.detection.plain_summary import brief_situation, build_situation_summary, threat_name
 from atdr.app.services.case_service import list_alert_cases
 from atdr.app.services.assistant_data_query import ATTACK_LABELS, DataAnswer, answer_data_question, parse_data_question
 from atdr.app.services.assistant_agent import (
@@ -78,7 +87,14 @@ HOW_TO_START = re.compile(r"\s*how (?:do|can|to|should)\b")
 URGENT_ALERT_QUESTION = re.compile(
     r"\b(?:most urgent|check first|look at first|open first|investigate first|handle first|"
     # Not "which ip is the most dangerous": that asks for a ranking of addresses.
-    r"(?:most important|most dangerous|highest[- ]priority) (?:alert|one))\b",
+    r"(?:most important|most dangerous|most serious|highest[- ]priority|biggest|worst) (?:alert|one|thing|threat|problem|risk))\b",
+    re.IGNORECASE,
+)
+# "What should I do about it?" after "Why was alert 3842 flagged?" also listed the five highest-scoring alerts and was
+# answered with those. Asked what to do about the alert in context, the model gets that alert's playbook first.
+RESPONSE_QUESTION = re.compile(
+    r"\b(?:what (?:should|do|can|must) (?:i|we) do|how (?:do|should|can) (?:i|we) (?:respond to|handle|deal with|contain|fix))"
+    r"(?:(?: about| with)? (?:it|this|that|(?:this|that|the) (?:alert|one)|alert\s*#?\d+)\b|\s*(?:now|next)?\s*[?.!]*\s*$)",
     re.IGNORECASE,
 )
 
@@ -801,6 +817,143 @@ def _named_alert_lookup(question: str) -> list[tuple[str, dict[str, Any]]]:
     return [("get_alert", {"alert_id": int(match["alert"])})] if match else []
 
 
+# Questions whose answer is in one explain_concept topic, looked up before the model answers, some with a note on what
+# the answer must say. From memory the model said ATDR cannot take live traffic, that it does not store questions, and
+# guessed what ATDR cannot see.
+CONCEPT_QUESTIONS = (
+    (
+        re.compile(
+            r"\blive\b|\breal[- ]?time\b|\bstreaming\b|\bsyslog\b|\b(?:is|are) (?:the|this|your|our) data\b"
+            r"|\breal data\b|\bdata (?:real|fake|synthetic)\b",
+            re.IGNORECASE,
+        ),
+        ("data_sources",),
+        # Given the topic, "Is the data in this system real?" still said only that the logs are real MFU traffic. Told
+        # only that, "Does ATDR work with live traffic?" opened with "ATDR does not work with live traffic directly";
+        # told syslog alone, it said ATDR detects attacks "as it happens", though detection runs only when started.
+        "Say all three: the logs ATDR holds now come from one exported file of MFU's firewall traffic, so nothing on "
+        "the dashboard is live; ATDR can also receive the firewall's logs live over syslog; and detection checks new "
+        "logs only when someone runs it, not continuously.",
+    ),
+    # "How accurate is the MFU behaviour model?" was answered with ATDR's overall accuracy alone. Given the model's own
+    # figures, it listed them as its accuracy without saying they came from simulated attacks.
+    (
+        re.compile(
+            r"\b(?:mfu|behaviou?r|ml|ai|machine[- ]learning) model\b.{0,40}\baccura\w*"
+            r"|\baccura\w*\b.{0,40}\b(?:mfu|behaviou?r|ml|ai|machine[- ]learning) model\b",
+            re.IGNORECASE,
+        ),
+        ("ml_models",),
+        "Say that the MFU behaviour model's detection rates were measured on simulated attacks blended into MFU traffic, "
+        "not on real attacks.",
+    ),
+    (
+        re.compile(
+            r"\b(?:cannot|can't|can not|not|never|unable to|fail to|doesn't|does not|won't) (?:detect|catch|see)\b"
+            r"|\bblind spots?\b",
+            re.IGNORECASE,
+        ),
+        ("detection_coverage",),
+        None,
+    ),
+    (
+        re.compile(r"\bfirst version\b|\bwhat(?:'s| has| have)? (?:changed|improved)\b|\bwhat(?:'s| is) new\b|\bimprovements?\b", re.IGNORECASE),
+        ("improvements",),
+        None,
+    ),
+    (re.compile(r"\bexperimental\b", re.IGNORECASE), ("experimental_alerts",), None),
+)
+# "Which MFU devices might be infected with malware?" ended with "Let me look up the source IPs" and no lookup.
+INFECTED_QUESTION = re.compile(r"\binfected\b|\bcompromised\b", re.IGNORECASE)
+# Words of firewall threat names too common to pick out one alert ("how many port scan alerts are there?" matched a
+# scan signature's name); a name is matched only on its distinctive words of five letters or more.
+THREAT_NAME_STOPWORDS = {
+    "traffic", "detection", "command", "control", "server", "servers", "attempt", "attempts", "vulnerability",
+    "remote", "execution", "scanning", "miner", "miners", "known", "malware", "access", "compliant", "non-rfc",
+    "alert", "alerts", "attack", "attacks", "sweep", "hosts", "flood", "brute", "force", "login", "logins",
+    "password", "exploit", "injection", "overflow", "denial", "service", "request", "response", "protocol",
+    "session", "network", "generic", "suspicious", "evasive", "unknown", "malicious", "possible", "information",
+    "disclosure", "there", "which", "where", "about", "their", "these", "those", "should", "could", "would",
+}
+# "What happens to my data when I ask you a question?": the model said "I do not store your questions", twice,
+# while ATDR saves each one in its audit log, so these get the privacy topic as a built-in answer.
+PRIVACY_QUESTION = re.compile(
+    r"\b(?:my|our) (?:data|questions?|privacy)\b|\bprivacy\b|\bleave (?:this|the) (?:laptop|machine|computer)\b"
+    r"|\bquestions?\b.{0,40}\b(?:stored?|saved?|kept|logged|recorded)\b|\b(?:stored?|saved?|kept|logged|recorded)\b.{0,40}\bquestions?\b",
+    re.IGNORECASE,
+)
+# "Brief the IT director in two sentences" got "I'm here to assist" without any lookup.
+# Not "create an investigation brief for alert 3738": that is one alert's brief, answered on its own path.
+BRIEFING_QUESTION = re.compile(r"\bbrief (?:the|my|our)\b|\bbriefing\b|\bdirector\b|\bexecutives?\b|\bmanagement\b|\bboss\b", re.IGNORECASE)
+# Country fields the firewall fills with something other than a place.
+NOT_A_COUNTRY = {"unknown", "reserved", "private"}
+
+
+def _topic_lookups(question: str) -> list[tuple[str, dict[str, Any]]]:
+    """The concept topics and overview a question needs, looked up before the model answers."""
+
+    calls: list[tuple[str, dict[str, Any]]] = []
+    for pattern, topics, _note in CONCEPT_QUESTIONS:
+        if pattern.search(question):
+            calls.extend(("explain_concept", {"topic": topic}) for topic in topics)
+    if BRIEFING_QUESTION.search(question):
+        calls.append(("security_overview", {"time_window": "all_time"}))
+    if INFECTED_QUESTION.search(question):
+        calls.extend((("explain_concept", {"topic": "malware_c2"}), ("watchlist_lookup", {})))
+    return calls
+
+
+def _topic_notes(question: str) -> list[str]:
+    """What the answer to a looked-up topic must say, for the system prompt."""
+
+    return [note for pattern, _topics, note in CONCEPT_QUESTIONS if note and pattern.search(question)]
+
+
+def _threat_words(text: str) -> set[str]:
+    return {word.lower() for word in re.findall(r"[A-Za-z][A-Za-z0-9-]{4,}", text)} - THREAT_NAME_STOPWORDS
+
+
+def _named_threat_lookup(db: Session, question: str) -> list[tuple[str, dict[str, Any]]]:
+    """The alert for a threat the question names: "is the GHOSTENGINE alert a false positive?" was answered from the
+    false-positive definition without reading alert #3738."""
+
+    words = _threat_words(question)
+    if not words:
+        return []
+    # Addresses the team added to the watchlist by hand are named by their description's first word.
+    for item in db.scalars(select(WatchlistItem).where(WatchlistItem.active.is_(True), WatchlistItem.source.is_(None))):
+        if (item.description or "").split(" ", 1)[0].lower() in words:
+            alert_id = db.scalar(
+                select(Alert.id)
+                .where(Alert.alert_type == "watchlist_match", Alert.explanation.contains(item.indicator_value))
+                .order_by(Alert.threat_score.desc(), Alert.id)
+                .limit(1)
+            )
+            if alert_id:
+                return [("get_alert", {"alert_id": int(alert_id)})]
+    for alert_id, explanation in db.execute(select(Alert.id, Alert.explanation).order_by(Alert.threat_score.desc(), Alert.id)):
+        name = threat_name(explanation or "")
+        if name and words & _threat_words(name):
+            return [("get_alert", {"alert_id": int(alert_id)})]
+    return []
+
+
+def _country_lookup(db: Session, question: str) -> list[tuple[str, dict[str, Any]]]:
+    """A named country, given to the log tool first: "show me the traffic from Malaysia" was answered with the
+    count of every stored log, called Malaysia's."""
+
+    lowered = question.lower()
+    names = {
+        name
+        for (name,) in db.execute(select(NormalizedLog.src_country).union(select(NormalizedLog.dst_country)))
+        if name and name.lower() not in NOT_A_COUNTRY and re.fullmatch(r"[A-Za-z][A-Za-z .'-]+", name)
+    }
+    for name in sorted(names, key=len, reverse=True):
+        if re.search(rf"\b{re.escape(name.lower())}\b", lowered):
+            return [("query_logs", {"ip": name})]
+    return []
+
+
 def _urgent_alert_lookup(db: Session, question: str) -> tuple[list[tuple[str, dict[str, Any]]], str | None]:
     """For "the most urgent one": the alert the question names, or else the one the Overview says to open first.
 
@@ -820,6 +973,17 @@ def _urgent_alert_lookup(db: Session, question: str) -> tuple[list[tuple[str, di
         [("get_alert", {"alert_id": first["alert_id"]})],
         f"The Overview says to open alert #{first['alert_id']} first: {first['reason']}. "
         "Answer in under 150 words: which alert it is, why it comes first, and the first things to check.",
+    )
+
+
+def _response_lookup(question: str, alert_id: int | None) -> tuple[list[tuple[str, dict[str, Any]]], str | None]:
+    """For "what should I do about it?": the playbook of the alert in context, and a note to keep the answer short."""
+
+    if alert_id is None or not RESPONSE_QUESTION.search(question):
+        return [], None
+    return (
+        [("get_alert_playbook", {"alert_id": alert_id})],
+        f"Answer in under 150 words: the first steps from the playbook of alert #{alert_id}.",
     )
 
 
@@ -1121,7 +1285,12 @@ def answer_assistant_question(
     agent_details: dict[str, Any] | None = None
     engine = (
         engine_from_settings(settings)
-        if clean_question and not _brief_requested(lowered) and not _unsafe_action_requested(lowered)
+        if clean_question
+        and not _brief_requested(lowered)
+        and not _unsafe_action_requested(lowered)
+        # "Are my questions stored?" got "Your questions are not stored" from the model: the built-in answer says
+        # where they are kept.
+        and not PRIVACY_QUESTION.search(clean_question)
         else None
     )
     if engine is not None:
@@ -1129,6 +1298,19 @@ def answer_assistant_question(
 
         action_request = bool(ACTION_REQUEST.search(clean_question))
         urgent_lookup, urgent_note = ([], None) if action_request else _urgent_alert_lookup(db, clean_question)
+        response_lookup, response_note = ([], None) if action_request else _response_lookup(clean_question, requested_alert_id)
+        topic_notes = [] if action_request else _topic_notes(clean_question)
+        lookups = (
+            []
+            if action_request
+            else [
+                *urgent_lookup,
+                *response_lookup,
+                *_topic_lookups(clean_question),
+                *_country_lookup(db, clean_question),
+                *_named_threat_lookup(db, clean_question),
+            ]
+        )
         context_note = _agent_context_note(
             alert_id=requested_alert_id,
             log_id=requested_log_id,
@@ -1145,13 +1327,13 @@ def answer_assistant_question(
                 conversation_id=resolved_conversation_id,
                 limit=settings.assistant_conversation_history_turns if include_recent_context else 0,
             ),
-            context_note=" ".join(note for note in (context_note, urgent_note) if note) or None,
+            context_note=" ".join(note for note in (context_note, urgent_note, response_note, *topic_notes) if note) or None,
             # Asked to act ("close these alerts"): give the model the real dashboard guide to relay, and the alert the
             # request names ("block the IP in alert 3738" was rejected for naming an alert no tool had returned).
             prefetch=(
                 [("dashboard_how_to", {"task": clean_question}), *_named_alert_lookup(clean_question)]
                 if action_request
-                else urgent_lookup or None
+                else lookups or None
             ),
             redacted=redacted,
             forbidden_values=assistant_secret_values(settings),
@@ -1220,6 +1402,8 @@ def answer_assistant_question(
         result = _answer_attack_status(db, redacted=redacted)
     elif TRUST_QUESTION.search(clean_question):
         result = _answer_trust(db, settings=settings, redacted=redacted)
+    elif PRIVACY_QUESTION.search(clean_question):
+        result = _answer_privacy(db, settings=settings, redacted=redacted)
     elif calendar_days([clean_question]) and TRAFFIC_DAY_QUESTION.search(clean_question) and not HOW_TO_START.match(lowered):
         result = _answer_traffic_day(db, clean_question, redacted=redacted)
     elif (help_answer := answer_help_question(clean_question)) is not None:
@@ -2510,6 +2694,36 @@ def _answer_traffic_day(db: Session, question: str, *, redacted: bool) -> Assist
             }
         },
         suggested_followups=["Which alert should I look at first?", "What does the MFU behaviour model see?"],
+    )
+
+
+def _answer_privacy(db: Session, *, settings: Settings, redacted: bool) -> AssistantResult:
+    """Asked "what happens to my data when I ask you a question?": where questions are kept and what leaves the
+    machine, from the privacy topic the model reads (it answered "I do not store your questions")."""
+
+    from atdr.app.services.assistant_tools import build_assistant_tools
+
+    tools = {tool.name: tool for tool in build_assistant_tools(db, settings=settings)}
+    text = tools["explain_concept"].run({"topic": "privacy_redaction"}).text
+    # The summary line is cut at 32 words, rows are not: the storage is the summary, the rest are rows.
+    stored, _, rest = text.partition("; ")
+    summary = f"{stored}."
+    lines = [line[0].upper() + line[1:] for line in re.split(r"(?<=\.)\s+", rest) if line.strip()]
+    citations = [Citation("SOC assistant", "docs/SOC_ASSISTANT_CONVERSATIONAL.md")]
+    return AssistantResult(
+        answer=_text("\n".join([summary, *[f"- {line}" for line in lines]]), redacted=redacted),
+        # Shown as a data answer: the summary and its rows, unshortened.
+        context_used=["assistant_capabilities", "assistant_privacy"],
+        citations=citations,
+        details={
+            "answer_sections": {
+                "summary": [summary],
+                "evidence": lines,
+                "related_context": [],
+                "citations": [_citation_reference(citation) for citation in citations],
+            }
+        },
+        suggested_followups=["Why should I trust your answers?", "What can you do?"],
     )
 
 

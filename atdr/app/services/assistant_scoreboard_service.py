@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from atdr.app.core.config import PROJECT_ROOT, Settings, get_settings
 from atdr.app.db.models import Alert, NormalizedLog
+from atdr.app.detection.plain_summary import build_situation_summary
 from atdr.app.detection.rule_catalog import rule_spec
 from atdr.app.services.assistant_agent import engine_from_settings
 from atdr.app.services.assistant_service import answer_assistant_question
@@ -80,6 +81,7 @@ def compute_facts(db: Session) -> dict[str, Any]:
     watchlist_alert = db.scalar(
         select(Alert.id).where(Alert.alert_type == "watchlist_match").order_by(Alert.threat_score.desc(), Alert.id.desc()).limit(1)
     )
+    open_first = build_situation_summary(db)["open_first"]
     return {
         "logs_total": int(db.scalar(select(func.count(NormalizedLog.id))) or 0),
         "alerts_total": count(),
@@ -93,6 +95,8 @@ def compute_facts(db: Session) -> dict[str, Any]:
         "top_rule_title": top_rule_spec.title if top_rule_spec else top_rule,
         # As "#3738", so an answer naming the alert the watchlist matched passes a mentions_facts check.
         "top_watchlist_alert": f"#{watchlist_alert}" if watchlist_alert is not None else None,
+        # The alert the Overview says to open first, so "the most dangerous thing right now" names the same one.
+        "open_first_alert": f"#{open_first['alert_id']}" if open_first else None,
     }
 
 
