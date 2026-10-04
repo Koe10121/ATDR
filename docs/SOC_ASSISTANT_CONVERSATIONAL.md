@@ -486,6 +486,78 @@ Final run: main set 116 of 116 (rev-15 to rev-28 added) and held-out 27 of 27,
 from the built-in answers by design; the model answered every other main-set
 question.
 
+### 3 and 4 October: how many alerts the AI raised, and naming the alert
+
+On the morning of the presentation the team asked how many alerts the AI had
+raised and was told "1". Asked three ways, the assistant gave three wrong
+answers:
+
+- "How many alerts come from our AI detection?" counted the 18 unclassified rule
+  alerts as the AI's.
+- "How many alerts were detected by our AI model and rules together?" described
+  alert #3824 and called it the one alert.
+- "How many alerts did the AI raise?" said "the AI (ATDR) raised 178".
+
+There were two causes.
+
+**ATDR fetched the wrong alert.** The lookup added on 2 October for a threat a
+question names matched any word of five letters or more in a firewall threat
+name. "detected" matched "RPC Portmapper DUMP Request Detected", so alert #3824
+was handed to the model, which answered about it; "print", "option" and
+"aggressive" fetched the Nmap alert the same way, while "nmap", at four letters,
+fetched nothing. On 3 October this was misread as the model guessing an alert
+number, and the single-alert lookups were hidden for these questions; on
+4 October a rule that names the looked-up alert put "Alert #3824" on top of an
+answer about 178 alerts, which showed that ATDR itself had fetched it. A threat
+now goes by the first word of its name (XMRig, Apache, Nmap, Bash, or
+GHOSTENGINE in a watchlist note), never by an ordinary word or a protocol, and
+the hiding of lookups was removed.
+
+**No lookup the model chose counted alerts by who raised them.** A question
+about how many or which alerts came from the AI, the model or machine learning
+now gets the alert-creation topic first, with a note: give the count from each
+source, and "the AI" means the MFU behaviour model and the assistant, never ATDR
+as a whole. The topic names the model's alerts and gives one split that adds
+up: 5 of the 178 came from the MFU behaviour model (#3852 to #3856), and the
+other 173 from the rules and the watchlist, 1 of them (#2637) from an old rule
+that used the earlier anomaly model and no longer creates alerts. (Given "172
+from the rules" and "173 not from the model" side by side, an answer listed
+173, 5 and 1.)
+
+All three questions now answer 5 from the model, named, and 173 from the rules
+and the watchlist, 178 in all; "Can the AI create alerts by itself?" says the
+MFU behaviour model can, as experimental alerts.
+
+The same morning the Overview's MFU model panel said "0 found only by the
+model" while five experimental alerts were open. `window_findings` counted
+model-only findings among the 50 it lists, highest estimate first, and the five
+ranked lower. Every flagged source is now checked for a rule alert, and the
+model's own finds are listed first: 98 flagged, 93 with a rule alert, 5 found
+only by the model. The assistant's view of the model uses the same count.
+
+The demo's follow-up, "What should I check first on the most urgent one?",
+also stopped naming #3738. It listed what to check on the right alert without
+its number, with the previous day's code too, from about 10:40 onward; earlier
+that morning the same question had named it twice. Told to start with
+the alert's number, the model still left it out. On 4 October the scoreboard
+showed the same thing on another question: "How do you know the GHOSTENGINE
+alert is not a false positive?" explained the right alert without its number in
+one run and with it in the next, though answers are generated at temperature 0.
+
+So ATDR names the alert itself. When it looked one alert up for a question that
+did not name it (the most urgent one, a threat the question names, or the alert
+in context) and the answer does not give that alert's number, the answer opens
+with it: "Alert #3738 comes first: the Overview says to open it first." for the
+most urgent one, "Alert #3738" otherwise.
+
+The three questions joined the main set as rev-29 to rev-31, and the demo's two
+questions as the conversation conv-05, with a new fact for the number of alerts
+the MFU behaviour model raised.
+
+Final run (4 October): main set 121 of 121 and held-out 27 of 27, 4.2 s and 5.1 s on
+average. The investigation brief and the privacy answer come from the built-in
+answers by design.
+
 ## Measuring it again
 
 ```
@@ -506,3 +578,5 @@ is used to fix something, move it to the main set and write a new held-out one.
 - It only knows what ATDR's tools return about MFU. It cannot see the internet or other MFU systems, and it cannot yet filter alerts by who they are assigned to.
 - A number is checked against the tools, but not what it counts: asked in Thai what attacks are happening now, it once gave the Critical count (34) as the number of exploit attempts.
 - Asked "Why are there so many port scan alerts?", it explains scanning in general and can over-read the overview: one answer said some scans "managed to bypass the firewall".
+- Whether the model gives an alert's number varies from run to run, even at temperature 0. ATDR adds the number when it looked the alert up itself; where the model looked the alert up on its own, the number can still be missing.
+- Lookups that ATDR makes before the model answers can be wrong, and the model then answers from them: a wrong match on the word "detected" produced the "1 alert" answer of 3 October. Each answer records the lookups made for it.
