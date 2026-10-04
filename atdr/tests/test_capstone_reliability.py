@@ -402,7 +402,24 @@ def test_the_most_urgent_one_is_the_alert_the_overview_opens_first(seeded, monke
     messages = engine.requests[0][0]
     assert [message["name"] for message in messages if message["role"] == "tool"] == ["get_alert"]
     assert any(f"open alert #{first['alert_id']} first" in message["content"] for message in messages if message["role"] == "system")
+    # On 3 Oct the answer listed what to check on the right alert without its number, which the demo points at.
+    assert any(f"Start with the alert's number, #{first['alert_id']}" in message["content"] for message in messages if message["role"] == "system")
     assert response["mode"] == "assistant_agent_scripted" and f"#{first['alert_id']}" in response["answer"]
+    assert response["answer"].count(f"#{first['alert_id']}") == 1, "an answer that names the alert is left as it is"
+
+
+def test_an_answer_about_the_most_urgent_one_always_names_it(seeded, monkeypatch):  # noqa: F811
+    # On 3 Oct the demo's follow-up listed what to check on the right alert without naming it, three runs of three, even
+    # when told to start with its number.
+    sessions, settings = seeded
+    with sessions() as db:
+        first = build_situation_summary(db)["open_first"]
+    engine = ScriptedEngine(_say("- Check the source device first.\n- Then review its linked logs."))
+    monkeypatch.setattr(assistant_service, "engine_from_settings", lambda _settings: engine)
+    with sessions() as db:
+        response = _ask(db, settings, "What should I check first on the most urgent one?")
+    assert response["mode"] == "assistant_agent_scripted"
+    assert response["answer"].startswith(f"Alert #{first['alert_id']} comes first: the Overview says to open it first.\n- Check")
 
 
 def test_only_questions_about_one_alert_count_as_asking_for_the_most_urgent_one():

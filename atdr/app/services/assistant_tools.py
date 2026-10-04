@@ -688,14 +688,28 @@ class AssistantToolbox:
             from atdr.app.services import behavior_findings_service as findings
 
             if findings.model_status(findings.load_model()).get("alerting_types"):
-                model_alerts = int(
-                    self.db.scalar(select(func.count(Alert.id)).where(Alert.alert_type == findings.MODEL_ALERT_CODE)) or 0
-                )
                 total = int(self.db.scalar(select(func.count(Alert.id))) or 0)
+                model_ids = list(self.db.scalars(
+                    select(Alert.id).where(Alert.alert_type == findings.MODEL_ALERT_CODE).order_by(Alert.id)
+                ))
+                # Asked "how many alerts come from our AI detection?", the model counted the 18 unclassified rule
+                # alerts as the AI's, so every source is counted and the alerts named.
+                legacy_ids = list(self.db.scalars(
+                    select(Alert.id).where(Alert.alert_type == "ml_anomaly_detected").order_by(Alert.id)
+                ))
+                named = lambda ids: f" ({', '.join(f'#{alert_id}' for alert_id in ids[:5])})" if ids else ""  # noqa: E731
+                # One split that adds up: given "172 from the rules" and "173 not from the model" side by side, the
+                # answer listed 173, 5 and 1, which is 179 of 178 alerts.
+                legacy = (
+                    f", {len(legacy_ids):,} of them{named(legacy_ids)} from an old rule that used the earlier anomaly model "
+                    "and no longer creates alerts"
+                    if legacy_ids else ""
+                )
                 model = (
                     "The MFU behaviour model, machine learning trained only on MFU's traffic, also raises its own alerts, "
                     "but only where no rule alerted, each marked experimental and low confidence and never with an "
-                    f"automatic response: {model_alerts:,} of the {total:,} alerts came from it."
+                    f"automatic response: {len(model_ids):,} of the {total:,} alerts came from it{named(model_ids)}. "
+                    f"The other {total - len(model_ids):,} came from the rules and the watchlist{legacy}."
                 )
             else:
                 model = "The MFU behaviour model only advises; it raises no alerts."

@@ -164,11 +164,6 @@ export function BehaviorModelPanel() {
 
       {data?.model?.available && data.window ? (
         <div className="mt-4 space-y-4">
-          {data.window.in_training_data ? (
-            <div className="rounded-lg border border-amber/50 bg-amber/10 px-4 py-3 text-sm font-bold text-amber" data-testid="behavior-training-window">
-              This time window was used to train the model.
-            </div>
-          ) : null}
           {summary ? (
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4" data-testid="behavior-summary">
               <div className="rounded-lg border border-line bg-panel2 p-3">

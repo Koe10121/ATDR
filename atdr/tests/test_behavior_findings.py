@@ -95,6 +95,39 @@ def test_findings_are_deduplicated_linked_to_rule_alerts_and_explained(db):
     assert db.scalar(select(func.count(Alert.id))) == before
 
 
+class _RankedPortCounter(_PortCounter):
+    """Like _PortCounter, but the more ports a window touches, the higher its estimate."""
+
+    def predict_proba(self, features):
+        ports = features["n_dst_ports"].to_numpy()
+        attack = np.where(ports >= 10, np.minimum(0.9 + ports / 1000, 0.999), 0.01)
+        return np.column_stack([1 - attack, attack])
+
+
+def test_every_flagged_source_is_counted_and_the_models_own_finds_are_listed_first(db):
+    # The Overview counted "found only by the model" from its top 50 findings by estimate: it said 0 and listed none of
+    # the model's 5 experimental alerts, whose estimates ranked them lower.
+    for port in range(20):
+        line = f"quiet scan {port}"
+        raw = RawLog(raw_line=line, raw_line_hash=raw_line_fingerprint(line))
+        db.add(raw)
+        db.flush()
+        db.add(NormalizedLog(
+            raw_log_id=raw.id, generated_time=START + timedelta(seconds=port), src_ip="45.33.32.157", dst_ip="10.1.0.9",
+            dst_port=2000 + port, src_zone="SG-Outside", dst_zone="WLAN-Inside", action="allow", app="incomplete", app_risk=2,
+            bytes_sent=60, bytes_received=0, packets=1, elapsed_time=0, log_type="TRAFFIC", parsed_json={},
+        ))
+    db.commit()
+    plain = _model()
+    ranked = BehaviorModel(_RankedPortCounter(), plain.threshold, plain.normal_quantiles, plain.card)
+
+    result = window_findings(db, START, model=ranked, limit=1)
+
+    # The rule-alerted 30-port scan ranks first by estimate; the 20-port one has no rule alert.
+    assert result["summary"]["flagged"] == 2 and result["summary"]["model_only"] == 1
+    assert [(finding["source"], finding["found_by"]) for finding in result["findings"]] == [("45.33.32.157", "model_only")]
+
+
 def test_windows_are_whole_five_minutes_and_training_data_is_labelled(db):
     assert available_windows(db) == [
         {"start": "2026-05-20T13:55:00", "logs": 1},

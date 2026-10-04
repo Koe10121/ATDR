@@ -39,6 +39,14 @@ from atdr.tests.test_plain_summary import XMRIG, _alert, _log
             "Which MFU devices might be infected with malware?",
             [("explain_concept", {"topic": "malware_c2"}), ("watchlist_lookup", {})],
         ),
+        # "18 alerts from our AI detection" (the unclassified rule alerts), "1 alert" (see the named-threat test) and
+        # "the AI (ATDR) raised 178".
+        ("How many alerts come from our AI detection?", [("explain_concept", {"topic": "alert_creation"})]),
+        ("How many alerts were detected by our AI model and rules together?", [("explain_concept", {"topic": "alert_creation"})]),
+        ("How many alerts did the AI raise?", [("explain_concept", {"topic": "alert_creation"})]),
+        ("Can the AI create alerts by itself?", [("explain_concept", {"topic": "alert_creation"})]),
+        # The demo's count question names no AI part.
+        ("How many critical alerts are open right now, and what attack types are they?", []),
         # One alert's investigation brief, ATDR's overall accuracy and a ranking of risks keep their own paths.
         ("Create an investigation brief for alert 3738", []),
         ("How accurate is ATDR?", []),
@@ -85,6 +93,32 @@ def test_a_named_threat_gets_its_alert_looked_up_first():
     assert lookup(db, "What should we do about the XMRig miners?") == [("get_alert", {"alert_id": miner.id})]
     # Words every scan signature shares do not pick out one alert.
     assert lookup(db, "How many port scan alerts are there?") == []
+
+
+def test_a_threat_goes_by_the_first_word_of_its_name_not_by_ordinary_words_in_it():
+    # "How many alerts were detected by our AI model and rules together?" was answered "1 alert": "detected" matched the
+    # firewall's "RPC Portmapper DUMP Request Detected", so alert #3824 was fetched and the model described it. "print"
+    # and "option" fetched the Nmap alert the same way, and "nmap" itself, at four letters, fetched nothing.
+    db = _session()
+    log = _log(db, src="45.33.32.156", dst="10.1.0.5", port=111, src_zone="Outside", dst_zone="Inside")
+
+    def named(name):
+        return _alert(db, "paloalto_threat_log", [log], explanation=XMRIG.replace("XMRig Miner Command and Control Traffic Detection", name))
+
+    named("RPC Portmapper DUMP Request Detected")
+    nmap = named("Nmap Aggressive Option Print Detection")
+    named("Non-RFC Compliant HTTP Traffic on Port 80")
+    named("HTTP Unauthorized Brute Force Attack")
+    lookup = assistant_service._named_threat_lookup
+    for question in (
+        "How many alerts were detected by our AI model and rules together?",
+        "Print the report for me",
+        "What option do I have?",
+        "Is this aggressive scanning?",
+        "Which alerts use HTTP?",
+    ):
+        assert lookup(db, question) == [], question
+    assert lookup(db, "Any Nmap scans today?") == [("get_alert", {"alert_id": nmap.id})]
 
 
 def test_a_privacy_question_gets_the_built_in_answer_without_the_model(seeded, monkeypatch):  # noqa: F811
@@ -172,6 +206,36 @@ def test_a_looked_up_topic_comes_with_what_the_answer_must_say(seeded, monkeypat
     assert any(says in message["content"] for message in messages if message["role"] == "system")
 
 
+def test_an_answer_about_one_looked_up_alert_opens_with_its_number_when_it_gives_none():
+    # "How do you know the GHOSTENGINE alert is not a false positive?" explained alert #3738 without its number (4 Oct);
+    # the demo's follow-up about the most urgent alert did the same the day before.
+    naming = assistant_service._naming_the_alert
+    assert naming("The GHOSTENGINE alert is a watchlist match.", 3738, opens_first=False) == (
+        "Alert #3738\nThe GHOSTENGINE alert is a watchlist match."
+    )
+    assert naming("- Check the source device.", 3738, opens_first=True).startswith(
+        "Alert #3738 comes first: the Overview says to open it first.\n- Check"
+    )
+    # An answer that already gives the number, with or without "#", is left alone; #37380 is another alert.
+    for named in ("Alert #3738 is a watchlist match.", "Look at alert 3738 first."):
+        assert naming(named, 3738, opens_first=False) == named
+    assert naming("See #37380 too.", 3738, opens_first=False).startswith("Alert #3738\n")
+
+
+def test_what_to_do_about_the_alert_in_context_says_which_alert(seeded, monkeypatch):  # noqa: F811
+    sessions, settings = seeded
+    engine = ScriptedEngine(
+        _call("get_alert", alert_id=1),
+        _say("Alert #1 is a port scan."),
+        _say("Confirm the scan in its logs, then decide on a simulated block."),
+    )
+    monkeypatch.setattr(assistant_service, "engine_from_settings", lambda _settings: engine)
+    with sessions() as db:
+        _ask(db, settings, "tell me about alert 1", conversation_id="which-alert")
+        response = _ask(db, settings, "what should I do about it?", conversation_id="which-alert")
+    assert response["answer"] == "Alert #1\nConfirm the scan in its logs, then decide on a simulated block."
+
+
 def test_the_overview_follow_up_about_the_most_urgent_alert_goes_to_the_alert_the_overview_opens_first(seeded):  # noqa: F811
     sessions, settings = seeded
     with sessions() as db:
@@ -203,6 +267,37 @@ def test_the_data_topic_says_the_logs_are_not_live_how_live_logs_arrive_and_wher
     assert f"its syslog receiver listens on UDP port {settings.syslog_port}" in text
     assert "ThreatFox recent (1 address)" in text
     assert "such as GHOSTENGINE C2 server (Elastic)." in text and "Found later" not in text
+
+
+def test_alerts_are_counted_by_who_raised_them(seeded, monkeypatch):  # noqa: F811
+    from sqlalchemy import func, select
+
+    from atdr.app.db.models import Alert
+    from atdr.app.services import behavior_findings_service
+
+    monkeypatch.setattr(behavior_findings_service, "load_model", lambda *args, **kwargs: None)
+    monkeypatch.setattr(behavior_findings_service, "model_status", lambda model: {"alerting_types": ["port_scan"]})
+    sessions, settings = seeded
+    with sessions() as db:
+        def add(alert_type):
+            alert = Alert(title=alert_type, alert_type=alert_type, threat_score=40, severity="Medium", status="open",
+                          explanation="x", matched_rules_json=[], recommended_response="-")
+            db.add(alert)
+            db.flush()
+            return alert.id
+
+        model_id, legacy_id = add(behavior_findings_service.MODEL_ALERT_CODE), add("ml_anomaly_detected")
+        db.commit()
+        total = db.scalar(select(func.count(Alert.id)))
+        tools = {tool.name: tool for tool in build_assistant_tools(db, settings=settings)}
+        text = tools["explain_concept"].run({"topic": "alert_creation"}).text
+    assert f"1 of the {total:,} alerts came from it (#{model_id})." in text
+    # One split that adds up: the model's alerts, and all the others, among them the old anomaly rule's.
+    assert (
+        f"The other {total - 1:,} came from the rules and the watchlist, 1 of them (#{legacy_id}) from an old rule that "
+        "used the earlier anomaly model and no longer creates alerts."
+    ) in text
+    assert any("Answer with the count from each source" in note for note in assistant_service._topic_notes("How many alerts did the AI raise?"))
 
 
 def test_the_coverage_topic_counts_the_rules_like_the_rule_answer_and_says_what_atdr_cannot_see(seeded):  # noqa: F811

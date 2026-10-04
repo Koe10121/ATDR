@@ -27,6 +27,7 @@ from atdr.app.detection.plain_summary import build_situation_summary
 from atdr.app.detection.rule_catalog import rule_spec
 from atdr.app.services.assistant_agent import engine_from_settings
 from atdr.app.services.assistant_service import answer_assistant_question
+from atdr.app.services.behavior_findings_service import MODEL_ALERT_CODE
 from atdr.app.services.detection_scoreboard_service import configured_sqlite_path, snapshot_database
 
 QUESTIONS_PATH = PROJECT_ROOT / "data" / "evaluation" / "assistant_questions.json"
@@ -97,6 +98,8 @@ def compute_facts(db: Session) -> dict[str, Any]:
         "top_watchlist_alert": f"#{watchlist_alert}" if watchlist_alert is not None else None,
         # The alert the Overview says to open first, so "the most dangerous thing right now" names the same one.
         "open_first_alert": f"#{open_first['alert_id']}" if open_first else None,
+        # The MFU behaviour model's own alerts: "how many alerts come from our AI detection?" must count these.
+        "model_alerts_total": count(Alert.alert_type == MODEL_ALERT_CODE),
     }
 
 

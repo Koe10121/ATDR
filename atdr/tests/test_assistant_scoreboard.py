@@ -116,6 +116,27 @@ def test_the_alert_the_overview_opens_first_is_a_fact_written_as_its_alert_numbe
     assert check_answer(spec, {"answer": f"Open alert #{first} first: it is Critical."}, facts) == []
 
 
+def test_the_models_own_alerts_are_a_fact_counted_apart_from_the_rules(tmp_path):
+    # "How many alerts come from our AI detection?" was answered with the 18 unclassified rule alerts.
+    from atdr.app.services.assistant_scoreboard_service import compute_facts
+    from atdr.app.services.behavior_findings_service import MODEL_ALERT_CODE
+
+    engine = create_engine(f"sqlite:///{_source(tmp_path).as_posix()}", future=True)
+    with sessionmaker(bind=engine, future=True)() as db:
+        assert compute_facts(db)["model_alerts_total"] == 0
+        for _ in range(2):
+            db.add(Alert(title="m", alert_type=MODEL_ALERT_CODE, threat_score=30, severity="Low", status="open",
+                         explanation="x", matched_rules_json=[], recommended_response="-",
+                         created_at=datetime.now(UTC).replace(tzinfo=None)))
+        db.commit()
+        facts = compute_facts(db)
+    engine.dispose()
+    assert facts["model_alerts_total"] == 2 and facts["alerts_total"] == 5
+    spec = {"facts": ["model_alerts_total"]}
+    assert check_answer(spec, {"answer": "The MFU behaviour model raised 2 experimental alerts (#4, #5)."}, facts) == []
+    assert check_answer(spec, {"answer": "There are 18 unclassified alerts from our AI detection."}, facts)
+
+
 def test_scoreboard_fills_facts_keeps_conversations_and_never_writes_the_source(tmp_path):
     source = _source(tmp_path)
     before = hashlib.sha256(source.read_bytes()).hexdigest()

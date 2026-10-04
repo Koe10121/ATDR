@@ -8169,9 +8169,11 @@ test("Overview shows what the MFU behaviour model sees and how to respond", asyn
 
   const panel = page.getByTestId("behavior-model-panel");
   await expect(panel).toContainText("What the MFU model sees");
-  await expect(page.getByTestId("behavior-training-window")).toContainText("This time window was used to train the model.");
   await expect(panel).not.toContainText("docs/");
   await expect(page.getByTestId("behavior-summary")).toContainText("949 hosts");
+  // Checked once the window's data has loaded: the mocked window is training data, and that caveat belongs in the
+  // slides, not on the product's Overview.
+  await expect(panel).not.toContainText("used to train the model");
   const p2p = page.getByTestId("behavior-p2p-policy");
   await expect(p2p).toContainText("14 devices");
   await expect(p2p).toContainText("2,310 connections to 1,875 peers (bittorrent, xunlei)");

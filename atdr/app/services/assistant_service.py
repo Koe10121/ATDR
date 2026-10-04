@@ -817,6 +817,14 @@ def _named_alert_lookup(question: str) -> list[tuple[str, dict[str, Any]]]:
     return [("get_alert", {"alert_id": int(match["alert"])})] if match else []
 
 
+# Questions about how many alerts the AI raised, against the rules (CONCEPT_QUESTIONS gives them the count).
+AI_ALERTS_QUESTION = re.compile(
+    r"\b(?:how many|number of|count|which|what)\b.{0,40}\balerts?\b.{0,60}"
+    r"\b(?:ai|a\.i\.|model|ml|machine[- ]learning)\b"
+    r"|\b(?:ai|a\.i\.|model|ml|machine[- ]learning)\b.{0,40}"
+    r"\b(?:raise[sd]?|create[sd]?|found|find|finds|detect(?:s|ed)?|generate[sd]?|made)\b.{0,30}\balerts?\b",
+    re.IGNORECASE,
+)
 # Questions whose answer is in one explain_concept topic, looked up before the model answers, some with a note on what
 # the answer must say. From memory the model said ATDR cannot take live traffic, that it does not store questions, and
 # guessed what ATDR cannot see.
@@ -862,19 +870,36 @@ CONCEPT_QUESTIONS = (
         None,
     ),
     (re.compile(r"\bexperimental\b", re.IGNORECASE), ("experimental_alerts",), None),
+    # "How many alerts come from our AI detection?" counted the 18 unclassified rule alerts as the AI's; "...by our AI
+    # model and rules together?" was answered "1" (the one alert the named-threat lookup had wrongly fetched for the
+    # word "detected"); "How many alerts did the AI raise?" called all 178 the AI's.
+    (
+        AI_ALERTS_QUESTION,
+        ("alert_creation",),
+        # The first answers with the topic still called ATDR "the AI".
+        "Answer with the count from each source, from the alert-creation topic: the MFU behaviour model's experimental "
+        "alerts, and the rules and watchlist for all the rest; together they are all the alerts. 'The AI' means the MFU "
+        "behaviour model, which does raise its own experimental alerts, and this assistant, which raises none; never "
+        "ATDR as a whole.",
+    ),
 )
 # "Which MFU devices might be infected with malware?" ended with "Let me look up the source IPs" and no lookup.
 INFECTED_QUESTION = re.compile(r"\binfected\b|\bcompromised\b", re.IGNORECASE)
-# Words of firewall threat names too common to pick out one alert ("how many port scan alerts are there?" matched a
-# scan signature's name); a name is matched only on its distinctive words of five letters or more.
+# A threat is named by the first word of its name: "XMRig" in the firewall's "XMRig Miner Command and Control Traffic
+# Detection", "GHOSTENGINE" in a watchlist note. Matching any word of a name fetched alert #3824 ("RPC Portmapper DUMP
+# Request Detected") for "How many alerts were detected by our AI model and rules together?", which was then answered
+# "1 alert", and the Nmap alert for "print", "option" and "aggressive". A first word that is an ordinary word or a
+# protocol names no threat.
 THREAT_NAME_STOPWORDS = {
-    "traffic", "detection", "command", "control", "server", "servers", "attempt", "attempts", "vulnerability",
+    "traffic", "detection", "detected", "command", "control", "server", "servers", "attempt", "attempts", "vulnerability",
     "remote", "execution", "scanning", "miner", "miners", "known", "malware", "access", "compliant", "non-rfc",
     "alert", "alerts", "attack", "attacks", "sweep", "hosts", "flood", "brute", "force", "login", "logins",
     "password", "exploit", "injection", "overflow", "denial", "service", "request", "response", "protocol",
     "session", "network", "generic", "suspicious", "evasive", "unknown", "malicious", "possible", "information",
     "disclosure", "there", "which", "where", "about", "their", "these", "those", "should", "could", "would",
+    "http", "https", "smtp", "icmp", "port", "scan", "host", "file", "data", "user", "mail", "weak", "null", "fake", "test",
 }
+THREAT_WORD = re.compile(r"[A-Za-z][A-Za-z0-9-]{3,}")
 # "What happens to my data when I ask you a question?": the model said "I do not store your questions", twice,
 # while ATDR saves each one in its audit log, so these get the privacy topic as a built-in answer.
 PRIVACY_QUESTION = re.compile(
@@ -910,7 +935,16 @@ def _topic_notes(question: str) -> list[str]:
 
 
 def _threat_words(text: str) -> set[str]:
-    return {word.lower() for word in re.findall(r"[A-Za-z][A-Za-z0-9-]{4,}", text)} - THREAT_NAME_STOPWORDS
+    """The words of a question that could be a threat's name."""
+
+    return {word.lower() for word in THREAT_WORD.findall(text)} - THREAT_NAME_STOPWORDS
+
+
+def _threat_key(name: str | None) -> str | None:
+    """The word a threat goes by: the first word of its name, unless that is an ordinary word or a protocol."""
+
+    first = (name or "").split(" ", 1)[0].strip("()[]:,.").lower()
+    return first if THREAT_WORD.fullmatch(first) and first not in THREAT_NAME_STOPWORDS else None
 
 
 def _named_threat_lookup(db: Session, question: str) -> list[tuple[str, dict[str, Any]]]:
@@ -922,7 +956,7 @@ def _named_threat_lookup(db: Session, question: str) -> list[tuple[str, dict[str
         return []
     # Addresses the team added to the watchlist by hand are named by their description's first word.
     for item in db.scalars(select(WatchlistItem).where(WatchlistItem.active.is_(True), WatchlistItem.source.is_(None))):
-        if (item.description or "").split(" ", 1)[0].lower() in words:
+        if _threat_key(item.description) in words:
             alert_id = db.scalar(
                 select(Alert.id)
                 .where(Alert.alert_type == "watchlist_match", Alert.explanation.contains(item.indicator_value))
@@ -932,8 +966,7 @@ def _named_threat_lookup(db: Session, question: str) -> list[tuple[str, dict[str
             if alert_id:
                 return [("get_alert", {"alert_id": int(alert_id)})]
     for alert_id, explanation in db.execute(select(Alert.id, Alert.explanation).order_by(Alert.threat_score.desc(), Alert.id)):
-        name = threat_name(explanation or "")
-        if name and words & _threat_words(name):
+        if _threat_key(threat_name(explanation or "")) in words:
             return [("get_alert", {"alert_id": int(alert_id)})]
     return []
 
@@ -969,11 +1002,30 @@ def _urgent_alert_lookup(db: Session, question: str) -> tuple[list[tuple[str, di
     first = build_situation_summary(db)["open_first"]
     if not first:
         return [], None
+    # "Start with" the number: on 3 Oct the demo's follow-up listed what to check on the right alert without naming it.
     return (
         [("get_alert", {"alert_id": first["alert_id"]})],
         f"The Overview says to open alert #{first['alert_id']} first: {first['reason']}. "
-        "Answer in under 150 words: which alert it is, why it comes first, and the first things to check.",
+        f"Answer in under 150 words. Start with the alert's number, #{first['alert_id']}, and why it comes first; then "
+        "the first things to check.",
     )
+
+
+SINGLE_ALERT_TOOLS = ("get_alert", "get_alert_playbook")
+
+
+def _naming_the_alert(answer: str, alert_id: int, *, opens_first: bool) -> str:
+    """The answer, opening with the number of the alert it is about when it does not give it.
+
+    On 3 October the demo's follow-up listed what to check on alert #3738 without naming it, in three runs of three,
+    even when told to start with its number; on 4 October "How do you know the GHOSTENGINE alert is not a false
+    positive?" explained the right alert without its number. The analyst needs the number to open the alert.
+    """
+
+    if re.search(rf"(?:#|\balert\s+){alert_id}(?!\d)", answer, re.IGNORECASE):
+        return answer
+    lead = f"Alert #{alert_id} comes first: the Overview says to open it first." if opens_first else f"Alert #{alert_id}"
+    return f"{lead}\n{answer}"
 
 
 def _response_lookup(question: str, alert_id: int | None) -> tuple[list[tuple[str, dict[str, Any]]], str | None]:
@@ -1298,6 +1350,9 @@ def answer_assistant_question(
 
         action_request = bool(ACTION_REQUEST.search(clean_question))
         urgent_lookup, urgent_note = ([], None) if action_request else _urgent_alert_lookup(db, clean_question)
+        open_first_id = (
+            urgent_lookup[0][1]["alert_id"] if urgent_lookup and urgent_note and urgent_note.startswith("The Overview says") else None
+        )
         response_lookup, response_note = ([], None) if action_request else _response_lookup(clean_question, requested_alert_id)
         topic_notes = [] if action_request else _topic_notes(clean_question)
         lookups = (
@@ -1341,6 +1396,11 @@ def answer_assistant_question(
             total_timeout=float(settings.assistant_agent_timeout_seconds),
         )
         if outcome.ok and outcome.answer:
+            # The one alert ATDR looked up for a question that did not name it: the most urgent one, a threat the
+            # question names, or the alert in context.
+            looked_up = [args["alert_id"] for name, args in lookups if name in SINGLE_ALERT_TOOLS and "alert_id" in args]
+            if len(set(looked_up)) == 1 and not _named_alert_lookup(clean_question):
+                outcome.answer = _naming_the_alert(outcome.answer, looked_up[0], opens_first=looked_up[0] == open_first_id)
             return _agent_response(
                 db,
                 outcome,

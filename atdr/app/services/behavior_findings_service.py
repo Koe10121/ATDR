@@ -187,12 +187,24 @@ def window_findings(db: Session, window_start: datetime | None = None, *, model:
             target.setdefault(int(log_id), set()).add(int(alert_id))
 
     flagged = prediction[prediction["flagged"]].sort_values("attack_probability", ascending=False)
+
+    def linked(index: Any, by_log: dict[int, set[int]]) -> list[int]:
+        return sorted({alert for log_id in evidence.loc[index] for alert in by_log.get(int(log_id), ())})
+
+    # Every flagged source is checked for a rule alert, not only the ones listed: counted from the top 50 by estimate,
+    # the Overview said "0 found only by the model" while 5 of the model's experimental alerts were open, and listed
+    # none of them. The model's own finds are listed first, highest estimate first.
+    rule_alert_ids = {index: linked(index, alerts_by_log) for index in flagged.index}
+    model_only = [index for index in flagged.index if not rule_alert_ids[index]]
+    listed = [*model_only, *(index for index in flagged.index if rule_alert_ids[index])][:limit]
+    rows = dict(flagged.iterrows())
     findings = []
-    for index, row in flagged.head(limit).iterrows():
+    for index in listed:
+        row = rows[index]
         src_ip, window = index
         attack_type = str(row["attack_type"])
-        alert_ids = sorted({alert for log_id in evidence.loc[index] for alert in alerts_by_log.get(int(log_id), ())})
-        model_alert_ids = sorted({alert for log_id in evidence.loc[index] for alert in model_alerts_by_log.get(int(log_id), ())})
+        alert_ids = rule_alert_ids[index]
+        model_alert_ids = linked(index, model_alerts_by_log)
         findings.append({
             "source": src_ip,
             "window_start": pd.Timestamp(window).isoformat(),
@@ -227,7 +239,7 @@ def window_findings(db: Session, window_start: datetime | None = None, *, model:
         "summary": {
             "sources_checked": int(len(features)),
             "flagged": int(len(flagged)),
-            "model_only": int(sum(1 for finding in findings if finding["found_by"] == "model_only")),
+            "model_only": len(model_only),
             "by_type": dict(Counter(flagged["attack_type"].astype(str))),
             "background_probing": {
                 "sources": len(probe_sources),
