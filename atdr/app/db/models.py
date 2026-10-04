@@ -162,6 +162,9 @@ Index("ix_normalized_action_generated", NormalizedLog.action, NormalizedLog.gene
 
 class Alert(Base):
     __tablename__ = "alerts"
+    # An alert's number is never given to another alert: without this, SQLite numbers a new alert one above the
+    # highest alert still on the list, so a rebuild reused the numbers of archived alerts.
+    __table_args__ = {"sqlite_autoincrement": True}
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -210,7 +213,8 @@ class AlertArchive(Base):
     __tablename__ = "alert_archive"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    # Not unique: SQLite reuses the ids of deleted alerts, so a rebuild can archive an id twice.
+    # Not unique: until 4 October 2026 SQLite reused the ids of deleted alerts, so earlier rebuilds archived
+    # some ids twice.
     original_alert_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     alert_type: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     severity: Mapped[str] = mapped_column(String(32), nullable=False, index=True)

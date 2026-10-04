@@ -102,14 +102,19 @@ def test_a_second_rebuild_counts_its_new_alerts_even_when_ids_are_reused():
     assert second["archived"] == 1, "the first rebuild's alert is archived by the second"
 
 
-def test_a_third_rebuild_archives_an_alert_id_the_second_already_archived():
-    # SQLite numbers new alerts from the highest kept id, so every rebuild's new
-    # alert reuses the same id. The third rebuild used to fail on the archive's
-    # unique original id, rolling back the whole rebuild.
+def test_every_rebuild_numbers_its_new_alert_after_every_alert_ever_raised():
+    # SQLite numbered new alerts from the highest kept id, so every rebuild's new
+    # alert reused the id the rebuild before had archived: a number quoted before
+    # a rebuild named a different alert afterwards, and the third rebuild used to
+    # fail on the archive's unique original id. An alert's number is now never
+    # given to another alert.
     db = _session()
     _logs, _retired, _worked = _seed(db)
+    new_ids = []
     for reason in ("retired rules", "rules changed", "rules changed again"):
         rebuild_alerts(db, actor="koe", reason=reason)
-    reused = db.scalar(select(Alert.id).where(Alert.id.not_in(_worked)))
-    archived = db.scalars(select(AlertArchive.reason).where(AlertArchive.original_alert_id == reused)).all()
-    assert archived == ["rules changed", "rules changed again"]
+        new_ids.append(db.scalar(select(Alert.id).where(Alert.id.not_in(_worked))))
+    assert new_ids == sorted(set(new_ids)), "each rebuild's alert has a higher number than the one before"
+    archived = db.scalars(select(AlertArchive.original_alert_id)).all()
+    assert len(archived) == len(set(archived)), "no number is archived twice"
+    assert new_ids[-1] not in archived and set(new_ids[:-1]) <= set(archived)

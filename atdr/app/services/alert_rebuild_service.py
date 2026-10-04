@@ -112,8 +112,8 @@ def rebuild_alerts(
     run = detect(db)
     # The live list also carries the MFU model's experimental alerts, when they are switched on.
     model_run = create_model_alerts(db, actor=actor) if get_settings().model_alerts_enabled else None
-    # Every alert now on the list that was not kept is new. (Comparing ids with the old maximum fails:
-    # SQLite reuses ids above the highest remaining row, so a second rebuild numbers new alerts lower.)
+    # Every alert now on the list that was not kept is new. (This does not compare ids with the old maximum:
+    # until migration a8f1c0d2e3b4, SQLite numbered a rebuild's new alerts from the highest kept alert.)
     new_alerts = Counter(db.scalars(select(Alert.alert_type).where(Alert.id.not_in(keep) if keep else True)))
     summary = {
         "catalog": RULE_CATALOG_VERSION,
