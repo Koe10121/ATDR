@@ -1,18 +1,18 @@
 {
-  "version": "atdr_assistant_holdout_v3",
-  "description": "Held-out questions written after the assistant was tuned on assistant_questions.json, never used while changing it. Run once per assistant change and report the result as the fair estimate; if a question here is used to fix something, move it to the main suite and write a new one. v2: h-03 and h-08 moved to the main suite (open-11, rank-08); h-21 and h-22 added. v3 (2026-09-27): general questions are now answered, so h-20 expects an honest 'no internet access'; h-23 to h-27 (general questions) added before any run.",
+  "version": "atdr_assistant_holdout_v4",
+  "description": "Held-out questions written after the assistant was tuned on assistant_questions.json, never used while changing it. Run once per assistant change and report the result as the fair estimate; if a question here is used to fix something, move it to the main suite and write a new one. v2: h-03 and h-08 moved to the main suite (open-11, rank-08); h-21 and h-22 added. v3 (2026-09-27): general questions are now answered, so h-20 expects an honest 'no internet access'; h-23 to h-27 (general questions) added before any run. v4 (2026-10-07): h-02 (a Thai summary of today) was used to fix the situation summary, so it moved to the main suite (open-12); h-28 added before any run.",
   "checks": {
     "answered": "the assistant did not fall back to 'I don't have a specific built-in answer'",
     "facts": "each named fact's value appears in the answer (thousands separators ignored)",
     "any": "at least one of these phrases appears (case-insensitive)",
     "all": "every one of these phrases appears (case-insensitive)",
     "none": "none of these phrases appears (case-insensitive)",
+    "mentions_facts": "each named fact's value appears as text in the answer (case-insensitive)",
     "never": "suite-wide: no answer may contain these phrases"
   },
   "never": ["security_overview", "query_alerts", "query_logs", "get_alert", "get_alert_playbook", "get_log", "explain_detection_rules", "explain_concept", "dashboard_how_to", "system_status"],
   "questions": [
     {"id": "h-01", "category": "open_ended", "q": "any critical stuff I should worry about?", "answered": true, "any": ["critical"]},
-    {"id": "h-02", "category": "open_ended", "q": "สรุปสถานการณ์ความปลอดภัยวันนี้ให้หน่อย", "answered": true, "facts": ["alerts_today"]},
     {"id": "h-04", "category": "counts", "q": "how many medium alerts were there this week", "answered": true, "any": ["medium"]},
     {"id": "h-05", "category": "counts", "q": "list the open port scan alerts", "answered": true, "any": ["#"]},
     {"id": "h-06", "category": "counts", "q": "Is 10.10.10.10 in any alerts?", "answered": true, "any": ["no ", "0 ", "not", "none"]},
@@ -35,7 +35,8 @@
     {"id": "h-24", "category": "general", "q": "what's a DDoS and could it take down the university website?", "answered": true, "any": ["traffic", "flood", "overwhelm"]},
     {"id": "h-25", "category": "general", "q": "can you help me write a short incident note for my shift handover?", "answered": true, "any": ["incident", "handover", "shift"]},
     {"id": "h-26", "category": "general", "q": "what is the OSI model?", "answered": true, "any": ["layer"]},
-    {"id": "h-27", "category": "general", "q": "good morning!", "answered": true, "any": ["morning", "hello", "hi", "help"]}
+    {"id": "h-27", "category": "general", "q": "good morning!", "answered": true, "any": ["morning", "hello", "hi", "help"]},
+    {"id": "h-28", "category": "open_ended", "q": "ตอนนี้มีอะไรที่ต้องรีบจัดการไหม", "answered": true, "mentions_facts": ["open_first_alert"]}
   ],
   "conversations": [
     {"id": "hc-01", "category": "follow_up", "turns": [

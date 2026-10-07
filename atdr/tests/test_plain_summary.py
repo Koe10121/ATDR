@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 
 from atdr.app.db.models import Alert, AlertEvidence, NormalizedLog, RawLog, WatchlistItem
 from atdr.app.detection.explanations import build_alert_detection_summary
@@ -403,3 +403,126 @@ def test_only_attack_status_questions_take_the_new_fallback():
         assert asks(question), question
     for question in ["What attack types are there?", "How do I stop an attack?", "Is alert 3773 safe to close?"]:
         assert not asks(question), question
+
+
+def test_situation_drafts_that_fail_the_checks_fall_back_to_the_overviews_plain_words(seeded, monkeypatch):  # noqa: F811
+    # On 4 Oct, with nearly every alert created that day, "Summarize the security situation today" ran past the word
+    # limit, then stated a count no lookup had returned, and ended in "I don't have a specific built-in answer".
+    from atdr.app.detection.plain_summary import brief_situation, build_situation_summary
+
+    testing_session, settings = seeded
+    invented = "There are 987654 alerts today."
+    engine = ScriptedEngine(_say(invented), _say(invented))
+    monkeypatch.setattr(assistant_service, "engine_from_settings", lambda _settings: engine)
+    with testing_session() as db:
+        response = _ask(db, settings, "Summarize the security situation today")
+        situation = build_situation_summary(db)
+        monkeypatch.setattr(assistant_service, "engine_from_settings", lambda _settings: None)
+        without_the_model = _ask(db, settings, "hey whats up with the network rn")
+        # A day on which detection ran: what is new is said with what is open, for the period the question names.
+        created = db.scalar(select(func.count(Alert.id)))
+        critical = db.scalar(select(func.count(Alert.id)).where(Alert.severity == "Critical"))
+        db.execute(update(Alert).values(created_at=datetime.now(UTC).replace(tzinfo=None)))
+        busy_day = assistant_service._answer_situation(db, "Summarize the security situation today", redacted=True)
+        day_before = assistant_service._answer_situation(db, "Summarize the security situation yesterday", redacted=True)
+
+    assert response["details"]["agent"]["fallback_reason"] == "answer_failed_verification"
+    headline = situation["headline"].split(" The newest log")[0]
+    for answer in (response["answer"], without_the_model["answer"]):
+        assert answer.startswith(f"{headline} No new alerts were created today.")
+        assert all(line in answer for line in brief_situation(situation))
+        assert answer.endswith("so this is not live traffic.")
+        assert "built-in answer" not in answer
+    one = created == 1
+    assert created and f"{created} alert{'' if one else 's'} {'was' if one else 'were'} created today ({critical} Critical)." in busy_day.answer
+    assert "No new alerts were created yesterday." in day_before.answer
+    # The model was given that same summary, looked up by ATDR, and told to answer from it.
+    looked_up = response["details"]["agent"]["tools_called"][0]
+    assert (looked_up["name"], looked_up["arguments"]) == ("security_overview", {"time_window": "today", "summary": "brief"})
+    seen = [message["content"] for message in engine.requests[0][0] if message["role"] == "tool"]
+    assert len(seen) == 1 and seen[0].startswith(f"{headline}\nNo new alerts were created today.\nWhat the open alerts show:\n- ")
+    assert seen[0].endswith("so this is not live traffic.") and "Top " not in seen[0]
+    assert assistant_service.SITUATION_NOTE in engine.requests[0][0][0]["content"]
+
+
+def test_the_brief_overview_is_atdrs_own_summary_over_the_period_asked_and_is_not_offered_to_the_model(seeded):  # noqa: F811
+    from atdr.app.services.assistant_data_query import _local_now, _parse_window
+    from atdr.app.services.assistant_tools import build_assistant_tools
+
+    testing_session, settings = seeded
+    with testing_session() as db:
+        overview = {tool.name: tool for tool in build_assistant_tools(db, settings=settings)}["security_overview"]
+        brief = overview.run({"time_window": "yesterday", "summary": "brief"}).text
+        still_open, new, rows, closing = assistant_service.situation_brief(db, _parse_window("yesterday", _local_now()))
+        whole = overview.run({"time_window": "yesterday"}).text
+
+    # What is open and what is new stand on lines of their own: on one line the model merged their counts.
+    assert brief == "\n".join([still_open, new, "What the open alerts show:", *(f"- {row}" for row in rows), closing])
+    assert new == "No new alerts were created yesterday." and rows[-1].startswith("Open first: alert #")
+    assert "Latest detection run" in whole and "Latest detection run" not in brief
+    assert list(overview.parameters["properties"]) == ["time_window"]
+    # The period is the one the question names, or today.
+    period = assistant_service._situation_period
+    assert [period(question) for question in (
+        "Summarize the security situation today", "What happened in the network in the last hour?",
+        "give me a summary of this week's alerts", "what happened in the last 24 hours on the network",
+        "hey whats up with the network rn", "สรุปสถานการณ์ความปลอดภัยวันนี้ให้หน่อย",
+    )] == ["today", "last_hour", "this_week", "last_24_hours", "today", "today"]
+
+
+def test_a_situation_summary_too_long_for_its_word_limit_drops_the_named_threats_instead_of_being_cut(monkeypatch):
+    # With the count of new alerts added, the summary of the live data ran one word past the limit and lost its last
+    # rows and its closing line to "...".
+    from atdr.app.services.assistant_response_contracts import response_contract
+
+    names = "; ".join(f"Threat number {n} with a long name (1 MFU device, let through)" for n in range(12))
+    situation = {
+        "headline": "9 alerts are open (3 Critical), from MFU's firewall logs of 20 May, 13:36–13:39. The newest log "
+                    "ATDR has is from 20 May 2026 13:39, so this is not live traffic.",
+        "points": [
+            "Malware calling out: 3 alerts from 3 MFU devices; the firewall let all 9 connections through. Named by the "
+            f"firewall or the watchlist: {names}.",
+            "Floods: 2 alerts from 2 outside addresses; the firewall let all 50 connections through.",
+            "Also open: 4 scanning alerts.",
+        ],
+        "open_first": {"alert_id": 7, "severity": "Critical", "title": "t", "reason": "the most serious open alert"},
+    }
+    monkeypatch.setattr(assistant_service, "build_situation_summary", lambda _db: situation)
+    answer = assistant_service._answer_situation(_session(), "Summarize the security situation", redacted=True).answer
+
+    assert len(answer.split()) <= response_contract("data_answer").word_limit
+    assert answer.startswith("9 alerts are open (3 Critical), from MFU's firewall logs of 20 May, 13:36–13:39. No new alerts")
+    assert "- Malware calling out: 3 alerts from 3 MFU devices; the firewall let all 9 connections through.\n" in answer
+    assert "Named by" not in answer and "- Also open: 4 scanning alerts." in answer
+    assert "- Open first: alert #7 (Critical), the most serious open alert." in answer
+    assert answer.endswith("To check current traffic, import the newest firewall logs and run detection.")
+
+
+def test_only_questions_about_the_whole_situation_take_the_summary_fallback():
+    asks = assistant_service._asks_for_the_situation
+    for question in [
+        "Summarize the security situation today", "hey whats up with the network rn", "give me a quick overview for my boss",
+        "What happened in the network in the last hour?", "What's going on?", "Give me a summary of today's alerts",
+        "security status?", "สรุปสถานการณ์ความปลอดภัยวันนี้ให้หน่อย",
+    ]:
+        assert asks(question), question
+    for question in [
+        "Summarize source health.", "Summarize failed jobs", "What's happening with the XMRig miners?",
+        "What happened on 20 May?", "What happened to alert 3773?", "Give me an overview of alert 4033",
+        "How do I get a summary of today's alerts?", "How many High alerts today?", "Is MFU under attack right now?",
+        "What's the weather in Chiang Rai today?", "What can you do?",
+    ]:
+        assert not asks(question), question
+
+
+def test_a_summary_question_about_something_atdr_looked_up_gets_no_situation_note(seeded, monkeypatch):  # noqa: F811
+    # "Summarize the alerts from Malaysia" is about Malaysia: the note would pull the answer to the whole situation.
+    testing_session, settings = seeded
+    monkeypatch.setattr(assistant_service, "_country_lookup", lambda _db, _question: [("query_logs", {"ip": "Malaysia"})])
+    engine = ScriptedEngine(_say("Alerts cannot be listed by country."))
+    monkeypatch.setattr(assistant_service, "engine_from_settings", lambda _settings: engine)
+    with testing_session() as db:
+        _ask(db, settings, "Summarize the alerts from Malaysia")
+
+    assert assistant_service._asks_for_the_situation("Summarize the alerts from Malaysia")
+    assert assistant_service.SITUATION_NOTE not in engine.requests[0][0][0]["content"]

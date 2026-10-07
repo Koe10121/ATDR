@@ -28,7 +28,17 @@ from atdr.app.detection.attack_mapping import infer_attack_type_from_rules
 from atdr.app.detection.explanations import build_alert_detection_summary, explain_log_triage
 from atdr.app.detection.plain_summary import brief_situation, build_situation_summary, threat_name
 from atdr.app.services.case_service import list_alert_cases
-from atdr.app.services.assistant_data_query import ATTACK_LABELS, DataAnswer, answer_data_question, parse_data_question
+from atdr.app.services.assistant_data_query import (
+    ATTACK_LABELS,
+    DataAnswer,
+    DataQuestion,
+    TimeWindow,
+    _local_now,
+    _parse_window,
+    _plural,
+    answer_data_question,
+    parse_data_question,
+)
 from atdr.app.services.assistant_agent import (
     ACTION_REQUEST,
     ENTITY_REFERENCE,
@@ -76,6 +86,22 @@ CONVERSATION_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
 ATTACK_STATUS_QUESTION = re.compile(
     r"\bunder (?:an? )?attack\b|\bbeing (?:attacked|hacked|targeted)\b|\b(?:been|got|get) hacked\b"
     r"|\b(?:are|is) (?:we|mfu|the (?:network|campus|university)) (?:safe|secure|compromised)\b|ถูกโจมตี",
+    re.IGNORECASE,
+)
+# "Summarize the security situation today" ("สรุป": summarize, "สถานการณ์": situation, "ภาพรวม": overview). Once a
+# rebuild had created nearly every alert that day, the overview gave the model today's counts beside the open ones:
+# its first draft ran past the word limit, the rewrite stated a count no lookup had returned, and the fallback answered
+# "no built-in answer". The model now gets a note to keep it short, and the fallback is the Overview's plain words.
+SITUATION_QUESTION = re.compile(
+    r"\b(?:summar(?:y|ise|ize)|overview|recap|run-?down|sit-?rep)\b.{0,60}"
+    r"\b(?:security|situation|alerts?|threats?|attacks?|network|campus|mfu|soc|today|tonight|now|boss|director|management)\b"
+    r"|\b(?:security|network|threat|alert) (?:situation|status|posture|overview|summary|picture)\b"
+    # "What's happening with the XMRig miners?" asks about one thing, so only the whole network or nothing may follow.
+    r"|\bwhat(?:'?s| is| has been)? (?:up|happening|going on)\b"
+    r"(?:\s+(?:with|on|in|at|around)\s+(?:the |our |my )?(?:network|campus|mfu|university|system|soc|security))?"
+    r"\s*(?:right now|now|today|rn|tonight|currently|here)?\s*[?.!]*\s*$"
+    r"|\bwhat happened\b.{0,40}\b(?:network|campus|mfu|today|tonight|last|past|overnight|yesterday|this (?:morning|week))\b"
+    r"|สรุป|สถานการณ์|ภาพรวม",
     re.IGNORECASE,
 )
 # "What happened on 20 May?": alerts are dated by when detection ran, so a question about a day gets what ATDR's stored
@@ -1028,6 +1054,26 @@ def _naming_the_alert(answer: str, alert_id: int, *, opens_first: bool) -> str:
     return f"{lead}\n{answer}"
 
 
+def _asks_for_the_situation(question: str) -> bool:
+    """A question about the security situation as a whole, not about one alert and not how to do something."""
+
+    return bool(
+        SITUATION_QUESTION.search(question)
+        and not HOW_TO_START.match(question.lower())
+        and not _named_alert_lookup(question)
+    )
+
+
+# Notes alone did not do it: told to keep it short, the model left out how many alerts were new that day; told to give
+# that too, the English answer still left it out and listed five alerts to open first. So ATDR looks up its own brief
+# summary (situation_brief) for these questions and the model relays it.
+SITUATION_NOTE = (
+    "ATDR has already looked up its summary of the security situation. Answer from it in under 150 words: what is "
+    "open, how many alerts are new in the period, the kinds of attack and what the firewall did, and the alert to open "
+    "first. Give each count exactly as the summary gives it."
+)
+
+
 def _response_lookup(question: str, alert_id: int | None) -> tuple[list[tuple[str, dict[str, Any]]], str | None]:
     """For "what should I do about it?": the playbook of the alert in context, and a note to keep the answer short."""
 
@@ -1372,6 +1418,17 @@ def answer_assistant_question(
             source_id=requested_source_id,
             case_id=requested_case_id,
         )
+        # "Summarize the security situation": the model relays ATDR's own brief summary, over the period the question
+        # names. Not when ATDR looked something else up for the question (a country, a named threat, one alert): then
+        # the question is about that.
+        situation_note = None
+        if (
+            not action_request
+            and _asks_for_the_situation(clean_question)
+            and all(name == "security_overview" for name, _args in lookups)
+        ):
+            lookups = [("security_overview", {"time_window": _situation_period(clean_question), "summary": "brief"})]
+            situation_note = SITUATION_NOTE
         outcome = run_agent(
             question=clean_question,
             engine=engine,
@@ -1382,7 +1439,9 @@ def answer_assistant_question(
                 conversation_id=resolved_conversation_id,
                 limit=settings.assistant_conversation_history_turns if include_recent_context else 0,
             ),
-            context_note=" ".join(note for note in (context_note, urgent_note, response_note, *topic_notes) if note) or None,
+            context_note=" ".join(
+                note for note in (context_note, urgent_note, response_note, situation_note, *topic_notes) if note
+            ) or None,
             # Asked to act ("close these alerts"): give the model the real dashboard guide to relay, and the alert the
             # request names ("block the IP in alert 3738" was rejected for naming an alert no tool had returned).
             prefetch=(
@@ -1564,6 +1623,9 @@ def answer_assistant_question(
         result = _answer_import_logs_help(redacted=redacted)
     elif any(term in lowered for term in ["replay", "import", "run detection", "detection", "start", "command", "how do i"]):
         result = _answer_workflow_question(redacted=redacted)
+    elif _asks_for_the_situation(clean_question):
+        # Last, so that it only replaces "no built-in answer": every question a route above answers keeps its answer.
+        result = _answer_situation(db, clean_question, redacted=redacted)
     else:
         result = _answer_general_question(
             db,
@@ -2710,6 +2772,84 @@ def _answer_attack_status(db: Session, *, redacted: bool) -> AssistantResult:
             "How do I import firewall logs?",
             "How do I run detection?",
         ],
+    )
+
+
+def situation_brief(db: Session, window: TimeWindow) -> tuple[str, str, list[str], str]:
+    """The open alerts in the Overview's plain words, and how many alerts were created in a period.
+
+    What is open, what is new, a row per kind of attack and the alert to open first, and a closing line saying that
+    the traffic is not live. Written by ATDR from its records, never by the model: the built-in summary shows it, and
+    the model relays it when asked to summarize the security situation.
+    """
+
+    situation = build_situation_summary(db)
+
+    def created(**filters: Any) -> int:
+        return int(answer_data_question(db, DataQuestion(subject="alerts", intent="count", window=window, **filters)).counts["total"])
+
+    # "Summarize ... today" asks what is new as well as what is open. A sentence of its own, with its verb: from
+    # "165 alerts are open (30 Critical) ... Created today: 163 alerts (28 Critical)." on one line, the model wrote
+    # "Open alerts today: 163 (30 Critical)".
+    total = created()
+    new = (
+        f"{_plural(total, 'alert')} {'was' if total == 1 else 'were'} created {window.phrase} ({created(severity='Critical'):,} Critical)."
+        if total
+        else f"No new alerts were created {window.phrase}."
+    )
+    # The headline's own sentence that the traffic is not live closes the summary, a little shorter.
+    newest = db.scalar(select(func.max(NormalizedLog.generated_time)))
+    closing = (
+        f"The newest log is from {newest.day} {newest:%b %Y %H:%M}, so this is not live traffic."
+        if newest
+        else "To check current traffic, import the newest firewall logs and run detection."
+    )
+    return situation["headline"].split(" The newest log")[0], new, brief_situation(situation), closing
+
+
+def _situation_period(question: str) -> str:
+    """The overview's time window a question names ("last hour", "this week"), or today."""
+
+    from atdr.app.services.assistant_tools import TIME_WINDOWS
+
+    lowered = question.lower()
+    return next(
+        (key for key, phrase in TIME_WINDOWS.items() if phrase and re.search(rf"\b{re.escape(phrase)}\b", lowered)),
+        "today",
+    )
+
+
+def _answer_situation(db: Session, question: str, *, redacted: bool) -> AssistantResult:
+    """Asked to summarize the security situation: the open alerts in the Overview's plain words, and what is new."""
+
+    from atdr.app.services.assistant_tools import TIME_WINDOWS
+
+    still_open, new, lines, basis = situation_brief(db, _parse_window(TIME_WINDOWS[_situation_period(question)], _local_now()))
+    # Both in the first line, which is cut at 32 words.
+    summary = f"{still_open} {new}"
+    # A data answer past its word limit is cut in the middle of its rows (their bullet marks count as words). When
+    # the rows do not fit, the named threats go first, then the kinds of attack that only add a count.
+    without_names = [line.split(". Named by")[0].rstrip(".") + "." for line in lines]
+    limit = response_contract("data_answer").word_limit
+    for rows in (lines, without_names, [row for row in without_names if not row.startswith("Also open:")]):
+        lines = rows
+        if len(" ".join([summary, *[f"- {row}" for row in rows], basis]).split()) <= limit:
+            break
+    citations = [Citation("Alert records", "/api/alerts"), Citation("Firewall log records", "/api/logs")]
+    return AssistantResult(
+        answer=_text("\n".join([summary, *[f"- {line}" for line in lines], basis]), redacted=redacted),
+        # Shown as a data answer: the summary, up to eight rows and one closing line.
+        context_used=["alert_query", "situation_summary"],
+        citations=citations,
+        details={
+            "answer_sections": {
+                "summary": [summary],
+                "evidence": lines,
+                "related_context": [basis],
+                "citations": [_citation_reference(citation) for citation in citations],
+            }
+        },
+        suggested_followups=["Which alert should I look at first?", "What does the MFU behaviour model see?"],
     )
 
 

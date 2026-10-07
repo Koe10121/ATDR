@@ -369,6 +369,16 @@ class AssistantToolbox:
     def security_overview(self, args: dict[str, Any]) -> ToolOutput:
         window = _window(args, "today")
         db = self.db
+        if args.get("summary") == "brief":
+            # What ATDR looks up itself for "summarize the security situation" (the model is not offered this form).
+            # Given everything below on a day with new alerts, the model put that day's counts under the open alerts,
+            # named five alerts to open first and ran past the word limit.
+            still_open, new, rows, closing = core.situation_brief(db, window if window.bounded else _parse_window("today", _local_now()))
+            return ToolOutput(
+                self._text("\n".join([still_open, new, "What the open alerts show:", *(f"- {row}" for row in rows), closing])),
+                [("Alert records", "/api/alerts", None), ("Firewall log records", "/api/logs", None)],
+                ["Which alert should I look at first?", "What should I do about the most urgent alert?"],
+            )
         first, last = db.execute(select(func.min(NormalizedLog.generated_time), func.max(NormalizedLog.generated_time))).one()
         # First, because the model answers from the top: asked "is MFU under attack right now?", it said "not
         # currently under attack" from a quiet day, though ATDR's newest traffic was months old.
