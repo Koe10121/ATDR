@@ -120,13 +120,63 @@ the MFU firewall's own name stays. The live list went from 181 to 178 alerts
 (Critical 34, High 43, Medium 81, Low 20), and every stored log (151,002) is now
 MFU firewall traffic from 20 May 13:36-13:39.
 
+## 2026-10-04 duplicate log copies removed
+
+The 151,002 stored logs held 120,001 distinct firewall lines. Until 27
+September an import stored a line again each time the same file was imported,
+and the first 10,000 lines of the export (13:36:15-13:36:32) had been stored
+two to eight times, on 27 May, 23 September and 26 September, so 31,001 rows
+were copies. Imports have stored each line once since then (`raw_line_hash`),
+but the old copies stayed.
+
+Rules that count events counted the copies. The three Critical brute-force
+alerts (#3684, #3709, #3739) were each one denied connection to port 22 stored
+six or seven times, which passed the rule's threshold of five attempts; #3738
+listed 18 events for 13 connections; and 87 of the 178 alerts cited at least
+one copy.
+
+With ATDR stopped and after two backups
+(`backups/atdr-sqlite-20261004T070619Z-42dcc25d.sqlite3` before the migration
+below, `backups/atdr-sqlite-20261004T070634Z-bb62b28f.sqlite3` before the
+clean-up), `python -m atdr.scripts.remove_duplicate_logs --apply` kept the first
+stored copy of each line and removed the others
+(`atdr/app/services/duplicate_log_service.py`):
+
+- 604 of the 2,016 labels sat on removed copies. Where such a label was the
+  newest made for its line it moved to the kept copy (390); the other 214 went
+  to `ml_label_archive`. The copies of 12 lines disagreed, each time `benign`
+  against `benign_unusual`; no line was a threat on one copy and harmless on
+  another.
+- The 1,709 evidence rows that cited a copy, the evidence ids of 1,379 archived
+  alerts and 1,157 archived labels now point at the kept copy.
+- The alert list was rebuilt: 176 alerts archived, 2 kept because a response is
+  recorded on them (#2049, #2637), 157 raised by the rules and the watchlist, and
+  6 by the MFU behaviour model.
+
+The live list went from 178 to 165 alerts (Critical 30, High 39, Medium 84,
+Low 12) on 120,001 logs. By rule, against the list before: no brute-force
+alerts (3 before), 3 flood alerts (4), 11 for unidentified applications (19),
+30 for unusual destination ports (32), 6 for repeated denied connections (7), 1
+for a single denied connection (0), and 6 experimental alerts from the model
+(5). The other rules raised the same number of alerts as before. The alerts the
+reports and slides name have new numbers: #3738 (the GHOSTENGINE server) is
+#4033 with 13 events, #3773 is #4067, #3839 is #4134, #3853 is #4145, and the
+model's alerts are #4143 to #4148. The audit entries `duplicate_logs_removed`
+and `alerts_rebuilt` keep the details.
+
 ## Alert numbers after a rebuild
 
-SQLite numbers a new alert one above the highest remaining id, so a rebuild's
-new alerts take the numbers of the alerts it archived, and every rebuild reuses
-the same range above the highest kept alert. An alert number quoted before a
-rebuild can therefore name a different alert afterwards; the archive keeps the
-old one. The archive can hold the same original number more than once (one row
-per rebuild that archived it; tell them apart by `archived_at` and
-`superseded_by_catalog`). Until migration `d9e3f4a5b6c7` it could not, and a
-third rebuild failed on it and rolled back without changing anything.
+An alert's number is never given to another alert. Until 4 October 2026 SQLite
+numbered a new alert one above the highest remaining id, so a rebuild's new
+alerts took the numbers of the alerts it had archived, and a number quoted
+before a rebuild could name a different alert afterwards. Migration
+`a8f1c0d2e3b4` made SQLite remember the highest number it has given
+(AUTOINCREMENT) and started it at the highest number ever used, #3985 in the
+archive, so the 4 October rebuild numbered its alerts from #3986. PostgreSQL's
+sequence already worked this way.
+
+From the earlier rebuilds the archive can hold the same original number more
+than once (one row per rebuild that archived it; tell them apart by
+`archived_at` and `superseded_by_catalog`). Until migration `d9e3f4a5b6c7` it
+could not, and a third rebuild failed on it and rolled back without changing
+anything.

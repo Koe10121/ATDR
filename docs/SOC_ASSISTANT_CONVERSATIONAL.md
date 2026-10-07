@@ -558,6 +558,63 @@ Final run (4 October): main set 121 of 121 and held-out 27 of 27, 4.2 s and 5.1 
 average. The investigation brief and the privacy answer come from the built-in
 answers by design.
 
+### 4 to 7 October: the summary on a day with new alerts
+
+Later on 4 October the duplicate log copies were removed and the alert list
+rebuilt (`docs/detection/ALERT_REBUILD.md`), so the alerts this document names
+have new numbers: #3738 is #4033, #3773 is #4067, #3839 is #4134, #3853 is #4145
+and the MFU model's alerts are #4143 to #4148. The rebuild also made that day
+the first on which nearly every alert had been created "today" (163 of 165),
+and the main set scored 120 of 121: "Summarize the security situation today"
+ended in "I don't have a specific built-in answer".
+
+The overview tool gives the period's counts beside the open ones. With 163
+alerts created that day and 165 open, the model's first draft ran past the word
+limit, its rewrite stated a count no lookup had returned, and the question had
+no built-in answer. Notes to the model did not fix it. Told to keep it short,
+it left out how many alerts were new, and the held-out Thai summary failed.
+Told to give that too, the English answer still left it out, listed five alerts
+to open first and put that day's attack-type counts under the open alerts.
+
+So for a question about the situation as a whole (`SITUATION_QUESTION`:
+"summarize the security situation", "what's up with the network", "an overview
+for my boss", "what happened in the last hour", and the Thai words for summary,
+situation and overview) ATDR writes the summary itself and the model relays it:
+
+- `situation_brief` is the Overview's plain-words box and what is new: how many
+  alerts are open and how many are Critical; how many were created in the period
+  the question names (today when it names none); a row per kind of attack with
+  what the firewall did; the alert to open first; and that the traffic is not
+  live. What is open and what is new are separate sentences: given both on one
+  line, the model wrote "Open alerts today: 163 (30 Critical)".
+- ATDR looks it up before the model answers (the overview tool's brief form,
+  which the model itself is not offered) and tells the model to answer from it.
+  It does not when it looked something else up for the question, such as a
+  country or a named threat: then the question is about that.
+- The same text is the built-in answer when the model is off or its drafts fail
+  the checks. When it does not fit the answer's word limit it loses its named
+  threats first, then the kinds of attack that only add a count, so it is never
+  cut in the middle of its rows.
+
+The held-out Thai summary had guided the fix, so it moved to the main set
+(open-12). "Summarize the security situation today" (open-02) must now give the
+day's count and the alert the Overview opens first. A new held-out question
+(h-28, Thai: "is there anything that needs dealing with urgently right now?")
+was written before any run; it must name the alert the Overview opens first.
+
+Runs on 7 October, on the cleaned data (165 alerts on 120,001 logs):
+
+| Data | Main set (122 checks) | Held-out set (27 checks) |
+|---|---|---|
+| As it is: no alert was created that day | 122 of 122, 4.2 s on average | 26 of 27, 5.0 s |
+| A copy on which the 163 rebuilt alerts were created that day | 122 of 122, 4.3 s | 26 of 27, 5.3 s |
+
+The held-out miss, in both runs, is the new question. Asked in Thai what needs
+dealing with urgently, the model looked the overview up itself and answered with
+the kinds of attack and some alert numbers, but not the alert the Overview opens
+first: ATDR's own lookup for "the most urgent one" recognises English phrasing
+only. It stays in the held-out set until it is used to fix that.
+
 ## Measuring it again
 
 ```
@@ -580,3 +637,5 @@ is used to fix something, move it to the main set and write a new held-out one.
 - Asked "Why are there so many port scan alerts?", it explains scanning in general and can over-read the overview: one answer said some scans "managed to bypass the firewall".
 - Whether the model gives an alert's number varies from run to run, even at temperature 0. ATDR adds the number when it looked the alert up itself; where the model looked the alert up on its own, the number can still be missing.
 - Lookups that ATDR makes before the model answers can be wrong, and the model then answers from them: a wrong match on the word "detected" produced the "1 alert" answer of 3 October. Each answer records the lookups made for it.
+- For questions outside the summary route ("Are we under attack?", for one) the overview tool still gives a period's counts beside the open ones, and on a day with new alerts the model can put one under the other: asked what happened in the last hour, before that question took the summary route, it answered "163 alerts, with 30 being Critical", where 28 of the 163 were Critical and 30 were open.
+- "The most urgent one" is recognised in English only. Asked the same in Thai ("is there anything that needs dealing with urgently right now?"), the model answers from the whole overview and does not name the alert the Overview opens first.

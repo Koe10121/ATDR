@@ -9,8 +9,9 @@ mfu_behavior_v2). Details are in the linked documents.
 ## The data
 
 - One firewall (MFU-FW), one export: 20 May 2026, 13:36-13:57, 773,551 lines.
-- The live database holds 13:36:15-13:39:30 (151,002 logs, all from the MFU
-  firewall since 240 synthetic demo and lab logs were removed on 30 Sep); the team's labels
+- The live database holds 13:36:15-13:39:30: 120,001 logs, each a distinct line of the MFU
+  firewall's export (240 synthetic demo and lab logs were removed on 30 Sep, and 31,001
+  repeated copies of the export's first 10,000 lines on 4 Oct); the team's labels
   are there. The behaviour model trained on 13:36-13:45. The 13:45-13:57 part
   was never imported into the live system, labeled or tuned on; it is the
   holdout for the blind check and the model's tests.
@@ -39,6 +40,7 @@ mfu_behavior_v2). Details are in the linked documents.
 | Detection scoreboard, 1,489 team-labeled records, v5.36.0, misattached labels archived | Agreement | 97.0% | 79.3% | 1.5% | 87.3% |
 | Same, after the team review relabeled 185 labels (28 Sep) | Agreement (circular) | 97.0% | 99.8% | 1.4% | 98.4% |
 | Same, with the 74 unresolved unidentified-app labels set aside as "needs context" | Agreement (circular) | 96.0% | 99.7% | 1.6% | 97.8% |
+| Same, after 31,001 duplicate log copies were removed and the list rebuilt (4 Oct; 1,415 labeled records) | Agreement (circular) | 96.7% | 99.2% | 1.3% | 98.0% |
 | Live alert list before the rebuild (3,676 alerts) | Agreement | 48.9% | 87.6% | 43.3% | 62.8% |
 | Live alert list after the rebuild (314 alerts) | Agreement | 93.9% | 80.4% | 2.5% | 86.6% |
 
@@ -110,8 +112,14 @@ Four of the 180 (1 port scan, 2 brute force, 1 malware / C2) were built on
 synthetic lab logs a test tool wrote into the live database by mistake on
 27 Sep; they were archived on 29 Sep (`docs/detection/ALERT_REBUILD.md`). On
 30 Sep three more (2 port scans, 1 brute force), built on June demo and lab logs
-with documentation-range addresses, were archived too. The live list is now 178
+with documentation-range addresses, were archived too. The live list was then 178
 alerts, 5 of them the MFU model's experimental alerts.
+
+On 4 Oct the 31,001 duplicate log copies were removed and the list rebuilt
+(`docs/detection/ALERT_REBUILD.md`). The live list is now 165 alerts, 6 of them the MFU
+model's: port scan 118, malware / C2 14, policy violation 10, data exfiltration 7, flood 3,
+exploit attempt 3 and unclassified 10 (6%). No brute-force alert is left: the three on the
+list had each been one denied connection stored six or seven times.
 
 - 30 alerts on unanswered internet probes to uncommon ports are now port scans.
 - Four alerts on campus devices whose connections the firewall identified as
@@ -187,6 +195,9 @@ the malicious cases and the supervised classifier failed calibration.
 | Re-run on 2 Oct after "the most urgent one" started looking up the alert the Overview opens first | main 102 of 102; held-out 27 of 27; 4.7 s and 4.9 s per answer on average; 1 answer from the built-in answers (the trust question) | |
 | Re-run on 2 Oct after a round of questions a professor might ask during the demo; main set now 116 checks (rev-15 to rev-28 added) | main 116 of 116; held-out 27 of 27; 4.4 s and 5.1 s per answer on average; the investigation brief and the privacy answer come from the built-in answers by design | |
 | Re-run on 4 Oct after the "how many alerts did the AI raise?" fixes (a threat is matched by the first word of its name; alerts counted by who raised them; the looked-up alert is named); main set now 121 checks | main 121 of 121; held-out 27 of 27; 4.2 s and 5.1 s per answer on average | |
+| Re-run on 4 Oct after duplicate log copies were removed and the alert list rebuilt (165 alerts on 120,001 logs, 163 of the alerts created that day) | main 120 of 121 ("Summarize the security situation today" ended in "no built-in answer"); held-out 27 of 27; 4.2 s and 4.8 s per answer on average | |
+| Re-run on 7 Oct after ATDR began writing the situation summary itself, for the model to relay; main set now 122 checks (the held-out Thai summary moved to it, and a new held-out question was written before any run) | main 122 of 122; held-out 26 of 27; 4.2 s and 5.0 s per answer on average | |
+| Same, on a copy of the data on which the 163 rebuilt alerts were created that day (the state of 4 Oct) | main 122 of 122; held-out 26 of 27; 4.3 s and 5.3 s per answer on average | |
 
 Measured on 2026-09-27 with qwen3:8b running locally, after the alert
 rebuild, and again on 2026-09-29 on the 181-alert list. The main set gained three questions when the assistant got tools
