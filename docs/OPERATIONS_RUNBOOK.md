@@ -251,9 +251,10 @@ growing, because SQLite reuses the space of deleted logs (the file itself does
 not shrink). A five-minute window of MFU's traffic (180,924 logs) was checked
 in 57 seconds meanwhile.
 
-Limit: alert evidence is kept as long as its alert. In the replay 7.3% of
-logs became evidence (about 1,900 alerts an hour), which at MFU's rate adds
-about 13 GB a day.
+Limit: alert evidence is kept as long as its alert. In the replay 2.8% of
+logs became evidence, which at MFU's rate adds about 5 GB a day (it was 7.3%
+and about 13 GB before alerts were grouped as described under Alert
+Grouping). Nothing deletes old evidence yet.
 
 ## Automatic Detection
 
@@ -295,10 +296,33 @@ Limits:
 - A log that arrives late, for a window already checked, is checked on its own.
 - SQLite has one writer, so a check that finds an import or a manual check
   writing waits for the worker's next look.
-- An attack that crosses a window edge can appear as two alerts, one per
-  window, when its halves share no destination port (a vertical port scan):
-  a later step joins an open alert only when they share one. The button does
-  the same on any file longer than one window.
+
+## Alert Grouping
+
+- One alert for each kind of activity and source. New activity of the same
+  kind from the same source joins the alert still open for it, up to 24 hours
+  after that alert's last activity, whatever the port. So an attack that
+  crosses a five-minute window, or a scanner that moves to another port, stays
+  one alert. Close an alert and the next activity opens a new one.
+- Scanning from the internet goes on one **Internet scanning** alert an hour
+  (Medium). Its drawer lists the hour's scanners, busiest first. A scanner
+  that does more keeps its own alert: a firewall threat or malware record, a
+  watchlist match, brute force, another kind of alert still open, or its own
+  scan alert still open. Scans from inside MFU and repeated denied attempts
+  keep their own alerts too.
+- From the live feed the scanning alert keeps 20 evidence logs for each
+  scanner and hour and counts the rest, which are deleted with the other live
+  logs. Imported logs are all kept as evidence.
+- Which logs are flagged did not change (rule catalog v5.37.0): on the team's
+  labels 382 right, 13 false and 3 missed before and after, while the 120,001
+  imported logs give 78 alerts instead of 158.
+- Measured at MFU's firewall rate on 2026-10-08 (8 min 44 s of the export,
+  then the same traffic again): 214 alerts instead of 556. The repeated
+  traffic raised 16 alerts instead of 186, one Internet scanning alert listed
+  316 scanners, and 17,613 logs were kept as evidence instead of 46,533. An
+  hour of real traffic would bring between about 110 alerts (the same
+  sources carrying on) and about 940 (new sources arriving as fast as in the
+  second five-minute window); it was about 1,900.
 
 ## Analyst Workflow
 

@@ -18,7 +18,7 @@ deployments remain simulation-only regardless of configuration.
 
 ## Current State (29 Sep 2026)
 
-- **Detection:** rule catalog v5.36.0 (21 detection rules, plus 1 legacy
+- **Detection:** rule catalog v5.37.0 (21 detection rules, plus 1 legacy
   machine-learning rule that no longer creates alerts). Context-only rules add points
   but never raise an alert alone. Every alert names its attack type, MITRE
   ATT&CK technique and response playbook. The live list holds 165 alerts on

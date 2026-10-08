@@ -106,6 +106,17 @@ attacks. The assistant answered from a fixed list of question types.
   three-minute limit standing in for hours): all 638,252 lines saved, 370,590 deleted once
   checked, every line counted in a summary, all 46,533 evidence logs kept, and a
   five-minute window of MFU's traffic checked in about a minute.
+- **Fewer alerts for the same findings** (8 October, rule catalog v5.37.0). At MFU's rate the
+  rules raised about 1,900 alerts an hour: every scanner was alerted on again for each
+  five-minute window and each port, and 4 alerts in 10 were scanning from the internet.
+  Now activity of the same kind from the same source joins the alert still open for it,
+  for a day, and internet scanning that does nothing else goes on one alert an hour that
+  lists the scanners. The same logs are flagged: on the team's labels 382 right, 13 false
+  and 3 missed before and after, while the 120,001 imported logs give 78 alerts instead of
+  158. At MFU's rate the replay raised 214 alerts instead of 556: the traffic sent a second
+  time raised 16 instead of 186, one alert listed 316 scanners, and 17,613 logs were kept as
+  evidence instead of 46,533. The behaviour model counts a scanner on that hourly alert as
+  covered, so it no longer raises its own alert for it.
 
 ### 2. A model trained on MFU traffic
 

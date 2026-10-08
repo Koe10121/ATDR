@@ -41,6 +41,7 @@ mfu_behavior_v2). Details are in the linked documents.
 | Same, after the team review relabeled 185 labels (28 Sep) | Agreement (circular) | 97.0% | 99.8% | 1.4% | 98.4% |
 | Same, with the 74 unresolved unidentified-app labels set aside as "needs context" | Agreement (circular) | 96.0% | 99.7% | 1.6% | 97.8% |
 | Same, after 31,001 duplicate log copies were removed and the list rebuilt (4 Oct; 1,415 labeled records) | Agreement (circular) | 96.7% | 99.2% | 1.3% | 98.0% |
+| Same, rule catalog v5.37.0 (8 Oct: alerts grouped differently, 78 instead of 158 on the same logs; no label changes its flag) | Agreement (circular) | 96.7% | 99.2% | 1.3% | 98.0% |
 | Live alert list before the rebuild (3,676 alerts) | Agreement | 48.9% | 87.6% | 43.3% | 62.8% |
 | Live alert list after the rebuild (314 alerts) | Agreement | 93.9% | 80.4% | 2.5% | 86.6% |
 
