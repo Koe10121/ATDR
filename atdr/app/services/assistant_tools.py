@@ -249,6 +249,17 @@ class AssistantToolbox:
             text += "\nCreated at any time instead:\n" + overall
         return text
 
+    def _detection_timing(self) -> str:
+        """When new logs get checked: the same sentence wherever a topic speaks of live traffic or of ATDR's limits."""
+
+        if self.settings.auto_detection_enabled and self.settings.operation_worker_enabled:
+            # "As it happens" was the model's own wording for a syslog feed; a window waits for the one after it.
+            return (
+                "Detection checks new logs by itself, a five-minute window at a time once the window after it is "
+                "complete: about 5 to 10 minutes after the traffic, not as it happens."
+            )
+        return "Detection checks new logs only when someone runs it from the dashboard, not continuously."
+
     def _logs(self, question: DataQuestion) -> str:
         answer = answer_data_question(self.db, question)
         text = core._data_result(answer, redacted=self.redacted).answer
@@ -765,8 +776,7 @@ class AssistantToolbox:
                 "- A new kind of attack with no rule, firewall signature or watchlist entry is caught only if the MFU "
                 "behaviour model sees unusual behaviour, and the model's own alerts are experimental.\n"
                 "- Brute force, flood and data exfiltration were tested only on simulated attacks.\n"
-                "- Detection checks new logs when it runs (started from the dashboard or as a background job), not "
-                "continuously."
+                f"- {self._detection_timing()}"
             )
         if topic == "experimental_alerts":
             from atdr.app.services import behavior_findings_service as findings
@@ -852,8 +862,7 @@ class AssistantToolbox:
                 # "Does ATDR work with live traffic?" was answered "no, it only processes historical data".
                 "- The logs are real MFU firewall traffic from one exported file, so nothing on the dashboard is live. ATDR "
                 f"can also take the firewall's logs live: its syslog receiver listens on UDP port {self.settings.syslog_port} "
-                f"and saves each record within {self.settings.syslog_flush_seconds:g} seconds, and detection checks new "
-                "logs whenever it runs.\n"
+                f"and saves each record within {self.settings.syslog_flush_seconds:g} seconds. {self._detection_timing()}\n"
                 # "Where does the watchlist come from?" got "threat intelligence feeds" with no names.
                 f"- The watchlist of known-bad addresses comes from the public threat feeds {feeds or 'none'}{added}."
             )

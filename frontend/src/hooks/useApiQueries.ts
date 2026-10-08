@@ -1051,7 +1051,9 @@ export function useDetectionCoverage(limit: number | null) {
   return useQuery({
     queryKey: ["detection-coverage", limit],
     queryFn: () => api.demoDetectionCoverage(limit),
-    placeholderData: (previous) => previous
+    placeholderData: (previous) => previous,
+    // Automatic checks change the coverage while the page is open.
+    refetchInterval: 30_000
   });
 }
 

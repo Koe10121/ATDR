@@ -864,10 +864,11 @@ CONCEPT_QUESTIONS = (
         ("data_sources",),
         # Given the topic, "Is the data in this system real?" still said only that the logs are real MFU traffic. Told
         # only that, "Does ATDR work with live traffic?" opened with "ATDR does not work with live traffic directly";
-        # told syslog alone, it said ATDR detects attacks "as it happens", though detection runs only when started.
+        # told syslog alone, it said ATDR detects attacks "as it happens", though detection runs only when started
+        # (or, with automatic checks on, a window at a time some minutes later: the topic says which).
         "Say all three: the logs ATDR holds now come from one exported file of MFU's firewall traffic, so nothing on "
-        "the dashboard is live; ATDR can also receive the firewall's logs live over syslog; and detection checks new "
-        "logs only when someone runs it, not continuously.",
+        "the dashboard is live; ATDR can also receive the firewall's logs live over syslog; and when detection checks "
+        "new logs, as the topic says it, never as 'as it happens' or 'in real time'.",
     ),
     # "How accurate is the MFU behaviour model?" was answered with ATDR's overall accuracy alone. Given the model's own
     # figures, it listed them as its accuracy without saying they came from simulated attacks.

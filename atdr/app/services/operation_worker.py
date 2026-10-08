@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
+import logging
 import os
 import socket
 from threading import Event
@@ -15,6 +16,7 @@ from sqlalchemy.orm import Session
 from atdr.app.core.config import get_settings
 from atdr.app.db.database import SessionLocal
 from atdr.app.db.models import OperationWorkerHeartbeat
+from atdr.app.services.auto_detection_service import run_automatic_detection
 from atdr.app.services.database_coordination_service import (
     acquire_worker_operation_lock,
     release_worker_operation_lock,
@@ -44,6 +46,8 @@ from atdr.app.services.resumable_ingestion_service import (
 from atdr.app.services.staging_service import effective_staging_storage_id
 
 
+logger = logging.getLogger(__name__)
+
 _ACTIVE_WORKER_STATES = {"starting", "watching", "idle", "running"}
 
 
@@ -51,8 +55,58 @@ class WorkerConcurrencyError(RuntimeError):
     """Raised when a second fresh operation worker attempts to use SQLite."""
 
 
+def _local_worker_prefix() -> str:
+    return f"{socket.gethostname()[:80]}-operation-worker-"
+
+
 def default_worker_id() -> str:
-    return f"{socket.gethostname()[:80]}-operation-worker-{os.getpid()}"
+    return f"{_local_worker_prefix()}{os.getpid()}"
+
+
+def _process_exists(pid: int) -> bool:
+    """Whether a process with this id exists on this machine; when unsure, it does."""
+
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.OpenProcess.restype = wintypes.HANDLE
+        kernel32.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+        # PROCESS_QUERY_LIMITED_INFORMATION; a process of another user refuses it but exists.
+        handle = kernel32.OpenProcess(0x1000, False, pid)
+        if not handle:
+            return ctypes.get_last_error() != 87  # ERROR_INVALID_PARAMETER: no such process
+        try:
+            code = wintypes.DWORD()
+            if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+                return True
+            return code.value == 259  # STILL_ACTIVE
+        finally:
+            kernel32.CloseHandle(handle)
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except OSError:
+        return True
+    return True
+
+
+def _left_behind_by_a_dead_local_worker(worker_id: str) -> bool:
+    """A heartbeat of a worker process on this machine that no longer exists.
+
+    A worker that is killed (scripts\\stop_system ends it at once) or crashes cannot say it stopped, so its last
+    heartbeat stays fresh for three heartbeat intervals. A restart inside that time found "another worker" and ran
+    with none: queued imports waited, and automatic detection never ran.
+    """
+
+    prefix = _local_worker_prefix()
+    if not worker_id.startswith(prefix) or not worker_id[len(prefix):].isdigit():
+        return False
+    return not _process_exists(int(worker_id[len(prefix):]))
 
 
 def enforce_worker_concurrency(
@@ -66,17 +120,22 @@ def enforce_worker_concurrency(
     if db.get_bind().dialect.name != "sqlite":
         return
     cutoff = datetime.now(timezone.utc) - timedelta(seconds=max(1, int(heartbeat_seconds)) * 3)
-    active_other = db.scalar(
+    fresh_others = db.scalars(
         select(OperationWorkerHeartbeat)
         .where(OperationWorkerHeartbeat.worker_id != worker_id)
         .where(OperationWorkerHeartbeat.status.in_(_ACTIVE_WORKER_STATES))
         .where(OperationWorkerHeartbeat.last_seen_at >= cutoff)
-        .limit(1)
-    )
-    if active_other is not None:
-        raise WorkerConcurrencyError(
-            "SQLite permits one ATDR operation worker. Stop the existing worker or wait for its heartbeat to become stale."
-        )
+    ).all()
+    for other in fresh_others:
+        if not _left_behind_by_a_dead_local_worker(other.worker_id):
+            raise WorkerConcurrencyError(
+                "SQLite permits one ATDR operation worker. Stop the existing worker or wait for its heartbeat to become stale."
+            )
+        other.status = "stopped"
+        other.current_job_id = None
+        other.details_json = {"shutdown": "process_gone", "external_services": "disabled"}
+    if fresh_others:
+        db.commit()
 
 
 def _record_worker_stopped(worker_id: str, *, reason: str) -> None:
@@ -358,6 +417,35 @@ def run_worker_cycle(*, worker_id: str | None = None) -> dict[str, Any]:
             )
 
 
+def _automatic_detection_look(worker_id: str, next_look: float) -> float:
+    """With no queued job waiting, check the logs whose evidence is complete; returns when to look again.
+
+    Never raises: a failed check is recorded on its own job and must not stop the worker's queued jobs.
+    """
+
+    settings = get_settings()
+    if not settings.auto_detection_enabled or time.monotonic() < next_look:
+        return next_look
+    more_due = False
+    try:
+        with SessionLocal() as db:
+
+            def still_alive() -> None:
+                # A long check must not look like a dead worker to the page or to a second worker.
+                record_worker_heartbeat(
+                    db,
+                    worker_id=worker_id,
+                    status="running",
+                    details={"automatic_detection": True, "external_services": "disabled"},
+                )
+
+            result = run_automatic_detection(db, settings=settings, between_batches=still_alive)
+            more_due = bool(result and result.get("more_due"))
+    except Exception:
+        logger.exception("automatic detection check failed")
+    return time.monotonic() + (0.0 if more_due else float(settings.auto_detection_poll_seconds))
+
+
 def run_worker_loop(
     *,
     worker_id: str | None = None,
@@ -369,6 +457,7 @@ def run_worker_loop(
     active_worker_id = (worker_id or default_worker_id()).strip()[:128]
     delay = max(0.1, float(poll_seconds if poll_seconds is not None else settings.operation_worker_poll_seconds))
     processed: list[dict[str, Any]] = []
+    next_automatic_look = 0.0
     with SessionLocal() as db:
         enforce_worker_concurrency(
             db,
@@ -390,6 +479,9 @@ def run_worker_loop(
             if result.get("processed"):
                 processed.append(result)
                 continue
+            # Queued jobs come first; nothing is checked while a database backup holds the worker.
+            if result.get("status") != "backup_coordination_pause":
+                next_automatic_look = _automatic_detection_look(active_worker_id, next_automatic_look)
             if stop_event is not None:
                 stop_event.wait(delay)
             else:

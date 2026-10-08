@@ -8,8 +8,37 @@ import { MetricCard } from "../components/MetricCard";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { useDashboardSummary, useDemoMutations, useDetectionCoverage, useHealth, useMlReport, useQueuedImportMutation } from "../hooks/useApiQueries";
 import { api } from "../lib/api";
+import type { AutomaticDetectionStatus } from "../types/api";
 
 const count = (value: number) => value.toLocaleString("en-US");
+const plural = (value: number, one: string, many: string) => `${count(value)} ${value === 1 ? one : many}`;
+
+function automaticChecksText(automatic: AutomaticDetectionStatus): { state: string; detail: string } {
+  if (!automatic.enabled) {
+    return { state: "Automatic checks are off.", detail: "New logs wait here until you check them." };
+  }
+  if (!automatic.worker_running) {
+    return {
+      state: "Automatic checks are on, but the background worker is not running.",
+      detail: "New logs wait until it starts, or until you check them here."
+    };
+  }
+  const quiet = automatic.quiet_seconds % 60 === 0 ? plural(automatic.quiet_seconds / 60, "minute", "minutes") : `${count(automatic.quiet_seconds)} seconds`;
+  const last = automatic.last_check;
+  const when = last?.finished_at ? new Date(last.finished_at) : null;
+  const stamp = when
+    ? `${when.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}, ${when.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`
+    : "";
+  const lastText = !last
+    ? "No automatic check has run yet."
+    : last.status === "failed"
+      ? `The last automatic check${stamp ? ` (${stamp})` : ""} failed; the next one will try again.`
+      : `Last automatic check${stamp ? ` (${stamp})` : ""}: ${plural(last.logs_checked, "log", "logs")}, ${plural(last.alerts_created, "new alert", "new alerts")}, ${plural(last.alerts_updated, "update", "updates")} to existing alerts.`;
+  return {
+    state: "Automatic checks are on.",
+    detail: `Each ${automatic.window_minutes}-minute window of new logs is checked once the window after it is complete, or ${quiet} after logs stop arriving. ${lastText}`
+  };
+}
 
 interface CoverageSweep {
   running: boolean;
@@ -45,6 +74,8 @@ export function DemoControls() {
   const limit = allLogs ? 0 : typedLimit;
   const coverage = useDetectionCoverage(useDebouncedValue(allLogs ? null : typedLimit));
   const coverageData = coverage.data;
+  const automatic = coverageData?.automatic ? automaticChecksText(coverageData.automatic) : null;
+  const automaticOn = Boolean(coverageData?.automatic?.enabled && coverageData.automatic.worker_running);
   const newestRange = !allLogs && typedLimit ? coverageData?.newest_log_id_range ?? null : null;
   const rangeText = newestRange ? ` (log IDs ${count(newestRange[0])} to ${count(newestRange[1])})` : "";
   const amount = allLogs ? "all" : typedLimit ? `the newest ${count(typedLimit)}` : "the newest 5,000 (server default)";
@@ -177,7 +208,16 @@ export function DemoControls() {
               </p>
             ) : null}
             {coverageData && coverageData.unchecked_logs === 0 && !sweep.running ? (
-              <p className="mt-1 text-sm text-muted">Every log has been checked. Newly imported logs will show up here until you check them.</p>
+              <p className="mt-1 text-sm text-muted">
+                {automaticOn
+                  ? "Every log has been checked. New logs are checked automatically."
+                  : "Every log has been checked. Newly imported logs will show up here until you check them."}
+              </p>
+            ) : null}
+            {automatic ? (
+              <p className="mt-2 text-sm text-muted" data-testid="automatic-detection">
+                <span className="font-bold text-text">{automatic.state}</span> {automatic.detail}
+              </p>
             ) : null}
           </div>
           <div className="flex flex-wrap gap-2">

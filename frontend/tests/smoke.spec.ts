@@ -7613,6 +7613,56 @@ test("data & detection can stop checking unchecked logs after the current batch"
   await expect(page.getByRole("button", { name: "Check all unchecked logs" })).toBeEnabled();
 });
 
+test("data & detection says whether new logs are checked automatically and what the last check did", async ({ page }) => {
+  // Detection used to run only when someone clicked the button, and nothing on the page said so.
+  const lastCheck = { status: "completed", finished_at: "2026-10-07T07:06:00+00:00", logs_checked: 3000, alerts_created: 10, alerts_updated: 1 };
+  let automatic: Record<string, unknown> = { enabled: false, worker_running: true, quiet_seconds: 120, window_minutes: 5, last_check: null };
+  await mockApi(page);
+  await page.route("**/api/demo/detection-coverage**", async (route) =>
+    route.fulfill({
+      json: {
+        total_logs: 12000,
+        checked_logs: 12000,
+        unchecked_logs: 0,
+        oldest_unchecked_log_id: null,
+        limit: 1000,
+        newest_log_id_range: [11001, 12000],
+        unchecked_batch_size: 5000,
+        automatic
+      }
+    })
+  );
+  await seedSession(page);
+  await page.goto("/demo");
+
+  const coverage = page.getByTestId("detection-coverage");
+  const status = page.getByTestId("automatic-detection");
+  await expect(status).toHaveText("Automatic checks are off. New logs wait here until you check them.");
+  await expect(coverage).toContainText("Newly imported logs will show up here until you check them.");
+
+  automatic = { ...automatic, enabled: true, worker_running: false };
+  await page.reload();
+  await expect(status).toHaveText(
+    "Automatic checks are on, but the background worker is not running. New logs wait until it starts, or until you check them here."
+  );
+  await expect(coverage).toContainText("Newly imported logs will show up here until you check them.");
+
+  automatic = { ...automatic, worker_running: true };
+  await page.reload();
+  await expect(status).toHaveText(
+    "Automatic checks are on. Each 5-minute window of new logs is checked once the window after it is complete, or 2 minutes after logs stop arriving. No automatic check has run yet."
+  );
+  await expect(coverage).toContainText("Every log has been checked. New logs are checked automatically.");
+
+  automatic = { ...automatic, last_check: lastCheck };
+  await page.reload();
+  await expect(status).toContainText(/Last automatic check \(7 Oct, \d{2}:06\): 3,000 logs, 10 new alerts, 1 update to existing alerts\./);
+
+  automatic = { ...automatic, last_check: { ...lastCheck, status: "failed" } };
+  await page.reload();
+  await expect(status).toContainText(/The last automatic check \(7 Oct, \d{2}:06\) failed; the next one will try again\./);
+});
+
 test("demo import strips copy-as-path quotes before sending sample path", async ({ page }) => {
   let postedPath = "";
   await mockApi(page);

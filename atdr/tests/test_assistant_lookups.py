@@ -302,10 +302,36 @@ def test_alerts_are_counted_by_who_raised_them(seeded, monkeypatch):  # noqa: F8
 
 def test_the_coverage_topic_counts_the_rules_like_the_rule_answer_and_says_what_atdr_cannot_see(seeded):  # noqa: F811
     sessions, settings = seeded
+    manual = settings.model_copy(update={"auto_detection_enabled": False})
     with sessions() as db:
-        tools = {tool.name: tool for tool in build_assistant_tools(db, settings=settings)}
+        tools = {tool.name: tool for tool in build_assistant_tools(db, settings=manual)}
         coverage = tools["explain_concept"].run({"topic": "detection_coverage"}).text
         changes = tools["explain_concept"].run({"topic": "improvements"}).text
     assert coverage.startswith(answer_rule_question("how many rules").summary)
     assert "email and phishing" in coverage and "not continuously" in coverage
     assert changes.startswith("Compared with ATDR's first version") and "from 3,676 alerts to" in changes
+
+
+def test_the_assistant_says_when_new_logs_are_checked_as_the_settings_have_it(seeded):  # noqa: F811
+    # "Detection runs only when someone runs it" stopped being true once the background worker could check new logs.
+    sessions, settings = seeded
+    manual = "Detection checks new logs only when someone runs it from the dashboard, not continuously."
+    automatic = (
+        "Detection checks new logs by itself, a five-minute window at a time once the window after it is complete: "
+        "about 5 to 10 minutes after the traffic, not as it happens."
+    )
+    cases = [
+        ({"auto_detection_enabled": False, "operation_worker_enabled": True}, manual),
+        # Switched on without the worker that runs the checks, nothing is checked by itself.
+        ({"auto_detection_enabled": True, "operation_worker_enabled": False}, manual),
+        ({"auto_detection_enabled": True, "operation_worker_enabled": True}, automatic),
+    ]
+    with sessions() as db:
+        for update, sentence in cases:
+            explain = {tool.name: tool for tool in build_assistant_tools(db, settings=settings.model_copy(update=update))}["explain_concept"]
+            for topic in ("detection_coverage", "data_sources"):
+                text = explain.run({"topic": topic}).text
+                assert sentence in text, (update, topic)
+                assert (manual if sentence is automatic else automatic) not in text
+    note = assistant_service._topic_notes("Does ATDR work with live traffic?")[0]
+    assert "as the topic says it" in note and "only when someone runs it" not in note

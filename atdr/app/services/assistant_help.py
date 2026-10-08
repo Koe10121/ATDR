@@ -214,7 +214,9 @@ HELP_TOPICS: tuple[HelpTopic, ...] = (
             "Open Data & Detection (left menu, under Admin / Settings).",
             "Set Log limit to the number of lines to import, or tick All for the whole file.",
             f"Under Durable file import, choose the Palo Alto log file (.log, .txt or .csv, up to {_import_limit()}) and click Queue import. The background worker imports it with progress and safe resume.",
-            "When the import finishes, click Check all unchecked logs so detection checks the new logs.",
+            # True with automatic checks on or off: the panel says which.
+            "When the import finishes, detection checks the new logs: by itself when the Detection coverage panel says "
+            "automatic checks are on, or at once when you click Check all unchecked logs.",
         ),
         page="Data & Detection",
         note="Only admins can import logs. The assistant cannot import files for you.",

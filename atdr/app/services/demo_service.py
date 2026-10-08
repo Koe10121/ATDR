@@ -20,6 +20,7 @@ from atdr.app.db.models import (
     WatchlistItem,
 )
 from atdr.app.services.alert_service import alert_report, render_alert_report_csv, render_alert_report_html, render_alert_report_pdf
+from atdr.app.services.auto_detection_service import automatic_detection_status
 from atdr.app.services.dashboard_service import build_dashboard_summary
 from atdr.app.services.detection_service import count_unchecked_logs, run_detection
 from atdr.app.services.log_service import import_log_file
@@ -169,6 +170,8 @@ def detection_coverage(db: Session, *, limit: int | None = None) -> dict:
         "limit": limit if limit and limit > 0 else None,
         "newest_log_id_range": newest_ids,
         "unchecked_batch_size": UNCHECKED_BATCH_DEFAULT,
+        # Whether the background worker checks new logs by itself, and what its last check did.
+        "automatic": automatic_detection_status(db),
     }
 
 

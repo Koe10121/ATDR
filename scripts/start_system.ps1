@@ -158,10 +158,18 @@ try {
     Write-Host "  Google OAuth client agreement: verified"
     Write-Host "  Response simulation: true"
     $workerEnabled = $envValues.Contains("OPERATION_WORKER_ENABLED") -and ([string]$envValues["OPERATION_WORKER_ENABLED"]).ToLowerInvariant() -eq "true"
+    $autoDetection = $envValues.Contains("AUTO_DETECTION_ENABLED") -and ([string]$envValues["AUTO_DETECTION_ENABLED"]).ToLowerInvariant() -eq "true"
     if ($workerEnabled) {
         Write-Host "  Background worker: on (runs queued imports)"
     } else {
         Write-Host "  Background worker: off (set OPERATION_WORKER_ENABLED=true in .env to run queued imports)"
+    }
+    if ($autoDetection -and $workerEnabled) {
+        Write-Host "  Automatic detection: on (the worker checks new logs by itself)"
+    } elseif ($autoDetection) {
+        Write-Host "  Automatic detection: on, but the background worker is off, so nothing is checked by itself" -ForegroundColor Yellow
+    } else {
+        Write-Host "  Automatic detection: off (new logs wait for Check all unchecked logs)"
     }
     $modelPathValue = if ($envValues.Contains("ML_MODEL_PATH") -and [string]$envValues["ML_MODEL_PATH"]) {
         [string]$envValues["ML_MODEL_PATH"]

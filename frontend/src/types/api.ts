@@ -999,6 +999,20 @@ export interface DemoActionResult {
   [key: string]: unknown;
 }
 
+export interface AutomaticDetectionStatus {
+  enabled: boolean;
+  worker_running: boolean;
+  quiet_seconds: number;
+  window_minutes: number;
+  last_check: {
+    status: string;
+    finished_at: string | null;
+    logs_checked: number;
+    alerts_created: number;
+    alerts_updated: number;
+  } | null;
+}
+
 export interface DetectionCoverage {
   total_logs: number;
   checked_logs: number;
@@ -1007,6 +1021,7 @@ export interface DetectionCoverage {
   limit: number | null;
   newest_log_id_range: [number, number] | null;
   unchecked_batch_size: number;
+  automatic?: AutomaticDetectionStatus;
 }
 
 export interface UncheckedDetectionBatch {

@@ -54,6 +54,12 @@ class Settings(BaseSettings):
     response_simulation: bool = Field(default=True, alias="RESPONSE_SIMULATION")
     # Experimental alerts from the MFU behaviour model, for the types switched on its model card.
     model_alerts_enabled: bool = Field(default=True, alias="ATDR_MODEL_ALERTS")
+    # The background worker checks new logs by itself, a five-minute window at a time, once the window after it is
+    # complete or no log has arrived for the quiet period (atdr/app/services/auto_detection_service.py). The checks
+    # run in the background worker (OPERATION_WORKER_ENABLED); without it the Data & Detection page says so.
+    auto_detection_enabled: bool = Field(default=False, alias="AUTO_DETECTION_ENABLED")
+    auto_detection_quiet_seconds: float = Field(default=120.0, alias="AUTO_DETECTION_QUIET_SECONDS")
+    auto_detection_poll_seconds: float = Field(default=15.0, alias="AUTO_DETECTION_POLL_SECONDS")
     response_provider: str = Field(default="simulation", alias="RESPONSE_PROVIDER")
     response_max_block_minutes: int = Field(default=1440, alias="RESPONSE_MAX_BLOCK_MINUTES")
     default_import_limit: int | None = Field(default=5000, alias="DEFAULT_IMPORT_LIMIT")
@@ -675,6 +681,10 @@ def validate_runtime_settings(settings: Settings) -> list[str]:
         issues.append("SYSLOG_HOST binds publicly outside production; use 127.0.0.1 for lab demo mode.")
     if settings.syslog_flush_seconds <= 0:
         issues.append("SYSLOG_FLUSH_SECONDS must be greater than zero.")
+    if settings.auto_detection_quiet_seconds <= 0:
+        issues.append("AUTO_DETECTION_QUIET_SECONDS must be greater than zero.")
+    if settings.auto_detection_poll_seconds <= 0:
+        issues.append("AUTO_DETECTION_POLL_SECONDS must be greater than zero.")
     if not settings.response_simulation and settings.response_provider.lower() in {"simulation", "none", "manual"}:
         issues.append("RESPONSE_PROVIDER must name an approved connector before RESPONSE_SIMULATION is disabled.")
     if not settings.response_simulation and settings.response_provider.lower() == "windows_firewall":
