@@ -146,22 +146,74 @@ real events (a burst of identical failed logins), so its repeats are counted
 and kept as evidence. The counts appear in each import's result and in the
 dashboard's data-quality figures.
 
-For live lab forwarding, register the source and run the UDP receiver only on
-an approved interface. Loopback is the safe default:
-
-```powershell
-.\.venv\Scripts\python.exe -m atdr.scripts.run_syslog_receiver --host 127.0.0.1 --port 5514
-```
-
-The receiver saves records every `SYSLOG_BATCH_SIZE` records, and within
-`SYSLOG_FLUSH_SECONDS` (default 2) of a record arriving, so a quiet stream never
-leaves records unsaved or holds the database's write lock while it waits.
+To receive the firewall's logs as they are sent, use the syslog receiver (Live
+Syslog, below).
 
 Raw evidence is preserved before parsing. Parser failure does not discard the
 row. Detection checks stored logs by itself when automatic detection is on, or
 from the dashboard; check source/parser quality first for a new source.
 Rule findings create authoritative alerts; anomaly and supervised scores add
 advisory context only.
+
+## Live Syslog
+
+The firewall can send its logs to ATDR over UDP syslog instead of in exports.
+With `SYSLOG_ENABLED=true`, `scripts\start_system.cmd` (and so the sign-in
+start) runs the receiver beside the other parts, as `atdr-syslog`. A receiver
+that stops on an error starts again after 5 seconds.
+
+- `SYSLOG_HOST` is the address it listens on. The default, 127.0.0.1, accepts
+  only this machine. To receive the firewall's logs, set it to this machine's
+  address on the network the firewall reaches, and allow UDP `SYSLOG_PORT`
+  (default 5514) from the firewall in Windows Firewall.
+- One thread takes lines off the network into memory as they arrive; another
+  saves them in batches of `SYSLOG_BATCH_SIZE` (default 1,000), no later than
+  `SYSLOG_FLUSH_SECONDS` (default 2) after a line arrives, so a quiet stream is
+  saved too and never holds the database.
+- While another writer holds the database, such as a detection run writing
+  its alerts, lines wait in memory, up to `SYSLOG_MAX_PENDING_LINES` (default
+  100,000: about 100 MB, nearly 3 minutes of MFU's traffic). Beyond that a line
+  is dropped and counted, not lost unseen.
+- Data & Detection shows whether the receiver is receiving, its rate, the
+  lines received, saved and lost since it started, and when the last line
+  arrived. It says so when the receiver is on but has stopped reporting.
+
+Run by hand, for a test on loopback:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.run_syslog_receiver --host 127.0.0.1 --port 5514
+```
+
+Measured on 2026-10-08 on a copy of the database, sending the first 8 min 44 s
+of the MFU export at its recorded rhythm (a median of 568 lines a second, and
+up to 1,014), then the same traffic again with its times moved later, so that
+automatic checks ran while lines arrived. The blind-check lines were never
+read.
+
+| | Before the rebuild | After |
+|---|---|---|
+| Lines saved at MFU's rate | 80% (500 a second at most) | all 638,252 |
+| When an automatic check ran | the receiver ended with "database is locked" | carried on, no retry needed |
+| At four times MFU's rate (120,001 lines in 50 s) | not tried | all saved, at about 1,700 a second |
+
+Before, the receiver saved one line at a time in the loop that read the
+network, so lines that arrived meanwhile overflowed the operating system's
+socket buffer, and Windows counted none of them as errors. A detection run
+also held SQLite's write lock from its start to its final commit (44 seconds
+for one window of MFU traffic); it now saves its run record first and holds
+the lock only while it writes alerts.
+
+Limits:
+
+- UDP has no delivery guarantee: a line lost on the network before it reaches
+  this machine cannot be counted.
+- Stopping ATDR ends the receiver's process, so lines waiting in memory at that
+  moment (normally a second or two of traffic) are lost. The next start closes
+  its run as stopped, with the counts from its last report.
+- Every line is stored in full: about 6 KB with its indexes, 13 GB an hour at
+  MFU's rate. Without a limit on how long logs are kept, the disk fills.
+- With the receiver running, a detection check of one five-minute window of
+  MFU's traffic (about 181,000 logs) took 2 minutes.
 
 ## Automatic Detection
 

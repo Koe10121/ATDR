@@ -83,6 +83,16 @@ attacks. The assistant answered from a fixed list of question types.
   instead of a port scan. The Data & Detection page says whether automatic checks are on
   and what the last one did, and ATDR can start when its Windows user signs in
   (`docs/OPERATIONS_RUNBOOK.md`).
+- **Taking the firewall's full log rate** (8 October). Sent the first 8 min 44 s of the
+  MFU export at its recorded rhythm (a median of 568 lines a second, up to 1,014), the
+  syslog receiver saved 80% of the lines, and when the first automatic check began it
+  ended with "database is locked": a detection run held SQLite's only write lock for the
+  44 seconds it spent judging a window. The receiver now takes lines off the network in
+  one thread and saves them in batches in another, waits out a busy database, and counts
+  any line it has no room for. A detection run takes the lock only to write its alerts.
+  Measured again: all 638,252 lines saved with two automatic checks running meanwhile, and
+  all 120,001 at four times MFU's rate. The receiver starts with ATDR when switched on,
+  and Data & Detection shows what it has received, saved and lost (runbook, Live Syslog).
 
 ### 2. A model trained on MFU traffic
 

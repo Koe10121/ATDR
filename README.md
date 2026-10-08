@@ -45,7 +45,7 @@ under `docs/archive/phases/`.
 ## What ATDR Does
 
 1. **Collects logs:** file import, API import, durable large-file jobs, replay,
-   and a lab UDP syslog receiver.
+   and a UDP syslog receiver that keeps up with MFU's firewall rate.
 2. **Preserves evidence:** raw records are stored before parsing; malformed
    records remain available with parser warnings.
 3. **Parses and normalizes:** PAN-OS TRAFFIC, THREAT, and SYSTEM layouts plus
@@ -194,7 +194,9 @@ Safe replay preview:
 .\.venv\Scripts\python.exe -m atdr.scripts.replay_logs --dry-run --limit 20 --rate 5 --pretty
 ```
 
-Live loopback receiver:
+Live syslog: with `SYSLOG_ENABLED=true` the start script runs the receiver beside the
+other parts, and Data & Detection shows what it has received, saved and lost
+(runbook, Live Syslog). To run it by hand on loopback:
 
 ```powershell
 .\.venv\Scripts\python.exe -m atdr.scripts.run_syslog_receiver --host 127.0.0.1 --port 5514
