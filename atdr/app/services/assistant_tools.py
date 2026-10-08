@@ -28,7 +28,7 @@ from atdr.app.detection.plain_summary import brief_situation, build_situation_su
 from atdr.app.detection.rule_catalog import RULE_CATALOG
 from atdr.app.detection.scoring import severity_from_score
 from atdr.app.services import assistant_service as core
-from atdr.app.services.alert_service import ALERT_DEDUP_WINDOW_MINUTES, SLA_TARGETS, alert_sla, get_alert
+from atdr.app.services.alert_service import ALERT_MERGE_WINDOW_HOURS, SLA_TARGETS, alert_sla, get_alert
 from atdr.app.services.assistant_agent import AgentTool, ToolOutput
 from atdr.app.services.assistant_data_query import (
     ALL_TIME,
@@ -639,8 +639,9 @@ class AssistantToolbox:
         if topic == "alert_grouping":
             return (
                 "ATDR looks at traffic in 5-minute windows per source, so a scan spread over many logs becomes one alert "
-                "with all the logs attached as evidence. A new match from the same source and alert type within "
-                f"{ALERT_DEDUP_WINDOW_MINUTES} minutes of a still-active alert is merged into it instead of creating a duplicate. "
+                "with all the logs attached as evidence. A new match of the same alert type from the same source within "
+                f"{ALERT_MERGE_WINDOW_HOURS} hours of a still-open alert's last activity joins that alert instead of creating a new one. "
+                "Scanning from the internet by addresses that do nothing else is listed on one Internet scanning alert an hour. "
                 "Alerts with the same source, destination and attack type within 24 hours are grouped into one case."
             )
         if topic == "supporting_signals":

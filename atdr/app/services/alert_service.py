@@ -11,7 +11,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session, joinedload, noload
 
 from atdr.app.db.models import Alert, AlertEvidence, AlertNote, AuditLog, LogSource, NormalizedLog, RawLog, ResponseAction, User
-from atdr.app.detection.attack_mapping import more_specific_attack_type
+from atdr.app.detection.attack_mapping import INTERNET_SCANNING_ALERT, more_specific_attack_type
 from atdr.app.detection.explanations import build_alert_detection_summary, compact_behavior_features, recommended_response
 from atdr.app.detection.rule_catalog import serialize_rule_match
 from atdr.app.detection.rules import DetectionResult
@@ -20,7 +20,12 @@ from atdr.app.detection.scoring import severity_from_score
 
 ALERT_STATUSES = {"open", "investigating", "contained", "resolved", "false_positive", "needs_more_context"}
 ALERT_DEDUP_ACTIVE_STATUSES = {"open", "investigating", "contained", "needs_more_context"}
-ALERT_DEDUP_WINDOW_MINUTES = 10
+# New activity of the same kind from the same source joins the alert still open for it when it comes within
+# this long of that alert's last activity. The limit was 10 minutes, the two also had to share a destination
+# port, and only the 50 most recently updated alerts of the kind were compared: at MFU's firewall rate a
+# scanner working through four ports raised four alerts every five minutes, and the same traffic nine minutes
+# later raised 193 more (about 1,900 alerts an hour in all).
+ALERT_MERGE_WINDOW_HOURS = 24
 _DEDUP_MERGE_NOTE = re.compile(r"^(?:Deduplicated alert updated with \d+ new evidence logs?\. )+")
 SLA_TARGETS = {
     "Critical": ("Immediate", timedelta(hours=1)),
@@ -85,6 +90,30 @@ def create_alert_from_detection(db: Session, log: NormalizedLog, result: Detecti
     return alert
 
 
+def _matched_rule_entries(results: list[DetectionResult]) -> list[dict]:
+    """Each rule the results matched, once: its highest-scoring match, how many logs matched, the type they named."""
+
+    rule_by_code: dict[str, dict] = {}
+    rule_counts: Counter[str] = Counter()
+    evidence_types: dict[str, str | None] = {}
+    for result in results:
+        for rule in result.matched_rules:
+            rule_counts[rule.code] += 1
+            evidence_types[rule.code] = more_specific_attack_type(evidence_types.get(rule.code), rule.attack_type)
+            existing = rule_by_code.get(rule.code)
+            if existing is None or rule.score > existing["score"]:
+                rule_by_code[rule.code] = serialize_rule_match(rule)
+
+    matched_rules = []
+    for code, rule in sorted(rule_by_code.items(), key=lambda item: (-item[1]["score"], item[1]["code"])):
+        rule["matched_log_count"] = rule_counts[code]
+        if evidence_types.get(code):
+            # One log's threat signature can name what the others did not.
+            rule["attack_type"] = evidence_types[code]
+        matched_rules.append(rule)
+    return matched_rules
+
+
 def create_grouped_alert_from_detections(
     db: Session,
     detections: list[tuple[NormalizedLog, DetectionResult]],
@@ -105,24 +134,7 @@ def create_grouped_alert_from_detections(
     max_score = max(result.threat_score for result in results)
     severity = severity_from_score(max_score)
 
-    rule_by_code: dict[str, dict] = {}
-    rule_counts: Counter[str] = Counter()
-    evidence_types: dict[str, str | None] = {}
-    for result in results:
-        for rule in result.matched_rules:
-            rule_counts[rule.code] += 1
-            evidence_types[rule.code] = more_specific_attack_type(evidence_types.get(rule.code), rule.attack_type)
-            existing = rule_by_code.get(rule.code)
-            if existing is None or rule.score > existing["score"]:
-                rule_by_code[rule.code] = serialize_rule_match(rule)
-
-    matched_rules = []
-    for code, rule in sorted(rule_by_code.items(), key=lambda item: (-item[1]["score"], item[1]["code"])):
-        rule["matched_log_count"] = rule_counts[code]
-        if evidence_types.get(code):
-            # One log's threat signature can name what the others did not.
-            rule["attack_type"] = evidence_types[code]
-        matched_rules.append(rule)
+    matched_rules = _matched_rule_entries(results)
 
     event_times = [_event_time(log) for log in logs]
     event_times = [item for item in event_times if item is not None]
@@ -375,7 +387,7 @@ def _time_windows_match(existing: dict, incoming: dict) -> bool:
         return False
     if existing_first <= incoming_last and incoming_first <= existing_last:
         return True
-    max_gap = timedelta(minutes=ALERT_DEDUP_WINDOW_MINUTES)
+    max_gap = timedelta(hours=ALERT_MERGE_WINDOW_HOURS)
     return abs((incoming_first - existing_last).total_seconds()) <= max_gap.total_seconds() or abs(
         (existing_first - incoming_last).total_seconds()
     ) <= max_gap.total_seconds()
@@ -427,24 +439,24 @@ def _find_dedup_alert(
     observations: dict,
     candidates: list[Alert] | None = None,
 ) -> Alert | None:
+    # Every open alert of the kind is compared, most recently updated first. An alert about one source can only
+    # take that source's activity, which is checked first because it rules out nearly all of them.
+    sources = set(observations.get("sample_src_ips") or [])
     if candidates is None:
-        statement = (
-            select(Alert)
-            .where(
-                Alert.alert_type == alert_type,
-                Alert.status.in_(ALERT_DEDUP_ACTIVE_STATUSES),
-            )
-            .order_by(Alert.updated_at.desc(), Alert.id.desc())
-            .limit(50)
+        statement = select(Alert).where(
+            Alert.alert_type == alert_type,
+            Alert.status.in_(ALERT_DEDUP_ACTIVE_STATUSES),
+            or_(Alert.src_ip.is_(None), Alert.src_ip.in_(sources)) if sources else Alert.src_ip.is_(None),
         )
-        alerts = list(db.scalars(statement).unique())
+        alerts = list(db.scalars(statement.order_by(Alert.updated_at.desc(), Alert.id.desc())).unique())
     else:
         alerts = [
             alert
             for alert in reversed(candidates)
             if alert.alert_type == alert_type
             and (alert.status or "open") in ALERT_DEDUP_ACTIVE_STATUSES
-        ][:50]
+            and (alert.src_ip is None or alert.src_ip in sources)
+        ]
     for alert in alerts:
         metadata = _group_metadata(alert)
         if not _alert_source_matches(
@@ -455,10 +467,20 @@ def _find_dedup_alert(
             continue
         if not _time_windows_match(metadata, observations):
             continue
-        if not _port_pattern_matches(metadata, observations):
+        # An alert about many sources (an internet-wide sweep of one port) is told apart by its ports. An alert
+        # about one source takes what that source does next, whatever the port.
+        if alert.src_ip is None and not _port_pattern_matches(metadata, observations):
             continue
         return alert
     return None
+
+
+def open_alert_for_group(
+    db: Session, alert_type: str, logs: list[NormalizedLog], candidates: list[Alert] | None = None
+) -> Alert | None:
+    """The open alert these logs would join as a group of this kind, if there is one."""
+
+    return _find_dedup_alert(db, alert_type=alert_type, observations=_group_observations(logs), candidates=candidates)
 
 
 def _merge_rule_metadata(existing_rules: list[dict], incoming_rules: list[dict]) -> list[dict]:
@@ -617,6 +639,224 @@ def _update_deduplicated_alert(
         )
     )
     return alert
+
+
+# Scanning from the internet never stops, and every scanner used to get its own alert: at MFU's firewall rate that
+# was 4 alerts in 10 and 6 evidence logs in 10. One alert an hour lists the scanners instead. detection_service
+# decides which groups belong here (an outside address that does nothing else ATDR alerts on).
+INTERNET_SCANNING_SCORE = 50
+# From the live syslog feed, whose other logs are deleted after a few hours, this many logs are kept as evidence for
+# each outside address and hour; the rest are counted. Imported logs are all kept as evidence.
+SCAN_SAMPLE_LOGS_PER_ADDRESS = 20
+SCANNERS_IN_EXPLANATION = 5
+SCANNER_PORTS_KEPT = 8
+SCANNERS_KEPT = 2000
+_SCANNING_RESPONSE = (
+    "Nothing to do for the list as a whole: every public network is scanned all day. Look at the busiest addresses: "
+    "block one at the firewall if it keeps coming back or works on one service, and close any scanned port that "
+    "should not be reachable from the internet. An address that does more than scan gets its own alert."
+)
+
+
+def _scanning_explanation(metadata: dict) -> str:
+    start = _parse_iso(metadata.get("hour_start"))
+    scanners: dict[str, dict] = metadata.get("scanners") or {}
+    count = int(metadata.get("scanner_count") or len(scanners))
+    hour = f"{start.day} {start:%b} {start:%H}:00 to {(start + timedelta(hours=1)):%H}:00" if start else "this hour"
+    busiest = sorted(scanners.items(), key=lambda item: (-int(item[1].get("connections") or 0), item[0]))[:SCANNERS_IN_EXPLANATION]
+    listed = "; ".join(
+        f"{address} ({int(entry.get('connections') or 0):,} connection{'' if int(entry.get('connections') or 0) == 1 else 's'} "
+        f"to {int(entry.get('targets') or 0):,} or more MFU addresses, ports {', '.join(str(port) for port in entry.get('ports') or []) or 'unknown'})"
+        for address, entry in busiest
+    )
+    kept = int(metadata.get("evidence_count") or 0)
+    total = int(metadata.get("connections") or 0)
+    sample = (
+        f" {kept:,} of the {total:,} logs are kept as evidence, up to {SCAN_SAMPLE_LOGS_PER_ADDRESS} for each address."
+        if kept < total
+        else ""
+    )
+    return (
+        f"{count:,} outside address{'' if count == 1 else 'es'} scanned or probed MFU from {hour}: {total:,} "
+        f"connection{'' if total == 1 else 's'} in all. None of them did anything else ATDR alerts on, and neither the "
+        f"watchlist nor a firewall threat record names them. The busiest: {listed}.{sample}"
+    )[:4000]
+
+
+def _open_scanning_alert(db: Session, hour_start: str, candidates: list[Alert] | None) -> Alert | None:
+    if candidates is None:
+        alerts = db.scalars(
+            select(Alert)
+            .where(Alert.alert_type == INTERNET_SCANNING_ALERT, Alert.status.in_(ALERT_DEDUP_ACTIVE_STATUSES))
+            .order_by(Alert.id.desc())
+            .limit(72)
+        )
+    else:
+        alerts = [
+            alert
+            for alert in reversed(candidates)
+            if alert.alert_type == INTERNET_SCANNING_ALERT and (alert.status or "open") in ALERT_DEDUP_ACTIVE_STATUSES
+        ]
+    return next((alert for alert in alerts if _group_metadata(alert).get("hour_start") == hour_start), None)
+
+
+def record_internet_scanning(
+    db: Session,
+    detections: list[tuple[NormalizedLog, DetectionResult]],
+    *,
+    live_source_ids: set[int],
+    dedup_alerts: list[Alert] | None = None,
+    evidence_id_cache: dict[int, set[int]] | None = None,
+    bulk_evidence: bool = False,
+    pending_evidence: list[tuple[Alert, list[int]]] | None = None,
+) -> list[tuple[Alert, bool]]:
+    """Put scanning from the internet on the alert for the hour it happened in; returns (alert, created) per hour."""
+
+    by_hour: dict[datetime, list[tuple[NormalizedLog, DetectionResult]]] = {}
+    for log, result in detections:
+        moment = _event_time(log)
+        if moment is not None:
+            by_hour.setdefault(moment.replace(minute=0, second=0, microsecond=0), []).append((log, result))
+    touched: list[tuple[Alert, bool]] = []
+    for hour, items in sorted(by_hour.items(), key=lambda item: item[0]):
+        items.sort(key=lambda item: (_event_time(item[0]), item[0].id))
+        alert = _open_scanning_alert(db, hour.isoformat(), dedup_alerts)
+        created = alert is None
+        if alert is None:
+            alert = Alert(alert_type=INTERNET_SCANNING_ALERT, status="open", matched_rules_json=[])
+            existing_log_ids: set[int] = set()
+        elif evidence_id_cache is not None and id(alert) in evidence_id_cache:
+            existing_log_ids = evidence_id_cache[id(alert)]
+        elif bulk_evidence:
+            existing_log_ids = (
+                set(db.scalars(select(AlertEvidence.normalized_log_id).where(AlertEvidence.alert_id == alert.id)))
+                if alert.id is not None
+                else set()
+            )
+        else:
+            existing_log_ids = {int(evidence.normalized_log_id) for evidence in alert.evidence}
+        if evidence_id_cache is not None:
+            evidence_id_cache[id(alert)] = existing_log_ids
+
+        existing = _group_metadata(alert)
+        scanners: dict[str, dict] = {address: dict(entry) for address, entry in (existing.get("scanners") or {}).items()}
+        targets_now: dict[str, set[str]] = {}
+        counted: list[tuple[NormalizedLog, DetectionResult]] = []
+        added_log_ids: list[int] = []
+        for log, result in items:
+            if log.id in existing_log_ids:
+                continue
+            address = log.src_ip or "unknown"
+            entry = scanners.setdefault(address, {"connections": 0, "targets": 0, "ports": [], "kept": 0})
+            entry["connections"] = int(entry["connections"]) + 1
+            if log.dst_ip:
+                targets_now.setdefault(address, set()).add(log.dst_ip)
+            if log.dst_port is not None and log.dst_port not in entry["ports"] and len(entry["ports"]) < SCANNER_PORTS_KEPT:
+                entry["ports"] = sorted([*entry["ports"], int(log.dst_port)])
+            counted.append((log, result))
+            if _log_source_id(log) in live_source_ids and int(entry["kept"]) >= SCAN_SAMPLE_LOGS_PER_ADDRESS:
+                continue
+            entry["kept"] = int(entry["kept"]) + 1
+            existing_log_ids.add(int(log.id))
+            added_log_ids.append(int(log.id))
+        if not counted:
+            continue
+        for address, targets in targets_now.items():
+            # The most addresses it reached in one check; the true total for the hour is at least this.
+            scanners[address]["targets"] = max(int(scanners[address]["targets"]), len(targets))
+        scanner_count = max(int(existing.get("scanner_count") or 0), len(scanners))
+        if len(scanners) > SCANNERS_KEPT:
+            scanners = dict(sorted(scanners.items(), key=lambda item: (-int(item[1]["connections"]), item[0]))[:SCANNERS_KEPT])
+
+        observations = _group_observations([log for log, _result in counted])
+        first_seen = min(
+            (item for item in (_parse_iso(existing.get("first_seen")), _parse_iso(observations.get("first_seen"))) if item is not None),
+            default=None,
+        )
+        last_seen = max(
+            (item for item in (_parse_iso(existing.get("last_seen")), _parse_iso(observations.get("last_seen"))) if item is not None),
+            default=None,
+        )
+        connections = int(existing.get("connections") or 0) + len(counted)
+        metadata = {
+            "code": "group_metadata",
+            "title": "Grouped alert metadata",
+            "score": 0,
+            "explanation": "One alert an hour lists the outside addresses that only scanned or probed MFU.",
+            "hour_start": hour.isoformat(),
+            "scanner_count": scanner_count,
+            "connections": connections,
+            "scanners": scanners,
+            "evidence_count": len(existing_log_ids),
+            "related_log_count": len(existing_log_ids),
+            "occurrence_count": connections,
+            "first_seen": _iso(first_seen),
+            "last_seen": _iso(last_seen),
+            "unique_src_count": scanner_count,
+            "sample_src_ips": _merge_sorted(existing.get("sample_src_ips"), observations.get("sample_src_ips")),
+            "unique_dst_count": len(_merge_sorted(existing.get("sample_dst_ips"), observations.get("sample_dst_ips"), limit=1000)),
+            "sample_dst_ips": _merge_sorted(existing.get("sample_dst_ips"), observations.get("sample_dst_ips")),
+            "sample_dst_ports": _merge_sorted(existing.get("sample_dst_ports"), observations.get("sample_dst_ports")),
+            "destination_port_counts": _merge_count_maps(existing.get("destination_port_counts"), observations.get("destination_port_counts")),
+            "actions": _merge_sorted(existing.get("actions"), observations.get("actions")),
+            "action_counts": _merge_count_maps(existing.get("action_counts"), observations.get("action_counts")),
+            "protocols": _merge_sorted(existing.get("protocols"), observations.get("protocols")),
+            "source_ids": _merge_sorted(existing.get("source_ids"), observations.get("source_ids"), limit=100),
+            "deduplicated": not created,
+        }
+        summary_rule = {
+            "code": INTERNET_SCANNING_ALERT,
+            "title": "Internet scanning",
+            "score": INTERNET_SCANNING_SCORE,
+            "attack_type": "port_scan",
+            "explanation": "Outside addresses scanned or probed MFU and did nothing else ATDR alerts on.",
+            "matched_log_count": connections,
+        }
+        scan_rules = _merge_rule_metadata(
+            [rule for rule in alert.matched_rules_json or [] if rule.get("code") != INTERNET_SCANNING_ALERT],
+            _matched_rule_entries([result for _log, result in counted]),
+        )
+        alert.threat_score = INTERNET_SCANNING_SCORE
+        alert.severity = severity_from_score(INTERNET_SCANNING_SCORE)
+        alert.src_ip = None
+        alert.dst_ip = None
+        alert.title = (
+            f"{alert.severity}: Internet scanning from {scanner_count:,} outside address{'' if scanner_count == 1 else 'es'} "
+            f"({hour.day} {hour:%b} {hour:%H}:00 to {(hour + timedelta(hours=1)):%H}:00)"
+        )
+        alert.explanation = _scanning_explanation(metadata)
+        alert.recommended_response = _SCANNING_RESPONSE
+        alert.matched_rules_json = [summary_rule, *scan_rules, metadata]
+        if created:
+            db.add(alert)
+            if dedup_alerts is not None:
+                dedup_alerts.append(alert)
+        if not bulk_evidence:
+            for log_id in added_log_ids:
+                alert.evidence.append(AlertEvidence(normalized_log_id=log_id))
+        elif pending_evidence is not None:
+            if added_log_ids:
+                pending_evidence.append((alert, added_log_ids))
+        else:
+            db.flush()
+            _insert_alert_evidence_rows(db, alert, added_log_ids)
+        if not created:
+            db.add(
+                AuditLog(
+                    actor="system",
+                    action="alert_deduplicated",
+                    target_type="alert",
+                    target_value=str(alert.id),
+                    details={
+                        "alert_type": alert.alert_type,
+                        "added_evidence_logs": len(added_log_ids),
+                        "connections": connections,
+                        "scanner_count": scanner_count,
+                    },
+                )
+            )
+        touched.append((alert, created))
+    return touched
 
 
 def _insert_alert_evidence_rows(

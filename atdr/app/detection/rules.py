@@ -183,10 +183,16 @@ def _is_private_address(value: str | None) -> bool:
         return False
 
 
+def is_from_internet(log: NormalizedLog) -> bool:
+    """A connection into MFU from a public address in an outside zone."""
+
+    return is_outside_to_inside(log) and not _is_private_address(log.src_ip)
+
+
 def looks_like_background_probe(log: NormalizedLog) -> bool:
     """One unanswered connection from an internet host into MFU: background probing if its source stays small."""
 
-    return is_outside_to_inside(log) and not _is_private_address(log.src_ip) and _looks_unanswered(log)
+    return is_from_internet(log) and _looks_unanswered(log)
 
 
 def is_background_probe(log: NormalizedLog, context: DetectionContext) -> bool:

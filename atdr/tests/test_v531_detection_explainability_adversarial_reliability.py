@@ -124,27 +124,41 @@ def test_v531_missing_timestamps_do_not_create_cross_row_scan_correlation() -> N
     assert case_result["actual_alert_count"] == 0
 
 
-def test_v531_independent_scan_windows_create_independent_alerts() -> None:
+def _related_logs(alert: Alert) -> int:
+    metadata = next(item for item in alert.matched_rules_json if item.get("code") == "group_metadata")
+    return int(metadata.get("related_log_count") or metadata["evidence_count"])
+
+
+def test_v531_scan_windows_an_hour_apart_join_one_alert_and_a_day_apart_stay_separate() -> None:
+    # One alert for each kind and source while it stays open, up to a day after its last activity. The limit was
+    # ten minutes: at MFU's firewall rate every scanner was alerted on again for each five-minute window.
     db = _session()
     _persist_case(db, "separate_scan_windows_stay_separate")
 
     result = run_detection(db, limit=100, use_ml=False, actor="v531-test")
     alerts = list(db.scalars(select(Alert).order_by(Alert.id)))
-    evidence_counts = [
-        int(
-            next(
-                item
-                for item in alert.matched_rules_json
-                if item.get("code") == "group_metadata"
-            )["evidence_count"]
-        )
-        for alert in alerts
-    ]
 
-    assert result["created_alerts"] == 2
-    assert result["deduplicated_alert_updates"] == 0
-    assert len(alerts) == 2
-    assert evidence_counts == [10, 10]
+    assert (result["created_alerts"], result["deduplicated_alert_updates"]) == (1, 1)
+    assert [_related_logs(alert) for alert in alerts] == [20]
+
+    a_day_apart = _session()
+    a_day_apart.add(LogSource(id=1, name="v531-source-1", source_type="firewall", parser_profile="palo_alto"))
+    a_day_apart.add_all(
+        build_case_logs(
+            {
+                "id": "scan-windows-a-day-apart",
+                "pattern": "separate_vertical_scan_windows",
+                "params": {"count_per_window": 10, "source_id": 1, "separation_seconds": 25 * 3600},
+            }
+        )
+    )
+    a_day_apart.commit()
+
+    result = run_detection(a_day_apart, limit=100, use_ml=False, actor="v531-test")
+    alerts = list(a_day_apart.scalars(select(Alert).order_by(Alert.id)))
+
+    assert (result["created_alerts"], result["deduplicated_alert_updates"]) == (2, 0)
+    assert [_related_logs(alert) for alert in alerts] == [10, 10]
 
 
 def test_v531_missing_timestamp_alerts_do_not_deduplicate_without_time_evidence() -> None:
@@ -267,7 +281,7 @@ def test_v531_observed_evidence_is_a_stable_field_value_pair_contract() -> None:
 
 
 def test_v531_every_catalog_rule_has_explanation_and_false_positive_contract() -> None:
-    assert RULE_CATALOG_VERSION == "atdr_rule_catalog_v5.36.0"
+    assert RULE_CATALOG_VERSION == "atdr_rule_catalog_v5.37.0"
     assert len(RULE_CATALOG) == 22
     for code, spec in RULE_CATALOG.items():
         assert spec.rule_id

@@ -159,6 +159,20 @@ export function AlertsTriage() {
       : detectionSummary?.top_evidence_points) ?? [];
   const groupMetadata = selected?.matched_rules_json?.find((rule) => rule.code === "group_metadata") ?? null;
   const occurrenceCount = Number(groupMetadata?.occurrence_count ?? groupMetadata?.evidence_count ?? selected?.evidence_count ?? 0);
+  // An "Internet scanning" alert lists every outside address that only scanned MFU in its hour.
+  const scannerEntries =
+    selected?.alert_type === "internet_scanning" && groupMetadata?.scanners && typeof groupMetadata.scanners === "object"
+      ? Object.entries(groupMetadata.scanners as Record<string, { connections?: number; targets?: number; ports?: number[]; kept?: number }>)
+          .map(([address, entry]) => ({
+            address,
+            connections: Number(entry.connections ?? 0),
+            targets: Number(entry.targets ?? 0),
+            ports: Array.isArray(entry.ports) ? entry.ports : [],
+            kept: Number(entry.kept ?? 0)
+          }))
+          .sort((left, right) => right.connections - left.connections || left.address.localeCompare(right.address))
+      : [];
+  const scannersShown = scannerEntries.slice(0, 20);
   const relatedLogCount = Number(groupMetadata?.related_log_count ?? groupMetadata?.evidence_count ?? selected?.evidence_count ?? 0);
   const evidenceLogLabel = selected?.evidence_log_ids.length
     ? `${selected.evidence_log_ids.join(", ")}${selected.evidence_log_ids_truncated ? ` (first ${selected.evidence_log_ids.length} of ${selected.evidence_count})` : ""}`
@@ -686,6 +700,42 @@ export function AlertsTriage() {
               </div>
               {!isAdmin ? <div className="mt-3 text-xs text-muted">Block/unblock actions are admin-only and simulated.</div> : null}
             </section>
+
+            {scannersShown.length ? (
+              <section className="rounded-lg border border-line bg-panel2 p-4" data-testid="internet-scanners">
+                <div className="mb-1 text-sm font-extrabold uppercase tracking-wide text-muted">Scanners this hour</div>
+                <p className="mb-3 text-sm text-muted">
+                  {scannerEntries.length.toLocaleString("en-US")} outside {scannerEntries.length === 1 ? "address" : "addresses"} scanned or probed MFU and did
+                  nothing else ATDR alerts on
+                  {scannerEntries.length > scannersShown.length ? `; the busiest ${scannersShown.length} are shown` : ""}. An address that does more gets its
+                  own alert.
+                </p>
+                <div className="overflow-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs uppercase tracking-wide text-muted">
+                        <th className="py-1 pr-3">Address</th>
+                        <th className="py-1 pr-3">Connections</th>
+                        <th className="py-1 pr-3">MFU addresses reached</th>
+                        <th className="py-1 pr-3">Ports</th>
+                        <th className="py-1">Evidence logs kept</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {scannersShown.map((scanner) => (
+                        <tr key={scanner.address} className="border-t border-line">
+                          <td className="py-1 pr-3 font-bold text-text">{scanner.address}</td>
+                          <td className="py-1 pr-3">{scanner.connections.toLocaleString("en-US")}</td>
+                          <td className="py-1 pr-3">{scanner.targets.toLocaleString("en-US")} or more</td>
+                          <td className="py-1 pr-3">{scanner.ports.length ? scanner.ports.join(", ") : "-"}</td>
+                          <td className="py-1">{scanner.kept.toLocaleString("en-US")}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            ) : null}
 
             <section className="rounded-lg border border-line bg-panel2 p-4">
               <div className="mb-3 text-sm font-extrabold uppercase tracking-wide text-muted">Matched Rules</div>

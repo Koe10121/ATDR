@@ -17,7 +17,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from atdr.app.db.models import Alert, AlertEvidence, NormalizedLog, WatchlistItem
-from atdr.app.detection.attack_mapping import infer_attack_type_from_rules
+from atdr.app.detection.attack_mapping import INTERNET_SCANNING_ALERT, infer_attack_type_from_rules
 from atdr.app.detection.playbooks import PLAYBOOK_GUIDANCE
 from atdr.app.detection.rules import (
     INSIDE_ZONE_TOKENS,
@@ -177,9 +177,33 @@ def _watchlist_notes(db: Session, alert: Alert) -> list[str]:
     ]
 
 
+def _scanning_summary(alert: Alert) -> str:
+    """The hourly internet-scanning alert, from its own totals: of live traffic only a sample is kept as evidence."""
+
+    metadata = next(
+        (rule for rule in alert.matched_rules_json or [] if isinstance(rule, dict) and rule.get("code") == "group_metadata"),
+        {},
+    )
+    count, total = int(metadata.get("scanner_count") or 0), int(metadata.get("connections") or 0)
+    try:
+        start = datetime.fromisoformat(str(metadata.get("hour_start")))
+        when = f"On {start.day} {start:%b}, {start:%H}:00–{(start.hour + 1) % 24:02d}:00, "
+    except ValueError:
+        when = ""
+    who = "one outside address" if count == 1 else f"{count:,} outside addresses"
+    connections = "one connection" if total == 1 else f"{total:,} connections"
+    return (
+        f"{when}{who} scanned or probed MFU: {connections} in all. None of them did anything else ATDR alerts on. "
+        "Every public network is scanned all day, so ATDR lists this in one alert an hour. "
+        "Next: look at the busiest addresses, and block one that keeps coming back or works on one service."
+    )
+
+
 def build_plain_summary(db: Session, alert: Alert, attack_type: str | None) -> str:
     """Three to five short sentences about the alert; empty when it has no evidence logs."""
 
+    if alert.alert_type == INTERNET_SCANNING_ALERT:
+        return _scanning_summary(alert)
     rows = db.execute(
         select(*_EVIDENCE_COLUMNS)
         .join(AlertEvidence, AlertEvidence.normalized_log_id == NormalizedLog.id)

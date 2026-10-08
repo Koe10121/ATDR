@@ -78,6 +78,9 @@ ATTACK_TYPE_MAPPINGS: dict[str, dict[str, str]] = {
     },
 }
 
+# The kind of the hourly alert that lists outside addresses which only scanned MFU (alert_service builds it).
+INTERNET_SCANNING_ALERT = "internet_scanning"
+
 # Each rule's default attack type is the one its catalog entry documents.
 RULE_ATTACK_HINTS = {
     **{code: spec.attack_type for code, spec in RULE_CATALOG.items()},

@@ -614,9 +614,13 @@ def test_a_source_beyond_background_limits_or_with_a_threat_log_still_alerts():
     _inbound_probe(db, src="45.33.32.201", dst="10.0.0.99", port=4040, log_type="THREAT")  # small, but the firewall saw a threat
     db.commit()
     run_detection(db, limit=100, use_ml=False, actor="test")
-    alerted = {alert.src_ip for alert in db.scalars(select(Alert))}
-    assert "45.33.32.200" in alerted, "10 or more hosts is a scan"
-    assert "45.33.32.201" in alerted, "a firewall threat log escalates a small probe"
+    alerts = list(db.scalars(select(Alert)))
+    # A scan from the internet is alerted on the hour's "Internet scanning" alert, which names each scanner.
+    scanning = next(alert for alert in alerts if alert.alert_type == "internet_scanning")
+    scanners = next(rule for rule in scanning.matched_rules_json if rule.get("code") == "group_metadata")["scanners"]
+    assert scanners["45.33.32.200"]["connections"] == 12, "10 or more hosts is a scan"
+    assert "45.33.32.201" in {alert.src_ip for alert in alerts}, "a firewall threat log escalates a small probe"
+    assert "45.33.32.201" not in scanners, "and that source is not on the scanning list"
 
 
 def test_repeated_denied_attempts_from_a_small_internet_source_still_alert():

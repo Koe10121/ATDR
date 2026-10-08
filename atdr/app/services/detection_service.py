@@ -10,7 +10,7 @@ from sqlalchemy import Float, cast, func, literal, select, update
 from sqlalchemy.orm import Session, joinedload
 
 from atdr.app.core.config import get_settings
-from atdr.app.db.models import Alert, AuditLog, DetectionRun, NormalizedLog, RawLog
+from atdr.app.db.models import Alert, AuditLog, DetectionRun, LogSource, NormalizedLog, RawLog
 from atdr.app.detection.ml_detector import apply_model_to_db
 from atdr.app.detection.runtime_contract import (
     anomaly_runtime_status,
@@ -29,18 +29,23 @@ from atdr.app.detection.rules import (
     evaluate_rules,
     event_time,
     is_background_probe,
+    is_from_internet,
     is_outside_to_inside,
     is_p2p_file_sharing,
     outlier_threshold,
 )
+from atdr.app.detection.plain_summary import MODEL_ALERT_TYPE
 from atdr.app.detection.rule_catalog import SUPPORTING_ONLY_RULES
 from atdr.app.detection.scoring import clamp_score, severity_from_score
 from atdr.app.detection.v520_schema_aware_abstention import assess_log_schema_compatibility
 from atdr.app.services.alert_service import (
     ALERT_DEDUP_ACTIVE_STATUSES,
+    INTERNET_SCANNING_ALERT,
     create_grouped_alert_from_detections,
     existing_evidence_log_ids,
     insert_pending_alert_evidence_rows,
+    open_alert_for_group,
+    record_internet_scanning,
 )
 from atdr.app.services.detection_coordination_service import (
     acquire_detection_transaction_lock,
@@ -85,6 +90,13 @@ P2P_MALICIOUS_EVIDENCE_RULES = frozenset(
 # Internet background probing is summarised the same way. The same evidence escalates it, and so do
 # repeated denied attempts from one source (5 or more), the "repeated attempts" the policy names.
 BACKGROUND_ESCALATION_RULES = P2P_MALICIOUS_EVIDENCE_RULES | {"multiple_denied_connections"}
+# Scans the background policy does alert on (10 or more hosts, 5 or more ports, an unusual port) go on one
+# "Internet scanning" alert an hour when they come from the internet and their source does nothing else: at MFU's
+# firewall rate each scanner's own alert was 4 alerts in 10. The same evidence as above gives a scanner its own
+# alert again, and so does any other kind of alert for it. Repeated denied attempts keep their own alerts, as the
+# policy says, and so do scans from inside MFU.
+INTERNET_SCANNING_RULES = frozenset({"possible_horizontal_scan", "possible_port_scan", "unusual_destination_port"})
+LIVE_SOURCE_TYPE = "syslog_udp"
 CONTEXT_ONLY_PRIMARY_RULES = frozenset(
     {
         "outside_to_inside",
@@ -545,6 +557,57 @@ def group_detection_candidates(
     return grouped
 
 
+def _has_stronger_evidence(candidates: list[DetectionCandidate]) -> bool:
+    return any(match.code in P2P_MALICIOUS_EVIDENCE_RULES for candidate in candidates for match in candidate.result.matched_rules)
+
+
+def _is_internet_scanning(candidates: list[DetectionCandidate], sources_doing_more: set[str]) -> bool:
+    """This group is scanning from the internet and nothing more, so it can go on the hour's alert, not its own."""
+
+    if candidates[0].primary_rule.code not in INTERNET_SCANNING_RULES or _has_stronger_evidence(candidates):
+        return False
+    return all(is_from_internet(candidate.log) and candidate.log.src_ip not in sources_doing_more for candidate in candidates)
+
+
+def _sources_doing_more(db: Session, grouped: dict[tuple, list[DetectionCandidate]]) -> set[str]:
+    """Sources of scan groups that do more than scan: in this run's groups, or in an alert of another kind still open.
+
+    Worked out for the whole run first, so every scan of such a source keeps its own alert whatever order the
+    groups are handled in.
+    """
+
+    scanning = {
+        candidate.log.src_ip
+        for group in grouped.values()
+        if group[0].primary_rule.code in INTERNET_SCANNING_RULES
+        for candidate in group
+        if candidate.log.src_ip
+    }
+    if not scanning:
+        return set()
+    found = {
+        candidate.log.src_ip
+        for group in grouped.values()
+        if _should_create_group_alert(group)
+        and (group[0].primary_rule.code not in INTERNET_SCANNING_RULES or _has_stronger_evidence(group))
+        for candidate in group
+        if candidate.log.src_ip in scanning
+    }
+    addresses = sorted(scanning - found)
+    for start in range(0, len(addresses), 900):
+        found.update(
+            db.scalars(
+                select(Alert.src_ip).where(
+                    Alert.src_ip.in_(addresses[start:start + 900]),
+                    Alert.status.in_(ALERT_DEDUP_ACTIVE_STATUSES),
+                    # The behaviour model's experimental alert is advice, not a finding that a scanner does more.
+                    Alert.alert_type.not_in([*INTERNET_SCANNING_RULES, INTERNET_SCANNING_ALERT, MODEL_ALERT_TYPE]),
+                )
+            )
+        )
+    return found
+
+
 def _should_create_group_alert(candidates: list[DetectionCandidate]) -> bool:
     if any(candidate.primary_rule.code == "watchlist_match" for candidate in candidates):
         return True
@@ -836,6 +899,11 @@ def run_detection(
             for grouped_candidates in grouped.values()
             if grouped_candidates
         }
+        if candidate_alert_types & INTERNET_SCANNING_RULES:
+            candidate_alert_types.add(INTERNET_SCANNING_ALERT)
+        sources_doing_more = _sources_doing_more(db, grouped)
+        internet_scanning: list[tuple[NormalizedLog | DetectionLogRecord, DetectionResult]] = []
+        internet_scanning_groups = 0
         if dedup_alert_cache is None:
             dedup_statement = select(Alert).where(
                 Alert.alert_type.in_(candidate_alert_types),
@@ -890,6 +958,13 @@ def run_detection(
                 suppressed_by_rules += 1
                 continue
             detections = [(candidate.log, candidate.result) for candidate in grouped_candidates]
+            # A scanner's own alert, if it has one still taking its activity, keeps taking its scans.
+            if _is_internet_scanning(grouped_candidates, sources_doing_more) and (
+                open_alert_for_group(db, grouped_candidates[0].primary_rule.code, group_logs, dedup_alerts) is None
+            ):
+                internet_scanning.extend(detections)
+                internet_scanning_groups += 1
+                continue
             alert = create_grouped_alert_from_detections(
                 db,
                 detections,
@@ -906,6 +981,21 @@ def run_detection(
                 created += 1
                 known_alert_objects.add(id(alert))
 
+        if internet_scanning:
+            live_source_ids = set(db.scalars(select(LogSource.id).where(LogSource.source_type == LIVE_SOURCE_TYPE)))
+            for alert, was_created in record_internet_scanning(
+                db,
+                internet_scanning,
+                live_source_ids=live_source_ids,
+                dedup_alerts=dedup_alerts,
+                evidence_id_cache=evidence_id_cache,
+                bulk_evidence=bounded_rule_mode,
+                pending_evidence=pending_evidence,
+            ):
+                touched_alerts.append(alert)
+                known_alert_objects.add(id(alert))
+                created += int(was_created)
+                deduplicated_alert_updates += int(not was_created)
         if pending_evidence is not None:
             insert_pending_alert_evidence_rows(db, pending_evidence)
         _runtime_profile_sample(db, runtime_profile, "alerts_built")
@@ -944,6 +1034,7 @@ def run_detection(
             "supporting_only_logs": supporting_only_logs,
             "p2p_policy_logs": p2p_policy_logs,
             "background_probe_logs": background_probe_logs,
+            "internet_scanning_groups": internet_scanning_groups,
             "rule_detection_authoritative": True,
             "detection_layers": detection_layers,
             "limit": limit,

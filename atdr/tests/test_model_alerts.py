@@ -75,6 +75,27 @@ def test_the_model_alerts_where_the_rules_did_not_and_says_it_is_experimental(db
     assert finding["model_alert_ids"] == [alert.id] and finding["status"] == "experimental_alert"
 
 
+def test_a_scanner_listed_on_the_hours_internet_scanning_alert_is_covered_by_it(db):  # noqa: F811
+    # Of live traffic only a sample of each scanner's logs is linked to that alert as evidence, so in its later
+    # windows of the hour the model saw the scanner as uncovered and raised its own alert on it.
+    _quiet_scanner(db)
+    model = _switched_on()
+    hour = START.replace(minute=0, second=0, microsecond=0)
+    listed = Alert(
+        title="Medium: Internet scanning from 1 outside address", alert_type="internet_scanning", threat_score=50,
+        severity="Medium", status="open", explanation="listed", recommended_response="listed",
+        matched_rules_json=[{"code": "group_metadata", "hour_start": hour.isoformat(), "scanners": {"10.1.0.20": {"connections": 12}}}],
+    )
+    db.add(listed)
+    db.commit()
+
+    finding = next(item for item in window_findings(db, START, model=model)["findings"] if item["source"] == "10.1.0.20")
+
+    assert (finding["found_by"], finding["alert_ids"]) == ("rules_and_model", [listed.id])
+    assert create_model_alerts(db, windows=[START], model=model)["created"] == 0
+    assert _model_alerts(db) == []
+
+
 def test_only_switched_on_types_raise_alerts(db):  # noqa: F811
     _quiet_scanner(db)
     assert create_model_alerts(db, windows=[START], model=_switched_on(("malware_c2",)))["created"] == 0

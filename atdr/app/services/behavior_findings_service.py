@@ -20,7 +20,7 @@ from sqlalchemy import Integer, cast, extract, func, select
 from sqlalchemy.orm import Session
 
 from atdr.app.db.models import Alert, AlertEvidence, NormalizedLog, RawLog
-from atdr.app.detection.attack_mapping import attack_mapping_for_type, infer_attack_type_from_rules
+from atdr.app.detection.attack_mapping import INTERNET_SCANNING_ALERT, attack_mapping_for_type, infer_attack_type_from_rules
 from atdr.app.detection.playbooks import PLAYBOOK_GUIDANCE
 from atdr.app.detection.rules import P2P_SUBCATEGORY, P2P_TECHNOLOGY
 from atdr.app.ml.behavior_features import LOG_COLUMNS, is_background_probe, window_features
@@ -157,6 +157,28 @@ def _in_training(model: BehaviorModel, start: datetime, end: datetime) -> bool:
     return start < datetime.fromisoformat(trained_to) and end > datetime.fromisoformat(trained_from)
 
 
+def _hour(moment: datetime) -> datetime:
+    return moment.replace(minute=0, second=0, microsecond=0, tzinfo=None)
+
+
+def _internet_scanning_alerts(db: Session, start: datetime, end: datetime) -> dict[str, int]:
+    """Each address listed on the internet scanning alert of the window's hour, with that alert's id."""
+
+    hours = {_hour(start), _hour(end - timedelta(seconds=1))}
+    listed: dict[str, int] = {}
+    recent = select(Alert.id, Alert.matched_rules_json).where(Alert.alert_type == INTERNET_SCANNING_ALERT).order_by(Alert.id.desc()).limit(200)
+    for alert_id, rules in db.execute(recent):
+        metadata = next((rule for rule in rules or [] if isinstance(rule, dict) and rule.get("code") == "group_metadata"), {})
+        try:
+            hour = _hour(datetime.fromisoformat(str(metadata.get("hour_start"))))
+        except ValueError:
+            continue
+        if hour in hours:
+            for address in metadata.get("scanners") or {}:
+                listed.setdefault(address, int(alert_id))
+    return listed
+
+
 def window_findings(db: Session, window_start: datetime | None = None, *, model: BehaviorModel | None = None, limit: int = 50) -> dict[str, Any]:
     model = model or load_model()
     start = window_start or latest_window_start(db)
@@ -194,7 +216,13 @@ def window_findings(db: Session, window_start: datetime | None = None, *, model:
     # Every flagged source is checked for a rule alert, not only the ones listed: counted from the top 50 by estimate,
     # the Overview said "0 found only by the model" while 5 of the model's experimental alerts were open, and listed
     # none of them. The model's own finds are listed first, highest estimate first.
-    rule_alert_ids = {index: linked(index, alerts_by_log) for index in flagged.index}
+    # A scanner listed on the hour's internet scanning alert is covered by it: of live traffic only a sample of its
+    # logs is linked as evidence, so its later windows in the hour have none, and the model alerted on it again.
+    scanning_alert = _internet_scanning_alerts(db, start, end)
+    rule_alert_ids = {
+        index: sorted({*linked(index, alerts_by_log), *([scanning_alert[index[0]]] if index[0] in scanning_alert else [])})
+        for index in flagged.index
+    }
     model_only = [index for index in flagged.index if not rule_alert_ids[index]]
     listed = [*model_only, *(index for index in flagged.index if rule_alert_ids[index])][:limit]
     rows = dict(flagged.iterrows())

@@ -136,14 +136,15 @@ def test_logs_arriving_live_are_alerted_exactly_as_when_checked_after_they_have_
     found = {log_id for _type, _severity, _score, evidence in expected if _type == alert_type for log_id in evidence}
     assert len(found) == attack_logs, "every log of the attack across the window edge is alerted as that attack"
 
-    # One step for the whole file alerts the same logs (it groups a scan that crosses a window edge into one alert,
-    # where window-sized steps make one per window: the two halves share no port for the merge to recognise).
+    # One step for the whole file alerts the same logs as that attack. A scan that crosses a window edge is one alert
+    # either way now: window-sized steps used to make one per window, because its halves share no destination port.
     at_once = _sessions()()
     _store(at_once, traffic, STORED)
     whole = run_automatic_detection(at_once, now=STORED + timedelta(seconds=QUIET), settings=settings)
     assert whole["evaluated"] == len(traffic) and whole["reason"] == "logs_stopped_arriving"
     assert {log_id for *_, evidence in _alerts(at_once) for log_id in evidence} == {log_id for *_, evidence in expected for log_id in evidence}
     assert {alert[0] for alert in _alerts(at_once)} == {alert[0] for alert in expected}
+    assert len([alert for alert in expected if alert[0] == alert_type]) == 1, "window by window, the attack is still one alert"
 
     live = _sessions()()
     checked_before_its_time = []

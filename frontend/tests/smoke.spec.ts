@@ -8394,6 +8394,53 @@ test("Overview says plainly when no behaviour model is trained", async ({ page }
   await expect(page.getByTestId("behavior-finding")).toHaveCount(0);
 });
 
+test("An internet scanning alert lists the hour's scanners, busiest first", async ({ page }) => {
+  // Every scanner used to get its own alert; one alert an hour lists them, so the list has to be readable.
+  await mockApi(page);
+  await seedSession(page);
+  const firstLoad = page.waitForResponse((response) => /\/api\/alerts\/1(\?|$)/.test(response.url()));
+  await page.goto("/alerts?alert=1");
+  const base = (await (await firstLoad).json()) as Record<string, unknown>;
+  await expect(page.getByTestId("internet-scanners")).toHaveCount(0);
+
+  const scanners: Record<string, { connections: number; targets: number; ports: number[]; kept: number }> = {
+    "198.51.100.7": { connections: 40, targets: 12, ports: [4040], kept: 20 },
+    "198.51.100.9": { connections: 1234, targets: 250, ports: [22, 3389], kept: 20 }
+  };
+  for (let index = 0; index < 20; index += 1) {
+    scanners[`192.0.2.${index + 1}`] = { connections: 100 + index, targets: 10, ports: [443], kept: 20 };
+  }
+  const scanning = {
+    ...base,
+    alert_type: "internet_scanning",
+    title: "Medium: Internet scanning from 22 outside addresses (20 May 13:00 to 14:00)",
+    severity: "Medium",
+    src_ip: null,
+    dst_ip: null,
+    matched_rules_json: [
+      { code: "internet_scanning", title: "Internet scanning", explanation: "Outside addresses scanned or probed MFU and did nothing else ATDR alerts on." },
+      { code: "group_metadata", occurrence_count: 3564, related_log_count: 440, scanner_count: 22, connections: 3564, scanners }
+    ]
+  };
+  await page.route("**/api/alerts**", async (route) => {
+    const url = route.request().url();
+    if (/\/api\/alerts\/1(\?|$)/.test(url)) return route.fulfill({ json: scanning });
+    if (/\/api\/alerts(\?|$)/.test(url)) return route.fulfill({ json: [scanning] });
+    return route.fallback();
+  });
+  await page.reload();
+
+  const table = page.getByTestId("internet-scanners");
+  await expect(table).toContainText("22 outside addresses scanned or probed MFU and did nothing else ATDR alerts on; the busiest 20 are shown.");
+  const rows = table.locator("tbody tr");
+  await expect(rows).toHaveCount(20);
+  await expect(rows.first()).toContainText("198.51.100.9");
+  await expect(rows.first()).toContainText("1,234");
+  await expect(rows.first()).toContainText("250 or more");
+  await expect(rows.first()).toContainText("22, 3389");
+  await expect(table).not.toContainText("198.51.100.7");
+});
+
 test("Alert details show the behaviour model's opinion next to the rules", async ({ page }) => {
   await mockApi(page);
   await seedSession(page);
