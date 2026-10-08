@@ -38,6 +38,7 @@ from atdr.app.services.job_service import (
     record_worker_heartbeat,
     recover_expired_leases,
 )
+from atdr.app.services.retention_service import RETENTION_EVERY_SECONDS, RetentionProgress, run_live_retention
 from atdr.app.services.resumable_ingestion_service import (
     CooperativeImportCancelled,
     CooperativeWorkerShutdown,
@@ -446,6 +447,24 @@ def _automatic_detection_look(worker_id: str, next_look: float) -> float:
     return time.monotonic() + (0.0 if more_due else float(settings.auto_detection_poll_seconds))
 
 
+def _retention_look(next_look: float, progress: RetentionProgress) -> float:
+    """With no queued job waiting, summarise and delete live syslog logs past their time; returns when to look again.
+
+    Never raises: like a failed automatic check, a failed pass must not stop the worker's queued jobs.
+    """
+
+    settings = get_settings()
+    if float(settings.syslog_retention_hours) <= 0 or time.monotonic() < next_look:
+        return next_look
+    more_due = False
+    try:
+        with SessionLocal() as db:
+            more_due = bool(run_live_retention(db, settings=settings, progress=progress).get("more_due"))
+    except Exception:
+        logger.exception("live log retention failed")
+    return time.monotonic() + (0.0 if more_due else RETENTION_EVERY_SECONDS)
+
+
 def run_worker_loop(
     *,
     worker_id: str | None = None,
@@ -458,6 +477,8 @@ def run_worker_loop(
     delay = max(0.1, float(poll_seconds if poll_seconds is not None else settings.operation_worker_poll_seconds))
     processed: list[dict[str, Any]] = []
     next_automatic_look = 0.0
+    next_retention_look = 0.0
+    retention_progress = RetentionProgress()
     with SessionLocal() as db:
         enforce_worker_concurrency(
             db,
@@ -482,6 +503,7 @@ def run_worker_loop(
             # Queued jobs come first; nothing is checked while a database backup holds the worker.
             if result.get("status") != "backup_coordination_pause":
                 next_automatic_look = _automatic_detection_look(active_worker_id, next_automatic_look)
+                next_retention_look = _retention_look(next_retention_look, retention_progress)
             if stop_event is not None:
                 stop_event.wait(delay)
             else:

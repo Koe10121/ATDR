@@ -41,6 +41,33 @@ def is_partial_parse(parsed: ParsedPaloAltoLog) -> bool:
     return parsed.error is None and parsed.parsed_json.get("parse_status", "parsed") != "parsed"
 
 
+# Not stored: the line's own fields are the raw line split again, about 1.1 KB of the parser's 1.8 KB copy. With
+# them a log row was about 2.4 KB, which fits once in a 4 KB database page, so 42% of the table was empty space.
+# parsed_json_for_display() reads them again from the raw line for the Log Explorer.
+UNSTORED_PARSED_KEYS = frozenset({"payload_fields"})
+
+
+def stored_parsed_json(parsed_json: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in parsed_json.items() if key not in UNSTORED_PARSED_KEYS}
+
+
+def parsed_json_for_display(parsed_json: Any, raw_line: str | None, parser_profile: str | None) -> Any:
+    """The parser's output as it was before storing, with the line's fields read again from the raw line."""
+
+    if not isinstance(parsed_json, dict) or "payload_fields" in parsed_json or not raw_line:
+        return parsed_json
+    reparsed = parse_log_line_for_profile(raw_line, parser_profile or parsed_json.get("parser_profile")).parsed_json
+    if "payload_fields" not in reparsed:
+        return parsed_json
+    shown: dict[str, Any] = {}
+    for key, value in parsed_json.items():
+        shown[key] = value
+        if key == "field_count":
+            shown["payload_fields"] = reparsed["payload_fields"]
+    shown.setdefault("payload_fields", reparsed["payload_fields"])
+    return shown
+
+
 def persist_parsed_log(db: Session, parsed: ParsedPaloAltoLog, *, source_id: int | None = None) -> NormalizedLog | None:
     raw = RawLog(
         source_id=source_id,
@@ -49,7 +76,7 @@ def persist_parsed_log(db: Session, parsed: ParsedPaloAltoLog, *, source_id: int
         syslog_timestamp=parsed.syslog_timestamp,
         device_hostname=parsed.device_hostname,
     )
-    normalized = NormalizedLog(parsed_json=parsed.parsed_json, **({} if parsed.error else parsed.normalized))
+    normalized = NormalizedLog(parsed_json=stored_parsed_json(parsed.parsed_json), **({} if parsed.error else parsed.normalized))
     raw.normalized = normalized
     db.add(raw)
     return normalized
@@ -174,7 +201,7 @@ def store_parsed_batch(
     # One insert per set of columns: a line that did not parse has none of the normalized fields.
     by_columns: dict[frozenset[str], list[dict[str, Any]]] = {}
     for raw_id, (parsed, _fingerprint) in zip(raw_ids, to_store):
-        row = {"raw_log_id": raw_id, "parsed_json": parsed.parsed_json, **({} if parsed.error else parsed.normalized)}
+        row = {"raw_log_id": raw_id, "parsed_json": stored_parsed_json(parsed.parsed_json), **({} if parsed.error else parsed.normalized)}
         by_columns.setdefault(frozenset(row), []).append(row)
     for rows in by_columns.values():
         db.execute(insert(NormalizedLog), rows)

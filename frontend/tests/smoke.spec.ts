@@ -2497,6 +2497,8 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
   await page.route("**/api/logs**", async (route) =>
     route.fulfill({ json: route.request().url().match(/\/api\/logs\/1(\?|$)/) ? smokeLog : [smokeLog] })
   );
+  // No live syslog logs have been deleted, so there are no hourly summaries.
+  await page.route("**/api/logs/hourly-summaries**", async (route) => route.fulfill({ json: [] }));
   await page.route("**/api/audit**", async (route) =>
     route.fulfill({
       json: deniedResponseAttempt
@@ -7680,6 +7682,7 @@ test("data & detection says whether the live syslog feed is receiving and how ma
     reported_at: new Date(now - 4_000).toISOString()
   };
   let liveFeed: Record<string, unknown> = { ...receiving, enabled: false, state: "off" };
+  let automatic: Record<string, unknown> | undefined;
   await mockApi(page);
   await page.route("**/api/demo/detection-coverage**", async (route) =>
     route.fulfill({
@@ -7691,6 +7694,7 @@ test("data & detection says whether the live syslog feed is receiving and how ma
         limit: 1000,
         newest_log_id_range: [11001, 12000],
         unchecked_batch_size: 5000,
+        automatic,
         live_feed: liveFeed
       }
     })
@@ -7700,6 +7704,29 @@ test("data & detection says whether the live syslog feed is receiving and how ma
 
   const feed = page.getByTestId("live-feed");
   await expect(feed).toHaveText("Live syslog is off. Logs arrive only through imports.");
+
+  liveFeed = receiving;
+  await page.reload();
+  await expect(feed).toContainText("Live syslog is receiving on UDP port 5514.");
+  await expect(feed).not.toContainText("Logs are kept for");
+
+  liveFeed = { ...receiving, keep_hours: 6, min_free_disk_gb: 10, free_disk_gb: 150.2, disk_low: false, dropped_disk_low: 0 };
+  await page.reload();
+  // Only checked logs are deleted, so with automatic checks off the page must not promise six hours.
+  await expect(feed).toContainText(
+    "Logs are meant to be kept for 6 hours, but only checked logs are deleted and automatic checks are not running, so they pile up."
+  );
+
+  automatic = { enabled: true, worker_running: true, quiet_seconds: 120, window_minutes: 5, last_check: null };
+  await page.reload();
+  await expect(feed).toContainText("Logs are kept for 6 hours, then summarised by hour; alert evidence stays.");
+
+  // A full disk breaks every part of ATDR, so the feed stops saving first, and the page says so.
+  liveFeed = { ...receiving, keep_hours: 6, min_free_disk_gb: 10, free_disk_gb: 3.24, disk_low: true, dropped_disk_low: 40, dropped: 90 };
+  await page.reload();
+  await expect(feed).toHaveText(
+    "Live syslog is paused: the disk is almost full. Less than 10 GB is free (3.2 GB now), so new lines are counted as lost instead of saved: 40 lines so far. Saving resumes by itself when space is freed."
+  );
 
   liveFeed = receiving;
   await page.reload();
@@ -7718,6 +7745,44 @@ test("data & detection says whether the live syslog feed is receiving and how ma
   liveFeed = { ...receiving, state: "not_started", received: 0, saved: 0, dropped: 0 };
   await page.reload();
   await expect(feed).toHaveText("Live syslog is on, but the receiver has not started. Firewall logs sent now are not received. Restart ATDR to start it.");
+});
+
+test("log explorer shows hourly summaries of deleted live traffic and follows the source filter", async ({ page }) => {
+  // Live syslog logs are deleted after a few hours; without this an analyst could not see what an address did before.
+  const summaries = [
+    { hour_start: "2026-10-08T03:00:00+00:00", source_id: 2, src_ip: "10.1.2.3", connections: 12345, denied: 67, bytes_sent: 1500000, bytes_received: 2300000000, destinations: 89, destination_ports: 4, first_seen: null, last_seen: null },
+    { hour_start: "2026-10-08T02:00:00+00:00", source_id: 2, src_ip: "198.51.100.9", connections: 1, denied: 1, bytes_sent: 60, bytes_received: 0, destinations: 1, destination_ports: 1, first_seen: null, last_seen: null }
+  ];
+  let stored = false;
+  await mockApi(page);
+  await page.route("**/api/logs/hourly-summaries**", async (route) => {
+    const wanted = new URL(route.request().url()).searchParams.get("src_ip");
+    const rows = stored ? summaries.filter((row) => !wanted || row.src_ip === wanted) : [];
+    await route.fulfill({
+      json: rows,
+      headers: { "X-Total-Count": String(wanted ? rows.length : stored ? 4321 : 0), "Access-Control-Expose-Headers": "X-Total-Count" }
+    });
+  });
+  await seedSession(page);
+  await page.goto("/logs");
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  const panel = page.getByTestId("hourly-summaries");
+  await expect(panel).toHaveCount(0);
+
+  stored = true;
+  await page.reload();
+  await expect(panel).toContainText("Older live traffic, by hour");
+  await expect(panel).toContainText("4,321 rows; the newest 2 are shown.");
+  const first = panel.locator("tbody tr").first();
+  await expect(first).toContainText("10.1.2.3");
+  await expect(first).toContainText("12,345");
+  await expect(first).toContainText("1.5 MB");
+  await expect(first).toContainText("2.3 GB");
+  await expect(panel.locator("tbody tr").nth(1)).toContainText("60 bytes");
+
+  await page.getByLabel("Log source IP").fill("198.51.100.9");
+  await expect(panel).toContainText("1 row for 198.51.100.9; the newest 1 are shown.");
+  await expect(panel.locator("tbody tr")).toHaveCount(1);
 });
 
 test("demo import strips copy-as-path quotes before sending sample path", async ({ page }) => {

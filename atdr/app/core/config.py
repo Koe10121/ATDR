@@ -215,6 +215,14 @@ class Settings(BaseSettings):
     syslog_receive_buffer_bytes: int = Field(default=16 * 1024 * 1024, alias="SYSLOG_RECEIVE_BUFFER_BYTES")
     # How often the receiver saves its counts for the dashboard.
     syslog_status_seconds: float = Field(default=10.0, alias="SYSLOG_STATUS_SECONDS")
+    # Logs received over syslog are deleted this many hours after they arrive, once detection has checked them,
+    # unless they are alert evidence or labelled; each hour is summarised first. Imported files are never deleted.
+    # 0 keeps every log.
+    syslog_retention_hours: float = Field(default=6.0, alias="SYSLOG_RETENTION_HOURS")
+    # How long the hourly summaries of deleted live logs are kept (0 keeps them all).
+    syslog_summary_retention_days: int = Field(default=30, alias="SYSLOG_SUMMARY_RETENTION_DAYS")
+    # Below this much free disk the receiver stops saving (lines are counted as lost) and the page warns.
+    syslog_min_free_disk_gb: float = Field(default=10.0, alias="SYSLOG_MIN_FREE_DISK_GB")
 
     # ---- Login rate limiting ----
     login_rate_limit_attempts: int = Field(default=5, alias="LOGIN_RATE_LIMIT_ATTEMPTS")
@@ -697,6 +705,13 @@ def validate_runtime_settings(settings: Settings) -> list[str]:
     ):
         if value <= 0:
             issues.append(f"{name} must be greater than zero.")
+    for name, value in (
+        ("SYSLOG_RETENTION_HOURS", settings.syslog_retention_hours),
+        ("SYSLOG_SUMMARY_RETENTION_DAYS", settings.syslog_summary_retention_days),
+        ("SYSLOG_MIN_FREE_DISK_GB", settings.syslog_min_free_disk_gb),
+    ):
+        if value < 0:
+            issues.append(f"{name} cannot be negative.")
     if settings.auto_detection_quiet_seconds <= 0:
         issues.append("AUTO_DETECTION_QUIET_SECONDS must be greater than zero.")
     if settings.auto_detection_poll_seconds <= 0:

@@ -14,19 +14,21 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import ipaddress
 import logging
+from pathlib import Path
 import queue
+import shutil
 import socket
 import threading
 import time
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from atdr.app.core.config import get_settings
 from atdr.app.db.database import SessionLocal, init_db
-from atdr.app.db.models import AuditLog, IngestionRun, LogSource
+from atdr.app.db.models import AuditLog, IngestionRun, LogSource, TrafficHourlySummary
 from atdr.app.parsers.paloalto_parser import parse_log_line_for_profile
 from atdr.app.services.log_service import StoredBatch, store_parsed_batch
 from atdr.app.services.operation_run_service import complete_ingestion_run, start_ingestion_run
@@ -47,6 +49,8 @@ BUSY_RETRY_DELAYS = (0.1, 0.25, 0.5, 1.0, 2.0)
 STOPPING_BUSY_LIMIT_SECONDS = 60.0
 CLOSING_BUSY_LIMIT_SECONDS = 10.0
 RATE_WINDOW_SECONDS = 60.0
+# How often the receiver looks at the free disk space.
+DISK_CHECK_SECONDS = 10.0
 
 
 @dataclass
@@ -80,6 +84,9 @@ class _Saved:
     duplicates: int = 0
     unstorable: int = 0
     dropped_at_stop: int = 0
+    dropped_disk_low: int = 0
+    disk_low: bool = False
+    free_disk_gb: float | None = None
     gave_up: bool = False
     batches: int = 0
     busy_retries: int = 0
@@ -92,6 +99,37 @@ class _Saved:
         self.duplicates += stored.skipped_repeats
         if stored.stored:
             self.parser_quality = merge_runtime_parser_quality(self.parser_quality, stored.parser_quality)
+
+
+def _dropped(state: "_Received", saved: _Saved) -> int:
+    """Every line received and not saved: no room in memory, the disk nearly full, or still unsaved at a stop."""
+
+    return state.dropped + saved.dropped_at_stop + saved.dropped_disk_low
+
+
+def _database_folder(make_session: Callable[[], Session]) -> Path | None:
+    """The folder of a SQLite database file, whose disk the receiver watches; None for any other database."""
+
+    with make_session() as db:
+        url = db.get_bind().url
+    if not url.drivername.startswith("sqlite") or url.database in (None, "", ":memory:"):
+        return None
+    return Path(url.database).resolve().parent
+
+
+def _look_at_disk(folder: Path | None, min_free_gb: float, saved: _Saved) -> None:
+    if folder is None or min_free_gb <= 0:
+        saved.disk_low = False
+        return
+    try:
+        saved.free_disk_gb = shutil.disk_usage(folder).free / 1e9
+    except OSError:
+        return
+    was_low, saved.disk_low = saved.disk_low, saved.free_disk_gb < min_free_gb
+    if saved.disk_low and not was_low:
+        logger.warning("Disk almost full (%.1f GB free): syslog lines are counted as lost, not saved.", saved.free_disk_gb)
+    elif was_low and not saved.disk_low:
+        logger.info("Disk space is back (%.1f GB free): syslog lines are saved again.", saved.free_disk_gb)
 
 
 def _is_loopback(host: str) -> bool:
@@ -297,11 +335,14 @@ def _status(
 ) -> dict[str, Any]:
     return {
         **base,
-        "dropped": state.dropped + saved.dropped_at_stop,
+        "dropped": _dropped(state, saved),
         "pending": pending.qsize(),
         "unstorable": saved.unstorable,
         "busy_retries": saved.busy_retries,
         "batches": saved.batches,
+        "dropped_disk_low": saved.dropped_disk_low,
+        "disk_low": saved.disk_low,
+        "free_disk_gb": None if saved.free_disk_gb is None else round(saved.free_disk_gb, 1),
         "lines_per_second": None if rate is None else round(rate, 1),
         "last_received_at": state.last_received_at.isoformat() if state.last_received_at else None,
         "reported_at": datetime.now(timezone.utc).isoformat(),
@@ -374,6 +415,7 @@ def run_udp_syslog_receiver(
     receive_buffer_bytes: int | None = None,
     max_pending: int | None = None,
     status_seconds: float | None = None,
+    min_free_disk_gb: float | None = None,
 ) -> dict:
     """Receive UDP syslog until max_messages lines, socket_timeout seconds without a datagram, or stop_event.
 
@@ -388,6 +430,7 @@ def run_udp_syslog_receiver(
     save_within = flush_seconds or settings.syslog_flush_seconds
     pending_limit = max(1, int(max_pending or settings.syslog_max_pending_lines))
     report_every = status_seconds or settings.syslog_status_seconds
+    min_free_gb = float(settings.syslog_min_free_disk_gb if min_free_disk_gb is None else min_free_disk_gb)
 
     if initialize_database:
         init_db()
@@ -406,6 +449,7 @@ def run_udp_syslog_receiver(
             "max_messages": max_messages,
             "max_pending": pending_limit,
             "receive_buffer_bytes": granted_buffer,
+            "min_free_disk_gb": min_free_gb,
         }
         with make_session() as db:
             closed = _close_runs_left_open(db, _stale_after(report_every))
@@ -432,11 +476,20 @@ def run_udp_syslog_receiver(
 
         sources: dict[str, int] = {}
         samples: deque[tuple[float, int]] = deque()
+        folder = _database_folder(make_session)
+        _look_at_disk(folder, min_free_gb, saved)
+        next_disk_look = time.monotonic() + DISK_CHECK_SECONDS
         next_report = time.monotonic() + report_every
         next_audit = time.monotonic() + AUDIT_EVERY_SECONDS
         while True:
             batch = _next_batch(pending, flush_every, save_within, finished)
-            if batch:
+            if time.monotonic() >= next_disk_look:
+                _look_at_disk(folder, min_free_gb, saved)
+                next_disk_look = time.monotonic() + DISK_CHECK_SECONDS
+            if batch and saved.disk_low:
+                # A full disk breaks every part of ATDR, so the feed gives way first; the page says so.
+                saved.dropped_disk_low += len(batch)
+            elif batch:
                 _save(make_session, batch, sources, saved, finished)
             if saved.gave_up:
                 # Asked to stop, and the database stayed busy: the rest would each wait as long again. Count them.
@@ -492,7 +545,9 @@ def run_udp_syslog_receiver(
         "parsed": saved.parsed,
         "failed": saved.failed,
         "duplicates": saved.duplicates,
-        "dropped": state.dropped + saved.dropped_at_stop,
+        "dropped": _dropped(state, saved),
+        "dropped_disk_low": saved.dropped_disk_low,
+        "disk_low": saved.disk_low,
         "unstorable": saved.unstorable,
         "busy_retries": saved.busy_retries,
         "batches": saved.batches,
@@ -541,6 +596,9 @@ def live_feed_status(db: Session, *, settings: Any = None, now: datetime | None 
         state = "stopped"
     started = _moment(run.started_at) if run is not None else None
     finished = _moment(run.finished_at) if run is not None else None
+    summaries_from, summaries_to = db.execute(
+        select(func.min(TrafficHourlySummary.hour_start), func.max(TrafficHourlySummary.hour_start))
+    ).one()
     return {
         "enabled": bool(settings.syslog_enabled),
         "state": state,
@@ -553,6 +611,15 @@ def live_feed_status(db: Session, *, settings: Any = None, now: datetime | None 
         "lines_per_second": details.get("lines_per_second"),
         "last_received_at": details.get("last_received_at"),
         "reported_at": reported.isoformat() if reported else None,
+        # Saving pauses below the free-disk floor; lines received meanwhile are counted as lost.
+        "disk_low": state == "receiving" and bool(details.get("disk_low")),
+        "dropped_disk_low": int(details.get("dropped_disk_low") or 0),
+        "free_disk_gb": details.get("free_disk_gb"),
+        "min_free_disk_gb": float(settings.syslog_min_free_disk_gb),
+        # Live logs are kept this long, then summarised by hour (the worker does it).
+        "keep_hours": float(settings.syslog_retention_hours),
+        "summaries_from": _moment(summaries_from).isoformat() if summaries_from else None,
+        "summaries_to": _moment(summaries_to).isoformat() if summaries_to else None,
     }
 
 
@@ -578,7 +645,7 @@ def _audit(state: _Received, saved: _Saved, bind_host: str, bind_port: int) -> A
             "parsed": saved.parsed,
             "failed": saved.failed,
             "duplicates": saved.duplicates,
-            "dropped": state.dropped + saved.dropped_at_stop,
+            "dropped": _dropped(state, saved),
             "unstorable": saved.unstorable,
             "sender_count": len(state.senders),
             "non_loopback_sender_observed": state.non_loopback_sender_observed,

@@ -202,6 +202,21 @@ def test_while_a_check_reads_and_judges_its_logs_other_writers_are_not_held_up(t
     assert db.scalar(select(DetectionRun.status).where(DetectionRun.id == result["detection_run_id"])) == "completed"
 
 
+def test_logs_that_are_already_alert_evidence_are_not_judged_again():
+    # Only the batch's own logs are looked up among the evidence (every evidence row ever stored grows with a
+    # live feed), and that must still find them.
+    db = _sessions()()
+    _store(db, _traffic("scan"), STORED)
+
+    first = run_detection(db, limit=None, use_ml=False, actor="test")
+    alerts = _alerts(db)
+    again = run_detection(db, limit=None, use_ml=False, actor="test")
+
+    assert first["created_alerts"] > 0
+    assert (again["created_alerts"], again["deduplicated_alert_updates"]) == (0, 0)
+    assert _alerts(db) == alerts
+
+
 def test_a_check_left_running_by_an_ended_process_is_closed_by_the_next_one():
     # A run's record is saved when it starts, so stopping ATDR mid-check used to leave it "running" for good.
     db = _sessions()()

@@ -19,6 +19,14 @@ settings = get_settings()
 config.set_main_option("sqlalchemy.url", settings.database_url)
 target_metadata = Base.metadata
 
+# Indexes on an expression are created by their own migration. SQLite cannot read them back to compare, and
+# PostgreSQL may read back the same expression in another form, so drift checks leave them out.
+EXPRESSION_INDEXES = frozenset({"ix_normalized_logs_event_time"})
+
+
+def include_object(obj, name, type_, reflected, compare_to) -> bool:
+    return not (type_ == "index" and name in EXPRESSION_INDEXES)
+
 
 def run_migrations_offline() -> None:
     context.configure(
@@ -27,6 +35,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
+        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -37,7 +46,7 @@ def run_migrations_online() -> None:
     connectable = create_configured_engine(settings, poolclass=pool.NullPool)
 
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata, compare_type=True)
+        context.configure(connection=connection, target_metadata=target_metadata, compare_type=True, include_object=include_object)
 
         with context.begin_transaction():
             context.run_migrations()

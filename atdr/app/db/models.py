@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint, func, true
+from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint, func, true
 from sqlalchemy.orm import Mapped, foreign, mapped_column, relationship
 
 from atdr.app.core.log_fingerprint import raw_line_fingerprint_default
@@ -498,6 +498,30 @@ class MLShadowObservation(Base):
     )
 
 
+class TrafficHourlySummary(Base):
+    """One source address's traffic in one hour of the live syslog feed, kept after that hour's logs are deleted.
+
+    The hour is when ATDR received the logs. Counts cover every log received in that hour, alert evidence included.
+    """
+
+    __tablename__ = "traffic_hourly_summaries"
+    __table_args__ = (UniqueConstraint("hour_start", "source_id", "src_ip", name="uq_traffic_hourly_summary"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    hour_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    source_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    src_ip: Mapped[str | None] = mapped_column(String(64), index=True)
+    connections: Mapped[int] = mapped_column(Integer, nullable=False)
+    denied: Mapped[int] = mapped_column(Integer, nullable=False)
+    bytes_sent: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    bytes_received: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    destinations: Mapped[int] = mapped_column(Integer, nullable=False)
+    destination_ports: Mapped[int] = mapped_column(Integer, nullable=False)
+    first_seen: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_seen: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
 class IngestionRun(Base):
     __tablename__ = "ingestion_runs"
 
@@ -650,6 +674,12 @@ Index("ix_operation_jobs_queue_claim", OperationJob.status, OperationJob.next_at
 Index("ix_operation_jobs_original_status", OperationJob.original_job_id, OperationJob.status)
 Index("ix_raw_logs_id_source_id_cover", RawLog.id, RawLog.source_id)
 Index("ix_normalized_logs_id_raw_log_id_cover", NormalizedLog.id, NormalizedLog.raw_log_id)
+# Automatic detection asks for the newest log's event time on every look. Without this index that read every
+# stored log: 1.9 s at 638,000 logs, about 40 s for six hours of MFU's firewall traffic.
+Index(
+    "ix_normalized_logs_event_time",
+    func.coalesce(NormalizedLog.generated_time, NormalizedLog.receive_time, NormalizedLog.high_res_timestamp, NormalizedLog.start_time),
+)
 Index("ix_normalized_anomaly_app", NormalizedLog.is_anomaly, NormalizedLog.app)
 Index("ix_normalized_anomaly_dst_port", NormalizedLog.is_anomaly, NormalizedLog.dst_port)
 Index("ix_normalized_anomaly_src_ip", NormalizedLog.is_anomaly, NormalizedLog.src_ip)

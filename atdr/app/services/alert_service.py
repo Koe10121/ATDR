@@ -1545,8 +1545,13 @@ def existing_evidence_log_ids(
     db: Session,
     *,
     source_id: int | None = None,
+    log_id_range: tuple[int, int] | None = None,
 ) -> set[int]:
+    """Logs already used as alert evidence; within log_id_range only, when given (a detection batch's logs)."""
+
     statement = select(AlertEvidence.normalized_log_id)
+    if log_id_range is not None:
+        statement = statement.where(AlertEvidence.normalized_log_id.between(*log_id_range))
     if source_id is not None:
         statement = (
             statement.join(

@@ -348,12 +348,24 @@ def _unchecked_batch_clause(
     return time_expr < correlation_window_start(last_time) + CORRELATION_WINDOW, False
 
 
-def dataset_outlier_thresholds(db: Session) -> tuple[float, float]:
-    """Byte and packet outlier thresholds over all stored logs.
+# The bars come from the newest stored logs, not all of them: reading every log of a day-long live feed took
+# seconds for each batch. Every imported dataset so far is far smaller, so its bars are unchanged.
+OUTLIER_BASELINE_LOGS = 1_000_000
 
-    Computed from the whole dataset rather than the current batch, so the
+
+def dataset_outlier_thresholds(db: Session) -> tuple[float, float]:
+    """Byte and packet outlier thresholds over the newest OUTLIER_BASELINE_LOGS stored logs.
+
+    Computed from the stored logs rather than the current batch, so the
     same log is judged against the same bar whatever batch it lands in.
     """
+
+    newest = (
+        select(NormalizedLog.bytes, NormalizedLog.packets)
+        .order_by(NormalizedLog.id.desc())
+        .limit(OUTLIER_BASELINE_LOGS)
+        .subquery()
+    )
 
     def bar(column, floor: float) -> float:
         value = cast(column, Float)
@@ -365,7 +377,7 @@ def dataset_outlier_thresholds(db: Session) -> tuple[float, float]:
         std_value = max(float(mean_square) - float(mean_value) ** 2, 0.0) ** 0.5
         return outlier_threshold(int(count), float(mean_value), std_value, floor)
 
-    return bar(NormalizedLog.bytes, BYTE_OUTLIER_FLOOR), bar(NormalizedLog.packets, PACKET_OUTLIER_FLOOR)
+    return bar(newest.c.bytes, BYTE_OUTLIER_FLOOR), bar(newest.c.packets, PACKET_OUTLIER_FLOOR)
 
 
 def _bounded_detection_records(
@@ -715,9 +727,12 @@ def run_detection(
             outlier_thresholds=dataset_outlier_thresholds(db),
         )
         _runtime_profile_sample(db, runtime_profile, "context_built")
+        # Only this batch's logs are looked up: evidence is kept for good, so every evidence row ever stored
+        # would grow with each day of a live feed.
         already_alerted = existing_evidence_log_ids(
             db,
             source_id=source_id,
+            log_id_range=(min(evaluated_log_ids), max(evaluated_log_ids)) if evaluated_log_ids else (0, -1),
         )
         watchlist = WatchlistIndex(list_watchlist_items(db, active_only=True))
         candidates: list[DetectionCandidate] = []

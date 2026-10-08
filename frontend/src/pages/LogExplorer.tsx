@@ -13,11 +13,27 @@ import { SafeSelect } from "../components/SafeSelect";
 import { SocPageHeader } from "../components/SocPageHeader";
 import { TableToolbar, tableDensityClass } from "../components/TableToolbar";
 import type { SavedView, TableDensity } from "../components/TableToolbar";
-import { useLog, useLogsPage, useMlLabelMutations, useMlLabels, useSources } from "../hooks/useApiQueries";
+import { useHourlySummaries, useLog, useLogsPage, useMlLabelMutations, useMlLabels, useSources } from "../hooks/useApiQueries";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { usePersistentState } from "../hooks/usePersistentState";
 import { normalizeSavedViews, normalizeStringState } from "../lib/safeTableState";
 import type { MLAttackType, MLLabelValue, NormalizedLog } from "../types/api";
+
+const wholeNumber = (value: number) => value.toLocaleString("en-US");
+
+function dataSize(bytes: number): string {
+  const units = ["bytes", "KB", "MB", "GB", "TB"];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1000 && unit < units.length - 1) {
+    value /= 1000;
+    unit += 1;
+  }
+  return `${unit === 0 ? wholeNumber(value) : value.toFixed(1)} ${units[unit]}`;
+}
+
+const hourLabel = (value: string) =>
+  new Date(value).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 const LABEL_OPTIONS: MLLabelValue[] = ["benign", "benign_unusual", "suspicious", "malicious", "needs_context"];
 const ATTACK_TYPE_OPTIONS: MLAttackType[] = [
@@ -97,6 +113,10 @@ export function LogExplorer() {
   const debouncedSearch = useDebouncedValue(search);
   const queryFilters = useDebouncedValue(safeFilters);
   const logs = useLogsPage({ search: debouncedSearch, ...queryFilters, limit, offset });
+  // Live syslog logs are deleted after a few hours; what each source address did in each hour is kept.
+  const summarySource = queryFilters.src_ip.trim();
+  const summaries = useHourlySummaries({ src_ip: summarySource || undefined, limit: 50 });
+  const summaryRows = summaries.data?.items ?? [];
   const sources = useSources({ limit: 100 });
   const sourceOptions = useMemo(
     () => [
@@ -316,6 +336,50 @@ export function LogExplorer() {
       </section>
 
       <PaginationControls limit={limit} offset={offset} resultCount={logRows.length} totalCount={logs.data?.totalCount} onLimitChange={setLimit} onOffsetChange={setOffset} />
+
+      {summaryRows.length ? (
+        <section className="panel space-y-3" data-testid="hourly-summaries" aria-labelledby="hourly-summaries-title">
+          <div>
+            <h2 id="hourly-summaries-title" className="text-sm font-extrabold uppercase tracking-wide text-muted">Older live traffic, by hour</h2>
+            <p className="mt-1 text-sm text-muted">
+              Logs from the live syslog feed are deleted after a few hours unless they are alert evidence. Before that, what each source
+              address did in each hour is kept here. {wholeNumber(summaries.data?.totalCount ?? summaryRows.length)}{" "}
+              {(summaries.data?.totalCount ?? summaryRows.length) === 1 ? "row" : "rows"}
+              {summarySource ? ` for ${summarySource}` : ""}; the newest {wholeNumber(summaryRows.length)} are shown. Use the Source IP filter to follow one address.
+            </p>
+          </div>
+          <div className="overflow-auto">
+            <table className={tableDensityClass(density)}>
+              <thead>
+                <tr>
+                  <th>Hour received</th>
+                  <th>Source</th>
+                  <th>Connections</th>
+                  <th>Denied</th>
+                  <th>Sent</th>
+                  <th>Received</th>
+                  <th>Destinations</th>
+                  <th>Destination ports</th>
+                </tr>
+              </thead>
+              <tbody>
+                {summaryRows.map((row) => (
+                  <tr key={`${row.hour_start}-${row.source_id}-${row.src_ip ?? ""}`}>
+                    <td>{hourLabel(row.hour_start)}</td>
+                    <td>{row.src_ip ?? "-"}</td>
+                    <td>{wholeNumber(row.connections)}</td>
+                    <td>{wholeNumber(row.denied)}</td>
+                    <td>{dataSize(row.bytes_sent)}</td>
+                    <td>{dataSize(row.bytes_received)}</td>
+                    <td>{wholeNumber(row.destinations)}</td>
+                    <td>{wholeNumber(row.destination_ports)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
 
       <DetailDrawer title={`Log ${selected?.id ?? ""}`} open={Boolean(selectedId)} onClose={closeLog}>
         {selected ? (

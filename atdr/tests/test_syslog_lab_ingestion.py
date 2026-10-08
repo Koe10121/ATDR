@@ -391,6 +391,51 @@ def test_a_receiver_stopped_while_the_database_stays_busy_gives_up_once_for_the_
     assert (result["saved"], result["dropped"]) == (0, 50)
 
 
+def test_receiver_stops_saving_when_the_disk_is_almost_full_counts_the_lines_and_resumes(tmp_path, monkeypatch):
+    # A full disk breaks every part of ATDR, so the feed gives way first, and says so.
+    from types import SimpleNamespace
+
+    free_gb = {"now": 1.0}
+    monkeypatch.setattr(syslog_service.shutil, "disk_usage", lambda _folder: SimpleNamespace(free=free_gb["now"] * 1e9))
+    monkeypatch.setattr(syslog_service, "DISK_CHECK_SECONDS", 0.05)
+    receiver_session, checker = _file_database(tmp_path)
+    port = _free_udp_port()
+    stop = threading.Event()
+    lines = _distinct_traffic_lines(25)
+    thread, result = _start_receiver(
+        receiver_session, port, batch_size=10, socket_timeout=30, flush_seconds=0.05, status_seconds=0.1, stop_event=stop,
+        min_free_disk_gb=10,
+    )
+
+    def reported() -> dict:
+        with checker() as db:
+            run = db.scalar(select(IngestionRun).where(IngestionRun.source_type == "syslog_udp"))
+            return dict(run.details_json) if run is not None else {}
+
+    _send(port, lines[:20], per_second=200)
+    deadline = time.monotonic() + 5
+    while reported().get("dropped") != 20 and time.monotonic() < deadline:
+        time.sleep(0.05)
+    paused = reported()
+    assert (paused["disk_low"], paused["dropped"], paused["dropped_disk_low"]) == (True, 20, 20)
+    assert _stored_raw_logs(checker) == 0
+
+    free_gb["now"] = 50.0
+    deadline = time.monotonic() + 5
+    while reported().get("disk_low") and time.monotonic() < deadline:
+        time.sleep(0.05)
+    _send(port, lines[20:], per_second=200)
+    deadline = time.monotonic() + 5
+    while _stored_raw_logs(checker) < 5 and time.monotonic() < deadline:
+        time.sleep(0.05)
+    stop.set()
+    thread.join(5)
+
+    assert thread.is_alive() is False
+    assert (result["received"], result["saved"], result["dropped"], result["dropped_disk_low"]) == (25, 5, 20, 20)
+    assert result["disk_low"] is False
+
+
 def test_the_receiver_service_starts_again_after_a_failure_without_logging_log_lines(monkeypatch, caplog):
     import logging
     import sys
@@ -448,6 +493,12 @@ def test_the_page_is_told_whether_the_live_feed_is_receiving_and_what_was_lost()
         assert {key: receiving[key] for key in ("state", "received", "saved", "dropped", "lines_per_second")} == {
             "state": "receiving", "received": 1200, "saved": 1150, "dropped": 50, "lines_per_second": 600.0,
         }
+        assert (receiving["keep_hours"], receiving["min_free_disk_gb"]) == (on.syslog_retention_hours, on.syslog_min_free_disk_gb)
+        assert (receiving["disk_low"], receiving["summaries_from"], receiving["summaries_to"]) == (False, None, None)
+        run.details_json = {**run.details_json, "disk_low": True, "dropped_disk_low": 40, "free_disk_gb": 3.2}
+        db.commit()
+        paused = live_feed_status(db, settings=on, now=now)
+        assert (paused["disk_low"], paused["dropped_disk_low"], paused["free_disk_gb"]) == (True, 40, 3.2)
         # Three reports missed (every 10 s, so 30 s): the receiver's process is gone although its run says running.
         assert live_feed_status(db, settings=on, now=now + timedelta(seconds=26))["state"] == "not_reporting"
         assert live_feed_status(db, settings=off, now=now)["state"] == "receiving", "a running receiver shows even if switched off since"

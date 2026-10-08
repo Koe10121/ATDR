@@ -23,8 +23,22 @@ function secondsAgo(value: string | null): string {
   return minutes < 60 ? `${plural(minutes, "minute", "minutes")} ago` : `at ${clock(value)}`;
 }
 
-function liveFeedText(feed: LiveFeedStatus): { state: string; detail: string } {
+function liveFeedText(feed: LiveFeedStatus, automaticChecksRunning: boolean): { state: string; detail: string } {
   const lost = feed.dropped ? `${plural(feed.dropped, "line", "lines")} lost` : "none lost";
+  // Only logs detection has checked are deleted, so without automatic checks nothing would go.
+  const kept = !feed.keep_hours
+    ? ""
+    : automaticChecksRunning
+      ? ` Logs are kept for ${plural(feed.keep_hours, "hour", "hours")}, then summarised by hour; alert evidence stays.`
+      : ` Logs are meant to be kept for ${plural(feed.keep_hours, "hour", "hours")}, but only checked logs are deleted and automatic checks are not running, so they pile up.`;
+  if (feed.state === "receiving" && feed.disk_low) {
+    return {
+      state: "Live syslog is paused: the disk is almost full.",
+      detail: `Less than ${count(feed.min_free_disk_gb ?? 0)} GB is free${
+        feed.free_disk_gb === null || feed.free_disk_gb === undefined ? "" : ` (${feed.free_disk_gb.toFixed(1)} GB now)`
+      }, so new lines are counted as lost instead of saved: ${plural(feed.dropped_disk_low ?? 0, "line", "lines")} so far. Saving resumes by itself when space is freed.`
+    };
+  }
   switch (feed.state) {
     case "off":
       return { state: "Live syslog is off.", detail: "Logs arrive only through imports." };
@@ -45,7 +59,7 @@ function liveFeedText(feed: LiveFeedStatus): { state: string; detail: string } {
       const last = feed.last_received_at ? ` Last line ${secondsAgo(feed.last_received_at)}.` : " No line has arrived yet.";
       return {
         state: `Live syslog is receiving on UDP port ${feed.port}.`,
-        detail: `${rate}Since ${clock(feed.started_at)}: ${plural(feed.received, "line", "lines")} received, ${count(feed.saved)} saved, ${lost}.${last}`
+        detail: `${rate}Since ${clock(feed.started_at)}: ${plural(feed.received, "line", "lines")} received, ${count(feed.saved)} saved, ${lost}.${last}${kept}`
       };
     }
   }
@@ -113,8 +127,8 @@ export function DemoControls() {
   const coverage = useDetectionCoverage(useDebouncedValue(allLogs ? null : typedLimit));
   const coverageData = coverage.data;
   const automatic = coverageData?.automatic ? automaticChecksText(coverageData.automatic) : null;
-  const liveFeed = coverageData?.live_feed ? liveFeedText(coverageData.live_feed) : null;
   const automaticOn = Boolean(coverageData?.automatic?.enabled && coverageData.automatic.worker_running);
+  const liveFeed = coverageData?.live_feed ? liveFeedText(coverageData.live_feed, automaticOn) : null;
   const newestRange = !allLogs && typedLimit ? coverageData?.newest_log_id_range ?? null : null;
   const rangeText = newestRange ? ` (log IDs ${count(newestRange[0])} to ${count(newestRange[1])})` : "";
   const amount = allLogs ? "all" : typedLimit ? `the newest ${count(typedLimit)}` : "the newest 5,000 (server default)";

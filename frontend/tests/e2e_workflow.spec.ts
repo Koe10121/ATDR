@@ -325,6 +325,7 @@ async function mockWorkflowApi(page: Page) {
   await page.route("**/api/alerts/1/report**", (route) => fulfill(route, { report_id: "e2e-report" }));
   await page.route("**/api/logs**", (route) => fulfill(route, [log], { "X-Total-Count": "1" }));
   await page.route("**/api/logs/1**", (route) => fulfill(route, log));
+  await page.route("**/api/logs/hourly-summaries**", (route) => fulfill(route, [], { "X-Total-Count": "0" }));
   await page.route("**/api/ml/report", (route) => fulfill(route, { model_status: "Decision Support", response_automation_allowed: false }));
   await page.route("**/api/ml/evidence-snapshot", (route) =>
     fulfill(route, {

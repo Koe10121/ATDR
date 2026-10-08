@@ -9,12 +9,12 @@ from sqlalchemy.orm import Session
 from atdr.app.core.config import PROJECT_ROOT, get_settings
 from atdr.app.core.security import require_admin, require_analyst_or_admin
 from atdr.app.db.database import get_db
-from atdr.app.db.models import User
+from atdr.app.db.models import TrafficHourlySummary, User
 from atdr.app.detection.explanations import explain_log_triage
 from atdr.app.parsers.paloalto_parser import parse_datetime
 from atdr.app.schemas.logs import ImportResult, LogDetail, NormalizedLogRead
 from atdr.app.services.job_service import build_result_summary, complete_job, fail_job, start_job
-from atdr.app.services.log_service import build_log_query, get_log, import_log_file, import_log_stream
+from atdr.app.services.log_service import build_log_query, get_log, import_log_file, import_log_stream, parsed_json_for_display
 from atdr.app.services.operation_run_service import safe_source_label
 from atdr.app.services.source_service import source_ids_for_filters
 
@@ -82,6 +82,7 @@ def _log_to_dict(log) -> dict:
         data["raw_line"] = log.raw_log.raw_line
         data["syslog_timestamp"] = log.raw_log.syslog_timestamp
         data["device_hostname"] = log.raw_log.device_hostname
+        data["parsed_json"] = parsed_json_for_display(log.parsed_json, log.raw_log.raw_line, data["parser_profile"])
     if getattr(log, "alert_evidence", None):
         data["alert_ids"] = [evidence.alert_id for evidence in log.alert_evidence]
     return data
@@ -233,6 +234,44 @@ def list_normalized_logs(
     response.headers["X-Total-Count"] = str(total)
     logs = list(db.scalars(statement.limit(limit).offset(offset)).unique())
     return [_log_to_dict(log) for log in logs]
+
+
+@router.get("/hourly-summaries")
+def list_hourly_summaries(
+    response: Response,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst_or_admin),
+    src_ip: str | None = Query(default=None, max_length=64),
+    limit: int = Query(default=50, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+) -> list[dict]:
+    """Each source address's traffic per hour from live syslog logs that have been deleted, newest hour first."""
+
+    statement = select(TrafficHourlySummary)
+    if src_ip and src_ip.strip():
+        statement = statement.where(TrafficHourlySummary.src_ip == src_ip.strip())
+    response.headers["X-Total-Count"] = str(int(db.scalar(select(func.count()).select_from(statement.subquery())) or 0))
+    rows = db.scalars(
+        statement.order_by(TrafficHourlySummary.hour_start.desc(), TrafficHourlySummary.connections.desc(), TrafficHourlySummary.id)
+        .limit(limit)
+        .offset(offset)
+    )
+    return [
+        {
+            "hour_start": row.hour_start,
+            "source_id": row.source_id,
+            "src_ip": row.src_ip,
+            "connections": row.connections,
+            "denied": row.denied,
+            "bytes_sent": row.bytes_sent,
+            "bytes_received": row.bytes_received,
+            "destinations": row.destinations,
+            "destination_ports": row.destination_ports,
+            "first_seen": row.first_seen,
+            "last_seen": row.last_seen,
+        }
+        for row in rows
+    ]
 
 
 @router.get("/{log_id}", response_model=LogDetail)

@@ -75,6 +75,7 @@ export const queryKeys = {
   alertCases: (params?: Record<string, unknown>) => ["alert-cases", params ?? {}],
   logs: (params?: Record<string, unknown>) => ["logs", params ?? {}],
   logsPage: (params?: Record<string, unknown>) => ["logs-page", params ?? {}],
+  hourlySummaries: (params?: Record<string, unknown>) => ["hourly-summaries", params ?? {}],
   log: (id?: number | null) => ["log", id],
   audit: (params?: Record<string, unknown>) => ["audit", params ?? {}],
   auditPage: (params?: Record<string, unknown>) => ["audit-page", params ?? {}],
@@ -813,6 +814,10 @@ export function useLogs(params: Params) {
 
 export function useLogsPage(params: Params) {
   return useQuery({ queryKey: queryKeys.logsPage(params), queryFn: () => api.logsPage(params), refetchInterval: 30_000 });
+}
+
+export function useHourlySummaries(params: Params) {
+  return useQuery({ queryKey: queryKeys.hourlySummaries(params), queryFn: () => api.hourlySummariesPage(params), refetchInterval: 60_000 });
 }
 
 export function useLog(id?: number | null) {

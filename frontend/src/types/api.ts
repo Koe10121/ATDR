@@ -1037,6 +1037,27 @@ export interface LiveFeedStatus {
   lines_per_second: number | null;
   last_received_at: string | null;
   reported_at: string | null;
+  disk_low?: boolean;
+  dropped_disk_low?: number;
+  free_disk_gb?: number | null;
+  min_free_disk_gb?: number;
+  keep_hours?: number;
+  summaries_from?: string | null;
+  summaries_to?: string | null;
+}
+
+export interface HourlyTrafficSummary {
+  hour_start: string;
+  source_id: number;
+  src_ip: string | null;
+  connections: number;
+  denied: number;
+  bytes_sent: number;
+  bytes_received: number;
+  destinations: number;
+  destination_ports: number;
+  first_seen: string | null;
+  last_seen: string | null;
 }
 
 export interface UncheckedDetectionBatch {
