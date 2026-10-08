@@ -1022,6 +1022,21 @@ export interface DetectionCoverage {
   newest_log_id_range: [number, number] | null;
   unchecked_batch_size: number;
   automatic?: AutomaticDetectionStatus;
+  live_feed?: LiveFeedStatus;
+}
+
+export interface LiveFeedStatus {
+  enabled: boolean;
+  state: "off" | "not_started" | "receiving" | "not_reporting" | "stopped";
+  port: number;
+  started_at: string | null;
+  finished_at: string | null;
+  received: number;
+  saved: number;
+  dropped: number;
+  lines_per_second: number | null;
+  last_received_at: string | null;
+  reported_at: string | null;
 }
 
 export interface UncheckedDetectionBatch {

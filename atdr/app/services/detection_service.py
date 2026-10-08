@@ -3,7 +3,7 @@ from __future__ import annotations
 import gc
 import tracemalloc
 from dataclasses import dataclass, fields
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from sqlalchemy import Float, cast, func, literal, select, update
@@ -544,6 +544,19 @@ def _should_create_group_alert(candidates: list[DetectionCandidate]) -> bool:
     return True
 
 
+# No batch takes anywhere near this long (one five-minute window of MFU traffic took 2 minutes), so a run still
+# "running" after it was left behind by a process that ended, such as a check stopped with ATDR.
+DETECTION_RUN_LEFT_BEHIND = timedelta(minutes=30)
+
+
+def _close_runs_left_behind(db: Session) -> int:
+    cutoff = datetime.now(timezone.utc) - DETECTION_RUN_LEFT_BEHIND
+    left_behind = list(db.scalars(select(DetectionRun).where(DetectionRun.status == "running", DetectionRun.started_at < cutoff)))
+    for run in left_behind:
+        fail_detection_run(db, run, error="The process running this check ended before it finished, for example when ATDR was stopped.")
+    return len(left_behind)
+
+
 def run_detection(
     db: Session,
     *,
@@ -578,10 +591,8 @@ def run_detection(
     settings = get_settings()
     if only_unchecked:
         use_ml = False
-    coordination_wait_seconds = acquire_detection_transaction_lock(
-        db,
-        timeout_seconds=coordination_timeout_seconds,
-    )
+    # Its record is saved at the start (below), so a run whose process ends mid-check stays "running".
+    _close_runs_left_behind(db)
     run = start_detection_run(
         db,
         detection_type="hybrid" if use_ml else "rule",
@@ -600,8 +611,17 @@ def run_detection(
             ),
         },
     )
+    # Save the run before reading and judging its logs. Its insert took SQLite's only write lock, and the lock
+    # was held until the final commit: 44 seconds for one window of MFU traffic, long enough for the syslog
+    # receiver's save to fail with "database is locked". Now the lock is taken when the alerts are written.
+    db.commit()
     bounded_rule_mode = bool(bounded_memory and not use_ml)
     try:
+        # PostgreSQL's lock lasts until the commit that writes this run's alerts; on SQLite it is not needed.
+        coordination_wait_seconds = acquire_detection_transaction_lock(
+            db,
+            timeout_seconds=coordination_timeout_seconds,
+        )
         anomaly_results: dict[int, dict] | list[dict] = {}
         anomaly_error_type: str | None = None
         if use_ml:

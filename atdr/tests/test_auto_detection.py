@@ -166,6 +166,60 @@ def test_logs_arriving_live_are_alerted_exactly_as_when_checked_after_they_have_
     assert _alerts(live) == expected
 
 
+def test_while_a_check_reads_and_judges_its_logs_other_writers_are_not_held_up(tmp_path, monkeypatch):
+    # The run's own record took SQLite's only write lock and kept it until the final commit: on one window of MFU
+    # traffic that was 44 seconds, and the syslog receiver's save failed with "database is locked".
+    import sqlite3
+
+    from atdr.app.services import detection_service
+
+    path = tmp_path / "detection.db"
+    engine = create_engine(f"sqlite:///{path.as_posix()}", connect_args={"timeout": 5}, future=True)
+    Base.metadata.create_all(engine)
+    db = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)()
+    _store(db, _traffic("scan"), STORED)
+    other_writer: list[str] = []
+    judge = detection_service.evaluate_rules
+
+    def judge_while_another_writer_tries(log, context):
+        if not other_writer:
+            writer = sqlite3.connect(str(path), timeout=0.2, isolation_level=None)
+            try:
+                writer.execute("BEGIN IMMEDIATE")
+                writer.execute("ROLLBACK")
+                other_writer.append("wrote")
+            except sqlite3.OperationalError as exc:
+                other_writer.append(str(exc))
+            finally:
+                writer.close()
+        return judge(log, context)
+
+    monkeypatch.setattr(detection_service, "evaluate_rules", judge_while_another_writer_tries)
+    result = run_detection(db, limit=None, use_ml=False, actor="test", only_unchecked=True)
+
+    assert other_writer == ["wrote"]
+    assert result["created_alerts"] > 0
+    assert db.scalar(select(DetectionRun.status).where(DetectionRun.id == result["detection_run_id"])) == "completed"
+
+
+def test_a_check_left_running_by_an_ended_process_is_closed_by_the_next_one():
+    # A run's record is saved when it starts, so stopping ATDR mid-check used to leave it "running" for good.
+    db = _sessions()()
+    _store(db, _traffic("scan"), STORED)
+    now = datetime.now(timezone.utc)
+    record = {"detection_type": "rule", "status": "running", "logs_evaluated": 0, "alerts_created": 0,
+              "alerts_deduplicated": 0, "alerts_suppressed": 0, "top_attack_types_json": [], "details_json": {}}
+    db.add(DetectionRun(**record, started_at=now - timedelta(hours=2)))
+    db.add(DetectionRun(**record, started_at=now - timedelta(minutes=1)))
+    db.commit()
+
+    run_detection(db, limit=None, use_ml=False, actor="test", only_unchecked=True)
+
+    runs = list(db.scalars(select(DetectionRun).order_by(DetectionRun.id)))
+    assert [run.status for run in runs] == ["failed", "running", "completed"], "a run a minute old may still be working"
+    assert "ended before it finished" in runs[0].error_summary
+
+
 def test_an_automatic_check_is_recorded_like_a_manual_one_and_shown_on_the_page():
     testing_session = _sessions()
     settings = get_settings().model_copy(update={"auto_detection_enabled": True, "auto_detection_quiet_seconds": QUIET})
@@ -315,7 +369,9 @@ def test_the_coverage_api_tells_the_page_about_automatic_checks():
     client = _client()
     try:
         admin = _login(client, "admin", "admin123")
-        automatic = client.get("/api/demo/detection-coverage", headers=admin).json()["automatic"]
+        coverage = client.get("/api/demo/detection-coverage", headers=admin).json()
+        automatic = coverage["automatic"]
+        assert coverage["live_feed"]["state"] in {"off", "not_started"}
         assert app.dependency_overrides[get_db] is not None
     finally:
         app.dependency_overrides.clear()

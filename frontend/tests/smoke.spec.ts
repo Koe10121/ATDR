@@ -7663,6 +7663,63 @@ test("data & detection says whether new logs are checked automatically and what 
   await expect(status).toContainText(/The last automatic check \(7 Oct, \d{2}:06\) failed; the next one will try again\./);
 });
 
+test("data & detection says whether the live syslog feed is receiving and how many lines were lost", async ({ page }) => {
+  // The receiver used to lose a fifth of MFU's lines without telling anyone, and nothing showed whether it ran.
+  const now = Date.now();
+  const receiving = {
+    enabled: true,
+    state: "receiving",
+    port: 5514,
+    started_at: new Date(now - 3_600_000).toISOString(),
+    finished_at: null,
+    received: 2160000,
+    saved: 2159950,
+    dropped: 50,
+    lines_per_second: 600.4,
+    last_received_at: new Date(now - 2_000).toISOString(),
+    reported_at: new Date(now - 4_000).toISOString()
+  };
+  let liveFeed: Record<string, unknown> = { ...receiving, enabled: false, state: "off" };
+  await mockApi(page);
+  await page.route("**/api/demo/detection-coverage**", async (route) =>
+    route.fulfill({
+      json: {
+        total_logs: 12000,
+        checked_logs: 12000,
+        unchecked_logs: 0,
+        oldest_unchecked_log_id: null,
+        limit: 1000,
+        newest_log_id_range: [11001, 12000],
+        unchecked_batch_size: 5000,
+        live_feed: liveFeed
+      }
+    })
+  );
+  await seedSession(page);
+  await page.goto("/demo");
+
+  const feed = page.getByTestId("live-feed");
+  await expect(feed).toHaveText("Live syslog is off. Logs arrive only through imports.");
+
+  liveFeed = receiving;
+  await page.reload();
+  await expect(feed).toContainText("Live syslog is receiving on UDP port 5514.");
+  await expect(feed).toContainText("About 600 lines a second.");
+  await expect(feed).toContainText(/2,160,000 lines received, 2,159,950 saved, 50 lines lost\. Last line \d+ seconds? ago\./);
+
+  liveFeed = { ...receiving, dropped: 0 };
+  await page.reload();
+  await expect(feed).toContainText("saved, none lost.");
+
+  liveFeed = { ...receiving, state: "not_reporting" };
+  await page.reload();
+  await expect(feed).toContainText(/Live syslog is on, but the receiver has stopped reporting\. Its last report was at \d{2}:\d{2}\./);
+
+  liveFeed = { ...receiving, state: "not_started", received: 0, saved: 0, dropped: 0 };
+  await page.reload();
+  await expect(feed).toHaveText("Live syslog is on, but the receiver has not started. Firewall logs sent now are not received. Restart ATDR to start it.");
+});
+
 test("demo import strips copy-as-path quotes before sending sample path", async ({ page }) => {
   let postedPath = "";
   await mockApi(page);

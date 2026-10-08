@@ -203,10 +203,18 @@ class Settings(BaseSettings):
     syslog_enabled: bool = Field(default=False, alias="SYSLOG_ENABLED")
     syslog_host: str = Field(default="127.0.0.1", alias="SYSLOG_HOST")
     syslog_port: int = Field(default=5514, alias="SYSLOG_PORT")
-    syslog_batch_size: int = Field(default=100, alias="SYSLOG_BATCH_SIZE")
+    # Lines saved per database write; bigger batches are what let the receiver keep up with a firewall.
+    syslog_batch_size: int = Field(default=1000, alias="SYSLOG_BATCH_SIZE")
     # Received records are saved once the oldest unsaved one is this old, even when a quiet stream never
     # fills a batch; an unsaved batch also holds SQLite's single write lock.
     syslog_flush_seconds: float = Field(default=2.0, alias="SYSLOG_FLUSH_SECONDS")
+    # Lines waiting in memory for the database (about 1 KB each), e.g. while a detection run writes its
+    # alerts. Beyond this a line is dropped and counted.
+    syslog_max_pending_lines: int = Field(default=100_000, alias="SYSLOG_MAX_PENDING_LINES")
+    # Socket buffer asked of the operating system for bursts; the system may grant less.
+    syslog_receive_buffer_bytes: int = Field(default=16 * 1024 * 1024, alias="SYSLOG_RECEIVE_BUFFER_BYTES")
+    # How often the receiver saves its counts for the dashboard.
+    syslog_status_seconds: float = Field(default=10.0, alias="SYSLOG_STATUS_SECONDS")
 
     # ---- Login rate limiting ----
     login_rate_limit_attempts: int = Field(default=5, alias="LOGIN_RATE_LIMIT_ATTEMPTS")
@@ -681,6 +689,14 @@ def validate_runtime_settings(settings: Settings) -> list[str]:
         issues.append("SYSLOG_HOST binds publicly outside production; use 127.0.0.1 for lab demo mode.")
     if settings.syslog_flush_seconds <= 0:
         issues.append("SYSLOG_FLUSH_SECONDS must be greater than zero.")
+    for name, value in (
+        ("SYSLOG_BATCH_SIZE", settings.syslog_batch_size),
+        ("SYSLOG_MAX_PENDING_LINES", settings.syslog_max_pending_lines),
+        ("SYSLOG_RECEIVE_BUFFER_BYTES", settings.syslog_receive_buffer_bytes),
+        ("SYSLOG_STATUS_SECONDS", settings.syslog_status_seconds),
+    ):
+        if value <= 0:
+            issues.append(f"{name} must be greater than zero.")
     if settings.auto_detection_quiet_seconds <= 0:
         issues.append("AUTO_DETECTION_QUIET_SECONDS must be greater than zero.")
     if settings.auto_detection_poll_seconds <= 0:

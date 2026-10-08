@@ -376,9 +376,11 @@ def test_runtime_classification_tracks_the_optional_worker_without_requiring_it(
         return json.loads(result.stdout)
 
     with_worker = classify(f"@({services},'atdr-worker')")
+    with_receiver = classify(f"@({services},'atdr-worker','atdr-syslog')")
     with_stranger = classify(f"@({services},'mystery-process')")
 
     assert with_worker["state"] == "healthy"
+    assert with_receiver["state"] == "healthy"
     assert with_stranger["state"] == "partial"
     unexpected = with_stranger["unexpected_tracked"]
     assert (unexpected if isinstance(unexpected, list) else [unexpected]) == ["mystery-process"]
@@ -394,6 +396,18 @@ def test_launcher_starts_the_worker_only_when_enabled_and_never_blocks_startup_o
     # Started only inside the enabled branch, inside a try whose catch warns.
     assert before.rindex("if ($workerEnabled) {") > before.rindex("atdr-backend")
     assert before.rindex("try {") > before.rindex("if ($workerEnabled) {")
+    assert after.index("Write-Warning") < after.index("shellBackendEnvironment")
+
+
+def test_launcher_starts_the_syslog_receiver_only_when_enabled_and_never_blocks_startup_on_it():
+    root = Path(__file__).resolve().parents[2]
+    launcher = (root / "scripts" / "start_system.ps1").read_text(encoding="utf-8")
+
+    assert '$envValues["SYSLOG_ENABLED"]' in launcher
+    start = launcher.index('"atdr.scripts.run_syslog_receiver"')
+    before, after = launcher[:start], launcher[start:]
+    assert before.rindex("if ($syslogEnabled) {") > before.rindex("atdr-backend")
+    assert before.rindex("try {") > before.rindex("if ($syslogEnabled) {")
     assert after.index("Write-Warning") < after.index("shellBackendEnvironment")
 
 

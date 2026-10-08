@@ -8,10 +8,48 @@ import { MetricCard } from "../components/MetricCard";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { useDashboardSummary, useDemoMutations, useDetectionCoverage, useHealth, useMlReport, useQueuedImportMutation } from "../hooks/useApiQueries";
 import { api } from "../lib/api";
-import type { AutomaticDetectionStatus } from "../types/api";
+import type { AutomaticDetectionStatus, LiveFeedStatus } from "../types/api";
 
 const count = (value: number) => value.toLocaleString("en-US");
 const plural = (value: number, one: string, many: string) => `${count(value)} ${value === 1 ? one : many}`;
+const clock = (value: string | null) =>
+  value ? new Date(value).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "";
+
+function secondsAgo(value: string | null): string {
+  if (!value) return "";
+  const seconds = Math.max(0, Math.round((Date.now() - new Date(value).getTime()) / 1000));
+  if (seconds < 60) return `${plural(seconds, "second", "seconds")} ago`;
+  const minutes = Math.round(seconds / 60);
+  return minutes < 60 ? `${plural(minutes, "minute", "minutes")} ago` : `at ${clock(value)}`;
+}
+
+function liveFeedText(feed: LiveFeedStatus): { state: string; detail: string } {
+  const lost = feed.dropped ? `${plural(feed.dropped, "line", "lines")} lost` : "none lost";
+  switch (feed.state) {
+    case "off":
+      return { state: "Live syslog is off.", detail: "Logs arrive only through imports." };
+    case "not_started":
+      return { state: "Live syslog is on, but the receiver has not started.", detail: "Firewall logs sent now are not received. Restart ATDR to start it." };
+    case "not_reporting":
+      return {
+        state: "Live syslog is on, but the receiver has stopped reporting.",
+        detail: `Its last report was at ${clock(feed.reported_at)}. Firewall logs may not be received; restart ATDR.`
+      };
+    case "stopped":
+      return {
+        state: "Live syslog is on, but the receiver is stopped.",
+        detail: `It stopped${feed.finished_at ? ` at ${clock(feed.finished_at)}` : ""} after receiving ${plural(feed.received, "line", "lines")}, ${lost}. Restart ATDR to start it again.`
+      };
+    default: {
+      const rate = feed.lines_per_second === null ? "" : `About ${count(Math.round(feed.lines_per_second))} lines a second. `;
+      const last = feed.last_received_at ? ` Last line ${secondsAgo(feed.last_received_at)}.` : " No line has arrived yet.";
+      return {
+        state: `Live syslog is receiving on UDP port ${feed.port}.`,
+        detail: `${rate}Since ${clock(feed.started_at)}: ${plural(feed.received, "line", "lines")} received, ${count(feed.saved)} saved, ${lost}.${last}`
+      };
+    }
+  }
+}
 
 function automaticChecksText(automatic: AutomaticDetectionStatus): { state: string; detail: string } {
   if (!automatic.enabled) {
@@ -75,6 +113,7 @@ export function DemoControls() {
   const coverage = useDetectionCoverage(useDebouncedValue(allLogs ? null : typedLimit));
   const coverageData = coverage.data;
   const automatic = coverageData?.automatic ? automaticChecksText(coverageData.automatic) : null;
+  const liveFeed = coverageData?.live_feed ? liveFeedText(coverageData.live_feed) : null;
   const automaticOn = Boolean(coverageData?.automatic?.enabled && coverageData.automatic.worker_running);
   const newestRange = !allLogs && typedLimit ? coverageData?.newest_log_id_range ?? null : null;
   const rangeText = newestRange ? ` (log IDs ${count(newestRange[0])} to ${count(newestRange[1])})` : "";
@@ -217,6 +256,11 @@ export function DemoControls() {
             {automatic ? (
               <p className="mt-2 text-sm text-muted" data-testid="automatic-detection">
                 <span className="font-bold text-text">{automatic.state}</span> {automatic.detail}
+              </p>
+            ) : null}
+            {liveFeed ? (
+              <p className="mt-2 text-sm text-muted" data-testid="live-feed">
+                <span className="font-bold text-text">{liveFeed.state}</span> {liveFeed.detail}
               </p>
             ) : null}
           </div>

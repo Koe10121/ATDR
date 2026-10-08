@@ -1,8 +1,9 @@
 import logging
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TextIO
+from typing import Any, TextIO
 
-from sqlalchemy import Select, desc, func, or_, select
+from sqlalchemy import Select, desc, func, insert, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from atdr.app.core.log_fingerprint import raw_line_fingerprint
@@ -81,6 +82,103 @@ def _existing_raw_log_id(db: Session, raw_line: str) -> int | None:
     return db.scalar(
         select(RawLog.id).where(RawLog.raw_line_hash == raw_line_fingerprint(raw_line), RawLog.raw_line == raw_line).limit(1)
     )
+
+
+@dataclass
+class StoredBatch:
+    """What store_parsed_batch did with one batch of parsed lines."""
+
+    stored: int = 0
+    parsed: int = 0
+    parsed_partial: int = 0
+    failed: int = 0
+    # Exact copies of a stored line: a Palo Alto record is counted and not stored again; any other line is kept.
+    skipped_repeats: int = 0
+    kept_repeats: int = 0
+    latest_error: str | None = None
+    parser_quality: dict[str, Any] = field(default_factory=empty_runtime_parser_quality)
+
+
+# Bound values per statement: SQLite allows 32,766 (999 before 3.32); stay well below either.
+_LOOKUP_CHUNK = 900
+
+
+def _already_stored(db: Session, parsed_logs: list[ParsedPaloAltoLog], fingerprints: list[str]) -> set[str]:
+    """The lines of this batch an exact copy of which is already stored, found through the indexed fingerprint."""
+
+    wanted = {parsed.raw_line for parsed in parsed_logs}
+    unique = list(dict.fromkeys(fingerprints))
+    found: set[str] = set()
+    for start in range(0, len(unique), _LOOKUP_CHUNK):
+        chunk = unique[start:start + _LOOKUP_CHUNK]
+        found.update(line for line in db.scalars(select(RawLog.raw_line).where(RawLog.raw_line_hash.in_(chunk))) if line in wanted)
+    return found
+
+
+def store_parsed_batch(
+    db: Session,
+    parsed_logs: list[ParsedPaloAltoLog],
+    *,
+    source_id: int | None,
+    parser_profile: str | None,
+) -> StoredBatch:
+    """Store a batch of parsed lines: one duplicate lookup and two bulk inserts, the rows persist_parsed_log writes.
+
+    Saving one line at a time (a lookup, two ORM inserts and a flush per line) capped the syslog receiver at about
+    500 lines a second, below MFU's firewall rate. Does not commit.
+    """
+
+    result = StoredBatch()
+    if not parsed_logs:
+        return result
+    fingerprints = [raw_line_fingerprint(parsed.raw_line) for parsed in parsed_logs]
+    stored_before = _already_stored(db, parsed_logs, fingerprints)
+    seen: set[str] = set()
+    to_store: list[tuple[ParsedPaloAltoLog, str]] = []
+    quality = empty_runtime_parser_quality()
+    for parsed, fingerprint in zip(parsed_logs, fingerprints):
+        if parsed.raw_line in stored_before or parsed.raw_line in seen:
+            if is_repeat_of_stored_record(parsed, parser_profile):
+                result.skipped_repeats += 1
+                continue
+            result.kept_repeats += 1
+        seen.add(parsed.raw_line)
+        quality = observe_parser_result(quality, parsed)
+        to_store.append((parsed, fingerprint))
+        if parsed.error:
+            result.failed += 1
+            result.latest_error = parsed.error
+        else:
+            result.parsed += 1
+            result.parsed_partial += int(is_partial_parse(parsed))
+    result.stored = len(to_store)
+    result.parser_quality = finalize_runtime_parser_quality(quality)
+    if not to_store:
+        return result
+
+    raw_ids = list(
+        db.scalars(
+            insert(RawLog).returning(RawLog.id, sort_by_parameter_order=True),
+            [
+                {
+                    "source_id": source_id,
+                    "raw_line": parsed.raw_line,
+                    "raw_line_hash": fingerprint,
+                    "syslog_timestamp": parsed.syslog_timestamp,
+                    "device_hostname": parsed.device_hostname,
+                }
+                for parsed, fingerprint in to_store
+            ],
+        )
+    )
+    # One insert per set of columns: a line that did not parse has none of the normalized fields.
+    by_columns: dict[frozenset[str], list[dict[str, Any]]] = {}
+    for raw_id, (parsed, _fingerprint) in zip(raw_ids, to_store):
+        row = {"raw_log_id": raw_id, "parsed_json": parsed.parsed_json, **({} if parsed.error else parsed.normalized)}
+        by_columns.setdefault(frozenset(row), []).append(row)
+    for rows in by_columns.values():
+        db.execute(insert(NormalizedLog), rows)
+    return result
 
 
 def import_log_stream(

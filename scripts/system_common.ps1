@@ -283,8 +283,9 @@ function Get-TrackedSystemRuntimeClassification {
 
     $expected = @("atdr-backend", "atdr-frontend", "shell-backend", "shell-frontend")
     # The background operation worker only runs when OPERATION_WORKER_ENABLED
-    # is true, so it is tracked when present but never required.
-    $optional = @("atdr-worker")
+    # is true, and the syslog receiver only when SYSLOG_ENABLED is true, so
+    # they are tracked when present but never required.
+    $optional = @("atdr-worker", "atdr-syslog")
     $tracked = @($TrackedNames | ForEach-Object { [string]$_ })
     $active = @($ActiveNames | ForEach-Object { [string]$_ })
     $unexpected = @($tracked | Where-Object { $_ -notin $expected -and $_ -notin $optional })

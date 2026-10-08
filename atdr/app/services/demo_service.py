@@ -25,6 +25,7 @@ from atdr.app.services.dashboard_service import build_dashboard_summary
 from atdr.app.services.detection_service import count_unchecked_logs, run_detection
 from atdr.app.services.log_service import import_log_file
 from atdr.app.services.operation_run_service import safe_source_label
+from atdr.app.services.syslog_service import live_feed_status
 from atdr.app.services.ml_service import apply_anomaly_scoring, evaluation_report, train_anomaly_model
 from atdr.app.services.user_service import ensure_demo_users
 
@@ -172,6 +173,8 @@ def detection_coverage(db: Session, *, limit: int | None = None) -> dict:
         "unchecked_batch_size": UNCHECKED_BATCH_DEFAULT,
         # Whether the background worker checks new logs by itself, and what its last check did.
         "automatic": automatic_detection_status(db),
+        # Whether the syslog receiver is taking the firewall's logs, and whether any were lost.
+        "live_feed": live_feed_status(db),
     }
 
 

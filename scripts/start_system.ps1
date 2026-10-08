@@ -171,6 +171,14 @@ try {
     } else {
         Write-Host "  Automatic detection: off (new logs wait for Check all unchecked logs)"
     }
+    $syslogEnabled = $envValues.Contains("SYSLOG_ENABLED") -and ([string]$envValues["SYSLOG_ENABLED"]).ToLowerInvariant() -eq "true"
+    if ($syslogEnabled) {
+        $syslogHost = if ($envValues.Contains("SYSLOG_HOST") -and [string]$envValues["SYSLOG_HOST"]) { [string]$envValues["SYSLOG_HOST"] } else { "127.0.0.1" }
+        $syslogPort = if ($envValues.Contains("SYSLOG_PORT") -and [string]$envValues["SYSLOG_PORT"]) { [string]$envValues["SYSLOG_PORT"] } else { "5514" }
+        Write-Host "  Live syslog: on (receives firewall logs on UDP $($syslogHost):$syslogPort)"
+    } else {
+        Write-Host "  Live syslog: off (set SYSLOG_ENABLED=true in .env to receive firewall logs)"
+    }
     $modelPathValue = if ($envValues.Contains("ML_MODEL_PATH") -and [string]$envValues["ML_MODEL_PATH"]) {
         [string]$envValues["ML_MODEL_PATH"]
     } else {
@@ -207,6 +215,15 @@ try {
         }
         catch {
             Write-Warning "Background worker did not start ($($_.Exception.Message)). ATDR runs without it; queued imports wait until it runs."
+        }
+    }
+    if ($syslogEnabled) {
+        # Receives the firewall's logs over UDP syslog. Optional like the worker: a failed start only warns.
+        try {
+            $started.Add((Start-TrackedProcess -Name "atdr-syslog" -FilePath $python -Arguments @("-m", "atdr.scripts.run_syslog_receiver") -WorkingDirectory $root -LogDirectory $logDir))
+        }
+        catch {
+            Write-Warning "Live syslog receiver did not start ($($_.Exception.Message)). Firewall logs sent now are not received."
         }
     }
     $started.Add((Start-TrackedProcess -Name "atdr-frontend" -FilePath $node -Arguments @("node_modules/vite/bin/vite.js", "--host", "127.0.0.1", "--port", "5173", "--strictPort") -WorkingDirectory (Join-Path $root "frontend") -LogDirectory $logDir))
