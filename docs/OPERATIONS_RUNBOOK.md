@@ -42,6 +42,22 @@ Wait for `All components are ready` before opening the login page. To restart,
 run `stop_system.cmd` and then `start_system.cmd`. The launcher tracks only the
 four processes it owns and keeps logs in ignored `.atdr_runtime/logs/`.
 
+ATDR does not start by itself after a restart. To have it start when you sign
+in to Windows:
+
+```powershell
+.\scripts\autostart.cmd            # install
+.\scripts\autostart.cmd -Status    # what is installed
+.\scripts\autostart.cmd -Remove    # take it away
+```
+
+It registers a scheduled task that runs at your sign-in or, when Windows will
+not let your account register one, puts a shortcut in your Startup folder.
+Either runs `scripts\start_at_sign_in.ps1`: the normal start without opening a
+browser, tried again for a few minutes while Windows services such as MongoDB
+come up. Each sign-in start is logged in `.atdr_runtime\logs\autostart.log`.
+No password is stored, and nothing starts before someone signs in.
+
 Normal startup requires the approved shell package/private profile, Python
 3.11, Node.js 20.19 or newer, npm, and MongoDB on loopback for the companion
 shell. Redis is optional: the shell rate limiter has an in-memory local
@@ -65,7 +81,7 @@ service.
 
 The MFU behaviour model raises experimental, low-confidence alerts where the
 rules raise none, for the attack types switched on its model card. Every
-detection run (the dashboard's Check all unchecked logs included) raises them for
+detection run (the dashboard's Check all unchecked logs and automatic checks included) raises them for
 the windows it checked; the scoreboard and blind check never do. A run's alert
 count includes them, and its details separate rule alerts from model alerts. The
 detection runtime status reports them as permitted by a recorded exception, not
@@ -106,8 +122,9 @@ enables them.
 
 Prefer the dashboard for normal analyst work. A whole MFU firewall export
 (about 600 MB for 21 minutes of traffic) goes through **Data & Detection >
-Queue import**: the background worker imports it in checkpointed chunks, then
-**Check all unchecked logs** runs the rules and watchlist over the new logs.
+Queue import**: the background worker imports it in checkpointed chunks. The
+rules and watchlist then run over the new logs, by themselves when automatic
+detection is on (below) or when you click **Check all unchecked logs**.
 Rehearsed on 2026-09-27 with the 13:45-13:57 part of the MFU export (351 MB,
 453,908 lines) on a copy of the database: upload 3 s, import 7.9 min, checks
 2.9 min, 883 new alerts; dashboard and lists stayed under a second. Queued
@@ -141,9 +158,55 @@ The receiver saves records every `SYSLOG_BATCH_SIZE` records, and within
 leaves records unsaved or holds the database's write lock while it waits.
 
 Raw evidence is preserved before parsing. Parser failure does not discard the
-row. Run detection from the dashboard after checking source/parser quality.
+row. Detection checks stored logs by itself when automatic detection is on, or
+from the dashboard; check source/parser quality first for a new source.
 Rule findings create authoritative alerts; anomaly and supervised scores add
 advisory context only.
+
+## Automatic Detection
+
+With `AUTO_DETECTION_ENABLED=true` and the background worker running
+(`OPERATION_WORKER_ENABLED=true`), new logs are checked without anyone clicking:
+
+- The worker looks for unchecked logs whenever it has no queued job (every
+  `AUTO_DETECTION_POLL_SECONDS`, default 15). Queued jobs come first.
+- It checks a five-minute window of logs once the window after it is complete,
+  that is, once a log two windows later has been stored. The rules count per
+  source and five-minute window, on two clock grids, and the beaconing rule
+  also reads the window after a log's own; checked earlier, a group is judged
+  on part of its logs. For a live feed this means an alert 5 to 10 minutes
+  after the traffic.
+- When no log has been stored for `AUTO_DETECTION_QUIET_SECONDS` (default 120),
+  an import has finished or the feed has gone quiet, and every unchecked log
+  is checked.
+- Each check is recorded like a manual one: an operation job requested by
+  `auto_detection` and a detection run per step, with the MFU behaviour
+  model's experimental alerts for the windows checked.
+
+Data & Detection shows whether automatic checks are on, whether the worker is
+running, and what the last check did. **Check all unchecked logs** still checks
+everything at once. Switched on without the worker, nothing is checked by
+itself, and the page says so.
+
+Measured on 2026-10-07 with traffic that crosses a window edge
+(`atdr/tests/test_auto_detection.py`): with this wait, logs arriving live get
+exactly the alerts that checking the stored traffic window by window gives.
+Checked as soon as its own window closed, the first half of a port scan was
+raised as "multiple denied connections" (High) instead of a port scan
+(Critical); checked half a window later, a beacon's alert kept four of its six
+check-ins.
+
+Limits:
+
+- Detection is not real time: a live feed is alerted on 5 to 10 minutes after
+  the traffic.
+- A log that arrives late, for a window already checked, is checked on its own.
+- SQLite has one writer, so a check that finds an import or a manual check
+  writing waits for the worker's next look.
+- An attack that crosses a window edge can appear as two alerts, one per
+  window, when its halves share no destination port (a vertical port scan):
+  a later step joins an open alert only when they share one. The button does
+  the same on any file longer than one window.
 
 ## Analyst Workflow
 

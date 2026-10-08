@@ -75,6 +75,14 @@ attacks. The assistant answered from a fixed list of question types.
   newest label, and the list rebuilt on the 120,001 logs that remain: 165 alerts. Three
   Critical brute-force alerts had each been one denied connection stored six or seven
   times; they are gone. An alert's number is now never given to another alert.
+- **Detection that runs by itself** (7 October). Detection used to run only when someone
+  clicked the button. The background worker can now check new logs without that: a
+  five-minute window at a time, once the window after it is complete, or two minutes after
+  logs stop arriving. Waiting matters: checked as soon as its own window closed, the first
+  half of a port scan across a window edge was raised as "multiple denied connections"
+  instead of a port scan. The Data & Detection page says whether automatic checks are on
+  and what the last one did, and ATDR can start when its Windows user signs in
+  (`docs/OPERATIONS_RUNBOOK.md`).
 
 ### 2. A model trained on MFU traffic
 

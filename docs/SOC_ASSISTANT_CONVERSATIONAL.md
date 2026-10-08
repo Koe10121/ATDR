@@ -615,6 +615,30 @@ the kinds of attack and some alert numbers, but not the alert the Overview opens
 first: ATDR's own lookup for "the most urgent one" recognises English phrasing
 only. It stays in the held-out set until it is used to fix that.
 
+### 7 and 8 October: when detection runs
+
+ATDR can now check new logs by itself (`docs/OPERATIONS_RUNBOOK.md`, Automatic
+Detection), so "detection runs only when someone runs it" stopped being true
+wherever that is switched on. The two topics that say when detection runs (where
+the data comes from, and what ATDR cannot detect) now take one sentence from the
+settings. With automatic checks on and the worker running: "Detection checks new
+logs by itself, a five-minute window at a time once the window after it is
+complete: about 5 to 10 minutes after the traffic, not as it happens." Otherwise:
+"Detection checks new logs only when someone runs it from the dashboard, not
+continuously." The note for questions about live traffic asks for the topic's
+wording, never "as it happens" or "in real time".
+
+The first run with automatic checks on, on the evening of 7 October, lost 18
+answers to Ollama itself: after it logged a GPU-discovery timeout, it aborted
+some generations with "prediction aborted, token repeat limit reached" (HTTP 500),
+and ATDR showed its built-in answers instead. The same questions answered normally
+once Ollama had restarted. On 8 October, on a fresh Ollama, the main set scored
+121 of 122 (4.3 s on average). The miss was a follow-up, "and which one is the
+most severe?": the model copied alert #4012 from the lookup as #4013, the check
+sent the answer back twice, and the built-in answer was shown, so the wrong
+number never reached the page; the evening before, the same question was
+answered with #4012. Held-out on 7 October: 26 of 27, the miss again h-28.
+
 ## Measuring it again
 
 ```
@@ -637,5 +661,6 @@ is used to fix something, move it to the main set and write a new held-out one.
 - Asked "Why are there so many port scan alerts?", it explains scanning in general and can over-read the overview: one answer said some scans "managed to bypass the firewall".
 - Whether the model gives an alert's number varies from run to run, even at temperature 0. ATDR adds the number when it looked the alert up itself; where the model looked the alert up on its own, the number can still be missing.
 - Lookups that ATDR makes before the model answers can be wrong, and the model then answers from them: a wrong match on the word "detected" produced the "1 alert" answer of 3 October. Each answer records the lookups made for it.
+- When Ollama aborts a generation (on 7 October, after a GPU-discovery timeout, with "token repeat limit reached"), the built-in answer is shown at once; ATDR does not ask the model again.
 - For questions outside the summary route ("Are we under attack?", for one) the overview tool still gives a period's counts beside the open ones, and on a day with new alerts the model can put one under the other: asked what happened in the last hour, before that question took the summary route, it answered "163 alerts, with 30 being Critical", where 28 of the 163 were Critical and 30 were open.
 - "The most urgent one" is recognised in English only. Asked the same in Thai ("is there anything that needs dealing with urgently right now?"), the model answers from the whole overview and does not name the alert the Overview opens first.

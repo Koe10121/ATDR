@@ -200,7 +200,10 @@ Live loopback receiver:
 .\.venv\Scripts\python.exe -m atdr.scripts.run_syslog_receiver --host 127.0.0.1 --port 5514
 ```
 
-Run detection from the dashboard after reviewing source and parser health.
+Detection checks stored logs by itself when `AUTO_DETECTION_ENABLED=true` and the
+background worker runs (a five-minute window at a time, once the window after it
+is complete; see the runbook), or from the dashboard. Review source and parser
+health first for a new source.
 Production-like non-loopback forwarding requires network-owner approval and a
 real physical-source qualification.
 
