@@ -93,6 +93,19 @@ attacks. The assistant answered from a fixed list of question types.
   Measured again: all 638,252 lines saved with two automatic checks running meanwhile, and
   all 120,001 at four times MFU's rate. The receiver starts with ATDR when switched on,
   and Data & Detection shows what it has received, saved and lost (runbook, Live Syslog).
+- **Keeping the live feed within the disk** (8 October). At MFU's rate a stored log cost
+  6.2 KB, 13 GB an hour, on a laptop with 160 GB free. Each row held the line's fields a
+  second time, which also made it too big to share a database page (42% of the table was
+  empty). Without that copy a log takes 3.5 KB, 7.6 GB an hour, and the receiver saves
+  about 2,000 lines a second. Logs from the live feed are now kept six hours, summarised
+  by hour for each source address, then deleted; an imported file, a log detection has not
+  checked, alert evidence and a labelled log never are. The receiver stops saving before
+  the disk fills, and says so. Three reads of every stored log in automatic detection and
+  in each detection batch were bounded; rebuilding every alert on a copy of the live data
+  gave the same 165 alerts. Rehearsed with the feed running (two-minute steps and a
+  three-minute limit standing in for hours): all 638,252 lines saved, 370,590 deleted once
+  checked, every line counted in a summary, all 46,533 evidence logs kept, and a
+  five-minute window of MFU's traffic checked in about a minute.
 
 ### 2. A model trained on MFU traffic
 

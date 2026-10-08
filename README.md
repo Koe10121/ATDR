@@ -195,8 +195,10 @@ Safe replay preview:
 ```
 
 Live syslog: with `SYSLOG_ENABLED=true` the start script runs the receiver beside the
-other parts, and Data & Detection shows what it has received, saved and lost
-(runbook, Live Syslog). To run it by hand on loopback:
+other parts, and Data & Detection shows what it has received, saved and lost.
+Logs from the feed are kept for `SYSLOG_RETENTION_HOURS` (default 6), summarised
+by hour, then deleted; imported files and alert evidence are kept (runbook, Live
+Syslog). To run it by hand on loopback:
 
 ```powershell
 .\.venv\Scripts\python.exe -m atdr.scripts.run_syslog_receiver --host 127.0.0.1 --port 5514

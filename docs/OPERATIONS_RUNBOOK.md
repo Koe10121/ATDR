@@ -194,7 +194,7 @@ read.
 |---|---|---|
 | Lines saved at MFU's rate | 80% (500 a second at most) | all 638,252 |
 | When an automatic check ran | the receiver ended with "database is locked" | carried on, no retry needed |
-| At four times MFU's rate (120,001 lines in 50 s) | not tried | all saved, at about 1,700 a second |
+| At four times MFU's rate (319,126 lines in 132 s) | not tried | all saved, at about 2,000 a second |
 
 Before, the receiver saved one line at a time in the loop that read the
 network, so lines that arrived meanwhile overflowed the operating system's
@@ -210,10 +210,50 @@ Limits:
 - Stopping ATDR ends the receiver's process, so lines waiting in memory at that
   moment (normally a second or two of traffic) are lost. The next start closes
   its run as stopped, with the counts from its last report.
-- Every line is stored in full: about 6 KB with its indexes, 13 GB an hour at
-  MFU's rate. Without a limit on how long logs are kept, the disk fills.
 - With the receiver running, a detection check of one five-minute window of
-  MFU's traffic (about 181,000 logs) took 2 minutes.
+  MFU's traffic (about 181,000 logs) takes about a minute.
+
+### How Long Live Logs Are Kept
+
+Logs from the live feed are kept for `SYSLOG_RETENTION_HOURS` (default 6),
+then deleted. Imported files are datasets kept on purpose and are never
+deleted this way.
+
+- The background worker does it (`OPERATION_WORKER_ENABLED=true`): every 5
+  minutes while it has no queued job, 2,000 logs a step, so the receiver and
+  detection are never held up for long.
+- An hour is summarised before it is deleted: one row for each source
+  address, with its connections, denied connections, bytes sent and received,
+  and how many destinations and destination ports it reached. Log Explorer
+  shows them under **Older live traffic, by hour**, and its Source IP filter
+  follows one address. Summaries are kept `SYSLOG_SUMMARY_RETENTION_DAYS` days
+  (default 30).
+- Whole hours only: an hour goes once all of it is past the limit, so a log
+  stays 6 to 7 hours.
+- Never deleted: a log detection has not checked yet, a log that is evidence
+  for an alert, and a labelled log. With automatic detection off, nothing is
+  deleted, and Data & Detection says so.
+- Below `SYSLOG_MIN_FREE_DISK_GB` of free disk (default 10) the receiver stops
+  saving and counts lines as lost until space is freed. The page shows it.
+
+A stored log takes about 3.5 KB with its indexes (measured on 319,126 logs):
+7.6 GB an hour at MFU's rate, about 46 GB for six hours. It was 6.2 KB: each
+row also held the line's fields a second time (1.1 KB), which made a row too
+big to share a 4 KB database page, so 42% of the table was empty. Log
+Explorer's Parsed Payload reads those fields again from the raw line.
+
+Rehearsed on 2026-10-08 with the feed running at MFU's rate, on a copy, with
+two-minute steps and a three-minute limit standing in for the hours: all
+638,252 lines were saved, 370,590 were deleted once detection had checked
+them, the summaries' connections added up to 638,252, and all 46,533 evidence
+logs were kept. Stored logs peaked at 413,309 and the database file stopped
+growing, because SQLite reuses the space of deleted logs (the file itself does
+not shrink). A five-minute window of MFU's traffic (180,924 logs) was checked
+in 57 seconds meanwhile.
+
+Limit: alert evidence is kept as long as its alert. In the replay 7.3% of
+logs became evidence (about 1,900 alerts an hour), which at MFU's rate adds
+about 13 GB a day.
 
 ## Automatic Detection
 
