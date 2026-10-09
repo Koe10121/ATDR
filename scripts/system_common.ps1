@@ -606,3 +606,275 @@ function Invoke-CheckedProcess {
         Pop-Location
     }
 }
+
+# ---- Keeping ATDR running (scripts\watch_system.ps1) ----
+#
+# start_system records that ATDR is meant to run and stop_system that it is meant to be stopped. The watcher
+# reads that, so it restarts a part that died but never one that was stopped on purpose.
+
+function Get-AtdrDesiredStatePath {
+    return Join-Path (Get-AtdrRuntimeDirectory) "desired-state.json"
+}
+
+function Get-AtdrWatchStatusPath {
+    return Join-Path (Get-AtdrRuntimeDirectory) "watch-status.json"
+}
+
+function ConvertTo-AtdrUtc {
+    # A time read back from JSON: Windows PowerShell gives the text, PowerShell 7 a date.
+    param($Value)
+    if ($null -eq $Value -or [string]::IsNullOrWhiteSpace([string]$Value)) { return $null }
+    if ($Value -is [datetime]) { return $Value.ToUniversalTime() }
+    try {
+        return [datetime]::Parse([string]$Value, [cultureinfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind).ToUniversalTime()
+    }
+    catch {
+        return $null
+    }
+}
+
+function Read-AtdrDesiredState {
+    $unknown = [pscustomobject]@{ state = "unknown"; since = $null; by = $null; hold_until = $null }
+    $path = Get-AtdrDesiredStatePath
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $unknown }
+    try {
+        $value = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+    }
+    catch {
+        return $unknown
+    }
+    if ($null -eq $value -or [string]$value.state -notin @("running", "stopped")) { return $unknown }
+    return [pscustomobject]@{
+        state = [string]$value.state
+        since = ConvertTo-AtdrUtc $value.since
+        by = [string]$value.by
+        hold_until = ConvertTo-AtdrUtc $value.hold_until
+    }
+}
+
+function Set-AtdrDesiredState {
+    param(
+        [Parameter(Mandatory = $true)][ValidateSet("running", "stopped")][string]$State,
+        [Parameter(Mandatory = $true)][string]$By,
+        # With a stop only: ATDR stays stopped until then even across a sign-in, and is started again after it.
+        [Nullable[datetime]]$HoldUntil = $null
+    )
+    $runtime = Get-AtdrRuntimeDirectory
+    New-Item -ItemType Directory -Path $runtime -Force | Out-Null
+    $hold = if ($State -eq "stopped" -and $null -ne $HoldUntil) { ([datetime]$HoldUntil).ToUniversalTime().ToString("o") } else { $null }
+    [ordered]@{
+        state = $State
+        since = (Get-Date).ToUniversalTime().ToString("o")
+        by = $By
+        hold_until = $hold
+    } | ConvertTo-Json | Set-Content -LiteralPath (Get-AtdrDesiredStatePath) -Encoding UTF8
+}
+
+function Test-AtdrHeld {
+    # A stop that is to outlast a sign-in (stop_system -HoldHours), while its time has not passed.
+    param([Parameter(Mandatory = $true)]$Desired, [datetime]$Now = (Get-Date).ToUniversalTime())
+    return ($Desired.state -eq "stopped" -and $null -ne $Desired.hold_until -and $Now -lt $Desired.hold_until)
+}
+
+function Get-AtdrExpectedParts {
+    # The four parts ATDR cannot do without, then the ones .env switches on.
+    param([Parameter(Mandatory = $true)][System.Collections.IDictionary]$EnvValues)
+    $parts = [System.Collections.Generic.List[string]]::new()
+    foreach ($name in @("atdr-backend", "atdr-frontend", "shell-backend", "shell-frontend")) { $parts.Add($name) }
+    foreach ($pair in @(@("OPERATION_WORKER_ENABLED", "atdr-worker"), @("SYSLOG_ENABLED", "atdr-syslog"))) {
+        if ($EnvValues.Contains($pair[0]) -and ([string]$EnvValues[$pair[0]]).ToLowerInvariant() -eq "true") { $parts.Add($pair[1]) }
+    }
+    return @($parts)
+}
+
+function Get-AtdrPartAddress {
+    # Where a part answers when it is working. The worker and the syslog receiver have no address.
+    param([Parameter(Mandatory = $true)][string]$Name)
+    switch ($Name) {
+        "atdr-backend" { return "http://127.0.0.1:8000/health/live" }
+        "atdr-frontend" { return "http://127.0.0.1:5173" }
+        "shell-backend" { return "http://127.0.0.1:8214/healthz" }
+        "shell-frontend" { return "http://localhost:8080" }
+        default { return $null }
+    }
+}
+
+function Test-AtdrRestartAllowed {
+    # A part that keeps dying is restarted three times in ten minutes, then once every five.
+    param(
+        [datetime[]]$Restarts = @(),
+        [Parameter(Mandatory = $true)][datetime]$Now,
+        [int]$QuickRestarts = 3,
+        [int]$QuickWindowMinutes = 10,
+        [int]$SlowRetryMinutes = 5
+    )
+    # No restarts yet arrives here as nothing at all, which the pipeline would hand on as one empty item.
+    $recent = @(@($Restarts) | Where-Object { $null -ne $_ -and ($Now - $_).TotalMinutes -lt $QuickWindowMinutes })
+    if ($recent.Count -lt $QuickRestarts) { return $true }
+    $last = ($recent | Sort-Object | Select-Object -Last 1)
+    return (($Now - $last).TotalMinutes -ge $SlowRetryMinutes)
+}
+
+function Get-AtdrWatchDecision {
+    # What the watcher should do now. It decides only; watch_system.ps1 acts.
+    param(
+        [Parameter(Mandatory = $true)][string]$DesiredState,
+        [Nullable[datetime]]$HoldUntil = $null,
+        [Parameter(Mandatory = $true)][datetime]$Now,
+        [string[]]$Expected = @(),
+        [string[]]$Alive = @(),
+        # Per part: how many checks in a row its address has not answered, when it was started, when the watcher restarted it.
+        [hashtable]$Unanswered = @{},
+        [hashtable]$StartedAt = @{},
+        [hashtable]$Restarts = @{},
+        [int]$UnansweredLimit = 6,
+        [int]$GraceSeconds = 300
+    )
+    $decision = [ordered]@{ action = "none"; resume = $false; start = @(); restart = @(); waiting = @(); reason = "" }
+    if ($DesiredState -eq "stopped") {
+        if ($null -ne $HoldUntil -and $Now -ge ([datetime]$HoldUntil)) {
+            $decision.resume = $true
+        }
+        else {
+            $decision.reason = if ($null -ne $HoldUntil) { "stopped on purpose until $(([datetime]$HoldUntil).ToString('o'))" } else { "stopped on purpose" }
+            return [pscustomobject]$decision
+        }
+    }
+    elseif ($DesiredState -ne "running") {
+        $decision.reason = "ATDR has not been started with scripts\start_system.cmd yet"
+        return [pscustomobject]$decision
+    }
+
+    $expectedAlive = @($Expected | Where-Object { $_ -in $Alive })
+    if ($expectedAlive.Count -eq 0) {
+        $history = if ($Restarts.ContainsKey("*")) { @($Restarts["*"]) } else { @() }
+        if (Test-AtdrRestartAllowed -Restarts $history -Now $Now) {
+            $decision.action = "start_all"
+            $decision.reason = if ($decision.resume) { "the time it was to stay stopped has passed" } else { "no part is running" }
+        }
+        else {
+            $decision.waiting = @("*")
+            $decision.reason = "ATDR did not start; trying again every few minutes"
+        }
+        return [pscustomobject]$decision
+    }
+
+    $start = [System.Collections.Generic.List[string]]::new()
+    $restart = [System.Collections.Generic.List[string]]::new()
+    $waiting = [System.Collections.Generic.List[string]]::new()
+    foreach ($name in $Expected) {
+        $history = if ($Restarts.ContainsKey($name)) { @($Restarts[$name]) } else { @() }
+        $allowed = Test-AtdrRestartAllowed -Restarts $history -Now $Now
+        if ($name -notin $Alive) {
+            if ($allowed) { $start.Add($name) } else { $waiting.Add($name) }
+            continue
+        }
+        $missed = if ($Unanswered.ContainsKey($name)) { [int]$Unanswered[$name] } else { 0 }
+        if ($missed -lt $UnansweredLimit) { continue }
+        # A part that has just started may still be loading (the MFU shell compiles for minutes).
+        $since = if ($StartedAt.ContainsKey($name) -and $null -ne $StartedAt[$name]) { ($Now - ([datetime]$StartedAt[$name])).TotalSeconds } else { [double]::MaxValue }
+        if ($since -lt $GraceSeconds) { continue }
+        if ($allowed) { $restart.Add($name) } else { $waiting.Add($name) }
+    }
+    $decision.start = @($start)
+    $decision.restart = @($restart)
+    $decision.waiting = @($waiting)
+    if ($start.Count -or $restart.Count) {
+        $decision.action = "parts"
+        $decision.reason = (@(
+            $(if ($start.Count) { "stopped: $($start -join ', ')" }),
+            $(if ($restart.Count) { "not answering: $($restart -join ', ')" })
+        ) | Where-Object { $_ }) -join "; "
+    }
+    elseif ($waiting.Count) {
+        $decision.reason = "keeps stopping: $($waiting -join ', '); trying again every few minutes"
+    }
+    return [pscustomobject]$decision
+}
+
+function Enter-AtdrStartLock {
+    # One start at a time: the sign-in start and the watcher must not both launch the same parts.
+    $runtime = Get-AtdrRuntimeDirectory
+    New-Item -ItemType Directory -Path $runtime -Force | Out-Null
+    $path = Join-Path $runtime "start.lock"
+    if (Test-Path -LiteralPath $path -PathType Leaf) {
+        try {
+            $held = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+            if (Test-TrackedProcessRecordActive $held) { return $false }
+        }
+        catch { }
+    }
+    $me = Get-Process -Id $PID
+    [ordered]@{ pid = $PID; started_at = $me.StartTime.ToUniversalTime().ToString("o") } |
+        ConvertTo-Json | Set-Content -LiteralPath $path -Encoding UTF8
+    return $true
+}
+
+function Exit-AtdrStartLock {
+    $path = Join-Path (Get-AtdrRuntimeDirectory) "start.lock"
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return }
+    try {
+        $held = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+        if ([int]$held.pid -ne $PID) { return }
+    }
+    catch { }
+    Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
+}
+
+function Test-AtdrStartLockHeld {
+    $path = Join-Path (Get-AtdrRuntimeDirectory) "start.lock"
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $false }
+    try {
+        return [bool](Test-TrackedProcessRecordActive (Get-Content -LiteralPath $path -Raw | ConvertFrom-Json))
+    }
+    catch {
+        return $false
+    }
+}
+
+$AtdrWatcherTaskName = "ATDR keep running"
+
+function Start-AtdrWatcherTask {
+    # Starts the watcher that scripts\autostart.cmd installed, when it is not running. Nothing happens where it is
+    # not installed: ATDR then runs as before, and a part that stops stays stopped.
+    try {
+        $task = Get-ScheduledTask -TaskName $AtdrWatcherTaskName -ErrorAction Stop
+        if ([string]$task.State -ne "Running") { Start-ScheduledTask -TaskName $AtdrWatcherTaskName -ErrorAction Stop }
+        return $true
+    }
+    catch {
+        return $false
+    }
+}
+
+function Stop-AtdrWatcherProcess {
+    # Ends the watcher by its own process. Never by ending its task: Windows ends a task together with everything
+    # the task started, and a watcher that has brought a part of ATDR back is that part's parent.
+    $path = Join-Path (Get-AtdrRuntimeDirectory) "watch.lock"
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $false }
+    try {
+        $held = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+        if (-not (Test-TrackedProcessRecordActive $held)) { return $false }
+        Stop-Process -Id ([int]$held.pid) -Force -ErrorAction Stop
+        Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
+        return $true
+    }
+    catch {
+        return $false
+    }
+}
+
+function Read-AtdrWatchStatus {
+    # What the watcher last wrote, with how long ago: it writes at every check, so an old status means no watcher.
+    $path = Get-AtdrWatchStatusPath
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $null }
+    try {
+        $status = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+        $checked = ConvertTo-AtdrUtc $status.watcher.checked_at
+        $age = if ($null -ne $checked) { ((Get-Date).ToUniversalTime() - $checked).TotalSeconds } else { $null }
+        return [pscustomobject]@{ status = $status; age_seconds = $age }
+    }
+    catch {
+        return $null
+    }
+}

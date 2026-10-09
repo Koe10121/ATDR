@@ -2,7 +2,10 @@
 param(
     [string]$TemplateRoot,
     [switch]$DryRun,
-    [switch]$NoBrowser
+    [switch]$NoBrowser,
+    # Start only these parts beside the ones already running. scripts\watch_system.ps1 uses it to bring back a
+    # part that stopped; a person starts ATDR without it.
+    [string[]]$Only = @()
 )
 
 Set-StrictMode -Version Latest
@@ -61,11 +64,41 @@ function Restore-TemporaryEnvironment {
 }
 
 $started = [System.Collections.Generic.List[object]]::new()
+# With -Only: the parts that are running and stay as they are.
+$kept = @()
+# Given through -File, a list of names arrives as one text with commas.
+$Only = @($Only | ForEach-Object { $_ -split "," } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+$partial = @($Only).Count -gt 0
+$locked = $false
 try {
     $root = Get-AtdrProjectRoot
     $runtime = Get-AtdrRuntimeDirectory
     $metadataPath = Join-Path $runtime "system-processes.json"
-    if (Test-Path -LiteralPath $metadataPath) {
+    if (-not $DryRun) {
+        # The sign-in start and the watcher must not launch the same parts at the same moment.
+        $locked = Enter-AtdrStartLock
+        if (-not $locked) {
+            Write-Host "ATDR is being started by another process just now. Status: .\scripts\check_system.cmd"
+            exit 3
+        }
+    }
+    if ($partial -and (Read-AtdrDesiredState).state -ne "running") {
+        # stop_system ran while the watcher was about to bring a part back.
+        Write-Host "ATDR is not meant to be running (it was stopped with stop_system). Nothing was started."
+        Exit-AtdrStartLock
+        exit 0
+    }
+    if ($partial -and (Test-Path -LiteralPath $metadataPath)) {
+        $metadata = Get-Content -LiteralPath $metadataPath -Raw | ConvertFrom-Json
+        $kept = @(@($metadata.processes) | Where-Object { Test-TrackedProcessRecordActive $_ })
+        $Only = @($Only | Where-Object { $_ -notin @($kept | ForEach-Object { [string]$_.name }) })
+        if (-not $Only.Count) {
+            Write-Host "Those parts are already running. Nothing was started."
+            Exit-AtdrStartLock
+            exit 0
+        }
+    }
+    elseif (Test-Path -LiteralPath $metadataPath) {
         $metadata = Get-Content -LiteralPath $metadataPath -Raw | ConvertFrom-Json
         $records = @($metadata.processes)
         $active = @($records | Where-Object { Test-TrackedProcessRecordActive $_ })
@@ -90,10 +123,17 @@ try {
                     if ($DryRun) { Get-AssistantModelStatus $runningEnv } else { Start-AssistantModelIfStopped $runningEnv }
                 } catch { [pscustomobject]@{ engine = "ollama"; state = "not_running"; model = "" } }
                 Write-Host "  SOC Assistant model: $(Get-AssistantModelSummary $assistantModel)" -ForegroundColor $(if ($assistantModel.state -in @('not_running', 'model_missing')) { 'Yellow' } else { 'Gray' })
+                if (-not $DryRun) {
+                    Set-AtdrDesiredState -State "running" -By "start_system"
+                    [void](Start-AtdrWatcherTask)
+                    Exit-AtdrStartLock
+                }
                 if (-not $NoBrowser -and -not $DryRun) { Start-Process "http://localhost:8080/#/pages/login" | Out-Null }
                 exit 0
             }
-            throw "ATDR has a partial or unhealthy launcher-managed runtime ($($runtimeState.active_count)/4 processes, $($runtimeState.ready_count)/4 services ready). Run .\scripts\check_system.cmd -Json, then .\scripts\stop_system.cmd before retrying."
+            # The parts that are running stay on record: without it stop_system could no longer find them.
+            $kept = $active
+            throw "ATDR has a partial or unhealthy launcher-managed runtime ($($runtimeState.active_count)/4 processes, $($runtimeState.ready_count)/4 services ready). The watcher (.\scripts\autostart.cmd) brings back a part that stopped within a minute. To start over: .\scripts\check_system.cmd -Json, then .\scripts\stop_system.cmd."
         }
         Remove-Item -LiteralPath $metadataPath -Force
     }
@@ -146,7 +186,14 @@ try {
     if (-not (Test-Path -LiteralPath $reactCli)) { throw "ATDR frontend dependencies are missing. Run .\scripts\setup_team.cmd." }
     if (-not (Test-Path -LiteralPath $vueCli)) { throw "MFU shell frontend dependencies are missing. Run .\scripts\setup_team.cmd." }
 
-    $ports = [ordered]@{ atdr_backend = 8000; atdr_frontend = 5173; shell_backend = 8214; shell_frontend = 8080 }
+    # What this run starts: every part ATDR is set up to run, or with -Only the parts named.
+    $wanted = if ($partial) { @($Only) } else { @(Get-AtdrExpectedParts $envValues) }
+    $unknown = @($wanted | Where-Object { $_ -notin @("atdr-backend", "atdr-worker", "atdr-syslog", "atdr-frontend", "shell-backend", "shell-frontend") })
+    if ($unknown.Count) { throw "Unknown part(s): $($unknown -join ', ')." }
+    $ports = [ordered]@{}
+    foreach ($pair in @(@("atdr-backend", "atdr_backend", 8000), @("atdr-frontend", "atdr_frontend", 5173), @("shell-backend", "shell_backend", 8214), @("shell-frontend", "shell_frontend", 8080))) {
+        if ($pair[0] -in $wanted) { $ports[$pair[1]] = $pair[2] }
+    }
     $occupied = @($ports.GetEnumerator() | Where-Object { Test-TcpEndpoint -Port $_.Value } | ForEach-Object { "$($_.Key):$($_.Value)" })
     if ($occupied.Count) { throw "Required port(s) are already occupied: $($occupied -join ', '). Stop the owning service or configure a free team profile." }
 
@@ -200,33 +247,61 @@ try {
         exit 0
     }
 
-    Write-Host "Starting all four components. Wait for 'All components are ready' before opening the browser." -ForegroundColor Cyan
-    Write-Host "  The MFU shell may need 20-60 seconds for its first compile."
+    if ($partial) {
+        Write-Host "Starting: $($wanted -join ', ')." -ForegroundColor Cyan
+    }
+    else {
+        Write-Host "Starting all four components. Wait for 'All components are ready' before opening the browser." -ForegroundColor Cyan
+        Write-Host "  The MFU shell may need 20-60 seconds for its first compile."
+    }
 
     $logDir = Join-Path $runtime "logs"
     New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 
-    $started.Add((Start-TrackedProcess -Name "atdr-backend" -FilePath $python -Arguments @("-m", "uvicorn", "atdr.app.main:app", "--host", "127.0.0.1", "--port", "8000") -WorkingDirectory $root -LogDirectory $logDir))
+    if ("atdr-backend" -in $wanted) {
+        $started.Add((Start-TrackedProcess -Name "atdr-backend" -FilePath $python -Arguments @("-m", "uvicorn", "atdr.app.main:app", "--host", "127.0.0.1", "--port", "8000") -WorkingDirectory $root -LogDirectory $logDir))
+    }
     if ($workerEnabled) {
         # Runs queued imports and jobs (Validation Controls > Queue import).
         # Optional: ATDR still works without it, so a failed start only warns.
         try {
-            $started.Add((Start-TrackedProcess -Name "atdr-worker" -FilePath $python -Arguments @("-m", "atdr.scripts.run_operation_worker", "--watch") -WorkingDirectory $root -LogDirectory $logDir))
+            if ("atdr-worker" -in $wanted) {
+                $started.Add((Start-TrackedProcess -Name "atdr-worker" -FilePath $python -Arguments @("-m", "atdr.scripts.run_operation_worker", "--watch") -WorkingDirectory $root -LogDirectory $logDir))
+            }
         }
         catch {
             Write-Warning "Background worker did not start ($($_.Exception.Message)). ATDR runs without it; queued imports wait until it runs."
+            # Asked for by name, it is the whole of this run: the watcher has to know it did not come back.
+            if ($partial) { throw }
         }
     }
     if ($syslogEnabled) {
         # Receives the firewall's logs over UDP syslog. Optional like the worker: a failed start only warns.
         try {
-            $started.Add((Start-TrackedProcess -Name "atdr-syslog" -FilePath $python -Arguments @("-m", "atdr.scripts.run_syslog_receiver") -WorkingDirectory $root -LogDirectory $logDir))
+            if ("atdr-syslog" -in $wanted) {
+                $started.Add((Start-TrackedProcess -Name "atdr-syslog" -FilePath $python -Arguments @("-m", "atdr.scripts.run_syslog_receiver") -WorkingDirectory $root -LogDirectory $logDir))
+            }
         }
         catch {
             Write-Warning "Live syslog receiver did not start ($($_.Exception.Message)). Firewall logs sent now are not received."
+            if ($partial) { throw }
         }
     }
-    $started.Add((Start-TrackedProcess -Name "atdr-frontend" -FilePath $node -Arguments @("node_modules/vite/bin/vite.js", "--host", "127.0.0.1", "--port", "5173", "--strictPort") -WorkingDirectory (Join-Path $root "frontend") -LogDirectory $logDir))
+    if ("atdr-frontend" -in $wanted) {
+        # The dashboard is served from its built files. They are built here when the source is newer than the
+        # build; a build that fails leaves the last good one in place, and then only a warning is due.
+        $buildOut = Join-Path $logDir "dashboard-build.out.log"
+        $buildErr = Join-Path $logDir "dashboard-build.err.log"
+        $build = Start-Process -FilePath $python -ArgumentList @("-m", "atdr.scripts.build_dashboard") -WorkingDirectory $root -WindowStyle Hidden -RedirectStandardOutput $buildOut -RedirectStandardError $buildErr -PassThru
+        $null = $build.Handle
+        $build.WaitForExit()
+        $buildSaid = if (Test-Path -LiteralPath $buildOut) { ((Get-Content -LiteralPath $buildOut -Raw -ErrorAction SilentlyContinue) + "").Trim() } else { "" }
+        if ($build.ExitCode -ne 0) {
+            throw "The dashboard has no build to serve ($buildSaid). See .atdr_runtime\logs\dashboard-build.err.log."
+        }
+        Write-Host "  Dashboard: $buildSaid" -ForegroundColor $(if ($buildSaid -match 'FAILED|not found') { 'Yellow' } else { 'Gray' })
+        $started.Add((Start-TrackedProcess -Name "atdr-frontend" -FilePath $python -Arguments @("-m", "atdr.scripts.serve_dashboard", "--host", "127.0.0.1", "--port", "5173") -WorkingDirectory $root -LogDirectory $logDir))
+    }
 
     $shellBackendEnvironment = @{
         DOTENV_CONFIG_PATH = $shellEnvPath
@@ -241,11 +316,13 @@ try {
         ATDR_HANDOFF_ALLOWED_DOMAINS = [string]$envValues["MFU_IAM_ALLOWED_DOMAINS"]
         GOOGLE_CLIENT_ID = [string]$shellValues["GOOGLE_CLIENT_ID"]
     }
-    $original = Set-TemporaryEnvironment $shellBackendEnvironment
-    try {
-        $started.Add((Start-TrackedProcess -Name "shell-backend" -FilePath $node -Arguments @("-r", "dotenv/config", "server.js") -WorkingDirectory (Join-Path $template "backend-node") -LogDirectory $logDir))
+    if ("shell-backend" -in $wanted) {
+        $original = Set-TemporaryEnvironment $shellBackendEnvironment
+        try {
+            $started.Add((Start-TrackedProcess -Name "shell-backend" -FilePath $node -Arguments @("-r", "dotenv/config", "server.js") -WorkingDirectory (Join-Path $template "backend-node") -LogDirectory $logDir))
+        }
+        finally { Restore-TemporaryEnvironment $original }
     }
-    finally { Restore-TemporaryEnvironment $original }
 
     $shellFrontendEnvironment = @{
         PORT = "8080"
@@ -256,34 +333,48 @@ try {
         VUE_APP_ATDR_HANDOFF_CONSUME_URL = "http://127.0.0.1:8000/api/auth/mfu-iam/handoff/consume"
         VUE_APP_CLIENTID = [string]$shellFrontendValues["VUE_APP_CLIENTID"]
     }
-    $original = Set-TemporaryEnvironment $shellFrontendEnvironment
-    try {
-        $started.Add((Start-TrackedProcess -Name "shell-frontend" -FilePath $node -Arguments @("node_modules/@vue/cli-service/bin/vue-cli-service.js", "serve", "--mode", "localdev", "--host", "127.0.0.1", "--port", "8080") -WorkingDirectory (Join-Path $template "frontend-vue") -LogDirectory $logDir))
+    if ("shell-frontend" -in $wanted) {
+        $original = Set-TemporaryEnvironment $shellFrontendEnvironment
+        try {
+            $started.Add((Start-TrackedProcess -Name "shell-frontend" -FilePath $node -Arguments @("node_modules/@vue/cli-service/bin/vue-cli-service.js", "serve", "--mode", "localdev", "--host", "127.0.0.1", "--port", "8080") -WorkingDirectory (Join-Path $template "frontend-vue") -LogDirectory $logDir))
+        }
+        finally { Restore-TemporaryEnvironment $original }
     }
-    finally { Restore-TemporaryEnvironment $original }
 
     [ordered]@{
         version = 1
         started_at = (Get-Date).ToUniversalTime().ToString("o")
-        processes = @($started)
+        processes = @(@($kept) + @($started))
         secrets_stored = $false
     } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $metadataPath -Encoding UTF8
 
-    Wait-ServiceReady "ATDR backend" "http://127.0.0.1:8000/health/live"
-    Wait-ServiceReady "ATDR frontend" "http://127.0.0.1:5173"
-    Wait-ServiceReady -Name "MFU shell backend" -Url "http://127.0.0.1:8214/healthz" -TimeoutSeconds 90
+    $startedNames = @($started | ForEach-Object { [string]$_.name })
+    if ("atdr-backend" -in $startedNames) { Wait-ServiceReady "ATDR backend" "http://127.0.0.1:8000/health/live" }
+    if ("atdr-frontend" -in $startedNames) { Wait-ServiceReady "ATDR frontend" "http://127.0.0.1:5173" }
+    if ("shell-backend" -in $startedNames) { Wait-ServiceReady -Name "MFU shell backend" -Url "http://127.0.0.1:8214/healthz" -TimeoutSeconds 90 }
     # The supervisor's legacy Vue/Webpack shell can need several minutes for
     # its first cold compile on a teammate machine.
-    Wait-ServiceReady -Name "MFU shell frontend" -Url "http://127.0.0.1:8080" -TimeoutSeconds 240
+    if ("shell-frontend" -in $startedNames) { Wait-ServiceReady -Name "MFU shell frontend" -Url "http://127.0.0.1:8080" -TimeoutSeconds 240 }
+
+    if ($partial) {
+        Write-Host "Started: $($startedNames -join ', ')." -ForegroundColor Green
+        Exit-AtdrStartLock
+        exit 0
+    }
 
     # Optional: the SOC Assistant falls back to built-in answers without it, so this never fails startup.
     $assistantModel = try { Start-AssistantModelIfStopped $envValues } catch { [pscustomobject]@{ engine = "ollama"; state = "not_running"; model = "" } }
+
+    # From here on ATDR is meant to be running: the watcher brings back a part that stops.
+    Set-AtdrDesiredState -State "running" -By "start_system"
+    [void](Start-AtdrWatcherTask)
 
     Write-Host "All components are ready." -ForegroundColor Green
     Write-Host "  MFU sign in: http://localhost:8080/#/pages/login"
     Write-Host "  ATDR API: http://127.0.0.1:8000"
     Write-Host "  ATDR React: http://127.0.0.1:5173 (entered through secure shell handoff)"
     Write-Host "  SOC Assistant model: $(Get-AssistantModelSummary $assistantModel)" -ForegroundColor $(if ($assistantModel.state -in @('not_running', 'model_missing')) { 'Yellow' } else { 'Gray' })
+    Exit-AtdrStartLock
     if (-not $NoBrowser) { Start-Process "http://localhost:8080/#/pages/login" | Out-Null }
 }
 catch {
@@ -293,7 +384,17 @@ catch {
         Stop-Process -Id $record.pid -Force -ErrorAction SilentlyContinue
     }
     $metadataPath = Join-Path (Get-AtdrRuntimeDirectory) "system-processes.json"
-    if (Test-Path -LiteralPath $metadataPath) { Remove-Item -LiteralPath $metadataPath -Force }
+    if (@($kept).Count) {
+        # The parts that were running before this try still are.
+        [ordered]@{
+            version = 1
+            started_at = (Get-Date).ToUniversalTime().ToString("o")
+            processes = @($kept)
+            secrets_stored = $false
+        } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $metadataPath -Encoding UTF8
+    }
+    elseif (Test-Path -LiteralPath $metadataPath) { Remove-Item -LiteralPath $metadataPath -Force }
+    if ($locked) { Exit-AtdrStartLock }
     [Console]::Error.WriteLine("ATDR startup failed: $($_.Exception.Message)")
     exit 1
 }

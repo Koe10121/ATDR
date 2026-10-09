@@ -71,6 +71,16 @@ try {
     }
     $assistantModel = Get-AssistantModelStatus $envValues
 
+    # Whether ATDR is meant to be running, and whether the watcher (scripts\watch_system.ps1) is looking after it.
+    $desired = Read-AtdrDesiredState
+    $watch = Read-AtdrWatchStatus
+    $watching = [bool]($null -ne $watch -and $null -ne $watch.age_seconds -and $watch.age_seconds -lt 120)
+    $meantTo = switch ($desired.state) {
+        "running" { "running" }
+        "stopped" { if (Test-AtdrHeld $desired) { "stopped until $($desired.hold_until.ToLocalTime().ToString('yyyy-MM-dd HH:mm')) (stop_system -HoldHours)" } else { "stopped (stop_system); it starts at the next sign-in or with start_system" } }
+        default { "not started with start_system yet" }
+    }
+
     $installationReady = [bool](
         $structure.valid -and
         $packageIntegrityReady -and
@@ -158,6 +168,12 @@ try {
         }
         services = $services
         all_services_ready = $allServicesReady
+        keeping_running = [ordered]@{
+            meant_to_be = $desired.state
+            held_until = $(if (Test-AtdrHeld $desired) { $desired.hold_until.ToString("o") } else { $null })
+            watcher_running = $watching
+            watcher_checked_seconds_ago = $(if ($null -ne $watch -and $null -ne $watch.age_seconds) { [int]$watch.age_seconds } else { $null })
+        }
         runtime_metadata_exists = (Test-Path -LiteralPath (Join-Path (Get-AtdrRuntimeDirectory) "system-processes.json"))
         recommended_action = $recommendedAction
         secrets_exposed = $false
@@ -186,6 +202,8 @@ try {
         if ($missingAuth.Count) { Write-Host "  Missing ATDR settings: $($missingAuth -join ', ')" -ForegroundColor Yellow }
         if (-not $providerReady) { Write-Host "  Provider blocker: $providerBlocker" -ForegroundColor Yellow }
         Write-Host "  Running services: $(@($services.Values | Where-Object reachable).Count)/4"
+        Write-Host "  Meant to be: $meantTo"
+        Write-Host "  Watcher: $(if ($watching) { "watching (last check $([int]$watch.age_seconds) s ago); it restarts a part that stops" } else { 'not running; a part that stops stays stopped. Install it with .\scripts\autostart.cmd' })" -ForegroundColor $(if ($watching) { 'Gray' } else { 'Yellow' })
         Write-Host "  Preflight: $(if ($ok) { 'PASS' } else { 'NEEDS ATTENTION' })" -ForegroundColor $(if ($ok) { 'Green' } else { 'Yellow' })
         Write-Host "  Next action: $recommendedAction"
     }
