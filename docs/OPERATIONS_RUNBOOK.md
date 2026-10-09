@@ -313,9 +313,16 @@ Limits:
 - From the live feed the scanning alert keeps 20 evidence logs for each
   scanner and hour and counts the rest, which are deleted with the other live
   logs. Imported logs are all kept as evidence.
+- A large alert opens like a small one. Its drawer shows the first 100 linked
+  logs and previews the first 25 evidence logs of its report, and says how
+  many there are; the CSV and HTML downloads list every one.
 - Which logs are flagged did not change (rule catalog v5.37.0): on the team's
   labels 382 right, 13 false and 3 missed before and after, while the 120,001
   imported logs give 78 alerts instead of 158.
+- The live list was rebuilt under this grouping on 2026-10-09: its 165 alerts
+  became 85 with the same 7,773 logs flagged, and 76 alerts for scanning from
+  the internet became one that lists 130 addresses
+  (`docs/detection/ALERT_REBUILD.md`).
 - Measured at MFU's firewall rate on 2026-10-08 (8 min 44 s of the export,
   then the same traffic again): 214 alerts instead of 556. The repeated
   traffic raised 16 alerts instead of 186, one Internet scanning alert listed

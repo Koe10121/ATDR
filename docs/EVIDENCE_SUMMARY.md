@@ -117,10 +117,16 @@ with documentation-range addresses, were archived too. The live list was then 17
 alerts, 5 of them the MFU model's experimental alerts.
 
 On 4 Oct the 31,001 duplicate log copies were removed and the list rebuilt
-(`docs/detection/ALERT_REBUILD.md`). The live list is now 165 alerts, 6 of them the MFU
+(`docs/detection/ALERT_REBUILD.md`). The live list was then 165 alerts, 6 of them the MFU
 model's: port scan 118, malware / C2 14, policy violation 10, data exfiltration 7, flood 3,
 exploit attempt 3 and unclassified 10 (6%). No brute-force alert is left: the three on the
 list had each been one denied connection stored six or seven times.
+
+On 9 Oct the list was rebuilt under rule catalog v5.37.0's grouping. The same 7,773 logs
+are flagged, in 85 alerts instead of 165, 6 of them the MFU model's: port scan 39,
+malware / C2 14, policy violation 9, data exfiltration 7, flood 3, exploit attempt 3 and
+unclassified 10. The difference is scanning from the internet: 76 alerts for it became
+one Internet scanning alert that lists the hour's 130 scanning addresses.
 
 - 30 alerts on unanswered internet probes to uncommon ports are now port scans.
 - Four alerts on campus devices whose connections the firewall identified as
@@ -199,6 +205,7 @@ the malicious cases and the supervised classifier failed calibration.
 | Re-run on 4 Oct after duplicate log copies were removed and the alert list rebuilt (165 alerts on 120,001 logs, 163 of the alerts created that day) | main 120 of 121 ("Summarize the security situation today" ended in "no built-in answer"); held-out 27 of 27; 4.2 s and 4.8 s per answer on average | |
 | Re-run on 7 Oct after ATDR began writing the situation summary itself, for the model to relay; main set now 122 checks (the held-out Thai summary moved to it, and a new held-out question was written before any run) | main 122 of 122; held-out 26 of 27; 4.2 s and 5.0 s per answer on average | |
 | Same, on a copy of the data on which the 163 rebuilt alerts were created that day (the state of 4 Oct) | main 122 of 122; held-out 26 of 27; 4.3 s and 5.3 s per answer on average | |
+| Re-run on 9 Oct after the alert list was regrouped under rule catalog v5.37.0 (85 alerts on 120,001 logs, 83 of them created that day) | main 122 of 122; held-out 26 of 27; 4.3 s and 4.5 s per answer on average | |
 
 Measured on 2026-09-27 with qwen3:8b running locally, after the alert
 rebuild, and again on 2026-09-29 on the 181-alert list. The main set gained three questions when the assistant got tools

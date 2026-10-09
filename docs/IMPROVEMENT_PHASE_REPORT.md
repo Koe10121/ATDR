@@ -42,13 +42,14 @@ attacks. The assistant answered from a fixed list of question types.
   well as the rule: the firewall's threat signature, the kind of watchlist
   indicator, whether a probe was answered. A new type, exploit attempt (MITRE
   T1190), covers Shellshock and path-traversal attacks. Unclassified alerts
-  fell from 53% to 10%, and to 6% once duplicate log copies were removed on 4 October. Each type has its MITRE technique and a response
+  fell from 53% to 10%, and to 6% once duplicate log copies were removed on 4 October (the same 10
+  alerts are 12% of the shorter list of 9 October). Each type has its MITRE technique and a response
   playbook.
 - **Every alert in plain words** (1 October). The alert drawer opens with a few
   sentences written from all of the alert's evidence logs, not by the language
   model: when it happened, which device contacted what, what the firewall
   recognised and whether it blocked it, what that may mean, and the first
-  question to answer. For #4067: "On 20 May, 13:36–13:39, an MFU device
+  question to answer. For #4179: "On 20 May, 13:36–13:39, an MFU device
   ([address]) made 7 connections to 4 outside servers on port 14444. The
   firewall recognised it as 'XMRig Miner Command and Control Traffic Detection'
   and blocked all 7." The assistant reads the same sentences when it explains
@@ -59,7 +60,7 @@ attacks. The assistant answered from a fixed list of question types.
   one line per kind of attack, most dangerous first, with the threats the
   firewall or the watchlist named and whether the firewall blocked them, and
   the alert to open first: a named threat the firewall let through, which is
-  #4033, the GHOSTENGINE server.
+  #4163, the GHOSTENGINE server.
 - **A dashboard that reads like a product** (2 October). Presentation, lab and
   research wording left the pages: data caveats, documentation paths, the
   release checklist, "lab" and "demo" labels, and the Overview's validation
@@ -116,7 +117,20 @@ attacks. The assistant answered from a fixed list of question types.
   158. At MFU's rate the replay raised 214 alerts instead of 556: the traffic sent a second
   time raised 16 instead of 186, one alert listed 316 scanners, and 17,613 logs were kept as
   evidence instead of 46,533. The behaviour model counts a scanner on that hourly alert as
-  covered, so it no longer raises its own alert for it.
+  covered, so it no longer raises its own alert for it. On 9 October the live list was
+  rebuilt this way: its 165 alerts became 85 with the same 7,773 logs flagged, and 76 alerts
+  for scanning from the internet became one that lists 130 addresses
+  (`detection/ALERT_REBUILD.md`).
+- **A large alert opens as fast as a small one** (9 October). Rehearsing that rebuild on a
+  copy put an hour of internet scanning on one alert with 5,547 evidence logs. Opening it
+  asked for its timeline and its whole report, which loaded every evidence log (4.7 s) and
+  worked out a behaviour window for each (141 s, 7.6 MB); a status change, a note, an
+  assignment or an escalation loaded them all again (4 to 8 s each). Those actions no
+  longer read the evidence. The report fetches it in one query and works out behaviour
+  windows for its first 25 logs, and the drawer asks for a preview of 25 and says how many
+  there are; the CSV and HTML downloads still list every log. On the live list the same
+  alert's timeline takes 0.02 s and its report preview about a second, an action 0.02 s
+  or less, and the CSV of all 5,547 logs 0.3 s.
 
 ### 2. A model trained on MFU traffic
 
@@ -197,13 +211,15 @@ attacks. The assistant answered from a fixed list of question types.
 | Rules plus MFU model, same labels | F1 90.1% | Second look |
 | MFU model on fresh simulated attacks | port scan 96.5%, brute force 97.5%, flood 100%, C2 88.5%, exfiltration 98.0% | Simulated |
 | Team labels, current rules | precision 96.7%, recall 99.2% | Agreement, not accuracy |
-| Assistant | 122 of 122 (31 reviewer questions and the demo's conversation added), and 26 of 27 held-out questions, in about 5 seconds per answer (7 Oct, on the cleaned data; 84 of 85 and 26 of 27 on 30 Sep; runs vary by a question or two) | Automatic scoring |
-| Tests | 1,617 backend and 81 browser tests passing | |
+| Assistant | 122 of 122 (31 reviewer questions and the demo's conversation added), and 26 of 27 held-out questions, in about 5 seconds per answer (7 Oct on the cleaned data, and again on 9 Oct on the regrouped list; 84 of 85 and 26 of 27 on 30 Sep; runs vary by a question or two) | Automatic scoring |
+| Tests | 1,669 backend and 86 browser tests passing (9 Oct) | |
 
-The live dashboard holds 165 alerts (Critical 30, High 39, Medium 84, Low 12) on
-120,001 logs. Each names its attack type: port scan 118, malware / C2 14, policy
-violation 10, data exfiltration 7, flood 3, exploit attempt 3, unclassified 10.
-Six are the MFU model's experimental alerts.
+The live dashboard holds 85 alerts (Critical 23, High 11, Medium 39, Low 12) on
+120,001 logs, since the list was regrouped on 9 October (165 before, with the same
+logs flagged). Each names its attack type: port scan 39, malware / C2 14, policy
+violation 9, data exfiltration 7, flood 3, exploit attempt 3, unclassified 10.
+Six are the MFU model's experimental alerts, and one lists the hour's 130 internet
+scanners.
 
 On 29 September a check of the live list found 4 alerts (3 Critical, 1 High)
 built on 46 synthetic lab logs that a test tool had written into the live

@@ -1,9 +1,9 @@
 # Rebuilding alerts after the rules change
 
 ATDR keeps an alert until someone closes it. When the rule catalog changes,
-alerts raised by retired or narrowed rules stay on the list, so the dashboard
-shows what ATDR used to detect rather than what it detects now. A rebuild
-brings the list up to date without losing history.
+alerts raised by retired or narrowed rules, or grouped the earlier way, stay
+on the list, so the dashboard shows what ATDR used to detect rather than what
+it detects now. A rebuild brings the list up to date without losing history.
 
 ## What a rebuild does
 
@@ -29,6 +29,11 @@ python -m atdr.scripts.rebuild_alerts                        # dry run: what wou
 python -m atdr.scripts.rebuild_alerts --apply --actor <name>  # backs up again, then rebuilds
 scripts\start_system.cmd
 ```
+
+Each archived alert keeps the reason it was replaced. Without `--reason` that
+is "raised by rules the catalog has since retired or narrowed"; give
+`--reason "<why>"` when the rebuild has another cause, such as a change of
+grouping.
 
 To undo, stop ATDR and restore the backup taken before the rebuild.
 
@@ -163,6 +168,64 @@ reports and slides name have new numbers: #3738 (the GHOSTENGINE server) is
 #4033 with 13 events, #3773 is #4067, #3839 is #4134, #3853 is #4145, and the
 model's alerts are #4143 to #4148. The audit entries `duplicate_logs_removed`
 and `alerts_rebuilt` keep the details.
+
+## 2026-10-09 regrouped under rule catalog v5.37.0
+
+Rule catalog v5.37.0 groups the same findings into fewer alerts
+(`../OPERATIONS_RUNBOOK.md`, Alert Grouping): activity of the same kind from
+the same source joins the alert still open for it, and scanning from the
+internet that does nothing else goes on one Internet scanning alert an hour.
+The live list still held the 165 alerts grouped the earlier way. No rule was
+retired, so the rebuild was given its own reason (`--reason`).
+
+Rehearsed on a copy first, then applied with ATDR stopped (backup
+`backups/atdr-sqlite-20261009T023726Z-6b9795f8.sqlite3`): 163 alerts archived,
+2 kept because a response is recorded on them (#2049, #2637), 77 raised by the
+rules and the watchlist, and 6 by the MFU behaviour model. The live list
+matched the rehearsal alert for alert.
+
+| | Before | After |
+|---|---|---|
+| Alerts | 165 | 85 |
+| Critical | 30 | 23 |
+| High | 39 | 11 |
+| Medium | 84 | 39 |
+| Low | 12 | 12 |
+| Logs kept as evidence | 7,773 | 7,773 |
+
+- The same 7,773 of the 120,001 logs are evidence before and after: none was
+  added and none lost.
+- 76 alerts for scanning from the internet (46 horizontal scans, 4 port scans
+  and 26 unusual-port sweeps) became one Medium alert, #4225 "Internet
+  scanning from 130 outside addresses (20 May 13:00 to 14:00)", with their
+  5,547 connections as evidence.
+- Seven of those 76 had been Critical and 25 High, on the points the rules
+  give for the addresses and ports a source tries. None had a firewall threat
+  record or a watchlist match, and none of the addresses did anything else
+  ATDR alerts on. Of the seven, three were SSH probes of 10 to 19 addresses
+  that the firewall denied; three were sweeps of 155 to 570 addresses on
+  which no application was identified (the firewall let the first packets
+  through and logged the connections as incomplete); and one tried port 80 on
+  600 addresses, where 95 of its 835 connections reached a web server.
+- A scanner keeps its own alert when it scans from inside MFU or does more:
+  21 horizontal scans (24 before, 4 of them now one alert), 7 port scans and
+  2 unusual-port alerts (4 before).
+- Every other kind has the alerts it had: 8 for malware the firewall named, 5
+  firewall threat events, 11 for unidentified applications, 7 for large
+  uploads, 6 for repeated denied connections, 4 for risk-5 applications, 3
+  floods, 1 beaconing, 1 single denied connection, the GHOSTENGINE watchlist
+  alert, the earlier anomaly model's kept alert (#2637) and the MFU model's 6
+  experimental alerts.
+
+The alerts the reports name have new numbers: #4033 (the GHOSTENGINE server)
+is #4163, #4067 is #4179, #4134 is #4218, and the model's alerts #4143 to
+#4148 are #4226 to #4231 (#4145 is #4228). The audit entry `alerts_rebuilt`
+keeps the counts.
+
+The rehearsal also showed that an alert this large took minutes to open: the
+drawer loaded every evidence log and worked out a behaviour window for each.
+That was fixed before the live rebuild (`../IMPROVEMENT_PHASE_REPORT.md`,
+"A large alert opens as fast as a small one").
 
 ## Alert numbers after a rebuild
 

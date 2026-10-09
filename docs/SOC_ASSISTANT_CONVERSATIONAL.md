@@ -639,6 +639,21 @@ sent the answer back twice, and the built-in answer was shown, so the wrong
 number never reached the page; the evening before, the same question was
 answered with #4012. Held-out on 7 October: 26 of 27, the miss again h-28.
 
+### 9 October: the regrouped alert list
+
+On 9 October the alert list was rebuilt under rule catalog v5.37.0's grouping
+(`docs/detection/ALERT_REBUILD.md`): 85 alerts instead of 165, on the same
+flagged logs, with an hour of scanning from the internet on one alert. The
+alerts this document names have new numbers again: #4033 is #4163, #4067 is
+#4179, #4134 is #4218, #4145 is #4228 and the MFU model's alerts are #4226 to
+#4231. The question sets name no alert numbers (they are filled in from the
+data), so they did not change.
+
+That made 9 October another day on which nearly every alert was created
+"today" (83 of 85). Main set 122 of 122, 4.3 s on average; held-out 26 of 27,
+4.5 s, the miss again h-28. Asked how many Critical alerts are open, the
+assistant answers 23, and "the most urgent one" is #4163.
+
 ## Measuring it again
 
 ```
@@ -663,4 +678,5 @@ is used to fix something, move it to the main set and write a new held-out one.
 - Lookups that ATDR makes before the model answers can be wrong, and the model then answers from them: a wrong match on the word "detected" produced the "1 alert" answer of 3 October. Each answer records the lookups made for it.
 - When Ollama aborts a generation (on 7 October, after a GPU-discovery timeout, with "token repeat limit reached"), the built-in answer is shown at once; ATDR does not ask the model again.
 - For questions outside the summary route ("Are we under attack?", for one) the overview tool still gives a period's counts beside the open ones, and on a day with new alerts the model can put one under the other: asked what happened in the last hour, before that question took the summary route, it answered "163 alerts, with 30 being Critical", where 28 of the 163 were Critical and 30 were open.
+- A question about one alert reads every evidence log of that alert before the model starts: 0.3 s for an ordinary alert, about 8 s for the hour's Internet scanning alert with its 5,547 logs.
 - "The most urgent one" is recognised in English only. Asked the same in Thai ("is there anything that needs dealing with urgently right now?"), the model answers from the whole overview and does not name the alert the Overview opens first.
