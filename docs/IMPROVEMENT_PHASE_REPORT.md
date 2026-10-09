@@ -131,6 +131,21 @@ attacks. The assistant answered from a fixed list of question types.
   there are; the CSV and HTML downloads still list every log. On the live list the same
   alert's timeline takes 0.02 s and its report preview about a second, an action 0.02 s
   or less, and the CSV of all 5,547 logs 0.3 s.
+- **A system that looks after itself** (9 October). The database had been backed up by
+  hand, eleven times in a month, into the folder it is in; a part that stopped stayed
+  stopped until someone noticed; "Reset to sample data" deleted every log, alert and audit
+  entry after one click, with no copy kept; and the dashboard ran from its development
+  server. Now the background worker backs the database up every day, checks each copy,
+  thins old ones out by age and copies the newest to a USB drive whenever one with an
+  `ATDR-backups` folder is connected. A reset asks for the word RESET and takes a backup
+  first. A watcher looks at every part each 30 seconds and brings back one that has stopped
+  or no longer answers, without undoing a deliberate stop. The dashboard is served from
+  its built files, and Data & Detection has a System panel that shows all of this.
+  Measured by ending processes of the running system: a part was back 9 to 45 seconds
+  after it was ended, a frozen one in under four minutes, and after a shutdown and
+  power-on ATDR and its watcher were running again with nothing done by hand. The 638 MB
+  database is copied and checked in 3 seconds, and a restore from that backup gave back
+  every log and alert (`docs/OPERATIONS_RUNBOOK.md`, Keeping ATDR Running).
 
 ### 2. A model trained on MFU traffic
 
@@ -212,7 +227,7 @@ attacks. The assistant answered from a fixed list of question types.
 | MFU model on fresh simulated attacks | port scan 96.5%, brute force 97.5%, flood 100%, C2 88.5%, exfiltration 98.0% | Simulated |
 | Team labels, current rules | precision 96.7%, recall 99.2% | Agreement, not accuracy |
 | Assistant | 122 of 122 (31 reviewer questions and the demo's conversation added), and 26 of 27 held-out questions, in about 5 seconds per answer (7 Oct on the cleaned data, and again on 9 Oct on the regrouped list; 84 of 85 and 26 of 27 on 30 Sep; runs vary by a question or two) | Automatic scoring |
-| Tests | 1,669 backend and 86 browser tests passing (9 Oct) | |
+| Tests | 1,732 backend and 88 browser tests passing (9 Oct) | |
 
 The live dashboard holds 85 alerts (Critical 23, High 11, Medium 39, Low 12) on
 120,001 logs, since the list was regrouped on 9 October (165 before, with the same

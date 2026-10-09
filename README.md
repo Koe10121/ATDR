@@ -35,6 +35,12 @@ deployments remain simulation-only regardless of configuration.
   Ollama) that looks facts up through read-only tools; every number it states
   is checked against what the tools returned. Built-in answers remain the
   fallback (`docs/SOC_ASSISTANT_CONVERSATIONAL.md`).
+- **Operation:** ATDR starts when its Windows user signs in, brings back a
+  part that stops, backs its database up every day and checks the copy, and
+  serves its dashboard from built files. The System panel on Data & Detection
+  shows each part, the last backup and the dashboard's build
+  ([Operations Runbook](docs/OPERATIONS_RUNBOOK.md): Keeping ATDR Running,
+  Backup And Restore).
 - **Evidence:** every figure, what kind it is and how far to trust it is in
   [Evidence Summary](docs/EVIDENCE_SUMMARY.md). What changed after the
   26 September presentation is in the
@@ -139,7 +145,7 @@ Wait for `All components are ready`, then use the mandatory entry:
 http://localhost:8080/#/pages/login
 ```
 
-Running the same start command again while all four launcher-owned components
+Running the same start command again while all launcher-owned components
 are healthy is safe: it reports the existing healthy runtime and does not
 start duplicates. If runtime state is partial, follow the printed check and
 stop commands before retrying.
@@ -147,9 +153,10 @@ stop commands before retrying.
 The launcher starts:
 
 - FastAPI: `http://127.0.0.1:8000`;
-- React: `http://127.0.0.1:5173`;
+- React dashboard, built when its source has changed: `http://127.0.0.1:5173`;
 - MFU shell API: `http://127.0.0.1:8214`;
-- MFU shell UI: `http://localhost:8080`.
+- MFU shell UI: `http://localhost:8080`;
+- the background worker, and the live syslog receiver when it is switched on.
 
 Check or stop the tracked processes:
 
@@ -160,6 +167,13 @@ Check or stop the tracked processes:
 
 To restart, stop and start. Use the `.cmd` wrappers when PowerShell execution
 policy blocks direct `.ps1` execution.
+
+`.\scripts\autostart.cmd` installs two Windows tasks, once for each machine:
+one starts ATDR when you sign in, the other brings back a part that stops.
+Neither undoes a stop, and `.\scripts\stop_system.cmd -HoldHours 2` keeps ATDR
+stopped across a sign-in for work that needs it down. Daily backups are
+switched on with `ATDR_BACKUP_SCHEDULE_HOURS=24` in `.env`. Both are described
+in the [Operations Runbook](docs/OPERATIONS_RUNBOOK.md).
 
 Real MFU/Google sign-in still depends on the approved Web client, account
 scope, IAM group mapping, provider-managed 2FA, recovery, and deprovisioning.

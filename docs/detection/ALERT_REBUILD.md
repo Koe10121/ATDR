@@ -22,7 +22,7 @@ it detects now. A rebuild brings the list up to date without losing history.
 ## How to run it
 
 ```
-scripts\stop_system.cmd
+scripts\stop_system.cmd -HoldHours 2
 python -m atdr.scripts.backup_database --output-dir backups --execute
 python -m alembic upgrade head
 python -m atdr.scripts.rebuild_alerts                        # dry run: what would change
@@ -34,6 +34,10 @@ Each archived alert keeps the reason it was replaced. Without `--reason` that
 is "raised by rules the catalog has since retired or narrowed"; give
 `--reason "<why>"` when the rebuild has another cause, such as a change of
 grouping.
+
+`-HoldHours 2` keeps ATDR stopped while the rebuild runs, also across a
+sign-in, and ends by itself if the last line is forgotten. A plain stop is
+ended by the next sign-in.
 
 To undo, stop ATDR and restore the backup taken before the rebuild.
 

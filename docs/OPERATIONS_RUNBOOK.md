@@ -40,10 +40,29 @@ From the ATDR repository root:
 
 Wait for `All components are ready` before opening the login page. To restart,
 run `stop_system.cmd` and then `start_system.cmd`. The launcher tracks only the
-four processes it owns and keeps logs in ignored `.atdr_runtime/logs/`.
+processes it owns and keeps logs in ignored `.atdr_runtime/logs/`. Two starts
+never run at once: the second says that ATDR is being started by another
+process and leaves.
 
-ATDR does not start by itself after a restart. To have it start when you sign
-in to Windows:
+The dashboard is served from its built files (`frontend/dist`), not from its
+source, by `atdr.scripts.serve_dashboard` on the address it always had
+(`http://127.0.0.1:5173`), with the security headers of
+`deploy/nginx/atdr.conf.example`. `start_system.cmd` builds it first when the
+source is newer than the build (about 15 seconds) and says so on its
+`Dashboard:` line. A build that fails leaves the last good build in place and
+is reported in yellow; the next start tries again. By hand:
+`python -m atdr.scripts.build_dashboard` (`--force` to build anyway, `--check`
+to ask only). A change to the dashboard's source shows after the next start,
+or after that command and a reload of the page while ATDR runs; never by
+itself. Do not run `npm run build` while ATDR runs: it empties the folder the
+dashboard is being served from. For live reload while changing the dashboard,
+stop ATDR and run the API and `npm run dev` by hand as shown under Local
+Recovery.
+
+## Keeping ATDR Running
+
+By itself ATDR does not start after a restart and does not bring back a part
+that stops. Install both, once for each machine and Windows user:
 
 ```powershell
 .\scripts\autostart.cmd            # install
@@ -51,12 +70,87 @@ in to Windows:
 .\scripts\autostart.cmd -Remove    # take it away
 ```
 
-It registers a scheduled task that runs at your sign-in or, when Windows will
-not let your account register one, puts a shortcut in your Startup folder.
-Either runs `scripts\start_at_sign_in.ps1`: the normal start without opening a
-browser, tried again for a few minutes while Windows services such as MongoDB
-come up. Each sign-in start is logged in `.atdr_runtime\logs\autostart.log`.
-No password is stored, and nothing starts before someone signs in.
+It registers two scheduled tasks. Neither needs an administrator, no password
+is stored, and nothing runs before someone signs in. Both run without a
+console window: on 2026-10-09 Windows closed the hidden window of the sign-in
+start seconds after each of three sign-ins, and the start ended with it.
+
+- **ATDR start at sign-in** runs `scripts\start_at_sign_in.ps1` at your
+  sign-in. It first puts on record that ATDR is meant to run and starts the
+  watcher, then makes the normal start without opening a browser, tried again
+  for a few minutes while Windows services such as MongoDB come up. When
+  Windows will not let your account register the task, a shortcut in your
+  Startup folder does the same. Each sign-in start is logged in
+  `.atdr_runtime\logs\autostart.log`.
+- **ATDR keep running** runs the watcher, `scripts\watch_system.ps1`. Every 30
+  seconds it looks at each part ATDR is set up to run (the API server, the
+  dashboard, the background worker, the live syslog receiver when it is on,
+  and the two parts of the MFU sign-in shell) and
+  - starts a part whose process has gone;
+  - stops and starts a part that is running but has not answered for three
+    minutes (not in a part's first five minutes: the MFU shell compiles);
+  - starts everything when nothing is running, such as after a sign-in start
+    that failed;
+  - starts the SOC Assistant's Ollama app when it is not running (looked at
+    every five minutes).
+
+  A part that keeps dying is started three times in ten minutes, then once
+  every five. Windows looks every minute whether the watcher itself is
+  running and starts it when it is not; while it runs, nothing is launched.
+  When Windows will not let your account register this task, the installer
+  says so: ATDR then starts at sign-in, but a part that stops stays stopped.
+
+What ATDR is meant to be is on record in `.atdr_runtime\desired-state.json`,
+so the watcher never undoes a stop:
+
+| Command | ATDR is then | The watcher |
+| --- | --- | --- |
+| `start_system.cmd` | meant to run | brings back a part that stops |
+| `stop_system.cmd` | stopped until the next sign-in, or until it is started | leaves it stopped |
+| `stop_system.cmd -HoldHours 2` | stopped for two hours, across a sign-in too | starts it again after that time |
+
+Use `-HoldHours` for work that needs ATDR down: an alert rebuild, a restore,
+the full test suite. Without it a sign-in starts ATDR in the middle of the
+work; with it, a stop that was forgotten still ends by itself. To start sooner
+than the hold ends, run `start_system.cmd`.
+
+To take the watcher away, use `autostart.cmd -Remove`. Do not end the **ATDR
+keep running** task in Task Scheduler: Windows then also ends every part the
+watcher had brought back.
+
+Where to look:
+
+- the **System** panel on Data & Detection (admins; the same as
+  `GET /api/system/status`): each part, when it started, how often it was
+  restarted in 24 hours, and what the watcher last had to do;
+- `check_system.cmd`: the lines `Meant to be` and `Watcher`;
+- `.atdr_runtime\logs\watch.log`: each start the watcher made and how it went;
+- each part's own log in `.atdr_runtime\logs\`, for why it stopped.
+
+Measured on the team laptop on 2026-10-09 by ending processes of the running
+system:
+
+| What was done | How long until it was back |
+| --- | --- |
+| Background worker ended | 11 s |
+| Dashboard ended | 10 s |
+| API server ended | 28 s |
+| Both parts of the MFU sign-in shell ended together | 33 s and 45 s |
+| Every part ended at once | 9 to 18 s |
+| Dashboard frozen (running, answering nothing) | 3 min 49 s |
+| The watcher itself ended | 13 to 24 s (started by Windows) |
+| Laptop shut down at 12:07 and switched on at 14:46 | ATDR and the watcher were running after the sign-in, with nothing done by hand |
+
+ATDR stopped with `stop_system.cmd` was still stopped 75 seconds later, and a
+stop held for 40 seconds was ended by the watcher: the API answered 52 seconds
+after the stop.
+
+Two limits remain. Nothing runs before someone signs in to Windows, so after
+a restart ATDR is down until the next sign-in. And nothing runs while the
+laptop sleeps; on 2026-10-09 it was set to sleep after an hour without use on
+mains power. Neither loses data while logs arrive only by import. Both must be
+closed before the live syslog feed is switched on: start at boot (it needs an
+administrator once) and no sleep on mains power.
 
 Normal startup requires the approved shell package/private profile, Python
 3.11, Node.js 20.19 or newer, npm, and MongoDB on loopback for the companion
@@ -67,14 +161,17 @@ service.
 ## Daily Operator Checks
 
 1. Run `check_system.cmd`; require installation, provider, and all service
-   checks to pass.
-2. Review source health, parser warnings, failed imports, and stale jobs.
-3. Review new High/Critical alerts, ownership, SLA state, and related evidence.
-4. Confirm `RESPONSE_SIMULATION=true`, rules remain authoritative, and no model
+   checks to pass, and the line `Watcher: watching`.
+2. Open Data & Detection and read the System panel: no part keeps stopping,
+   the last backup is less than a day old, and the copy on another disk is
+   less than a week old.
+3. Review source health, parser warnings, failed imports, and stale jobs.
+4. Review new High/Critical alerts, ownership, SLA state, and related evidence.
+5. Confirm `RESPONSE_SIMULATION=true`, rules remain authoritative, and no model
    has been promoted.
-5. Review Assistant provider health and provenance. Raw-log provider context
+6. Review Assistant provider health and provenance. Raw-log provider context
    must remain disabled.
-6. Review audit events for failed logins, account changes, alert actions, and
+7. Review audit events for failed logins, account changes, alert actions, and
    simulated response requests.
 
 ## MFU Behaviour Model Alerts
@@ -344,6 +441,75 @@ Limits:
 
 ## Backup And Restore
 
+### Scheduled backups
+
+With `ATDR_BACKUP_SCHEDULE_HOURS=24` in `.env` the background worker backs the
+database up every day while ATDR runs. It looks for a due backup when it
+starts and every five minutes after that, and writes into
+`ATDR_BACKUP_DIRECTORY` (`backups\scheduled` beside the database when that is
+empty). On the team laptop it is `D:\ATDR-backups`. `0`, the default, leaves
+backups to whoever runs the command further down.
+
+- The copy is made with SQLite's backup API while ATDR runs and then checked:
+  its checksum must match its manifest and SQLite must find it healthy. A copy
+  that fails is removed and reported, and the next try is an hour later.
+- Scheduled backups are thinned to the newest of each of the last 7 days, 4
+  weeks and 6 months that have one (`ATDR_BACKUP_KEEP_DAILY`, `_WEEKLY`,
+  `_MONTHLY`): at most 17 files. A backup taken by hand or before a reset is
+  never deleted. When the folder has no room for the next backup (the
+  database's size and 512 MB to spare), the oldest scheduled ones go first and
+  the newest never does.
+- **A copy on another disk.** D: on the team laptop is a second partition of
+  its only disk and is lost with that disk. So whenever a drive on another
+  physical disk is connected that has a folder named `ATDR-backups` at its top
+  (a USB drive; `ATDR_BACKUP_OFFSITE_FOLDER`), the worker copies the newest
+  backup to it within five minutes, checks the copy there and thins that
+  folder the same way. A second partition never counts as another disk. The
+  System panel says when that copy was last made and warns once it is more
+  than a week old.
+- Each backup's manifest names the database it is a copy of: the computer and
+  the database file. ATDR counts, thins and copies only the backups of the
+  database it runs on. So two computers can share a folder or a USB drive,
+  and a backup of another database that lands in the folder (a test copy, a
+  teammate's backup put there to restore from) is neither counted nor ever
+  deleted. After the project folder is moved or the computer renamed, ATDR
+  therefore starts a new series with a backup at once; the old series stays
+  until someone deletes it.
+- Each backup, each failure and each copy is an audit entry:
+  `database_backup_created`, `database_backup_failed`,
+  `database_backup_copied_offsite`. A failure that lasts is entered once a
+  day, not at every try.
+- A schedule needs the background worker (`OPERATION_WORKER_ENABLED=true`);
+  the System panel says so when the worker is not running.
+
+Measured on 2026-10-09: the 638 MB database was copied to D: and checked in 3
+seconds, and a restore from that backup into a new file gave back all 120,001
+logs, the 85 alerts and the alert numbering.
+
+**Reset to sample data** (Data & Detection) asks for the word RESET, takes a
+backup first, which is kept for good, and deletes nothing when that backup
+fails or when the sample file it was given does not exist. The new audit log
+opens with a `data_reset` entry that names the backup.
+
+### Restoring a backup
+
+```powershell
+.\scripts\stop_system.cmd -HoldHours 1
+.\.venv\Scripts\python.exe -m atdr.scripts.restore_database `
+  --backup-path "D:\ATDR-backups\<backup>.sqlite3" `
+  --target-database-url "sqlite:///./.tmp/restored-atdr.db" `
+  --execute --confirm RESTORE_TO_NEW_EMPTY_TARGET --pretty
+```
+
+The restore refuses the configured database and any file that exists, so it
+cannot overwrite what is there. When it says `restore_validated`: rename
+`atdr.db` to `atdr.db.before-restore`, delete `atdr.db-wal` and `atdr.db-shm`
+if they are there, move `.tmp\restored-atdr.db` to `atdr.db`, run
+`.\.venv\Scripts\python.exe -m alembic upgrade head` (the backup may be older
+than the newest migration), then `.\scripts\start_system.cmd`.
+
+### By hand
+
 Preview a backup first, then write only to ignored or external storage:
 
 ```powershell
@@ -411,6 +577,11 @@ disaster-recovery evidence from the host owner.
 | --- | --- |
 | PowerShell policy blocks `.ps1` | Use the tracked `.cmd` wrappers. |
 | Startup says processes already run | Run `check_system.cmd`; use `stop_system.cmd` for launcher-owned processes. |
+| Startup says ATDR is being started by another process | The sign-in start or the watcher is starting it; wait a minute, then run `check_system.cmd`. |
+| ATDR starts again after it was stopped | A sign-in ends a plain stop. Stop with `stop_system.cmd -HoldHours <n>` for work that needs it down. |
+| The System panel says a part keeps stopping | Read that part's log in `.atdr_runtime\logs\` for the cause; the watcher goes on trying every five minutes. |
+| The dashboard does not show a change to its source | It is built at the next start; to have it now, run `python -m atdr.scripts.build_dashboard` and reload the page. |
+| The System panel says the last backup failed | It names the cause (no free space, folder not usable, copy not healthy); the worker tries again an hour after each failure. |
 | A required port is occupied | Stop the owning application; do not kill unrelated processes blindly. |
 | MongoDB is unavailable | Start MongoDB for the MFU shell; ATDR's SQL database is separate. |
 | Shell backend briefly logs Redis timeout | Local fallback is expected; confirm `/healthz` becomes ready. |
