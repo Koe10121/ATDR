@@ -1062,6 +1062,16 @@ export function useDetectionCoverage(limit: number | null) {
   });
 }
 
+export function useSystemStatus() {
+  return useQuery({
+    queryKey: ["system-status"],
+    queryFn: api.systemStatus,
+    placeholderData: (previous) => previous,
+    // The watcher writes its status every half minute.
+    refetchInterval: 30_000
+  });
+}
+
 export function useDemoMutations() {
   const queryClient = useQueryClient();
   const invalidate = () => {

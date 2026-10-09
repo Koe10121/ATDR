@@ -5,6 +5,7 @@ import { ActionResultCard } from "../components/ActionResultCard";
 import { Badge } from "../components/Badge";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { MetricCard } from "../components/MetricCard";
+import { SystemPanel } from "../components/SystemPanel";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { useDashboardSummary, useDemoMutations, useDetectionCoverage, useHealth, useMlReport, useQueuedImportMutation } from "../hooks/useApiQueries";
 import { api } from "../lib/api";
@@ -111,6 +112,9 @@ export function DemoControls() {
   const [samplePath, setSamplePath] = useState("");
   const [useMl, setUseMl] = useState(false);
   const [queuedFile, setQueuedFile] = useState<File | null>(null);
+  // Reset deletes everything, so it asks for a typed word, not one click on a browser box.
+  const [resetAsked, setResetAsked] = useState(false);
+  const [resetWord, setResetWord] = useState("");
   const [sweep, setSweep] = useState<CoverageSweep>(IDLE_SWEEP);
   const stopSweep = useRef(false);
   const queryClient = useQueryClient();
@@ -318,6 +322,8 @@ export function DemoControls() {
         ) : null}
       </section>
 
+      <SystemPanel />
+
       <section className="panel">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -367,17 +373,50 @@ export function DemoControls() {
           <div className="text-xs text-muted">
             Import reads the file above. The built-in sample has only 2 logs, so asking for 1,000 still imports 2.
           </div>
-          <button
-            className="btn-secondary"
-            onClick={() => {
-              if (window.confirm("Delete every log, alert and their history, then load the sample file? This cannot be undone.")) {
-                demo.reset.mutate({ limit, use_ml: useMl, sample_path: samplePathPayload });
-              }
-            }}
-          >
+          <button className="btn-secondary" disabled={resetAsked || demo.reset.isPending} onClick={() => setResetAsked(true)}>
             Reset to sample data
           </button>
         </div>
+        {resetAsked ? (
+          <div className="mt-3 rounded-lg border border-danger/50 bg-danger/10 p-3" data-testid="reset-confirm">
+            <p className="text-sm text-text">
+              Reset deletes every log, every alert and their history, then loads the sample file. ATDR backs the database up
+              first; if that backup fails, nothing is deleted.
+            </p>
+            <div className="mt-3 flex flex-wrap items-end gap-2">
+              <label>
+                <span className="text-xs font-extrabold uppercase tracking-wide text-muted">Type RESET to go on</span>
+                <input
+                  className="input mt-1 w-44"
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={resetWord}
+                  onChange={(event) => setResetWord(event.target.value)}
+                />
+              </label>
+              <button
+                className="btn-primary"
+                disabled={resetWord !== "RESET"}
+                onClick={() => {
+                  demo.reset.mutate({ limit, use_ml: useMl, sample_path: samplePathPayload });
+                  setResetAsked(false);
+                  setResetWord("");
+                }}
+              >
+                Back up, then reset
+              </button>
+              <button
+                className="btn-secondary"
+                onClick={() => {
+                  setResetAsked(false);
+                  setResetWord("");
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : null}
         <div className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-line bg-panel2 p-3" data-testid="durable-import-control">
           <label className="min-w-0 flex-1">
             <span className="text-xs font-extrabold uppercase tracking-wide text-muted">Durable file import</span>

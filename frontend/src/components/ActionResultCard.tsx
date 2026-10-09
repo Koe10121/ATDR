@@ -53,6 +53,8 @@ function buildSummary(result: Record<string, unknown>, kind: ActionResultCardPro
     const nestedDetection = valueAt(result, ["detection"]);
     return [
       ["Reset status", "completed"],
+      ["Backup taken first", valueAt(result, ["backup.artifact_name"])],
+      ["Backup folder", valueAt(result, ["backup.folder"])],
       ["Raw logs imported", valueAt((nestedImport as Record<string, unknown>) ?? {}, ["raw_logs_imported", "imported"])],
       ["Parsed successfully", valueAt((nestedImport as Record<string, unknown>) ?? {}, ["parsed_successfully", "parsed"])],
       ["Alerts created", valueAt((nestedDetection as Record<string, unknown>) ?? {}, ["created_alerts", "alerts_created"])],

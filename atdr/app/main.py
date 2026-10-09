@@ -31,6 +31,7 @@ from atdr.app.routers import (
     response,
     sources,
     suppressions,
+    system,
     users,
     watchlists,
 )
@@ -247,3 +248,4 @@ app.include_router(assistant.router)
 app.include_router(audit.router)
 app.include_router(dashboard.router)
 app.include_router(demo.router)
+app.include_router(system.router)

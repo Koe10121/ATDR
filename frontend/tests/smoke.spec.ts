@@ -113,6 +113,47 @@ const smokeBehaviorOpinion = {
   model: smokeBehaviorModel
 };
 
+// ATDR looked after: the watcher is watching, last night's backup is there, and a copy went to a USB drive two days ago.
+const smokeSystemStatus = {
+  keeping_running: {
+    meant_to_be: "running",
+    held_until: null,
+    watching: true,
+    checked_seconds_ago: 12,
+    interval_seconds: 30,
+    parts: [
+      { name: "atdr-backend", label: "API server", running: true, started_at: "2026-10-09T02:38:46Z", answering: true, restarts_24h: 0, last_restart_at: null, keeps_stopping: false },
+      { name: "atdr-frontend", label: "Dashboard", running: true, started_at: "2026-10-09T02:38:47Z", answering: true, restarts_24h: 0, last_restart_at: null, keeps_stopping: false },
+      { name: "shell-backend", label: "MFU sign-in service", running: true, started_at: "2026-10-09T02:38:47Z", answering: true, restarts_24h: 0, last_restart_at: null, keeps_stopping: false },
+      { name: "shell-frontend", label: "MFU sign-in page", running: true, started_at: "2026-10-09T02:38:47Z", answering: true, restarts_24h: 0, last_restart_at: null, keeps_stopping: false },
+      { name: "atdr-worker", label: "Background worker", running: true, started_at: "2026-10-09T03:10:02Z", answering: null, restarts_24h: 1, last_restart_at: "2026-10-09T03:10:00Z", keeps_stopping: false }
+    ],
+    last_action: { at: "2026-10-09T03:10:00Z", what: "started the background worker again after it stopped", ok: true }
+  },
+  backups: {
+    scheduled: true,
+    every_hours: 24,
+    folder: "D:\\ATDR-backups",
+    folder_available: true,
+    worker_running: true,
+    last: { name: "atdr-sqlite-20261008T200000Z-0a1b2c3d.sqlite3", created_at: "2026-10-08T20:00:00Z", size_bytes: 669368320, age_hours: 7.2 },
+    kept: 7,
+    kept_bytes: 4685578240,
+    other_backups: 1,
+    overdue: false,
+    last_failure: null,
+    offsite: {
+      wanted: true,
+      folder_name: "ATDR-backups",
+      connected: [],
+      last_copy: { artifact_name: "atdr-sqlite-20261006T200000Z-9f8e7d6c.sqlite3", copied_at: "2026-10-07T02:15:00Z", drive: "E:", label: "KINGSTON", age_days: 2.1 },
+      last_failure: null,
+      stale: false
+    }
+  },
+  dashboard_build: { built: true, built_at: "2026-10-09T02:38:30Z", commit: "e4ca530", uncommitted: false, stale: false }
+};
+
 async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
   let deniedResponseAttempt = false;
   let detectionReviewRevision = 0;
@@ -2499,6 +2540,7 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
   );
   // No live syslog logs have been deleted, so there are no hourly summaries.
   await page.route("**/api/logs/hourly-summaries**", async (route) => route.fulfill({ json: [] }));
+  await page.route("**/api/system/status**", async (route) => route.fulfill({ json: smokeSystemStatus }));
   await page.route("**/api/audit**", async (route) =>
     route.fulfill({
       json: deniedResponseAttempt
@@ -7487,6 +7529,153 @@ test("demo action results summarize imports and contain long ML details", async 
 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 2);
   expect(overflow).toBe(false);
+});
+
+test("the System panel says how ATDR looks after itself, and what is wrong when something is", async ({ page }) => {
+  // Nothing restarted a part of ATDR that stopped, backups were taken by hand onto the same disk, and no page said so.
+  let status: typeof smokeSystemStatus | Record<string, unknown> = smokeSystemStatus;
+  await mockApi(page);
+  await page.route("**/api/system/status**", async (route) => route.fulfill({ json: status }));
+  await seedSession(page);
+  await page.goto("/demo");
+
+  const panel = page.getByTestId("system-panel");
+  await expect(panel.getByTestId("system-keep-running")).toContainText("ATDR restarts a part that stops. It looks at its parts every 30 seconds.");
+  await expect(panel.getByTestId("system-keep-running")).toContainText("): it started the background worker again after it stopped.");
+  const rows = panel.getByTestId("system-parts").locator("tbody tr");
+  await expect(rows).toHaveCount(5);
+  await expect(rows.nth(0)).toContainText("API server");
+  await expect(rows.nth(0)).toContainText("Running");
+  await expect(rows.nth(4)).toContainText("Background worker");
+  await expect(rows.nth(4)).toContainText("1 (last");
+  await expect(panel.getByTestId("system-backups")).toContainText("The database is backed up every day.");
+  await expect(panel.getByTestId("system-backups")).toContainText("(638 MB), 7 hours ago. 7 kept (4.4 GB) in D:\\ATDR-backups.");
+  await expect(panel.getByTestId("system-offsite")).toContainText("A copy is on another disk. Last copied to KINGSTON (E:)");
+  await expect(panel.getByTestId("system-build")).toContainText("(version e4ca530).");
+  await expect(panel.getByTestId("system-build")).not.toContainText("has changed since");
+
+  // The same page when ATDR is not looked after.
+  const base = smokeSystemStatus;
+  status = {
+    keeping_running: {
+      ...base.keeping_running,
+      watching: false,
+      parts: base.keeping_running.parts.map((part) => (part.name === "atdr-worker" ? { ...part, running: false, started_at: null } : part))
+    },
+    backups: {
+      ...base.backups,
+      last_failure: { at: "2026-10-09T03:00:00Z", status: "not_enough_free_space", words: "there is not enough free space for it" },
+      offsite: { ...base.backups.offsite, last_copy: { ...base.backups.offsite.last_copy, age_days: 9.4 }, stale: true }
+    },
+    dashboard_build: { ...base.dashboard_build, uncommitted: true, stale: true }
+  };
+  await page.reload();
+  await expect(panel.getByTestId("system-keep-running")).toContainText("Nothing is watching ATDR's parts.");
+  await expect(panel.getByTestId("system-keep-running")).toContainText("scripts\\autostart.cmd");
+  await expect(rows.nth(4)).toContainText("Stopped");
+  await expect(panel.getByTestId("system-backups")).toContainText("The last backup failed.");
+  await expect(panel.getByTestId("system-backups")).toContainText("there is not enough free space for it. ATDR tries again every hour.");
+  await expect(panel.getByTestId("system-offsite")).toContainText("The copy on another disk is 9 days old.");
+  await expect(panel.getByTestId("system-offsite")).toContainText("Connect a drive that has a folder named ATDR-backups at its top");
+  await expect(panel.getByTestId("system-build")).toContainText("(version e4ca530, with changes not yet committed).");
+  await expect(panel.getByTestId("system-build")).toContainText("Its source has changed since; ATDR builds it again at its next start.");
+
+  // Backups switched off, a part that keeps stopping, and no copy on another disk at all.
+  status = {
+    keeping_running: {
+      ...base.keeping_running,
+      parts: base.keeping_running.parts.map((part) => (part.name === "atdr-worker" ? { ...part, running: false, keeps_stopping: true, restarts_24h: 5 } : part))
+    },
+    backups: { ...base.backups, scheduled: false, offsite: { ...base.backups.offsite, wanted: false } },
+    dashboard_build: base.dashboard_build
+  };
+  await page.reload();
+  await expect(panel.getByTestId("system-keep-running")).toContainText("Background worker keeps stopping.");
+  await expect(rows.nth(4)).toContainText("Keeps stopping");
+  await expect(panel.getByTestId("system-backups")).toContainText("Scheduled backups are off.");
+  await expect(panel.getByTestId("system-offsite")).toHaveCount(0);
+
+  status = {
+    keeping_running: base.keeping_running,
+    backups: { ...base.backups, worker_running: true, offsite: { ...base.backups.offsite, last_copy: null, stale: true, connected: [] } },
+    dashboard_build: base.dashboard_build
+  };
+  await page.reload();
+  await expect(panel.getByTestId("system-offsite")).toContainText("No copy on another disk yet. Every backup is on this laptop's own disk.");
+
+  // The worker takes the backups: a schedule without it is only a setting.
+  status = { keeping_running: base.keeping_running, backups: { ...base.backups, worker_running: false }, dashboard_build: base.dashboard_build };
+  await page.reload();
+  await expect(panel.getByTestId("system-backups")).toContainText("Backups are due, but the background worker is not running.");
+
+  // "Not yet" is said only when the table shows no restart either: what the watcher last did is not always on record.
+  status = { keeping_running: { ...base.keeping_running, last_action: null }, backups: base.backups, dashboard_build: base.dashboard_build };
+  await page.reload();
+  await expect(rows.nth(4)).toContainText("1 (last");
+  await expect(panel.getByTestId("system-keep-running")).toContainText("It looks at its parts every 30 seconds.");
+  await expect(panel.getByTestId("system-keep-running")).not.toContainText("has not had to act");
+  status = {
+    keeping_running: {
+      ...base.keeping_running,
+      last_action: null,
+      parts: base.keeping_running.parts.map((part) => ({ ...part, restarts_24h: 0, last_restart_at: null }))
+    },
+    backups: base.backups,
+    dashboard_build: base.dashboard_build
+  };
+  await page.reload();
+  await expect(rows.nth(4)).toContainText("Background worker");
+  await expect(panel.getByTestId("system-keep-running")).toContainText("It looks at its parts every 30 seconds. It has not had to act yet.");
+});
+
+test("reset asks for the word RESET and says a backup comes first", async ({ page }) => {
+  // One OK on a browser box used to delete every log and alert, with no copy kept.
+  const resets: unknown[] = [];
+  await mockApi(page);
+  await page.route("**/api/demo/reset", async (route) => {
+    resets.push(JSON.parse(route.request().postData() || "{}"));
+    await route.fulfill({
+      json: {
+        backup: { artifact_name: "atdr-sqlite-20261009T040000Z-1a2b3c4d.sqlite3", folder: "D:\\ATDR-backups", size_bytes: 669368320 },
+        deleted: { raw_logs: 120001 },
+        users: { created: 0 },
+        import: { raw_logs_imported: 2, parsed: 2 },
+        detection: { created_alerts: 1 }
+      }
+    });
+  });
+  let dialogs = 0;
+  page.on("dialog", (dialog) => {
+    dialogs += 1;
+    void dialog.accept();
+  });
+  await seedSession(page);
+  await page.goto("/demo");
+
+  await page.getByRole("button", { name: "Reset to sample data" }).click();
+  const confirm = page.getByTestId("reset-confirm");
+  await expect(confirm).toContainText("ATDR backs the database up first; if that backup fails, nothing is deleted.");
+  const go = confirm.getByRole("button", { name: "Back up, then reset" });
+  await expect(go).toBeDisabled();
+  await confirm.getByRole("textbox").fill("reset");
+  await expect(go).toBeDisabled();
+  expect(resets).toEqual([]);
+
+  // Cancel takes the box away and forgets what was typed.
+  await confirm.getByRole("button", { name: "Cancel" }).click();
+  await expect(confirm).toHaveCount(0);
+  await page.getByRole("button", { name: "Reset to sample data" }).click();
+  await expect(confirm.getByRole("textbox")).toHaveValue("");
+
+  await confirm.getByRole("textbox").fill("RESET");
+  await go.click();
+  await expect(confirm).toHaveCount(0);
+  const result = page.getByTestId("action-result-reset");
+  await expect(result).toContainText("Backup taken first");
+  await expect(result).toContainText("atdr-sqlite-20261009T040000Z-1a2b3c4d.sqlite3");
+  await expect(result).toContainText("D:\\ATDR-backups");
+  expect(resets).toHaveLength(1);
+  expect(dialogs).toBe(0);
 });
 
 test("demo import limit is editable and custom sample path is sent", async ({ page }) => {

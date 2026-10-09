@@ -95,6 +95,7 @@ import type {
   ShadowOperationalAcceptance,
   ShadowObservationSummary,
   SupervisedModelReport,
+  SystemStatus,
   SupervisedModelRegistry,
   Suppression,
   TokenResponse,
@@ -647,6 +648,7 @@ export const api = {
     }),
   demoDetectionCoverage: (limit: number | null) =>
     apiRequest<DetectionCoverage>(`/api/demo/detection-coverage${limit ? `?limit=${limit}` : ""}`),
+  systemStatus: () => apiRequest<SystemStatus>("/api/system/status"),
   demoTrainMl: (payload: { limit?: number | null }) =>
     apiRequest<DemoActionResult>("/api/demo/train-ml", { method: "POST", body: JSON.stringify(payload) }),
   demoApplyMl: (payload: { limit?: number | null }) =>

@@ -4123,3 +4123,54 @@ export interface EvidenceReviewOperation {
   response_action_performed: false;
   details: Record<string, unknown>;
 }
+
+// How ATDR looks after itself on the machine it runs on (GET /api/system/status).
+export interface SystemPart {
+  name: string;
+  label: string;
+  running: boolean;
+  started_at: string | null;
+  // null for a part that has no address to ask (the worker, the syslog receiver).
+  answering: boolean | null;
+  restarts_24h: number;
+  last_restart_at: string | null;
+  keeps_stopping: boolean;
+}
+
+export interface SystemKeepRunning {
+  meant_to_be: "running" | "stopped" | "unknown";
+  held_until: string | null;
+  watching: boolean;
+  checked_seconds_ago: number | null;
+  interval_seconds: number | null;
+  parts: SystemPart[];
+  last_action: { at: string; what: string; ok: boolean } | null;
+}
+
+export interface SystemBackups {
+  scheduled: boolean;
+  every_hours: number;
+  folder: string;
+  folder_available: boolean;
+  worker_running: boolean;
+  last: { name: string; created_at: string; size_bytes: number; age_hours: number } | null;
+  kept: number;
+  kept_bytes: number;
+  other_backups: number;
+  overdue: boolean;
+  last_failure: { at: string; status: string; words: string } | null;
+  offsite: {
+    wanted: boolean;
+    folder_name: string;
+    connected: Array<{ drive: string; label: string }>;
+    last_copy: { artifact_name: string; copied_at: string; drive: string; label: string; age_days: number } | null;
+    last_failure: { at: string; status: string; drive: string; words: string } | null;
+    stale: boolean;
+  };
+}
+
+export interface SystemStatus {
+  keeping_running: SystemKeepRunning;
+  backups: SystemBackups;
+  dashboard_build: { built: boolean; built_at: string | null; commit: string | null; uncommitted: boolean; stale: boolean };
+}
