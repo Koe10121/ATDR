@@ -4,11 +4,14 @@ from __future__ import annotations
 
 from datetime import datetime
 
+import pytest
 from sqlalchemy import func, select
+from sqlalchemy.orm import sessionmaker
 
 from atdr.app.db.models import Alert, AlertArchive, AlertEvidence, AlertNote, AuditLog, NormalizedLog, ResponseAction
 from atdr.app.detection.rule_catalog import RULE_CATALOG_VERSION
 from atdr.app.services.alert_rebuild_service import plan_rebuild, rebuild_alerts, worked_alert_ids
+from atdr.scripts import rebuild_alerts as command
 from atdr.tests.test_detection_grouping import _add_scan_log, _session
 
 
@@ -118,3 +121,18 @@ def test_every_rebuild_numbers_its_new_alert_after_every_alert_ever_raised():
     archived = db.scalars(select(AlertArchive.original_alert_id)).all()
     assert len(archived) == len(set(archived)), "no number is archived twice"
     assert new_ids[-1] not in archived and set(new_ids[:-1]) <= set(archived)
+
+
+@pytest.mark.parametrize("given", [None, "Grouped the earlier way; the current rules group the same activity into fewer alerts."])
+def test_the_command_keeps_the_reason_it_is_given_with_each_archived_alert(monkeypatch, tmp_path, given):
+    # A rebuild after a change of grouping retires no rule, so the command's own reason would be wrong for it.
+    db = _session()
+    _seed(db)
+    monkeypatch.setattr(command, "SessionLocal", sessionmaker(bind=db.get_bind(), future=True))
+    monkeypatch.setattr(command, "create_database_backup",
+                        lambda **_kwargs: {"ok": True, "status": "backup_created", "backup_path": str(tmp_path / "backup")})
+    monkeypatch.setattr("sys.argv", ["rebuild_alerts", "--apply", "--actor", "koe", *(["--reason", given] if given else [])])
+    command.main()
+    expected = given or command.REASON
+    assert db.scalar(select(AlertArchive.reason)) == expected
+    assert db.scalar(select(AuditLog).where(AuditLog.action == "alerts_rebuilt")).details["reason"] == expected

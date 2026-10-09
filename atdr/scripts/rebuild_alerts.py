@@ -3,6 +3,7 @@
 Usage:
     python -m atdr.scripts.rebuild_alerts                       # dry run: what would change
     python -m atdr.scripts.rebuild_alerts --apply --actor NAME  # back up, then rebuild
+    python -m atdr.scripts.rebuild_alerts --apply --actor NAME --reason "why"  # when no rule was retired
 
 Stop ATDR first (scripts/stop_system.cmd) so nothing else writes to the database. Alerts an analyst
 has worked on are kept; every other alert moves to the alert_archive table, with its evidence, and
@@ -29,6 +30,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Rebuild alerts with the current rules.")
     parser.add_argument("--apply", action="store_true", help="back up the database, then rebuild")
     parser.add_argument("--actor", default="rebuild_alerts", help="who is doing this, for the audit log")
+    parser.add_argument("--reason", default=REASON, help="why the alerts are replaced, kept with each archived alert")
     parser.add_argument("--backup-dir", default="backups")
     args = parser.parse_args()
 
@@ -44,7 +46,7 @@ def main() -> None:
         raise SystemExit(f"Backup failed, nothing changed: {backup.get('status')}")
     print("Backup:", backup["backup_path"])
     with SessionLocal() as db:
-        summary = rebuild_alerts(db, actor=args.actor, reason=REASON)
+        summary = rebuild_alerts(db, actor=args.actor, reason=args.reason)
     print("Rebuilt:", json.dumps(summary, indent=2, default=str))
 
 
