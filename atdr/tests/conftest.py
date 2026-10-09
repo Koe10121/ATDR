@@ -12,3 +12,9 @@ os.environ["ASSISTANT_AGENT_ENGINE"] = "off"
 # Tests never load this machine's MFU behaviour model to raise alerts; model-alert
 # tests pass a model of their own.
 os.environ["ATDR_MODEL_ALERTS"] = "false"
+# Tests never use this machine's backup folder, its backup schedule or a drive connected to it, whatever .env
+# sets for the running system: a test that resets a database would leave its backup among the real ones. The
+# backup tests name a folder, a schedule and a drive of their own.
+os.environ["ATDR_BACKUP_DIRECTORY"] = ""
+os.environ["ATDR_BACKUP_SCHEDULE_HOURS"] = "0"
+os.environ["ATDR_BACKUP_OFFSITE_FOLDER"] = ""

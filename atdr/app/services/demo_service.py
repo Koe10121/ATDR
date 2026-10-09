@@ -25,6 +25,7 @@ from atdr.app.services.dashboard_service import build_dashboard_summary
 from atdr.app.services.detection_service import count_unchecked_logs, run_detection
 from atdr.app.services.log_service import import_log_file
 from atdr.app.services.operation_run_service import safe_source_label
+from atdr.app.services.scheduled_backup_service import backup_before_deleting
 from atdr.app.services.syslog_service import live_feed_status
 from atdr.app.services.ml_service import apply_anomaly_scoring, evaluation_report, train_anomaly_model
 from atdr.app.services.user_service import ensure_demo_users
@@ -63,7 +64,16 @@ def reset_and_seed_demo(
     actor: str = "reset_demo",
 ) -> dict:
     path = resolve_demo_sample_path(sample_path)
+    # Both before anything is deleted. A mistyped path used to empty ATDR and then report the file missing.
+    if not path.is_file():
+        raise FileNotFoundError(2, "Sample log file not found", str(path))
+    backup = backup_before_deleting(db)
     deleted = clear_demo_data(db)
+    # The audit log is among what was deleted; its first entry says so, and where the copy of the old one is.
+    db.add(AuditLog(actor=actor, action="data_reset", target_type="database",
+                    target_value=backup["artifact_name"] if backup else "no backup: the database is not a file",
+                    details={"deleted": deleted, "backup": backup}))
+    db.commit()
     users = ensure_demo_users(db)
     import_result = import_log_file(db, path, limit=limit, actor=actor)
     safe_label = safe_source_label(str(path)) or path.name
@@ -79,6 +89,7 @@ def reset_and_seed_demo(
         )
     detection_result = run_detection(db, limit=limit, use_ml=use_ml, actor=actor)
     return {
+        "backup": backup,
         "deleted": deleted,
         "users": users,
         "import": import_result,

@@ -39,6 +39,7 @@ from atdr.app.services.job_service import (
     recover_expired_leases,
 )
 from atdr.app.services.retention_service import RETENTION_EVERY_SECONDS, RetentionProgress, run_live_retention
+from atdr.app.services.scheduled_backup_service import BACKUP_LOOK_SECONDS, run_scheduled_backup
 from atdr.app.services.resumable_ingestion_service import (
     CooperativeImportCancelled,
     CooperativeWorkerShutdown,
@@ -465,6 +466,38 @@ def _retention_look(next_look: float, progress: RetentionProgress) -> float:
     return time.monotonic() + (0.0 if more_due else RETENTION_EVERY_SECONDS)
 
 
+def _backup_look(worker_id: str, next_look: float) -> float:
+    """With no queued job waiting, take the scheduled backup when it is due and copy it to another disk when one is
+    connected; returns when to look again.
+
+    Never raises: like a failed automatic check, a failed backup must not stop the worker's queued jobs.
+    """
+
+    settings = get_settings()
+    if float(settings.backup_schedule_hours) <= 0 or time.monotonic() < next_look:
+        return next_look
+    try:
+        with SessionLocal() as db:
+            seen = [0.0]
+
+            def still_alive() -> None:
+                # Copying to a slow drive takes minutes; it must not look like a dead worker.
+                if time.monotonic() - seen[0] < float(settings.operation_worker_heartbeat_seconds):
+                    return
+                seen[0] = time.monotonic()
+                record_worker_heartbeat(
+                    db,
+                    worker_id=worker_id,
+                    status="running",
+                    details={"scheduled_backup": True, "external_services": "disabled"},
+                )
+
+            run_scheduled_backup(db, settings=settings, still_alive=still_alive)
+    except Exception:
+        logger.exception("scheduled backup failed")
+    return time.monotonic() + BACKUP_LOOK_SECONDS
+
+
 def run_worker_loop(
     *,
     worker_id: str | None = None,
@@ -478,6 +511,7 @@ def run_worker_loop(
     processed: list[dict[str, Any]] = []
     next_automatic_look = 0.0
     next_retention_look = 0.0
+    next_backup_look = 0.0
     retention_progress = RetentionProgress()
     with SessionLocal() as db:
         enforce_worker_concurrency(
@@ -504,6 +538,7 @@ def run_worker_loop(
             if result.get("status") != "backup_coordination_pause":
                 next_automatic_look = _automatic_detection_look(active_worker_id, next_automatic_look)
                 next_retention_look = _retention_look(next_retention_look, retention_progress)
+                next_backup_look = _backup_look(active_worker_id, next_backup_look)
             if stop_event is not None:
                 stop_event.wait(delay)
             else:

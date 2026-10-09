@@ -3,10 +3,12 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import platform
 import shutil
 import sqlite3
 import subprocess
 import uuid
+from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -80,6 +82,27 @@ def _database_identity(database_url: str) -> tuple[Any, ...]:
     return (url.get_backend_name(), url.host, url.port, url.database, url.username)
 
 
+# How a database server on the computer itself is addressed.
+LOCAL_HOSTS = frozenset({"", "localhost", "127.0.0.1", "::1"})
+
+
+def database_label(database_url: str) -> str:
+    """Which database a backup is a copy of, for its manifest: the computer and the file, or the server and the name.
+
+    A file's path names a database on one computer only, and so does a server reached as localhost; a folder or a
+    drive of backups can serve several computers.
+    """
+
+    url = make_url(database_url)
+    computer = platform.node().lower() or "this-computer"
+    if url.drivername.startswith("sqlite"):
+        path = _sqlite_path(database_url)
+        return f"{computer}:{os.path.normcase(str(path))}" if path is not None else "sqlite in memory"
+    host = computer if (url.host or "") in LOCAL_HOSTS else url.host
+    port = f":{url.port}" if url.port else ""
+    return f"{url.get_backend_name()}://{host}{port}/{url.database}"
+
+
 def _engine_for_url(database_url: str, settings: Settings | None = None) -> Engine:
     effective = settings or Settings(DATABASE_URL=database_url)
     if effective.database_url != database_url:
@@ -133,8 +156,12 @@ def _migration_revision(engine: Engine) -> str | None:
 
 
 def _sqlite_integrity(path: Path) -> bool:
-    uri = f"file:{path.as_posix()}?mode=ro"
-    with sqlite3.connect(uri, uri=True) as connection:
+    # immutable: a backup or a database just restored is not being written, and without this SQLite leaves
+    # -wal and -shm files beside every file it checks.
+    uri = f"file:{path.as_posix()}?mode=ro&immutable=1"
+    # "with connection" only ends a transaction. Left open, the connection holds the file until the garbage
+    # collector runs, and Windows will not delete or move a file that is held.
+    with closing(sqlite3.connect(uri, uri=True)) as connection:
         return connection.execute("PRAGMA quick_check").fetchone() == ("ok",)
 
 
@@ -287,8 +314,14 @@ def create_database_backup(
     output_dir: str | Path,
     execute: bool = False,
     pg_dump_path: str | None = None,
+    purpose: str = "manual",
+    created_at: datetime | None = None,
 ) -> dict[str, Any]:
-    """Create a consistent logical backup; dry-run unless execute is explicit."""
+    """Create a consistent logical backup; dry-run unless execute is explicit.
+
+    purpose and created_at (now, unless given) are kept in the manifest: scheduled backups are thinned out by
+    age, the others never are.
+    """
 
     kind = database_kind(settings.database_url)
     output = _resolve_output_dir(output_dir)
@@ -326,7 +359,7 @@ def create_database_backup(
         finally:
             source_engine.dispose()
         source_uri = f"file:{source_path.as_posix()}?mode=ro"
-        with sqlite3.connect(source_uri, uri=True) as source, sqlite3.connect(backup_path) as destination:
+        with closing(sqlite3.connect(source_uri, uri=True)) as source, closing(sqlite3.connect(backup_path)) as destination:
             source.backup(destination)
     elif kind == "postgresql":
         if not tool:
@@ -386,13 +419,15 @@ def create_database_backup(
     artifact_sha = _sha256(backup_path)
     manifest = {
         "format_version": BACKUP_FORMAT_VERSION,
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": (created_at or datetime.now(timezone.utc)).isoformat(),
         "dialect": kind,
         "artifact_name": backup_path.name,
         "artifact_size_bytes": backup_path.stat().st_size,
         "sha256": artifact_sha,
         "alembic_revision": revision,
         "table_counts": source_counts,
+        "purpose": purpose,
+        "source": database_label(settings.database_url),
         "contains_private_data": True,
         "secrets_exposed": False,
     }
@@ -408,6 +443,7 @@ def create_database_backup(
         "sha256": artifact_sha,
         "alembic_revision": revision,
         "table_counts": source_counts,
+        "purpose": purpose,
         "source_database_modified": False,
         "secrets_exposed": False,
         "production_ready": False,
@@ -505,8 +541,8 @@ def restore_database_backup(
                 "current_database_modified": False,
             }
         target_path.parent.mkdir(parents=True, exist_ok=True)
-        source_uri = f"file:{artifact.as_posix()}?mode=ro"
-        with sqlite3.connect(source_uri, uri=True) as source, sqlite3.connect(target_path) as destination:
+        source_uri = f"file:{artifact.as_posix()}?mode=ro&immutable=1"
+        with closing(sqlite3.connect(source_uri, uri=True)) as source, closing(sqlite3.connect(target_path)) as destination:
             source.backup(destination)
         integrity_ok = _sqlite_integrity(target_path)
     elif target_kind == "postgresql":

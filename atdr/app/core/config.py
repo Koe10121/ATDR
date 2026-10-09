@@ -467,6 +467,18 @@ class Settings(BaseSettings):
     # ---- Backup and audit retention ----
     backup_directory: str = Field(default="", alias="ATDR_BACKUP_DIRECTORY")
     backup_max_age_hours: float = Field(default=30.0, alias="ATDR_BACKUP_MAX_AGE_HOURS")
+    # The worker backs the database up into ATDR_BACKUP_DIRECTORY (backups/scheduled when that is empty) once
+    # the newest scheduled backup there is this old; 24 is daily. 0 leaves backups to whoever runs
+    # atdr.scripts.backup_database.
+    backup_schedule_hours: float = Field(default=0.0, alias="ATDR_BACKUP_SCHEDULE_HOURS")
+    # Scheduled backups kept: the newest of each of this many days, weeks and months that have one. Backups
+    # taken by hand or before a reset are never deleted.
+    backup_keep_daily: int = Field(default=7, alias="ATDR_BACKUP_KEEP_DAILY")
+    backup_keep_weekly: int = Field(default=4, alias="ATDR_BACKUP_KEEP_WEEKLY")
+    backup_keep_monthly: int = Field(default=6, alias="ATDR_BACKUP_KEEP_MONTHLY")
+    # A drive on another disk than the database's that has this folder at its top (a USB drive) gets a copy of
+    # the scheduled backups whenever it is connected. Empty turns that off.
+    backup_offsite_folder: str = Field(default="ATDR-backups", alias="ATDR_BACKUP_OFFSITE_FOLDER")
     audit_retention_days: int = Field(default=365, alias="AUDIT_RETENTION_DAYS")
     audit_retention_min_days: int = Field(default=90, alias="AUDIT_RETENTION_MIN_DAYS")
     audit_retention_batch_size: int = Field(default=500, alias="AUDIT_RETENTION_BATCH_SIZE")
@@ -910,6 +922,18 @@ def validate_runtime_settings(settings: Settings) -> list[str]:
         issues.append("OPERATION_JOB_FAILURE_WARNING_WINDOW_MINUTES must be greater than zero.")
     if settings.backup_max_age_hours <= 0:
         issues.append("ATDR_BACKUP_MAX_AGE_HOURS must be greater than zero.")
+    for name, value in (
+        ("ATDR_BACKUP_SCHEDULE_HOURS", settings.backup_schedule_hours),
+        ("ATDR_BACKUP_KEEP_DAILY", settings.backup_keep_daily),
+        ("ATDR_BACKUP_KEEP_WEEKLY", settings.backup_keep_weekly),
+        ("ATDR_BACKUP_KEEP_MONTHLY", settings.backup_keep_monthly),
+    ):
+        if value < 0:
+            issues.append(f"{name} cannot be negative.")
+    if settings.backup_keep_daily + settings.backup_keep_weekly + settings.backup_keep_monthly == 0:
+        issues.append("ATDR_BACKUP_KEEP_DAILY, _WEEKLY and _MONTHLY cannot all be zero: every scheduled backup would be deleted.")
+    if settings.backup_offsite_folder.strip() and Path(settings.backup_offsite_folder.strip()).name != settings.backup_offsite_folder.strip():
+        issues.append("ATDR_BACKUP_OFFSITE_FOLDER must be a folder name, not a path.")
     if settings.audit_retention_min_days <= 0:
         issues.append("AUDIT_RETENTION_MIN_DAYS must be greater than zero.")
     if settings.audit_retention_days < settings.audit_retention_min_days:

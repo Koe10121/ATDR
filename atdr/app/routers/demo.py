@@ -15,6 +15,7 @@ from atdr.app.services.demo_service import (
     train_demo_ml_model,
 )
 from atdr.app.services.job_service import build_result_summary, complete_job, fail_job, start_job
+from atdr.app.services.scheduled_backup_service import BackupRequired
 
 router = APIRouter(prefix="/api/demo", tags=["demo"])
 
@@ -35,6 +36,8 @@ def reset_demo(
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=f"Sample log file not found: {exc.filename or request.sample_path}") from exc
+    except BackupRequired as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.post("/import-sample")
