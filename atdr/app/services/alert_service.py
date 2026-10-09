@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from html import escape
 from io import StringIO
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session, joinedload, noload
@@ -1213,6 +1213,8 @@ def get_alert(
     *,
     load_evidence: bool = True,
 ) -> Alert | None:
+    # load_evidence=False unless the caller reads alert.evidence: one hour of internet scanning is one alert with
+    # thousands of evidence logs, and loading them takes seconds.
     statement = select(Alert).options(joinedload(Alert.notes)).where(
         Alert.id == alert_id
     )
@@ -1237,7 +1239,7 @@ def escalate_alert(
     ticket_reference: str | None,
     actor: str,
 ) -> Alert | None:
-    alert = get_alert(db, alert_id)
+    alert = get_alert(db, alert_id, load_evidence=False)
     if alert is None:
         return None
     alert.priority_owner = priority_owner
@@ -1265,7 +1267,7 @@ def escalate_alert(
 def update_alert_status(db: Session, alert_id: int, status: str, actor: str = "analyst") -> Alert | None:
     if status not in ALERT_STATUSES:
         raise ValueError(f"Unsupported alert status: {status}")
-    alert = get_alert(db, alert_id)
+    alert = get_alert(db, alert_id, load_evidence=False)
     if alert is None:
         return None
     alert.status = status
@@ -1334,7 +1336,7 @@ def assign_alert(
     assigned_to: str,
     actor: str,
 ) -> Alert | None:
-    alert = get_alert(db, alert_id)
+    alert = get_alert(db, alert_id, load_evidence=False)
     if alert is None:
         return None
     user = db.scalar(select(User).where(User.username == assigned_to, User.is_active.is_(True)))
@@ -1358,7 +1360,7 @@ def assign_alert(
 
 
 def add_alert_note(db: Session, alert_id: int, *, author: str, note: str) -> AlertNote | None:
-    alert = get_alert(db, alert_id)
+    alert = get_alert(db, alert_id, load_evidence=False)
     if alert is None:
         return None
     alert_note = AlertNote(alert_id=alert_id, author=author, note=note.strip())
@@ -1386,7 +1388,7 @@ def list_alert_notes(db: Session, alert_id: int) -> list[AlertNote] | None:
 
 
 def alert_timeline(db: Session, alert_id: int) -> list[dict] | None:
-    alert = get_alert(db, alert_id)
+    alert = get_alert(db, alert_id, load_evidence=False)
     if alert is None:
         return None
 
@@ -1435,42 +1437,75 @@ def alert_timeline(db: Session, alert_id: int) -> list[dict] | None:
     return events
 
 
-def alert_report(db: Session, alert_id: int) -> dict | None:
-    alert = get_alert(db, alert_id)
+REPORT_EVIDENCE_COLUMNS = (
+    "id", "raw_log_id", "generated_time", "receive_time", "src_ip", "dst_ip", "app", "action", "protocol", "dst_port",
+    "bytes", "app_risk", "is_anomaly", "anomaly_score",
+)
+# A log's behaviour window takes about fifteen queries, so a report works it out for its first evidence logs only.
+REPORT_BEHAVIOR_WINDOW_LOGS = 25
+
+
+def alert_report(
+    db: Session,
+    alert_id: int,
+    *,
+    evidence_limit: int | None = None,
+    behavior_window_logs: int = REPORT_BEHAVIOR_WINDOW_LOGS,
+) -> dict | None:
+    """The alert with its evidence logs, timeline, notes and responses.
+
+    Every evidence log is listed, oldest link first, unless evidence_limit asks for the first ones only; the
+    counts cover all of them either way.
+    """
+
+    alert = get_alert(db, alert_id, load_evidence=False)
     if alert is None:
         return None
-    evidence_logs = []
-    for evidence in alert.evidence:
-        log = db.get(NormalizedLog, evidence.normalized_log_id)
-        if log is None:
-            continue
-        raw_line = log.raw_log.raw_line if log.raw_log else None
-        evidence_logs.append(
-            {
-                "id": log.id,
-                "raw_log_id": log.raw_log_id,
-                "generated_time": log.generated_time,
-                "receive_time": log.receive_time,
-                "src_ip": log.src_ip,
-                "dst_ip": log.dst_ip,
-                "app": log.app,
-                "action": log.action,
-                "protocol": log.protocol,
-                "dst_port": log.dst_port,
-                "bytes": log.bytes,
-                "app_risk": log.app_risk,
-                "is_anomaly": log.is_anomaly,
-                "anomaly_score": log.anomaly_score,
-                "behavior_window": compact_behavior_features(db, log),
-                "raw_line_excerpt": raw_line[:500] if raw_line else None,
-            }
+    evidence_count, anomaly_evidence_count = db.execute(
+        select(
+            func.count(NormalizedLog.id),
+            func.coalesce(func.sum(case((NormalizedLog.is_anomaly.is_(True), 1), else_=0)), 0),
         )
+        .join(AlertEvidence, AlertEvidence.normalized_log_id == NormalizedLog.id)
+        .where(AlertEvidence.alert_id == alert_id)
+    ).one()
+    rows = db.execute(
+        select(
+            *(getattr(NormalizedLog, column) for column in REPORT_EVIDENCE_COLUMNS),
+            func.substr(RawLog.raw_line, 1, 500).label("raw_line_excerpt"),
+        )
+        .join(AlertEvidence, AlertEvidence.normalized_log_id == NormalizedLog.id)
+        .outerjoin(RawLog, RawLog.id == NormalizedLog.raw_log_id)
+        .where(AlertEvidence.alert_id == alert_id)
+        .order_by(AlertEvidence.id.asc())
+        .limit(evidence_limit)
+    ).mappings().all()
+    with_window = [row["id"] for row in rows[: max(0, behavior_window_logs)]]
+    window_logs = (
+        {log.id: log for log in db.scalars(select(NormalizedLog).where(NormalizedLog.id.in_(with_window)))}
+        if with_window
+        else {}
+    )
+    not_worked_out = {
+        "available": False,
+        "reason": f"Worked out for the first {max(0, behavior_window_logs)} evidence logs of a report.",
+    }
+    evidence_logs = [
+        {
+            **{column: row[column] for column in REPORT_EVIDENCE_COLUMNS},
+            "behavior_window": (
+                compact_behavior_features(db, window_logs[row["id"]]) if row["id"] in window_logs else not_worked_out
+            ),
+            "raw_line_excerpt": row["raw_line_excerpt"] or None,
+        }
+        for row in rows
+    ]
+    evidence_count = int(evidence_count or 0)
     response_actions = db.scalars(
         select(ResponseAction)
         .where(ResponseAction.alert_id == alert_id)
         .order_by(ResponseAction.executed_at.asc(), ResponseAction.id.asc())
     ).all()
-    evidence_count = len(evidence_logs)
     matched_rule_titles = [rule.get("title") for rule in alert.matched_rules_json if rule.get("code") != "group_metadata"]
     ai_assistive = any(rule.get("code") == "ml_anomaly_detected" for rule in alert.matched_rules_json)
     watchlist_matched = any(rule.get("code") == "watchlist_match" for rule in alert.matched_rules_json)
@@ -1519,7 +1554,10 @@ def alert_report(db: Session, alert_id: int) -> dict | None:
         "sla": alert_sla(alert),
         "matched_rules": alert.matched_rules_json,
         "detection_summary": build_alert_detection_summary(db, alert),
+        "evidence_count": evidence_count,
+        "anomaly_evidence_count": int(anomaly_evidence_count or 0),
         "evidence_logs": evidence_logs,
+        "evidence_logs_truncated": len(evidence_logs) < evidence_count,
         "timeline": alert_timeline(db, alert_id) or [],
         "notes": [
             {"id": note.id, "alert_id": note.alert_id, "author": note.author, "note": note.note, "created_at": note.created_at}

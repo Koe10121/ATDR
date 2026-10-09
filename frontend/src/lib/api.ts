@@ -511,7 +511,8 @@ export const api = {
     apiRequest<AlertNote>(`/api/alerts/${id}/notes`, { method: "POST", body: JSON.stringify({ note }) }),
   alertNotes: (id: number) => apiRequest<AlertNote[]>(`/api/alerts/${id}/notes`),
   alertTimeline: (id: number) => apiRequest<AlertTimelineEvent[]>(`/api/alerts/${id}/timeline`),
-  alertReport: (id: number) => apiRequest<AlertReport>(`/api/alerts/${id}/report`),
+  // The drawer previews the first evidence logs; an alert can have thousands. The downloads list them all.
+  alertReport: (id: number) => apiRequest<AlertReport>(`/api/alerts/${id}/report`, { params: { evidence_limit: 25 } }),
   alertCases: (params: Params = {}) => apiRequest<AlertCase[]>("/api/alerts/cases", { params }),
   downloadAlertReport: (id: number, format: "csv" | "html" | "pdf") => apiDownload(`/api/alerts/${id}/report`, { format }),
   updateAlertStatus: (id: number, status: AlertStatus) =>

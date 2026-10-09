@@ -8428,6 +8428,10 @@ test("An internet scanning alert lists the hour's scanners, busiest first", asyn
     if (/\/api\/alerts(\?|$)/.test(url)) return route.fulfill({ json: [scanning] });
     return route.fallback();
   });
+  const opinionsAsked: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().includes("/api/ml/behavior/alerts/")) opinionsAsked.push(request.url());
+  });
   await page.reload();
 
   const table = page.getByTestId("internet-scanners");
@@ -8439,6 +8443,48 @@ test("An internet scanning alert lists the hour's scanners, busiest first", asyn
   await expect(rows.first()).toContainText("250 or more");
   await expect(rows.first()).toContainText("22, 3389");
   await expect(table).not.toContainText("198.51.100.7");
+  // The model reads one device's traffic. Asked about an alert with no single source it answered 404, every time
+  // the alert was opened.
+  await expect(page.getByTestId("behavior-alert-opinion")).toHaveCount(0);
+  expect(opinionsAsked).toEqual([]);
+});
+
+test("An alert with thousands of evidence logs opens on a preview of its report", async ({ page }) => {
+  // The drawer asked for the whole report: every evidence log with its behaviour window, which took over two
+  // minutes for an hour of internet scanning (5,547 logs).
+  await mockApi(page);
+  await seedSession(page);
+  await page.goto("/alerts?alert=1");
+  await expect(page.getByText("ML anomaly evidence: No anomaly flag in the evidence logs")).toBeVisible();
+  await expect(page.getByTestId("report-evidence-preview-note")).toHaveCount(0);
+
+  const asked: string[] = [];
+  await page.route("**/api/alerts/1/report**", async (route) => {
+    asked.push(route.request().url());
+    return route.fulfill({
+      json: {
+        alert: { id: 1 },
+        matched_rules: [],
+        timeline: [],
+        notes: [],
+        response_actions: [],
+        evidence_count: 5547,
+        anomaly_evidence_count: 421,
+        evidence_logs_truncated: true,
+        evidence_logs: Array.from({ length: 25 }, (_, index) => ({ id: index + 1, is_anomaly: false }))
+      }
+    });
+  });
+  await page.reload();
+
+  // Counted over all 5,547 logs: none of the 25 listed is an anomaly.
+  await expect(page.getByText("ML anomaly evidence: Present in evidence logs")).toBeVisible();
+  await page.getByText("Report evidence preview").click();
+  await expect(page.getByTestId("report-evidence-preview-note")).toHaveText(
+    "Showing the first 25 of 5547 evidence logs. The CSV and HTML downloads list them all."
+  );
+  expect(asked.length).toBeGreaterThan(0);
+  expect(asked.map((url) => new URL(url).searchParams.get("evidence_limit"))).toEqual(asked.map(() => "25"));
 });
 
 test("Alert details show the behaviour model's opinion next to the rules", async ({ page }) => {

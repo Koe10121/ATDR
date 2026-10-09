@@ -984,7 +984,10 @@ export interface AlertReport {
   alert: Record<string, unknown>;
   matched_rules: Array<Record<string, unknown>>;
   detection_summary?: DetectionSummary;
+  evidence_count?: number;
+  anomaly_evidence_count?: number;
   evidence_logs: Array<Record<string, unknown>>;
+  evidence_logs_truncated?: boolean;
   timeline: AlertTimelineEvent[];
   notes: AlertNote[];
   response_actions: Array<Record<string, unknown>>;

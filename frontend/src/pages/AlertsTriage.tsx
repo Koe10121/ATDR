@@ -132,6 +132,9 @@ export function AlertsTriage() {
   const timeline = useAlertTimeline(selected?.id);
   const report = useAlertReport(selected?.id);
   const detectionSummary = selected?.detection_summary ?? report.data?.detection_summary;
+  // Counted by the server over every evidence log; the report lists only the first ones.
+  const anomalyEvidenceLogs =
+    report.data?.anomaly_evidence_count ?? (report.data?.evidence_logs ?? []).filter((log) => log.is_anomaly).length;
   const narrative = (text: string) => (selected?.alert_type === "mfu_behavior_model" ? withoutModelCaveats(text) : text);
   const attackMapping =
     detectionSummary?.attack_mapping ?? attackMappingForType(selected?.attack_type ?? inferAttackTypeFromAlertType(selected?.alert_type));
@@ -663,7 +666,8 @@ export function AlertsTriage() {
               </details>
             </section>
 
-            <BehaviorAlertOpinionCard alertId={selected.id} />
+            {/* The model reads one device's traffic, so it has no opinion on an alert that names no single source. */}
+            {selected.src_ip ? <BehaviorAlertOpinionCard alertId={selected.id} /> : null}
 
             <section className="rounded-lg border border-line bg-panel2 p-4">
               <div className="mb-3 text-sm font-extrabold uppercase tracking-wide text-muted">Analyst Actions</div>
@@ -780,10 +784,15 @@ export function AlertsTriage() {
                 ) : null}
               </div>
               <div className="mt-2 text-sm text-muted">
-                ML anomaly evidence: {(report.data?.evidence_logs ?? []).some((log) => log.is_anomaly) ? "Present in evidence logs" : "No anomaly flag in loaded report evidence"}
+                ML anomaly evidence: {anomalyEvidenceLogs > 0 ? "Present in evidence logs" : "No anomaly flag in the evidence logs"}
               </div>
               <details className="mt-3">
                 <summary className="cursor-pointer text-sm font-bold text-text">Report evidence preview</summary>
+                {report.data?.evidence_logs_truncated ? (
+                  <p className="mt-2 text-xs text-muted" data-testid="report-evidence-preview-note">
+                    Showing the first {report.data.evidence_logs.length} of {report.data.evidence_count} evidence logs. The CSV and HTML downloads list them all.
+                  </p>
+                ) : null}
                 <pre className="mt-3 max-h-72 overflow-auto rounded-lg border border-line bg-shell p-3 text-xs text-muted">
                   {JSON.stringify(report.data?.evidence_logs ?? [], null, 2)}
                 </pre>

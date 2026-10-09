@@ -23,6 +23,7 @@ from atdr.app.detection.attack_mapping import infer_attack_type_from_rules
 from atdr.app.detection.explanations import build_alert_detection_summary
 from atdr.app.detection.playbooks import build_alert_playbook
 from atdr.app.services.alert_service import (
+    REPORT_BEHAVIOR_WINDOW_LOGS,
     add_alert_note,
     alert_evidence_summaries,
     alert_report,
@@ -120,6 +121,13 @@ def _alert_to_dict(
     if include_detection_summary and db is not None:
         payload["detection_summary"] = build_alert_detection_summary(db, alert)
     return payload
+
+
+def _changed_alert_to_dict(db: Session, alert) -> dict:
+    """An alert after an action on it, with the evidence counts the alert detail gives."""
+
+    return _alert_to_dict(alert, evidence_summary=alert_evidence_summaries(db, [alert.id], alerts=[alert]).get(alert.id))
+
 
 @router.get("", response_model=list[AlertRead])
 def api_list_alerts(
@@ -269,7 +277,7 @@ def assign_alert_endpoint(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if alert is None:
         raise HTTPException(status_code=404, detail="Alert not found.")
-    return _alert_to_dict(alert)
+    return _changed_alert_to_dict(db, alert)
 
 
 @router.post("/{alert_id}/assign/me", response_model=AlertRead)
@@ -281,7 +289,7 @@ def assign_alert_to_self(
     alert = assign_alert(db, alert_id, assigned_to=current_user.username, actor=current_user.username)
     if alert is None:
         raise HTTPException(status_code=404, detail="Alert not found.")
-    return _alert_to_dict(alert)
+    return _changed_alert_to_dict(db, alert)
 
 
 @router.post("/{alert_id}/escalate", response_model=AlertRead)
@@ -301,7 +309,7 @@ def escalate_alert_endpoint(
     )
     if alert is None:
         raise HTTPException(status_code=404, detail="Alert not found.")
-    return _alert_to_dict(alert)
+    return _changed_alert_to_dict(db, alert)
 
 
 def _set_alert_status(db: Session, alert_id: int, status: str, username: str) -> dict:
@@ -428,10 +436,18 @@ def get_alert_timeline(
 def get_alert_report(
     alert_id: int,
     format: str = Query(default="json", pattern="^(json|csv|html|pdf)$"),
+    evidence_limit: int | None = Query(default=None, ge=1, le=100000),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_analyst_or_admin),
 ):
-    report = alert_report(db, alert_id)
+    # A download lists every evidence log. Only the JSON report shows behaviour windows or takes evidence_limit.
+    as_json = format == "json"
+    report = alert_report(
+        db,
+        alert_id,
+        evidence_limit=evidence_limit if as_json else None,
+        behavior_window_logs=REPORT_BEHAVIOR_WINDOW_LOGS if as_json else 0,
+    )
     if report is None:
         raise HTTPException(status_code=404, detail="Alert not found.")
     report["generated_by"] = current_user.username
