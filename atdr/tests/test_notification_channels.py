@@ -1,0 +1,381 @@
+"""The ways a notification leaves ATDR: email, a chat group, and a Windows notification.
+
+Nothing here reaches a real mail server, a real chat group or the screen: email is sent to a mail server that
+runs inside the test, chat messages to a web server that does, and the Windows notification's script is given
+no words to show.
+"""
+
+from __future__ import annotations
+
+import email
+import json
+import smtplib
+import socketserver
+import subprocess
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
+
+import pytest
+import requests
+
+from atdr.app.core.config import Settings
+from atdr.app.services import notification_channels as channels
+from atdr.app.services.notification_channels import (
+    DeliveryError,
+    Message,
+    channel_problem,
+    channels_on,
+    chat_payload,
+    describe_channels,
+    email_recipients,
+    send_chat,
+    send_email,
+    send_windows,
+    toast_environment,
+)
+
+SECRET_ADDRESS = "https://chat.example.org/hook/secret-token"
+MESSAGE = Message(title="2 new Critical alerts", body="#7 Critical: malware / C2, raised 10:01\n#8 Critical: port scan, raised 10:02",
+                  link="/alerts")
+
+
+def _settings(**overrides) -> Settings:
+    return Settings(_env_file=None, **{
+        "ATDR_NOTIFY_WINDOWS": True,
+        "ATDR_NOTIFY_EMAIL_TO": "soc@example.org, lead@example.org",
+        "SMTP_HOST": "mail.example.org",
+        "SMTP_PORT": 587,
+        "SMTP_FROM_EMAIL": "atdr@example.org",
+        "ATDR_NOTIFY_CHAT_WEBHOOK_URL": SECRET_ADDRESS,
+        **overrides,
+    })
+
+
+def test_each_channel_says_what_is_missing_before_it_is_on(monkeypatch, tmp_path):
+    ready = _settings()
+    assert channel_problem(ready, "email") is None and channel_problem(ready, "chat") is None
+    assert email_recipients(_settings(ATDR_NOTIFY_EMAIL_TO=" a@x.org;b@x.org  c@x.org,, ")) == ["a@x.org", "b@x.org", "c@x.org"]
+
+    assert channel_problem(_settings(ATDR_NOTIFY_EMAIL_TO=""), "email") == "no address to send to (ATDR_NOTIFY_EMAIL_TO is empty)"
+    assert channel_problem(_settings(ATDR_NOTIFY_EMAIL_TO="soc@example.org, not-an-address"), "email") == (
+        "ATDR_NOTIFY_EMAIL_TO has 1 entry that is not an email address")
+    assert channel_problem(_settings(ATDR_NOTIFY_EMAIL_TO="soc@, @example.org"), "email") == (
+        "ATDR_NOTIFY_EMAIL_TO has 2 entries that are not an email address")
+    assert channel_problem(_settings(SMTP_HOST=" "), "email") == "no mail server (SMTP_HOST is empty)"
+    assert channel_problem(_settings(SMTP_FROM_EMAIL=""), "email") == "no sender address (SMTP_FROM_EMAIL is empty or not an email address)"
+    assert channel_problem(_settings(SMTP_FROM_EMAIL="ATDR"), "email") == "no sender address (SMTP_FROM_EMAIL is empty or not an email address)"
+    # A password is never sent where anyone on the network could read it.
+    plain = {"SMTP_USERNAME": "atdr", "SMTP_PASSWORD": "hunter2", "SMTP_USE_TLS": False}
+    assert channel_problem(_settings(**plain), "email") == "the mail account's password would travel unencrypted (SMTP_USE_TLS=false)"
+    assert channel_problem(_settings(**plain, SMTP_PORT=465), "email") is None, "port 465 is encrypted from its first byte"
+    assert channel_problem(_settings(**plain, SMTP_HOST="127.0.0.1"), "email") is None, "a relay on this machine"
+    assert channel_problem(_settings(SMTP_USE_TLS=False), "email") is None, "no account, so no password to protect"
+
+    assert channel_problem(_settings(ATDR_NOTIFY_CHAT_WEBHOOK_URL=""), "chat") == "no chat address (ATDR_NOTIFY_CHAT_WEBHOOK_URL is empty)"
+    assert channel_problem(_settings(ATDR_NOTIFY_CHAT_WEBHOOK_URL="discord"), "chat") == "ATDR_NOTIFY_CHAT_WEBHOOK_URL is not a web address"
+    assert channel_problem(_settings(ATDR_NOTIFY_CHAT_WEBHOOK_URL="ftp://chat.example.org/x"), "chat") == "ATDR_NOTIFY_CHAT_WEBHOOK_URL is not a web address"
+    assert channel_problem(_settings(ATDR_NOTIFY_CHAT_WEBHOOK_URL="http://chat.example.org/hook"), "chat") == "the chat address must start with https://"
+    assert channel_problem(_settings(ATDR_NOTIFY_CHAT_WEBHOOK_URL="http://127.0.0.1:9/hook"), "chat") is None
+    assert channel_problem(ready, "pager") == "ATDR has no such channel"
+
+    script = tmp_path / "show_notification.ps1"
+    script.write_text("exit 0", encoding="utf-8")
+    monkeypatch.setattr(channels, "TOAST_SCRIPT", script)
+    monkeypatch.setattr(channels.sys, "platform", "win32")
+    assert channel_problem(ready, "windows") is None and channels_on(ready) == ["windows", "email", "chat"]
+    assert channel_problem(_settings(ATDR_NOTIFY_WINDOWS=False), "windows") == "switched off (ATDR_NOTIFY_WINDOWS=false)"
+    monkeypatch.setattr(channels, "TOAST_SCRIPT", tmp_path / "gone.ps1")
+    assert channel_problem(ready, "windows") == "scripts\\show_notification.ps1 is missing"
+    monkeypatch.setattr(channels.sys, "platform", "linux")
+    assert channel_problem(ready, "windows") == "this machine does not run Windows"
+    assert channels_on(_settings(ATDR_NOTIFY_EMAIL_TO="", ATDR_NOTIFY_CHAT_WEBHOOK_URL="")) == []
+
+    described = describe_channels(ready)
+    assert described["email"] == {"name": "Email", "on": True, "why_off": None, "to": 2, "server": "mail.example.org"}
+    assert described["chat"] == {"name": "Chat message", "on": True, "why_off": None, "service": "chat.example.org"}
+    assert described["windows"] == {"name": "Windows notification", "on": False, "why_off": "this machine does not run Windows"}
+    assert "secret-token" not in json.dumps(described)
+    assert describe_channels(_settings(ATDR_NOTIFY_CHAT_WEBHOOK_URL="", SMTP_HOST=""))["chat"]["service"] is None
+
+
+class _MailHandler(socketserver.StreamRequestHandler):
+    """As much of a mail server as one message needs."""
+
+    def handle(self) -> None:
+        self.wfile.write(b"220 test.example ESMTP\r\n")
+        sender, recipients = "", []
+        while True:
+            line = self.rfile.readline()
+            if not line:
+                return
+            command = line.decode("utf-8", "replace").strip()
+            verb = command.upper()
+            if verb.startswith(("EHLO", "HELO")):
+                self.wfile.write(b"250-test.example\r\n250 8BITMIME\r\n")
+            elif verb.startswith("MAIL FROM:"):
+                sender = command[10:].split()[0].strip("<>")
+                self.wfile.write(b"250 ok\r\n")
+            elif verb.startswith("RCPT TO:"):
+                address = command[8:].strip().strip("<>")
+                if address.startswith("refused"):
+                    self.wfile.write(b"550 no such user\r\n")
+                else:
+                    recipients.append(address)
+                    self.wfile.write(b"250 ok\r\n")
+            elif verb == "DATA":
+                self.wfile.write(b"354 end with a dot\r\n")
+                lines = []
+                while (data := self.rfile.readline()) not in (b".\r\n", b""):
+                    lines.append(data)
+                self.server.received.append((sender, recipients, b"".join(lines)))  # type: ignore[attr-defined]
+                self.wfile.write(b"250 queued\r\n")
+            elif verb == "QUIT":
+                self.wfile.write(b"221 bye\r\n")
+                return
+            else:
+                self.wfile.write(b"502 not here\r\n")
+
+
+@pytest.fixture()
+def mail_server():
+    server = socketserver.ThreadingTCPServer(("127.0.0.1", 0), _MailHandler)
+    server.daemon_threads = True
+    server.received = []  # type: ignore[attr-defined]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    yield server
+    server.shutdown()
+    server.server_close()
+
+
+def test_an_email_goes_through_a_mail_server_as_it_would_through_a_real_one(mail_server):
+    settings = _settings(SMTP_HOST="127.0.0.1", SMTP_PORT=mail_server.server_address[1], SMTP_USE_TLS=False)
+    assert send_email(settings, MESSAGE) is None
+
+    (sender, recipients, raw), = mail_server.received
+    assert (sender, recipients) == ("atdr@example.org", ["soc@example.org", "lead@example.org"])
+    mail = email.message_from_bytes(raw)
+    assert (mail["From"], mail["To"], mail["Subject"]) == ("MFU ATDR <atdr@example.org>", "soc@example.org, lead@example.org",
+                                                           "[ATDR] 2 new Critical alerts")
+    assert mail["Auto-Submitted"] == "auto-generated" and mail["Message-ID"].endswith("@example.org>") and mail["Date"]
+    assert mail.get_content_type() == "text/plain"
+    assert mail.get_payload(decode=True).decode("utf-8").replace("\r\n", "\n").strip() == (
+        "#7 Critical: malware / C2, raised 10:01\n#8 Critical: port scan, raised 10:02\n\n"
+        "Open ATDR on the machine it runs on to see more.")
+    assert "/alerts" not in raw.decode("utf-8"), "a link into the dashboard is no use outside the machine"
+
+    # One address refused: the others get the message. It counts as delivered, with that said, and is not sent again.
+    note = send_email(_settings(SMTP_HOST="127.0.0.1", SMTP_PORT=mail_server.server_address[1], SMTP_USE_TLS=False,
+                                ATDR_NOTIFY_EMAIL_TO="soc@example.org, refused@example.org"), MESSAGE)
+    assert note == "the mail server refused 1 of the addresses the message was for"
+    assert mail_server.received[-1][1] == ["soc@example.org"] and len(mail_server.received) == 2
+    with pytest.raises(DeliveryError, match="the mail server refused every address the message was for"):
+        send_email(_settings(SMTP_HOST="127.0.0.1", SMTP_PORT=mail_server.server_address[1], SMTP_USE_TLS=False,
+                             ATDR_NOTIFY_EMAIL_TO="refused@example.org"), MESSAGE)
+    # The server asked for encryption it does not offer.
+    with pytest.raises(DeliveryError, match="does not offer the encryption or the sign-in ATDR asked for"):
+        send_email(_settings(SMTP_HOST="127.0.0.1", SMTP_PORT=mail_server.server_address[1], SMTP_USE_TLS=True), MESSAGE)
+    # Nothing listens there.
+    mail_server.shutdown()
+    mail_server.server_close()
+    with pytest.raises(DeliveryError, match=r"the mail server could not be reached \(\w+\)"):
+        send_email(settings, MESSAGE)
+
+
+class _Mail:
+    """A mail server's client that only writes down what it is asked to do."""
+
+    def __init__(self, calls: list, *, login_error: Exception | None = None) -> None:
+        self.calls, self.login_error = calls, login_error
+
+    def __call__(self, host, port, **kwargs):
+        self.calls.append(("connect", host, port, sorted(kwargs)))
+        return self
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc) -> bool:
+        self.calls.append(("quit",))
+        return False
+
+    def starttls(self, **kwargs) -> None:
+        self.calls.append(("starttls", sorted(kwargs)))
+
+    def login(self, name: str, password: str) -> None:
+        self.calls.append(("login", name, password))
+        if self.login_error is not None:
+            raise self.login_error
+
+    def send_message(self, mail) -> dict:
+        self.calls.append(("send", mail["Subject"]))
+        return {}
+
+
+def test_the_connection_is_encrypted_before_the_password_is_given():
+    account = {"SMTP_USERNAME": " atdr.alerts ", "SMTP_PASSWORD": "hunter2"}
+    calls: list = []
+    send_email(_settings(**account), MESSAGE, smtp=_Mail(calls), smtp_ssl=lambda *_a, **_k: pytest.fail("port 587 starts unencrypted"))
+    assert calls == [("connect", "mail.example.org", 587, ["timeout"]), ("starttls", ["context"]), ("login", "atdr.alerts", "hunter2"),
+                     ("send", "[ATDR] 2 new Critical alerts"), ("quit",)]
+
+    # Port 465 is encrypted from the first byte: no STARTTLS.
+    calls.clear()
+    send_email(_settings(**account, SMTP_PORT=465), MESSAGE, smtp_ssl=_Mail(calls), smtp=lambda *_a, **_k: pytest.fail("465 is not plain"))
+    assert [call[0] for call in calls] == ["connect", "login", "send", "quit"] and calls[0][3] == ["context", "timeout"]
+
+    # No account: nothing to sign in with. Encryption switched off for a relay on the machine: none asked for.
+    calls.clear()
+    send_email(_settings(), MESSAGE, smtp=_Mail(calls))
+    assert [call[0] for call in calls] == ["connect", "starttls", "send", "quit"]
+    calls.clear()
+    send_email(_settings(SMTP_HOST="127.0.0.1", SMTP_USE_TLS=False), MESSAGE, smtp=_Mail(calls))
+    assert [call[0] for call in calls] == ["connect", "send", "quit"]
+
+
+@pytest.mark.parametrize(("error", "words"), [
+    (smtplib.SMTPAuthenticationError(535, b"5.7.8 Username and Password not accepted: hunter2"),
+     "the mail server refused the account's name or password"),
+    (smtplib.SMTPSenderRefused(550, b"not allowed to send as atdr@example.org with hunter2", "atdr@example.org"),
+     "the mail server refused the sender address"),
+    (smtplib.SMTPServerDisconnected("Connection unexpectedly closed while sending hunter2"),
+     "the mail server did not take the message (SMTPServerDisconnected)"),
+    (TimeoutError("timed out talking to mail.example.org as hunter2"), "the mail server could not be reached (TimeoutError)"),
+])
+def test_a_mail_failure_is_said_in_words_that_never_hold_the_password(error, words):
+    with pytest.raises(DeliveryError) as failure:
+        send_email(_settings(SMTP_USERNAME="atdr.alerts", SMTP_PASSWORD="hunter2"), MESSAGE, smtp=_Mail([], login_error=error))
+    assert str(failure.value) == words and "hunter2" not in str(failure.value)
+
+
+class _ChatHandler(BaseHTTPRequestHandler):
+    def do_POST(self) -> None:  # noqa: N802 (the name http.server asks for)
+        body = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+        self.server.posted.append((self.path, self.headers.get("Content-Type"), json.loads(body)))  # type: ignore[attr-defined]
+        if self.path == "/hook/moved":
+            self.send_response(302)
+            self.send_header("Location", "/hook/ok")
+        else:
+            self.send_response({"/hook/ok": 204, "/hook/slow-down": 429}.get(self.path, 404))
+        self.end_headers()
+
+    def log_message(self, *_args) -> None:
+        pass
+
+
+@pytest.fixture()
+def chat_server():
+    server = HTTPServer(("127.0.0.1", 0), _ChatHandler)
+    server.posted = []  # type: ignore[attr-defined]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    yield server
+    server.shutdown()
+    server.server_close()
+
+
+def test_a_chat_message_is_posted_to_the_address_in_the_settings_and_nowhere_else(chat_server):
+    base = f"http://127.0.0.1:{chat_server.server_address[1]}"
+    send_chat(_settings(ATDR_NOTIFY_CHAT_WEBHOOK_URL=f"{base}/hook/ok"), MESSAGE)
+    assert chat_server.posted == [("/hook/ok", "application/json", {
+        "text": "ATDR: 2 new Critical alerts\n#7 Critical: malware / C2, raised 10:01\n#8 Critical: port scan, raised 10:02\n\n"
+                "Open ATDR on the machine it runs on to see more."})]
+
+    with pytest.raises(DeliveryError, match="^the chat service answered 404$"):
+        send_chat(_settings(ATDR_NOTIFY_CHAT_WEBHOOK_URL=f"{base}/hook/deleted"), MESSAGE)
+    with pytest.raises(DeliveryError, match="^the chat service answered 429$"):
+        send_chat(_settings(ATDR_NOTIFY_CHAT_WEBHOOK_URL=f"{base}/hook/slow-down"), MESSAGE)
+    # Sent on to another address: the message is not posted there.
+    with pytest.raises(DeliveryError, match="^the chat service answered 302$"):
+        send_chat(_settings(ATDR_NOTIFY_CHAT_WEBHOOK_URL=f"{base}/hook/moved"), MESSAGE)
+    assert [path for path, _type, _body in chat_server.posted] == ["/hook/ok", "/hook/deleted", "/hook/slow-down", "/hook/moved"]
+
+
+def test_each_chat_service_gets_the_form_it_takes():
+    text = "ATDR: New Critical alert #7: malware / C2\nRaised 10:01."
+    assert chat_payload("https://hooks.slack.com/services/T0/B0/x", text) == {"text": text}
+    assert chat_payload("https://chat.googleapis.com/v1/spaces/A/messages?key=k&token=t", text) == {"text": text}
+    assert chat_payload("https://chat.example.org/hook", text) == {"text": text}
+    for address in ("https://discord.com/api/webhooks/1/abc", "https://ptb.discord.com/api/webhooks/1/abc",
+                    "https://discordapp.com/api/webhooks/1/abc"):
+        assert chat_payload(address, text) == {"content": text, "allowed_mentions": {"parse": []}}, address
+    assert chat_payload("https://notdiscord.com/api/webhooks/1/abc", text) == {"text": text}, "the service, not a name that ends like it"
+
+    # Discord refuses more than 2,000 characters: the end is cut, and said to be.
+    long = "\n".join(f"#{number} Critical: malware / C2, raised 10:01" for number in range(100))
+    cut = chat_payload("https://discord.com/api/webhooks/1/abc", long)["content"]
+    assert len(cut) <= 2000 and cut.endswith("\n...") and cut.startswith("#0 Critical")
+    assert chat_payload("https://hooks.slack.com/services/T0/B0/x", long) == {"text": long}
+
+
+def test_a_chat_failure_never_says_the_address():
+    def unreachable(address, **_kwargs):
+        raise requests.ConnectionError(f"HTTPSConnectionPool: Max retries exceeded with url: {address}")
+
+    with pytest.raises(DeliveryError) as failure:
+        send_chat(_settings(), MESSAGE, post=unreachable)
+    assert str(failure.value) == "the chat service could not be reached (ConnectionError)"
+    assert failure.value.__cause__ is None and failure.value.__suppress_context__, "nor does the error it came from travel with it"
+
+    seen = {}
+
+    def post(address, **kwargs):
+        seen.update(address=address, **kwargs)
+        return type("Answer", (), {"status_code": 200})()
+
+    send_chat(_settings(), MESSAGE, post=post)
+    assert (seen["address"], seen["allow_redirects"], seen["timeout"]) == (SECRET_ADDRESS, False, 20)
+
+
+def test_a_windows_notification_gets_its_words_and_the_page_to_open(monkeypatch):
+    settings = _settings(MFU_IAM_HANDOFF_FRONTEND_URL="http://127.0.0.1:5173/")
+    assert toast_environment(settings, MESSAGE) == {
+        "ATDR_NOTIFICATION_TITLE": "2 new Critical alerts",
+        "ATDR_NOTIFICATION_BODY": "#7 Critical: malware / C2, raised 10:01\n#8 Critical: port scan, raised 10:02",
+        "ATDR_NOTIFICATION_LINK": "http://127.0.0.1:5173/alerts",
+    }
+    many = Message(title="12 new Critical alerts", body="\n".join(f"#{number} Critical: port scan, raised 10:01" for number in range(11)) + "\nand 2 more")
+    assert toast_environment(settings, many)["ATDR_NOTIFICATION_BODY"].splitlines() == [
+        "#0 Critical: port scan, raised 10:01", "#1 Critical: port scan, raised 10:01", "#2 Critical: port scan, raised 10:01",
+        "and 9 more lines"], "a Windows notification has room for four lines"
+    assert toast_environment(settings, Message(title="Test", body=""))["ATDR_NOTIFICATION_LINK"] == ""
+
+    ran = {}
+
+    def run(command, **kwargs):
+        ran.update(command=command, **kwargs)
+        return subprocess.CompletedProcess(command, ran.get("answer", 0))
+
+    send_windows(settings, MESSAGE, run=run)
+    assert ran["command"][0] == "powershell.exe" and ran["command"][-2:] == ["-File", str(channels.TOAST_SCRIPT)]
+    assert ran["env"]["ATDR_NOTIFICATION_TITLE"] == "2 new Critical alerts" and ran["env"]["ATDR_NOTIFICATION_LINK"].endswith("/alerts")
+    assert "2 new Critical alerts" not in " ".join(ran["command"]), "the words are not on the command line, where they would need quoting"
+    assert ran["timeout"] == 20
+
+    ran["answer"] = 1
+    with pytest.raises(DeliveryError, match=r"Windows did not show the notification \(the script ended with 1\)"):
+        send_windows(settings, MESSAGE, run=run)
+
+    def hangs(command, **_kwargs):
+        raise subprocess.TimeoutExpired(command, 20)
+
+    with pytest.raises(DeliveryError, match="Windows did not show the notification in time"):
+        send_windows(settings, MESSAGE, run=hangs)
+
+    def missing(_command, **_kwargs):
+        raise FileNotFoundError("powershell.exe")
+
+    with pytest.raises(DeliveryError, match=r"the notification script could not be run \(FileNotFoundError\)"):
+        send_windows(settings, MESSAGE, run=missing)
+
+
+def test_the_notification_script_shows_nothing_without_a_title(tmp_path):
+    # Run for real, with no words: it must end before it reaches the screen.
+    assert channels.TOAST_SCRIPT == Path(channels.PROJECT_ROOT) / "scripts" / "show_notification.ps1" and channels.TOAST_SCRIPT.is_file()
+    done = subprocess.run(
+        ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(channels.TOAST_SCRIPT)],
+        capture_output=True, text=True, timeout=120, check=False, cwd=tmp_path,
+        env={key: value for key, value in __import__("os").environ.items() if not key.startswith("ATDR_NOTIFICATION_")},
+    )
+    assert done.returncode == 2, done.stderr or done.stdout

@@ -14,6 +14,9 @@ from atdr.app.db.models import (
     BlockedIP,
     MLModelRun,
     NormalizedLog,
+    Notification,
+    NotificationAlert,
+    NotificationDelivery,
     RawLog,
     ResponseAction,
     SuppressionRule,
@@ -24,6 +27,7 @@ from atdr.app.services.auto_detection_service import automatic_detection_status
 from atdr.app.services.dashboard_service import build_dashboard_summary
 from atdr.app.services.detection_service import count_unchecked_logs, run_detection
 from atdr.app.services.log_service import import_log_file
+from atdr.app.services.notification_service import cover_alerts
 from atdr.app.services.operation_run_service import safe_source_label
 from atdr.app.services.scheduled_backup_service import backup_before_deleting
 from atdr.app.services.syslog_service import live_feed_status
@@ -32,6 +36,10 @@ from atdr.app.services.user_service import ensure_demo_users
 
 
 DELETE_ORDER = [
+    # What was told about the alerts that go; who has read what, and ATDR's own problems, are not about them.
+    NotificationDelivery,
+    Notification,
+    NotificationAlert,
     ResponseAction,
     BlockedIP,
     AlertEvidence,
@@ -88,6 +96,9 @@ def reset_and_seed_demo(
             "To test a larger import, choose a larger sample file or use replay_logs --sample-path <path>."
         )
     detection_result = run_detection(db, limit=limit, use_ml=use_ml, actor=actor)
+    # The sample file's alerts are not news: nobody is told about them.
+    cover_alerts(db)
+    db.commit()
     return {
         "backup": backup,
         "deleted": deleted,

@@ -38,6 +38,8 @@ from atdr.app.services.job_service import (
     record_worker_heartbeat,
     recover_expired_leases,
 )
+from atdr.app.services.notification_service import LOOK_SECONDS as NOTIFICATION_LOOK_SECONDS
+from atdr.app.services.notification_service import PROBLEMS_EVERY_SECONDS, notification_look
 from atdr.app.services.retention_service import RETENTION_EVERY_SECONDS, RetentionProgress, run_live_retention
 from atdr.app.services.scheduled_backup_service import BACKUP_LOOK_SECONDS, run_scheduled_backup
 from atdr.app.services.resumable_ingestion_service import (
@@ -498,6 +500,48 @@ def _backup_look(worker_id: str, next_look: float) -> float:
     return time.monotonic() + BACKUP_LOOK_SECONDS
 
 
+class NotificationLooks:
+    """When the worker next looks for something to tell, and when it next looks for problems of ATDR's own."""
+
+    def __init__(self) -> None:
+        self.next_look = 0.0
+        self.next_problems = 0.0
+
+
+def _notification_look(worker_id: str, looks: NotificationLooks) -> None:
+    """With no queued job waiting, tell what is new: alerts, the daily summary, problems of ATDR's own.
+
+    Never raises: like a failed automatic check, a failed look must not stop the worker's queued jobs.
+    """
+
+    settings = get_settings()
+    if not settings.notify_enabled or time.monotonic() < looks.next_look:
+        return
+    problems = time.monotonic() >= looks.next_problems
+    try:
+        with SessionLocal() as db:
+            seen = [0.0]
+
+            def still_alive() -> None:
+                # A mail server that does not answer takes its whole time; that must not look like a dead worker.
+                if time.monotonic() - seen[0] < float(settings.operation_worker_heartbeat_seconds):
+                    return
+                seen[0] = time.monotonic()
+                record_worker_heartbeat(
+                    db,
+                    worker_id=worker_id,
+                    status="running",
+                    details={"notifications": True, "external_services": "notification channels"},
+                )
+
+            notification_look(db, settings=settings, problems=problems, still_alive=still_alive)
+        if problems:
+            looks.next_problems = time.monotonic() + PROBLEMS_EVERY_SECONDS
+    except Exception:
+        logger.exception("notification look failed")
+    looks.next_look = time.monotonic() + NOTIFICATION_LOOK_SECONDS
+
+
 def run_worker_loop(
     *,
     worker_id: str | None = None,
@@ -513,6 +557,7 @@ def run_worker_loop(
     next_retention_look = 0.0
     next_backup_look = 0.0
     retention_progress = RetentionProgress()
+    notification_looks = NotificationLooks()
     with SessionLocal() as db:
         enforce_worker_concurrency(
             db,
@@ -539,6 +584,8 @@ def run_worker_loop(
                 next_automatic_look = _automatic_detection_look(active_worker_id, next_automatic_look)
                 next_retention_look = _retention_look(next_retention_look, retention_progress)
                 next_backup_look = _backup_look(active_worker_id, next_backup_look)
+                # Last: what the looks before it found or failed at is told in the same pass.
+                _notification_look(active_worker_id, notification_looks)
             if stop_event is not None:
                 stop_event.wait(delay)
             else:

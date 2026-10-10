@@ -78,6 +78,19 @@ ATTACK_TYPE_MAPPINGS: dict[str, dict[str, str]] = {
     },
 }
 
+# What an attack type is called in a sentence: the assistant's answers and the notifications use the same words.
+ATTACK_LABELS = {
+    "port_scan": "port scan",
+    "brute_force": "brute force",
+    "dos_ddos": "flood / denial of service",
+    "malware_c2": "malware / C2",
+    "data_exfiltration_suspicion": "possible data exfiltration",
+    "exploit_attempt": "exploit attempt",
+    "policy_violation": "policy violation",
+    "unknown_anomaly": "unclassified",
+    "normal": "normal",
+}
+
 # The kind of the hourly alert that lists outside addresses which only scanned MFU (alert_service builds it).
 INTERNET_SCANNING_ALERT = "internet_scanning"
 

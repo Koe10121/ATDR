@@ -483,6 +483,28 @@ class Settings(BaseSettings):
     audit_retention_min_days: int = Field(default=90, alias="AUDIT_RETENTION_MIN_DAYS")
     audit_retention_batch_size: int = Field(default=500, alias="AUDIT_RETENTION_BATCH_SIZE")
 
+    # ---- Notifications ----
+    # ATDR tells people about new alerts of the severity below and about problems of its own: always in the
+    # dashboard's bell, and through each channel below that is set up. False switches all of it off.
+    notify_enabled: bool = Field(default=True, alias="ATDR_NOTIFY_ENABLED")
+    # "Critical", or "High" for High and Critical. Alerts below it wait for the daily summary.
+    notify_alert_severity: str = Field(default="Critical", alias="ATDR_NOTIFY_ALERT_SEVERITY")
+    # A burst of alerts is one message; while alerts keep coming, the next message waits this long.
+    notify_alert_minutes_between: int = Field(default=30, alias="ATDR_NOTIFY_ALERT_MINUTES_BETWEEN")
+    # The machine's local time of the daily summary, such as 08:00. Empty: no summary.
+    notify_summary_at: str = Field(default="08:00", alias="ATDR_NOTIFY_SUMMARY_AT")
+    # A Windows notification on the machine ATDR runs on.
+    notify_windows: bool = Field(default=True, alias="ATDR_NOTIFY_WINDOWS")
+    # Email to these addresses (comma-separated), sent through SMTP_HOST as SMTP_FROM_EMAIL. Empty: no email.
+    notify_email_to: str = Field(default="", alias="ATDR_NOTIFY_EMAIL_TO")
+    # The incoming-webhook address of a Discord, Slack or Google Chat group. A secret: whoever has it can post
+    # there. Empty: no chat message.
+    notify_chat_webhook_url: str = Field(default="", alias="ATDR_NOTIFY_CHAT_WEBHOOK_URL")
+    # With the live syslog feed on: tell when no log has arrived for this many minutes. 0: never.
+    notify_feed_silent_minutes: int = Field(default=10, alias="ATDR_NOTIFY_FEED_SILENT_MINUTES")
+    # Tell when the disk the database is on has fewer than this many GB free. 0: never.
+    notify_disk_free_gb: float = Field(default=10.0, alias="ATDR_NOTIFY_DISK_FREE_GB")
+
     # ---- AI Assistant ----
     assistant_enabled: bool = Field(default=False, alias="ASSISTANT_ENABLED")
     assistant_provider: str = Field(default="disabled", alias="ASSISTANT_PROVIDER")

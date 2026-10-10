@@ -18,6 +18,11 @@ os.environ["ATDR_MODEL_ALERTS"] = "false"
 os.environ["ATDR_BACKUP_DIRECTORY"] = ""
 os.environ["ATDR_BACKUP_SCHEDULE_HOURS"] = "0"
 os.environ["ATDR_BACKUP_OFFSITE_FOLDER"] = ""
+# Tests never show a Windows notification, send email or post to a chat group, whatever .env sets up for the
+# running system. The notification tests pass senders of their own.
+os.environ["ATDR_NOTIFY_WINDOWS"] = "false"
+os.environ["ATDR_NOTIFY_EMAIL_TO"] = ""
+os.environ["ATDR_NOTIFY_CHAT_WEBHOOK_URL"] = ""
 
 # Nor do they open the database of the system running on this machine: see own_database_guard.py. The import
 # brings its check after every test with it.

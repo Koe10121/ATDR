@@ -24,7 +24,7 @@ from sqlalchemy import desc, func, or_, select
 from sqlalchemy.orm import Session
 
 from atdr.app.db.models import Alert, NormalizedLog
-from atdr.app.detection.attack_mapping import infer_attack_type_from_rules
+from atdr.app.detection.attack_mapping import ATTACK_LABELS, infer_attack_type_from_rules
 from atdr.app.detection.rule_catalog import rule_spec
 
 Subject = Literal["alerts", "logs"]
@@ -66,18 +66,6 @@ ATTACK_PHRASES: tuple[tuple[str, str], ...] = (
     (r"\bpolicy violations?\b", "policy_violation"),
     (r"\bunclassified\b|\bunknown attack", "unknown_anomaly"),
 )
-
-ATTACK_LABELS = {
-    "port_scan": "port scan",
-    "brute_force": "brute force",
-    "dos_ddos": "flood / denial of service",
-    "malware_c2": "malware / C2",
-    "data_exfiltration_suspicion": "possible data exfiltration",
-    "exploit_attempt": "exploit attempt",
-    "policy_violation": "policy violation",
-    "unknown_anomaly": "unclassified",
-    "normal": "normal",
-}
 
 LOG_ACTIONS: tuple[tuple[str, tuple[str, ...], str], ...] = (
     (r"\bden(?:y|ied)\b|\bdrop(?:ped)?\b|\bblocked\b", ("deny", "drop"), "denied or dropped"),

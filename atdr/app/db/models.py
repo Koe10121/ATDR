@@ -343,6 +343,98 @@ class EmailNotificationEvent(Base):
     error_summary: Mapped[str | None] = mapped_column(Text)
 
 
+class Notification(Base):
+    """Something ATDR tells people: new Critical alerts, the morning summary, a problem of its own, a test.
+
+    Its words name no address: the same text goes to the dashboard, a Windows notification, email and chat.
+    """
+
+    __tablename__ = "notifications"
+    # The bell remembers the highest number each user has seen, so a number is never given out twice.
+    __table_args__ = {"sqlite_autoincrement": True}
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    level: Mapped[str] = mapped_column(String(16), nullable=False)
+    audience: Mapped[str] = mapped_column(String(16), nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    link: Mapped[str | None] = mapped_column(String(255))
+    details_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+
+
+class NotificationDelivery(Base):
+    """One notification on its way out through one channel: a Windows notification, email or chat."""
+
+    __tablename__ = "notification_deliveries"
+    __table_args__ = (UniqueConstraint("notification_id", "channel", name="uq_notification_delivery_channel"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    notification_id: Mapped[int] = mapped_column(ForeignKey("notifications.id", ondelete="CASCADE"), nullable=False, index=True)
+    channel: Mapped[str] = mapped_column(String(16), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error: Mapped[str | None] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class NotificationAlert(Base):
+    """An alert that has been reported, so that it is reported once.
+
+    With no notification: the alert was on the list when reporting began, or a rebuild or a reset raised it.
+    """
+
+    __tablename__ = "notification_alerts"
+
+    alert_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+    notification_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class NotificationCondition(Base):
+    """Something about ATDR itself that needs attention now. The row goes when it is over."""
+
+    __tablename__ = "notification_conditions"
+
+    key: Mapped[str] = mapped_column(String(128), primary_key=True)
+    # Who watches it and so who may say it is over: the worker's look, or the watcher of ATDR's parts.
+    source: Mapped[str] = mapped_column(String(16), nullable=False)
+    urgent: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    # What is said when it ends.
+    over: Mapped[str] = mapped_column(String(255), nullable=False)
+    since: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # None while it has not lasted long enough to be told.
+    announced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    details_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class NotificationSeen(Base):
+    """The newest notification each user has looked at: the bell counts the ones after it."""
+
+    __tablename__ = "notification_seen"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, autoincrement=False)
+    seen_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class NotificationState(Base):
+    """What the notification look remembers between looks: when reporting began, and when the last summary went."""
+
+    __tablename__ = "notification_state"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
 class AssistantFeedback(Base):
     __tablename__ = "assistant_feedback"
 
