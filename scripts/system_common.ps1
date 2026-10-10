@@ -792,6 +792,41 @@ function Get-AtdrWatchDecision {
     return [pscustomobject]$decision
 }
 
+function Get-AtdrProblemReports {
+    # Which problems the watcher should tell people about now, and which it should tell them are over. It decides
+    # only; watch_system.ps1 reports through atdr.scripts.notify. A key is a part's name, or "*" for ATDR as a
+    # whole (it could not be started).
+    param(
+        # What has been told and not yet told over.
+        [string[]]$Told = @(),
+        # What Get-AtdrWatchDecision is waiting on: started three times in ten minutes and down again.
+        [string[]]$Waiting = @(),
+        [switch]$MeantToRun,
+        [string[]]$Expected = @(),
+        [string[]]$Alive = @(),
+        [hashtable]$StartedAt = @{},
+        [Parameter(Mandatory = $true)][datetime]$Now,
+        # A part that is tried every five minutes runs for a moment each time: it is over once it has stayed up.
+        [int]$SteadySeconds = 600
+    )
+    $report = @($Waiting | Where-Object { $_ -notin $Told })
+    $over = [System.Collections.Generic.List[string]]::new()
+    foreach ($key in $Told) {
+        if ($key -in $Waiting) { continue }
+        # Stopped on purpose: nothing about its parts is a problem any more.
+        if (-not $MeantToRun) { $over.Add($key); continue }
+        if ($key -eq "*") {
+            if ($Expected.Count -and @($Expected | Where-Object { $_ -notin $Alive }).Count -eq 0) { $over.Add($key) }
+            continue
+        }
+        # A part ATDR no longer runs, such as the live syslog receiver after it was switched off.
+        if ($key -notin $Expected) { $over.Add($key); continue }
+        if ($key -notin $Alive -or -not $StartedAt.ContainsKey($key) -or $null -eq $StartedAt[$key]) { continue }
+        if (($Now - ([datetime]$StartedAt[$key])).TotalSeconds -ge $SteadySeconds) { $over.Add($key) }
+    }
+    return [pscustomobject]@{ report = @($report); over = @($over) }
+}
+
 function Enter-AtdrStartLock {
     # One start at a time: the sign-in start and the watcher must not both launch the same parts.
     $runtime = Get-AtdrRuntimeDirectory

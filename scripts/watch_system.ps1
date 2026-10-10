@@ -10,10 +10,11 @@ param(
 #   - starts a part whose process has gone;
 #   - stops and starts a part that is running but has not answered for three minutes;
 #   - starts everything when nothing is running (a start at sign-in that failed, a hold that ran out).
-# A part that keeps dying is tried three times in ten minutes, then once every five. Each check is written to
-# .atdr_runtime\watch-status.json, which the dashboard's System panel reads, and each action to
-# .atdr_runtime\logs\watch.log. The task "ATDR keep running" (scripts\autostart.cmd) runs this and starts it again
-# within a minute if it ever ends.
+# A part that keeps dying is tried three times in ten minutes, then once every five, and people are told
+# (atdr.scripts.notify: the dashboard's bell, a Windows notification, email, chat); they are told again when it
+# has stayed up for ten minutes. Each check is written to .atdr_runtime\watch-status.json, which the dashboard's
+# System panel reads, and each action to .atdr_runtime\logs\watch.log. The task "ATDR keep running"
+# (scripts\autostart.cmd) runs this and starts it again within a minute if it ever ends.
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
@@ -45,6 +46,9 @@ $unanswered = @{}
 $restarts = @{}
 $lastAction = $null
 $assistantLooked = [datetime]::MinValue
+# What people have been told and not yet told is over: a part's name, or "*" for ATDR as a whole.
+$told = @{}
+$reportTried = @{}
 
 # What the watcher before this one had restarted still counts, so a part that keeps dying is not tried afresh.
 try {
@@ -58,6 +62,10 @@ try {
         if ($times.Count) { $restarts["*"] = $times }
         # And what was last done: the System panel goes on saying it until this watcher has to act itself.
         $lastAction = $before.status.last_action
+        # And what people were told: this watcher is the one to tell them it is over.
+        if ($before.status.PSObject.Properties["problems_told"]) {
+            foreach ($key in @($before.status.problems_told)) { if ($key) { $told[[string]$key] = $true } }
+        }
     }
 }
 catch {
@@ -84,6 +92,35 @@ function Invoke-AtdrStart {
         }
     }
     return [pscustomobject]@{ ok = ($start.ExitCode -eq 0); code = $start.ExitCode; said = $said }
+}
+
+function Send-AtdrProblemReport {
+    # Tells people through atdr.scripts.notify, which writes the notification down and sends it by itself: the
+    # worker, which sends every other notification, may be the part that stopped. True when it is on record.
+    param([string]$Key, [switch]$Over)
+    $root = Get-AtdrProjectRoot
+    $python = Join-Path $root ".venv\Scripts\python.exe"
+    if (-not (Test-Path -LiteralPath $python -PathType Leaf)) { return $false }
+    $arguments = @("-m", "atdr.scripts.notify")
+    if ($Key -eq "*") { $arguments += "--not-starting" } else { $arguments += @("--part", $Key) }
+    if ($Over) { $arguments += "--over" }
+    $out = Join-Path $logDir "watch.notify.out.log"
+    $err = Join-Path $logDir "watch.notify.err.log"
+    $run = Start-Process -FilePath $python -ArgumentList $arguments -WorkingDirectory $root -WindowStyle Hidden -RedirectStandardOutput $out -RedirectStandardError $err -PassThru
+    $null = $run.Handle
+    if (-not $run.WaitForExit(90000)) {
+        try { $run.Kill() } catch { }
+        Write-WatchLog "Telling people about '$Key' took too long and was stopped."
+        return $false
+    }
+    $said = ""
+    if (Test-Path -LiteralPath $out) {
+        $text = Get-Content -LiteralPath $out -Raw -ErrorAction SilentlyContinue
+        if ($text -and $text.Trim()) { $said = ($text.Trim() -split "`r?`n") -join "; " }
+    }
+    Write-WatchLog "$(if ($Over) { 'Told people it is over' } else { 'Told people' }) for '$Key' (exit code $($run.ExitCode)): $said"
+    # 1: it is on record and a channel did not take it, which the worker tries again. Only 2 is not on record.
+    return ($run.ExitCode -in @(0, 1))
 }
 
 function Add-AtdrRestart {
@@ -198,12 +235,30 @@ function Invoke-AtdrWatchCheck {
         parts = $parts
         all_restarts = @($allTimes | ForEach-Object { $_.ToString("o") })
         last_action = $script:lastAction
+        problems_told = @($told.Keys | Sort-Object)
     }
     # Written whole, then moved into place: the dashboard never reads half a file.
     $statusPath = Get-AtdrWatchStatusPath
     $arriving = "$statusPath.arriving"
     $status | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $arriving -Encoding UTF8
     Move-Item -LiteralPath $arriving -Destination $statusPath -Force
+
+    # People are told about a part that keeps stopping, and told when it has stayed up again. After the status
+    # is written: telling takes seconds, and the status must not go stale meanwhile.
+    $startedNow = @{}
+    foreach ($name in @($aliveNow.Keys)) { $startedNow[$name] = ConvertTo-AtdrUtc $aliveNow[$name].started_at }
+    $reports = Get-AtdrProblemReports -Told @($told.Keys) -Waiting @($decision.waiting) -MeantToRun:($desired.state -eq "running") `
+        -Expected $expected -Alive @($aliveNow.Keys) -StartedAt $startedNow -Now $now
+    foreach ($entry in @(@($reports.report | ForEach-Object { @{ key = $_; over = $false } }) + @($reports.over | ForEach-Object { @{ key = $_; over = $true } }))) {
+        $tried = "$($entry.key)|$($entry.over)"
+        # A report that could not be made (the database busy, Python missing) is tried again every five minutes, not every check.
+        if ($reportTried.ContainsKey($tried) -and ($now - $reportTried[$tried]).TotalMinutes -lt 5) { continue }
+        $reportTried[$tried] = $now
+        if (Send-AtdrProblemReport -Key $entry.key -Over:$entry.over) {
+            if ($entry.over) { $told.Remove($entry.key) } else { $told[$entry.key] = $true }
+            $reportTried.Remove($tried)
+        }
+    }
 }
 
 Write-WatchLog "Watching ATDR (PID $PID, a check every $IntervalSeconds s)."

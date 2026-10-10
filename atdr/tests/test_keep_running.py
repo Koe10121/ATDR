@@ -153,6 +153,78 @@ def test_a_part_that_keeps_dying_is_tried_three_times_in_ten_minutes_then_every_
     assert _does(silent) == ("none", [], [], ["atdr-backend"])
 
 
+def _reports(told: list[str], waiting: list[str], *, alive: list[str] | None = None, expected: list[str] | None = None,
+             meant_to_run: bool = True, started_minutes_ago: dict[str, float] | None = None) -> tuple[list[str], list[str]]:
+    arguments = [f"-Told {_names(told)}", f"-Waiting {_names(waiting)}", f"-Expected {_names(expected or ALL)}",
+                 f"-Alive {_names(ALL if alive is None else alive)}", f"-Now {_time(NOW)}"]
+    if meant_to_run:
+        arguments.append("-MeantToRun")
+    if started_minutes_ago:
+        arguments.append("-StartedAt " + _table({name: _time(NOW - timedelta(minutes=ago)) for name, ago in started_minutes_ago.items()}))
+    found = json.loads(_powershell(f". {_quoted(SCRIPTS / 'system_common.ps1')}; Get-AtdrProblemReports {' '.join(arguments)} | ConvertTo-Json -Compress"))
+
+    def listed(value) -> list[str]:
+        return value if isinstance(value, list) else ([] if value is None else [value])
+
+    return listed(found["report"]), listed(found["over"])
+
+
+def test_people_are_told_once_when_a_part_keeps_stopping_and_again_when_it_has_stayed_up():
+    # A part that stopped stayed on the System panel as "keeps stopping", for whoever happened to open it.
+    assert _reports([], ["atdr-worker"]) == (["atdr-worker"], [])
+    assert _reports(["atdr-worker"], ["atdr-worker"]) == ([], []), "told once"
+
+    # Tried again every five minutes, it runs for a moment each time: that is not yet over.
+    assert _reports(["atdr-worker"], [], started_minutes_ago={"atdr-worker": 9.9}) == ([], [])
+    assert _reports(["atdr-worker"], [], started_minutes_ago={"atdr-worker": 10.0}) == ([], ["atdr-worker"])
+    down = [name for name in ALL if name != "atdr-worker"]
+    assert _reports(["atdr-worker"], [], alive=down, started_minutes_ago={"atdr-worker": 60.0}) == ([], []), "down between two tries"
+    assert _reports(["atdr-worker"], []) == ([], []), "running, but since when is not known"
+
+    # One part over while another begins.
+    assert _reports(["atdr-worker"], ["atdr-backend"], started_minutes_ago={"atdr-worker": 30.0}) == (["atdr-backend"], ["atdr-worker"])
+    # A part ATDR no longer runs, or ATDR stopped on purpose: no longer a problem.
+    assert _reports(["atdr-syslog"], []) == ([], ["atdr-syslog"])
+    assert _reports(["atdr-worker", "*"], [], meant_to_run=False, alive=[]) == ([], ["atdr-worker", "*"])
+
+
+def test_people_are_told_when_atdr_cannot_be_started_and_when_every_part_runs_again():
+    assert _reports([], ["*"], alive=[]) == (["*"], [])
+    assert _reports(["*"], ["*"], alive=[]) == ([], [])
+    assert _reports(["*"], [], alive=FOUR) == ([], []), "the worker is still missing"
+    assert _reports(["*"], [], alive=ALL) == ([], ["*"])
+
+
+def test_the_watcher_tells_people_through_a_command_that_does_not_need_the_worker(tmp_path):
+    watch = (SCRIPTS / "watch_system.ps1").read_text(encoding="utf-8")
+    assert '@("-m", "atdr.scripts.notify")' in watch and '"--not-starting"' in watch and '@("--part", $Key)' in watch and '"--over"' in watch
+    assert watch.index("Move-Item -LiteralPath $arriving") < watch.index("Get-AtdrProblemReports -Told"), (
+        "telling takes seconds: the status is written first, or the System panel would call the watcher gone")
+
+    # What was told is in the status, for the watcher that comes after this one.
+    root = _own_folder(tmp_path, "watch_system.ps1", "stop_system.ps1")
+    assert _script(root / "scripts" / "stop_system.ps1").returncode == 0
+    assert _script(root / "scripts" / "watch_system.ps1", "-Checks", "1").returncode == 0
+    status = _read(root, "watch-status.json")
+    assert status["problems_told"] == []
+    # The watcher before this one had told people. This one cannot tell them it is over (this folder has no
+    # Python to tell with), so both stay on record to be tried again.
+    status["problems_told"] = ["atdr-worker", "*"]
+    (root / ".atdr_runtime" / "watch-status.json").write_text(json.dumps(status), encoding="utf-8")
+    again = _script(root / "scripts" / "watch_system.ps1", "-Checks", "1")
+    assert again.returncode == 0, again.stderr
+    assert _read(root, "watch-status.json")["problems_told"] == ["*", "atdr-worker"]
+
+    # A status written before this was added has no such list, and is read without an error.
+    del status["problems_told"]
+    status["parts"] = [{"name": "atdr-backend", "running": True, "restarts": ["2026-10-09T04:53:16.7393800Z"]}]
+    (root / ".atdr_runtime" / "watch-status.json").write_text(json.dumps(status), encoding="utf-8")
+    assert _script(root / "scripts" / "watch_system.ps1", "-Checks", "1").returncode == 0
+    older = _read(root, "watch-status.json")
+    assert older["problems_told"] == []
+    assert "A check failed" not in (root / ".atdr_runtime" / "logs" / "watch.log").read_text(encoding="utf-8-sig")
+
+
 def test_the_parts_atdr_expects_follow_its_settings():
     common = _quoted(SCRIPTS / "system_common.ps1")
     expected = _powershell(
