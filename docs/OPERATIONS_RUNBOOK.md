@@ -158,13 +158,109 @@ shell. Redis is optional: the shell rate limiter has an in-memory local
 fallback, although a shared deployment should provide its approved cache
 service.
 
+## Notifications
+
+ATDR tells people what they need to know without anyone opening a page:
+
+- **New Critical alerts**, within about two minutes of being raised. The
+  alerts of one burst are one message: ATDR waits until a minute has passed
+  without a new one, five minutes at most. While alerts keep coming, the
+  next message follows no sooner than 30 minutes after the last
+  (`ATDR_NOTIFY_ALERT_MINUTES_BETWEEN`). `ATDR_NOTIFY_ALERT_SEVERITY="High"`
+  sends High alerts at once as well.
+- **A summary each day** at `ATDR_NOTIFY_SUMMARY_AT` (08:00): the alerts
+  raised since the last summary by severity, what is open, and what about
+  ATDR still needs attention. If the machine was off at that time, the
+  summary goes when it is next on. A day without a summary means ATDR was
+  not running.
+- **Problems of its own**, when they begin and when they are over: a backup
+  that failed, a part that keeps stopping, ATDR that could not be started,
+  the live feed not running, losing lines or hearing nothing from the
+  firewall, a disk almost full, an automatic check that failed. Two things
+  are reminders only, in the bell and in each daily summary but not sent
+  out: no recent copy of the backups on another disk, and no watcher.
+
+Every notification is kept 90 days under the **bell** in the dashboard's
+header; ATDR's own problems are shown there to admins only. A message names
+the kind of attack, the severity, the alert's number and the time. It never
+holds an IP address: the same words go to every channel.
+
+An alert that was already on the list when notifications were first switched
+on is not reported, nor are the alerts a rebuild or a reset raises.
+
+### Where messages go
+
+| Channel | Switched on by | Notes |
+| --- | --- | --- |
+| Bell in the dashboard | always | |
+| Windows notification on ATDR's machine | `ATDR_NOTIFY_WINDOWS=true` (the default) | Clicking it opens the alert or the System panel. While Windows' Do Not Disturb is on it goes to the notification centre without a banner. |
+| Email | `ATDR_NOTIFY_EMAIL_TO` and the `SMTP_*` settings | See below. |
+| Chat group | `ATDR_NOTIFY_CHAT_WEBHOOK_URL` | Discord, Slack, Google Chat, or any service that takes `{"text": "..."}`. |
+
+Settings are read when ATDR starts: after changing `.env`, run
+`stop_system.cmd` and `start_system.cmd`. Then open Data & Detection. The
+System panel lists each channel, says what is missing for one that is off,
+and has a **Send a test** button for each one that is on. From a terminal:
+`python -m atdr.scripts.notify --test email` (or `chat`, `windows`).
+
+**Email through Gmail.** Use a Gmail account made for ATDR, not a personal
+one. Switch on 2-Step Verification for it, create an app password (Google
+Account, Security, App passwords), and put in `.env`:
+
+```text
+ATDR_NOTIFY_EMAIL_TO="first.person@example.org, second.person@example.org"
+SMTP_HOST="smtp.gmail.com"
+SMTP_PORT=587
+SMTP_USERNAME="the.account@gmail.com"
+SMTP_PASSWORD="the 16-letter app password"
+SMTP_FROM_EMAIL="the.account@gmail.com"
+SMTP_USE_TLS=true
+```
+
+A school or work Google account may have app passwords switched off by its
+administrator. ATDR encrypts the connection before it gives the password and
+refuses to send a password over a connection that is not encrypted.
+
+**A chat group.** In Discord: the channel's settings, Integrations, Webhooks,
+New Webhook, Copy Webhook URL. In Slack: an app with Incoming Webhooks. In
+Google Chat: the space's Apps & integrations, Webhooks. Put the address in
+`ATDR_NOTIFY_CHAT_WEBHOOK_URL`. It is a secret: whoever has it can post to
+the group. ATDR never shows it; the System panel names only the service.
+
+### When a channel fails
+
+One channel failing does not hold up another. A message that could not be
+sent is tried again after 1, 5, 15 and 60 minutes, then every hour, and is
+given up when the notification is a day old (audit entry
+`notification_failed`). An email that reached some of its addresses is not
+sent again: the System panel says how many addresses the mail server refused.
+The System panel shows what the last message through each channel did and,
+when it failed, why. Each message sent is an audit entry, `notification_sent`.
+
+The background worker looks for something to tell every 30 seconds and sends
+the messages. The watcher reports a part that keeps stopping through
+`python -m atdr.scripts.notify`, which sends by itself, so a worker that
+stopped is still reported; it reports the part running again once it has
+stayed up for ten minutes. Nothing can be sent while the machine is off or
+asleep.
+
+Measured on the team laptop on 2026-10-10: a test message from the System
+panel arrived in Windows' notification centre. With the background worker
+ended four times in two minutes, the watcher reported it 30 seconds after the
+fourth time, started it again five minutes later, and reported it running
+again once it had stayed up ten minutes; both reports arrived in Windows and
+under the bell. Email and chat have been tested against a mail server and a
+web server that run inside the test suite, not yet against a real account or
+group: after setting one up, use Send a test.
+
 ## Daily Operator Checks
 
 1. Run `check_system.cmd`; require installation, provider, and all service
    checks to pass, and the line `Watcher: watching`.
 2. Open Data & Detection and read the System panel: no part keeps stopping,
-   the last backup is less than a day old, and the copy on another disk is
-   less than a week old.
+   the last backup is less than a day old, the copy on another disk is less
+   than a week old, and no notification channel shows a failure. Look at
+   the bell for anything unread.
 3. Review source health, parser warnings, failed imports, and stale jobs.
 4. Review new High/Critical alerts, ownership, SLA state, and related evidence.
 5. Confirm `RESPONSE_SIMULATION=true`, rules remain authoritative, and no model
@@ -489,7 +585,9 @@ logs, the 85 alerts and the alert numbering.
 **Reset to sample data** (Data & Detection) asks for the word RESET, takes a
 backup first, which is kept for good, and deletes nothing when that backup
 fails or when the sample file it was given does not exist. The new audit log
-opens with a `data_reset` entry that names the backup.
+opens with a `data_reset` entry that names the backup. The notifications
+about the deleted alerts go with them, and the sample's alerts are not
+reported as new.
 
 ### Restoring a backup
 
@@ -582,6 +680,9 @@ disaster-recovery evidence from the host owner.
 | The System panel says a part keeps stopping | Read that part's log in `.atdr_runtime\logs\` for the cause; the watcher goes on trying every five minutes. |
 | The dashboard does not show a change to its source | It is built at the next start; to have it now, run `python -m atdr.scripts.build_dashboard` and reload the page. |
 | The System panel says the last backup failed | It names the cause (no free space, folder not usable, copy not healthy); the worker tries again an hour after each failure. |
+| No Windows notification appears | Use Send a test on the System panel. In Windows Settings, System, Notifications: notifications on, "MFU ATDR" allowed, Do Not Disturb off. |
+| The System panel says a channel failed | It says why. Email: check the account's name and app password, the server and the port. Chat: 404 means the webhook was deleted; make a new one. |
+| Too many messages about alerts | Raise `ATDR_NOTIFY_ALERT_MINUTES_BETWEEN`; everything is still under the bell. |
 | A required port is occupied | Stop the owning application; do not kill unrelated processes blindly. |
 | MongoDB is unavailable | Start MongoDB for the MFU shell; ATDR's SQL database is separate. |
 | Shell backend briefly logs Redis timeout | Local fallback is expected; confirm `/healthz` becomes ready. |

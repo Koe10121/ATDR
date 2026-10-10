@@ -41,6 +41,12 @@ deployments remain simulation-only regardless of configuration.
   shows each part, the last backup and the dashboard's build
   ([Operations Runbook](docs/OPERATIONS_RUNBOOK.md): Keeping ATDR Running,
   Backup And Restore).
+- **Notifications:** ATDR tells people about a new Critical alert within about
+  two minutes, sends a summary each day, and reports problems of its own (a
+  backup that failed, a part that keeps stopping): under the bell in the
+  dashboard, as a Windows notification on its machine, and by email or to a
+  chat group once those are set up. No message holds an IP address
+  ([Operations Runbook](docs/OPERATIONS_RUNBOOK.md): Notifications).
 - **Evidence:** every figure, what kind it is and how far to trust it is in
   [Evidence Summary](docs/EVIDENCE_SUMMARY.md). What changed after the
   26 September presentation is in the
@@ -172,8 +178,9 @@ policy blocks direct `.ps1` execution.
 one starts ATDR when you sign in, the other brings back a part that stops.
 Neither undoes a stop, and `.\scripts\stop_system.cmd -HoldHours 2` keeps ATDR
 stopped across a sign-in for work that needs it down. Daily backups are
-switched on with `ATDR_BACKUP_SCHEDULE_HOURS=24` in `.env`. Both are described
-in the [Operations Runbook](docs/OPERATIONS_RUNBOOK.md).
+switched on with `ATDR_BACKUP_SCHEDULE_HOURS=24` in `.env`, and email or chat
+notifications with `ATDR_NOTIFY_EMAIL_TO` or `ATDR_NOTIFY_CHAT_WEBHOOK_URL`.
+All are described in the [Operations Runbook](docs/OPERATIONS_RUNBOOK.md).
 
 Real MFU/Google sign-in still depends on the approved Web client, account
 scope, IAM group mapping, provider-managed 2FA, recovery, and deprovisioning.

@@ -146,6 +146,20 @@ attacks. The assistant answered from a fixed list of question types.
   power-on ATDR and its watcher were running again with nothing done by hand. The 638 MB
   database is copied and checked in 3 seconds, and a restore from that backup gave back
   every log and alert (`docs/OPERATIONS_RUNBOOK.md`, Keeping ATDR Running).
+- **Telling people** (10 October). A Critical alert, a failed backup or a part that kept
+  stopping was on a page that had to be open, and ATDR's mail settings were a placeholder
+  that never sent anything. Now the worker looks every 30 seconds. A new Critical alert is
+  reported within about two minutes; a burst is one message, and while alerts keep coming
+  the next follows no sooner than 30 minutes later (at MFU's rate the replay raised 45
+  Critical alerts in under nine minutes). One summary a day covers the rest. A problem of
+  ATDR's own is reported once it has lasted and again when it is over, and the watcher
+  reports a part that keeps stopping by itself, so a worker that stopped is still reported.
+  Every notification is under a bell in the dashboard; the same words, which never hold an
+  IP address, go out as a Windows notification, by email and to a chat group once those
+  are set up, each with a Send-a-test button. A channel that fails is tried again for a day
+  and does not hold up the others. Email was tested against a mail server and chat against
+  a web server that run inside the tests. On the running system the test message from the System panel arrived in Windows, and when the worker was ended four times in two minutes the watcher told people 30 seconds after the fourth, started it again five minutes later, and told them it was running again once it had stayed up ten minutes.
+  (`docs/OPERATIONS_RUNBOOK.md`, Notifications).
 
 ### 2. A model trained on MFU traffic
 
@@ -227,7 +241,7 @@ attacks. The assistant answered from a fixed list of question types.
 | MFU model on fresh simulated attacks | port scan 96.5%, brute force 97.5%, flood 100%, C2 88.5%, exfiltration 98.0% | Simulated |
 | Team labels, current rules | precision 96.7%, recall 99.2% | Agreement, not accuracy |
 | Assistant | 122 of 122 (31 reviewer questions and the demo's conversation added), and 26 of 27 held-out questions, in about 5 seconds per answer (7 Oct on the cleaned data, and again on 9 Oct on the regrouped list; 84 of 85 and 26 of 27 on 30 Sep; runs vary by a question or two) | Automatic scoring |
-| Tests | 1,732 backend and 88 browser tests passing (9 Oct) | |
+| Tests | 1,791 backend and 91 browser tests passing (10 Oct) | |
 
 The live dashboard holds 85 alerts (Critical 23, High 11, Medium 39, Low 12) on
 120,001 logs, since the list was regrouped on 9 October (165 before, with the same

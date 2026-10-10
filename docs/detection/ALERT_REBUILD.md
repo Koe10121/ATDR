@@ -18,6 +18,8 @@ it detects now. A rebuild brings the list up to date without losing history.
    the "check every unchecked log" action does. Logs cited by a kept alert stay
    out of new alerts.
 4. Writes an `alerts_rebuilt` entry to the audit log with the counts.
+5. Marks the alerts it raised as already reported, so nobody is notified
+   about the same findings under their new numbers.
 
 ## How to run it
 
