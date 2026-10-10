@@ -4169,8 +4169,61 @@ export interface SystemBackups {
   };
 }
 
+// One way a notification leaves ATDR: a Windows notification on its machine, email, or a chat group.
+export interface NotificationChannel {
+  name: string;
+  on: boolean;
+  // What is missing, in words, when it is off.
+  why_off: string | null;
+  last_sent_at: string | null;
+  // What went wrong with the last message tried; delivered: it reached some of its addresses.
+  last_failure: { at: string; words: string; gave_up: boolean; delivered: boolean } | null;
+  to?: number;
+  server?: string | null;
+  service?: string | null;
+}
+
+export interface SystemNotifications {
+  enabled: boolean;
+  alert_severities: string[];
+  minutes_between: number;
+  summary_at: string | null;
+  summary_setting_wrong: boolean;
+  started_at: string | null;
+  worker_running: boolean;
+  channels: { windows: NotificationChannel; email: NotificationChannel; chat: NotificationChannel };
+  needs_attention: Array<{ key: string; title: string; since: string; urgent: boolean }>;
+}
+
 export interface SystemStatus {
   keeping_running: SystemKeepRunning;
   backups: SystemBackups;
   dashboard_build: { built: boolean; built_at: string | null; commit: string | null; uncommitted: boolean; stale: boolean };
+  notifications: SystemNotifications;
+}
+
+// What the bell shows.
+export interface NotificationItem {
+  id: number;
+  kind: string;
+  level: string;
+  title: string;
+  body: string;
+  // A page of the dashboard, such as /alerts?alert=4163.
+  link: string | null;
+  created_at: string;
+  unread: boolean;
+  alerts: Array<{ id: number; severity: string; attack: string }>;
+}
+
+export interface NotificationList {
+  unread: number;
+  newest_id: number;
+  items: NotificationItem[];
+}
+
+export interface NotificationTestResult {
+  ok: boolean;
+  channel: string;
+  words: string;
 }

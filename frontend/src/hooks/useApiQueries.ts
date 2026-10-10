@@ -1072,6 +1072,38 @@ export function useSystemStatus() {
   });
 }
 
+export function useNotifications() {
+  return useQuery({
+    queryKey: ["notifications"],
+    queryFn: () => api.notifications(30),
+    placeholderData: (previous) => previous,
+    retry: false,
+    // The worker looks for something to tell every half minute.
+    refetchInterval: 30_000
+  });
+}
+
+export function useMarkNotificationsSeen() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (upTo: number) => api.markNotificationsSeen(upTo),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    }
+  });
+}
+
+export function useSendTestNotification() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (channel: string) => api.sendTestNotification(channel),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["system-status"] });
+      void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    }
+  });
+}
+
 export function useDemoMutations() {
   const queryClient = useQueryClient();
   const invalidate = () => {

@@ -71,6 +71,8 @@ import type {
   DetectionRun,
   IngestionRun,
   LogSource,
+  NotificationList,
+  NotificationTestResult,
   MLEvaluationReport,
   MfuIamPublicStatus,
   MfuIamStatus,
@@ -649,6 +651,11 @@ export const api = {
   demoDetectionCoverage: (limit: number | null) =>
     apiRequest<DetectionCoverage>(`/api/demo/detection-coverage${limit ? `?limit=${limit}` : ""}`),
   systemStatus: () => apiRequest<SystemStatus>("/api/system/status"),
+  notifications: (limit = 30) => apiRequest<NotificationList>(`/api/notifications?limit=${limit}`),
+  markNotificationsSeen: (upTo: number) =>
+    apiRequest<{ seen_id: number }>("/api/notifications/seen", { method: "POST", body: JSON.stringify({ up_to: upTo }) }),
+  sendTestNotification: (channel: string) =>
+    apiRequest<NotificationTestResult>("/api/notifications/test", { method: "POST", body: JSON.stringify({ channel }) }),
   demoTrainMl: (payload: { limit?: number | null }) =>
     apiRequest<DemoActionResult>("/api/demo/train-ml", { method: "POST", body: JSON.stringify(payload) }),
   demoApplyMl: (payload: { limit?: number | null }) =>

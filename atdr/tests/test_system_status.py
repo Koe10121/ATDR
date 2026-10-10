@@ -143,7 +143,9 @@ def test_the_status_puts_backups_the_worker_and_the_build_together(tmp_path):
     options = {"settings": settings, "now": NOW, "runtime": tmp_path / "none", "frontend": frontend, "find_offsite": lambda _settings: []}
 
     quiet = system_status(db, **options)
-    assert set(quiet) == {"keeping_running", "backups", "dashboard_build"}
+    assert set(quiet) == {"keeping_running", "backups", "dashboard_build", "notifications"}
+    assert quiet["notifications"]["enabled"] is True and quiet["notifications"]["worker_running"] is False
+    assert set(quiet["notifications"]["channels"]) == {"windows", "email", "chat"}
     assert quiet["dashboard_build"] == {"built": True, "built_at": "2026-10-09T04:12:36+00:00", "commit": "e4ca530",
                                         "uncommitted": True, "stale": False}
     assert (quiet["backups"]["scheduled"], quiet["backups"]["worker_running"], quiet["backups"]["last"], quiet["backups"]["last_failure"]) == (

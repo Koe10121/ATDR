@@ -6,6 +6,7 @@ import clsx from "clsx";
 import { useAuth } from "../hooks/useAuth";
 import { useHealth, useMe } from "../hooks/useApiQueries";
 import { Badge } from "./Badge";
+import { NotificationBell } from "./NotificationBell";
 import { RouteErrorBoundary } from "./RouteErrorBoundary";
 import { presentationMode } from "../lib/presentationMode";
 
@@ -165,6 +166,7 @@ export function AppShell() {
             <div className="flex flex-wrap items-center gap-2">
               <Badge value={health.data?.status === "ok" ? "ready" : "review"} />
               <Badge value={responseMode === "simulation" ? "Simulation Mode" : "blocked"} />
+              <NotificationBell />
               <span className="max-w-xs truncate rounded-full border border-line px-3 py-1 text-sm font-bold text-muted" title={accountLabel}>
                 {me.data?.username ?? session?.username} ({me.data?.role ?? session?.role})
               </span>

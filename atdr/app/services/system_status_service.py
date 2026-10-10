@@ -153,8 +153,15 @@ def system_status(
     # The worker takes the backups, so without it a schedule is only a setting.
     backups["worker_running"] = _worker_running(db, settings, now)
     build = build_state(frontend)
+    # Imported here: the notification service reads this module's view of the parts.
+    from atdr.app.services.notification_service import notification_status
+
+    notifications = notification_status(db, settings=settings, now=now)
+    # The worker sends them too.
+    notifications["worker_running"] = backups["worker_running"]
     return {
         "keeping_running": keeping_running_status(now=now, runtime=runtime),
         "backups": backups,
         "dashboard_build": {key: build[key] for key in ("built", "built_at", "commit", "uncommitted", "stale")},
+        "notifications": notifications,
     }

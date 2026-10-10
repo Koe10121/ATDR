@@ -28,6 +28,7 @@ from atdr.app.routers import (
     logs,
     ml,
     observability,
+    notifications,
     response,
     sources,
     suppressions,
@@ -249,3 +250,4 @@ app.include_router(audit.router)
 app.include_router(dashboard.router)
 app.include_router(demo.router)
 app.include_router(system.router)
+app.include_router(notifications.router)

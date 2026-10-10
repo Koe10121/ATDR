@@ -151,7 +151,52 @@ const smokeSystemStatus = {
       stale: false
     }
   },
-  dashboard_build: { built: true, built_at: "2026-10-09T02:38:30Z", commit: "e4ca530", uncommitted: false, stale: false }
+  dashboard_build: { built: true, built_at: "2026-10-09T02:38:30Z", commit: "e4ca530", uncommitted: false, stale: false },
+  // Email is set up and has sent; no chat group has been given.
+  notifications: {
+    enabled: true,
+    alert_severities: ["Critical"],
+    minutes_between: 30,
+    summary_at: "08:00",
+    summary_setting_wrong: false,
+    started_at: "2026-10-09T03:00:00Z",
+    worker_running: true,
+    channels: {
+      windows: { name: "Windows notification", on: true, why_off: null, last_sent_at: "2026-10-09T03:02:00Z", last_failure: null },
+      email: { name: "Email", on: true, why_off: null, to: 2, server: "smtp.gmail.com", last_sent_at: "2026-10-09T03:02:00Z", last_failure: null },
+      chat: { name: "Chat message", on: false, why_off: "no chat address (ATDR_NOTIFY_CHAT_WEBHOOK_URL is empty)", service: null, last_sent_at: null, last_failure: null }
+    } as Record<string, Record<string, unknown>>,
+    needs_attention: []
+  }
+};
+
+// Two things nobody has looked at yet, yesterday's summary, and the day reporting began.
+const smokeNotifications = {
+  unread: 2,
+  newest_id: 14,
+  items: [
+    {
+      id: 14, kind: "alerts", level: "critical", title: "2 new Critical alerts",
+      body: "#4301 Critical: malware / C2, raised 10:01\n#4302 Critical: port scan, raised 10:02", link: "/alerts",
+      created_at: "2026-10-09T03:03:00Z", unread: true,
+      alerts: [{ id: 4301, severity: "Critical", attack: "malware / C2" }, { id: 4302, severity: "Critical", attack: "port scan" }]
+    },
+    {
+      id: 13, kind: "problem", level: "warning", title: "ATDR could not back up its database",
+      body: "The last try failed: there is not enough free space for it. ATDR tries again every hour.", link: "/data",
+      created_at: "2026-10-09T02:00:00Z", unread: true, alerts: []
+    },
+    {
+      id: 12, kind: "summary", level: "info", title: "Daily summary: 6 alerts since yesterday",
+      body: "Since 7 Oct 08:00: 6 alerts (1 High, 3 Medium, 2 Low).\nOpen now: 85 alerts, 23 of them Critical.", link: "/alerts",
+      created_at: "2026-10-08T01:00:00Z", unread: false, alerts: []
+    },
+    {
+      id: 11, kind: "started", level: "info", title: "Notifications are on",
+      body: "ATDR reports new Critical alerts here from now on, and problems of its own.", link: null,
+      created_at: "2026-10-07T03:00:00Z", unread: false, alerts: []
+    }
+  ]
 };
 
 async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
@@ -2541,6 +2586,10 @@ async function mockApi(page: Page, role: "admin" | "analyst" = "admin") {
   // No live syslog logs have been deleted, so there are no hourly summaries.
   await page.route("**/api/logs/hourly-summaries**", async (route) => route.fulfill({ json: [] }));
   await page.route("**/api/system/status**", async (route) => route.fulfill({ json: smokeSystemStatus }));
+  // The bell is on every page; here ATDR has told nothing yet.
+  await page.route("**/api/notifications**", async (route) =>
+    route.fulfill({ json: route.request().method() === "POST" ? { seen_id: 0 } : { unread: 0, newest_id: 0, items: [] } })
+  );
   await page.route("**/api/audit**", async (route) =>
     route.fulfill({
       json: deniedResponseAttempt
@@ -7553,6 +7602,18 @@ test("the System panel says how ATDR looks after itself, and what is wrong when 
   await expect(panel.getByTestId("system-offsite")).toContainText("A copy is on another disk. Last copied to KINGSTON (E:)");
   await expect(panel.getByTestId("system-build")).toContainText("(version e4ca530).");
   await expect(panel.getByTestId("system-build")).not.toContainText("has changed since");
+  await expect(panel.getByTestId("system-notifications")).toContainText("ATDR tells people about new Critical alerts at once, and about problems of its own.");
+  await expect(panel.getByTestId("system-notifications")).toContainText(
+    "A burst is one message, and while alerts keep coming the next follows after 30 minutes. Everything else is in a summary each day at 08:00."
+  );
+  const channels = panel.getByTestId("system-channels").locator("tbody tr");
+  await expect(channels).toHaveCount(4);
+  await expect(channels.nth(0)).toContainText("Bell in the dashboard");
+  await expect(panel.getByTestId("system-channel-email")).toContainText("On (2 addresses, through smtp.gmail.com)");
+  await expect(panel.getByTestId("system-channel-email")).toContainText("Sent 9 Oct");
+  await expect(panel.getByTestId("system-channel-chat")).toContainText("Off: no chat address (ATDR_NOTIFY_CHAT_WEBHOOK_URL is empty)");
+  await expect(panel.getByTestId("system-channel-chat").getByRole("button", { name: "Send a test" })).toBeDisabled();
+  await expect(panel.getByTestId("system-channel-email").getByRole("button", { name: "Send a test" })).toBeEnabled();
 
   // The same page when ATDR is not looked after.
   const base = smokeSystemStatus;
@@ -7567,7 +7628,8 @@ test("the System panel says how ATDR looks after itself, and what is wrong when 
       last_failure: { at: "2026-10-09T03:00:00Z", status: "not_enough_free_space", words: "there is not enough free space for it" },
       offsite: { ...base.backups.offsite, last_copy: { ...base.backups.offsite.last_copy, age_days: 9.4 }, stale: true }
     },
-    dashboard_build: { ...base.dashboard_build, uncommitted: true, stale: true }
+    dashboard_build: { ...base.dashboard_build, uncommitted: true, stale: true },
+    notifications: base.notifications
   };
   await page.reload();
   await expect(panel.getByTestId("system-keep-running")).toContainText("Nothing is watching ATDR's parts.");
@@ -7587,7 +7649,8 @@ test("the System panel says how ATDR looks after itself, and what is wrong when 
       parts: base.keeping_running.parts.map((part) => (part.name === "atdr-worker" ? { ...part, running: false, keeps_stopping: true, restarts_24h: 5 } : part))
     },
     backups: { ...base.backups, scheduled: false, offsite: { ...base.backups.offsite, wanted: false } },
-    dashboard_build: base.dashboard_build
+    dashboard_build: base.dashboard_build,
+    notifications: base.notifications
   };
   await page.reload();
   await expect(panel.getByTestId("system-keep-running")).toContainText("Background worker keeps stopping.");
@@ -7598,18 +7661,29 @@ test("the System panel says how ATDR looks after itself, and what is wrong when 
   status = {
     keeping_running: base.keeping_running,
     backups: { ...base.backups, worker_running: true, offsite: { ...base.backups.offsite, last_copy: null, stale: true, connected: [] } },
-    dashboard_build: base.dashboard_build
+    dashboard_build: base.dashboard_build,
+    notifications: base.notifications
   };
   await page.reload();
   await expect(panel.getByTestId("system-offsite")).toContainText("No copy on another disk yet. Every backup is on this laptop's own disk.");
 
   // The worker takes the backups: a schedule without it is only a setting.
-  status = { keeping_running: base.keeping_running, backups: { ...base.backups, worker_running: false }, dashboard_build: base.dashboard_build };
+  status = {
+    keeping_running: base.keeping_running,
+    backups: { ...base.backups, worker_running: false },
+    dashboard_build: base.dashboard_build,
+    notifications: base.notifications
+  };
   await page.reload();
   await expect(panel.getByTestId("system-backups")).toContainText("Backups are due, but the background worker is not running.");
 
   // "Not yet" is said only when the table shows no restart either: what the watcher last did is not always on record.
-  status = { keeping_running: { ...base.keeping_running, last_action: null }, backups: base.backups, dashboard_build: base.dashboard_build };
+  status = {
+    keeping_running: { ...base.keeping_running, last_action: null },
+    backups: base.backups,
+    dashboard_build: base.dashboard_build,
+    notifications: base.notifications
+  };
   await page.reload();
   await expect(rows.nth(4)).toContainText("1 (last");
   await expect(panel.getByTestId("system-keep-running")).toContainText("It looks at its parts every 30 seconds.");
@@ -7621,11 +7695,172 @@ test("the System panel says how ATDR looks after itself, and what is wrong when 
       parts: base.keeping_running.parts.map((part) => ({ ...part, restarts_24h: 0, last_restart_at: null }))
     },
     backups: base.backups,
-    dashboard_build: base.dashboard_build
+    dashboard_build: base.dashboard_build,
+    notifications: base.notifications
   };
   await page.reload();
   await expect(rows.nth(4)).toContainText("Background worker");
   await expect(panel.getByTestId("system-keep-running")).toContainText("It looks at its parts every 30 seconds. It has not had to act yet.");
+});
+
+test("the bell shows what ATDR has told people and counts what nobody has looked at", async ({ page }) => {
+  // A new Critical alert or a failed backup was on a page that had to be open; nothing said that it had happened.
+  let list = smokeNotifications;
+  const seen: unknown[] = [];
+  await mockApi(page);
+  await page.route("**/api/notifications**", async (route) => {
+    if (route.request().method() === "POST") {
+      seen.push(JSON.parse(route.request().postData() || "{}"));
+      list = { ...list, unread: 0, items: list.items.map((item) => ({ ...item, unread: false })) };
+      return route.fulfill({ json: { seen_id: 14 } });
+    }
+    return route.fulfill({ json: list });
+  });
+  await seedSession(page);
+  await page.goto("/overview");
+
+  const bell = page.getByTestId("notification-bell");
+  const panel = page.getByTestId("notification-panel");
+  await expect(bell).toHaveAccessibleName("Notifications, 2 unread");
+  await expect(page.getByTestId("notification-unread")).toHaveText("2");
+  await expect(panel).toHaveCount(0);
+
+  await bell.click();
+  const items = panel.getByTestId("notification-item");
+  await expect(items).toHaveCount(4);
+  await expect(items.nth(0)).toContainText("2 new Critical alerts");
+  await expect(items.nth(0)).toContainText("#4301 Critical: malware / C2, raised 10:01");
+  await expect(items.nth(0)).toContainText("#4302 Critical: port scan, raised 10:02");
+  await expect(items.nth(0)).toContainText("9 Oct");
+  await expect(items.nth(1)).toContainText("ATDR could not back up its database");
+  await expect(items.nth(1)).toContainText("The last try failed: there is not enough free space for it.");
+  await expect(items.nth(3)).toContainText("Notifications are on");
+  // Opening it reads them: the count goes, and what was new stays marked while the bell is open.
+  await expect.poll(() => seen).toEqual([{ up_to: 14 }]);
+  await expect(page.getByTestId("notification-unread")).toHaveCount(0);
+  await expect(bell).toHaveAccessibleName("Notifications");
+  await expect(panel.getByTestId("notification-new")).toHaveCount(2);
+  await expect(items.nth(1).getByTestId("notification-new")).toHaveCount(1);
+  await expect(items.nth(2).getByTestId("notification-new")).toHaveCount(0);
+
+  // One with nowhere to go is not a link; the others open their page and close the bell.
+  await expect(items.nth(3).getByRole("link")).toHaveCount(0);
+  await expect(items.nth(0).getByRole("link")).toHaveAttribute("href", "/alerts");
+  await items.nth(1).getByRole("link").click();
+  await expect(page).toHaveURL(/\/data$/);
+  await expect(panel).toHaveCount(0);
+
+  // Opened again nothing is new, and nothing more is marked read. Escape and a click elsewhere close it.
+  await bell.click();
+  await expect(items).toHaveCount(4);
+  await expect(panel.getByTestId("notification-new")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(panel).toHaveCount(0);
+  await bell.click();
+  await expect(panel).toHaveCount(1);
+  await page.locator("h1").first().click();
+  await expect(panel).toHaveCount(0);
+  expect(seen).toHaveLength(1);
+});
+
+test("the bell says when there is nothing to tell, and is there for an analyst too", async ({ page }) => {
+  let answer: { status: number; json: unknown } = { status: 200, json: { unread: 0, newest_id: 0, items: [] } };
+  await mockApi(page, "analyst");
+  await page.route("**/api/notifications**", async (route) => route.fulfill(answer));
+  await seedSession(page, "analyst");
+  await page.goto("/overview");
+  const bell = page.getByTestId("notification-bell");
+  await expect(bell).toHaveAccessibleName("Notifications");
+  await expect(page.getByTestId("notification-unread")).toHaveCount(0);
+  await bell.click();
+  await expect(page.getByTestId("notification-panel")).toContainText("Nothing to tell yet.");
+
+  // More than fit in the badge.
+  answer = { status: 200, json: { ...smokeNotifications, unread: 240 } };
+  await page.reload();
+  await expect(page.getByTestId("notification-unread")).toHaveText("99+");
+  await expect(bell).toHaveAccessibleName("Notifications, 240 unread");
+
+  answer = { status: 500, json: { detail: "Internal Server Error" } };
+  await page.reload();
+  await bell.click();
+  await expect(page.getByTestId("notification-panel")).toContainText("The notifications could not be loaded.");
+});
+
+test("a test message says at once whether it went, and a channel that fails says why", async ({ page }) => {
+  const base = smokeSystemStatus;
+  const channels = base.notifications.channels;
+  let status: Record<string, unknown> = base;
+  const asked: unknown[] = [];
+  await mockApi(page);
+  await page.route("**/api/system/status**", async (route) => route.fulfill({ json: status }));
+  await page.route("**/api/notifications/test", async (route) => {
+    const body = JSON.parse(route.request().postData() || "{}");
+    asked.push(body);
+    await route.fulfill({
+      json:
+        body.channel === "email"
+          ? { ok: true, channel: "email", words: "Email sent." }
+          : { ok: false, channel: body.channel, words: "Windows notification failed: Windows did not show the notification in time." }
+    });
+  });
+  await seedSession(page);
+  await page.goto("/data");
+
+  const panel = page.getByTestId("system-panel");
+  const said = panel.getByTestId("system-channel-test");
+  await expect(said).toHaveText("");
+  await panel.getByTestId("system-channel-email").getByRole("button", { name: "Send a test" }).click();
+  await expect(said).toHaveText("Email sent.");
+  expect(asked).toEqual([{ channel: "email" }]);
+  await panel.getByTestId("system-channel-windows").getByRole("button", { name: "Send a test" }).click();
+  await expect(said).toHaveText("Windows notification failed: Windows did not show the notification in time.");
+  expect(asked).toEqual([{ channel: "email" }, { channel: "windows" }]);
+
+  // What went wrong with the last message through each channel.
+  const failed = { at: "2026-10-09T03:05:00Z", words: "the mail server refused the account's name or password", gave_up: false, delivered: false };
+  status = {
+    ...base,
+    notifications: {
+      ...base.notifications,
+      channels: {
+        windows: { ...channels.windows, last_failure: { ...failed, words: "the mail server refused 1 of the addresses the message was for", delivered: true } },
+        email: { ...channels.email, to: 1, last_failure: failed },
+        chat: { ...channels.chat, on: true, why_off: null, service: "discord.com", last_failure: { ...failed, words: "the chat service answered 404", gave_up: true } }
+      }
+    }
+  };
+  await page.reload();
+  await expect(panel.getByTestId("system-channel-email")).toContainText("On (1 address, through smtp.gmail.com)");
+  await expect(panel.getByTestId("system-channel-email")).toContainText(": the mail server refused the account's name or password. ATDR tries again.");
+  await expect(panel.getByTestId("system-channel-email")).toContainText("Failed 9 Oct");
+  await expect(panel.getByTestId("system-channel-chat")).toContainText("On (discord.com)");
+  await expect(panel.getByTestId("system-channel-chat")).toContainText(": the chat service answered 404. ATDR gave up after a day.");
+  await expect(panel.getByTestId("system-channel-windows")).toContainText(", but the mail server refused 1 of the addresses the message was for.");
+  await expect(panel.getByTestId("system-channel-windows")).toContainText("Sent 9 Oct");
+  await expect(panel.getByTestId("system-channel-chat").getByRole("button", { name: "Send a test" })).toBeEnabled();
+
+  // Nothing sent yet through a channel that is on.
+  status = { ...base, notifications: { ...base.notifications, channels: { ...channels, email: { ...channels.email, last_sent_at: null } } } };
+  await page.reload();
+  await expect(panel.getByTestId("system-channel-email")).toContainText("Nothing sent yet");
+
+  // Other settings, and the two ways nobody is told anything.
+  status = { ...base, notifications: { ...base.notifications, alert_severities: ["Critical", "High"], minutes_between: 0, summary_at: null } };
+  await page.reload();
+  await expect(panel.getByTestId("system-notifications")).toContainText("ATDR tells people about new High and Critical alerts at once, and about problems of its own.");
+  await expect(panel.getByTestId("system-notifications")).toContainText("A burst is one message. No daily summary is sent.");
+  status = { ...base, notifications: { ...base.notifications, summary_at: null, summary_setting_wrong: true } };
+  await page.reload();
+  await expect(panel.getByTestId("system-notifications")).toContainText("No daily summary is sent: ATDR_NOTIFY_SUMMARY_AT in .env is not a time such as 08:00.");
+  status = { ...base, notifications: { ...base.notifications, worker_running: false } };
+  await page.reload();
+  await expect(panel.getByTestId("system-notifications")).toContainText("Notifications are waiting: the background worker is not running.");
+  status = { ...base, notifications: { ...base.notifications, enabled: false } };
+  await page.reload();
+  await expect(panel.getByTestId("system-notifications")).toContainText("Notifications are switched off.");
+  await expect(panel.getByTestId("system-notifications")).toContainText("Set ATDR_NOTIFY_ENABLED=true in .env to switch them on.");
+  await expect(panel.getByTestId("system-channel-email").getByRole("button", { name: "Send a test" })).toBeDisabled();
 });
 
 test("reset asks for the word RESET and says a backup comes first", async ({ page }) => {

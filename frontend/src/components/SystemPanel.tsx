@@ -1,9 +1,10 @@
-import { useSystemStatus } from "../hooks/useApiQueries";
-import type { SystemBackups, SystemKeepRunning, SystemPart, SystemStatus } from "../types/api";
+import { useState } from "react";
+import { useSendTestNotification, useSystemStatus } from "../hooks/useApiQueries";
+import type { NotificationChannel, SystemBackups, SystemKeepRunning, SystemNotifications, SystemPart, SystemStatus } from "../types/api";
 import { ErrorBanner } from "./ErrorBanner";
 
 // How ATDR looks after itself on this machine: whether a stopped part is started again, when the database was last
-// backed up and where its copies are, and which build of the dashboard this is.
+// backed up and where its copies are, whom it tells about alerts and problems, and which build of the dashboard this is.
 
 const day = (value: string | null | undefined) =>
   value
@@ -127,6 +128,114 @@ export function offsiteText(backups: SystemBackups): { state: string; detail: st
   };
 }
 
+export function notificationText(notifications: SystemNotifications): { state: string; detail: string; warn: boolean } {
+  if (!notifications.enabled) {
+    return {
+      state: "Notifications are switched off.",
+      detail: "Nobody is told about a new Critical alert or about a problem of ATDR's own. Set ATDR_NOTIFY_ENABLED=true in .env to switch them on.",
+      warn: true
+    };
+  }
+  if (!notifications.worker_running) {
+    return {
+      state: "Notifications are waiting: the background worker is not running.",
+      detail: "The worker reports new alerts and sends every message.",
+      warn: true
+    };
+  }
+  const severities = notifications.alert_severities.includes("High") ? "High and Critical" : "Critical";
+  const pace =
+    notifications.minutes_between > 0
+      ? `A burst is one message, and while alerts keep coming the next follows after ${notifications.minutes_between} minutes.`
+      : "A burst is one message.";
+  const summary = notifications.summary_setting_wrong
+    ? "No daily summary is sent: ATDR_NOTIFY_SUMMARY_AT in .env is not a time such as 08:00."
+    : notifications.summary_at
+      ? `Everything else is in a summary each day at ${notifications.summary_at}.`
+      : "No daily summary is sent.";
+  return {
+    state: `ATDR tells people about new ${severities} alerts at once, and about problems of its own.`,
+    detail: `${pace} ${summary}`,
+    warn: notifications.summary_setting_wrong
+  };
+}
+
+export function channelText(channel: NotificationChannel): { state: string; last: string; warn: boolean } {
+  if (!channel.on) return { state: `Off: ${channel.why_off}`, last: "-", warn: false };
+  const where =
+    channel.to !== undefined
+      ? ` (${channel.to} ${channel.to === 1 ? "address" : "addresses"}, through ${channel.server})`
+      : channel.service
+        ? ` (${channel.service})`
+        : "";
+  const failure = channel.last_failure;
+  if (failure) {
+    const last = failure.delivered
+      ? `Sent ${day(failure.at)}, but ${failure.words}.`
+      : `Failed ${day(failure.at)}: ${failure.words}. ${failure.gave_up ? "ATDR gave up after a day." : "ATDR tries again."}`;
+    return { state: `On${where}`, last, warn: true };
+  }
+  return { state: `On${where}`, last: channel.last_sent_at ? `Sent ${day(channel.last_sent_at)}` : "Nothing sent yet", warn: false };
+}
+
+function Channels({ notifications }: { notifications: SystemNotifications }) {
+  const test = useSendTestNotification();
+  const [said, setSaid] = useState<{ ok: boolean; words: string } | null>(null);
+  const send = (channel: string) => {
+    setSaid(null);
+    test.mutate(channel, {
+      onSuccess: (result) => setSaid({ ok: result.ok, words: result.words }),
+      onError: () => setSaid({ ok: false, words: "The test message could not be asked for. Is the API running?" })
+    });
+  };
+  const rows = (["windows", "email", "chat"] as const).map((key) => ({ key, channel: notifications.channels[key] }));
+  return (
+    <div className="mt-3 overflow-auto">
+      <table className="w-full text-sm" data-testid="system-channels">
+        <thead>
+          <tr className="text-left text-xs uppercase tracking-wide text-muted">
+            <th className="py-1 pr-3">Told through</th>
+            <th className="py-1 pr-3">State</th>
+            <th className="py-1 pr-3">Last message</th>
+            <th className="py-1" />
+          </tr>
+        </thead>
+        <tbody>
+          <tr className="border-t border-line">
+            <td className="py-1 pr-3 font-bold text-text">Bell in the dashboard</td>
+            <td className="py-1 pr-3">On</td>
+            <td className="py-1 pr-3">-</td>
+            <td className="py-1" />
+          </tr>
+          {rows.map(({ key, channel }) => {
+            const text = channelText(channel);
+            return (
+              <tr key={key} className="border-t border-line" data-testid={`system-channel-${key}`}>
+                <td className="py-1 pr-3 font-bold text-text">{channel.name}</td>
+                <td className="py-1 pr-3">{text.state}</td>
+                <td className={`py-1 pr-3 ${text.warn ? "font-bold text-amber" : ""}`}>{text.last}</td>
+                <td className="py-1 text-right">
+                  <button
+                    type="button"
+                    className="btn-secondary px-2 py-1 text-xs"
+                    disabled={!channel.on || !notifications.enabled || test.isPending}
+                    onClick={() => send(key)}
+                  >
+                    Send a test
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <p className={`mt-2 text-sm ${said && !said.ok ? "font-bold text-amber" : "text-muted"}`} role="status" data-testid="system-channel-test">
+        {test.isPending ? "Sending the test message..." : said ? said.words : ""}
+      </p>
+    </div>
+  );
+}
+
 function Line({ testId, text }: { testId: string; text: { state: string; detail: string; warn: boolean } }) {
   return (
     <p className="mt-2 text-sm text-muted" data-testid={testId}>
@@ -184,6 +293,8 @@ export function SystemPanel() {
           ) : null}
           <Line testId="system-backups" text={backupText(data.backups)} />
           {offsite ? <Line testId="system-offsite" text={offsite} /> : null}
+          <Line testId="system-notifications" text={notificationText(data.notifications)} />
+          <Channels notifications={data.notifications} />
           {buildText(data) ? (
             <p className="mt-2 text-sm text-muted" data-testid="system-build">
               {buildText(data)}
