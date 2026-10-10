@@ -84,7 +84,8 @@ LONGEST_WAIT = timedelta(minutes=5)
 # An alert this young is "new"; an older one has risen to the severity, or could not be reported sooner.
 NEW_FOR = timedelta(hours=1)
 LISTED_ALERTS = 10
-# After a channel fails the next tries come after these minutes, then every hour, until the notification is a day old.
+# After a channel fails the next tries come after these minutes, then every hour, until the notification is a day
+# old. A failure that only a changed setting can end (a refused sign-in) is not tried again at all.
 RETRY_AFTER_MINUTES = (1, 5, 15, 60)
 GIVE_UP_AFTER = timedelta(hours=24)
 # A delivery claimed by a process that then died is taken up again after this.
@@ -585,10 +586,11 @@ def deliver_pending(
             db.commit()
             continue
         note = None
+        again = True
         try:
             note = sender(settings, Message(title=notification.title, body=notification.body, link=notification.link))
         except DeliveryError as failure:
-            error = str(failure)
+            error, again = str(failure), failure.again
         except Exception as failure:  # a sender must never stop the worker; its class says enough
             error = f"sending failed ({failure.__class__.__name__})"
         if error is None:
@@ -598,7 +600,8 @@ def deliver_pending(
             db.add(AuditLog(actor=ACTOR, action=NOTIFICATION_SENT, target_type="notification", target_value=str(notification.id),
                             details={"channel": delivery.channel, "kind": notification.kind, "title": notification.title},
                             created_at=now))
-        elif now - _utc(notification.created_at) >= GIVE_UP_AFTER:
+        elif not again or now - _utc(notification.created_at) >= GIVE_UP_AFTER:
+            # Given up: a day of tries, or a refusal that only a changed setting can end.
             delivery.status, delivery.error = GAVE_UP, safe_text(error)[:255]
             db.add(AuditLog(actor=ACTOR, action=NOTIFICATION_FAILED, target_type="notification", target_value=str(notification.id),
                             details={"channel": delivery.channel, "kind": notification.kind, "error": delivery.error,

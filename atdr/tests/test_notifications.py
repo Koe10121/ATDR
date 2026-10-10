@@ -605,6 +605,31 @@ def test_a_channel_that_fails_is_tried_again_and_given_up_after_a_day(tmp_path):
     assert outbox.titles("email") == ["New Critical alert #2: malware / C2"]
 
 
+def test_a_refusal_that_only_a_changed_setting_can_end_is_not_tried_again(tmp_path):
+    # Each try would be one more refused sign-in on the mail account.
+    settings, db = _system(tmp_path)
+    outbox = _Outbox(failing={"email": DeliveryError("the mail server refused the account's name or password", again=False)})
+    _look(db, settings, START, outbox)
+    _alert(db, START)
+    first = _look(db, settings, START + MINUTE, outbox)["sent"]
+    assert [(sent["channel"], sent["ok"]) for sent in first] == [("email", False), ("chat", True)]
+    email = db.scalar(select(NotificationDelivery).where(NotificationDelivery.channel == "email"))
+    assert (email.status, email.attempts, email.next_attempt_at) == ("failed", 1, None)
+    for minutes in (2, 7, 22, 82, 60 * 30):
+        assert _look(db, settings, START + MINUTE * minutes, outbox, problems=False)["sent"] == [], minutes
+    assert [(entry.details["channel"], entry.details["attempts"], entry.details["error"]) for entry in _audit(db, "notification_failed")] == [
+        ("email", 1, "the mail server refused the account's name or password")]
+    told = notification_status(db, settings=settings, now=START + HOUR)["channels"]["email"]["last_failure"]
+    assert (told["gave_up"], told["delivered"], told["at"]) == (True, False, START + MINUTE)
+
+    # The next notification is one more try: the setting may have been put right since.
+    outbox.failing.clear()
+    _alert(db, START + HOUR * 40)
+    _look(db, settings, START + HOUR * 40 + MINUTE, outbox)
+    assert outbox.titles("email") == ["New Critical alert #2: malware / C2"]
+    assert notification_status(db, settings=settings, now=START + HOUR * 41)["channels"]["email"]["last_failure"] is None
+
+
 def test_a_message_that_reached_only_some_addresses_is_not_sent_again(tmp_path):
     settings, db = _system(tmp_path)
     outbox = _Outbox(notes={"email": "the mail server refused 1 of the addresses the message was for, such as 192.0.2.9"})

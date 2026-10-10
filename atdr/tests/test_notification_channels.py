@@ -7,6 +7,7 @@ no words to show.
 
 from __future__ import annotations
 
+import base64
 import email
 import json
 import smtplib
@@ -71,6 +72,9 @@ def test_each_channel_says_what_is_missing_before_it_is_on(monkeypatch, tmp_path
     assert channel_problem(_settings(**plain, SMTP_PORT=465), "email") is None, "port 465 is encrypted from its first byte"
     assert channel_problem(_settings(**plain, SMTP_HOST="127.0.0.1"), "email") is None, "a relay on this machine"
     assert channel_problem(_settings(SMTP_USE_TLS=False), "email") is None, "no account, so no password to protect"
+    # An account that is named but has no password would only be refused at every message.
+    assert channel_problem(_settings(SMTP_USERNAME="atdr.alerts"), "email") == "the mail account has no password (SMTP_PASSWORD is empty)"
+    assert channel_problem(_settings(SMTP_USERNAME="atdr.alerts", SMTP_PASSWORD="app-password"), "email") is None
 
     assert channel_problem(_settings(ATDR_NOTIFY_CHAT_WEBHOOK_URL=""), "chat") == "no chat address (ATDR_NOTIFY_CHAT_WEBHOOK_URL is empty)"
     assert channel_problem(_settings(ATDR_NOTIFY_CHAT_WEBHOOK_URL="discord"), "chat") == "ATDR_NOTIFY_CHAT_WEBHOOK_URL is not a web address"
@@ -112,7 +116,21 @@ class _MailHandler(socketserver.StreamRequestHandler):
             command = line.decode("utf-8", "replace").strip()
             verb = command.upper()
             if verb.startswith(("EHLO", "HELO")):
-                self.wfile.write(b"250-test.example\r\n250 8BITMIME\r\n")
+                self.wfile.write(f"250-test.example\r\n250-AUTH {self.server.offers}\r\n250 8BITMIME\r\n".encode())  # type: ignore[attr-defined]
+            elif verb.startswith("AUTH"):
+                words = command.split()
+                self.server.sign_ins.append(words[1].upper())  # type: ignore[attr-defined]
+                if words[1].upper() == "PLAIN":
+                    password = base64.b64decode(words[2]).decode().split("\0")[-1]
+                else:
+                    self.wfile.write(b"334 UGFzc3dvcmQ6\r\n")
+                    password = base64.b64decode(self.rfile.readline().strip()).decode()
+                if password == "app-password":
+                    self.wfile.write(b"235 2.7.0 Accepted\r\n")
+                else:
+                    # As Gmail does: the refusal, and then the connection is closed.
+                    self.wfile.write(b"535 5.7.8 Username and Password not accepted\r\n")
+                    return
             elif verb.startswith("MAIL FROM:"):
                 sender = command[10:].split()[0].strip("<>")
                 self.wfile.write(b"250 ok\r\n")
@@ -142,6 +160,8 @@ def mail_server():
     server = socketserver.ThreadingTCPServer(("127.0.0.1", 0), _MailHandler)
     server.daemon_threads = True
     server.received = []  # type: ignore[attr-defined]
+    server.sign_ins = []  # type: ignore[attr-defined]
+    server.offers = "LOGIN PLAIN"  # type: ignore[attr-defined]
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     yield server
@@ -183,11 +203,43 @@ def test_an_email_goes_through_a_mail_server_as_it_would_through_a_real_one(mail
         send_email(settings, MESSAGE)
 
 
+def test_the_account_signs_in_once_and_a_refusal_is_said_to_be_one(mail_server):
+    # Tried with a real Gmail account on 10 October 2026: Gmail answered the sign-in with 535 and closed the
+    # connection. smtplib's own login then tried a second method on the closed connection and reported
+    # "disconnected", so ATDR said the server "did not take the message" and would have tried again for a day.
+    account = {"SMTP_HOST": "127.0.0.1", "SMTP_PORT": mail_server.server_address[1], "SMTP_USE_TLS": False, "SMTP_USERNAME": "atdr.alerts"}
+    assert send_email(_settings(**account, SMTP_PASSWORD="app-password"), MESSAGE) is None
+    assert mail_server.sign_ins == ["PLAIN"] and len(mail_server.received) == 1
+
+    with pytest.raises(DeliveryError) as refused:
+        send_email(_settings(**account, SMTP_PASSWORD="the account's own password"), MESSAGE)
+    assert str(refused.value) == "the mail server refused the account's name or password"
+    assert refused.value.again is False, "the same password would be refused the same way: not tried again by itself"
+    assert mail_server.sign_ins == ["PLAIN", "PLAIN"], "one try, not one for every method the server offers"
+    assert len(mail_server.received) == 1
+
+    # A server that offers only the older method is signed in to with that; one that offers none ATDR knows is said so.
+    mail_server.offers = "LOGIN"
+    assert send_email(_settings(**account, SMTP_PASSWORD="app-password"), MESSAGE) is None
+    assert mail_server.sign_ins[-1] == "LOGIN" and len(mail_server.received) == 2
+    mail_server.offers = "XOAUTH2 OAUTHBEARER"
+    with pytest.raises(DeliveryError, match="does not offer the encryption or the sign-in ATDR asked for") as unknown:
+        send_email(_settings(**account, SMTP_PASSWORD="app-password"), MESSAGE)
+    assert unknown.value.again is False and len(mail_server.sign_ins) == 3
+
+
 class _Mail:
     """A mail server's client that only writes down what it is asked to do."""
 
+    esmtp_features = {"auth": " LOGIN PLAIN XOAUTH2"}
+    auth_plain = auth_login = auth_cram_md5 = staticmethod(lambda challenge=None: "")
+
     def __init__(self, calls: list, *, login_error: Exception | None = None) -> None:
         self.calls, self.login_error = calls, login_error
+        self.user = self.password = None
+
+    def ehlo_or_helo_if_needed(self) -> None:
+        pass
 
     def __call__(self, host, port, **kwargs):
         self.calls.append(("connect", host, port, sorted(kwargs)))
@@ -203,8 +255,8 @@ class _Mail:
     def starttls(self, **kwargs) -> None:
         self.calls.append(("starttls", sorted(kwargs)))
 
-    def login(self, name: str, password: str) -> None:
-        self.calls.append(("login", name, password))
+    def auth(self, method: str, _answer) -> None:
+        self.calls.append(("sign in", method, self.user, self.password))
         if self.login_error is not None:
             raise self.login_error
 
@@ -217,13 +269,13 @@ def test_the_connection_is_encrypted_before_the_password_is_given():
     account = {"SMTP_USERNAME": " atdr.alerts ", "SMTP_PASSWORD": "hunter2"}
     calls: list = []
     send_email(_settings(**account), MESSAGE, smtp=_Mail(calls), smtp_ssl=lambda *_a, **_k: pytest.fail("port 587 starts unencrypted"))
-    assert calls == [("connect", "mail.example.org", 587, ["timeout"]), ("starttls", ["context"]), ("login", "atdr.alerts", "hunter2"),
-                     ("send", "[ATDR] 2 new Critical alerts"), ("quit",)]
+    assert calls == [("connect", "mail.example.org", 587, ["timeout"]), ("starttls", ["context"]),
+                     ("sign in", "PLAIN", "atdr.alerts", "hunter2"), ("send", "[ATDR] 2 new Critical alerts"), ("quit",)]
 
     # Port 465 is encrypted from the first byte: no STARTTLS.
     calls.clear()
     send_email(_settings(**account, SMTP_PORT=465), MESSAGE, smtp_ssl=_Mail(calls), smtp=lambda *_a, **_k: pytest.fail("465 is not plain"))
-    assert [call[0] for call in calls] == ["connect", "login", "send", "quit"] and calls[0][3] == ["context", "timeout"]
+    assert [call[0] for call in calls] == ["connect", "sign in", "send", "quit"] and calls[0][3] == ["context", "timeout"]
 
     # No account: nothing to sign in with. Encryption switched off for a relay on the machine: none asked for.
     calls.clear()
@@ -234,19 +286,33 @@ def test_the_connection_is_encrypted_before_the_password_is_given():
     assert [call[0] for call in calls] == ["connect", "send", "quit"]
 
 
-@pytest.mark.parametrize(("error", "words"), [
+@pytest.mark.parametrize(("error", "words", "again"), [
     (smtplib.SMTPAuthenticationError(535, b"5.7.8 Username and Password not accepted: hunter2"),
-     "the mail server refused the account's name or password"),
+     "the mail server refused the account's name or password", False),
     (smtplib.SMTPSenderRefused(550, b"not allowed to send as atdr@example.org with hunter2", "atdr@example.org"),
-     "the mail server refused the sender address"),
+     "the mail server refused the sender address", False),
     (smtplib.SMTPServerDisconnected("Connection unexpectedly closed while sending hunter2"),
-     "the mail server did not take the message (SMTPServerDisconnected)"),
-    (TimeoutError("timed out talking to mail.example.org as hunter2"), "the mail server could not be reached (TimeoutError)"),
+     "the mail server did not take the message (SMTPServerDisconnected)", True),
+    (TimeoutError("timed out talking to mail.example.org as hunter2"), "the mail server could not be reached (TimeoutError)", True),
 ])
-def test_a_mail_failure_is_said_in_words_that_never_hold_the_password(error, words):
+def test_a_mail_failure_is_said_in_words_that_never_hold_the_password(error, words, again):
     with pytest.raises(DeliveryError) as failure:
         send_email(_settings(SMTP_USERNAME="atdr.alerts", SMTP_PASSWORD="hunter2"), MESSAGE, smtp=_Mail([], login_error=error))
     assert str(failure.value) == words and "hunter2" not in str(failure.value)
+    # What only a changed setting can end is not tried again; what may pass by itself is.
+    assert failure.value.again is again
+
+
+def test_gmail_refusing_an_accounts_own_password_is_told_with_what_gmail_takes():
+    refusal = smtplib.SMTPAuthenticationError(535, b"5.7.8 Username and Password not accepted")
+    for host, hinted in (("smtp.gmail.com", True), ("SMTP.GoogleMail.com", True), ("gmail.com", True), ("mail.example.org", False),
+                         ("smtp.notgmail.com", False), ("gmail.com.example.org", False)):
+        with pytest.raises(DeliveryError) as failure:
+            send_email(_settings(SMTP_HOST=host, SMTP_USERNAME="someone@example.org", SMTP_PASSWORD="hunter2"), MESSAGE,
+                       smtp=_Mail([], login_error=refusal))
+        said = str(failure.value)
+        assert said.startswith("the mail server refused the account's name or password") and failure.value.again is False
+        assert said.endswith("; Gmail takes an app password here, not the account's own password") is hinted, host
 
 
 class _ChatHandler(BaseHTTPRequestHandler):
@@ -257,7 +323,7 @@ class _ChatHandler(BaseHTTPRequestHandler):
             self.send_response(302)
             self.send_header("Location", "/hook/ok")
         else:
-            self.send_response({"/hook/ok": 204, "/hook/slow-down": 429}.get(self.path, 404))
+            self.send_response({"/hook/ok": 204, "/hook/slow-down": 429, "/hook/broken": 503}.get(self.path, 404))
         self.end_headers()
 
     def log_message(self, *_args) -> None:
@@ -282,14 +348,18 @@ def test_a_chat_message_is_posted_to_the_address_in_the_settings_and_nowhere_els
         "text": "ATDR: 2 new Critical alerts\n#7 Critical: malware / C2, raised 10:01\n#8 Critical: port scan, raised 10:02\n\n"
                 "Open ATDR on the machine it runs on to see more."})]
 
-    with pytest.raises(DeliveryError, match="^the chat service answered 404$"):
+    # An address that is gone will not come back by itself; a service that is busy or broken may.
+    with pytest.raises(DeliveryError, match="^the chat service answered 404$") as gone:
         send_chat(_settings(ATDR_NOTIFY_CHAT_WEBHOOK_URL=f"{base}/hook/deleted"), MESSAGE)
-    with pytest.raises(DeliveryError, match="^the chat service answered 429$"):
+    with pytest.raises(DeliveryError, match="^the chat service answered 429$") as busy:
         send_chat(_settings(ATDR_NOTIFY_CHAT_WEBHOOK_URL=f"{base}/hook/slow-down"), MESSAGE)
+    with pytest.raises(DeliveryError, match="^the chat service answered 503$") as broken:
+        send_chat(_settings(ATDR_NOTIFY_CHAT_WEBHOOK_URL=f"{base}/hook/broken"), MESSAGE)
     # Sent on to another address: the message is not posted there.
-    with pytest.raises(DeliveryError, match="^the chat service answered 302$"):
+    with pytest.raises(DeliveryError, match="^the chat service answered 302$") as moved:
         send_chat(_settings(ATDR_NOTIFY_CHAT_WEBHOOK_URL=f"{base}/hook/moved"), MESSAGE)
-    assert [path for path, _type, _body in chat_server.posted] == ["/hook/ok", "/hook/deleted", "/hook/slow-down", "/hook/moved"]
+    assert (gone.value.again, busy.value.again, broken.value.again, moved.value.again) == (False, True, True, False)
+    assert [path for path, _type, _body in chat_server.posted] == ["/hook/ok", "/hook/deleted", "/hook/slow-down", "/hook/broken", "/hook/moved"]
 
 
 def test_each_chat_service_gets_the_form_it_takes():

@@ -218,8 +218,12 @@ SMTP_USE_TLS=true
 ```
 
 A school or work Google account may have app passwords switched off by its
-administrator. ATDR encrypts the connection before it gives the password and
-refuses to send a password over a connection that is not encrypted.
+administrator. Gmail answers an account's own password with `Username and
+Password not accepted`; ATDR then says that Gmail takes an app password. ATDR
+encrypts the connection before it gives the password, refuses to send a
+password over a connection that is not encrypted, and signs in once for each
+message. An account that is named without a password (`SMTP_PASSWORD` empty)
+leaves the email channel off, and the System panel says so.
 
 **A chat group.** In Discord: the channel's settings, Integrations, Webhooks,
 New Webhook, Copy Webhook URL. In Slack: an app with Incoming Webhooks. In
@@ -232,7 +236,11 @@ the group. ATDR never shows it; the System panel names only the service.
 One channel failing does not hold up another. A message that could not be
 sent is tried again after 1, 5, 15 and 60 minutes, then every hour, and is
 given up when the notification is a day old (audit entry
-`notification_failed`). An email that reached some of its addresses is not
+`notification_failed`). A failure that only a changed setting can end is not
+tried again at all: a sign-in the mail server refuses, a sender or addresses
+it will not take, a chat address that no longer exists. Each try would be one
+more refused sign-in on the account. Put the setting right and use Send a
+test. An email that reached some of its addresses is not
 sent again: the System panel says how many addresses the mail server refused.
 The System panel shows what the last message through each channel did and,
 when it failed, why. Each message sent is an audit entry, `notification_sent`.
@@ -249,9 +257,12 @@ panel arrived in Windows' notification centre. With the background worker
 ended four times in two minutes, the watcher reported it 30 seconds after the
 fourth time, started it again five minutes later, and reported it running
 again once it had stayed up ten minutes; both reports arrived in Windows and
-under the bell. Email and chat have been tested against a mail server and a
-web server that run inside the test suite, not yet against a real account or
-group: after setting one up, use Send a test.
+under the bell. Email was tried against Gmail once that day: the connection
+and its encryption worked, and Gmail refused the sign-in because it was given
+the account's own password, not an app password. No message has yet gone out
+through a real mail account or chat group; both are otherwise tested against a
+mail server and a web server that run inside the test suite. After setting
+one up, use Send a test.
 
 ## Daily Operator Checks
 

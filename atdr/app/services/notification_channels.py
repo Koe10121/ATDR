@@ -41,7 +41,16 @@ FOOTER = "Open ATDR on the machine it runs on to see more."
 
 
 class DeliveryError(Exception):
-    """A message that was not delivered, with why in words that may be shown."""
+    """A message that was not delivered, with why in words that may be shown.
+
+    `again` is False when another try cannot help until someone changes a setting: a sign-in the mail server
+    refused, a sender or addresses it will not take, a chat address that is gone. Such a message is not sent
+    again by itself; each try would be one more refused sign-in on the account.
+    """
+
+    def __init__(self, words: str, *, again: bool = True) -> None:
+        super().__init__(words)
+        self.again = again
 
 
 @dataclass(frozen=True)
@@ -76,6 +85,8 @@ def channel_problem(settings: Settings, channel: str) -> str | None:
             return "no mail server (SMTP_HOST is empty)"
         if ADDRESS.match(settings.smtp_from_email.strip()) is None:
             return "no sender address (SMTP_FROM_EMAIL is empty or not an email address)"
+        if settings.smtp_username.strip() and not settings.smtp_password:
+            return "the mail account has no password (SMTP_PASSWORD is empty)"
         if settings.smtp_username.strip() and not _encrypted(settings) and settings.smtp_host.strip().lower() not in LOOPBACK_HOSTS:
             return "the mail account's password would travel unencrypted (SMTP_USE_TLS=false)"
         return None
@@ -120,6 +131,37 @@ def _encrypted(settings: Settings) -> bool:
     return int(settings.smtp_port) == 465 or bool(settings.smtp_use_tls)
 
 
+# The sign-in methods ATDR can use, in smtplib's own order of preference.
+SIGN_IN_METHODS = ("CRAM-MD5", "PLAIN", "LOGIN")
+GOOGLE_MAIL = ("gmail.com", "googlemail.com")
+
+
+def _sign_in(client: Any, name: str, password: str) -> None:
+    """Signs in once, with the first method the server offers that ATDR knows.
+
+    smtplib's own login tries every method in turn with the same password. A refusal is a refusal: the next try
+    is only one more failed sign-in on the account, and Gmail has closed the connection by then, so what came
+    back was "disconnected" where the truth was "refused".
+    """
+
+    client.ehlo_or_helo_if_needed()
+    offered = str(client.esmtp_features.get("auth", "")).upper().split()
+    for method in SIGN_IN_METHODS:
+        if method in offered:
+            client.user, client.password = name, password
+            client.auth(method, getattr(client, "auth_" + method.lower().replace("-", "_")))
+            return
+    raise smtplib.SMTPNotSupportedError("the server offers no sign-in method that ATDR knows")
+
+
+def _refused_sign_in(host: str) -> str:
+    words = "the mail server refused the account's name or password"
+    if any(host.lower() == name or host.lower().endswith("." + name) for name in GOOGLE_MAIL):
+        # Google lets a mail program in with an app password only.
+        words += "; Gmail takes an app password here, not the account's own password"
+    return words
+
+
 def send_email(
     settings: Settings,
     message: Message,
@@ -147,16 +189,17 @@ def send_email(
             if port != 465 and settings.smtp_use_tls:
                 client.starttls(context=ssl.create_default_context())
             if settings.smtp_username.strip():
-                client.login(settings.smtp_username.strip(), settings.smtp_password)
+                _sign_in(client, settings.smtp_username.strip(), settings.smtp_password)
             refused = client.send_message(mail)
+    # The first four need a setting put right: the same message would be refused the same way again.
     except smtplib.SMTPAuthenticationError as error:
-        raise DeliveryError("the mail server refused the account's name or password") from error
+        raise DeliveryError(_refused_sign_in(host), again=False) from error
     except smtplib.SMTPRecipientsRefused as error:
-        raise DeliveryError("the mail server refused every address the message was for") from error
+        raise DeliveryError("the mail server refused every address the message was for", again=False) from error
     except smtplib.SMTPSenderRefused as error:
-        raise DeliveryError("the mail server refused the sender address") from error
+        raise DeliveryError("the mail server refused the sender address", again=False) from error
     except smtplib.SMTPNotSupportedError as error:
-        raise DeliveryError("the mail server does not offer the encryption or the sign-in ATDR asked for") from error
+        raise DeliveryError("the mail server does not offer the encryption or the sign-in ATDR asked for", again=False) from error
     except ssl.SSLError as error:
         raise DeliveryError("the encrypted connection to the mail server could not be set up") from error
     except smtplib.SMTPException as error:
@@ -190,8 +233,10 @@ def send_chat(settings: Settings, message: Message, *, post: Callable[..., Any] 
     except requests.RequestException as error:
         # Not the error's own words: they can hold the address.
         raise DeliveryError(f"the chat service could not be reached ({error.__class__.__name__})") from None
-    if not 200 <= int(answer.status_code) < 300:
-        raise DeliveryError(f"the chat service answered {int(answer.status_code)}")
+    code = int(answer.status_code)
+    if not 200 <= code < 300:
+        # Busy or broken for now is worth another try; "no such address" or "not allowed" is not.
+        raise DeliveryError(f"the chat service answered {code}", again=code in (408, 425, 429) or code >= 500)
 
 
 def toast_environment(settings: Settings, message: Message) -> dict[str, str]:

@@ -7835,7 +7835,7 @@ test("a test message says at once whether it went, and a channel that fails says
   await expect(panel.getByTestId("system-channel-email")).toContainText(": the mail server refused the account's name or password. ATDR tries again.");
   await expect(panel.getByTestId("system-channel-email")).toContainText("Failed 9 Oct");
   await expect(panel.getByTestId("system-channel-chat")).toContainText("On (discord.com)");
-  await expect(panel.getByTestId("system-channel-chat")).toContainText(": the chat service answered 404. ATDR gave up after a day.");
+  await expect(panel.getByTestId("system-channel-chat")).toContainText(": the chat service answered 404. ATDR is not trying this message again.");
   await expect(panel.getByTestId("system-channel-windows")).toContainText(", but the mail server refused 1 of the addresses the message was for.");
   await expect(panel.getByTestId("system-channel-windows")).toContainText("Sent 9 Oct");
   await expect(panel.getByTestId("system-channel-chat").getByRole("button", { name: "Send a test" })).toBeEnabled();

@@ -172,7 +172,7 @@ export function channelText(channel: NotificationChannel): { state: string; last
   if (failure) {
     const last = failure.delivered
       ? `Sent ${day(failure.at)}, but ${failure.words}.`
-      : `Failed ${day(failure.at)}: ${failure.words}. ${failure.gave_up ? "ATDR gave up after a day." : "ATDR tries again."}`;
+      : `Failed ${day(failure.at)}: ${failure.words}. ${failure.gave_up ? "ATDR is not trying this message again." : "ATDR tries again."}`;
     return { state: `On${where}`, last, warn: true };
   }
   return { state: `On${where}`, last: channel.last_sent_at ? `Sent ${day(channel.last_sent_at)}` : "Nothing sent yet", warn: false };
