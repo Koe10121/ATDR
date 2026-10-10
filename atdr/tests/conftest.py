@@ -18,3 +18,10 @@ os.environ["ATDR_MODEL_ALERTS"] = "false"
 os.environ["ATDR_BACKUP_DIRECTORY"] = ""
 os.environ["ATDR_BACKUP_SCHEDULE_HOURS"] = "0"
 os.environ["ATDR_BACKUP_OFFSITE_FOLDER"] = ""
+
+# Nor do they open the database of the system running on this machine: see own_database_guard.py. The import
+# brings its check after every test with it.
+from atdr.tests.own_database_guard import install as _guard_own_database  # noqa: E402
+from atdr.tests.own_database_guard import no_test_opens_the_projects_own_database  # noqa: E402, F401
+
+_guard_own_database()

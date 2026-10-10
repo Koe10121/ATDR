@@ -48,11 +48,12 @@ def test_production_config_validation_rejects_unsafe_defaults():
     assert "CORS_ALLOWED_ORIGINS must not include '*' in production." in issues
 
 
-def test_config_doctor_accepts_local_demo_settings():
+def test_config_doctor_accepts_local_demo_settings(tmp_path):
     result = run_config_doctor(
         Settings(
             ENVIRONMENT="development",
-            DATABASE_URL="sqlite:///./atdr.db",
+            # A file of its own: the doctor connects to the database it is given, and "./atdr.db" is the real one.
+            DATABASE_URL=f"sqlite:///{(tmp_path / 'atdr.db').as_posix()}",
             AUTO_CREATE_TABLES=True,
             RESPONSE_SIMULATION=True,
             JWT_SECRET_KEY="change-this-secret-before-production",
@@ -211,11 +212,12 @@ def test_config_doctor_warns_when_mfu_iam_values_are_present_but_disabled():
     assert secret not in rendered
 
 
-def test_config_doctor_flags_unsafe_production_defaults():
+def test_config_doctor_flags_unsafe_production_defaults(tmp_path):
     result = run_config_doctor(
         Settings(
             ENVIRONMENT="production",
-            DATABASE_URL="sqlite:///./atdr.db",
+            # A file of its own: the doctor connects to the database it is given, and "./atdr.db" is the real one.
+            DATABASE_URL=f"sqlite:///{(tmp_path / 'atdr.db').as_posix()}",
             AUTO_CREATE_TABLES=True,
             RESPONSE_SIMULATION=False,
             JWT_SECRET_KEY="change-this-secret-before-production",
