@@ -30,3 +30,7 @@ from atdr.tests.own_database_guard import install as _guard_own_database  # noqa
 from atdr.tests.own_database_guard import no_test_opens_the_projects_own_database  # noqa: E402, F401
 
 _guard_own_database()
+
+# On GitHub a failed test is also put on the commit, where it can be read without a login: see
+# github_annotations.py.
+from atdr.tests.github_annotations import pytest_runtest_makereport  # noqa: E402, F401

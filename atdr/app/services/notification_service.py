@@ -663,6 +663,7 @@ def report_problem(
     source: str = WATCHER,
     settings: Settings | None = None,
     now: datetime | None = None,
+    zone: tzinfo | None = None,
     senders: dict[str, Sender] | None = None,
 ) -> dict[str, Any]:
     """One problem reported from outside the worker, or reported over, and sent at once: the worker may be what stopped."""
@@ -671,7 +672,7 @@ def report_problem(
     now = _now(now)
     if not settings.notify_enabled:
         return {"enabled": False, "made": [], "sent": []}
-    made = track_problems(db, [] if over else [problem], source=source, settings=settings, now=now, only={problem.key})
+    made = track_problems(db, [] if over else [problem], source=source, settings=settings, now=now, zone=zone, only={problem.key})
     db.commit()
     sent = []
     for row in made:

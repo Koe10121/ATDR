@@ -732,7 +732,8 @@ def test_the_watcher_reports_a_part_that_keeps_stopping_without_the_worker(tmp_p
     _look(db, settings, START + HOUR, outbox)
     assert sorted(db.scalars(select(NotificationCondition.key))) == ["atdr_not_starting", "part_keeps_stopping:atdr-worker"]
 
-    over = report_problem(db, worker, over=True, settings=settings, now=START + HOUR * 3, senders=outbox.senders())
+    # The time in it is the machine's own; here that is said to be Bangkok's, wherever the tests run.
+    over = report_problem(db, worker, over=True, settings=settings, now=START + HOUR * 3, zone=BANGKOK, senders=outbox.senders())
     assert over["made"] == [{"id": 4, "kind": "resolved", "title": "ATDR's background worker is running again."}]
     assert _last(db).body == "It began 10:00 and lasted 3 hours."
     assert list(db.scalars(select(NotificationCondition.key))) == ["atdr_not_starting"], "one problem said over, the other left"
