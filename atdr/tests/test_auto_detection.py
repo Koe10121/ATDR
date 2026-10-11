@@ -433,6 +433,53 @@ def test_a_worker_killed_moments_ago_does_not_keep_the_next_one_from_starting():
             record_worker_heartbeat(db, worker_id=other, status="stopped")
 
 
+def test_a_process_that_was_given_the_stopped_workers_number_is_not_the_worker():
+    # Windows gives a process number out again within seconds. On 11 October 2026 a release stopped the worker and
+    # built the dashboard; thirty seconds later the new worker found the old one's number in use by another process,
+    # refused to start ("SQLite permits one ATDR operation worker"), and ATDR ran with none.
+    import subprocess
+    import sys
+    from datetime import timezone
+
+    from atdr.app.db.models import OperationWorkerHeartbeat
+    from atdr.app.services.operation_worker import WorkerConcurrencyError, enforce_worker_concurrency
+
+    other_process = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+    try:
+        number = other_process.pid
+        started = operation_worker._process_started_at(number)
+        assert operation_worker._process_exists(number)
+        assert operation_worker._process_started_at(2147483000) is None, "no such process"
+        worker = f"{operation_worker._local_worker_prefix()}{number}"
+        testing_session = _sessions()
+        with testing_session() as db:
+            record_worker_heartbeat(db, worker_id=worker, status="idle")
+            row = db.get(OperationWorkerHeartbeat, worker)
+            if started is None:
+                # Off Windows the moment a process started is not asked for: a number that is in use counts as the worker.
+                assert sys.platform != "win32"
+                with pytest.raises(WorkerConcurrencyError, match="SQLite permits one"):
+                    enforce_worker_concurrency(db, worker_id="the-new-worker", heartbeat_seconds=15)
+                return
+            assert abs((datetime.now(timezone.utc) - started).total_seconds()) < 30
+
+            # Last heard from after that process started: it may well be the worker, and a second one is kept out.
+            with pytest.raises(WorkerConcurrencyError, match="SQLite permits one"):
+                enforce_worker_concurrency(db, worker_id="the-new-worker", heartbeat_seconds=15)
+
+            # Last heard from before that process existed (and still within three heartbeats): the number was given
+            # to another process since. The worker is gone, its heartbeat is closed, and the new one starts.
+            row.last_seen_at = started - timedelta(seconds=5)
+            db.commit()
+            # Five seconds old against a limit of three hours: fresh, so it is the number that decides.
+            enforce_worker_concurrency(db, worker_id="the-new-worker", heartbeat_seconds=3600)
+            db.refresh(row)
+            assert (row.status, row.details_json["shutdown"]) == ("stopped", "process_gone")
+    finally:
+        other_process.kill()
+        other_process.wait()
+
+
 def test_the_sign_in_start_waits_for_the_start_script_alone_and_installs_one_entry():
     # Read through a pipe, the start script's output never ended: ATDR's own processes keep the pipe open, the
     # sign-in task stayed "running", and Windows would have stopped it, and ATDR with it, at the task's time limit.

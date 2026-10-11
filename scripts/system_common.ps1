@@ -969,11 +969,19 @@ function Get-AtdrUnfinishedRelease {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $null }
     try {
         $value = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
-        return [pscustomobject]@{ started_at = ConvertTo-AtdrUtc $value.started_at; source = [string]$value.source }
+        # The release names the process that makes it. While that process runs the release is under way, and it
+        # starts ATDR itself; once it is gone, the release was cut off.
+        $driver = if ($value.PSObject.Properties["driver"]) { $value.driver } else { $null }
+        $source = if ($value.PSObject.Properties["source"]) { [string]$value.source } else { "" }
+        return [pscustomobject]@{
+            started_at = ConvertTo-AtdrUtc $value.started_at
+            source = $source
+            under_way = [bool]($null -ne $driver -and (Test-TrackedProcessRecordActive $driver))
+        }
     }
     catch {
         # Unreadable is still unfinished.
-        return [pscustomobject]@{ started_at = $null; source = "" }
+        return [pscustomobject]@{ started_at = $null; source = ""; under_way = $false }
     }
 }
 

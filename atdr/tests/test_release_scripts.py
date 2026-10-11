@@ -162,6 +162,26 @@ def test_a_folder_a_release_left_half_changed_is_started_by_the_release_alone(tm
     assert release.returncode == 1 and "did not finish" not in release.stderr
     assert "ATDR startup failed: MFU supervisor shell path is not configured" in release.stderr
 
+    # While the process that makes the release runs, the release is under way and not cut off. The watcher, which
+    # tries to bring back a part that stopped while the new version is being watched, is told so.
+    driver, driver_started = _sleeper()
+    try:
+        (root / ".atdr_runtime" / "release-in-progress.json").write_text(json.dumps(
+            {"from": "a" * 40, "started_at": began.isoformat(), "source": "C:\\Users\\User\\Desktop\\ATDR",
+             "driver": {"pid": driver.pid, "started_at": driver_started}}), encoding="utf-8")
+        under_way = _script(root / "scripts" / "start_system.ps1", "-NoBrowser", "-Only", "atdr-worker")
+        assert under_way.returncode == 1 and "did not finish" not in under_way.stderr
+        assert (f"ATDR startup failed: A release into this folder is under way (it began {local}). It stops and starts ATDR itself, "
+                "and puts the version before back when the new one does not come up; nothing was started.") in under_way.stderr
+        assert _powershell(f". {common}; (Get-AtdrUnfinishedRelease).under_way").strip() == "True"
+    finally:
+        driver.kill()
+        driver.wait()
+    # The same record once that process is gone: cut off.
+    cut_off = _script(root / "scripts" / "start_system.ps1", "-NoBrowser")
+    assert cut_off.returncode == 1 and "did not finish" in cut_off.stderr and "under way" not in cut_off.stderr
+    assert _powershell(f". {common}; (Get-AtdrUnfinishedRelease).under_way").strip() == "False"
+
     # A record that cannot be read is still an unfinished release.
     (root / ".atdr_runtime" / "release-in-progress.json").write_text("{ not json", encoding="utf-8")
     unreadable = _script(root / "scripts" / "start_system.ps1", "-NoBrowser")
@@ -171,6 +191,65 @@ def test_a_folder_a_release_left_half_changed_is_started_by_the_release_alone(tm
     start = (SCRIPTS / "start_system.ps1").read_text(encoding="utf-8")
     assert start.index("$liveCopy = Get-AtdrLiveCopy") < start.index("$unfinished = Get-AtdrUnfinishedRelease") < start.index("$locked = Enter-AtdrStartLock"), (
         "refused before anything is locked or started")
+
+
+@windows_only
+def test_a_start_that_is_refused_leaves_the_record_of_running_parts_as_it_is(tmp_path):
+    # On 11 October 2026, during a release, the new version's worker stopped. The watcher tried to bring it back, the
+    # start was refused (a release had not finished), and the refusal removed system-processes.json while four parts
+    # ran. Nothing could see, stop or restart them, and the release could not put the version before back.
+    root = _own_folder(tmp_path, "start_system.ps1", "stop_system.ps1")
+    runtime = root / ".atdr_runtime"
+    common = _quoted(root / "scripts" / "system_common.ps1")
+    running = {name: _sleeper() for name in ("atdr-backend", "shell-frontend")}
+    try:
+        (runtime / "system-processes.json").write_text(json.dumps({
+            "version": 1, "started_at": "2026-10-11T05:33:38.0000000Z", "secrets_stored": False,
+            "processes": [{"name": name, "pid": process.pid, "started_at": started, "working_directory": str(root)}
+                          for name, (process, started) in running.items()],
+        }), encoding="utf-8")
+        before = (runtime / "system-processes.json").read_bytes()
+        _powershell(f". {common}; Set-AtdrDesiredState -State running -By 'test'")
+        refusals = (
+            ("release-in-progress.json", {"from": "a" * 40, "started_at": "2026-10-11T05:33:03+00:00"}, "did not finish"),
+            ("live-copy.json", {"root": "C:\\ATDR-live"}, "the folder ATDR is developed in"),
+        )
+        for name, content, said in refusals:
+            (runtime / name).write_text(json.dumps(content), encoding="utf-8")
+            # As a person or the sign-in start asks, and as the watcher asks when it brings one part back.
+            for arguments in (("-NoBrowser",), ("-NoBrowser", "-Only", "atdr-worker")):
+                refused = _script(root / "scripts" / "start_system.ps1", *arguments)
+                assert refused.returncode == 1 and said in refused.stderr, refused.stderr
+                assert (runtime / "system-processes.json").read_bytes() == before, f"{name}: {arguments}"
+                assert all(process.poll() is None for process, _started in running.values())
+            (runtime / name).unlink()
+
+        # A start that did look at the record and then failed (here: no MFU shell) keeps on it what was running.
+        failed = _script(root / "scripts" / "start_system.ps1", "-NoBrowser", "-Only", "atdr-worker")
+        assert failed.returncode == 1 and "MFU supervisor shell path is not configured" in failed.stderr
+        kept = _read(root, "system-processes.json")
+        assert sorted((record["name"], record["pid"]) for record in kept["processes"]) == sorted(
+            (name, process.pid) for name, (process, _started) in running.items())
+
+        # So the stop script still finds every part.
+        stopped = _script(root / "scripts" / "stop_system.ps1")
+        assert stopped.returncode == 0 and "Processes stopped: 2" in stopped.stdout
+        for process, _started in running.values():
+            assert process.wait(timeout=20) is not None
+
+        # And a start that looked and found only parts that are gone still clears their record, as it always did:
+        # the start of everything, and the watcher's start of one part.
+        stale = json.dumps({"processes": [{"name": "atdr-backend", "pid": 2147483000, "started_at": "2000-01-01T00:00:00Z"}]})
+        _powershell(f". {common}; Set-AtdrDesiredState -State running -By 'test'")
+        for arguments in (("-NoBrowser",), ("-NoBrowser", "-Only", "atdr-worker")):
+            (runtime / "system-processes.json").write_text(stale, encoding="utf-8")
+            failed = _script(root / "scripts" / "start_system.ps1", *arguments)
+            assert failed.returncode == 1 and "MFU supervisor shell path is not configured" in failed.stderr, failed.stderr
+            assert not (runtime / "system-processes.json").exists(), arguments
+    finally:
+        for process, _started in running.values():
+            if process.poll() is None:
+                process.kill()
 
 
 @windows_only

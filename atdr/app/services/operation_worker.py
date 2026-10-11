@@ -99,18 +99,55 @@ def _process_exists(pid: int) -> bool:
     return True
 
 
-def _left_behind_by_a_dead_local_worker(worker_id: str) -> bool:
+def _process_started_at(pid: int) -> datetime | None:
+    """When the process with this id was started; None where that cannot be said (no such process, or not Windows)."""
+
+    if pid <= 0 or os.name != "nt":
+        return None
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+    kernel32.GetProcessTimes.argtypes = (wintypes.HANDLE, *([ctypes.POINTER(wintypes.FILETIME)] * 4))
+    kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+    handle = kernel32.OpenProcess(0x1000, False, pid)
+    if not handle:
+        return None
+    try:
+        created, ended, in_kernel, in_user = (wintypes.FILETIME() for _ in range(4))
+        if not kernel32.GetProcessTimes(handle, ctypes.byref(created), ctypes.byref(ended), ctypes.byref(in_kernel), ctypes.byref(in_user)):
+            return None
+    finally:
+        kernel32.CloseHandle(handle)
+    return datetime(1601, 1, 1, tzinfo=timezone.utc) + timedelta(microseconds=((created.dwHighDateTime << 32) | created.dwLowDateTime) // 10)
+
+
+def _left_behind_by_a_dead_local_worker(worker_id: str, *, last_seen_at: datetime | None = None) -> bool:
     """A heartbeat of a worker process on this machine that no longer exists.
 
     A worker that is killed (scripts\\stop_system ends it at once) or crashes cannot say it stopped, so its last
     heartbeat stays fresh for three heartbeat intervals. A restart inside that time found "another worker" and ran
     with none: queued imports waited, and automatic detection never ran.
+
+    Its number alone does not say that it is running: Windows gives a number out again within seconds. On 11 October
+    2026 a release stopped the worker and built the dashboard, and thirty seconds later the new worker found the old
+    one's number in use by another process and refused to start. A process that was started after the worker was
+    last heard from is not that worker.
     """
 
     prefix = _local_worker_prefix()
     if not worker_id.startswith(prefix) or not worker_id[len(prefix):].isdigit():
         return False
-    return not _process_exists(int(worker_id[len(prefix):]))
+    pid = int(worker_id[len(prefix):])
+    if not _process_exists(pid):
+        return True
+    started = _process_started_at(pid)
+    if started is None or last_seen_at is None:
+        return False
+    heard = last_seen_at if last_seen_at.tzinfo is not None else last_seen_at.replace(tzinfo=timezone.utc)
+    return started > heard
 
 
 def enforce_worker_concurrency(
@@ -131,7 +168,7 @@ def enforce_worker_concurrency(
         .where(OperationWorkerHeartbeat.last_seen_at >= cutoff)
     ).all()
     for other in fresh_others:
-        if not _left_behind_by_a_dead_local_worker(other.worker_id):
+        if not _left_behind_by_a_dead_local_worker(other.worker_id, last_seen_at=other.last_seen_at):
             raise WorkerConcurrencyError(
                 "SQLite permits one ATDR operation worker. Stop the existing worker or wait for its heartbeat to become stale."
             )

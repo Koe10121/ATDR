@@ -268,7 +268,12 @@ class Machine:
                 if self.fails("stop", None):
                     return Ran(1, err="ATDR shutdown failed safely: Access is denied")
                 only = command[command.index("-Only") + 1].split(",") if "-Only" in command else None
-                self.stop(root, only, by_the_script=True)
+                # The stop script knows the parts by their record: what is not on it, it cannot stop.
+                on_record = list(release.processes(root))
+                if not on_record:
+                    self.did.append(f"nothing on record to stop in {root.name}")
+                    return Ran(0, out="No ATDR launcher-managed processes are recorded. Nothing was stopped.")
+                self.stop(root, [name for name in on_record if only is None or name in only], by_the_script=True)
                 self.did.append(f"{'own parts' if only else 'everything'} stopped in {root.name}")
                 return Ran(0)
             if script.name == "autostart.ps1":
@@ -565,6 +570,31 @@ def test_a_part_that_will_not_stop_costs_nothing_what_did_stop_is_started_again(
     assert machine.head(live) == second and (live / ".atdr_runtime" / release.MARKER).exists()
 
 
+def test_parts_that_run_without_being_on_record_are_said_to_be_that_and_not_down(machine, dev):
+    # On 11 October 2026 a release lost the record of running parts while four of them ran. It said that none was
+    # running and, when it could not put the version before back, that "ATDR IS NOT RUNNING": the dashboard was up.
+    first = _git(dev, "rev-parse", "HEAD")
+    live = _live(machine, dev, first)
+    second = _commit(dev, "next", {"atdr/app/main.py": "version = 2\n"})
+    machine.stop(live, ["atdr-worker"])
+    (live / ".atdr_runtime" / "system-processes.json").unlink()
+    assert release.health(machine.tools, live) == [
+        "the API server answers but is not on the record of running parts",
+        "the dashboard answers but is not on the record of running parts",
+        "the MFU sign-in service answers but is not on the record of running parts",
+        "the MFU sign-in page answers but is not on the record of running parts",
+        "the background worker is not running",
+    ]
+
+    # A release into that: nothing on record can be stopped, so the start finds its addresses taken, twice.
+    machine.fail.add("start")
+    result = release.release(machine.tools, dev, live)
+    assert not result["ok"] and result["live_down"]
+    assert result["words"].startswith(f"Version {second[:7]} did not go live (ATDR did not start: ")
+    assert "ATDR'S API ANSWERS, BUT ATDR IS NOT IN ORDER: the API server answers but is not on the record of running parts; " in result["words"]
+    assert "ATDR IS NOT RUNNING" not in result["words"] and result["words"].endswith("When the cause is fixed: scripts\\release.cmd recover")
+
+
 def test_packages_that_cannot_be_installed_stop_the_release_before_anything_is_stopped(machine, dev):
     first = _git(dev, "rev-parse", "HEAD")
     live = _live(machine, dev, first)
@@ -598,8 +628,20 @@ def test_when_the_version_before_does_not_come_back_either_it_is_said_loudly_and
         "during startup.). ATDR IS NOT RUNNING. When the cause is fixed: scripts\\release.cmd recover")
     marker = json.loads((live / ".atdr_runtime" / release.MARKER).read_text(encoding="utf-8"))
     assert (marker["from"], marker["to"], marker["source"]) == (first, second, str(dev))
+    assert marker["driver"] == release.this_process(), "the process that made the release, so that others can tell whether it runs"
     with pytest.raises(ReleaseError, match="An earlier release did not finish"):
         release.release(machine.tools, dev, live)
+
+    # While the process that makes a release still runs, the release is under way: nobody else puts anything back.
+    release._write_json(live / ".atdr_runtime" / release.MARKER, {**marker, "driver": {"pid": 777, "started_at": "2026-10-11T05:33:00+00:00"}})
+    machine.pids[777] = (dev.parent, "the release itself")
+    done_before = list(machine.did)
+    with pytest.raises(ReleaseError, match="A release into this copy is under way right now"):
+        release.recover(machine.tools, live)
+    with pytest.raises(ReleaseError, match="Another release into this copy is under way right now. Wait for it to end."):
+        release.release(machine.tools, dev, live)
+    assert machine.did == done_before, "nothing was touched"
+    del machine.pids[777]
 
     # Once what was wrong is fixed, recover finishes the way back.
     machine.fail.clear()
@@ -1099,6 +1141,11 @@ def test_a_running_process_is_told_from_another_one_with_its_number():
     assert release.process_alive(mine, written)
     assert not release.process_alive(mine, (began - timedelta(minutes=5)).isoformat()), "the number was given to another process since"
     assert not release.process_alive(mine, "") and not release.process_alive(2147483000, written)
+    # A release writes itself down in the same way, and is found running by it.
+    me = release.this_process()
+    assert me["pid"] == mine and release.process_alive(me["pid"], me["started_at"])
+    assert release.under_way(Tools(), {"driver": me}) and not release.under_way(Tools(), {"driver": {"pid": 2147483000, "started_at": written}})
+    assert not release.under_way(Tools(), {}) and not release.under_way(Tools(), {"driver": None})
 
 
 # ---- Making the live copy ----

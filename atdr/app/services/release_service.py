@@ -214,15 +214,9 @@ def _time(value: Any) -> datetime | None:
     return moment if moment.tzinfo is not None else moment.replace(tzinfo=timezone.utc)
 
 
-def process_alive(pid: int, started_at: str) -> bool:
-    """Whether the process the start script recorded still runs: that number, started at that moment."""
+def _process_began(pid: int) -> datetime | None:
+    """When the running process with this number was started (Windows); None when there is none."""
 
-    if sys.platform != "win32":
-        try:
-            os.kill(pid, 0)
-        except OSError:
-            return False
-        return True
     import ctypes
     from ctypes import wintypes
 
@@ -234,21 +228,40 @@ def process_alive(pid: int, started_at: str) -> bool:
     kernel.CloseHandle.argtypes = [wintypes.HANDLE]
     handle = kernel.OpenProcess(0x1000, False, int(pid))  # PROCESS_QUERY_LIMITED_INFORMATION
     if not handle:
-        return False
+        return None
     try:
         created, ended, in_kernel, in_user = (wintypes.FILETIME() for _ in range(4))
         code = wintypes.DWORD()
         if not kernel.GetProcessTimes(handle, ctypes.byref(created), ctypes.byref(ended), ctypes.byref(in_kernel), ctypes.byref(in_user)):
-            return False
+            return None
         if not kernel.GetExitCodeProcess(handle, ctypes.byref(code)) or code.value != 259:  # STILL_ACTIVE
-            return False
+            return None
     finally:
         kernel.CloseHandle(handle)
-    began = datetime(1601, 1, 1, tzinfo=timezone.utc) + timedelta(
+    return datetime(1601, 1, 1, tzinfo=timezone.utc) + timedelta(
         microseconds=((created.dwHighDateTime << 32) | created.dwLowDateTime) // 10
     )
+
+
+def process_alive(pid: int, started_at: str) -> bool:
+    """Whether the process the start script recorded still runs: that number, started at that moment."""
+
+    if sys.platform != "win32":
+        try:
+            os.kill(pid, 0)
+        except OSError:
+            return False
+        return True
+    began = _process_began(pid)
     recorded = _time(started_at)
-    return recorded is not None and abs((began - recorded).total_seconds()) <= 5
+    return began is not None and recorded is not None and abs((began - recorded).total_seconds()) <= 5
+
+
+def this_process() -> dict[str, Any] | None:
+    """This process as the launcher's scripts record one, so that they can tell whether it still runs."""
+
+    began = _process_began(os.getpid()) if sys.platform == "win32" else None
+    return {"pid": os.getpid(), "started_at": began.isoformat()} if began is not None else None
 
 
 def _say(words: str) -> None:
@@ -850,7 +863,12 @@ def health(tools: Tools, root: Path, *, since: dict[str, dict[str, Any]] | None 
         words = PART_WORDS.get(name, name)
         record = records.get(name)
         if record is None or not tools.alive(int(record.get("pid") or 0), str(record.get("started_at") or "")):
-            wrong.append(f"{words} is not running")
+            # A part can run without being on the record (the record was lost, or something else started it). It
+            # is not "not running" then: nothing ATDR does can stop or restart it, which is another kind of wrong.
+            if name in ANSWERS_AT and tools.answers(ANSWERS_AT[name]):
+                wrong.append(f"{words} answers but is not on the record of running parts")
+            else:
+                wrong.append(f"{words} is not running")
         elif since is not None and (since.get(name) or {}).get("pid") != record.get("pid"):
             wrong.append(f"{words} stopped and had to be started again")
         elif name in ANSWERS_AT and not tools.answers(ANSWERS_AT[name]):
@@ -1035,6 +1053,13 @@ def _copy_folder(source: Path, target: Path) -> None:
 # ---- Moving the live copy to a version ----
 
 
+def under_way(tools: Tools, marker: dict[str, Any]) -> bool:
+    """Whether the release a marker belongs to is still being made: the process that wrote it runs."""
+
+    driver = marker.get("driver") if isinstance(marker.get("driver"), dict) else None
+    return bool(driver) and tools.alive(int(driver.get("pid") or 0), str(driver.get("started_at") or ""))
+
+
 def _require_live(live: Path) -> dict[str, Any]:
     record = read_record(live)
     if record is None:
@@ -1049,6 +1074,8 @@ def switch(tools: Tools, dev: Path, live: Path, target: str, *, checked: dict[st
     current = str(record["commit"])
     runtime = live / RUNTIME
     if (runtime / MARKER).is_file():
+        if under_way(tools, _read_json(runtime / MARKER) or {}):
+            raise ReleaseError("Another release into this copy is under way right now. Wait for it to end.")
         raise ReleaseError("An earlier release did not finish. Put the version before it back first: scripts\\release.cmd recover")
     head = resolve_commit(tools, live)
     if head != current:
@@ -1080,7 +1107,9 @@ def switch(tools: Tools, dev: Path, live: Path, target: str, *, checked: dict[st
             tools.say("  Installing this version's Python packages; ATDR keeps running meanwhile.")
             wanted = make_environment(tools, live, interpreter=interpreter, lock_text=lock_text)
 
+    # With the process that makes the release: while it runs the release is under way, not cut off.
     marker = {"from": current, "to": target, "started_at": tools.now().isoformat(), "source": str(dev),
+              "driver": this_process(),
               "environment_before": before.name if before else None, "dashboard_packages": changes.dashboard_packages,
               "database_backup": None}
 
@@ -1179,7 +1208,9 @@ def back_out(tools: Tools, live: Path, marker: dict[str, Any], *, why: str, targ
             raise ReleaseError("; ".join(wrong))
     except Exception as exc:  # noqa: BLE001 - said in words below; the marker stays, so nothing starts this folder by itself
         again = str(exc) if isinstance(exc, ReleaseError) else f"{exc.__class__.__name__}: {exc}"
-        state = "ATDR IS NOT RUNNING" if health(tools, live) else "ATDR's parts answer, but its files may not be one version"
+        # Said as it is: the dashboard may well be up while a part is missing or the files are between two versions.
+        state = ("ATDR'S API ANSWERS, BUT ATDR IS NOT IN ORDER: " + "; ".join(health(tools, live) or ["its files may not be one version"])
+                 if tools.answers(ANSWERS_AT["atdr-backend"]) else "ATDR IS NOT RUNNING")
         return {**result, "live_down": True, "words": (
             f"Version {short} did not go live ({why}), and version {back_to[:7]} could not be put back either ({again}). "
             f"{state}. When the cause is fixed: scripts\\release.cmd recover")}
@@ -1239,6 +1270,9 @@ def recover(tools: Tools, live: Path) -> dict[str, Any]:
     marker = _read_json(live / RUNTIME / MARKER)
     if marker is None or not marker.get("from"):
         return {"ok": True, "nothing_to_do": True, "words": "No release was cut off; there is nothing to put back."}
+    if under_way(tools, marker):
+        raise ReleaseError("A release into this copy is under way right now: it puts the version before back itself "
+                           "when it has to. Wait for it to end.")
     result = back_out(tools, live, marker, why="the release was cut off before it finished")
     return {**result, "ok": not result.get("live_down"), "recovered": not result.get("live_down")}
 

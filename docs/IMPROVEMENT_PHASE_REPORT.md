@@ -180,8 +180,13 @@ attacks. The assistant answered from a fixed list of question types.
   took 1 minute 42 seconds with ATDR down for 32 seconds. Before that, as a drill, the
   new version's background worker was ended while the release was watching it: twenty
   seconds later the release reported the cause, and 55 seconds after the worker had been
-  ended the version before was running again
-  (`docs/OPERATIONS_RUNBOOK.md`, Releasing A New Version).
+  ended the version before was running again. A later release that day went wrong in a way
+  no test had shown: Windows had given the stopped worker's process number to another
+  process, the new worker took it for the old one and would not start, and a start that
+  was refused in the middle of the release removed the record of the running parts, so the
+  version before could not be put back by itself. The dashboard stayed up, the background
+  worker was missing for four minutes, and it was put in order by hand. Both faults are
+  fixed and have tests (`docs/OPERATIONS_RUNBOOK.md`, Releasing A New Version).
 
 ### 2. A model trained on MFU traffic
 

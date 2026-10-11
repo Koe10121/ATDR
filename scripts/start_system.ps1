@@ -75,6 +75,9 @@ $kept = @()
 $Only = @($Only | ForEach-Object { $_ -split "," } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 $partial = @($Only).Count -gt 0
 $locked = $false
+# Whether this run has looked at the record of running parts (system-processes.json) and so knows what is on it.
+# A start that is refused before that must leave the record exactly as it is.
+$recordRead = $false
 try {
     $root = Get-AtdrProjectRoot
     $runtime = Get-AtdrRuntimeDirectory
@@ -88,6 +91,9 @@ try {
     $unfinished = Get-AtdrUnfinishedRelease
     if ($null -ne $unfinished -and -not $DuringRelease) {
         $began = if ($null -ne $unfinished.started_at) { " (it began $($unfinished.started_at.ToLocalTime().ToString('yyyy-MM-dd HH:mm')))" } else { "" }
+        if ($unfinished.under_way) {
+            throw "A release into this folder is under way$began. It stops and starts ATDR itself, and puts the version before back when the new one does not come up; nothing was started."
+        }
         $where = if ($unfinished.source) { " in $($unfinished.source)" } else { " in the folder ATDR is developed in" }
         throw "A release into this folder did not finish$began, so its files may be half of one version and half of another. Run .\scripts\release.cmd recover$where; it puts back the version that was running."
     }
@@ -105,6 +111,7 @@ try {
         Exit-AtdrStartLock
         exit 0
     }
+    $recordRead = $true
     if ($partial -and (Test-Path -LiteralPath $metadataPath)) {
         $metadata = Get-Content -LiteralPath $metadataPath -Raw | ConvertFrom-Json
         $kept = @(@($metadata.processes) | Where-Object { Test-TrackedProcessRecordActive $_ })
@@ -404,7 +411,12 @@ catch {
         Stop-Process -Id $record.pid -Force -ErrorAction SilentlyContinue
     }
     $metadataPath = Join-Path (Get-AtdrRuntimeDirectory) "system-processes.json"
-    if (@($kept).Count) {
+    if (-not $recordRead) {
+        # Refused before it looked at what is running (the folder ATDR is developed in, a release that did not
+        # finish): the record stays as it is. On 11 October 2026 such a refusal removed it while five parts ran,
+        # and from then on nothing could see, stop or restart them.
+    }
+    elseif (@($kept).Count) {
         # The parts that were running before this try still are.
         [ordered]@{
             version = 1

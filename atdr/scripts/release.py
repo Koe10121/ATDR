@@ -10,7 +10,8 @@ Usage (scripts\\release.cmd runs this):
 
 A commit is checked when GitHub's checks for exactly it are green or, when it is not on GitHub, when the whole
 test suite passes here (--local runs the tests here in any case). A version that does not come up healthy is put
-back by itself. Exit code 0: done; 1: refused, or the version before was put back; 2: ATDR is not running.
+back by itself. Exit code 0: done; 1: refused, or the version before was put back; 2: ATDR could not be put back
+in order (the message says whether it does not run at all, or answers without being in order).
 """
 
 from __future__ import annotations

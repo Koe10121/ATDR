@@ -192,7 +192,9 @@ Run in the folder ATDR is developed in:
 
 `check`, `go` and `setup` take a commit after them; without one they mean
 HEAD. Exit code 0: done; 1: refused, or the version before was put back; 2:
-ATDR is not running.
+ATDR could not be put back in order. The message then says whether it does
+not run at all or answers without being in order, and which part is the
+matter.
 
 **What counts as checked.** Only a commit on `main` that contains the version
 that runs is released, and only once it is checked:
@@ -275,7 +277,9 @@ until it is put in `C:\ATDR-live\.env`.
 `.atdr_runtime\release-in-progress.json` in the live copy. While it is there
 nothing starts that folder: its files may be half of one version and half of
 another. `release.cmd recover` puts back the version that was running and
-starts it.
+starts it. The file names the process that makes the release: while that
+process runs, the release counts as under way, a start that is refused says
+so, and `recover` waits.
 
 **Going back.** `release.cmd back` makes the version before the one that runs
 the version that runs, with the same steps. It refuses when the newer version
@@ -335,8 +339,35 @@ The third was refused, as it should be: in its check one backend test
 failed out of 1,857, so nothing was stopped and the version before went on
 running. The test timed 9 milliseconds of work against a limit of half a
 second and had once taken a second, when the machine paused. It now takes the
-best of five runs and compares it with the slow way measured beside it; the
-release went through on the next try.
+best of five runs and compares it with the slow way measured beside it.
+
+**A release that went wrong, and what it changed.** The try after that
+(12:33) found two faults that only a real release could show.
+
+- Its dashboard build put thirty seconds between the stop of the old
+  background worker and the start of the new one. In that time Windows gave
+  the old worker's process number to another process, and the new worker took
+  that process for the old worker and refused to start ("SQLite permits one
+  ATDR operation worker").
+- The release saw the worker missing and went to put the version before
+  back, as it should. But the watcher had tried to bring the worker back
+  first, that start was refused because a release was under way, and the
+  refusal removed the record of the running parts. Without the record the
+  release found nothing it could stop, could not start the version before on
+  addresses that were still in use, and ended with exit code 2.
+
+The dashboard and the API stayed up apart from two gaps of 35 and 15
+seconds. ATDR had no background worker for four minutes, and the watcher told
+people that ATDR could not be started and, a minute later, that it ran again.
+It was put in order by hand: the record was written again from the running
+processes, and `release.cmd recover` put version 1768cda back.
+
+Both faults are fixed. A worker is told from another process that got its
+number by when that process started. A start that is refused before it looked
+at the record leaves the record as it is. A part that runs without being on
+the record is said to be that, not "not running"; a start refused while a
+release is being made says that one is under way, not that it was cut off;
+and `recover` waits for a release that is still running.
 
 A release says the time at each step, and at its end how long ATDR's own
 parts were down. `check_system.cmd` in the live copy names the version that
@@ -895,6 +926,8 @@ disaster-recovery evidence from the host owner.
 | A change does not show in the running system | It is in the development folder only. Commit it and run `release.cmd go`; `release.cmd` says how many commits are waiting. |
 | A release says the version did not go live | The version before was put back and runs. The message names the part or step; that part's log is in the live copy's `.atdr_runtime\logs\`. Fix it in the development folder, commit, release again. |
 | Startup says a release into this folder did not finish | In the development folder run `release.cmd recover`. |
+| Startup says a release into this folder is under way | Wait: the release starts ATDR itself, and puts the version before back when the new one does not come up. |
+| A release ends with "could not be put back either" (exit code 2) | Read which part it names. A part that "answers but is not on the record of running parts" cannot be stopped by ATDR: end that process by hand (a `python.exe` or `node.exe` started from the live copy), then run `release.cmd recover`. |
 | The bell says ATDR's files were changed outside a release | `release.cmd` names the files. Put them back with `git -C C:\ATDR-live checkout -- .` and make the change in the development folder. |
 | A release says the tests would not be testing the commit | Something in the development folder is not committed. Commit it or put it aside; notes under `docs\` do not count. |
 | The System panel says the last backup failed | It names the cause (no free space, folder not usable, copy not healthy); the worker tries again an hour after each failure. |
