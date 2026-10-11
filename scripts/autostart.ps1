@@ -67,6 +67,14 @@ if ($Status) {
     exit 0
 }
 
+# The two entries belong to the folder ATDR runs from. Installed or removed from the folder it is developed in,
+# they would start that folder's unfinished work at the next sign-in, or leave the live copy with nobody starting it.
+$liveCopy = Get-AtdrLiveCopy
+if ($liveCopy) {
+    Write-Host "ATDR runs from $liveCopy, not from this folder (the one it is developed in). Run $liveCopy\scripts\autostart.cmd instead." -ForegroundColor Yellow
+    exit 1
+}
+
 if ($Remove) {
     $state = Get-AutostartState
     if ($state.watcher) {

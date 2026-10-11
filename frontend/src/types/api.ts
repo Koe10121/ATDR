@@ -4195,11 +4195,28 @@ export interface SystemNotifications {
   needs_attention: Array<{ key: string; title: string; since: string; urgent: boolean }>;
 }
 
+// The released version a live copy holds (scripts\release.cmd). There is none where ATDR runs from the folder it is developed in.
+export interface SystemVersion {
+  commit: string;
+  subject: string;
+  committed_at: string | null;
+  released_at: string | null;
+  checked_by: string;
+  // How it was checked before it went live, such as "GitHub's 7 checks passed".
+  check: string;
+  previous: string | null;
+  // False when the folder's files were moved to another commit by hand.
+  as_released: boolean;
+  // A release was cut off before it finished.
+  unfinished: boolean;
+}
+
 export interface SystemStatus {
   keeping_running: SystemKeepRunning;
   backups: SystemBackups;
   dashboard_build: { built: boolean; built_at: string | null; commit: string | null; uncommitted: boolean; stale: boolean };
   notifications: SystemNotifications;
+  version?: SystemVersion | null;
 }
 
 // What the bell shows.

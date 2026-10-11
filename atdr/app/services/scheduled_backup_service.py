@@ -43,6 +43,10 @@ from atdr.app.services.persistence_service import (
 
 PURPOSE_SCHEDULED = "scheduled"
 PURPOSE_BEFORE_RESET = "before_reset"
+# Taken by a release before it changes the database's schema (release_service.migrate).
+PURPOSE_BEFORE_RELEASE = "before_release"
+# A release that went wrong is noticed within days, so only the newest few of these are kept.
+BEFORE_RELEASE_KEPT = 3
 ACTOR = "scheduled_backup"
 BACKUP_CREATED = "database_backup_created"
 BACKUP_FAILED = "database_backup_failed"
@@ -326,6 +330,44 @@ def prune_backups(folder: Path, settings: Settings, *, zone: tzinfo | None = Non
         if _remove(backup.path, backup.manifest_path):
             deleted.append(backup.path.name)
     return deleted
+
+
+def thin_before_release(folder: Path, settings: Settings, *, keep: int = BEFORE_RELEASE_KEPT) -> list[str]:
+    """Deletes this database's backups taken before a release, except the newest few."""
+
+    taken = [backup for backup in own_backups(folder, settings) if backup.purpose == PURPOSE_BEFORE_RELEASE]
+    return [backup.path.name for backup in taken[max(0, keep):] if _remove(backup.path, backup.manifest_path)]
+
+
+def rename_source(folder: Path, *, was: str, now: str) -> int:
+    """The database was moved to another place: its backups in the folder follow it.
+
+    A backup belongs to the database its manifest names, by computer and path. After a move ATDR would count none
+    of the old ones as its own: the page would say no backup exists, and nothing would ever thin them out. Returns
+    how many backups were renamed; the record of the last copy to another disk moves with them.
+    """
+
+    renamed = 0
+    for manifest_path in folder.glob("*.manifest.json"):
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if not isinstance(manifest, dict) or manifest.get("source") != was:
+                continue
+            manifest["source"] = now
+            partial = manifest_path.with_name(f"{manifest_path.name}.partial")
+            # As persistence_service.create_database_backup writes it.
+            partial.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            partial.replace(manifest_path)
+            renamed += 1
+        except (OSError, ValueError):
+            continue
+    records = _offsite_records(folder)
+    if was in records:
+        records[now] = records.pop(was)
+        partial = folder / f"{OFFSITE_RECORD}.partial"
+        partial.write_text(json.dumps(records, indent=2) + "\n", encoding="utf-8")
+        partial.replace(folder / OFFSITE_RECORD)
+    return renamed
 
 
 def _windows_drives() -> list[Drive]:

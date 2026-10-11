@@ -15,6 +15,8 @@ param(
 # has stayed up for ten minutes. Each check is written to .atdr_runtime\watch-status.json, which the dashboard's
 # System panel reads, and each action to .atdr_runtime\logs\watch.log. The task "ATDR keep running"
 # (scripts\autostart.cmd) runs this and starts it again within a minute if it ever ends.
+# A release (scripts\release.cmd) stops ATDR's own parts on purpose and then asks this script to start them
+# (.atdr_runtime\start-request.json); it answers in .atdr_runtime\start-result.json.
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
@@ -76,11 +78,12 @@ catch {
 
 function Invoke-AtdrStart {
     # Runs the start script and waits for it alone (its output goes to files: see start_at_sign_in.ps1).
-    param([string[]]$Only = @())
+    param([string[]]$Only = @(), [switch]$DuringRelease)
     $out = Join-Path $logDir "watch.start.out.log"
     $err = Join-Path $logDir "watch.start.err.log"
     $arguments = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$(Join-Path $PSScriptRoot 'start_system.ps1')`"", "-NoBrowser")
     if ($Only.Count) { $arguments += @("-Only", ($Only -join ",")) }
+    if ($DuringRelease) { $arguments += "-DuringRelease" }
     $start = Start-Process -FilePath "powershell.exe" -ArgumentList $arguments -WorkingDirectory (Get-AtdrProjectRoot) -WindowStyle Hidden -RedirectStandardOutput $out -RedirectStandardError $err -PassThru
     $null = $start.Handle
     $start.WaitForExit()
@@ -127,6 +130,54 @@ function Add-AtdrRestart {
     param([string]$Name, [datetime]$Now)
     $kept = @(@($restarts[$Name]) | Where-Object { $null -ne $_ -and ($Now - $_).TotalHours -lt 24 })
     $restarts[$Name] = @($kept + $Now)
+}
+
+function Invoke-AtdrStartRequest {
+    # A release (scripts\release.cmd) has stopped parts of ATDR to change their files and asks for them back.
+    # They are started from here, so they belong to the watcher's task like any part it brings back; nothing that
+    # stopped by itself is behind this, so it is not counted as a restart. How it went is written for the release.
+    $path = Get-AtdrStartRequestPath
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return }
+    $request = $null
+    try { $request = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json } catch { }
+    Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
+    if ($null -eq $request -or [string]::IsNullOrWhiteSpace([string]$request.id)) {
+        Write-WatchLog "A request to start ATDR could not be read and was dropped."
+        return
+    }
+    $by = if ([string]$request.by) { [string]$request.by } else { "request" }
+    $release = [bool]$request.release
+    Set-AtdrDesiredState -State "running" -By $by
+    $expected = @(Get-AtdrExpectedParts (Read-DotEnvFile (Join-Path (Get-AtdrProjectRoot) ".env")))
+    $records = @()
+    $metadataPath = Join-Path $runtime "system-processes.json"
+    if (Test-Path -LiteralPath $metadataPath) {
+        try { $records = @((Get-Content -LiteralPath $metadataPath -Raw | ConvertFrom-Json).processes) } catch { $records = @() }
+    }
+    $alive = @($records | Where-Object { Test-TrackedProcessRecordActive $_ } | ForEach-Object { [string]$_.name })
+    $missing = @($expected | Where-Object { $_ -notin $alive })
+    $result = if (-not $missing.Count) {
+        [pscustomobject]@{ ok = $true; code = 0; said = "Every part was running already." }
+    }
+    elseif ($missing.Count -eq $expected.Count) {
+        Write-WatchLog "Starting ATDR, asked by $by."
+        Invoke-AtdrStart -DuringRelease:$release
+    }
+    else {
+        Write-WatchLog "Starting $($missing -join ', '), asked by $by."
+        Invoke-AtdrStart -Only $missing -DuringRelease:$release
+    }
+    Write-WatchLog $(if ($result.ok) { "Started what $by asked for." } else { "What $by asked for did not start (exit code $($result.code)): $($result.said)" })
+    $resultPath = Get-AtdrStartResultPath
+    [ordered]@{
+        id = [string]$request.id
+        ok = [bool]$result.ok
+        code = [int]$result.code
+        said = [string]$result.said
+        asked_for = @($missing)
+        at = (Get-Date).ToUniversalTime().ToString("o")
+    } | ConvertTo-Json | Set-Content -LiteralPath "$resultPath.arriving" -Encoding UTF8
+    Move-Item -LiteralPath "$resultPath.arriving" -Destination $resultPath -Force
 }
 
 function Invoke-AtdrWatchCheck {
@@ -267,13 +318,18 @@ try {
     while ($true) {
         $made += 1
         try {
+            Invoke-AtdrStartRequest
             Invoke-AtdrWatchCheck
         }
         catch {
             Write-WatchLog "A check failed: $($_.Exception.Message)"
         }
         if ($Checks -gt 0 -and $made -ge $Checks) { break }
-        Start-Sleep -Seconds ([Math]::Max(1, $IntervalSeconds))
+        # Until the next check; a request to start ATDR (a release) is answered within two seconds.
+        $until = (Get-Date).AddSeconds([Math]::Max(1, $IntervalSeconds))
+        while ((Get-Date) -lt $until -and -not (Test-Path -LiteralPath (Get-AtdrStartRequestPath) -PathType Leaf)) {
+            Start-Sleep -Milliseconds ([int][Math]::Max(100, [Math]::Min(2000, ($until - (Get-Date)).TotalMilliseconds)))
+        }
     }
 }
 finally {

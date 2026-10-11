@@ -913,3 +913,62 @@ function Read-AtdrWatchStatus {
         return $null
     }
 }
+
+function Restart-AtdrWatcher {
+    # Ends the watcher and has its task start it again, so that the watcher which runs is the script now in this
+    # folder (a release has just changed the files). False where the task is not installed.
+    [void](Stop-AtdrWatcherProcess)
+    # Windows needs a moment to see that the watcher which was just ended is gone.
+    for ($waited = 0; $waited -lt 20; $waited++) {
+        $task = Get-ScheduledTask -TaskName $AtdrWatcherTaskName -ErrorAction SilentlyContinue
+        if ($null -eq $task) { return $false }
+        if ([string]$task.State -ne "Running") { break }
+        Start-Sleep -Milliseconds 500
+    }
+    return (Start-AtdrWatcherTask)
+}
+
+# ---- Releases (scripts\release.cmd) ----
+#
+# ATDR runs from a copy of its own, which only ever holds a version that was committed and checked. The folder it is
+# developed in records where that copy is; the copy records which version it holds.
+
+function Get-AtdrLiveCopy {
+    # Where ATDR runs from, when this folder is the one it is developed in. Nothing in the live copy itself, and
+    # nothing on a machine where ATDR still runs from the folder it is developed in.
+    $path = Join-Path (Get-AtdrRuntimeDirectory) "live-copy.json"
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $null }
+    try {
+        $root = [string](Get-Content -LiteralPath $path -Raw | ConvertFrom-Json).root
+        if ([string]::IsNullOrWhiteSpace($root)) { return $null }
+        return $root
+    }
+    catch {
+        return $null
+    }
+}
+
+function Get-AtdrUnfinishedRelease {
+    # A release that was cut off (the machine went down in the middle of it): this folder may hold half of one
+    # version and half of another. The release writes this before it changes a file and removes it at the end.
+    $path = Join-Path (Get-AtdrRuntimeDirectory) "release-in-progress.json"
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $null }
+    try {
+        $value = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+        return [pscustomobject]@{ started_at = ConvertTo-AtdrUtc $value.started_at; source = [string]$value.source }
+    }
+    catch {
+        # Unreadable is still unfinished.
+        return [pscustomobject]@{ started_at = $null; source = "" }
+    }
+}
+
+function Get-AtdrStartRequestPath {
+    # A release has stopped ATDR's own parts and asks the watcher to start them: started by the watcher they belong
+    # to its task, like any part it brings back; started by the release they would end with the release's window.
+    return Join-Path (Get-AtdrRuntimeDirectory) "start-request.json"
+}
+
+function Get-AtdrStartResultPath {
+    return Join-Path (Get-AtdrRuntimeDirectory) "start-result.json"
+}

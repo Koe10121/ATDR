@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useSendTestNotification, useSystemStatus } from "../hooks/useApiQueries";
-import type { NotificationChannel, SystemBackups, SystemKeepRunning, SystemNotifications, SystemPart, SystemStatus } from "../types/api";
+import type { NotificationChannel, SystemBackups, SystemKeepRunning, SystemNotifications, SystemPart, SystemStatus, SystemVersion } from "../types/api";
 import { ErrorBanner } from "./ErrorBanner";
 
 // How ATDR looks after itself on this machine: whether a stopped part is started again, when the database was last
-// backed up and where its copies are, whom it tells about alerts and problems, and which build of the dashboard this is.
+// backed up and where its copies are, whom it tells about alerts and problems, which checked version runs, and which
+// build of the dashboard this is.
 
 const day = (value: string | null | undefined) =>
   value
@@ -178,6 +179,39 @@ export function channelText(channel: NotificationChannel): { state: string; last
   return { state: `On${where}`, last: channel.last_sent_at ? `Sent ${day(channel.last_sent_at)}` : "Nothing sent yet", warn: false };
 }
 
+export function versionText(version: SystemVersion | null | undefined): { state: string; detail: string; warn: boolean } {
+  if (!version) {
+    return {
+      state: "ATDR runs from the folder it is developed in.",
+      detail: "A change to a file there goes live when a part restarts. scripts\\release.cmd setup makes a live copy that only takes checked versions.",
+      warn: false
+    };
+  }
+  const since = version.released_at ? `, live since ${day(version.released_at)}` : "";
+  if (version.unfinished) {
+    return {
+      state: "A release did not finish.",
+      detail: `The folder ATDR runs from may hold half of one version and half of another. In the folder ATDR is developed in, run scripts\\release.cmd recover: it puts version ${version.commit} back.`,
+      warn: true
+    };
+  }
+  if (!version.as_released) {
+    return {
+      state: `The files are not version ${version.commit} any more.`,
+      detail: "Someone moved the folder ATDR runs from to another commit by hand, past the check a release makes. scripts\\release.cmd in the folder ATDR is developed in shows what differs.",
+      warn: true
+    };
+  }
+  // A commit's subject without its kind ("fix: ", "feat(ui): "), and without a full stop of its own.
+  const change = version.subject.replace(/^[a-z]+(\([^)]*\))?:\s*/, "").replace(/\.$/, "");
+  const said = [
+    change ? `Its last change: ${change}.` : "",
+    version.check ? `Checked before it went live: ${version.check}.` : "",
+    version.previous ? `The version before it was ${version.previous}.` : ""
+  ];
+  return { state: `Version ${version.commit}${since}.`, detail: said.filter(Boolean).join(" "), warn: false };
+}
+
 function Channels({ notifications }: { notifications: SystemNotifications }) {
   const test = useSendTestNotification();
   const [said, setSaid] = useState<{ ok: boolean; words: string } | null>(null);
@@ -295,6 +329,7 @@ export function SystemPanel() {
           {offsite ? <Line testId="system-offsite" text={offsite} /> : null}
           <Line testId="system-notifications" text={notificationText(data.notifications)} />
           <Channels notifications={data.notifications} />
+          <Line testId="system-version" text={versionText(data.version)} />
           {buildText(data) ? (
             <p className="mt-2 text-sm text-muted" data-testid="system-build">
               {buildText(data)}

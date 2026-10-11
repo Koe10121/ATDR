@@ -673,3 +673,103 @@ def test_backup_settings_are_checked(monkeypatch):
     defaults = Settings(_env_file=None)
     assert (defaults.backup_schedule_hours, defaults.backup_keep_daily, defaults.backup_keep_weekly, defaults.backup_keep_monthly,
             defaults.backup_offsite_folder, defaults.backup_directory) == (0.0, 7, 4, 6, "ATDR-backups", "")
+
+
+# ---- What a release needs of the backups (atdr/app/services/release_service.py) ----
+
+
+def test_a_database_that_was_moved_takes_its_backups_with_it(tmp_path):
+    # ATDR was moved from the folder it is developed in to a live copy. A backup belongs to the database its
+    # manifest names by computer and path, so at its new place ATDR counted none of the old ones as its own.
+    settings, db = _system(tmp_path)
+    other, other_db = _other_database(tmp_path, settings)
+    usb, connected = _usb(tmp_path)
+    folder = _folder(settings)
+    first = _run(db, settings, START, find_offsite=connected)["backup"]["artifact_name"]
+    second = _run(db, settings, START + DAY, find_offsite=connected)["backup"]["artifact_name"]
+    theirs = _run(other_db, other, START + DAY, find_offsite=connected)["backup"]["artifact_name"]
+    unreadable = folder / "atdr-sqlite-20200101T000000Z-00000000.sqlite3.manifest.json"
+    unreadable.write_text("{ not json", encoding="utf-8")
+
+    new_place = tmp_path / "live" / "atdr.db"
+    new_place.parent.mkdir()
+    with closing(sqlite3.connect(tmp_path / "C" / "atdr.db")) as source, closing(sqlite3.connect(new_place)) as copy:
+        source.backup(copy)
+    moved = _with(settings, DATABASE_URL=f"sqlite:///{new_place.as_posix()}")
+    later = START + DAY + timedelta(hours=1)
+    assert backups.own_backups(folder, moved) == [] and backup_status(db, settings=moved, now=later, find_offsite=NO_DRIVE)["last"] is None
+    assert backups.backup_due(moved, now=later), "it would take a backup at once and never thin the old ones out"
+
+    was, now = database_label(settings.database_url), database_label(moved.database_url)
+    assert backups.rename_source(folder, was=was, now=now) == 2
+
+    assert sorted(backup.path.name for backup in backups.own_backups(folder, moved)) == sorted([first, second])
+    assert backups.own_backups(folder, settings) == [], "the place it left has none"
+    assert [backup.path.name for backup in backups.own_backups(folder, other)] == [theirs], "another database's are not touched"
+    status = backup_status(db, settings=moved, now=later, find_offsite=NO_DRIVE)
+    assert (status["last"]["name"], status["kept"], status["overdue"]) == (second, 2, False) and not backups.backup_due(moved, now=later)
+    # The record of the last copy to another disk moved with them, and the other database kept its own.
+    assert status["offsite"]["last_copy"]["artifact_name"] == second
+    assert backups.read_offsite_record(folder, settings) is None and backups.read_offsite_record(folder, other)["artifact_name"] == theirs
+    # A manifest still vouches for its backup, written as it was before.
+    manifest_path = folder / f"{second}.manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["source"] == now and manifest["purpose"] == "scheduled" and list(manifest) == sorted(manifest)
+    assert persistence_service.verify_database_backup_artifact(backup_path=folder / second)["ok"]
+    assert unreadable.read_text(encoding="utf-8") == "{ not json" and not list(folder.glob("*.partial"))
+
+    assert backups.rename_source(folder, was=was, now=now) == 0, "a second time finds nothing to rename"
+    assert backups.rename_source(tmp_path / "no-such-folder", was=was, now=now) == 0
+    # And back, as when the move is undone.
+    assert backups.rename_source(folder, was=now, now=was) == 2
+    assert sorted(backup.path.name for backup in backups.own_backups(folder, settings)) == sorted([first, second])
+    assert backups.read_offsite_record(folder, settings)["artifact_name"] == second
+
+
+def test_backups_taken_before_a_release_are_thinned_to_the_newest_three(tmp_path):
+    settings, db = _system(tmp_path)
+    other, _other_db = _other_database(tmp_path, settings)
+    folder = _folder(settings)
+    taken = [take_backup(settings, purpose=backups.PURPOSE_BEFORE_RELEASE, now=START + DAY * day)["artifact_name"] for day in range(5)]
+    theirs = [take_backup(other, purpose=backups.PURPOSE_BEFORE_RELEASE, now=START - DAY * day)["artifact_name"] for day in range(4)]
+    by_hand = take_backup(settings, purpose="manual", now=START - DAY * 30)["artifact_name"]
+    before_reset = take_backup(settings, purpose=backups.PURPOSE_BEFORE_RESET, now=START - DAY * 30)["artifact_name"]
+    scheduled = _run(db, settings, START - DAY * 40)["backup"]["artifact_name"]
+
+    assert sorted(backups.thin_before_release(folder, settings)) == sorted(taken[:2]), "the two oldest of this database's own"
+    assert _names(folder) == sorted([*taken[2:], *theirs, by_hand, before_reset, scheduled])
+    assert backups.thin_before_release(folder, settings) == [] and backups.BEFORE_RELEASE_KEPT == 3
+    assert sorted(backups.thin_before_release(folder, other, keep=1)) == sorted(theirs[1:])
+
+
+def test_the_backup_command_takes_a_checked_backup_where_the_scheduled_ones_go(tmp_path, monkeypatch, capsys):
+    from atdr.scripts import backup_now
+
+    settings, _db = _system(tmp_path)
+    folder = _folder(settings)
+    monkeypatch.setattr(backup_now, "get_settings", lambda: settings)
+    older = [take_backup(settings, purpose=backups.PURPOSE_BEFORE_RELEASE, now=START - DAY * day)["artifact_name"] for day in range(1, 4)]
+
+    assert backup_now.main(["--purpose", "before_release", "--json"]) == 0
+    said = json.loads(capsys.readouterr().out)
+    backup = Path(said["backup_path"])
+    assert said["ok"] and backup.parent == folder and backup.name == said["artifact_name"] and said["folder"] == str(folder)
+    assert said["thinned"] == [older[-1]], "with the new one there are four; the oldest goes"
+    manifest = json.loads((folder / f"{backup.name}.manifest.json").read_text(encoding="utf-8"))
+    assert manifest["purpose"] == "before_release" and manifest["source"] == database_label(settings.database_url)
+    assert persistence_service.verify_database_backup_artifact(backup_path=backup)["ok"]
+
+    # By hand: said in a sentence. It is never thinned out, and it thins nothing: a fourth backup taken before a
+    # release, put there by something else, stays until the next release.
+    take_backup(settings, purpose=backups.PURPOSE_BEFORE_RELEASE, now=START + DAY)
+    assert backup_now.main([]) == 0
+    assert capsys.readouterr().out.startswith(f"Backup taken and checked: {folder}")
+    assert sorted(found.purpose for found in backups.own_backups(folder, settings)) == ["before_release"] * 4 + ["manual"]
+
+    # No room: nothing is left behind, and the command says why in words and in its exit code.
+    before = _names(folder)
+    monkeypatch.setattr(backups, "_free_bytes", lambda _where: 0)
+    assert backup_now.main(["--purpose", "before_release", "--json"]) == 1
+    assert json.loads(capsys.readouterr().out) == {"ok": False, "status": "not_enough_free_space", "words": "there is not enough free space for it"}
+    assert backup_now.main([]) == 1 and capsys.readouterr().out.strip() == "No backup was taken: there is not enough free space for it."
+    assert _names(folder) == before

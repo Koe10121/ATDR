@@ -5,7 +5,12 @@ param(
     [switch]$NoBrowser,
     # Start only these parts beside the ones already running. scripts\watch_system.ps1 uses it to bring back a
     # part that stopped; a person starts ATDR without it.
-    [string[]]$Only = @()
+    [string[]]$Only = @(),
+    # Start this folder's own copy although ATDR runs from a live copy elsewhere (scripts\release.cmd).
+    [switch]$Development,
+    # Given by the watcher when a release asks it to start ATDR: the release is the one start that may run while
+    # the release itself is on record as unfinished.
+    [switch]$DuringRelease
 )
 
 Set-StrictMode -Version Latest
@@ -74,6 +79,18 @@ try {
     $root = Get-AtdrProjectRoot
     $runtime = Get-AtdrRuntimeDirectory
     $metadataPath = Join-Path $runtime "system-processes.json"
+    # Only a version that was committed and checked runs live: the folder ATDR is developed in is not started by
+    # accident, and a folder a release left half changed is not started at all.
+    $liveCopy = Get-AtdrLiveCopy
+    if ($liveCopy -and -not $Development) {
+        throw "This is the folder ATDR is developed in; ATDR runs from $liveCopy. Start it there ($liveCopy\scripts\start_system.cmd), or put a new version there with .\scripts\release.cmd go. To start this folder's own copy anyway, add -Development."
+    }
+    $unfinished = Get-AtdrUnfinishedRelease
+    if ($null -ne $unfinished -and -not $DuringRelease) {
+        $began = if ($null -ne $unfinished.started_at) { " (it began $($unfinished.started_at.ToLocalTime().ToString('yyyy-MM-dd HH:mm')))" } else { "" }
+        $where = if ($unfinished.source) { " in $($unfinished.source)" } else { " in the folder ATDR is developed in" }
+        throw "A release into this folder did not finish$began, so its files may be half of one version and half of another. Run .\scripts\release.cmd recover$where; it puts back the version that was running."
+    }
     if (-not $DryRun) {
         # The sign-in start and the watcher must not launch the same parts at the same moment.
         $locked = Enter-AtdrStartLock
@@ -183,7 +200,10 @@ try {
 
     $reactCli = Join-Path $root "frontend\node_modules\vite\bin\vite.js"
     $vueCli = Join-Path $template "frontend-vue\node_modules\@vue\cli-service\bin\vue-cli-service.js"
-    if (-not (Test-Path -LiteralPath $reactCli)) { throw "ATDR frontend dependencies are missing. Run .\scripts\setup_team.cmd." }
+    # The dashboard is served from its built files, so the tools that build it are needed only where there is no
+    # build yet. Without them a changed source is not built (the build step below says so) and the last build is served.
+    $dashboardBuilt = Test-Path -LiteralPath (Join-Path $root "frontend\dist\index.html") -PathType Leaf
+    if (-not (Test-Path -LiteralPath $reactCli) -and -not $dashboardBuilt) { throw "ATDR frontend dependencies are missing. Run .\scripts\setup_team.cmd." }
     if (-not (Test-Path -LiteralPath $vueCli)) { throw "MFU shell frontend dependencies are missing. Run .\scripts\setup_team.cmd." }
 
     # What this run starts: every part ATDR is set up to run, or with -Only the parts named.

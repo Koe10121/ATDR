@@ -143,7 +143,8 @@ def test_the_status_puts_backups_the_worker_and_the_build_together(tmp_path):
     options = {"settings": settings, "now": NOW, "runtime": tmp_path / "none", "frontend": frontend, "find_offsite": lambda _settings: []}
 
     quiet = system_status(db, **options)
-    assert set(quiet) == {"keeping_running", "backups", "dashboard_build", "notifications"}
+    assert set(quiet) == {"keeping_running", "backups", "dashboard_build", "notifications", "version"}
+    assert quiet["version"] is None, "a folder with no release on record is the one ATDR is developed in"
     assert quiet["notifications"]["enabled"] is True and quiet["notifications"]["worker_running"] is False
     assert set(quiet["notifications"]["channels"]) == {"windows", "email", "chat"}
     assert quiet["dashboard_build"] == {"built": True, "built_at": "2026-10-09T04:12:36+00:00", "commit": "e4ca530",
@@ -177,6 +178,28 @@ def test_the_status_puts_backups_the_worker_and_the_build_together(tmp_path):
     (frontend / "src").mkdir()
     (frontend / "src" / "main.tsx").write_text("changed since the build", encoding="utf-8")
     assert system_status(db, **options)["dashboard_build"]["stale"] is True
+
+    # A live copy says which released version it holds, and whether its files are still at it.
+    commit = "c4933319a38eca34fba6b587106fbdb4dfd3bb61"
+    live = tmp_path / "live"
+    (live / ".atdr_runtime").mkdir(parents=True)
+    (live / ".git").mkdir()
+    (live / ".git" / "HEAD").write_text(commit + "\n", encoding="utf-8")
+    (live / ".atdr_runtime" / "release.json").write_text(json.dumps({
+        "commit": commit, "short": "c493331", "subject": "fix: a test that depended on the machine's time zone",
+        "committed_at": "2026-10-10T11:52:04+07:00", "released_at": "2026-10-10T08:40:00+00:00", "checked_by": "github",
+        "check": "GitHub's 7 checks passed", "previous": {"commit": "4922c71" + "0" * 33, "short": "4922c71"},
+    }), encoding="utf-8")
+    released = system_status(db, **{**options, "runtime": live / ".atdr_runtime"})["version"]
+    assert released == {
+        "commit": "c493331", "subject": "fix: a test that depended on the machine's time zone",
+        "committed_at": datetime(2026, 10, 10, 4, 52, 4, tzinfo=timezone.utc), "released_at": datetime(2026, 10, 10, 8, 40, tzinfo=timezone.utc),
+        "checked_by": "github", "check": "GitHub's 7 checks passed", "previous": "4922c71", "as_released": True, "unfinished": False,
+    }
+    (live / ".git" / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+    (live / ".atdr_runtime" / "release-in-progress.json").write_text("{}", encoding="utf-8")
+    moved = system_status(db, **{**options, "runtime": live / ".atdr_runtime"})["version"]
+    assert (moved["as_released"], moved["unfinished"]) == (False, True)
 
 
 def test_only_an_admin_is_given_the_system_status(monkeypatch, tmp_path):
@@ -215,5 +238,6 @@ def test_only_an_admin_is_given_the_system_status(monkeypatch, tmp_path):
         assert body["keeping_running"]["watching"] is False and body["keeping_running"]["meant_to_be"] == "unknown"
         assert body["backups"]["scheduled"] is False and body["backups"]["offsite"]["wanted"] is False
         assert set(body["dashboard_build"]) == {"built", "built_at", "commit", "uncommitted", "stale"}
+        assert body["version"] is None
     finally:
         app.dependency_overrides.clear()

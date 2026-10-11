@@ -59,6 +59,7 @@ from atdr.app.services.notification_channels import (
     describe_channels,
 )
 from atdr.app.services.persistence_service import _sqlite_path
+from atdr.app.services.release_service import files_changed
 from atdr.app.services.scheduled_backup_service import backup_status, failure_words, offsite_folders
 from atdr.app.services.syslog_service import live_feed_status
 from atdr.app.services.system_status_service import PARTS, RUNTIME, keeping_running_status
@@ -464,6 +465,22 @@ def worker_problems(
             "watcher_not_running", "Nothing is watching ATDR's parts",
             "A part that stops stays stopped until someone starts ATDR again. Run scripts\\autostart.cmd once on this machine.",
             over="ATDR's parts are watched again.", urgent=False, grace=timedelta(minutes=10),
+        ))
+    changed = files_changed(runtime.parent)
+    if changed is not None:
+        files = changed["files"]
+        named = ", ".join(files[:3]) + (f" and {len(files) - 3} more" if len(files) > 3 else "")
+        what = (
+            f"The folder ATDR runs from was moved by hand to another commit than version {changed['version']}, the one on record."
+            if changed["moved"] else
+            f"{len(files)} {'file' if len(files) == 1 else 'files'} in the folder ATDR runs from no longer "
+            f"{'holds' if len(files) == 1 else 'hold'} what version {changed['version']} holds: {named}."
+        )
+        found.append(Problem(
+            "files_changed", "ATDR's files were changed outside a release",
+            f"{what} What was changed runs at the next restart without having been checked. Make the change in the folder "
+            "ATDR is developed in and release it (scripts\\release.cmd go); scripts\\release.cmd shows what differs.",
+            over="ATDR's files are the released version again.", urgent=False, grace=timedelta(0),
         ))
     return found
 

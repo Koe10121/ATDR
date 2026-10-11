@@ -1,4 +1,4 @@
-"""What the System panel says: whether ATDR's parts are kept running, its backups, and the dashboard's build.
+"""What the System panel says: whether ATDR's parts are kept running, its backups, its version and the dashboard's build.
 
 The watcher (scripts/watch_system.ps1) is not part of this process. It writes what it sees and does to
 .atdr_runtime/watch-status.json at every check, and start_system and stop_system write what ATDR is meant to be
@@ -21,6 +21,7 @@ from atdr.app.core.config import PROJECT_ROOT, Settings, get_settings
 from atdr.app.db.models import OperationWorkerHeartbeat
 from atdr.app.services.auto_detection_service import LIVE_WORKER_STATES
 from atdr.app.services.dashboard_build_service import FRONTEND, build_state
+from atdr.app.services.release_service import version_status
 from atdr.app.services.scheduled_backup_service import backup_status, failure_words
 
 RUNTIME = PROJECT_ROOT / ".atdr_runtime"
@@ -164,4 +165,6 @@ def system_status(
         "backups": backups,
         "dashboard_build": {key: build[key] for key in ("built", "built_at", "commit", "uncommitted", "stale")},
         "notifications": notifications,
+        # Which released version this is; None where ATDR runs from the folder it is developed in.
+        "version": version_status(runtime.parent),
     }

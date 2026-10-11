@@ -152,6 +152,18 @@ const smokeSystemStatus = {
     }
   },
   dashboard_build: { built: true, built_at: "2026-10-09T02:38:30Z", commit: "e4ca530", uncommitted: false, stale: false },
+  // A live copy: the version that was released into it, and how that version was checked.
+  version: {
+    commit: "e4ca530",
+    subject: "fix: an alert's evidence is counted once.",
+    committed_at: "2026-10-09T02:20:00Z",
+    released_at: "2026-10-09T02:38:00Z",
+    checked_by: "github",
+    check: "GitHub's 7 checks passed",
+    previous: "b7f24a1",
+    as_released: true,
+    unfinished: false
+  },
   // Email is set up and has sent; no chat group has been given.
   notifications: {
     enabled: true,
@@ -7602,6 +7614,12 @@ test("the System panel says how ATDR looks after itself, and what is wrong when 
   await expect(panel.getByTestId("system-offsite")).toContainText("A copy is on another disk. Last copied to KINGSTON (E:)");
   await expect(panel.getByTestId("system-build")).toContainText("(version e4ca530).");
   await expect(panel.getByTestId("system-build")).not.toContainText("has changed since");
+  // Which checked version runs. A commit's kind ("fix: ") and its own full stop are not repeated to the reader.
+  await expect(panel.getByTestId("system-version")).toContainText("Version e4ca530, live since 9 Oct");
+  await expect(panel.getByTestId("system-version")).toContainText(
+    "Its last change: an alert's evidence is counted once. Checked before it went live: GitHub's 7 checks passed. The version before it was b7f24a1."
+  );
+  await expect(panel.getByTestId("system-version").locator("span").first()).not.toHaveClass(/text-amber/);
   await expect(panel.getByTestId("system-notifications")).toContainText("ATDR tells people about new Critical alerts at once, and about problems of its own.");
   await expect(panel.getByTestId("system-notifications")).toContainText(
     "A burst is one message, and while alerts keep coming the next follows after 30 minutes. Everything else is in a summary each day at 08:00."
@@ -7641,6 +7659,26 @@ test("the System panel says how ATDR looks after itself, and what is wrong when 
   await expect(panel.getByTestId("system-offsite")).toContainText("Connect a drive that has a folder named ATDR-backups at its top");
   await expect(panel.getByTestId("system-build")).toContainText("(version e4ca530, with changes not yet committed).");
   await expect(panel.getByTestId("system-build")).toContainText("Its source has changed since; ATDR builds it again at its next start.");
+  // No released version on record: this ATDR runs from the folder it is developed in, which is said and is no alarm.
+  await expect(panel.getByTestId("system-version")).toContainText("ATDR runs from the folder it is developed in.");
+  await expect(panel.getByTestId("system-version")).toContainText("scripts\\release.cmd setup makes a live copy that only takes checked versions.");
+  await expect(panel.getByTestId("system-version").locator("span").first()).not.toHaveClass(/text-amber/);
+
+  // The folder ATDR runs from was moved past a release's check, or a release was cut off: both are alarms.
+  status = { ...base, version: { ...base.version, as_released: false } };
+  await page.reload();
+  await expect(panel.getByTestId("system-version")).toContainText("The files are not version e4ca530 any more.");
+  await expect(panel.getByTestId("system-version")).toContainText("past the check a release makes");
+  await expect(panel.getByTestId("system-version").locator("span").first()).toHaveClass(/text-amber/);
+  status = { ...base, version: { ...base.version, unfinished: true, previous: null } };
+  await page.reload();
+  await expect(panel.getByTestId("system-version")).toContainText("A release did not finish.");
+  await expect(panel.getByTestId("system-version")).toContainText("run scripts\\release.cmd recover: it puts version e4ca530 back.");
+  await expect(panel.getByTestId("system-version").locator("span").first()).toHaveClass(/text-amber/);
+  // A version with nothing before it and a subject without a kind.
+  status = { ...base, version: { ...base.version, subject: "The first version", check: "", previous: null } };
+  await page.reload();
+  await expect(panel.getByTestId("system-version")).toHaveText(/Version e4ca530, live since 9 Oct[^.]*\. Its last change: The first version\.$/);
 
   // Backups switched off, a part that keeps stopping, and no copy on another disk at all.
   status = {

@@ -456,6 +456,52 @@ def test_a_problem_that_ends_before_it_has_lasted_is_never_mentioned(tmp_path):
     assert _look(db, settings, START + HOUR * 2, outbox, runtime=runtime)["made"][0]["title"] == "ATDR's parts are watched again."
 
 
+def test_files_of_the_live_copy_changed_outside_a_release_are_a_reminder_in_the_bell(tmp_path, monkeypatch):
+    # ATDR runs from a copy that only takes checked versions (release_service). A file edited there by hand would
+    # run at the next restart with no check at all, and nothing would say so.
+    settings, db = _system(tmp_path)
+    outbox = _Outbox()
+    asked, state = [], {"changed": None}
+
+    def changed(root: Path) -> dict | None:
+        asked.append(root)
+        return state["changed"]
+
+    monkeypatch.setattr(notify, "files_changed", changed)
+    runtime = tmp_path / "live" / ".atdr_runtime"
+    _look(db, settings, START, outbox, runtime=runtime)
+    assert asked == [tmp_path / "live"], "the folder ATDR runs from is the one that is looked at"
+    assert _kinds(db) == ["started"]
+
+    state["changed"] = {"version": "c493331", "moved": False, "files": ["atdr/app/main.py"]}
+    told = _look(db, settings, START + MINUTE * 5, outbox, runtime=runtime)["made"]
+    assert told == [{"id": 2, "kind": "problem", "title": "ATDR's files were changed outside a release"}]
+    reminder = _last(db)
+    assert (reminder.level, reminder.audience, outbox.sent) == ("info", "admin", []), "in the bell, not sent out"
+    assert reminder.body == (
+        "1 file in the folder ATDR runs from no longer holds what version c493331 holds: atdr/app/main.py. What was changed runs "
+        "at the next restart without having been checked. Make the change in the folder ATDR is developed in and release it "
+        "(scripts\\release.cmd go); scripts\\release.cmd shows what differs.")
+
+    def seen() -> str:
+        found = [problem for problem in notify.worker_problems(db, settings=settings, now=START, runtime=runtime, find_offsite=NO_DRIVE)
+                 if problem.key == "files_changed"]
+        assert len(found) == 1 and not found[0].urgent and found[0].grace == timedelta(0)
+        return found[0].body
+
+    state["changed"] = {"version": "c493331", "moved": False, "files": ["a.py", "b.py", "c.py", "d.py", "e.py"]}
+    assert _look(db, settings, START + MINUTE * 10, outbox, runtime=runtime)["made"] == [], "told once while it lasts"
+    assert seen().startswith("5 files in the folder ATDR runs from no longer hold what version c493331 holds: a.py, b.py, c.py and 2 more. ")
+    state["changed"] = {"version": "c493331", "moved": True, "files": []}
+    assert seen().startswith(
+        "The folder ATDR runs from was moved by hand to another commit than version c493331, the one on record. What was changed runs")
+
+    state["changed"] = None
+    over = _look(db, settings, START + MINUTE * 20, outbox, runtime=runtime)["made"]
+    assert over == [{"id": 3, "kind": "resolved", "title": "ATDR's files are the released version again."}]
+    assert db.scalar(select(func.count()).select_from(NotificationCondition)) == 0 and outbox.sent == []
+
+
 def test_a_full_disk_and_a_failed_automatic_check_are_told(tmp_path, monkeypatch):
     settings, db = _system(tmp_path, ATDR_NOTIFY_DISK_FREE_GB=10, AUTO_DETECTION_ENABLED=True)
     outbox = _Outbox()
