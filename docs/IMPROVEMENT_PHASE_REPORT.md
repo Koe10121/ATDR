@@ -175,7 +175,13 @@ attacks. The assistant answered from a fixed list of question types.
   folder ATDR is developed in can no longer start it by accident, and a file changed by
   hand in the running copy is reported under the bell. Making the copy took 8 minutes on
   11 October, during which ATDR was down for 54 seconds, and the backups followed the
-  database to its new place (`docs/OPERATIONS_RUNBOOK.md`, Releasing A New Version).
+  database to its new place. The first release into it was the release command itself:
+  the check ran the whole suite in 15 minutes while ATDR kept running, and the release
+  took 1 minute 42 seconds with ATDR down for 32 seconds. Before that, as a drill, the
+  new version's background worker was ended while the release was watching it: twenty
+  seconds later the release reported the cause, and 55 seconds after the worker had been
+  ended the version before was running again
+  (`docs/OPERATIONS_RUNBOOK.md`, Releasing A New Version).
 
 ### 2. A model trained on MFU traffic
 
@@ -257,7 +263,7 @@ attacks. The assistant answered from a fixed list of question types.
 | MFU model on fresh simulated attacks | port scan 96.5%, brute force 97.5%, flood 100%, C2 88.5%, exfiltration 98.0% | Simulated |
 | Team labels, current rules | precision 96.7%, recall 99.2% | Agreement, not accuracy |
 | Assistant | 122 of 122 (31 reviewer questions and the demo's conversation added), and 26 of 27 held-out questions, in about 5 seconds per answer (7 Oct on the cleaned data, and again on 9 Oct on the regrouped list; 84 of 85 and 26 of 27 on 30 Sep; runs vary by a question or two) | Automatic scoring |
-| Tests | 1,791 backend and 91 browser tests passing (10 Oct) | |
+| Tests | 1,853 backend and 91 browser tests passing (11 Oct, the check before the first release) | |
 
 The live dashboard holds 85 alerts (Critical 23, High 11, Medium 39, Low 12) on
 120,001 logs, since the list was regrouped on 9 October (165 before, with the same

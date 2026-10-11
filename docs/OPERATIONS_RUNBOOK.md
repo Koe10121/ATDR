@@ -304,6 +304,30 @@ Measured on the team laptop on 2026-10-11, when the live copy was made
 The copy takes 3.1 GB. The System panel then showed the last backup of the
 day before: the two backups on D: had followed the database to its new place.
 
+The first release into it, the same day, was the release command itself
+(version 861cced: 25 files, the same packages, no change to the database):
+
+| Step | Time |
+| --- | --- |
+| The check on the laptop while ATDR ran: 1,853 backend tests, the migrations, the dashboard's lint and build, 91 browser tests | 14 min 44 s |
+| The release, from its first line to "ATDR runs version 861cced" | 1 min 42 s, the last minute of it the watch |
+| ATDR down | 32 s |
+
+That release still stopped the MFU sign-in page with the rest: the version it
+replaced had no way to leave it up.
+
+**A drill.** On the attempt before that one, the new version's background
+worker was ended at 11:14:08, two seconds after the release had begun to
+watch it. At its next look, twenty seconds later, the release said "Version
+861cced did not go live: the background worker is not running", stopped the
+new version and put the files and the dashboard of c493331 back. That version
+was running again 55 seconds after the worker had been ended; the release
+watched it for a minute and ended with exit code 1 and the reason. The copy's
+record kept both: `put_back`, with the reason, and then `released`.
+
+A release says the time at each step, and at its end how long ATDR's own
+parts were down.
+
 ## Notifications
 
 ATDR tells people what they need to know without anyone opening a page:
@@ -322,9 +346,14 @@ ATDR tells people what they need to know without anyone opening a page:
 - **Problems of its own**, when they begin and when they are over: a backup
   that failed, a part that keeps stopping, ATDR that could not be started,
   the live feed not running, losing lines or hearing nothing from the
-  firewall, a disk almost full, an automatic check that failed. Two things
+  firewall, a disk almost full, an automatic check that failed. Three things
   are reminders only, in the bell and in each daily summary but not sent
-  out: no recent copy of the backups on another disk, and no watcher.
+  out: no recent copy of the backups on another disk, no watcher, and files
+  of the live copy that were changed outside a release. A problem is told
+  once it has lasted its time, and the time the machine was switched off
+  does not count: on 2026-10-11, at its first start of the day, ATDR had
+  reported that nothing had been watching its parts for the 17 hours the
+  laptop was off.
 
 Every notification is kept 90 days under the **bell** in the dashboard's
 header; ATDR's own problems are shown there to admins only. A message names

@@ -290,6 +290,9 @@ class Machine:
         if "Start-ScheduledTask" in text:
             if self.tasks != root:
                 return Ran(1, err="The system cannot find the file specified.")
+            if "Stop-AtdrWatcherProcess" in text:
+                self.watching.discard(root)
+                self.did.append(f"watcher ended in {root.name}")
             self.did.append(f"sign-in start in {root.name}")
             if not self.fails("start", root):
                 self.start(root, [name for name in release.expected_parts(root) if name not in self.running(root)])
@@ -377,7 +380,8 @@ def test_a_checked_commit_becomes_the_version_that_runs(machine, dev):
     result = release.release(machine.tools, dev, live)
 
     assert result["ok"] and result["commit"] == second, result
-    assert result["words"] == f"ATDR runs version {second[:7]} (a better detection rule)."
+    assert result["words"] == f"ATDR runs version {second[:7]} (a better detection rule). Its own parts were down for 2 seconds."
+    assert result["down_seconds"] == 2, "from the stop until the watcher had started them again"
     assert machine.head(live) == second and (live / "atdr" / "app" / "main.py").read_text(encoding="utf-8") == "version = 2\n"
     # Only ATDR's own parts were stopped, the files changed while they were down, and the watcher started them.
     assert machine.did == ["own parts stopped in live", "dashboard built in live", "watcher started afresh in live",
@@ -393,6 +397,7 @@ def test_a_checked_commit_becomes_the_version_that_runs(machine, dev):
     assert record["released_at"] == machine.now().isoformat() and record["previous"]["commit"] == first
     assert [(entry["commit"], entry["outcome"]) for entry in record["history"]] == [(first, "installed"), (second, "released")]
     assert not (live / ".atdr_runtime" / release.MARKER).exists(), "nothing is left on record as under way"
+    assert not (live / ".atdr_runtime" / release.START_RESULT).exists() and not (live / ".atdr_runtime" / release.START_REQUEST).exists()
     assert machine.asked == [f"https://api.github.com/repos/example/atdr/commits/{second}/check-runs?per_page=100"]
     assert machine.clock >= release.HEALTH_CHECKS * release.HEALTH_EVERY_SECONDS, "it was watched before it counted as running"
 
@@ -731,7 +736,9 @@ def test_a_version_whose_scripts_know_nothing_of_releases_is_stopped_whole_and_s
     machine.did.clear()
     result = release.go_back(machine.tools, dev, live)
     assert result["ok"] and machine.head(live) == old
-    assert machine.did == ["own parts stopped in live", "dashboard built in live", "everything stopped in live", "sign-in start in live"]
+    # The watcher that is running holds the newer version's scripts: it is ended, and that version's own is started.
+    assert machine.did == ["own parts stopped in live", "dashboard built in live", "everything stopped in live",
+                           "watcher ended in live", "sign-in start in live"]
     assert sorted(machine.running(live)) == sorted(WITH_WORKER)
     record = release.read_record(live)
     assert record["previous"]["commit"] == new and record["history"][-1]["outcome"] == "went_back"
@@ -1062,6 +1069,15 @@ def test_a_live_copys_commands_take_nothing_from_the_window_the_release_runs_in(
     given = json.loads(release.run_command([sys.executable, "-c", show], env={"DATABASE_URL": "sqlite:///given.db"}).out)
     assert given["DATABASE_URL"] == "sqlite:///given.db" and given["PYTHONPATH"] is None
     assert {"DATABASE_URL", "PYTHONPATH", "PYTHONHOME", "VIRTUAL_ENV", "ATDR_BACKUP_DIRECTORY"} <= release.NOT_INHERITED
+
+
+def test_progress_is_said_with_the_time_and_a_length_of_time_in_words(capsys):
+    release._say("  Stopping ATDR's own parts.")
+    said = capsys.readouterr().out
+    assert said.rstrip("\r\n").endswith("   Stopping ATDR's own parts.") and said.count("\n") == 1
+    assert said[2] == said[5] == ":" and said[:2].isdigit() and len(said.split()[0]) == 8, "it begins with the time, as 11:16:40"
+    assert [release._lasted(seconds) for seconds in (0, 0.4, 1, 31.4, 59.6, 60, 104, 120, 3600)] == [
+        "0 seconds", "0 seconds", "1 second", "31 seconds", "1 minute", "1 minute", "1 minute 44 seconds", "2 minutes", "60 minutes"]
 
 
 def test_a_running_process_is_told_from_another_one_with_its_number():

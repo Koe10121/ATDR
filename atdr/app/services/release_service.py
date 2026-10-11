@@ -252,7 +252,17 @@ def process_alive(pid: int, started_at: str) -> bool:
 
 
 def _say(words: str) -> None:
-    print(words, flush=True)
+    # With the time: how long each step took, and how long ATDR was down, can be read off afterwards.
+    print(f"{time.strftime('%H:%M:%S')} {words}", flush=True)
+
+
+def _lasted(seconds: float) -> str:
+    whole = max(0, int(round(seconds)))
+    minutes, rest = divmod(whole, 60)
+    said = [f"{minutes} {'minute' if minutes == 1 else 'minutes'}"] if minutes else []
+    if rest or not minutes:
+        said.append(f"{rest} {'second' if rest == 1 else 'seconds'}")
+    return " ".join(said)
 
 
 @dataclass
@@ -869,6 +879,7 @@ def start_parts(tools: Tools, root: Path, *, by: str = "release") -> dict[str, d
             return result if result and result.get("id") == request["id"] else None
 
         result = _wait_for(tools, answered, START_WAIT_SECONDS)
+        (runtime / START_RESULT).unlink(missing_ok=True)
         if result is None:
             (runtime / START_REQUEST).unlink(missing_ok=True)
             raise ReleaseError(f"The watcher did not start ATDR within {int(START_WAIT_SECONDS / 60)} minutes "
@@ -882,10 +893,12 @@ def start_parts(tools: Tools, root: Path, *, by: str = "release") -> dict[str, d
         return processes(root)
 
     # A version from before a release could ask the watcher. Its sign-in start brings up everything, and only
-    # everything: what is still running is stopped first.
+    # everything: what is still running is stopped first. The watcher that is running holds the scripts of the
+    # version that was here a moment ago; it is ended, and the sign-in start (or Windows, within the minute) starts
+    # the one that belongs to these files.
     if alive_parts(tools, root):
         stop_parts(tools, root, own_only=False)
-    started = _powershell(tools, root, f"Set-AtdrDesiredState -State running -By '{by}'; "
+    started = _powershell(tools, root, f"[void](Stop-AtdrWatcherProcess); Set-AtdrDesiredState -State running -By '{by}'; "
                                        f"Start-ScheduledTask -TaskName '{SIGN_IN_TASK}' -ErrorAction Stop")
     if not started.ok:
         raise ReleaseError(f"ATDR was not started: the task '{SIGN_IN_TASK}' is not installed on this machine. "
@@ -1076,6 +1089,7 @@ def switch(tools: Tools, dev: Path, live: Path, target: str, *, checked: dict[st
         _write_json(runtime / MARKER, marker)
 
     note()
+    stopped_at = tools.now()
     try:
         tools.say("  Stopping ATDR's own parts.")
         stop_parts(tools, live)
@@ -1093,6 +1107,7 @@ def switch(tools: Tools, dev: Path, live: Path, target: str, *, checked: dict[st
         build_dashboard(tools, live)
         tools.say("  Starting ATDR.")
         started = start_parts(tools, live)
+        down = (tools.now() - stopped_at).total_seconds()
         tools.say("  Watching the new version for a minute.")
         wrong = watch_health(tools, live, started)
         if wrong:
@@ -1112,7 +1127,8 @@ def switch(tools: Tools, dev: Path, live: Path, target: str, *, checked: dict[st
     (runtime / MARKER).unlink(missing_ok=True)
     prune_environments(live, {name for name in (released["environment"], marker["environment_before"]) if name})
     return {"ok": True, "commit": target, "short": facts["short"], "subject": facts["subject"], "changes": changes,
-            "words": f"ATDR runs version {facts['short']} ({facts['subject']})."}
+            "down_seconds": round(down),
+            "words": f"ATDR runs version {facts['short']} ({facts['subject']}). Its own parts were down for {_lasted(down)}."}
 
 
 def back_out(tools: Tools, live: Path, marker: dict[str, Any], *, why: str, target: dict[str, str] | None = None) -> dict[str, Any]:

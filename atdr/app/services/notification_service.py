@@ -79,6 +79,9 @@ SYSTEM_PAGE, ALERTS_PAGE = "/data", "/alerts"
 # How often the worker looks for something to tell, and how often for problems of ATDR's own.
 LOOK_SECONDS = 30.0
 PROBLEMS_EVERY_SECONDS = 300.0
+# A source that has not looked for this long was not running: the laptop was off, or the worker had stopped. A
+# problem it had seen and not yet told counts from when it looks again, not from before it went away.
+NOT_LOOKING_AFTER = timedelta(seconds=PROBLEMS_EVERY_SECONDS * 3)
 # A burst is still arriving while its newest alert is younger than this; nobody waits longer than LONGEST_WAIT.
 SETTLE = timedelta(seconds=60)
 LONGEST_WAIT = timedelta(minutes=5)
@@ -531,6 +534,8 @@ def track_problems(
             row = NotificationCondition(key=problem.key, source=source, urgent=problem.urgent, since=now, last_seen_at=now,
                                         title="", body="", over="", details_json={})
             db.add(row)
+        elif row.announced_at is None and now - _utc(row.last_seen_at) > NOT_LOOKING_AFTER:
+            row.since = now
         row.last_seen_at = now
         if row.announced_at is None:
             # Until it is told, its words follow what is seen: "no copy yet" can become "the copy is 8 days old".

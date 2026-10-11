@@ -456,6 +456,44 @@ def test_a_problem_that_ends_before_it_has_lasted_is_never_mentioned(tmp_path):
     assert _look(db, settings, START + HOUR * 2, outbox, runtime=runtime)["made"][0]["title"] == "ATDR's parts are watched again."
 
 
+def test_a_problem_seen_before_the_laptop_was_switched_off_counts_from_when_atdr_looks_again(tmp_path):
+    # On 10 October the laptop was shut down at 16:41: the watcher went a moment before the worker, which saw
+    # "nothing is watching" once. At the next start, 17 hours later, the watcher had not written its first status
+    # yet, and ATDR told people that nothing had been watching for 17 hours.
+    settings, db = _system(tmp_path)
+    runtime = tmp_path / ".atdr_runtime"
+    runtime.mkdir()
+    (runtime / "desired-state.json").write_text(json.dumps({"state": "running"}), encoding="utf-8")
+    outbox = _Outbox()
+    _look(db, settings, START, outbox, runtime=runtime)
+    assert db.scalar(select(NotificationCondition.key)) == "watcher_not_running", "seen, and not yet told"
+
+    morning = START + HOUR * 17
+    assert _look(db, settings, morning, outbox, runtime=runtime)["made"] == [], "the time it was switched off is not time the problem lasted"
+    assert notify._utc(db.scalar(select(NotificationCondition.since))) == morning
+    # The watcher writes its first status a minute later: nothing was ever wrong, and nothing is said.
+    stamp = (morning + MINUTE).strftime("%Y-%m-%dT%H:%M:%S.0000000Z")
+    (runtime / "watch-status.json").write_text(json.dumps({"watcher": {"checked_at": stamp, "interval_seconds": 30}, "parts": []}), encoding="utf-8")
+    assert _look(db, settings, morning + MINUTE, outbox, runtime=runtime)["made"] == []
+    assert db.scalar(select(func.count()).select_from(NotificationCondition)) == 0 and _kinds(db) == ["started"]
+
+    # A problem that really lasts after the start is told once it has lasted its ten minutes, looked at every five.
+    (runtime / "watch-status.json").unlink()
+    for minutes in (30, 35):
+        assert _look(db, settings, morning + MINUTE * minutes, outbox, runtime=runtime)["made"] == []
+    told = _look(db, settings, morning + MINUTE * 40, outbox, runtime=runtime)["made"]
+    assert told == [{"id": 2, "kind": "problem", "title": "Nothing is watching ATDR's parts"}]
+
+    # One that was told before the laptop went off is not told again after it, and is over from when it began.
+    night = morning + HOUR * 12
+    assert _look(db, settings, night, outbox, runtime=runtime)["made"] == []
+    stamp = (night + MINUTE * 5).strftime("%Y-%m-%dT%H:%M:%S.0000000Z")
+    (runtime / "watch-status.json").write_text(json.dumps({"watcher": {"checked_at": stamp, "interval_seconds": 30}, "parts": []}), encoding="utf-8")
+    over = _look(db, settings, night + MINUTE * 5, outbox, runtime=runtime)["made"]
+    assert over == [{"id": 3, "kind": "resolved", "title": "ATDR's parts are watched again."}]
+    assert _last(db).body == "It began 03:30 and lasted 12 hours.", "from when it began after the start, in Thai time"
+
+
 def test_files_of_the_live_copy_changed_outside_a_release_are_a_reminder_in_the_bell(tmp_path, monkeypatch):
     # ATDR runs from a copy that only takes checked versions (release_service). A file edited there by hand would
     # run at the next restart with no check at all, and nothing would say so.
