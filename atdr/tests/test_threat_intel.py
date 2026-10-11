@@ -100,13 +100,23 @@ def test_the_index_matches_exactly_like_comparing_every_item_and_stays_fast():
     logs = [SimpleNamespace(src_ip=f"{rng.randint(1, 80)}.1.1.1", dst_ip=f"{rng.randint(1, 80)}.1.1.1", app="1.1.1.1",
                             src_country=None, dst_country="") for _ in range(2000)]
     index = WatchlistIndex(items)
+    # The best of five runs: on 11 October 2026 one run of these 9 milliseconds took a second, when the machine
+    # paused in the middle of it, and a release was refused for it. A pause is not the index being slow.
+    timings = []
+    for _ in range(5):
+        started = time.perf_counter()
+        fast = [sorted(map(id, index.matches(log))) for log in logs]
+        timings.append(time.perf_counter() - started)
+    elapsed = min(timings)
     started = time.perf_counter()
-    fast = [sorted(map(id, index.matches(log))) for log in logs]
-    elapsed = time.perf_counter() - started
     slow = [sorted(id(item) for item in items if _normalized_value(item.indicator_type, item.indicator_value)
                    == _normalized_value(item.indicator_type, getattr(log, item.indicator_type))) for log in logs]
+    every_item = time.perf_counter() - started
     assert fast == slow
     assert elapsed < 0.5, f"2,000 logs against 5,000 items took {elapsed:.2f}s"
+    # Measured beside the slow way on the same machine at the same moment: about 300 times faster. An index that
+    # looked through its keys for each field would be about 25 times faster, and is not one.
+    assert elapsed * 50 < every_item, f"the index took {elapsed:.3f}s where comparing every item took {every_item:.2f}s"
 
 
 def test_a_host_calling_a_feed_address_raises_a_watchlist_alert():

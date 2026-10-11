@@ -331,6 +331,13 @@ seconds, and started again by the watcher in 5; the MFU sign-in page stayed
 up; the release took 1 min 20 s after a check of 17 min 27 s (1,855 backend
 and 91 browser tests).
 
+The third was refused, as it should be: in its check one backend test
+failed out of 1,857, so nothing was stopped and the version before went on
+running. The test timed 9 milliseconds of work against a limit of half a
+second and had once taken a second, when the machine paused. It now takes the
+best of five runs and compares it with the slow way measured beside it; the
+release went through on the next try.
+
 A release says the time at each step, and at its end how long ATDR's own
 parts were down. `check_system.cmd` in the live copy names the version that
 runs; in the folder ATDR is developed in it says that ATDR runs elsewhere.
