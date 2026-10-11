@@ -7680,6 +7680,18 @@ test("the System panel says how ATDR looks after itself, and what is wrong when 
   await page.reload();
   await expect(panel.getByTestId("system-version")).toHaveText(/Version e4ca530, live since 9 Oct[^.]*\. Its last change: The first version\.$/);
 
+  // A release that did not change the dashboard's source leaves its build alone. The build is then of an earlier
+  // version than the one that runs, which is said as it is and not as a dashboard that is out of date.
+  status = { ...base, dashboard_build: { ...base.dashboard_build, commit: "b7f24a1" } };
+  await page.reload();
+  await expect(panel.getByTestId("system-build")).toHaveText(/^This dashboard was built 9 Oct[^.]*, at version b7f24a1\. Its source has not changed since\.$/);
+  status = { ...base, dashboard_build: { ...base.dashboard_build, commit: "b7f24a1", stale: true } };
+  await page.reload();
+  await expect(panel.getByTestId("system-build")).toHaveText(/\(version b7f24a1\)\. Its source has changed since; ATDR builds it again at its next start\.$/);
+  status = { ...base, dashboard_build: { ...base.dashboard_build, commit: "b7f24a1", uncommitted: true } };
+  await page.reload();
+  await expect(panel.getByTestId("system-build")).toHaveText(/\(version b7f24a1, with changes not yet committed\)\.$/);
+
   // Backups switched off, a part that keeps stopping, and no copy on another disk at all.
   status = {
     keeping_running: {

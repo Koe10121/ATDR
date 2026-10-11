@@ -202,6 +202,16 @@ try {
         if ($missingAuth.Count) { Write-Host "  Missing ATDR settings: $($missingAuth -join ', ')" -ForegroundColor Yellow }
         if (-not $providerReady) { Write-Host "  Provider blocker: $providerBlocker" -ForegroundColor Yellow }
         Write-Host "  Running services: $(@($services.Values | Where-Object reachable).Count)/4"
+        # Which checked version this is, or that this is not the folder ATDR runs from (scripts\release.cmd).
+        $released = Get-AtdrReleasedVersion
+        if ($null -ne $released) {
+            $since = if ($null -ne $released.released_at) { ", live since $($released.released_at.ToLocalTime().ToString('yyyy-MM-dd HH:mm'))" } else { "" }
+            Write-Host "  Version: $($released.short)$since"
+        }
+        $liveCopy = Get-AtdrLiveCopy
+        if ($liveCopy) {
+            Write-Host "  This is the folder ATDR is developed in. ATDR runs from $liveCopy; what follows is this folder's own: check there with $liveCopy\scripts\check_system.cmd" -ForegroundColor Yellow
+        }
         Write-Host "  Meant to be: $meantTo"
         Write-Host "  Watcher: $(if ($watching) { "watching (last check $([int]$watch.age_seconds) s ago); it restarts a part that stops" } else { 'not running; a part that stops stays stopped. Install it with .\scripts\autostart.cmd' })" -ForegroundColor $(if ($watching) { 'Gray' } else { 'Yellow' })
         Write-Host "  Preflight: $(if ($ok) { 'PASS' } else { 'NEEDS ATTENTION' })" -ForegroundColor $(if ($ok) { 'Green' } else { 'Yellow' })

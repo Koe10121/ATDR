@@ -281,6 +281,12 @@ function Line({ testId, text }: { testId: string; text: { state: string; detail:
 function buildText(status: SystemStatus): string {
   const build = status.dashboard_build;
   if (!build.built_at) return "";
+  // A release builds the dashboard only when its source changed, so the build can be of an earlier version than
+  // the one that runs. Said as it is, or it reads as a dashboard that is out of date.
+  const released = status.version?.commit;
+  if (build.commit && released && build.commit !== released && !build.stale && !build.uncommitted) {
+    return `This dashboard was built ${day(build.built_at)}, at version ${build.commit}. Its source has not changed since.`;
+  }
   const version = build.commit ? ` (version ${build.commit}${build.uncommitted ? ", with changes not yet committed" : ""})` : "";
   return `This dashboard was built ${day(build.built_at)}${version}.${
     build.stale ? " Its source has changed since; ATDR builds it again at its next start." : ""

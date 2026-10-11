@@ -948,6 +948,20 @@ function Get-AtdrLiveCopy {
     }
 }
 
+function Get-AtdrReleasedVersion {
+    # Which released version a live copy holds (the release writes it); nothing in a folder that is not one.
+    $path = Join-Path (Get-AtdrRuntimeDirectory) "release.json"
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $null }
+    try {
+        $record = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+        if ([string]::IsNullOrWhiteSpace([string]$record.short)) { return $null }
+        return [pscustomobject]@{ short = [string]$record.short; released_at = ConvertTo-AtdrUtc $record.released_at; check = [string]$record.check }
+    }
+    catch {
+        return $null
+    }
+}
+
 function Get-AtdrUnfinishedRelease {
     # A release that was cut off (the machine went down in the middle of it): this folder may hold half of one
     # version and half of another. The release writes this before it changes a file and removes it at the end.

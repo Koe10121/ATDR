@@ -231,6 +231,35 @@ def test_a_request_to_start_is_answered_within_seconds_not_at_the_next_check(tmp
     assert _read(root, "start-result.json")["id"] == "release-2"
 
 
+@windows_only
+def test_the_system_check_says_which_version_runs_and_which_folder_it_is_in(tmp_path):
+    root = _own_folder(tmp_path, "check_system.ps1")
+    common = _quoted(root / "scripts" / "system_common.ps1")
+    assert _powershell(f". {common}; $null -eq (Get-AtdrReleasedVersion)").strip() == "True"
+
+    # In the folder ATDR is developed in: no version of its own, and where to look instead.
+    (root / ".atdr_runtime" / "live-copy.json").write_text(json.dumps({"root": "C:\\ATDR-live"}), encoding="utf-8")
+    here = _script(root / "scripts" / "check_system.ps1")
+    assert "  Version:" not in here.stdout
+    assert ("  This is the folder ATDR is developed in. ATDR runs from C:\\ATDR-live; what follows is this folder's own: "
+            "check there with C:\\ATDR-live\\scripts\\check_system.cmd") in here.stdout
+    assert here.stdout.index("This is the folder ATDR is developed in") < here.stdout.index("  Meant to be:")
+
+    # In a live copy: the version its record names, and when it went live by this machine's clock.
+    (root / ".atdr_runtime" / "live-copy.json").unlink()
+    (root / ".atdr_runtime" / "release.json").write_text(json.dumps(
+        {"commit": "1768cda" + "0" * 33, "short": "1768cda", "released_at": "2026-10-11T04:48:03.123456+00:00", "check": "x"}), encoding="utf-8")
+    local = _powershell("[datetime]::Parse('2026-10-11T04:48:03Z').ToLocalTime().ToString('yyyy-MM-dd HH:mm')").strip()
+    there = _script(root / "scripts" / "check_system.ps1")
+    assert f"  Version: 1768cda, live since {local}" in there.stdout and "the folder ATDR is developed in" not in there.stdout
+    assert _powershell(f". {common}; (Get-AtdrReleasedVersion).short").strip() == "1768cda"
+
+    for unusable in ('{"short": " ", "released_at": "2026-10-11T04:48:03+00:00", "check": "x"}', '{"short": "1768cda"}', "{ not json"):
+        (root / ".atdr_runtime" / "release.json").write_text(unusable, encoding="utf-8")
+        assert _powershell(f". {common}; $null -eq (Get-AtdrReleasedVersion)").strip() == "True"
+    assert "  Version:" not in _script(root / "scripts" / "check_system.ps1").stdout
+
+
 def test_what_the_scripts_promise_a_release():
     common = (SCRIPTS / "system_common.ps1").read_text(encoding="utf-8")
     watcher = (SCRIPTS / "watch_system.ps1").read_text(encoding="utf-8")

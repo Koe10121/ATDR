@@ -325,8 +325,18 @@ was running again 55 seconds after the worker had been ended; the release
 watched it for a minute and ended with exit code 1 and the reason. The copy's
 record kept both: `put_back`, with the reason, and then `released`.
 
+The second release (version 1768cda: 6 files, the dashboard's source
+unchanged) was the usual kind. Only ATDR's own parts were stopped, for 12
+seconds, and started again by the watcher in 5; the MFU sign-in page stayed
+up; the release took 1 min 20 s after a check of 17 min 27 s (1,855 backend
+and 91 browser tests).
+
 A release says the time at each step, and at its end how long ATDR's own
-parts were down.
+parts were down. `check_system.cmd` in the live copy names the version that
+runs; in the folder ATDR is developed in it says that ATDR runs elsewhere.
+When a release did not change the dashboard's source, its build is left as it
+is, and the System panel says the dashboard was built at an earlier version
+and has not changed since.
 
 ## Notifications
 
