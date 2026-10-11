@@ -160,6 +160,22 @@ attacks. The assistant answered from a fixed list of question types.
   and does not hold up the others. Email was tested against a mail server and chat against
   a web server that run inside the tests. On the running system the test message from the System panel arrived in Windows, and when the worker was ended four times in two minutes the watcher told people 30 seconds after the fourth, started it again five minutes later, and told them it was running again once it had stayed up ten minutes.
   (`docs/OPERATIONS_RUNBOOK.md`, Notifications).
+- **Only a checked version runs** (11 October). ATDR ran from the folder it is developed
+  in, so a part that restarted, or a sign-in, loaded whatever the files held at that
+  moment: on 10 and on 11 October a sign-in started it on code that was neither finished
+  nor committed. Now it runs from a copy of its own, which only ever holds a version that
+  was committed and checked: by GitHub's checks for exactly that commit or, for a commit
+  that is not on GitHub, by the whole test suite on the laptop. One command moves the copy
+  to a newer version. A changed set of Python packages is installed while ATDR still runs;
+  then its own parts are stopped while the files change and the database is migrated
+  behind a checked backup, the MFU sign-in page stays up, the watcher starts the parts
+  again and the new version is watched for a minute. A part that does not come up, stops
+  or does not answer puts everything back as it was: files, Python environment, database
+  and dashboard. The System panel shows which version runs and how it was checked, the
+  folder ATDR is developed in can no longer start it by accident, and a file changed by
+  hand in the running copy is reported under the bell. Making the copy took 8 minutes on
+  11 October, during which ATDR was down for 54 seconds, and the backups followed the
+  database to its new place (`docs/OPERATIONS_RUNBOOK.md`, Releasing A New Version).
 
 ### 2. A model trained on MFU traffic
 

@@ -47,6 +47,13 @@ deployments remain simulation-only regardless of configuration.
   dashboard, as a Windows notification on its machine, and by email or to a
   chat group once those are set up. No message holds an IP address
   ([Operations Runbook](docs/OPERATIONS_RUNBOOK.md): Notifications).
+- **Releases:** ATDR runs from a live copy of its own, which only ever holds
+  a version that was committed and checked: by GitHub's checks for that
+  commit, or by the whole test suite on the machine. `scripts\release.cmd go`
+  moves it to a newer version and puts the version before back by itself
+  when the new one does not come up healthy
+  ([Operations Runbook](docs/OPERATIONS_RUNBOOK.md): Releasing A New
+  Version).
 - **Evidence:** every figure, what kind it is and how far to trust it is in
   [Evidence Summary](docs/EVIDENCE_SUMMARY.md). What changed after the
   26 September presentation is in the
@@ -181,6 +188,12 @@ stopped across a sign-in for work that needs it down. Daily backups are
 switched on with `ATDR_BACKUP_SCHEDULE_HOURS=24` in `.env`, and email or chat
 notifications with `ATDR_NOTIFY_EMAIL_TO` or `ATDR_NOTIFY_CHAT_WEBHOOK_URL`.
 All are described in the [Operations Runbook](docs/OPERATIONS_RUNBOOK.md).
+
+On a machine that is to keep running ATDR while it is being worked on,
+`.\scripts\release.cmd setup` makes a live copy once (`C:\ATDR-live`) and
+moves ATDR to it. From then on the commands above are run there, the settings
+that count are that folder's `.env`, and a change reaches it only as a
+checked commit: `.\scripts\release.cmd go` in this folder.
 
 Real MFU/Google sign-in still depends on the approved Web client, account
 scope, IAM group mapping, provider-managed 2FA, recovery, and deprovisioning.

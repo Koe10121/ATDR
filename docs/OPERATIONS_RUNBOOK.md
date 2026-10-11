@@ -30,13 +30,19 @@ usability evidence.
 
 ## Start, Check, Stop, Restart
 
-From the ATDR repository root:
+From the folder ATDR runs from. On the team laptop that is the live copy,
+`C:\ATDR-live` (see [Releasing A New Version](#releasing-a-new-version)); on
+a machine without one it is the repository root:
 
 ```powershell
 .\scripts\start_system.cmd
 .\scripts\check_system.cmd
 .\scripts\stop_system.cmd
 ```
+
+The settings that count (`.env`), the database (`atdr.db`) and the logs
+(`.atdr_runtime\logs`) are that folder's too. In the folder ATDR is developed
+in, `start_system.cmd` refuses and names the live copy.
 
 Wait for `All components are ready` before opening the login page. To restart,
 run `stop_system.cmd` and then `start_system.cmd`. The launcher tracks only the
@@ -54,10 +60,11 @@ is reported in yellow; the next start tries again. By hand:
 `python -m atdr.scripts.build_dashboard` (`--force` to build anyway, `--check`
 to ask only). A change to the dashboard's source shows after the next start,
 or after that command and a reload of the page while ATDR runs; never by
-itself. Do not run `npm run build` while ATDR runs: it empties the folder the
-dashboard is being served from. For live reload while changing the dashboard,
-stop ATDR and run the API and `npm run dev` by hand as shown under Local
-Recovery.
+itself. In a live copy the source changes only through a release, which
+builds the dashboard as one of its steps. Do not run `npm run build` in the
+folder ATDR runs from while it runs: it empties the folder the dashboard is
+being served from. For live reload while changing the dashboard, stop ATDR
+and run the API and `npm run dev` by hand as shown under Local Recovery.
 
 ## Keeping ATDR Running
 
@@ -157,6 +164,145 @@ Normal startup requires the approved shell package/private profile, Python
 shell. Redis is optional: the shell rate limiter has an in-memory local
 fallback, although a shared deployment should provide its approved cache
 service.
+
+## Releasing A New Version
+
+ATDR runs from a copy of its own, the **live copy** (`C:\ATDR-live` on the
+team laptop). It only ever holds a version that was committed and checked.
+The folder ATDR is developed in is where a change is made, tested and
+committed; nothing done there reaches the running system until it is
+released.
+
+Before, ATDR ran from the folder it is developed in, and a part that
+restarted or a sign-in loaded whatever the files held at that moment. On
+2026-10-10 a held stop ran out overnight and the sign-in start brought ATDR up
+on code that was neither finished nor committed, and again on 2026-10-11. A
+hold only delays that.
+
+Run in the folder ATDR is developed in:
+
+```powershell
+.\scripts\release.cmd            # what runs, and what is waiting to be released
+.\scripts\release.cmd check      # check HEAD without releasing it
+.\scripts\release.cmd go         # check HEAD and make it the version that runs
+.\scripts\release.cmd back       # the version before, when a released one is still wrong
+.\scripts\release.cmd recover    # after a release that was cut off: put back what was running
+.\scripts\release.cmd setup      # once for each machine: make the live copy
+```
+
+`check`, `go` and `setup` take a commit after them; without one they mean
+HEAD. Exit code 0: done; 1: refused, or the version before was put back; 2:
+ATDR is not running.
+
+**What counts as checked.** Only a commit on `main` that contains the version
+that runs is released, and only once it is checked:
+
+| The commit | What decides |
+| --- | --- |
+| is on GitHub and its checks have finished | They must all be green. Red is red: tests that pass on the laptop do not change it. |
+| is on GitHub and still being checked | The release waits up to 30 minutes for the result. |
+| is not on GitHub, or GitHub ran no check for exactly it | The whole suite runs on the laptop, as GitHub's two main jobs do: Python compiles, ruff, the backend tests, the migrations, the dashboard's lint and build, the browser tests. About 20 minutes. |
+
+`--local` runs the tests on the laptop in any case. They only count for a
+folder that holds exactly the commit: HEAD is that commit, no tracked file is
+changed, and there is no new file outside `docs\` (a module nobody added to
+the commit would make the tests pass on files the release does not have). The
+tests get an empty database of their own under `.tmp\release-check`, so they
+run while ATDR runs. A commit that passed is on record in
+`.atdr_runtime\release-checks` and is not checked twice; everything the last
+check said is in `.atdr_runtime\logs\release-check.log`.
+
+**What a release does.**
+
+1. While ATDR still runs: the live copy fetches the commit, and when the
+   commit needs other Python packages they are installed into an environment
+   of their own. A failure here ends the release with nothing touched.
+2. ATDR's own parts are stopped (the API server, the background worker, the
+   live syslog receiver, the dashboard). The MFU sign-in page stays up.
+3. The files are moved to the commit. A version that changes the database is
+   migrated behind a checked backup (purpose `before_release`, in the folder
+   the scheduled backups go to; the newest three are kept). The dashboard is
+   built.
+4. The watcher starts the parts again, so they belong to its task like any
+   part it brings back, and not to the window the release was run from.
+5. The new version is watched for a minute: every part must stay up, as the
+   same process, and answer; the API must report its database ready and at
+   this version's schema.
+
+When any step from 2 on fails, everything is put back as it was: the files,
+the Python environment, the database (from the backup taken in step 3; what
+the failed version left is kept in
+`.atdr_runtime\release\database-of-failed-release`), the dashboard, and ATDR
+is started and watched again. The release then ends with exit code 1 and says
+which part or step was the cause.
+
+**What the live copy holds.**
+
+| | Where it comes from |
+| --- | --- |
+| The files of one commit, byte for byte | A clone of the development folder's repository, with no line-ending conversion |
+| `.env` | Its own. Copied from the development folder when the copy was made; from then on this is the file that counts |
+| `atdr.db` | Its own. Copied, and checked row for row, when the copy was made |
+| Trained models, and the evidence the pages show (`atdr\models`, `demo_exports`, `ml_baseline_reviews`) | Copied when the copy was made. A retrained model goes live by copying its files there and restarting ATDR |
+| Python | Its own interpreter in `.python`, and one environment for each set of packages in `.venvs`. `.venv` points at the one in use, so every written command works there too, and the environment of the version before is kept to go back to |
+| `.atdr_runtime\release.json` | Which version runs, since when, how it was checked, and the last thirty releases |
+
+A release never changes the live copy's `.env`. When a version knows a
+setting the one before it did not, the release names it; it keeps its default
+until it is put in `C:\ATDR-live\.env`.
+
+**What keeps the two folders apart.**
+
+- `start_system.cmd` in the development folder refuses and says where ATDR
+  runs. `-Development` starts that folder's own copy anyway, which needs the
+  live copy stopped first: both use the same addresses.
+- `autostart.cmd` there neither installs nor removes the two tasks: they
+  belong to the live copy.
+- When the live copy was made, the development folder's `.env` was changed so
+  that nothing started there writes into the backup folder or sends a
+  message (`ATDR_BACKUP_DIRECTORY`, `ATDR_BACKUP_SCHEDULE_HOURS`,
+  `ATDR_NOTIFY_EMAIL_TO`, `ATDR_NOTIFY_CHAT_WEBHOOK_URL`,
+  `ATDR_NOTIFY_WINDOWS`). The file as it was is in
+  `.atdr_runtime\config-backups`.
+- A file changed by hand in the live copy would run at the next restart with
+  no check at all. The background worker looks every five minutes and says so
+  under the bell; the next release refuses until the file is put back
+  (`git -C C:\ATDR-live checkout -- .`).
+- The System panel shows the version that runs, when it went live and how it
+  was checked.
+
+**A release that was cut off** (the laptop went down in the middle) leaves
+`.atdr_runtime\release-in-progress.json` in the live copy. While it is there
+nothing starts that folder: its files may be half of one version and half of
+another. `release.cmd recover` puts back the version that was running and
+starts it.
+
+**Going back.** `release.cmd back` makes the version before the one that runs
+the version that runs, with the same steps. It refuses when the newer version
+changed the database: what was stored since would not fit the older one. Fix
+that with a new release.
+
+Limits:
+
+- A release needs the two tasks of `autostart.cmd` in the live copy: they are
+  what starts ATDR.
+- ATDR's own parts are down while the files change (measured below). Log
+  lines a firewall sends by syslog in that time are lost.
+- A newer Python is not installed by a release: the live copy keeps the
+  interpreter it was made with.
+
+Measured on the team laptop on 2026-10-11, when the live copy was made
+(`release.cmd setup`, of the version GitHub had passed):
+
+| Step | Time |
+| --- | --- |
+| With ATDR still running: the copy's files, its Python and 73 packages (837 MB), 1.3 GB of models and evidence in 10,102 files, the dashboard's build tools and build | 6 min 24 s, of which the packages 4 min 30 s |
+| ATDR stopped; the 669 MB database copied and checked row for row | 11 s |
+| The two tasks given to the copy; every part running from it | 54 s after the stop |
+| The copy watched before it counted as running | 60 s |
+
+The copy takes 3.1 GB. The System panel then showed the last backup of the
+day before: the two backups on D: had followed the database to its new place.
 
 ## Notifications
 
@@ -579,9 +725,16 @@ backups to whoever runs the command further down.
   database it runs on. So two computers can share a folder or a USB drive,
   and a backup of another database that lands in the folder (a test copy, a
   teammate's backup put there to restore from) is neither counted nor ever
-  deleted. After the project folder is moved or the computer renamed, ATDR
-  therefore starts a new series with a backup at once; the old series stays
-  until someone deletes it.
+  deleted. After the database's folder is moved by hand or the computer is
+  renamed, ATDR therefore starts a new series with a backup at once; the old
+  series stays until someone deletes it. `release.cmd setup`, which moves the
+  database into the live copy, takes its backups along: it writes the new
+  place into their manifests.
+- A release that changes the database takes a backup first (purpose
+  `before_release`, listed among "other backups"); the newest three of those
+  are kept. By hand, at any time:
+  `.\.venv\Scripts\python.exe -m atdr.scripts.backup_now` takes a checked
+  backup into the same folder, which is never thinned out.
 - Each backup, each failure and each copy is an audit entry:
   `database_backup_created`, `database_backup_failed`,
   `database_backup_copied_offsite`. A failure that lasts is entered once a
@@ -601,6 +754,8 @@ about the deleted alerts go with them, and the sample's alerts are not
 reported as new.
 
 ### Restoring a backup
+
+In the folder ATDR runs from (`C:\ATDR-live` on the team laptop):
 
 ```powershell
 .\scripts\stop_system.cmd -HoldHours 1
@@ -689,7 +844,13 @@ disaster-recovery evidence from the host owner.
 | Startup says ATDR is being started by another process | The sign-in start or the watcher is starting it; wait a minute, then run `check_system.cmd`. |
 | ATDR starts again after it was stopped | A sign-in ends a plain stop. Stop with `stop_system.cmd -HoldHours <n>` for work that needs it down. |
 | The System panel says a part keeps stopping | Read that part's log in `.atdr_runtime\logs\` for the cause; the watcher goes on trying every five minutes. |
-| The dashboard does not show a change to its source | It is built at the next start; to have it now, run `python -m atdr.scripts.build_dashboard` and reload the page. |
+| The dashboard does not show a change to its source | It is built at the next start; to have it now, run `python -m atdr.scripts.build_dashboard` and reload the page. With a live copy, a change shows after `release.cmd go`. |
+| Startup says this is the folder ATDR is developed in | ATDR runs from the live copy it names. Start it there, or release a new version with `release.cmd go`. |
+| A change does not show in the running system | It is in the development folder only. Commit it and run `release.cmd go`; `release.cmd` says how many commits are waiting. |
+| A release says the version did not go live | The version before was put back and runs. The message names the part or step; that part's log is in the live copy's `.atdr_runtime\logs\`. Fix it in the development folder, commit, release again. |
+| Startup says a release into this folder did not finish | In the development folder run `release.cmd recover`. |
+| The bell says ATDR's files were changed outside a release | `release.cmd` names the files. Put them back with `git -C C:\ATDR-live checkout -- .` and make the change in the development folder. |
+| A release says the tests would not be testing the commit | Something in the development folder is not committed. Commit it or put it aside; notes under `docs\` do not count. |
 | The System panel says the last backup failed | It names the cause (no free space, folder not usable, copy not healthy); the worker tries again an hour after each failure. |
 | No Windows notification appears | Use Send a test on the System panel. In Windows Settings, System, Notifications: notifications on, "MFU ATDR" allowed, Do Not Disturb off. |
 | The System panel says a channel failed | It says why. Email: check the account's name and app password, the server and the port. Chat: 404 means the webhook was deleted; make a new one. |

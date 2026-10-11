@@ -3,6 +3,12 @@
 Use this checklist for a controlled local release-candidate handoff. It does
 not certify production readiness or close external acceptance.
 
+Putting a new version live on a machine that runs ATDR from a live copy is a
+different thing and one command, `.\scripts\release.cmd go`: it checks the
+commit, switches the copy to it and puts the version before back by itself
+when the new one does not come up healthy. See
+[Operations Runbook](OPERATIONS_RUNBOOK.md#releasing-a-new-version).
+
 ## Repository And Configuration
 
 - Working tree contains no unexpected or private files.
