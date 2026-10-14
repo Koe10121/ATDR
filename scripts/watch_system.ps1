@@ -2,7 +2,9 @@
 param(
     [int]$IntervalSeconds = 30,
     # Make this many checks and end. 0 keeps watching; a test or a person asks for one.
-    [int]$Checks = 0
+    [int]$Checks = 0,
+    # Given by the watcher that Windows started with administrator rights to the one it starts without them.
+    [switch]$WithoutAdministratorRights
 )
 
 # Keeps ATDR running. While ATDR is meant to run (it was started with start_system and not stopped with
@@ -42,6 +44,26 @@ if (Test-Path -LiteralPath $lockPath -PathType Leaf) {
         if (Test-TrackedProcessRecordActive (Get-Content -LiteralPath $lockPath -Raw | ConvertFrom-Json)) { exit 0 }
     }
     catch { }
+}
+# Started by Windows without a sign-in, this script has its user's full administrator rights, whatever the task asks
+# for. ATDR runs with none: the watcher starts itself again as an ordinary program of the user's would run, and waits
+# for that one, so that Windows counts the task as running for as long as it watches. Without that, nothing watches.
+if (-not (Test-AtdrHasDesktop) -and (Test-AtdrHasAdministratorRights)) {
+    if ($WithoutAdministratorRights) {
+        # Started to be without them and still has them: starting yet another would go on for ever.
+        Write-WatchLog "Not watching: the watcher started without administrator rights still has them."
+        exit 1
+    }
+    try {
+        $ordinary = Start-AtdrWithOrdinaryRights -Folder (Get-AtdrProjectRoot) -CommandLine (
+            "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$PSCommandPath`" -IntervalSeconds $IntervalSeconds -Checks $Checks -WithoutAdministratorRights")
+    }
+    catch {
+        Write-WatchLog "Not watching: started with administrator rights, and the watcher could not be started without them ($($_.Exception.Message.Trim()))."
+        exit 1
+    }
+    Write-WatchLog "Started with administrator rights without a sign-in; the watcher runs without them (PID $($ordinary.Id))."
+    exit (Wait-AtdrStarted $ordinary)
 }
 $me = Get-Process -Id $PID
 $watcherStarted = $me.StartTime.ToUniversalTime()

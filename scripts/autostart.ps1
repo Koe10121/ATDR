@@ -28,8 +28,9 @@ param(
 #     looks every minute whether it is running and starts it when it is not; while it runs, nothing is launched.
 #
 # With the machine (-BeforeSignIn). ATDR runs whether or not anyone is signed in:
-#   - "ATDR keep running" is started by Windows with the machine and runs without a sign-in, as this user and
-#     without administrator rights. It makes every start of ATDR, so the parts belong to it and not to a sign-in.
+#   - "ATDR keep running" is started by Windows with the machine and runs without a sign-in, as this user. Windows
+#     gives it the user's administrator rights; the watcher starts itself again without them, as an ordinary program
+#     of the user's. It makes every start of ATDR, so the parts belong to it and not to a sign-in.
 #   - "ATDR start at sign-in" stays: a sign-in still ends a stop. It starts nothing itself any more.
 #   - "ATDR at the desktop" (scripts\desktop_agent.ps1) runs in the sign-in session and shows ATDR's Windows
 #     notifications, which a part without a desktop cannot.
@@ -234,8 +235,9 @@ function Install-AtdrBeforeSignIn {
     if (Test-Path -LiteralPath $shortcutPath -PathType Leaf) { Remove-Item -LiteralPath $shortcutPath -Force }
 
     [void](Stop-AtdrWatcherProcess)
-    # As this user and with no more than this user's ordinary rights, without a stored password (S4U), whether or
-    # not the user is signed in. No console window is asked for where there is no desktop to put one on.
+    # As this user, without a stored password (S4U), whether or not the user is signed in. Windows gives such a task
+    # the user's full administrator rights all the same, "Limited" or not; the watcher starts itself again without
+    # them (watch_system.ps1). No console window is asked for where there is no desktop to put one on.
     $watchPrincipal = New-ScheduledTaskPrincipal -UserId $User -LogonType S4U -RunLevel Limited
     $withTheMachine = New-ScheduledTaskTrigger -AtStartup
     $watchAction = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $watchArguments -WorkingDirectory $root
@@ -258,11 +260,12 @@ function Install-AtdrBeforeSignIn {
 
 function Wait-AtdrWatcherWithoutDesktop {
     # Registered is not yet running. True once this folder's watcher is seen running in the session that has no
-    # desktop; until then nothing of ATDR is stopped, because nothing would be there to start it again.
+    # desktop, and without rights this window has not (a release has to be able to stop it); until then nothing of
+    # ATDR is stopped, because nothing would be there to start it again.
     param([int]$Seconds = 90)
     $deadline = (Get-Date).AddSeconds($Seconds)
     while ((Get-Date) -lt $deadline) {
-        if ((Get-AtdrWatcherSession) -eq 0) { return $true }
+        if ((Get-AtdrWatcherSession) -eq 0 -and (Test-AtdrWatcherStoppable)) { return $true }
         [void](Start-AtdrWatcherTask)
         Start-Sleep -Seconds 3
     }
@@ -476,8 +479,13 @@ if ($wantBefore) {
         exit 1
     }
     if (-not (Wait-AtdrWatcherWithoutDesktop)) {
-        $result = try { "0x{0:X8}" -f [uint32]([int64](Get-ScheduledTaskInfo -TaskName $watchTaskName -ErrorAction Stop).LastTaskResult -band 0xFFFFFFFFL) } catch { "not readable from this window" }
-        Write-Host "Windows registered the watcher to run without a sign-in but did not start it that way (its last result: $result). ATDR's parts were left running as they are." -ForegroundColor Yellow
+        if ((Get-AtdrWatcherSession) -eq 0) {
+            Write-Host "The watcher runs without a sign-in, but with rights this window has not: neither a release nor stop_system could stop it. ATDR's parts were left running as they are; .atdr_runtime\logs\watch.log says how the watcher started." -ForegroundColor Yellow
+        }
+        else {
+            $result = try { "0x{0:X8}" -f [uint32]([int64](Get-ScheduledTaskInfo -TaskName $watchTaskName -ErrorAction Stop).LastTaskResult -band 0xFFFFFFFFL) } catch { "not readable from this window" }
+            Write-Host "Windows registered the watcher to run without a sign-in but did not start it that way (its last result: $result). ATDR's parts were left running as they are." -ForegroundColor Yellow
+        }
         # Without this ATDR would have no watcher at all: the one of the sign-in session was ended by the install.
         [void](Undo-AtdrBeforeSignIn $user)
         Write-AutostartState

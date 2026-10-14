@@ -925,6 +925,22 @@ function Get-AtdrWatcherSession {
     }
 }
 
+function Test-AtdrWatcherStoppable {
+    # Whether this window may stop this folder's watcher, as a release and stop_system have to. Not where the watcher
+    # has rights this window has not, as one that Windows started with administrator rights would have.
+    $path = Join-Path (Get-AtdrRuntimeDirectory) "watch.lock"
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $false }
+    try {
+        $held = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+        if (-not (Test-TrackedProcessRecordActive $held)) { return $false }
+        # Asks for every right there is over the process: refused where Stop-Process would be.
+        return ($null -ne (Get-Process -Id ([int]$held.pid) -ErrorAction Stop).Handle)
+    }
+    catch {
+        return $false
+    }
+}
+
 function Stop-AtdrWatcherProcess {
     # Ends the watcher by its own process. Never by ending its task: Windows ends a task together with everything
     # the task started, and a watcher that has brought a part of ATDR back is that part's parent.
@@ -1137,6 +1153,191 @@ function Test-AtdrRunsWithoutSignIn {
 function Get-AtdrDesktopQueuePath {
     # Where a part of ATDR that has no desktop leaves a Windows notification for the helper that has one.
     return Join-Path (Get-AtdrRuntimeDirectory) "desktop-notifications"
+}
+
+function Test-AtdrHasAdministratorRights {
+    # Whether this process may do what an administrator may: one started from an elevated window, or one Windows
+    # starts without a sign-in for a user who is an administrator. Windows gives such a task that user's full rights
+    # whatever the task asks for ("RunLevel Limited"): measured on the team laptop on 14 Oct 2026, it ran at the
+    # administrator's (high) integrity level.
+    $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+    return (New-Object System.Security.Principal.WindowsPrincipal($identity)).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Initialize-AtdrOrdinaryRights {
+    if ("AtdrOrdinaryRights" -as [type]) { return }
+    Add-Type -TypeDefinition @'
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using System.Security.AccessControl;
+using System.Security.Principal;
+using System.Text;
+
+public sealed class AtdrStarted {
+    public int Id;
+    public IntPtr Handle;
+}
+
+public static class AtdrOrdinaryRights {
+    const int TokenOwner = 4;
+    const int TokenDefaultDacl = 6;
+    const int TokenIntegrityLevel = 25;
+    const uint DisableMaxPrivilege = 0x1;
+    const uint GroupIntegrity = 0x20;
+    const uint CreateNoWindow = 0x08000000;
+    const int GenericAll = 0x10000000;
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct SidAndAttributes { public IntPtr Sid; public uint Attributes; }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    struct StartupInfo {
+        public int cb; public string lpReserved; public string lpDesktop; public string lpTitle;
+        public int dwX, dwY, dwXSize, dwYSize, dwXCountChars, dwYCountChars, dwFillAttribute, dwFlags;
+        public short wShowWindow, cbReserved2; public IntPtr lpReserved2, hStdInput, hStdOutput, hStdError;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct ProcessInformation { public IntPtr hProcess, hThread; public int dwProcessId, dwThreadId; }
+
+    [DllImport("kernel32.dll")] static extern IntPtr GetCurrentProcess();
+    [DllImport("kernel32.dll", SetLastError = true)] static extern bool CloseHandle(IntPtr handle);
+    [DllImport("kernel32.dll")] static extern IntPtr LocalFree(IntPtr memory);
+    [DllImport("kernel32.dll", SetLastError = true)] static extern uint WaitForSingleObject(IntPtr handle, uint milliseconds);
+    [DllImport("kernel32.dll", SetLastError = true)] static extern bool GetExitCodeProcess(IntPtr process, out int code);
+    [DllImport("advapi32.dll", SetLastError = true)] static extern bool OpenProcessToken(IntPtr process, uint access, out IntPtr token);
+    [DllImport("advapi32.dll", SetLastError = true)] static extern bool CreateRestrictedToken(IntPtr token, uint flags, uint disableCount, SidAndAttributes[] disable, uint deleteCount, IntPtr delete, uint restrictCount, IntPtr restrict, out IntPtr restricted);
+    [DllImport("advapi32.dll", SetLastError = true)] static extern bool ConvertStringSidToSid(string sid, out IntPtr pointer);
+    [DllImport("advapi32.dll")] static extern int GetLengthSid(IntPtr sid);
+    [DllImport("advapi32.dll", SetLastError = true)] static extern bool GetTokenInformation(IntPtr token, int kind, IntPtr information, int length, out int returned);
+    [DllImport("advapi32.dll", SetLastError = true)] static extern bool SetTokenInformation(IntPtr token, int kind, IntPtr information, int length);
+    [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    static extern bool CreateProcessAsUser(IntPtr token, string application, StringBuilder commandLine, IntPtr processAttributes, IntPtr threadAttributes, bool inherit, uint flags, IntPtr environment, string folder, ref StartupInfo startup, out ProcessInformation started);
+
+    static void Check(bool ok, string what) {
+        if (!ok) throw new Win32Exception(Marshal.GetLastWin32Error(), what + ": " + new Win32Exception(Marshal.GetLastWin32Error()).Message);
+    }
+
+    static IntPtr Sid(string text) {
+        IntPtr sid;
+        Check(ConvertStringSidToSid(text, out sid), "reading " + text);
+        return sid;
+    }
+
+    // Starts commandLine as this same user with what an ordinary program of theirs has: the Administrators group
+    // (and the group Windows adds for a local account that is one) only able to deny, no privilege but passing
+    // through folders, the medium integrity level, the user as owner of what it makes, and the user's account given
+    // full access to it and to everything it starts. Nobody else is given anything.
+    public static AtdrStarted Start(string commandLine, string folder) {
+        IntPtr own = IntPtr.Zero, restricted = IntPtr.Zero, administrators = IntPtr.Zero, localAdministrator = IntPtr.Zero, medium = IntPtr.Zero;
+        IntPtr user = IntPtr.Zero, held = IntPtr.Zero;
+        try {
+            // TOKEN_ASSIGN_PRIMARY | TOKEN_DUPLICATE | TOKEN_QUERY | TOKEN_ADJUST_DEFAULT: the new token gets the same, and
+            // its owner, integrity level and access list for new processes are its defaults.
+            Check(OpenProcessToken(GetCurrentProcess(), 0x0001 | 0x0002 | 0x0008 | 0x0080, out own), "opening this process's token");
+            administrators = Sid("S-1-5-32-544");
+            localAdministrator = Sid("S-1-5-114");
+            SidAndAttributes[] denyOnly = { new SidAndAttributes { Sid = administrators }, new SidAndAttributes { Sid = localAdministrator } };
+            Check(CreateRestrictedToken(own, DisableMaxPrivilege, (uint)denyOnly.Length, denyOnly, 0, IntPtr.Zero, 0, IntPtr.Zero, out restricted), "making a token with ordinary rights");
+
+            SecurityIdentifier identity = WindowsIdentity.GetCurrent().User;
+            byte[] userBytes = new byte[identity.BinaryLength];
+            identity.GetBinaryForm(userBytes, 0);
+            user = Marshal.AllocHGlobal(userBytes.Length);
+            Marshal.Copy(userBytes, 0, user, userBytes.Length);
+
+            // The owner of what it makes: the user, as for any program of theirs (an administrator's token says the
+            // Administrators group, which this token may only deny with).
+            IntPtr owner = Marshal.AllocHGlobal(IntPtr.Size);
+            try {
+                Marshal.WriteIntPtr(owner, user);
+                Check(SetTokenInformation(restricted, TokenOwner, owner, IntPtr.Size), "making the user the owner");
+            }
+            finally { Marshal.FreeHGlobal(owner); }
+
+            medium = Sid("S-1-16-8192");
+            int labelSize = Marshal.SizeOf(typeof(SidAndAttributes)) + GetLengthSid(medium);
+            IntPtr label = Marshal.AllocHGlobal(labelSize);
+            try {
+                Marshal.StructureToPtr(new SidAndAttributes { Sid = medium, Attributes = GroupIntegrity }, label, false);
+                Check(SetTokenInformation(restricted, TokenIntegrityLevel, label, labelSize), "setting the medium integrity level");
+            }
+            finally { Marshal.FreeHGlobal(label); }
+
+            // Every process started with this token, and every one those start, may be looked at and ended by the
+            // user's other programs.
+            int needed;
+            GetTokenInformation(restricted, TokenDefaultDacl, IntPtr.Zero, 0, out needed);
+            held = Marshal.AllocHGlobal(needed);
+            Check(GetTokenInformation(restricted, TokenDefaultDacl, held, needed, out needed), "reading the access list for new processes");
+            IntPtr given = Marshal.ReadIntPtr(held);
+            RawAcl acl;
+            if (given == IntPtr.Zero) acl = new RawAcl(GenericAcl.AclRevision, 1);
+            else {
+                byte[] bytes = new byte[Marshal.ReadInt16(given, 2)];
+                Marshal.Copy(given, bytes, 0, bytes.Length);
+                acl = new RawAcl(bytes, 0);
+            }
+            bool already = false;
+            foreach (GenericAce ace in acl) {
+                CommonAce allowed = ace as CommonAce;
+                if (allowed != null && allowed.AceQualifier == AceQualifier.AccessAllowed && allowed.SecurityIdentifier == identity && (allowed.AccessMask & GenericAll) == GenericAll) already = true;
+            }
+            if (!already) acl.InsertAce(acl.Count, new CommonAce(AceFlags.None, AceQualifier.AccessAllowed, GenericAll, identity, false, null));
+            byte[] written = new byte[acl.BinaryLength];
+            acl.GetBinaryForm(written, 0);
+            IntPtr newAcl = Marshal.AllocHGlobal(written.Length);
+            IntPtr information = Marshal.AllocHGlobal(IntPtr.Size);
+            try {
+                Marshal.Copy(written, 0, newAcl, written.Length);
+                Marshal.WriteIntPtr(information, newAcl);
+                Check(SetTokenInformation(restricted, TokenDefaultDacl, information, IntPtr.Size), "giving the user access to new processes");
+            }
+            finally {
+                Marshal.FreeHGlobal(information);
+                Marshal.FreeHGlobal(newAcl);
+            }
+
+            StartupInfo startup = new StartupInfo();
+            startup.cb = Marshal.SizeOf(typeof(StartupInfo));
+            ProcessInformation started;
+            Check(CreateProcessAsUser(restricted, null, new StringBuilder(commandLine), IntPtr.Zero, IntPtr.Zero, false, CreateNoWindow, IntPtr.Zero, folder, ref startup, out started), "starting it with ordinary rights");
+            CloseHandle(started.hThread);
+            return new AtdrStarted { Id = started.dwProcessId, Handle = started.hProcess };
+        }
+        finally {
+            if (held != IntPtr.Zero) Marshal.FreeHGlobal(held);
+            if (user != IntPtr.Zero) Marshal.FreeHGlobal(user);
+            foreach (IntPtr sid in new[] { administrators, localAdministrator, medium }) if (sid != IntPtr.Zero) LocalFree(sid);
+            if (restricted != IntPtr.Zero) CloseHandle(restricted);
+            if (own != IntPtr.Zero) CloseHandle(own);
+        }
+    }
+
+    // Waits for a process Start started and says how it ended.
+    public static int Wait(AtdrStarted started) {
+        WaitForSingleObject(started.Handle, 0xFFFFFFFF);
+        int code;
+        if (!GetExitCodeProcess(started.Handle, out code)) code = -1;
+        CloseHandle(started.Handle);
+        return code;
+    }
+}
+'@
+}
+
+function Start-AtdrWithOrdinaryRights {
+    # Starts a command as this user with an ordinary program's rights and access (AtdrOrdinaryRights.Start); what it
+    # returns, Wait-AtdrStarted waits for.
+    param([Parameter(Mandatory = $true)][string]$CommandLine, [Parameter(Mandatory = $true)][string]$Folder)
+    Initialize-AtdrOrdinaryRights
+    return [AtdrOrdinaryRights]::Start($CommandLine, $Folder)
+}
+
+function Wait-AtdrStarted {
+    param([Parameter(Mandatory = $true)]$Started)
+    return [AtdrOrdinaryRights]::Wait($Started)
 }
 
 function ConvertFrom-AtdrPowerQuery {

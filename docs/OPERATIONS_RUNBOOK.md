@@ -182,6 +182,23 @@ rights. Changing or removing these tasks later asks again. The two switches
 are separate: `-BeforeSignIn` is about when ATDR starts, `-StayAwakeOnMains`
 about sleep.
 
+**Without administrator rights, although Windows gives them.** A task that
+Windows runs without a sign-in gets its user's full administrator rights,
+whatever the task asks for: on the team laptop on 2026-10-14 such a task ran
+at the administrator's (high) level although it was registered as "Limited",
+and nothing it started could be looked at or stopped from an ordinary window
+of the same user. So the watcher, started that way, first starts itself again
+the way an ordinary program of yours runs (medium level, the Administrators
+group able only to deny, no privilege but passing through folders, your
+account allowed to look at and stop it and everything it starts), waits for
+that one, and never watches with administrator rights: when that start fails,
+nothing watches and `watch.log` says why. Every part of ATDR is started by
+that second watcher and has the same rights, so `stop_system.cmd`, a release
+and `check_system.cmd` work from your window as before. Measured on the
+laptop: the watcher's task at high level, what it started at medium level and
+without administrator rights, stopped from an ordinary window, and the task
+ended with it.
+
 **What `-BeforeSignIn` installs.** Three tasks:
 
 - **ATDR keep running**, the watcher, is now started by Windows with the
@@ -240,10 +257,13 @@ that is installed stays.
 
 **How the install protects the running system.** After Windows has registered
 the tasks, the installer waits until it sees the watcher running without a
-desktop, and only then stops ATDR once and has the watcher start it (about
-two minutes). When Windows does not start the watcher that way, nothing is
-stopped and the installer goes back to starting at sign-in, so that ATDR is
-not left without a watcher. When the watcher runs but cannot start ATDR where
+desktop, and one your window may stop (so not with administrator rights), and
+only then stops ATDR once and has the watcher start it (about two minutes).
+When Windows does not start the watcher that way, nothing is stopped and the
+installer goes back to starting at sign-in, so that ATDR is not left without
+a watcher. That happened at the first install on 2026-10-14, before the
+watcher gave up its administrator rights: the watcher ran, but the installer
+could not look at it, and ATDR went on as before. When the watcher runs but cannot start ATDR where
 there is no desktop, the installer goes back too and has ATDR started as it
 ran before; why it did not start is in `watch.log` and in each part's own
 log. Going back asks for an administrator once more.

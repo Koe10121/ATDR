@@ -148,8 +148,9 @@ def test_a_start_by_a_person_is_handed_to_the_watcher_where_atdr_runs_without_a_
 
         # Which watcher is this folder's, and where it runs, is read from the record the watcher keeps of itself.
         common = _quoted(root / "scripts" / "system_common.ps1")
-        where = _powershell(f". {common}; \"$(Test-AtdrWatcherAlive)|$(Get-AtdrWatcherSession)|$((Get-Process -Id $PID).SessionId)\"").strip().split("|")
+        where = _powershell(f". {common}; \"$(Test-AtdrWatcherAlive)|$(Get-AtdrWatcherSession)|$((Get-Process -Id $PID).SessionId)|$(Test-AtdrWatcherStoppable)\"").strip().split("|")
         assert where[0] == "True" and where[1] == where[2] != "0", "at a desktop here; session 0 is the one without"
+        assert where[3] == "True", "a watcher with this window's own rights may be stopped from it"
     finally:
         watcher.kill()
         watcher.wait()
@@ -336,7 +337,7 @@ def test_what_the_installer_registers_and_what_it_leaves_alone():
         does.index("if (-not (Move-AtdrPartsToWatcher -WithoutDesktop)) {"), does.index("if ($StayAwakeOnMains) { Set-AtdrMainsAwake }"))
     assert registered < seen_running < moved < sleep_set
     waits = installer[installer.index("function Wait-AtdrWatcherWithoutDesktop"):installer.index("function Test-AtdrElevated")]
-    assert "if ((Get-AtdrWatcherSession) -eq 0) { return $true }" in waits and "return $false" in waits
+    assert "if ((Get-AtdrWatcherSession) -eq 0 -and (Test-AtdrWatcherStoppable)) { return $true }" in waits and "return $false" in waits
     # A watcher that Windows would not start that way: back to starting at sign-in, so that ATDR has a watcher at
     # all, with its parts left running as they are.
     not_started = does[seen_running:moved]
@@ -574,6 +575,17 @@ def test_what_the_other_scripts_do_without_a_desktop():
     assert (restart.index("[void](Stop-AtdrWatcherProcess)") < restart.index("[void](Stop-AtdrDesktopHelperProcess)")
             < restart.index("if (Start-AtdrWatcherTask) { return $true }") < restart.index("if (Test-AtdrWatcherAlive) { return $true }"))
 
+    # Windows gives the task its user's administrator rights. The watcher hands over to one without them before it
+    # holds the record or starts anything, waits for that one, and never watches with them: not when the hand-over
+    # fails, and not when the one it started still has them (which would hand over for ever).
+    hand_over = watcher[watcher.index("if (-not (Test-AtdrHasDesktop) -and (Test-AtdrHasAdministratorRights)) {"):]
+    hand_over = hand_over[:hand_over.index("$me = Get-Process -Id $PID")]
+    assert watcher.index("if (Test-TrackedProcessRecordActive (Get-Content -LiteralPath $lockPath -Raw | ConvertFrom-Json)) { exit 0 }") < watcher.index(hand_over)
+    assert watcher.index(hand_over) < watcher.index("ConvertTo-Json | Set-Content -LiteralPath $lockPath")
+    assert hand_over.index("if ($WithoutAdministratorRights) {") < hand_over.index("exit 1") < hand_over.index("Start-AtdrWithOrdinaryRights")
+    assert "-IntervalSeconds $IntervalSeconds -Checks $Checks -WithoutAdministratorRights" in hand_over
+    assert hand_over.count("exit 1") == 2 and "exit (Wait-AtdrStarted $ordinary)" in hand_over
+
 
 @windows_only
 def test_the_helper_and_the_watcher_are_found_by_the_record_each_keeps_not_by_a_number_alone(tmp_path):
@@ -586,8 +598,8 @@ def test_the_helper_and_the_watcher_are_found_by_the_record_each_keeps_not_by_a_
         # Windows gives a process number out again. A record whose number now belongs to something else is not ours.
         for name in ("desktop.lock", "watch.lock"):
             (runtime / name).write_text(json.dumps({"pid": bystander.pid, "started_at": "2001-01-01T00:00:00.0000000Z"}), encoding="utf-8")
-        said = _powershell(f". {common}; \"$(Stop-AtdrDesktopHelperProcess)|$(Test-AtdrWatcherAlive)|$(Get-AtdrWatcherSession)|\"").strip()
-        assert said == "False|False||"
+        said = _powershell(f". {common}; \"$(Stop-AtdrDesktopHelperProcess)|$(Test-AtdrWatcherAlive)|$(Get-AtdrWatcherSession)|$(Test-AtdrWatcherStoppable)\"").strip()
+        assert said == "False|False||False"
         assert helper_at_the_desktop(runtime / "desktop.lock") is False
         assert bystander.poll() is None, "the process that has the number now is left alone"
 
@@ -601,3 +613,135 @@ def test_the_helper_and_the_watcher_are_found_by_the_record_each_keeps_not_by_a_
         for process in (helper, bystander):
             process.kill()
             process.wait()
+
+
+_TOKEN_LOOK = r'''
+using System;
+using System.Runtime.InteropServices;
+using System.Security.AccessControl;
+using System.Security.Principal;
+
+public static class AtdrTestToken {
+    [DllImport("kernel32.dll")] static extern IntPtr GetCurrentProcess();
+    [DllImport("advapi32.dll", SetLastError = true)] static extern bool OpenProcessToken(IntPtr process, uint access, out IntPtr token);
+    [DllImport("advapi32.dll", SetLastError = true)] static extern bool GetTokenInformation(IntPtr token, int kind, IntPtr information, int length, out int returned);
+    [DllImport("advapi32.dll", SetLastError = true)] static extern bool SetTokenInformation(IntPtr token, int kind, IntPtr information, int length);
+    [DllImport("advapi32.dll")] static extern uint GetSecurityInfo(IntPtr handle, int type, uint information, IntPtr owner, IntPtr group, out IntPtr dacl, IntPtr sacl, out IntPtr descriptor);
+
+    static RawAcl Read(IntPtr acl) {
+        byte[] bytes = new byte[Marshal.ReadInt16(acl, 2)];
+        Marshal.Copy(acl, bytes, 0, bytes.Length);
+        return new RawAcl(bytes, 0);
+    }
+
+    static string Sddl(RawAcl acl) {
+        string user = WindowsIdentity.GetCurrent().User.Value;
+        return new RawSecurityDescriptor(ControlFlags.DiscretionaryAclPresent, null, null, null, acl).GetSddlForm(AccessControlSections.Access).Replace(user, "USER");
+    }
+
+    static IntPtr Token(uint access) {
+        IntPtr token;
+        if (!OpenProcessToken(GetCurrentProcess(), access, out token)) throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+        return token;
+    }
+
+    static RawAcl DefaultAcl(IntPtr token) {
+        int needed;
+        GetTokenInformation(token, 6, IntPtr.Zero, 0, out needed);
+        IntPtr held = Marshal.AllocHGlobal(needed);
+        if (!GetTokenInformation(token, 6, held, needed, out needed)) throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+        return Read(Marshal.ReadIntPtr(held));
+    }
+
+    // What every process this one starts is given.
+    public static string ForNewProcesses() { return Sddl(DefaultAcl(Token(0x0008))); }
+
+    // What this process itself was given.
+    public static string Own() {
+        IntPtr dacl, descriptor;
+        GetSecurityInfo(GetCurrentProcess(), 6, 4, IntPtr.Zero, IntPtr.Zero, out dacl, IntPtr.Zero, out descriptor);
+        return Sddl(Read(dacl));
+    }
+
+    // As Windows makes it for a task that runs without a sign-in: nothing for the user's account in what new
+    // processes are given.
+    public static void LeaveTheUserOut() {
+        IntPtr token = Token(0x0008 | 0x0080);
+        RawAcl acl = DefaultAcl(token);
+        SecurityIdentifier user = WindowsIdentity.GetCurrent().User;
+        for (int index = acl.Count - 1; index >= 0; index--) {
+            CommonAce ace = acl[index] as CommonAce;
+            if (ace != null && ace.SecurityIdentifier == user) acl.RemoveAce(index);
+        }
+        byte[] bytes = new byte[acl.BinaryLength];
+        acl.GetBinaryForm(bytes, 0);
+        IntPtr written = Marshal.AllocHGlobal(bytes.Length);
+        Marshal.Copy(bytes, 0, written, bytes.Length);
+        IntPtr information = Marshal.AllocHGlobal(IntPtr.Size);
+        Marshal.WriteIntPtr(information, written);
+        if (!SetTokenInformation(token, 6, information, IntPtr.Size)) throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+    }
+}
+'''
+
+_SAYS_WHAT_IT_GOT = r'''param([string]$Out, [string]$Look)
+Add-Type -Path $Look
+$file = New-Item -ItemType File -Path "$Out.made" -Force
+# Windows' own, not another one earlier on the PATH (Git's has the same name).
+$whoami = Join-Path $env:SystemRoot "System32\whoami.exe"
+[ordered]@{
+    groups = @(& $whoami /groups /fo csv | ConvertFrom-Csv | ForEach-Object { "$($_.SID) $($_.Attributes)" })
+    privileges = @(& $whoami /priv /fo csv | ConvertFrom-Csv | ForEach-Object { $_.'Privilege Name' })
+    owner_of_what_it_makes = (Get-Acl -LiteralPath $file.FullName).Owner
+    for_new_processes = [AtdrTestToken]::ForNewProcesses()
+    own = [AtdrTestToken]::Own()
+} | ConvertTo-Json | Set-Content -LiteralPath $Out -Encoding UTF8
+exit 7
+'''
+
+_STARTS_IT = r'''param([string]$Common, [string]$Out, [string]$Look, [switch]$LikeATaskWithoutSignIn)
+$ErrorActionPreference = "Stop"
+. $Common
+Add-Type -Path $Look
+# Compiled first: a compiler started after the user is left out could not be waited for by this test's window,
+# which (unlike a task Windows starts without a sign-in) has no administrator rights to fall back on.
+Initialize-AtdrOrdinaryRights
+if ($LikeATaskWithoutSignIn) { [AtdrTestToken]::LeaveTheUserOut() }
+"starter gives new processes: $([AtdrTestToken]::ForNewProcesses())"
+$says = Join-Path (Split-Path $Out) "says_what_it_got.ps1"
+$started = Start-AtdrWithOrdinaryRights -Folder (Split-Path $Out) -CommandLine "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$says`" -Out `"$Out`" -Look `"$Look`""
+"ended with $(Wait-AtdrStarted $started)"
+'''
+
+
+@windows_only
+def test_what_is_started_with_ordinary_rights_has_what_an_ordinary_program_of_the_users_has(tmp_path):
+    # What Windows starts without a sign-in has the user's administrator rights, and nothing in it is open to the
+    # user's other programs (measured on the team laptop on 14 Oct 2026). Here the tests run as an ordinary program
+    # already, so only what can be told apart from one is checked: the privileges, the exit code, and the user's
+    # access, taken away first as Windows leaves it out for such a task. That the level drops from high to medium
+    # and the Administrators group goes to deny-only was measured on the laptop; the installer looks at it again.
+    look = tmp_path / "token.cs"
+    look.write_text(_TOKEN_LOOK, encoding="utf-8")
+    (tmp_path / "says_what_it_got.ps1").write_text(_SAYS_WHAT_IT_GOT, encoding="utf-8")
+    starts = tmp_path / "starts_it.ps1"
+    starts.write_text(_STARTS_IT, encoding="utf-8")
+    common = SCRIPTS / "system_common.ps1"
+
+    for like_a_task in (False, True):
+        out = tmp_path / f"got_{like_a_task}.json"
+        done = subprocess.run(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(starts), "-Common", str(common),
+                               "-Out", str(out), "-Look", str(look), *(["-LikeATaskWithoutSignIn"] if like_a_task else [])],
+                              capture_output=True, text=True, timeout=180, check=False)
+        assert done.returncode == 0, done.stderr or done.stdout
+        assert "ended with 7" in done.stdout, "its exit code is passed on"
+        assert ("(A;;GA;;;USER)" in done.stdout) is not like_a_task, done.stdout
+        got = json.loads(out.read_text(encoding="utf-8-sig"))
+        assert got["privileges"] == ["SeChangeNotifyPrivilege"], "no privilege but passing through folders"
+        groups = {line.split(" ", 1)[0]: line for line in got["groups"]}
+        assert "Group used for deny only" in groups["S-1-5-32-544"]
+        assert "S-1-16-8192" in groups, "the medium level"
+        assert got["owner_of_what_it_makes"] == _powershell("[Security.Principal.WindowsIdentity]::GetCurrent().Name").strip()
+        # The user's account may look at it and stop it, and everything it starts, once and not twice.
+        assert got["for_new_processes"].count("(A;;GA;;;USER)") == 1, got["for_new_processes"]
+        assert got["own"].count("(A;;0x1fffff;;;USER)") == 1, got["own"]
