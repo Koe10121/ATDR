@@ -8,14 +8,18 @@ delivered the message but has something to say about it returns that as words; s
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import smtplib
 import ssl
 import subprocess
 import sys
+import time
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import timedelta
 from email.message import EmailMessage
 from email.utils import formatdate, make_msgid
 from pathlib import Path
@@ -25,12 +29,23 @@ from urllib.parse import urlparse
 import requests
 
 from atdr.app.core.config import PROJECT_ROOT, Settings
+from atdr.app.core.desktop import has_desktop
+from atdr.app.services.release_service import process_alive
 
 WINDOWS, EMAIL, CHAT = "windows", "email", "chat"
 CHANNELS = (WINDOWS, EMAIL, CHAT)
 CHANNEL_NAMES = {WINDOWS: "Windows notification", EMAIL: "Email", CHAT: "Chat message"}
 TOAST_SCRIPT = PROJECT_ROOT / "scripts" / "show_notification.ps1"
 SEND_SECONDS = 20
+# Where a part of ATDR that has no desktop leaves a Windows notification for the helper that has one
+# (scripts/desktop_agent.ps1, in the session of whoever is signed in), and how long it waits to be told it was shown.
+DESKTOP_QUEUE = PROJECT_ROOT / ".atdr_runtime" / "desktop-notifications"
+DESKTOP_WAIT_SECONDS = 15.0
+# The record the helper keeps of itself while it runs: with nobody signed in there is no helper.
+DESKTOP_HELPER = PROJECT_ROOT / ".atdr_runtime" / "desktop.lock"
+# With nobody signed in a Windows notification waits, and is looked at again this soon: it is shown about a minute
+# after someone signs in, not at the next of the hourly tries a failed channel is given.
+NOBODY_SIGNED_IN_LOOK_AGAIN = timedelta(minutes=1)
 # What a Windows notification shows of the body before it cuts it off.
 TOAST_LINES = 4
 # Discord refuses a message longer than this.
@@ -46,11 +61,15 @@ class DeliveryError(Exception):
     `again` is False when another try cannot help until someone changes a setting: a sign-in the mail server
     refused, a sender or addresses it will not take, a chat address that is gone. Such a message is not sent
     again by itself; each try would be one more refused sign-in on the account.
+
+    `look_again` is set when nothing is wrong and the message only has to wait (nobody is signed in to see it):
+    the next try comes after that long, every time, instead of later and later.
     """
 
-    def __init__(self, words: str, *, again: bool = True) -> None:
+    def __init__(self, words: str, *, again: bool = True, look_again: timedelta | None = None) -> None:
         super().__init__(words)
         self.again = again
+        self.look_again = look_again
 
 
 @dataclass(frozen=True)
@@ -249,7 +268,80 @@ def toast_environment(settings: Settings, message: Message) -> dict[str, str]:
     return {"ATDR_NOTIFICATION_TITLE": message.title, "ATDR_NOTIFICATION_BODY": "\n".join(lines), "ATDR_NOTIFICATION_LINK": link}
 
 
-def send_windows(settings: Settings, message: Message, *, run: Callable[..., Any] = subprocess.run) -> None:
+def helper_at_the_desktop(record: Path = DESKTOP_HELPER, *, alive: Callable[[int, str], bool] = process_alive) -> bool:
+    """Whether ATDR's helper runs in somebody's sign-in session (scripts/desktop_agent.ps1)."""
+
+    try:
+        held = json.loads(record.read_text(encoding="utf-8-sig"))
+        return bool(alive(int(held["pid"]), str(held["started_at"])))
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+
+
+def hand_to_desktop(
+    settings: Settings,
+    message: Message,
+    *,
+    queue: Path = DESKTOP_QUEUE,
+    wait_seconds: float = DESKTOP_WAIT_SECONDS,
+    sleep: Callable[[float], None] = time.sleep,
+    helper: Callable[[], bool] = helper_at_the_desktop,
+) -> None:
+    """Leaves the notification for the helper at the desktop and waits until the helper says it was shown.
+
+    The helper takes <id>.json by renaming it to <id>.showing and leaves <id>.shown or <id>.failed. When nobody is
+    signed in there is no helper, and nothing is left: the notification waits where it is on record, and is shown
+    about a minute after someone signs in. One that is a day old by then is not shown any more; the dashboard's
+    bell has it.
+    """
+
+    if not helper():
+        raise DeliveryError("nobody is signed in to Windows on this machine, so there is no desktop to show it on; it is shown when someone signs in",
+                            look_again=NOBODY_SIGNED_IN_LOOK_AGAIN)
+    name = uuid.uuid4().hex
+    waiting, showing, shown, failed = (queue / f"{name}.{kind}" for kind in ("json", "showing", "shown", "failed"))
+    try:
+        queue.mkdir(parents=True, exist_ok=True)
+        arriving = queue / f"{name}.arriving"
+        arriving.write_text(json.dumps(toast_environment(settings, message)), encoding="utf-8")
+        os.replace(arriving, waiting)
+    except OSError as error:
+        raise DeliveryError(f"the notification could not be left for the desktop ({error.__class__.__name__})") from error
+    waited = 0.0
+    while True:
+        if shown.exists():
+            shown.unlink(missing_ok=True)
+            return
+        if failed.exists():
+            failed.unlink(missing_ok=True)
+            raise DeliveryError("Windows did not show the notification")
+        if waited >= wait_seconds:
+            break
+        sleep(0.5)
+        waited += 0.5
+    try:
+        waiting.unlink()
+    except FileNotFoundError:
+        if showing.exists() or shown.exists():
+            # Taken at the last moment: it is being shown. The helper clears away what nobody collects.
+            return
+        raise DeliveryError("Windows did not show the notification") from None
+    except OSError as error:
+        raise DeliveryError(f"the notification could not be taken back ({error.__class__.__name__})") from error
+    raise DeliveryError("ATDR's helper at the desktop did not take the notification in time")
+
+
+def send_windows(
+    settings: Settings,
+    message: Message,
+    *,
+    run: Callable[..., Any] = subprocess.run,
+    desktop: Callable[[], bool] = has_desktop,
+    hand_over: Callable[[Settings, Message], None] = hand_to_desktop,
+) -> None:
+    if not desktop():
+        hand_over(settings, message)
+        return
     try:
         done = run(
             ["powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", str(TOAST_SCRIPT)],

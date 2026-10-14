@@ -130,7 +130,19 @@ def test_the_folder_atdr_is_developed_in_is_not_started_or_given_the_tasks_by_ac
     refusal = installer[installer.index("$liveCopy = Get-AtdrLiveCopy"):installer.index("if ($Remove) {")]
     assert "if ($liveCopy) {" in refusal and "exit 1" in refusal and "Run $liveCopy\\scripts\\autostart.cmd instead." in refusal
     assert installer.index("if ($Status) {") < installer.index("$liveCopy = Get-AtdrLiveCopy") < installer.index("if ($Remove) {")
-    assert installer.index("if ($Remove) {") < installer.index("Register-ScheduledTask"), "nothing is removed or installed before the refusal"
+    # Nothing is removed or installed before the refusal. Above the first thing the script does there are only
+    # settings and definitions; below it, everything that changes the machine comes after the refusal.
+    does = installer.index("\nif ($Status) {")
+    above = [line for line in installer[:does].splitlines()
+             if line and not line[0].isspace() and not line.startswith(("#", "function ", "}", "$", "[", "param(", ")", "Set-StrictMode ", ". (Join-Path "))]
+    assert above == [], above
+    refused = installer.index("$liveCopy = Get-AtdrLiveCopy")
+    for changes in ("Install-AtdrBeforeSignIn", "Install-AtdrForSignIn", "Unregister-AtdrTasks", "Invoke-AtdrElevated", "Set-AtdrMainsAwake",
+                    "Restore-AtdrMainsSleep", "Move-AtdrPartsToWatcher", "Undo-AtdrBeforeSignIn", "Restart-AtdrThroughWatcher",
+                    "Register-ScheduledTask", "Unregister-ScheduledTask", "powercfg /set"):
+        assert changes not in installer[does:refused], changes
+        if changes not in ("Register-ScheduledTask", "Unregister-ScheduledTask", "powercfg /set"):
+            assert changes in installer[refused:], changes
 
     stopped = _script(root / "scripts" / "stop_system.ps1")
     assert stopped.returncode == 0 and "ATDR itself runs from C:\\ATDR-live; stop it there." in stopped.stdout

@@ -4,6 +4,7 @@ import signal
 import threading
 
 from atdr.app.core.config import get_settings
+from atdr.app.core.desktop import stay_up_when_someone_signs_out
 from atdr.app.services.syslog_service import run_udp_syslog_receiver
 
 # A receiver that stops by itself is started again after this pause, unless it was asked to stop.
@@ -43,6 +44,9 @@ def main() -> None:
         shutdown_signal = getattr(signal, name, None)
         if shutdown_signal is not None:
             signal.signal(shutdown_signal, lambda _signum, _frame: stop.set())
+    # Without it, a receiver that has no desktop would take every sign-out of Windows for Ctrl+Break and stop.
+    if stay_up_when_someone_signs_out():
+        logger.info("No desktop under the receiver: a sign-out of Windows does not stop it.")
 
     while True:
         try:

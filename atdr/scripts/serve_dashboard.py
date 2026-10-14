@@ -15,6 +15,7 @@ from pathlib import Path
 
 import uvicorn
 
+from atdr.app.core.desktop import stay_up_when_someone_signs_out
 from atdr.app.dashboard_server import DASHBOARD_DIRECTORY, create_dashboard_app
 
 
@@ -24,6 +25,8 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=5173)
     parser.add_argument("--directory", type=Path, default=DASHBOARD_DIRECTORY)
     args = parser.parse_args()
+    # Without it, a server that has no desktop would take every sign-out of Windows for Ctrl+Break and stop.
+    stay_up_when_someone_signs_out()
     # One line a request would fill the log with nothing an operator needs; errors are still logged.
     uvicorn.run(create_dashboard_app(args.directory), host=args.host, port=args.port, access_log=False, log_level="warning")
 

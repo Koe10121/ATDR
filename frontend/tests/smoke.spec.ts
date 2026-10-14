@@ -152,6 +152,8 @@ const smokeSystemStatus = {
     }
   },
   dashboard_build: { built: true, built_at: "2026-10-09T02:38:30Z", commit: "e4ca530", uncommitted: false, stale: false },
+  // Started with the machine, which was set not to sleep by itself on mains power.
+  unattended: { before_sign_in: true, stay_awake_wanted: true, sleeps_after_minutes_on_mains: 0 },
   // A live copy: the version that was released into it, and how that version was checked.
   version: {
     commit: "e4ca530",
@@ -7679,6 +7681,37 @@ test("the System panel says how ATDR looks after itself, and what is wrong when 
   status = { ...base, version: { ...base.version, subject: "The first version", check: "", previous: null } };
   await page.reload();
   await expect(panel.getByTestId("system-version")).toHaveText(/Version e4ca530, live since 9 Oct[^.]*\. Its last change: The first version\.$/);
+
+  // Whether ATDR runs with nobody at the machine: started with it or by a sign-in, and whether the machine sleeps.
+  status = base;
+  await page.reload();
+  await expect(panel.getByTestId("system-unattended")).toHaveText(
+    "ATDR starts with the machine, before anyone signs in, and keeps running when they sign out. On mains power the machine does not go to sleep by itself; closing the lid still puts it to sleep."
+  );
+  await expect(panel.getByTestId("system-unattended").locator("span").first()).not.toHaveClass(/text-amber/);
+  status = { ...base, unattended: { before_sign_in: true, stay_awake_wanted: true, sleeps_after_minutes_on_mains: 60 } };
+  await page.reload();
+  await expect(panel.getByTestId("system-unattended")).toHaveText(
+    "ATDR starts with the machine, but the machine goes to sleep by itself. On mains power it sleeps after 60 minutes without use, and ATDR pauses with it. scripts\\autostart.cmd -StayAwakeOnMains on the machine changes that."
+  );
+  await expect(panel.getByTestId("system-unattended").locator("span").first()).toHaveClass(/text-amber/);
+  status = { ...base, unattended: { before_sign_in: false, stay_awake_wanted: false, sleeps_after_minutes_on_mains: 1 } };
+  await page.reload();
+  await expect(panel.getByTestId("system-unattended")).toHaveText(
+    "ATDR starts when someone signs in to Windows, and stops when they sign out. scripts\\autostart.cmd -BeforeSignIn on the machine makes it start with the machine instead; Windows asks for an administrator once. On mains power the machine goes to sleep after 1 minute without use, and ATDR pauses with it."
+  );
+  await expect(panel.getByTestId("system-unattended").locator("span").first()).not.toHaveClass(/text-amber/);
+  // What the machine did not say is not said, and where nothing was installed there is no line at all.
+  status = { ...base, unattended: { before_sign_in: true, stay_awake_wanted: false, sleeps_after_minutes_on_mains: null } };
+  await page.reload();
+  await expect(panel.getByTestId("system-unattended")).toHaveText("ATDR starts with the machine, before anyone signs in, and keeps running when they sign out.");
+  status = { ...base, unattended: { before_sign_in: false, stay_awake_wanted: false, sleeps_after_minutes_on_mains: 0 } };
+  await page.reload();
+  await expect(panel.getByTestId("system-unattended")).toHaveText(/Windows asks for an administrator once\.$/);
+  status = { ...base, unattended: null };
+  await page.reload();
+  await expect(panel.getByTestId("system-keep-running")).toBeVisible();
+  await expect(panel.getByTestId("system-unattended")).toHaveCount(0);
 
   // A release that did not change the dashboard's source leaves its build alone. The build is then of an earlier
   // version than the one that runs, which is said as it is and not as a dashboard that is out of date.

@@ -493,6 +493,6 @@ def test_the_sign_in_start_waits_for_the_start_script_alone_and_installs_one_ent
     assert "Out-String" not in code and "-Wait" not in code
 
     installer = (scripts / "autostart.ps1").read_text(encoding="utf-8")
-    assert "New-ScheduledTaskTrigger -AtLogOn -User $user" in installer and "-RunLevel Limited" in installer
+    assert "New-ScheduledTaskTrigger -AtLogOn -User $User" in installer and "-RunLevel Limited" in installer
     assert 'GetFolderPath("Startup")' in installer and "Unregister-ScheduledTask" in installer
     assert "autostart.ps1" in (scripts / "autostart.cmd").read_text(encoding="utf-8")

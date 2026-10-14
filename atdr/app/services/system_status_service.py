@@ -10,6 +10,10 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
+import sys
+import time
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -128,6 +132,51 @@ def keeping_running_status(*, now: datetime | None = None, runtime: Path = RUNTI
     }
 
 
+_AC_SLEEP = re.compile(r"Current AC Power Setting Index:\s*0x([0-9a-fA-F]+)")
+# The sleep time is asked of Windows at most this often: the System panel asks for the status every half minute.
+_SLEEP_ASKED_EVERY = 60.0
+_sleep_known: tuple[float, int | None] | None = None
+
+
+def mains_sleep_seconds(*, run: Callable[..., Any] = subprocess.run) -> int | None:
+    """After how long without use this machine goes to sleep on mains power; 0 is never, None when it cannot be said."""
+
+    global _sleep_known
+    if sys.platform != "win32":
+        return None
+    if _sleep_known is not None and time.monotonic() - _sleep_known[0] < _SLEEP_ASKED_EVERY:
+        return _sleep_known[1]
+    seconds: int | None = None
+    try:
+        asked = run(["powercfg", "/query", "SCHEME_CURRENT", "SUB_SLEEP", "STANDBYIDLE"], capture_output=True, text=True,
+                    timeout=15, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        found = _AC_SLEEP.search(asked.stdout or "")
+        seconds = int(found.group(1), 16) if found else None
+    except (OSError, subprocess.SubprocessError, ValueError):
+        seconds = None
+    _sleep_known = (time.monotonic(), seconds)
+    return seconds
+
+
+def unattended_status(*, runtime: Path = RUNTIME, sleep_seconds: Callable[[], int | None] = mains_sleep_seconds) -> dict[str, Any] | None:
+    """Whether ATDR runs with nobody at the machine; None where scripts/autostart.cmd has installed nothing.
+
+    Installed for a sign-in, ATDR starts when someone signs in to Windows and ends when they sign out. Installed
+    with -BeforeSignIn it starts with the machine. Either way it pauses while the machine sleeps.
+    """
+
+    record = _read(runtime / "autostart.json") or {}
+    if record.get("mode") not in ("before_sign_in", "at_sign_in"):
+        return None
+    seconds = sleep_seconds()
+    return {
+        "before_sign_in": record["mode"] == "before_sign_in",
+        # Asked for with -StayAwakeOnMains. A power plan that was changed or added since can have undone it.
+        "stay_awake_wanted": bool(record.get("stay_awake_on_mains")),
+        "sleeps_after_minutes_on_mains": None if seconds is None else int(round(seconds / 60)),
+    }
+
+
 def _worker_running(db: Session, settings: Settings, now: datetime) -> bool:
     fresh_since = now - timedelta(seconds=max(1, int(settings.operation_worker_heartbeat_seconds)) * 3)
     seen = db.scalar(
@@ -167,4 +216,5 @@ def system_status(
         "notifications": notifications,
         # Which released version this is; None where ATDR runs from the folder it is developed in.
         "version": version_status(runtime.parent),
+        "unattended": unattended_status(runtime=runtime),
     }

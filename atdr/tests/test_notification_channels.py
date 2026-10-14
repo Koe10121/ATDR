@@ -440,6 +440,97 @@ def test_a_windows_notification_gets_its_words_and_the_page_to_open(monkeypatch)
         send_windows(settings, MESSAGE, run=missing)
 
 
+def test_without_a_desktop_the_notification_is_handed_to_the_helper_that_has_one(tmp_path):
+    # Started with the machine (scripts\autostart.cmd -BeforeSignIn), ATDR's parts have no desktop: a notification
+    # they showed themselves would be shown to nobody, and Windows would say that it went well.
+    settings = _settings(MFU_IAM_HANDOFF_FRONTEND_URL="http://127.0.0.1:5173/")
+    handed, ran = [], []
+
+    def shown_from_here(command, **_kwargs):
+        ran.append(command)
+        return subprocess.CompletedProcess(command, 0)
+
+    send_windows(settings, MESSAGE, run=shown_from_here, desktop=lambda: False, hand_over=lambda given, message: handed.append((given, message)))
+    assert handed == [(settings, MESSAGE)] and ran == []
+    send_windows(settings, MESSAGE, run=shown_from_here, desktop=lambda: True, hand_over=lambda given, message: handed.append((given, message)))
+    assert len(handed) == 1 and len(ran) == 1, "at a desktop it is shown from here, as it always was"
+
+    queue = tmp_path / "desktop-notifications"
+    seen = []
+
+    def a_helper_that_answers(answer: str):
+        def between_two_looks(_seconds: float) -> None:
+            # What scripts\desktop_agent.ps1 does with a file: takes it by renaming it, and leaves how it went.
+            for waiting in queue.glob("*.json"):
+                seen.append(json.loads(waiting.read_text(encoding="utf-8")))
+                waiting.replace(waiting.with_suffix(".showing"))
+                waiting.with_suffix(".showing").replace(waiting.with_suffix(f".{answer}"))
+        return between_two_looks
+
+    channels.hand_to_desktop(settings, MESSAGE, queue=queue, sleep=a_helper_that_answers("shown"), helper=lambda: True)
+    assert seen == [toast_environment(settings, MESSAGE)], "the same words, in the form the script that shows them takes"
+    assert list(queue.iterdir()) == [], "the answer is collected, and nothing is left half written"
+
+    with pytest.raises(DeliveryError, match="^Windows did not show the notification$") as refused:
+        channels.hand_to_desktop(settings, MESSAGE, queue=queue, sleep=a_helper_that_answers("failed"), helper=lambda: True)
+    assert (refused.value.again, refused.value.look_again) == (True, None) and list(queue.iterdir()) == []
+
+
+def test_with_nobody_signed_in_the_notification_waits_and_nothing_is_left_lying(tmp_path):
+    settings = _settings()
+    queue = tmp_path / "desktop-notifications"
+    slept: list[float] = []
+    with pytest.raises(DeliveryError, match="^nobody is signed in to Windows on this machine, .* it is shown when someone signs in$") as waits:
+        channels.hand_to_desktop(settings, MESSAGE, queue=queue, sleep=slept.append, helper=lambda: False)
+    assert waits.value.again is True and waits.value.look_again == channels.NOBODY_SIGNED_IN_LOOK_AGAIN
+    assert channels.NOBODY_SIGNED_IN_LOOK_AGAIN.total_seconds() == 60
+    assert slept == [] and not queue.exists(), "not waited for, and nothing written: there is nobody to take it"
+
+    # A helper that is there and takes nothing (the user is signing out): the file is taken back, so that it is
+    # not shown a second time when the notification is tried again.
+    with pytest.raises(DeliveryError, match="^ATDR's helper at the desktop did not take the notification in time$") as late:
+        channels.hand_to_desktop(settings, MESSAGE, queue=queue, wait_seconds=3, sleep=slept.append, helper=lambda: True)
+    assert late.value.look_again is None and sum(slept) == 3 and list(queue.iterdir()) == []
+    assert channels.DESKTOP_WAIT_SECONDS == 15
+
+    # Taken at the last moment: it is being shown, and is not reported as lost.
+    looks: list[float] = []
+
+    def taken_at_the_last_moment(seconds: float) -> None:
+        looks.append(seconds)
+        if len(looks) == 2:
+            for waiting in queue.glob("*.json"):
+                waiting.replace(waiting.with_suffix(".showing"))
+
+    channels.hand_to_desktop(settings, MESSAGE, queue=queue, wait_seconds=1, sleep=taken_at_the_last_moment, helper=lambda: True)
+    assert [path.suffix for path in queue.iterdir()] == [".showing"]
+
+    # A folder that cannot be written to is said, not raised as it is.
+    (tmp_path / "a file").write_text("", encoding="utf-8")
+    with pytest.raises(DeliveryError, match=r"^the notification could not be left for the desktop \((FileExistsError|NotADirectoryError)\)$"):
+        channels.hand_to_desktop(settings, MESSAGE, queue=tmp_path / "a file", sleep=slept.append, helper=lambda: True)
+
+
+def test_the_helper_is_there_while_the_process_it_wrote_down_runs(tmp_path):
+    record = tmp_path / "desktop.lock"
+    asked = []
+
+    def alive(pid: int, started_at: str) -> bool:
+        asked.append((pid, started_at))
+        return True
+
+    assert channels.helper_at_the_desktop(record, alive=alive) is False and asked == [], "no record: no helper was ever started"
+    # As PowerShell writes it: with a mark at the start of the file, and seven decimals of a second.
+    record.write_text('﻿{"pid": 4321, "started_at": "2026-10-11T07:00:00.1234567Z"}', encoding="utf-8")
+    assert channels.helper_at_the_desktop(record, alive=alive) is True and asked == [(4321, "2026-10-11T07:00:00.1234567Z")]
+    assert channels.helper_at_the_desktop(record, alive=lambda _pid, _started: False) is False, "its record outlives a helper that was ended"
+    for unusable in ("{ not json", '{"pid": "x", "started_at": ""}', "[]", '{"started_at": "2026-10-11T07:00:00Z"}'):
+        record.write_text(unusable, encoding="utf-8")
+        assert channels.helper_at_the_desktop(record, alive=alive) is False, unusable
+    assert channels.DESKTOP_HELPER == Path(channels.PROJECT_ROOT) / ".atdr_runtime" / "desktop.lock"
+    assert channels.DESKTOP_QUEUE == Path(channels.PROJECT_ROOT) / ".atdr_runtime" / "desktop-notifications"
+
+
 def test_the_notification_script_shows_nothing_without_a_title(tmp_path):
     # Run for real, with no words: it must end before it reaches the screen.
     assert channels.TOAST_SCRIPT == Path(channels.PROJECT_ROOT) / "scripts" / "show_notification.ps1" and channels.TOAST_SCRIPT.is_file()

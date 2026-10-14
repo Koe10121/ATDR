@@ -10,6 +10,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from atdr.app.core.config import get_settings, validate_runtime_settings
+from atdr.app.core.desktop import stay_up_when_someone_signs_out
 from atdr.app.core.logging import configure_logging
 from atdr.app.core.middleware import RequestContextMiddleware, SecurityHeadersMiddleware, TrustedProxyHeadersMiddleware
 from atdr.app.core.request_context import get_request_id
@@ -47,6 +48,8 @@ logger = logging.getLogger("atdr.app")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if stay_up_when_someone_signs_out():
+        logger.info("no desktop under this part: a sign-out of Windows does not stop it", extra={"event": "startup_without_desktop"})
     config_issues = validate_runtime_settings(settings)
     app.state.configuration_issues = tuple(config_issues)
     if config_issues:

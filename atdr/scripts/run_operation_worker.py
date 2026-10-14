@@ -7,6 +7,7 @@ import sys
 from threading import Event
 
 from atdr.app.core.config import get_settings
+from atdr.app.core.desktop import stay_up_when_someone_signs_out
 from atdr.app.services.operation_worker import WorkerConcurrencyError, run_worker_cycle, run_worker_loop
 
 
@@ -52,6 +53,8 @@ def main() -> int:
                 continue
             previous_handlers[shutdown_signal] = signal.getsignal(shutdown_signal)
             signal.signal(shutdown_signal, request_shutdown)
+        # A worker that has no desktop is not to end with somebody's sign-out of Windows.
+        stay_up_when_someone_signs_out()
     try:
         if args.watch:
             result = run_worker_loop(

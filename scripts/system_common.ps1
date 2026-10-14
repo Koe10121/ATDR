@@ -391,12 +391,27 @@ function Get-AssistantModelSummary {
     }
 }
 
+function Test-AtdrHasDesktop {
+    # Whether this process runs in somebody's sign-in session. A task that runs whether or not anyone is signed in
+    # (and every service) is in session 0, which has no desktop: nothing started there can show a window, a tray
+    # icon or a notification.
+    try {
+        return ((Get-Process -Id $PID).SessionId -ne 0)
+    }
+    catch {
+        return $true
+    }
+}
+
 # Starts the installed Ollama app when the configured model is not running, and
 # waits briefly for it. Never fails the launcher: the assistant has a fallback.
 function Start-AssistantModelIfStopped {
     param([Parameter(Mandatory = $true)][System.Collections.IDictionary]$EnvValues)
     $status = Get-AssistantModelStatus $EnvValues
     if ($status.state -ne "not_running") { return $status }
+    # Ollama's app lives in the notification area of whoever is signed in. Without a desktop it is left to the
+    # helper that has one (scripts\desktop_agent.ps1); until someone signs in the assistant gives its built-in answers.
+    if (-not (Test-AtdrHasDesktop)) { return $status }
     $app = Join-Path $env:LOCALAPPDATA "Programs\Ollama\ollama app.exe"
     if (-not (Test-Path -LiteralPath $app -PathType Leaf)) { return $status }
     try {
@@ -882,10 +897,55 @@ function Start-AtdrWatcherTask {
     }
 }
 
+function Test-AtdrWatcherAlive {
+    # Whether this folder's watcher runs: by the record it keeps of itself, not by the machine's task, which may
+    # belong to another folder.
+    $path = Join-Path (Get-AtdrRuntimeDirectory) "watch.lock"
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $false }
+    try {
+        return [bool](Test-TrackedProcessRecordActive (Get-Content -LiteralPath $path -Raw | ConvertFrom-Json))
+    }
+    catch {
+        return $false
+    }
+}
+
+function Get-AtdrWatcherSession {
+    # The Windows session this folder's watcher runs in: 0 is the one without a desktop, which a task that runs
+    # without a sign-in is given. Nothing when no watcher runs.
+    $path = Join-Path (Get-AtdrRuntimeDirectory) "watch.lock"
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $null }
+    try {
+        $held = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+        if (-not (Test-TrackedProcessRecordActive $held)) { return $null }
+        return [int](Get-Process -Id ([int]$held.pid) -ErrorAction Stop).SessionId
+    }
+    catch {
+        return $null
+    }
+}
+
 function Stop-AtdrWatcherProcess {
     # Ends the watcher by its own process. Never by ending its task: Windows ends a task together with everything
     # the task started, and a watcher that has brought a part of ATDR back is that part's parent.
     $path = Join-Path (Get-AtdrRuntimeDirectory) "watch.lock"
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $false }
+    try {
+        $held = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+        if (-not (Test-TrackedProcessRecordActive $held)) { return $false }
+        Stop-Process -Id ([int]$held.pid) -Force -ErrorAction Stop
+        Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
+        return $true
+    }
+    catch {
+        return $false
+    }
+}
+
+function Stop-AtdrDesktopHelperProcess {
+    # Ends this folder's helper at the desktop (scripts\desktop_agent.ps1) by its own process, like the watcher.
+    # Where its task is installed, Windows starts it again within the minute.
+    $path = Join-Path (Get-AtdrRuntimeDirectory) "desktop.lock"
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $false }
     try {
         $held = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
@@ -918,6 +978,9 @@ function Restart-AtdrWatcher {
     # Ends the watcher and has its task start it again, so that the watcher which runs is the script now in this
     # folder (a release has just changed the files). False where the task is not installed.
     [void](Stop-AtdrWatcherProcess)
+    # The helper at the desktop holds the scripts of the version before too. Ended here, it is started again by
+    # its own task within the minute; a notification that comes in between waits for it.
+    [void](Stop-AtdrDesktopHelperProcess)
     # Windows needs a moment to see that the watcher which was just ended is gone.
     for ($waited = 0; $waited -lt 20; $waited++) {
         $task = Get-ScheduledTask -TaskName $AtdrWatcherTaskName -ErrorAction SilentlyContinue
@@ -925,7 +988,14 @@ function Restart-AtdrWatcher {
         if ([string]$task.State -ne "Running") { break }
         Start-Sleep -Milliseconds 500
     }
-    return (Start-AtdrWatcherTask)
+    if (Start-AtdrWatcherTask) { return $true }
+    # The task is there and this window may not start it (one that runs without a sign-in was registered by an
+    # administrator). Windows starts it by itself within the minute.
+    for ($waited = 0; $waited -lt 45; $waited++) {
+        if (Test-AtdrWatcherAlive) { return $true }
+        Start-Sleep -Seconds 2
+    }
+    return $false
 }
 
 # ---- Releases (scripts\release.cmd) ----
@@ -993,4 +1063,103 @@ function Get-AtdrStartRequestPath {
 
 function Get-AtdrStartResultPath {
     return Join-Path (Get-AtdrRuntimeDirectory) "start-result.json"
+}
+
+function Request-AtdrStart {
+    # Asks the watcher to start whatever of ATDR is not running, and waits for its answer: an object with ok,
+    # code and said, or nothing when no watcher answered in time.
+    param(
+        [Parameter(Mandatory = $true)][string]$By,
+        [switch]$Release,
+        [int]$TimeoutSeconds = 480
+    )
+    $id = [guid]::NewGuid().ToString("N")
+    $requestPath = Get-AtdrStartRequestPath
+    $resultPath = Get-AtdrStartResultPath
+    New-Item -ItemType Directory -Path (Get-AtdrRuntimeDirectory) -Force | Out-Null
+    Remove-Item -LiteralPath $resultPath -Force -ErrorAction SilentlyContinue
+    # Written whole, then moved into place: the watcher never reads half a request.
+    [ordered]@{ id = $id; by = $By; release = [bool]$Release; at = (Get-Date).ToUniversalTime().ToString("o") } |
+        ConvertTo-Json | Set-Content -LiteralPath "$requestPath.arriving" -Encoding UTF8
+    Move-Item -LiteralPath "$requestPath.arriving" -Destination $requestPath -Force
+    $deadline = (Get-Date).AddSeconds([Math]::Max(1, $TimeoutSeconds))
+    while ((Get-Date) -lt $deadline) {
+        if (Test-Path -LiteralPath $resultPath -PathType Leaf) {
+            try {
+                $result = Get-Content -LiteralPath $resultPath -Raw | ConvertFrom-Json
+                if ([string]$result.id -eq $id) {
+                    Remove-Item -LiteralPath $resultPath -Force -ErrorAction SilentlyContinue
+                    return $result
+                }
+            }
+            catch { }
+        }
+        Start-Sleep -Milliseconds 500
+    }
+    Remove-Item -LiteralPath $requestPath -Force -ErrorAction SilentlyContinue
+    return $null
+}
+
+# ---- Running without a sign-in (scripts\autostart.cmd -BeforeSignIn) ----
+#
+# Installed for a sign-in, ATDR's watcher and every part it starts belong to that sign-in session: nothing runs before
+# someone signs in, and everything ends when they sign out. Installed to run before sign-in, the watcher is a task
+# Windows starts with the machine, with no desktop, and every start of ATDR goes through it.
+
+$AtdrSignInTaskName = "ATDR start at sign-in"
+$AtdrDesktopTaskName = "ATDR at the desktop"
+
+function Get-AtdrAutostartRecordPath {
+    return Join-Path (Get-AtdrRuntimeDirectory) "autostart.json"
+}
+
+function Read-AtdrAutostartRecord {
+    # How scripts\autostart.cmd last installed this folder's tasks; nothing where it never did.
+    $path = Get-AtdrAutostartRecordPath
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $null }
+    try {
+        $record = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+        if ([string]$record.mode -notin @("before_sign_in", "at_sign_in")) { return $null }
+        return $record
+    }
+    catch {
+        return $null
+    }
+}
+
+function Test-AtdrRunsWithoutSignIn {
+    # By this folder's own record, not by what tasks the machine has: a copy of these scripts in another folder
+    # (a test's, a second checkout) is not the one the machine's tasks belong to.
+    $record = Read-AtdrAutostartRecord
+    return ($null -ne $record -and [string]$record.mode -eq "before_sign_in")
+}
+
+function Get-AtdrDesktopQueuePath {
+    # Where a part of ATDR that has no desktop leaves a Windows notification for the helper that has one.
+    return Join-Path (Get-AtdrRuntimeDirectory) "desktop-notifications"
+}
+
+function ConvertFrom-AtdrPowerQuery {
+    # The seconds on mains power in what `powercfg /query <plan> SUB_SLEEP STANDBYIDLE` prints; nothing when it does
+    # not say. 0 means the machine never goes to sleep by itself.
+    param([AllowNull()][string[]]$Lines)
+    foreach ($line in @($Lines)) {
+        if ([string]$line -match 'Current AC Power Setting Index:\s*0x([0-9a-fA-F]+)') { return [Convert]::ToInt32($matches[1], 16) }
+    }
+    return $null
+}
+
+function Get-AtdrPowerPlans {
+    # The identifier of every power plan the machine has. A laptop's own performance modes switch between several.
+    $plans = [System.Collections.Generic.List[string]]::new()
+    foreach ($line in @(powercfg /list 2>$null)) {
+        if ([string]$line -match '([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})') { $plans.Add($matches[1].ToLowerInvariant()) }
+    }
+    return @($plans)
+}
+
+function Get-AtdrMainsSleepSeconds {
+    # After how long without use the machine goes to sleep on mains power: by the plan in use, or by the one named.
+    param([string]$Plan = "SCHEME_CURRENT")
+    return (ConvertFrom-AtdrPowerQuery @(powercfg /query $Plan SUB_SLEEP STANDBYIDLE 2>$null))
 }

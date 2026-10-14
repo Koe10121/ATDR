@@ -10,7 +10,10 @@ param(
     [switch]$Development,
     # Given by the watcher when a release asks it to start ATDR: the release is the one start that may run while
     # the release itself is on record as unfinished.
-    [switch]$DuringRelease
+    [switch]$DuringRelease,
+    # Given by the watcher with every start it makes. Where ATDR runs without a sign-in
+    # (scripts\autostart.cmd -BeforeSignIn) a start without it is handed to the watcher.
+    [switch]$ByWatcher
 )
 
 Set-StrictMode -Version Latest
@@ -96,6 +99,24 @@ try {
         }
         $where = if ($unfinished.source) { " in $($unfinished.source)" } else { " in the folder ATDR is developed in" }
         throw "A release into this folder did not finish$began, so its files may be half of one version and half of another. Run .\scripts\release.cmd recover$where; it puts back the version that was running."
+    }
+    if ((Test-AtdrRunsWithoutSignIn) -and -not $ByWatcher -and -not $partial -and -not $DryRun) {
+        # Where ATDR runs without a sign-in, its parts belong to the watcher's task. Started from this window they
+        # would belong to this sign-in and end with it, so the start is handed to the watcher.
+        Write-Host "ATDR runs here whether or not anyone is signed in, so its watcher makes the start. Asking it now; this can take a minute or two." -ForegroundColor Cyan
+        if (-not (Test-AtdrWatcherAlive) -and -not (Start-AtdrWatcherTask)) {
+            throw "The watcher (the task '$AtdrWatcherTaskName') is not running and could not be started from this window. Windows starts it by itself within a minute; run this again then."
+        }
+        $answer = Request-AtdrStart -By "start_system"
+        if ($null -eq $answer) { throw "The watcher did not answer within eight minutes. Its log: .atdr_runtime\logs\watch.log" }
+        if (-not $answer.ok) { throw ([string]$answer.said -replace '^ATDR startup failed: ', '') }
+        $asked = @($answer.asked_for | Where-Object { $_ })
+        Write-Host "ATDR is running: its watcher started $(if ($asked.Count) { $asked -join ', ' } else { 'nothing, because every part was running already' })." -ForegroundColor Green
+        Write-Host "  MFU sign in: http://localhost:8080/#/pages/login"
+        Write-Host "  Status: .\scripts\check_system.cmd -RequireReady"
+        Write-Host "  Stop: .\scripts\stop_system.cmd"
+        if (-not $NoBrowser) { Start-Process "http://localhost:8080/#/pages/login" | Out-Null }
+        exit 0
     }
     if (-not $DryRun) {
         # The sign-in start and the watcher must not launch the same parts at the same moment.

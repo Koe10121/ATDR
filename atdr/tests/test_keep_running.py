@@ -342,20 +342,25 @@ def test_the_installer_keeps_the_watcher_alive_without_launching_anything_while_
     installer = (SCRIPTS / "autostart.ps1").read_text(encoding="utf-8")
     assert "watch_system.ps1" in installer and "$AtdrWatcherTaskName" in installer
     assert "New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 1)" in installer
-    watch_settings = installer[installer.index("$watchSettings ="):].splitlines()[0]
+    watch_settings = installer[installer.index("function New-AtdrLongRunningSettings"):installer.index("function Start-AtdrWatcherAfresh")]
     assert "-MultipleInstances IgnoreNew" in watch_settings and "-ExecutionTimeLimit ([TimeSpan]::Zero)" in watch_settings
     assert "-AllowStartIfOnBatteries" in watch_settings and "-DontStopIfGoingOnBatteries" in watch_settings
     # Ending the watcher's task would end every part of ATDR that this watcher had brought back, so the watcher is
     # ended by its own process, after its task is gone.
     assert "Stop-ScheduledTask" not in installer and "Stop-AtdrWatcherProcess" in installer
-    removal = installer[installer.index("if ($Remove) {"):installer.index("if (-not (Test-Path -LiteralPath $launcher")]
+    removal = installer[installer.index("function Unregister-AtdrTasks"):installer.index("function Register-AtdrSignInTask")]
     assert removal.index("Unregister-ScheduledTask -TaskName $watchTaskName") < removal.index("Stop-AtdrWatcherProcess")
 
-    # No console window at all for either task. With a hidden window Windows ended the sign-in start seconds after
-    # each real sign-in (result 0xC000013A, three sign-ins of three) and once ended the watcher at an unlock.
+    # No console window at all for a task of the sign-in session. With a hidden window Windows ended the sign-in
+    # start seconds after each real sign-in (result 0xC000013A, three sign-ins of three) and once ended the watcher
+    # at an unlock.
     assert '-Execute $headless -Argument "--headless powershell.exe $PowerShellArguments"' in installer
     assert 'Join-Path $env:SystemRoot "System32\\conhost.exe"' in installer
-    assert "$action = New-HiddenPowerShellAction $arguments" in installer and "$watchAction = New-HiddenPowerShellAction $watchArguments" in installer
+    assert "$action = New-HiddenPowerShellAction $arguments" in installer
+    for_sign_in = installer[installer.index("function Install-AtdrForSignIn"):installer.index("function Install-AtdrBeforeSignIn")]
+    assert ("Register-ScheduledTask -TaskName $watchTaskName -Action (New-HiddenPowerShellAction $watchArguments) "
+            "-Trigger (New-AtdrEveryMinuteTrigger) -Settings (New-AtdrLongRunningSettings)") in for_sign_in
+    assert "-LogonType Interactive -RunLevel Limited" in for_sign_in and "S4U" not in for_sign_in
 
     watcher = (SCRIPTS / "watch_system.ps1").read_text(encoding="utf-8")
     assert "Get-AtdrWatchDecision" in watcher and '"-Only", ($Only -join ",")' in watcher

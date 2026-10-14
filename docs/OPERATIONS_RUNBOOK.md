@@ -69,18 +69,28 @@ and run the API and `npm run dev` by hand as shown under Local Recovery.
 ## Keeping ATDR Running
 
 By itself ATDR does not start after a restart and does not bring back a part
-that stops. Install both, once for each machine and Windows user:
+that stops. Install both, once for each machine and Windows user. There are
+two ways:
 
 ```powershell
-.\scripts\autostart.cmd            # install
-.\scripts\autostart.cmd -Status    # what is installed
-.\scripts\autostart.cmd -Remove    # take it away
+.\scripts\autostart.cmd                                  # ATDR starts when you sign in
+.\scripts\autostart.cmd -BeforeSignIn -StayAwakeOnMains  # ATDR starts with the machine
+.\scripts\autostart.cmd -Status                          # what is installed
+.\scripts\autostart.cmd -Remove                          # take it away
 ```
 
-It registers two scheduled tasks. Neither needs an administrator, no password
-is stored, and nothing runs before someone signs in. Both run without a
-console window: on 2026-10-09 Windows closed the hidden window of the sign-in
-start seconds after each of three sign-ins, and the start ended with it.
+Installed the first way, nothing runs before someone signs in to Windows and
+everything ends when they sign out. That is enough while logs arrive by
+import. A machine that receives the firewall's logs live should be installed
+the second way, described under
+[With the machine, before anyone signs in](#with-the-machine-before-anyone-signs-in);
+what follows here holds for both.
+
+The first way registers two scheduled tasks. Neither needs an administrator,
+no password is stored, and nothing runs before someone signs in. Both run
+without a console window: on 2026-10-09 Windows closed the hidden window of
+the sign-in start seconds after each of three sign-ins, and the start ended
+with it.
 
 - **ATDR start at sign-in** runs `scripts\start_at_sign_in.ps1` at your
   sign-in. It first puts on record that ATDR is meant to run and starts the
@@ -152,12 +162,102 @@ ATDR stopped with `stop_system.cmd` was still stopped 75 seconds later, and a
 stop held for 40 seconds was ended by the watcher: the API answered 52 seconds
 after the stop.
 
-Two limits remain. Nothing runs before someone signs in to Windows, so after
-a restart ATDR is down until the next sign-in. And nothing runs while the
-laptop sleeps; on 2026-10-09 it was set to sleep after an hour without use on
-mains power. Neither loses data while logs arrive only by import. Both must be
-closed before the live syslog feed is switched on: start at boot (it needs an
-administrator once) and no sleep on mains power.
+Installed this way, two limits remain. Nothing runs before someone signs in
+to Windows, so after a restart ATDR is down until the next sign-in, and it
+ends when they sign out. And nothing runs while the laptop sleeps; on
+2026-10-09 it was set to sleep after an hour without use on mains power.
+Neither loses data while logs arrive only by import. The second way of
+installing closes both.
+
+### With the machine, before anyone signs in
+
+```powershell
+.\scripts\autostart.cmd -BeforeSignIn -StayAwakeOnMains
+```
+
+Windows asks for an administrator once ("Do you want to allow this app to
+make changes?"). That is for registering the tasks only: no password is
+stored, and ATDR goes on running as your account, without administrator
+rights. Changing or removing these tasks later asks again. The two switches
+are separate: `-BeforeSignIn` is about when ATDR starts, `-StayAwakeOnMains`
+about sleep.
+
+**What `-BeforeSignIn` installs.** Three tasks:
+
+- **ATDR keep running**, the watcher, is now started by Windows with the
+  machine and runs whether or not anyone is signed in. After a restart it
+  waits for MongoDB (up to three minutes) and then starts ATDR. Every start
+  of ATDR is made by it, so the parts belong to its task and not to a
+  sign-in: they are running before you sign in and keep running when you
+  sign out.
+- **ATDR start at sign-in** stays, and starts nothing itself any more. Your
+  sign-in still ends a plain stop, as in the table above: it puts on record
+  that ATDR is meant to run, and the watcher starts it.
+- **ATDR at the desktop** runs `scripts\desktop_agent.ps1` while you are
+  signed in. A part that has no desktop cannot show a Windows notification
+  and cannot start an app that lives in the notification area, so this helper
+  shows ATDR's notifications and starts the SOC Assistant's Ollama app. Its
+  log is `.atdr_runtime\logs\desktop.log`.
+
+What is different from then on:
+
+- `start_system.cmd` hands its start to the watcher and waits for the answer
+  (a minute or two). Started from your window, the parts would end with your
+  sign-in. `stop_system.cmd` and `check_system.cmd` work as before.
+- A plain stop lasts until you start ATDR or sign in. A restart of the machine
+  does not end it: nobody who stopped ATDR is surprised by it running.
+- With nobody signed in, a Windows notification has no desktop to be shown
+  on. It waits and is shown about a minute after the next sign-in; one that is
+  a day old by then is not shown any more. The bell in the dashboard has every
+  notification either way, and email and chat do not wait for anybody.
+- With nobody signed in, the SOC Assistant gives its built-in answers; its
+  model's app is started within a minute of a sign-in.
+- Windows tells every program outside a session when that session's user signs
+  out, and Python hands that on as Ctrl+Break, which the API, the dashboard's
+  server and the live syslog receiver take as a request to stop. Tried on
+  2026-10-11 before anything was installed: a Python process with such a
+  handler had it called by the sign-out event. Without more, these three parts
+  would have stopped at every sign-out until the watcher brought them back. A
+  part that has no desktop now answers that event itself; the machine shutting
+  down is a different event and still stops every part in order.
+
+**What `-StayAwakeOnMains` changes.** On mains power the machine no longer
+goes to sleep by itself: the time is set to "never" in every power plan the
+machine has, because a laptop's own performance modes switch between plans
+and one that was left out would bring the sleep back. The screen still turns
+off, closing the lid still puts the machine to sleep, and nothing changes on
+battery. What each plan said before is kept in
+`.atdr_runtime\autostart.json`, and `autostart.cmd -Remove` puts it back.
+Given alone where ATDR is installed already, the switch changes only this,
+without asking for an administrator. When a plan that is changed or added
+later lets the machine sleep on mains power again, the System panel says so
+and, once it has lasted ten minutes, so does the bell.
+
+**Going back.** `autostart.cmd -AtSignIn` returns to starting at sign-in
+(Windows asks for an administrator, to take the tasks away), and
+`autostart.cmd -Remove` takes everything away. Without either switch the way
+that is installed stays.
+
+**How the install protects the running system.** After Windows has registered
+the tasks, the installer waits until it sees the watcher running without a
+desktop, and only then stops ATDR once and has the watcher start it (about
+two minutes). When Windows does not start the watcher that way, nothing is
+stopped and the installer goes back to starting at sign-in, so that ATDR is
+not left without a watcher. When the watcher runs but cannot start ATDR where
+there is no desktop, the installer goes back too and has ATDR started as it
+ran before; why it did not start is in `watch.log` and in each part's own
+log. Going back asks for an administrator once more.
+
+A release ends the watcher and the helper at the desktop and has Windows
+start both again, so that neither goes on with the scripts of the version
+before.
+
+What remains: ATDR pauses while the machine sleeps, which now takes a closed
+lid or an empty battery; and a machine that is switched off runs nothing.
+
+Where to look: the System panel's line about starting and sleep;
+`autostart.cmd -Status`; `.atdr_runtime\logs\watch.log` (the watcher writes
+"Waiting for MongoDB before the first start" after a restart of the machine).
 
 Normal startup requires the approved shell package/private profile, Python
 3.11, Node.js 20.19 or newer, npm, and MongoDB on loopback for the companion
@@ -258,7 +358,7 @@ until it is put in `C:\ATDR-live\.env`.
 - `start_system.cmd` in the development folder refuses and says where ATDR
   runs. `-Development` starts that folder's own copy anyway, which needs the
   live copy stopped first: both use the same addresses.
-- `autostart.cmd` there neither installs nor removes the two tasks: they
+- `autostart.cmd` there neither installs nor removes the tasks: they
   belong to the live copy.
 - When the live copy was made, the development folder's `.env` was changed so
   that nothing started there writes into the backup folder or sends a
@@ -288,8 +388,9 @@ that with a new release.
 
 Limits:
 
-- A release needs the two tasks of `autostart.cmd` in the live copy: they are
-  what starts ATDR.
+- A release needs the tasks of `autostart.cmd` in the live copy: they are
+  what starts ATDR. Installed either way, the release has the watcher start
+  the parts.
 - ATDR's own parts are down while the files change (measured below). Log
   lines a firewall sends by syslog in that time are lost.
 - A newer Python is not installed by a release: the live copy keeps the
@@ -416,7 +517,7 @@ on is not reported, nor are the alerts a rebuild or a reset raises.
 | Channel | Switched on by | Notes |
 | --- | --- | --- |
 | Bell in the dashboard | always | |
-| Windows notification on ATDR's machine | `ATDR_NOTIFY_WINDOWS=true` (the default) | Clicking it opens the alert or the System panel. While Windows' Do Not Disturb is on it goes to the notification centre without a banner. |
+| Windows notification on ATDR's machine | `ATDR_NOTIFY_WINDOWS=true` (the default) | Clicking it opens the alert or the System panel. While Windows' Do Not Disturb is on it goes to the notification centre without a banner. Where ATDR starts with the machine, it is shown to whoever is signed in and waits while nobody is. |
 | Email | `ATDR_NOTIFY_EMAIL_TO` and the `SMTP_*` settings | See below. |
 | Chat group | `ATDR_NOTIFY_CHAT_WEBHOOK_URL` | Discord, Slack, Google Chat, or any service that takes `{"text": "..."}`. |
 
@@ -467,6 +568,12 @@ test. An email that reached some of its addresses is not
 sent again: the System panel says how many addresses the mail server refused.
 The System panel shows what the last message through each channel did and,
 when it failed, why. Each message sent is an audit entry, `notification_sent`.
+
+A Windows notification that only has to wait is not a failure. Where ATDR
+starts with the machine and nobody is signed in, the System panel says
+"nobody is signed in to Windows on this machine" for it; it is looked at
+again every minute and shown at the first look after a sign-in, unless it is
+a day old by then.
 
 The background worker looks for something to tell every 30 seconds and sends
 the messages. The watcher reports a part that keeps stopping through
@@ -920,6 +1027,10 @@ disaster-recovery evidence from the host owner.
 | Startup says processes already run | Run `check_system.cmd`; use `stop_system.cmd` for launcher-owned processes. |
 | Startup says ATDR is being started by another process | The sign-in start or the watcher is starting it; wait a minute, then run `check_system.cmd`. |
 | ATDR starts again after it was stopped | A sign-in ends a plain stop. Stop with `stop_system.cmd -HoldHours <n>` for work that needs it down. |
+| `start_system.cmd` says its watcher makes the start | ATDR is installed to start with the machine. Wait for the answer; when it says the watcher did not answer, read `.atdr_runtime\logs\watch.log` and `autostart.cmd -Status`. |
+| After a restart of the machine ATDR is not running | `autostart.cmd -Status` says how it is installed. Installed with the machine: `watch.log` says what the watcher is waiting for or why the start failed; a plain stop made before the restart lasts until a sign-in. Installed for a sign-in: sign in. |
+| The System panel says the machine goes to sleep by itself again | A power plan was changed or added. Run `autostart.cmd -StayAwakeOnMains`. |
+| No Windows notification where ATDR starts with the machine | `autostart.cmd -Status` says whether the task **ATDR at the desktop** runs; its log is `.atdr_runtime\logs\desktop.log`. |
 | The System panel says a part keeps stopping | Read that part's log in `.atdr_runtime\logs\` for the cause; the watcher goes on trying every five minutes. |
 | The dashboard does not show a change to its source | It is built at the next start; to have it now, run `python -m atdr.scripts.build_dashboard` and reload the page. With a live copy, a change shows after `release.cmd go`. |
 | Startup says this is the folder ATDR is developed in | ATDR runs from the live copy it names. Start it there, or release a new version with `release.cmd go`. |

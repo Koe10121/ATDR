@@ -62,7 +62,7 @@ from atdr.app.services.persistence_service import _sqlite_path
 from atdr.app.services.release_service import files_changed
 from atdr.app.services.scheduled_backup_service import backup_status, failure_words, offsite_folders
 from atdr.app.services.syslog_service import live_feed_status
-from atdr.app.services.system_status_service import PARTS, RUNTIME, keeping_running_status
+from atdr.app.services.system_status_service import PARTS, RUNTIME, keeping_running_status, unattended_status
 
 # Kinds of notification.
 ALERTS, SUMMARY, PROBLEM, RESOLVED, STARTED, TEST = "alerts", "summary", "problem", "resolved", "started", "test"
@@ -469,6 +469,16 @@ def worker_problems(
             "A part that stops stays stopped until someone starts ATDR again. Run scripts\\autostart.cmd once on this machine.",
             over="ATDR's parts are watched again.", urgent=False, grace=timedelta(minutes=10),
         ))
+    unattended = unattended_status(runtime=runtime)
+    if unattended is not None and unattended["stay_awake_wanted"] and (unattended["sleeps_after_minutes_on_mains"] or 0) > 0:
+        minutes = unattended["sleeps_after_minutes_on_mains"]
+        found.append(Problem(
+            "sleeps_on_mains", "This machine goes to sleep by itself again",
+            f"On mains power it now goes to sleep after {minutes} {'minute' if minutes == 1 else 'minutes'} without use, and ATDR "
+            "pauses with it. It was set not to; a power plan was changed or added since. Run scripts\\autostart.cmd "
+            "-StayAwakeOnMains on the machine.",
+            over="On mains power this machine no longer goes to sleep by itself.", urgent=False, grace=timedelta(minutes=10),
+        ))
     changed = files_changed(runtime.parent)
     if changed is not None:
         files = changed["files"]
@@ -609,10 +619,11 @@ def deliver_pending(
             continue
         note = None
         again = True
+        look_again = None
         try:
             note = sender(settings, Message(title=notification.title, body=notification.body, link=notification.link))
         except DeliveryError as failure:
-            error, again = str(failure), failure.again
+            error, again, look_again = str(failure), failure.again, failure.look_again
         except Exception as failure:  # a sender must never stop the worker; its class says enough
             error = f"sending failed ({failure.__class__.__name__})"
         if error is None:
@@ -630,7 +641,8 @@ def deliver_pending(
                                      "attempts": delivery.attempts}, created_at=now))
         else:
             delivery.status, delivery.error = PENDING, safe_text(error)[:255]
-            delivery.next_attempt_at = _retry_at(delivery.attempts, now)
+            # Only waiting (nobody is signed in to see it): looked at again soon, however often it has waited.
+            delivery.next_attempt_at = now + look_again if look_again is not None else _retry_at(delivery.attempts, now)
         db.commit()
         done.append({"notification_id": notification.id, "channel": delivery.channel, "ok": error is None, "error": error,
                      "note": delivery.error if error is None else None})

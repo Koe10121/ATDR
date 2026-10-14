@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from collections.abc import Generator
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -18,7 +19,13 @@ from atdr.app.db.models import AuditLog, OperationWorkerHeartbeat
 from atdr.app.main import app
 from atdr.app.services import system_status_service as status_service
 from atdr.app.services.scheduled_backup_service import BACKUP_FAILED
-from atdr.app.services.system_status_service import _action_words, keeping_running_status, system_status
+from atdr.app.services.system_status_service import (
+    _action_words,
+    keeping_running_status,
+    mains_sleep_seconds,
+    system_status,
+    unattended_status,
+)
 from atdr.app.services.user_service import create_user
 from atdr.tests.test_detection_grouping import _session
 
@@ -143,8 +150,9 @@ def test_the_status_puts_backups_the_worker_and_the_build_together(tmp_path):
     options = {"settings": settings, "now": NOW, "runtime": tmp_path / "none", "frontend": frontend, "find_offsite": lambda _settings: []}
 
     quiet = system_status(db, **options)
-    assert set(quiet) == {"keeping_running", "backups", "dashboard_build", "notifications", "version"}
+    assert set(quiet) == {"keeping_running", "backups", "dashboard_build", "notifications", "version", "unattended"}
     assert quiet["version"] is None, "a folder with no release on record is the one ATDR is developed in"
+    assert quiet["unattended"] is None, "and one where scripts\\autostart.cmd installed nothing"
     assert quiet["notifications"]["enabled"] is True and quiet["notifications"]["worker_running"] is False
     assert set(quiet["notifications"]["channels"]) == {"windows", "email", "chat"}
     assert quiet["dashboard_build"] == {"built": True, "built_at": "2026-10-09T04:12:36+00:00", "commit": "e4ca530",
@@ -200,6 +208,91 @@ def test_the_status_puts_backups_the_worker_and_the_build_together(tmp_path):
     (live / ".atdr_runtime" / "release-in-progress.json").write_text("{}", encoding="utf-8")
     moved = system_status(db, **{**options, "runtime": live / ".atdr_runtime"})["version"]
     assert (moved["as_released"], moved["unfinished"]) == (False, True)
+
+
+def test_whether_atdr_runs_with_nobody_at_the_machine_is_read_from_what_was_installed(tmp_path):
+    runtime = tmp_path / ".atdr_runtime"
+    runtime.mkdir()
+    record = runtime / "autostart.json"
+
+    def not_asked() -> int | None:
+        raise AssertionError("Windows is not asked about its sleep where nothing is installed")
+
+    assert unattended_status(runtime=runtime, sleep_seconds=not_asked) is None
+    for unusable in ("{ not json", '{"mode": "something else"}', "[]"):
+        record.write_text(unusable, encoding="utf-8")
+        assert unattended_status(runtime=runtime, sleep_seconds=not_asked) is None, unusable
+
+    # As scripts\autostart.ps1 writes it (PowerShell puts a mark at the start of the file).
+    record.write_text('﻿{"mode": "at_sign_in", "user": "LAPTOP\\\\someone", "installed_at": "2026-10-10T03:00:00.0000000Z"}', encoding="utf-8")
+    assert unattended_status(runtime=runtime, sleep_seconds=lambda: 3600) == {
+        "before_sign_in": False, "stay_awake_wanted": False, "sleeps_after_minutes_on_mains": 60}
+    record.write_text(json.dumps({"mode": "before_sign_in", "stay_awake_on_mains": True, "mains_sleep_before": {"381b4222": 3600}}), encoding="utf-8")
+    assert unattended_status(runtime=runtime, sleep_seconds=lambda: 0) == {
+        "before_sign_in": True, "stay_awake_wanted": True, "sleeps_after_minutes_on_mains": 0}
+    assert unattended_status(runtime=runtime, sleep_seconds=lambda: None)["sleeps_after_minutes_on_mains"] is None, "Windows did not say"
+    assert unattended_status(runtime=runtime, sleep_seconds=lambda: 180)["sleeps_after_minutes_on_mains"] == 3
+    # Put back with -Remove: no longer wanted.
+    record.write_text(json.dumps({"mode": "at_sign_in", "stay_awake_on_mains": False, "mains_sleep_before": None}), encoding="utf-8")
+    assert unattended_status(runtime=runtime, sleep_seconds=lambda: 3600)["stay_awake_wanted"] is False
+
+    # The status carries it for the folder it is asked about.
+    db = _session()
+    record.write_text(json.dumps({"mode": "before_sign_in", "stay_awake_on_mains": True}), encoding="utf-8")
+    status_service._sleep_known = (status_service.time.monotonic(), 0)
+    try:
+        told = system_status(db, settings=Settings(_env_file=None, ATDR_BACKUP_DIRECTORY=str(tmp_path / "backups")), now=NOW, runtime=runtime,
+                             frontend=tmp_path / "frontend", find_offsite=lambda _settings: [])["unattended"]
+    finally:
+        status_service._sleep_known = None
+    if status_service.sys.platform == "win32":
+        assert told == {"before_sign_in": True, "stay_awake_wanted": True, "sleeps_after_minutes_on_mains": 0}
+    else:
+        assert told == {"before_sign_in": True, "stay_awake_wanted": True, "sleeps_after_minutes_on_mains": None}
+
+
+def test_the_sleep_time_on_mains_power_is_asked_of_windows_once_a_minute(monkeypatch):
+    monkeypatch.setattr(status_service.sys, "platform", "win32")
+    monkeypatch.setattr(status_service, "_sleep_known", None)
+    clock = {"now": 1000.0}
+    monkeypatch.setattr(status_service.time, "monotonic", lambda: clock["now"])
+    asked = []
+
+    def powercfg(says: str):
+        def run(command, **kwargs):
+            asked.append((command, kwargs.get("timeout")))
+            return subprocess.CompletedProcess(command, 0, stdout=says, stderr="")
+        return run
+
+    printed = ("Power Scheme GUID: 6fecc5ae-f350-48a5-b669-b472cb895ccf  (Turbo)\n"
+               "  Subgroup GUID: 238c9fa8-0aad-41ed-83f4-97be242c8f20  (Sleep)\n"
+               "    Power Setting GUID: 29f6c1db-86da-48c5-9fdb-f2b67b1f44da  (Sleep after)\n"
+               "      Minimum Possible Setting: 0x00000000\n      Maximum Possible Setting: 0xffffffff\n"
+               "    Current AC Power Setting Index: 0x00000e10\n    Current DC Power Setting Index: 0x000000b4\n")
+    assert mains_sleep_seconds(run=powercfg(printed)) == 3600, "on mains power, not on battery (180)"
+    assert asked == [(["powercfg", "/query", "SCHEME_CURRENT", "SUB_SLEEP", "STANDBYIDLE"], 15)], "the plan in use, whichever it is"
+
+    # The System panel asks for the status every half minute: Windows is asked again after a minute.
+    clock["now"] += 59
+    assert mains_sleep_seconds(run=powercfg(printed.replace("0x00000e10", "0x00000000"))) == 3600 and len(asked) == 1
+    clock["now"] += 2
+    assert mains_sleep_seconds(run=powercfg(printed.replace("0x00000e10", "0x00000000"))) == 0 and len(asked) == 2
+
+    # What cannot be read is not guessed.
+    def refuses(command, **_kwargs):
+        raise FileNotFoundError(command[0])
+
+    def hangs(command, **_kwargs):
+        raise subprocess.TimeoutExpired(command, 15)
+
+    for run in (powercfg("    Current DC Power Setting Index: 0x000000b4\n"), powercfg(""), refuses, hangs):
+        clock["now"] += 61
+        assert mains_sleep_seconds(run=run) is None
+
+    monkeypatch.setattr(status_service.sys, "platform", "linux")
+    clock["now"] += 61
+    before = len(asked)
+    assert mains_sleep_seconds(run=powercfg(printed)) is None and len(asked) == before, "only Windows is asked"
 
 
 def test_only_an_admin_is_given_the_system_status(monkeypatch, tmp_path):

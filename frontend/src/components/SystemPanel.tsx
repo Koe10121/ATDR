@@ -1,6 +1,15 @@
 import { useState } from "react";
 import { useSendTestNotification, useSystemStatus } from "../hooks/useApiQueries";
-import type { NotificationChannel, SystemBackups, SystemKeepRunning, SystemNotifications, SystemPart, SystemStatus, SystemVersion } from "../types/api";
+import type {
+  NotificationChannel,
+  SystemBackups,
+  SystemKeepRunning,
+  SystemNotifications,
+  SystemPart,
+  SystemStatus,
+  SystemUnattended,
+  SystemVersion
+} from "../types/api";
 import { ErrorBanner } from "./ErrorBanner";
 
 // How ATDR looks after itself on this machine: whether a stopped part is started again, when the database was last
@@ -57,6 +66,35 @@ export function keepRunningText(keep: SystemKeepRunning): { state: string; detai
     state: "ATDR restarts a part that stops.",
     detail: `It looks at its parts every ${every} seconds.${acted}`,
     warn: Boolean(last && !last.ok)
+  };
+}
+
+export function unattendedText(unattended: SystemUnattended | null | undefined): { state: string; detail: string; warn: boolean } | null {
+  // Nothing installed that starts ATDR: the line above already says that nothing is watching.
+  if (!unattended) return null;
+  const minutes = unattended.sleeps_after_minutes_on_mains;
+  const sleeps = minutes !== null && minutes > 0;
+  const time = `${minutes} ${minutes === 1 ? "minute" : "minutes"}`;
+  if (!unattended.before_sign_in) {
+    return {
+      state: "ATDR starts when someone signs in to Windows, and stops when they sign out.",
+      detail: `scripts\\autostart.cmd -BeforeSignIn on the machine makes it start with the machine instead; Windows asks for an administrator once.${
+        sleeps ? ` On mains power the machine goes to sleep after ${time} without use, and ATDR pauses with it.` : ""
+      }`,
+      warn: false
+    };
+  }
+  if (sleeps) {
+    return {
+      state: "ATDR starts with the machine, but the machine goes to sleep by itself.",
+      detail: `On mains power it sleeps after ${time} without use, and ATDR pauses with it. scripts\\autostart.cmd -StayAwakeOnMains on the machine changes that.`,
+      warn: true
+    };
+  }
+  return {
+    state: "ATDR starts with the machine, before anyone signs in, and keeps running when they sign out.",
+    detail: minutes === 0 ? "On mains power the machine does not go to sleep by itself; closing the lid still puts it to sleep." : "",
+    warn: false
   };
 }
 
@@ -297,6 +335,7 @@ export function SystemPanel() {
   const status = useSystemStatus();
   const data = status.data;
   const offsite = data ? offsiteText(data.backups) : null;
+  const unattended = data ? unattendedText(data.unattended) : null;
   return (
     <section className="panel" data-testid="system-panel" aria-labelledby="system-panel-title">
       <h2 id="system-panel-title" className="text-sm font-extrabold uppercase tracking-wide text-muted">System</h2>
@@ -331,6 +370,7 @@ export function SystemPanel() {
               </table>
             </div>
           ) : null}
+          {unattended ? <Line testId="system-unattended" text={unattended} /> : null}
           <Line testId="system-backups" text={backupText(data.backups)} />
           {offsite ? <Line testId="system-offsite" text={offsite} /> : null}
           <Line testId="system-notifications" text={notificationText(data.notifications)} />

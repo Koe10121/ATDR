@@ -17,6 +17,9 @@ param(
 # (scripts\autostart.cmd) runs this and starts it again within a minute if it ever ends.
 # A release (scripts\release.cmd) stops ATDR's own parts on purpose and then asks this script to start them
 # (.atdr_runtime\start-request.json); it answers in .atdr_runtime\start-result.json.
+# Installed with scripts\autostart.cmd -BeforeSignIn, Windows starts this script with the machine, whether or not
+# anyone is signed in. It then has no desktop, every start of ATDR is made by it (start_system hands its own over),
+# and what it starts keeps running when the person at the machine signs out.
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
@@ -51,6 +54,8 @@ $assistantLooked = [datetime]::MinValue
 # What people have been told and not yet told is over: a part's name, or "*" for ATDR as a whole.
 $told = @{}
 $reportTried = @{}
+# The check this script makes first, which after a start of the machine comes before its services are up.
+$firstCheck = $true
 
 # What the watcher before this one had restarted still counts, so a part that keeps dying is not tried afresh.
 try {
@@ -81,7 +86,9 @@ function Invoke-AtdrStart {
     param([string[]]$Only = @(), [switch]$DuringRelease)
     $out = Join-Path $logDir "watch.start.out.log"
     $err = Join-Path $logDir "watch.start.err.log"
-    $arguments = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$(Join-Path $PSScriptRoot 'start_system.ps1')`"", "-NoBrowser")
+    # -ByWatcher: where ATDR runs without a sign-in, a start asked for by anyone else is handed to this script, so
+    # that the parts belong to its task; this start is the one that does the work.
+    $arguments = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$(Join-Path $PSScriptRoot 'start_system.ps1')`"", "-NoBrowser", "-ByWatcher")
     if ($Only.Count) { $arguments += @("-Only", ($Only -join ",")) }
     if ($DuringRelease) { $arguments += "-DuringRelease" }
     $start = Start-Process -FilePath "powershell.exe" -ArgumentList $arguments -WorkingDirectory (Get-AtdrProjectRoot) -WindowStyle Hidden -RedirectStandardOutput $out -RedirectStandardError $err -PassThru
@@ -214,6 +221,12 @@ function Invoke-AtdrWatchCheck {
     }
 
     if ($decision.action -eq "start_all") {
+        if ($script:firstCheck -and -not (Test-TcpEndpoint -Port 27017)) {
+            # Started with the machine, this script is running before the services ATDR needs are. A start now
+            # would fail three times in a minute and then wait five; waiting for MongoDB costs seconds.
+            Write-WatchLog "Waiting for MongoDB before the first start (the machine has just started)."
+            for ($waited = 0; $waited -lt 36 -and -not (Test-TcpEndpoint -Port 27017); $waited++) { Start-Sleep -Seconds 5 }
+        }
         Write-WatchLog "Starting ATDR: $($decision.reason)."
         $result = Invoke-AtdrStart
         if ($result.code -eq 3) {
@@ -317,6 +330,7 @@ $made = 0
 try {
     while ($true) {
         $made += 1
+        $firstCheck = ($made -eq 1)
         try {
             Invoke-AtdrStartRequest
             Invoke-AtdrWatchCheck

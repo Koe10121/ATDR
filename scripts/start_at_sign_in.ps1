@@ -8,6 +8,9 @@ param(
 # opening a browser, and tries again while Windows is still bringing up what ATDR needs (the MongoDB service for
 # the MFU sign-in shell). Writes what happened to .atdr_runtime\logs\autostart.log. Then it makes sure the watcher
 # (scripts\watch_system.ps1) is running, which keeps ATDR's parts running from then on.
+#
+# Where ATDR starts with the machine (scripts\autostart.cmd -BeforeSignIn) this starts no part: a sign-in only ends
+# a plain stop and makes sure the watcher runs, and the watcher does the starting.
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
@@ -39,6 +42,12 @@ if (Test-AtdrHeld $desired) {
 # starting it.
 Set-AtdrDesiredState -State "running" -By "start_at_sign_in"
 Start-Watcher
+if (Test-AtdrRunsWithoutSignIn) {
+    # ATDR was started with the machine by its watcher, and whatever is not running the watcher starts within half
+    # a minute, as its own. Started from here, the parts would belong to this sign-in and end with it.
+    Write-AutostartLog "ATDR runs whether or not anyone is signed in: its watcher does the starting. This sign-in ended a stop, if there was one."
+    exit 0
+}
 for ($attempt = 1; $attempt -le [Math]::Max(1, $Attempts); $attempt++) {
     if ((Test-HttpEndpoint -Url "http://127.0.0.1:8000/health/live" -TimeoutSeconds 3).reachable) {
         Write-AutostartLog "ATDR is already running; nothing to start."

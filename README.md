@@ -184,7 +184,10 @@ policy blocks direct `.ps1` execution.
 `.\scripts\autostart.cmd` installs two Windows tasks, once for each machine:
 one starts ATDR when you sign in, the other brings back a part that stops.
 Neither undoes a stop, and `.\scripts\stop_system.cmd -HoldHours 2` keeps ATDR
-stopped across a sign-in for work that needs it down. Daily backups are
+stopped across a sign-in for work that needs it down. With
+`-BeforeSignIn -StayAwakeOnMains` ATDR starts with the machine instead, keeps
+running when you sign out, and the machine does not go to sleep by itself on
+mains power; Windows asks for an administrator once. Daily backups are
 switched on with `ATDR_BACKUP_SCHEDULE_HOURS=24` in `.env`, and email or chat
 notifications with `ATDR_NOTIFY_EMAIL_TO` or `ATDR_NOTIFY_CHAT_WEBHOOK_URL`.
 All are described in the [Operations Runbook](docs/OPERATIONS_RUNBOOK.md).

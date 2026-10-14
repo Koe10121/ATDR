@@ -540,6 +540,55 @@ def test_files_of_the_live_copy_changed_outside_a_release_are_a_reminder_in_the_
     assert db.scalar(select(func.count()).select_from(NotificationCondition)) == 0 and outbox.sent == []
 
 
+def test_a_machine_that_was_set_to_stay_awake_and_goes_to_sleep_again_is_a_reminder_in_the_bell(tmp_path, monkeypatch):
+    # scripts\autostart.cmd -StayAwakeOnMains sets every power plan not to sleep on mains power. A plan that is
+    # changed or added afterwards brings the sleep back, and ATDR would pause with the machine and say nothing.
+    settings, db = _system(tmp_path)
+    outbox = _Outbox()
+    asked, state = [], {"unattended": None}
+
+    def unattended(*, runtime: Path) -> dict | None:
+        asked.append(runtime)
+        return state["unattended"]
+
+    monkeypatch.setattr(notify, "unattended_status", unattended)
+    runtime = tmp_path / "live" / ".atdr_runtime"
+
+    def reminders() -> list[Problem]:
+        return [problem for problem in notify.worker_problems(db, settings=settings, now=START, runtime=runtime, find_offsite=NO_DRIVE)
+                if problem.key == "sleeps_on_mains"]
+
+    assert reminders() == [] and asked == [runtime], "asked of the folder ATDR runs from; nothing is installed there"
+    for quiet in ({"before_sign_in": True, "stay_awake_wanted": True, "sleeps_after_minutes_on_mains": 0},
+                  {"before_sign_in": True, "stay_awake_wanted": False, "sleeps_after_minutes_on_mains": 60},
+                  {"before_sign_in": False, "stay_awake_wanted": True, "sleeps_after_minutes_on_mains": None}):
+        state["unattended"] = quiet
+        assert reminders() == [], "as it was asked for; never asked for; Windows did not say"
+    state["unattended"] = {"before_sign_in": False, "stay_awake_wanted": True, "sleeps_after_minutes_on_mains": 1}
+    assert reminders()[0].body.startswith("On mains power it now goes to sleep after 1 minute without use, and ATDR pauses with it. ")
+    state["unattended"] = {"before_sign_in": True, "stay_awake_wanted": True, "sleeps_after_minutes_on_mains": 60}
+    (found,) = reminders()
+    assert (found.title, found.urgent, found.grace) == ("This machine goes to sleep by itself again", False, timedelta(minutes=10))
+    assert found.body == (
+        "On mains power it now goes to sleep after 60 minutes without use, and ATDR pauses with it. It was set not to; a power "
+        "plan was changed or added since. Run scripts\\autostart.cmd -StayAwakeOnMains on the machine.")
+
+    # Told once it has lasted ten minutes (a plan is being switched), in the bell and not sent out, and told when over.
+    state["unattended"] = None
+    _look(db, settings, START, outbox, runtime=runtime)
+    state["unattended"] = {"before_sign_in": True, "stay_awake_wanted": True, "sleeps_after_minutes_on_mains": 60}
+    assert _look(db, settings, START + MINUTE * 5, outbox, runtime=runtime)["made"] == []
+    assert _look(db, settings, START + MINUTE * 10, outbox, runtime=runtime)["made"] == []
+    told = _look(db, settings, START + MINUTE * 15, outbox, runtime=runtime)["made"]
+    assert told == [{"id": 2, "kind": "problem", "title": "This machine goes to sleep by itself again"}]
+    reminder = _last(db)
+    assert (reminder.level, reminder.audience, outbox.sent) == ("info", "admin", [])
+    state["unattended"] = {"before_sign_in": True, "stay_awake_wanted": True, "sleeps_after_minutes_on_mains": 0}
+    over = _look(db, settings, START + MINUTE * 20, outbox, runtime=runtime)["made"]
+    assert over == [{"id": 3, "kind": "resolved", "title": "On mains power this machine no longer goes to sleep by itself."}]
+    assert outbox.sent == []
+
+
 def test_a_full_disk_and_a_failed_automatic_check_are_told(tmp_path, monkeypatch):
     settings, db = _system(tmp_path, ATDR_NOTIFY_DISK_FREE_GB=10, AUTO_DETECTION_ENABLED=True)
     outbox = _Outbox()
@@ -712,6 +761,46 @@ def test_a_refusal_that_only_a_changed_setting_can_end_is_not_tried_again(tmp_pa
     _look(db, settings, START + HOUR * 40 + MINUTE, outbox)
     assert outbox.titles("email") == ["New Critical alert #2: malware / C2"]
     assert notification_status(db, settings=settings, now=START + HOUR * 41)["channels"]["email"]["last_failure"] is None
+
+
+def test_a_message_that_only_has_to_wait_is_looked_at_again_every_minute(tmp_path):
+    # ATDR runs with nobody signed in to Windows (scripts\autostart.cmd -BeforeSignIn): a Windows notification has
+    # no desktop to be shown on. Nothing is wrong, so the tries do not move apart to an hour: it would then be
+    # shown up to an hour after someone signed in. It is shown at the first look after they have.
+    settings, db = _system(tmp_path)
+    nobody = DeliveryError("nobody is signed in to Windows on this machine, so there is no desktop to show it on; it is shown when someone signs in",
+                           look_again=MINUTE)
+    outbox = _Outbox(failing={"email": nobody})
+    _look(db, settings, START, outbox)
+    _alert(db, START)
+    assert [(sent["channel"], sent["ok"]) for sent in _look(db, settings, START + MINUTE, outbox)["sent"]] == [("email", False), ("chat", True)]
+    waiting = db.scalar(select(NotificationDelivery).where(NotificationDelivery.channel == "email"))
+    assert (waiting.status, waiting.next_attempt_at.replace(tzinfo=timezone.utc)) == ("pending", START + MINUTE * 2)
+
+    tried = 0
+    when = START + MINUTE
+    for _step in range(300):
+        when += MINUTE
+        tried += len(_look(db, settings, when, outbox, problems=False)["sent"])
+    db.refresh(waiting)
+    assert tried == 300, "five hours on, still every minute"
+    assert (waiting.status, waiting.attempts, waiting.next_attempt_at.replace(tzinfo=timezone.utc)) == ("pending", 301, when + MINUTE)
+    assert not _audit(db, "notification_failed"), "waiting is not failing"
+
+    # Someone signs in: shown at the next look.
+    outbox.failing.clear()
+    assert [(sent["channel"], sent["ok"]) for sent in _look(db, settings, when + MINUTE, outbox, problems=False)["sent"]] == [("email", True)]
+    assert outbox.titles("email") == ["New Critical alert #1: malware / C2"]
+
+    # One that is a day old before anyone signs in is not shown any more: the dashboard's bell has it.
+    outbox.failing["email"] = nobody
+    _alert(db, START + DAY)
+    _look(db, settings, START + DAY + MINUTE, outbox)
+    second = db.scalar(select(NotificationDelivery).where(NotificationDelivery.channel == "email").order_by(NotificationDelivery.id.desc()))
+    assert second.status == "pending"
+    _look(db, settings, START + DAY * 2 + MINUTE * 2, outbox, problems=False)
+    db.refresh(second)
+    assert second.status == "failed" and [entry.details["channel"] for entry in _audit(db, "notification_failed")] == ["email"]
 
 
 def test_a_message_that_reached_only_some_addresses_is_not_sent_again(tmp_path):

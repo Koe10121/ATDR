@@ -4211,12 +4211,23 @@ export interface SystemVersion {
   unfinished: boolean;
 }
 
+// Whether ATDR runs with nobody at its machine. There is none where its start-up entries were never installed.
+export interface SystemUnattended {
+  // Started with the machine and kept running across a sign-out; otherwise started by a sign-in and ended with it.
+  before_sign_in: boolean;
+  // The machine was set not to sleep by itself on mains power.
+  stay_awake_wanted: boolean;
+  // 0: it never sleeps by itself on mains power. null: the machine did not say.
+  sleeps_after_minutes_on_mains: number | null;
+}
+
 export interface SystemStatus {
   keeping_running: SystemKeepRunning;
   backups: SystemBackups;
   dashboard_build: { built: boolean; built_at: string | null; commit: string | null; uncommitted: boolean; stale: boolean };
   notifications: SystemNotifications;
   version?: SystemVersion | null;
+  unattended?: SystemUnattended | null;
 }
 
 // What the bell shows.
