@@ -88,7 +88,9 @@ HELP_TOPICS: tuple[HelpTopic, ...] = (
         patterns=(r"\bsuppress", r"\bmute\b", r"\bsilence\b", r"\bstop (?:getting|seeing) (?:these |those |the )?alerts\b", r"\bnoisy alerts?\b"),
         steps=(
             "Open Threat Controls, then the Suppressions tab.",
-            "Fill in what to match: Source IP criterion, App criterion and/or Alert type criterion, plus a Reason.",
+            "Fill in what to match: Source IP criterion, Destination IP criterion, App criterion and/or Alert type "
+            "criterion, plus a Reason. A destination matches only alerts whose traffic all went to that address, "
+            "such as a log collector or an update server.",
             "Click Create suppression.",
             "Matching alert groups are no longer created on later detection runs. The logs themselves are still stored.",
         ),

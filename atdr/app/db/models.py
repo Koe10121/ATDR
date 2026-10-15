@@ -461,6 +461,9 @@ class SuppressionRule(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     src_ip: Mapped[str | None] = mapped_column(String(64), index=True)
+    # Matches a group only when every one of its logs goes to this address: a known-good server, never a scan
+    # that happened to touch it.
+    dst_ip: Mapped[str | None] = mapped_column(String(64), index=True)
     app: Mapped[str | None] = mapped_column(String(255), index=True)
     alert_type: Mapped[str | None] = mapped_column(String(128), index=True)
     reason: Mapped[str] = mapped_column(Text, nullable=False)

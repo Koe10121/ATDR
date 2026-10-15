@@ -1,19 +1,32 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+import ipaddress
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 ALLOWED_SUPPRESSION_REVIEW_STATUSES = {"pending", "reviewed", "needs_changes"}
 
 
 class SuppressionCreateRequest(BaseModel):
     src_ip: str | None = Field(default=None, max_length=64)
+    dst_ip: str | None = Field(default=None, max_length=64)
     app: str | None = Field(default=None, max_length=255)
     alert_type: str | None = Field(default=None, max_length=128)
     reason: str = Field(min_length=3, max_length=2000)
 
+    @field_validator("dst_ip")
+    @classmethod
+    def destination_is_an_address(cls, value: str | None) -> str | None:
+        if not value or not value.strip():
+            return None
+        try:
+            return str(ipaddress.ip_address(value.strip()))
+        except ValueError as error:
+            raise ValueError("The destination must be one IP address, such as 52.40.10.231.") from error
+
     @model_validator(mode="after")
     def at_least_one_criterion(self):
-        if not any([self.src_ip, self.app, self.alert_type]):
+        if not any([self.src_ip, self.dst_ip, self.app, self.alert_type]):
             raise ValueError("At least one suppression criterion is required.")
         return self
 
@@ -31,6 +44,7 @@ class SuppressionRead(BaseModel):
 
     id: int
     src_ip: str | None = None
+    dst_ip: str | None = None
     app: str | None = None
     alert_type: str | None = None
     reason: str

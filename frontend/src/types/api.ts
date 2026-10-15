@@ -924,6 +924,7 @@ export interface AuditLog {
 export interface Suppression {
   id: number;
   src_ip?: string | null;
+  dst_ip?: string | null;
   app?: string | null;
   alert_type?: string | null;
   reason: string;

@@ -21,6 +21,7 @@ import ipaddress
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 from typing import Any
 
 from sqlalchemy import func, or_, select
@@ -58,6 +59,11 @@ class PersistentContact:
     @property
     def connections(self) -> int:
         return sum(connections for connections, _windows in self.sources.values())
+
+    def as_logs(self) -> list[SimpleNamespace]:
+        """One stand-in log per inside computer, for the suppression rules that judge every other alert by its logs."""
+
+        return [SimpleNamespace(src_ip=source, dst_ip=self.destination, app=(self.apps or [None])[0]) for source in self.sources]
 
 
 def _public(address: str | None) -> bool:

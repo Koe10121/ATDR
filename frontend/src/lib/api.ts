@@ -598,7 +598,7 @@ export const api = {
     });
   },
   suppressions: (params: Params = {}) => apiRequest<Suppression[]>("/api/suppressions", { params }),
-  createSuppression: (payload: { src_ip?: string; app?: string; alert_type?: string; reason: string }) =>
+  createSuppression: (payload: { src_ip?: string; dst_ip?: string; app?: string; alert_type?: string; reason: string }) =>
     apiRequest<Suppression>("/api/suppressions", { method: "POST", body: JSON.stringify(payload) }),
   disableSuppression: (id: number) => apiRequest<Suppression>(`/api/suppressions/${id}/disable`, { method: "POST" }),
   reviewSuppression: (id: number, review_status: string, review_notes?: string) =>

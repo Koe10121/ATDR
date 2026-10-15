@@ -9184,3 +9184,29 @@ test("Internet Exposure says so when no MFU service has answered the internet", 
   await expect(page.getByText("No MFU service has answered the internet")).toBeVisible();
   await expect(page.getByTestId("exposure-services")).toHaveCount(0);
 });
+
+test("An admin suppresses alerts about one known-good destination, such as a log collector", async ({ page }) => {
+  const existing = {
+    id: 4, src_ip: null, dst_ip: "52.40.10.231", app: null, alert_type: null, reason: "Splunk Cloud log forwarding.", active: true,
+    suppressed_count: 109, last_matched_at: null, created_by: "admin", created_at: "2026-10-15T00:00:00Z", review_status: "pending",
+    review_notes: null, reviewed_by: null, reviewed_at: null, disabled_by: null, disabled_at: null
+  };
+  let posted: Record<string, unknown> | null = null;
+  await mockApi(page);
+  await page.route("**/api/suppressions**", async (route) => {
+    if (route.request().method() === "POST") {
+      posted = JSON.parse(route.request().postData() || "{}") as Record<string, unknown>;
+      await route.fulfill({ json: { ...existing, id: 5, dst_ip: posted.dst_ip, reason: posted.reason, suppressed_count: 0 } });
+      return;
+    }
+    await route.fulfill({ json: [existing] });
+  });
+  await seedSession(page);
+  await page.goto("/controls");
+  await expect(page.getByText("#4 to 52.40.10.231")).toBeVisible();
+
+  await page.getByTestId("suppression-dst-ip").fill("203.0.113.40");
+  await page.getByPlaceholder("Reason").fill("The vendor's update server.");
+  await page.getByRole("button", { name: "Create suppression" }).click();
+  await expect.poll(() => posted).toEqual({ dst_ip: "203.0.113.40", reason: "The vendor's update server." });
+});

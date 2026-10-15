@@ -7,6 +7,7 @@ import { MetricCard } from "../components/MetricCard";
 import { SafeSelect } from "../components/SafeSelect";
 import { useAuth } from "../hooks/useAuth";
 import { useBlockedIps, useDetectionTuning, useHealth, useResponseMutations, useSuppressions, useThreatControlMutations, useWatchlistFeeds, useWatchlists } from "../hooks/useApiQueries";
+import type { Suppression } from "../types/api";
 
 type Tab = "suppressions" | "watchlists" | "blocked" | "policy";
 
@@ -28,7 +29,7 @@ export function ThreatControls() {
   const health = useHealth();
   const isRealEnforcement = health.data?.checks.response_mode?.real_enforcement_possible === true;
 
-  const [suppression, setSuppression] = useState({ src_ip: "", app: "", alert_type: "", reason: "" });
+  const [suppression, setSuppression] = useState({ src_ip: "", dst_ip: "", app: "", alert_type: "", reason: "" });
   const [watchlist, setWatchlist] = useState({ indicator_type: "src_ip", indicator_value: "", description: "", severity_boost: 30 });
   const [block, setBlock] = useState({ target_ip: "", reason: "SOC analyst-approved simulated containment." });
 
@@ -36,6 +37,7 @@ export function ThreatControls() {
     event.preventDefault();
     controls.createSuppression.mutate({
       src_ip: suppression.src_ip || undefined,
+      dst_ip: suppression.dst_ip || undefined,
       app: suppression.app || undefined,
       alert_type: suppression.alert_type || undefined,
       reason: suppression.reason
@@ -101,6 +103,7 @@ export function ThreatControls() {
           <form className="panel space-y-3" onSubmit={createSuppression}>
             <div className="text-sm font-extrabold uppercase tracking-wide text-muted">Add Suppression</div>
             <input className="input" placeholder="Source IP criterion" value={suppression.src_ip} onChange={(event) => setSuppression({ ...suppression, src_ip: event.target.value })} disabled={!isAdmin} />
+            <input className="input" placeholder="Destination IP criterion (all of an alert's traffic goes there)" value={suppression.dst_ip} onChange={(event) => setSuppression({ ...suppression, dst_ip: event.target.value })} disabled={!isAdmin} data-testid="suppression-dst-ip" />
             <input className="input" placeholder="App criterion" value={suppression.app} onChange={(event) => setSuppression({ ...suppression, app: event.target.value })} disabled={!isAdmin} />
             <input className="input" placeholder="Alert type criterion" value={suppression.alert_type} onChange={(event) => setSuppression({ ...suppression, alert_type: event.target.value })} disabled={!isAdmin} />
             <textarea className="input min-h-24" placeholder="Reason" value={suppression.reason} onChange={(event) => setSuppression({ ...suppression, reason: event.target.value })} disabled={!isAdmin} />
@@ -112,7 +115,7 @@ export function ThreatControls() {
             {(suppressions.data ?? []).map((item) => (
               <div key={item.id} className="rounded-lg border border-line bg-panel2 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="font-bold">#{item.id} {item.alert_type ?? item.app ?? item.src_ip ?? "generic suppression"}</div>
+                  <div className="font-bold">#{item.id} {suppressionCriteria(item)}</div>
                   <Badge value={item.active ? item.review_status : "false_positive"} />
                 </div>
                 <div className="mt-2 text-sm text-muted">{item.reason}</div>
@@ -265,4 +268,14 @@ export function ThreatControls() {
       ) : null}
     </div>
   );
+}
+
+function suppressionCriteria(item: Suppression): string {
+  const criteria = [
+    item.alert_type ? `type ${item.alert_type}` : null,
+    item.src_ip ? `from ${item.src_ip}` : null,
+    item.dst_ip ? `to ${item.dst_ip}` : null,
+    item.app ? `app ${item.app}` : null,
+  ].filter(Boolean);
+  return criteria.length ? criteria.join(", ") : "generic suppression";
 }

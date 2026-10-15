@@ -239,7 +239,9 @@ attacks. The assistant answered from a fixed list of question types.
   the third, a new Medium alert finds inside computers in constant contact with an outside
   address almost nothing else uses. On BOTSv2 it found the command server, plus one false
   alarm (the lab's log forwarding). It has not been tried on MFU traffic: MFU's export is 21
-  minutes long, and the pattern takes half an hour.
+  minutes long, and the pattern takes half an hour. A suppression can now also name a
+  destination, such as a log collector, and silences an alert only when all of its traffic
+  went there. One rule for the lab's Splunk server took BOTSv2 from 135 alerts to 29.
 
 
 ### 2. A model trained on MFU traffic

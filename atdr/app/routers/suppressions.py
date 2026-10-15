@@ -33,6 +33,7 @@ def api_create_suppression(
     return create_suppression(
         db,
         src_ip=request.src_ip,
+        dst_ip=request.dst_ip,
         app=request.app,
         alert_type=request.alert_type,
         reason=request.reason,

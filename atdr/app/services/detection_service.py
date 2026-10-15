@@ -1086,6 +1086,18 @@ def run_detection(
                 known_alert_objects.add(id(alert))
                 created += int(was_created)
                 deduplicated_alert_updates += int(not was_created)
+        # An admin's suppression of a known-good server (a log collector, an update service) applies here too.
+        unsuppressed_contacts = []
+        for contact in contacts:
+            suppression = matching_suppression(
+                db, alert_type=PERSISTENT_CONTACT_ALERT, logs=contact.as_logs(), rules=active_suppressions
+            )
+            if suppression is None:
+                unsuppressed_contacts.append(contact)
+            else:
+                record_suppression_hit(suppression, count=len(contact.sources))
+                suppressed_by_rules += 1
+        contacts = unsuppressed_contacts
         if contacts:
             for alert, was_created in record_persistent_contacts(
                 db,

@@ -83,22 +83,30 @@ steady by design.
 
 ## Results
 
-| | Before | After |
-|---|---|---|
-| Alerts on 192,762 BOTSv2 logs | 860 | 135 |
-| Of them, about Frothly's own Splunk server (below) | 109 | 109 |
-| Command server found | no | yes |
-| FTP theft found | yes | yes |
-| MFU detection scoreboard (F1, all labels) | 98.0% | 98.0%, the same 80 alerts |
+| | Before | After the fixes | With one suppression (below) |
+|---|---|---|---|
+| Alerts on 192,762 BOTSv2 logs | 860 | 135 | 29 |
+| Of them, about Frothly's own Splunk server | 109 | 109 | 3 |
+| Command server found | no | yes | yes |
+| FTP theft found | yes | yes | yes |
+| MFU detection scoreboard (F1, all labels) | 98.0% | 98.0%, the same 80 alerts | (no suppression on MFU) |
 
 Most of the remaining alerts concern 52.40.10.231, an Amazon address where
 Frothly's computers send their logs to Splunk Cloud: 12.7 GB on port 9997,
 labelled `splunk` by the firewall. That is legitimate, but it is exactly what
 ATDR's rules call large outbound transfers and repeated contact. An analyst
-would mark it once, but ATDR's suppression rules can match a source, an
-application or an alert type, not a destination. That is the next thing to
-add. The new check also flags it (1 of its 2 alerts), as its alert text warns
-it may for update and monitoring agents.
+would mark it once, but ATDR's suppression rules could match a source, an
+application or an alert type, not a destination. The new check also flagged
+it (1 of its 2 alerts), as its alert text warns it may for update and
+monitoring agents.
+
+A suppression can now name a destination address (Threat Controls,
+Suppressions). It silences an alert only when all of the alert's traffic went
+to that address, so a scan that touched the server once is still a scan. The
+new constant-contact alert honours it too. With one rule for 52.40.10.231 the
+135 alerts became 29, and the rule counted 2,623 suppressed hits. The 3 alerts
+that still mention the server are scans whose other targets were elsewhere.
+The command server, the FTP theft and the blocked uploads all remain.
 
 ## Limits
 

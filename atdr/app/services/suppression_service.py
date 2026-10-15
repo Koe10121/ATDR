@@ -22,9 +22,11 @@ def create_suppression(
     alert_type: str | None,
     reason: str,
     actor: str,
+    dst_ip: str | None = None,
 ) -> SuppressionRule:
     rule = SuppressionRule(
         src_ip=src_ip or None,
+        dst_ip=dst_ip or None,
         app=app or None,
         alert_type=alert_type or None,
         reason=reason,
@@ -38,7 +40,8 @@ def create_suppression(
             action="suppression_created",
             target_type="suppression_rule",
             target_value=str(rule.id),
-            details={"src_ip": rule.src_ip, "app": rule.app, "alert_type": rule.alert_type, "reason": reason},
+            details={"src_ip": rule.src_ip, "dst_ip": rule.dst_ip, "app": rule.app, "alert_type": rule.alert_type,
+                     "reason": reason},
         )
     )
     db.commit()
@@ -117,6 +120,10 @@ def matching_suppression(
         )
     for rule in active_rules:
         if rule.alert_type and rule.alert_type != alert_type:
+            continue
+        # A destination is a known-good server only when everything in the group went there: a scan that touched
+        # it once is still a scan.
+        if rule.dst_ip and (not logs or any(log.dst_ip != rule.dst_ip for log in logs)):
             continue
         for log in logs:
             if rule.src_ip and rule.src_ip != log.src_ip:
