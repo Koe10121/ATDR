@@ -17,7 +17,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from atdr.app.db.models import Alert, AlertEvidence, NormalizedLog, WatchlistItem
-from atdr.app.detection.attack_mapping import INTERNET_SCANNING_ALERT, infer_attack_type_from_rules
+from atdr.app.detection.attack_mapping import INTERNET_EXPOSURE_ALERT, INTERNET_SCANNING_ALERT, infer_attack_type_from_rules
 from atdr.app.detection.playbooks import PLAYBOOK_GUIDANCE
 from atdr.app.detection.rules import (
     INSIDE_ZONE_TOKENS,
@@ -41,6 +41,7 @@ PLAIN_WORDS: dict[str, tuple[str, str]] = {
     "dos_ddos": ("a flood", "an attempt to overload a service so that it stops working"),
     "malware_c2": ("malware contacting its controller", "malware on the MFU device contacting whoever controls it"),
     "exploit_attempt": ("a break-in attempt", "an attempt to break in through a weakness in the target's software"),
+    "exposed_service": ("a service open to the internet", "an MFU service that anyone on the internet can reach, and that should rarely be"),
     "data_exfiltration_suspicion": ("data theft", "data being copied out of MFU, or an ordinary large upload such as a backup"),
     "policy_violation": ("a policy breach", "traffic that goes against MFU's network or acceptable-use policy, not necessarily an attack"),
 }
@@ -209,11 +210,37 @@ def _scanning_summary(alert: Alert) -> str:
     )
 
 
+def _exposure_summary(alert: Alert) -> str:
+    """An MFU service open to the internet, from the alert's own totals (exposure_service, alert_service)."""
+
+    metadata = next(
+        (rule for rule in alert.matched_rules_json or [] if isinstance(rule, dict) and rule.get("code") == "group_metadata"),
+        {},
+    )
+    connections, sources = int(metadata.get("connections") or 0), int(metadata.get("sources") or 0)
+    what = metadata.get("what")
+    reason = metadata.get("reason")
+    said = [
+        f"MFU address {metadata.get('address')} answered {_count(connections, 'connection', 'connections')} from the internet "
+        f"on port {metadata.get('port')}, from {_count(sources, 'outside address', 'outside addresses')} or more."
+    ]
+    if reason == "not_expected":
+        said.append("An admin marked it as not meant to be public, and it still answers.")
+    elif what:
+        said.append(f"It looks like {what}, which should rarely be reachable from the internet.")
+    else:
+        said.append("It began answering the internet recently, and nobody has marked it as meant to be public.")
+    said.append("Next: decide whether it should be public; if not, close it at the firewall, and if so, mark it expected.")
+    return " ".join(said)
+
+
 def build_plain_summary(db: Session, alert: Alert, attack_type: str | None) -> str:
     """Three to five short sentences about the alert; empty when it has no evidence logs."""
 
     if alert.alert_type == INTERNET_SCANNING_ALERT:
         return _scanning_summary(alert)
+    if alert.alert_type == INTERNET_EXPOSURE_ALERT:
+        return _exposure_summary(alert)
     rows = db.execute(
         select(*_EVIDENCE_COLUMNS)
         .join(AlertEvidence, AlertEvidence.normalized_log_id == NormalizedLog.id)
@@ -250,6 +277,7 @@ def build_plain_summary(db: Session, alert: Alert, attack_type: str | None) -> s
 SITUATION_ORDER = (
     "malware_c2",
     "exploit_attempt",
+    "exposed_service",
     "data_exfiltration_suspicion",
     "brute_force",
     "dos_ddos",
@@ -260,6 +288,7 @@ SITUATION_ORDER = (
 SITUATION_LABELS = {
     "malware_c2": "Malware calling out",
     "exploit_attempt": "Break-in attempts",
+    "exposed_service": "Services open to the internet",
     "data_exfiltration_suspicion": "Possible data theft",
     "brute_force": "Password guessing",
     "dos_ddos": "Floods",
@@ -271,6 +300,7 @@ SITUATION_LABELS = {
 SITUATION_ADJECTIVES = {
     "malware_c2": "malware",
     "exploit_attempt": "break-in",
+    "exposed_service": "exposure",
     "data_exfiltration_suspicion": "possible data-theft",
     "brute_force": "password-guessing",
     "dos_ddos": "flood",

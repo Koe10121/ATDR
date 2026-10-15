@@ -11,10 +11,10 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session, joinedload, noload
 
 from atdr.app.db.models import Alert, AlertEvidence, AlertNote, AuditLog, LogSource, NormalizedLog, RawLog, ResponseAction, User
-from atdr.app.detection.attack_mapping import INTERNET_SCANNING_ALERT, more_specific_attack_type
+from atdr.app.detection.attack_mapping import INTERNET_EXPOSURE_ALERT, INTERNET_SCANNING_ALERT, more_specific_attack_type
 from atdr.app.detection.explanations import build_alert_detection_summary, compact_behavior_features, recommended_response
 from atdr.app.detection.rule_catalog import serialize_rule_match
-from atdr.app.detection.rules import DetectionResult
+from atdr.app.detection.rules import DetectionResult, connection_answered
 from atdr.app.detection.scoring import severity_from_score
 
 
@@ -660,18 +660,6 @@ _SCANNING_RESPONSE = (
 SCANNERS_ANSWERED_IN_EXPLANATION = 5
 
 
-def _answered(packets_received: int | None, session_end_reason: str | None) -> bool:
-    """Whether the MFU address answered a connection: it sent something back other than one reset refusing it.
-
-    A scan that gets answers has found something that can be reached from the internet; most get none (in the 20 May
-    export 5,035 of 5,547 scanning connections got no packet back, 48 were blocked by the firewall, and 36 were refused
-    with a single reset).
-    """
-
-    back = int(packets_received or 0)
-    return back > 0 and not (back == 1 and (session_end_reason or "") == "tcp-rst-from-server")
-
-
 def _note_answer(entry: dict, address: str, log_fields: tuple, answering: dict[str, set[str]]) -> None:
     dst_ip, dst_port, protocol = log_fields
     entry["answered"] = int(entry.get("answered") or 0) + 1
@@ -820,7 +808,7 @@ def record_internet_scanning(
                 entry["ports"] = sorted([*entry["ports"], int(log.dst_port)])
             # An entry from before ATDR counted answers stays without them: counting only from now on would say
             # fewer than there were.
-            if "answered" in entry and _answered(log.packets_received, log.session_end_reason):
+            if "answered" in entry and connection_answered(log.packets_received, log.session_end_reason):
                 _note_answer(entry, address, (log.dst_ip, log.dst_port, log.protocol), answering_now)
             counted.append((log, result))
             if _log_source_id(log) in live_source_ids and int(entry["kept"]) >= SCAN_SAMPLE_LOGS_PER_ADDRESS:
@@ -955,7 +943,7 @@ def count_scanner_answers(db: Session, alert: Alert) -> dict[str, int]:
     )
     for src_ip, dst_ip, dst_port, protocol, packets_received, session_end_reason in rows:
         address = src_ip or "unknown"
-        if address in complete and _answered(packets_received, session_end_reason):
+        if address in complete and connection_answered(packets_received, session_end_reason):
             _note_answer(scanners[address], address, (dst_ip, dst_port, protocol), answering)
     _note_answering(scanners, answering)
     metadata = {**metadata, "scanners": scanners}
@@ -963,6 +951,171 @@ def count_scanner_answers(db: Session, alert: Alert) -> dict[str, int]:
     alert.explanation = _scanning_explanation(metadata)
     alert.recommended_response = _SCANNING_RESPONSE
     return {"counted": len(complete), "left": len(uncounted) - len(complete)}
+
+
+# An MFU service that answers the internet and should not, or should rarely (exposure_service decides which). One
+# alert for each service, which later connections join while it is open. Of the connections, this many each check
+# are kept as evidence, and no more than EXPOSURE_EVIDENCE_KEPT in all: they show who reached it, the counts say how
+# much.
+EXPOSURE_EVIDENCE_PER_CHECK = 20
+EXPOSURE_EVIDENCE_KEPT = 100
+EXPOSURE_SCORES = {"High": 75, "Medium": 50}
+
+
+def _exposure_key(address: str, port: int, protocol: str) -> str:
+    return f"{address}|{int(port)}|{protocol}"
+
+
+def _exposure_what(finding) -> str:
+    if finding.risk is not None:
+        return finding.risk.name[0].upper() + finding.risk.name[1:]
+    if finding.reason == "new":
+        return "New service"
+    return "Service"
+
+
+def _exposure_explanation(metadata: dict, finding) -> str:
+    address, port, protocol = metadata["address"], metadata["port"], metadata["protocol"]
+    connections, sources = int(metadata["connections"]), int(metadata["sources"])
+    first, last = _parse_iso(metadata.get("first_seen")), _parse_iso(metadata.get("last_seen"))
+    when = (f" between {first.day} {first:%b} {first:%H:%M} and {last.day} {last:%b} {last:%H:%M}"
+            if first and last and first != last else f" on {first.day} {first:%b} at {first:%H:%M}" if first else "")
+    apps = [str(item.get("app")) for item in metadata.get("apps") or [] if isinstance(item, dict)]
+    named = f" The firewall saw {', '.join(apps)} there." if apps else ""
+    opening = (
+        f"MFU address {address} answered {connections:,} connection{'' if connections == 1 else 's'} from the internet on "
+        f"port {port} ({protocol}), from {sources:,} or more outside address{'' if sources == 1 else 'es'}{when}.{named}"
+    )
+    if finding.reason == "not_expected":
+        reason = " An admin marked this service as not meant to be reachable from the internet, and it still answers."
+    elif finding.reason == "risky":
+        reason = (f" It looks like {finding.risk.name}: {finding.risk.why}. Nobody has marked it as meant to be public.")
+    else:
+        reason = (" It began answering the internet after ATDR had been listing MFU's services for a day, and nobody has "
+                  "marked it as meant to be public.")
+    return (opening + reason)[:4000]
+
+
+def _exposure_response(address: str, port: int) -> str:
+    return (
+        f"Find out who looks after {address} and what runs on port {port}. If it should not be reachable from the "
+        "internet, close the port at the firewall and check the machine for anything else that answers. If it is "
+        "meant to be public, keep it patched, limit who can reach it, and mark it expected on the Internet Exposure "
+        "page so it is not reported again."
+    )
+
+
+def _open_exposure_alert(key: str, candidates: list[Alert]) -> Alert | None:
+    for alert in reversed(candidates):
+        if (alert.alert_type == INTERNET_EXPOSURE_ALERT and (alert.status or "open") in ALERT_DEDUP_ACTIVE_STATUSES
+                and _group_metadata(alert).get("service_key") == key):
+            return alert
+    return None
+
+
+def record_internet_exposure(
+    db: Session,
+    findings: list,
+    *,
+    dedup_alerts: list[Alert],
+    evidence_id_cache: dict[int, set[int]] | None = None,
+    bulk_evidence: bool = False,
+    pending_evidence: list[tuple[Alert, list[int]]] | None = None,
+) -> list[tuple[Alert, bool]]:
+    """Puts each MFU service that answered the internet and should not on its alert; returns (alert, created)."""
+
+    touched: list[tuple[Alert, bool]] = []
+    for finding in findings:
+        service = finding.service
+        key = _exposure_key(service.address, service.port, service.protocol)
+        alert = _open_exposure_alert(key, dedup_alerts)
+        created = alert is None
+        if alert is None:
+            alert = Alert(alert_type=INTERNET_EXPOSURE_ALERT, status="open", matched_rules_json=[])
+            existing_log_ids: set[int] = set()
+        elif evidence_id_cache is not None and id(alert) in evidence_id_cache:
+            existing_log_ids = evidence_id_cache[id(alert)]
+        elif bulk_evidence:
+            existing_log_ids = set(db.scalars(select(AlertEvidence.normalized_log_id).where(AlertEvidence.alert_id == alert.id))) if alert.id else set()
+        else:
+            existing_log_ids = {int(evidence.normalized_log_id) for evidence in alert.evidence}
+        if evidence_id_cache is not None:
+            evidence_id_cache[id(alert)] = existing_log_ids
+        new_logs = [log for log in finding.logs if int(log.id) not in existing_log_ids]
+        if not new_logs:
+            continue
+        room = max(0, EXPOSURE_EVIDENCE_KEPT - len(existing_log_ids))
+        added_log_ids = [int(log.id) for log in new_logs[:min(EXPOSURE_EVIDENCE_PER_CHECK, room)]]
+        existing_log_ids.update(added_log_ids)
+
+        existing = _group_metadata(alert)
+        observations = _group_observations(new_logs)
+        first_seen = min((item for item in (_parse_iso(existing.get("first_seen")), _parse_iso(observations.get("first_seen"))) if item), default=None)
+        last_seen = max((item for item in (_parse_iso(existing.get("last_seen")), _parse_iso(observations.get("last_seen"))) if item), default=None)
+        connections = int(existing.get("connections") or 0) + len(new_logs)
+        sources_now = {str(log.src_ip) for log in new_logs if log.src_ip}
+        severity = finding.severity
+        score = EXPOSURE_SCORES[severity]
+        metadata = {
+            "code": "group_metadata",
+            "title": "Grouped alert metadata",
+            "score": 0,
+            "explanation": "One alert for each MFU service that answers the internet and should not, or should rarely.",
+            "service_key": key,
+            "address": service.address,
+            "port": int(service.port),
+            "protocol": service.protocol,
+            "internet_service_id": service.id,
+            "reason": finding.reason,
+            "what": finding.risk.name if finding.risk else None,
+            "apps": list(service.apps or []),
+            "connections": connections,
+            "sources": max(int(existing.get("sources") or 0), len(sources_now)),
+            "sample_src_ips": _merge_sorted(existing.get("sample_src_ips"), sorted(sources_now)),
+            "evidence_count": len(existing_log_ids),
+            "related_log_count": len(existing_log_ids),
+            "occurrence_count": connections,
+            "first_seen": _iso(first_seen),
+            "last_seen": _iso(last_seen),
+            "unique_src_count": max(int(existing.get("unique_src_count") or 0), len(sources_now)),
+            "sample_dst_ips": [service.address],
+            "sample_dst_ports": [int(service.port)],
+            "protocols": [service.protocol],
+            "deduplicated": not created,
+        }
+        summary_rule = {
+            "code": INTERNET_EXPOSURE_ALERT,
+            "title": "Service open to the internet",
+            "score": score,
+            "attack_type": "exposed_service",
+            "explanation": "An MFU service answered connections from the internet and is not marked as meant to be public.",
+            "matched_log_count": connections,
+        }
+        alert.threat_score = score
+        alert.severity = severity_from_score(score)
+        alert.src_ip = None
+        alert.dst_ip = service.address
+        alert.title = f"{alert.severity}: {_exposure_what(finding)} open to the internet: {service.address} port {service.port}"
+        alert.explanation = _exposure_explanation(metadata, finding)
+        alert.recommended_response = _exposure_response(service.address, int(service.port))
+        alert.matched_rules_json = [summary_rule, metadata]
+        if created:
+            db.add(alert)
+            dedup_alerts.append(alert)
+        if not bulk_evidence:
+            for log_id in added_log_ids:
+                alert.evidence.append(AlertEvidence(normalized_log_id=log_id))
+        elif pending_evidence is not None:
+            if added_log_ids:
+                pending_evidence.append((alert, added_log_ids))
+        else:
+            db.flush()
+            _insert_alert_evidence_rows(db, alert, added_log_ids)
+        if not created:
+            db.add(AuditLog(actor="system", action="alert_deduplicated", target_type="alert", target_value=str(alert.id),
+                            details={"alert_type": alert.alert_type, "added_evidence_logs": len(added_log_ids), "connections": connections}))
+        touched.append((alert, created))
+    return touched
 
 
 def _insert_alert_evidence_rows(

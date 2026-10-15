@@ -213,6 +213,21 @@ attacks. The assistant answered from a fixed list of question types.
   change. Counting showed something else to look at: 39 addresses in Thailand that each
   reached one MFU server on port 3000, and were answered every time, are listed as
   scanners by the unusual-port rule; that looks like people using a service, not scanning.
+- **Which MFU services the internet can reach** (15 October). ATDR could not tell a service
+  MFU means to offer the internet from one left open by accident. It now lists every MFU
+  address and port that answers a connection from the internet, with the app the firewall
+  saw there, and an admin marks each one as meant to be public or not. On the 20 May data
+  that is 134 services on 97 addresses: mostly DNS and web servers, the port-3000 web
+  application above, and two kinds that should rarely be public, Chrome remote debugging
+  on port 9222 (on the same server as the port-3000 application) and SSH on port 210.
+  Those two get an alert each; so does a service marked not public that answers again, and
+  one that starts answering after the first day. People using a service marked as meant to
+  be public are no longer taken for probes, unless another rule finds more. Working this
+  out found one fault before it shipped: dropping the "unusual port" reason from a scan's
+  connection to an approved service left that connection below the alert threshold, so
+  every reason now stays when another rule matched. An exposure alert is not a claim that
+  its connections are attacks, so the detection scoreboard and the blind check leave its
+  evidence out (`docs/OPERATIONS_RUNBOOK.md`, Internet Exposure).
 
 
 ### 2. A model trained on MFU traffic

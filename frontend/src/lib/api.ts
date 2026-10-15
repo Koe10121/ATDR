@@ -104,7 +104,10 @@ import type {
   UncheckedDetectionBatch,
   User,
   WatchlistFeed,
-  WatchlistItem
+  WatchlistItem,
+  InternetService,
+  InternetServiceList,
+  InternetServiceStatus
 } from "../types/api";
 import { clearSession } from "./session";
 
@@ -608,6 +611,9 @@ export const api = {
   createWatchlist: (payload: { indicator_type: string; indicator_value: string; description: string; severity_boost: number }) =>
     apiRequest<WatchlistItem>("/api/watchlists", { method: "POST", body: JSON.stringify(payload) }),
   disableWatchlist: (id: number) => apiRequest<WatchlistItem>(`/api/watchlists/${id}/disable`, { method: "POST" }),
+  internetServices: () => apiRequest<InternetServiceList>("/api/exposure/services"),
+  reviewInternetService: (id: number, status: InternetServiceStatus, note?: string) =>
+    apiRequest<InternetService>(`/api/exposure/services/${id}`, { method: "PATCH", body: JSON.stringify({ status, note: note || null }) }),
   blockedIps: () => apiRequest<BlockedIP[]>("/api/response/blocked-ips"),
   blockIp: (targetIp: string, reason: string, alertId?: number | null, durationMinutes?: number | null) =>
     apiRequest<ResponseAction>("/api/response/block-ip", {

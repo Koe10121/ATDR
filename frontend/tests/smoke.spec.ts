@@ -9087,3 +9087,100 @@ test("Alert details explain when a big upload comes into MFU rather than leaving
   await expect(opinion).toContainText("closest to data exfiltration, but that needs traffic leaving MFU");
   await expect(opinion).not.toContainText("Agrees with the rules");
 });
+
+test("Internet Exposure lists the MFU services that answer the internet, risky ones first, and an admin marks them", async ({ page }) => {
+  // On 20 May 134 MFU services answered the internet; Chrome remote debugging and SSH on port 210 among them.
+  const services = [
+    { id: 1, address: "202.28.46.216", port: 9222, protocol: "tcp", what: "Chrome remote debugging", apps: [{ app: "incomplete", connections: 1 }],
+      connections: 1, sources: 1, sample_sources: ["164.92.82.91"], first_seen: "2026-05-20T13:37:00Z", last_seen: "2026-05-20T13:37:00Z",
+      status: "unreviewed", note: null, reviewed_by: null, reviewed_at: null,
+      risk: { name: "Chrome remote debugging", severity: "High", why: "whoever reaches it can control the browser and every site it is signed in to" } },
+    { id: 2, address: "202.28.46.155", port: 210, protocol: "tcp", what: "SSH remote login", apps: [{ app: "ssh", connections: 5 }],
+      connections: 5, sources: 3, sample_sources: [], first_seen: "2026-05-20T13:36:20Z", last_seen: "2026-05-20T13:39:00Z",
+      status: "unreviewed", note: null, reviewed_by: null, reviewed_at: null,
+      risk: { name: "SSH remote login", severity: "Medium", why: "fine when it is meant to be public, but password guessing aims at it all day" } },
+    { id: 3, address: "202.28.46.7", port: 53, protocol: "udp", what: "DNS", apps: [{ app: "dns-base", connections: 1200 }],
+      connections: 1200, sources: 755, sample_sources: [], first_seen: "2026-05-20T13:36:15Z", last_seen: "2026-05-20T13:39:30Z",
+      status: "unreviewed", note: null, reviewed_by: null, reviewed_at: null, risk: null }
+  ];
+  const patches: Array<{ id: string; body: Record<string, unknown> }> = [];
+  const listing = () => ({
+    summary: { services: services.length, addresses: 3, unreviewed: services.filter((item) => item.status === "unreviewed").length,
+      expected: services.filter((item) => item.status === "expected").length, not_expected: services.filter((item) => item.status === "not_expected").length,
+      risky_not_approved: services.filter((item) => item.risk && item.status !== "expected").length, listing_since: "2026-05-20T13:36:15Z" },
+    services, total_shown: services.length
+  });
+  await mockApi(page);
+  await page.route("**/api/exposure/services**", async (route) => {
+    const request = route.request();
+    if (request.method() === "PATCH") {
+      const id = request.url().split("/").pop() ?? "";
+      const body = JSON.parse(request.postData() ?? "{}") as Record<string, unknown>;
+      patches.push({ id, body });
+      const service = services.find((item) => String(item.id) === id)!;
+      Object.assign(service, { status: body.status, note: body.note, reviewed_by: "admin" });
+      return route.fulfill({ json: service });
+    }
+    return route.fulfill({ json: listing() });
+  });
+  await seedSession(page);
+  await page.goto("/exposure");
+
+  await expect(page.getByText("Which MFU services answer the internet, and which should not.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Internet Exposure" })).toBeVisible();
+  const rows = page.getByTestId("exposure-service-row");
+  await expect(rows).toHaveCount(3);
+  await expect(rows.nth(0)).toContainText("202.28.46.216");
+  await expect(rows.nth(0)).toContainText("Chrome remote debugging (High risk)");
+  await expect(rows.nth(0)).toContainText("whoever reaches it can control the browser");
+  await expect(rows.nth(0).locator("td").nth(2).locator("div").first()).toHaveClass(/text-danger/);
+  await expect(rows.nth(1).locator("td").nth(2).locator("div").first()).toHaveClass(/text-amber/);
+  await expect(rows.nth(1)).toContainText("Firewall saw: ssh");
+  await expect(rows.nth(2)).toContainText("755 or more");
+  await expect(rows.nth(2).locator("td").nth(2)).not.toContainText("risk");
+
+  await page.getByRole("button", { name: "Risky, not approved" }).click();
+  await expect(rows).toHaveCount(2);
+  await page.getByRole("button", { name: "All" }).click();
+
+  // DNS is meant to be public: an admin says so, with why.
+  await rows.nth(2).getByRole("button", { name: "Review" }).click();
+  await page.getByLabel("Note for 202.28.46.7 port 53").fill("MFU's public DNS");
+  await page.getByTestId("exposure-review").getByRole("button", { name: "Meant to be public" }).click();
+  await expect(rows.nth(2).getByTestId("exposure-service-status")).toContainText("Meant to be public");
+  await expect(rows.nth(2).getByTestId("exposure-service-status")).toContainText("MFU's public DNS");
+  expect(patches).toEqual([{ id: "3", body: { status: "expected", note: "MFU's public DNS" } }]);
+
+  // A risky service an admin approved is no longer "risky, not approved".
+  await rows.nth(1).getByRole("button", { name: "Review" }).click();
+  await page.getByTestId("exposure-review").getByRole("button", { name: "Meant to be public" }).click();
+  await expect(rows.nth(1).getByTestId("exposure-service-status")).toContainText("Meant to be public");
+  await expect(rows.nth(1).locator("td").nth(2).locator("div").first()).not.toHaveClass(/text-amber/);
+  await page.getByRole("button", { name: "Risky, not approved" }).click();
+  await expect(rows).toHaveCount(1);
+});
+
+test("Analysts read the Internet Exposure list and cannot mark services", async ({ page }) => {
+  const dns = { id: 3, address: "202.28.46.7", port: 53, protocol: "udp", what: "DNS", apps: [], connections: 1200, sources: 755, sample_sources: [],
+    first_seen: null, last_seen: null, status: "unreviewed", note: null, reviewed_by: null, reviewed_at: null, risk: null };
+  await mockApi(page, "analyst");
+  await page.route("**/api/exposure/services**", async (route) =>
+    route.fulfill({ json: { summary: { services: 1, addresses: 1, unreviewed: 1, expected: 0, not_expected: 0, risky_not_approved: 0, listing_since: null }, services: [dns], total_shown: 1 } })
+  );
+  await seedSession(page, "analyst");
+  await page.goto("/exposure");
+  await expect(page.getByTestId("exposure-service-row")).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Review", exact: true })).toHaveCount(0);
+  await expect(page.getByText("Admins mark services; analysts can read the list.")).toBeVisible();
+});
+
+test("Internet Exposure says so when no MFU service has answered the internet", async ({ page }) => {
+  await mockApi(page);
+  await page.route("**/api/exposure/services**", async (route) =>
+    route.fulfill({ json: { summary: { services: 0, addresses: 0, unreviewed: 0, expected: 0, not_expected: 0, risky_not_approved: 0, listing_since: null }, services: [], total_shown: 0 } })
+  );
+  await seedSession(page);
+  await page.goto("/exposure");
+  await expect(page.getByText("No MFU service has answered the internet")).toBeVisible();
+  await expect(page.getByTestId("exposure-services")).toHaveCount(0);
+});

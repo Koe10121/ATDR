@@ -24,6 +24,7 @@ from atdr.app.routers import (
     demo,
     detection,
     evidence_review,
+    exposure,
     ingestion,
     jobs,
     logs,
@@ -254,3 +255,4 @@ app.include_router(dashboard.router)
 app.include_router(demo.router)
 app.include_router(system.router)
 app.include_router(notifications.router)
+app.include_router(exposure.router)

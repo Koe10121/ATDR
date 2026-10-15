@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from atdr.app.core.config import PROJECT_ROOT, get_settings
 from atdr.app.db.models import Alert, AlertEvidence, AlertNote, MLLabel, NormalizedLog, RawLog, ResponseAction
+from atdr.app.detection.attack_mapping import INTERNET_EXPOSURE_ALERT
 from atdr.app.services.detection_service import run_detection
 
 THREAT_LABELS = frozenset({"malicious", "suspicious"})
@@ -178,6 +179,9 @@ def build_scoreboard(db: Session) -> dict[str, Any]:
             Alert.threat_score,
             Alert.matched_rules_json,
         ).join(Alert, Alert.id == AlertEvidence.alert_id)
+        # A service-exposure alert says a service is open, not that its connections are attacks: someone using
+        # SSH is "normal" to the labels and still shows that SSH answers the internet.
+        .where(Alert.alert_type != INTERNET_EXPOSURE_ALERT)
     ):
         best = alerted.get(log_id)
         if best is None or score > best["score"]:

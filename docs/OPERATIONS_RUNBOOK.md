@@ -911,6 +911,48 @@ Limits:
   sources carrying on) and about 940 (new sources arriving as fast as in the
   second five-minute window); it was about 1,900.
 
+## Internet Exposure
+
+ATDR lists every MFU address and port that answers a connection from the
+internet, on the **Internet Exposure** page (`/exposure`). A connection counts
+when it came from a public address in an outside zone and the MFU side sent
+something back other than a single reset refusing it; pings are left out.
+Detection adds to the list as it checks logs: the connections, the most
+outside addresses seen in one check, the apps the firewall named there, and
+when the service was first and last seen.
+
+An admin marks each service **Meant to be public** or **Should not be
+public**, with a note saying why. Then:
+
+- someone using a service meant to be public is not taken for an outsider
+  trying an unusual port. When another rule finds more (a scan across many
+  addresses, password guessing, a threat signature), every reason stays;
+- a service marked not public that answers again raises a **High** alert;
+- a service of a kind that should rarely be public raises an alert until it
+  is marked meant to be public: remote desktop, VNC, Telnet, Windows remote
+  management or file sharing, Chrome remote debugging, Docker or Kubernetes
+  control, databases and NFS are **High**; SSH, FTP, LDAP and SNMP are
+  **Medium**. What it is comes from the app the firewall named, and from the
+  port only when it named none: SSH on port 210 is SSH, a web site on 3389 is
+  a web site;
+- a service that starts answering a day or more after ATDR began listing them
+  raises a **Medium** alert ("new service").
+
+Each service has one alert while it is open; later connections join it, and
+up to 20 of them each check (100 in all) are kept as evidence. An alert an
+analyst closed is not reopened: the next answer is a new alert. The alerts are
+of the kind "service open to the internet" (an exposure, not an attack), and
+the detection scoreboard and the blind check leave their evidence out: an
+exposure alert says nothing about whether its connections are attacks.
+
+Logs checked before the list existed are listed once with
+`python -m atdr.scripts.build_exposure_map` (a dry run; add `--apply` to back
+up the database first). On the 20 May data it lists 134 services on 97 MFU
+addresses: DNS on two servers used by 755 and 579 outside addresses, web
+servers, a web application on port 3000 used by 39 addresses, and two
+of the risky kinds: Chrome remote debugging on port 9222 and SSH on port 210,
+which get one alert each.
+
 ## Analyst Workflow
 
 1. Open an alert and read `Why flagged`, evidence strength, parser caveats,

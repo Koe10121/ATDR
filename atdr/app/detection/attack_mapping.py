@@ -60,6 +60,17 @@ ATTACK_TYPE_MAPPINGS: dict[str, dict[str, str]] = {
         "mapping_confidence": "medium",
         "claim_boundary": "A signature match shows an attempt, not that it succeeded; whether the target was vulnerable needs checking.",
     },
+    "exposed_service": {
+        "tactic": "Initial Access",
+        "technique": "Service open to the internet",
+        "technique_id": "Internal",
+        "description": "An MFU service answered connections from the internet although it should not be public, or should rarely be.",
+        "mapping_confidence": "environment_dependent",
+        "claim_boundary": (
+            "This is an exposure, not an attack: it is the way in that External Remote Services (T1133) and Exploit "
+            "Public-Facing Application (T1190) use. Whether the service is meant to be public is the owner's call."
+        ),
+    },
     "data_exfiltration_suspicion": {
         "tactic": "Exfiltration",
         "technique": "Exfiltration Over Alternative Protocol",
@@ -86,6 +97,7 @@ ATTACK_LABELS = {
     "malware_c2": "malware / C2",
     "data_exfiltration_suspicion": "possible data exfiltration",
     "exploit_attempt": "exploit attempt",
+    "exposed_service": "service open to the internet",
     "policy_violation": "policy violation",
     "unknown_anomaly": "unclassified",
     "normal": "normal",
@@ -93,6 +105,8 @@ ATTACK_LABELS = {
 
 # The kind of the hourly alert that lists outside addresses which only scanned MFU (alert_service builds it).
 INTERNET_SCANNING_ALERT = "internet_scanning"
+# The kind of the alert for an MFU service that answers the internet and should not (alert_service, exposure_service).
+INTERNET_EXPOSURE_ALERT = "internet_exposed_service"
 
 # Each rule's default attack type is the one its catalog entry documents.
 RULE_ATTACK_HINTS = {
@@ -100,6 +114,7 @@ RULE_ATTACK_HINTS = {
     "watchlist_match": "unknown_anomaly",
     # The MFU behaviour model's experimental alerts; each names its type on the match itself.
     "mfu_behavior_model": "unknown_anomaly",
+    INTERNET_EXPOSURE_ALERT: "exposed_service",
 }
 
 RULE_ATTACK_PRIORITY = {

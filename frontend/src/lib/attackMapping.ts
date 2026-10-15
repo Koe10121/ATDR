@@ -43,6 +43,13 @@ const mapping: Record<string, AttackMapping> = {
     technique_id: "T1190",
     description: "The firewall matched the traffic to a known exploit or web-attack signature aimed at a service."
   },
+  exposed_service: {
+    attack_type: "exposed_service",
+    tactic: "Initial Access",
+    technique: "Service open to the internet",
+    technique_id: "Internal",
+    description: "An MFU service answered connections from the internet although it should not be public, or should rarely be."
+  },
   data_exfiltration_suspicion: {
     attack_type: "data_exfiltration_suspicion",
     tactic: "Exfiltration",

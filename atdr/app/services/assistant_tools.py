@@ -75,6 +75,7 @@ ATTACK_CONCEPTS = {
     "data_exfiltration_suspicion": "Data exfiltration is data being taken out of the network. In firewall logs the sign is unusually large uploads from an internal host to an outside destination.",
     "exploit_attempt": "An exploit attempt is traffic aimed at a known weakness in a service, such as a web server path traversal or a remote code execution bug. The firewall recognises it by a vulnerability signature; the attempt may still have been blocked, or the service may not be vulnerable.",
     "policy_violation": "A policy violation is traffic that breaks the firewall or acceptable-use policy, such as risky applications or connections the rules deny. It is not an attack by itself.",
+    "exposed_service": "A service open to the internet is an MFU address and port that answers connections from anywhere. Web sites and DNS are meant to; remote control, databases, file sharing and debugging ports should rarely be, because they are the way in for password guessing and exploits. ATDR lists every MFU service that answers the internet on the Internet Exposure page, where an admin marks each one as meant to be public or not, and raises an alert for a risky or unwanted one. It is an exposure, not an attack by itself.",
 }
 CONCEPT_ALIASES = {
     "horizontal_scan": "port_scan",
@@ -88,6 +89,10 @@ CONCEPT_ALIASES = {
     "data_exfiltration": "data_exfiltration_suspicion",
     "exploit": "exploit_attempt",
     "exploitation": "exploit_attempt",
+    "exposure": "exposed_service",
+    "exposed": "exposed_service",
+    "open_port": "exposed_service",
+    "attack_surface": "exposed_service",
     "accuracy": "detection_accuracy",
     "assistant": "how_you_work",
     # Asked how the rules and the AI model differ, the local model picked the accuracy topic and compared the old

@@ -218,6 +218,19 @@ def _looks_unanswered(log: NormalizedLog) -> bool:
     return _lower(log.app) in {"incomplete", "insufficient-data", "not-applicable"}
 
 
+def connection_answered(packets_received: int | None, session_end_reason: str | None) -> bool:
+    """Whether the MFU side answered a connection: it sent something back other than one reset refusing it.
+
+    Unlike _looks_unanswered, which also counts a reply the firewall could not name an app for as no reply, this is
+    about whether a service is there at all: a port scan's half-open connection that got a SYN-ACK was answered. In
+    the 20 May export 5,035 of 5,547 internet-scanning connections got no packet back, 48 were blocked by the
+    firewall, and 36 were refused with a single reset.
+    """
+
+    back = int(packets_received or 0)
+    return back > 0 and not (back == 1 and (session_end_reason or "") == "tcp-rst-from-server")
+
+
 def _is_deny_or_drop(log: NormalizedLog) -> bool:
     values = {
         _lower(log.action),

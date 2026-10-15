@@ -35,6 +35,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from atdr.app.db.database import Base
 from atdr.app.db.models import Alert, AlertEvidence, NormalizedLog, RawLog
+from atdr.app.detection.attack_mapping import INTERNET_EXPOSURE_ALERT
 from atdr.app.parsers.paloalto_parser import parse_log_line_for_profile
 from atdr.app.services.detection_scoreboard_service import reset_detection_state, run_all_detection
 from atdr.app.services.log_service import persist_parsed_log
@@ -167,7 +168,11 @@ def is_notable(action: str | None, app: str | None, app_risk: int | None, log_ty
 
 
 def _window_candidates(db: Session, start: datetime, end: datetime) -> list[Candidate]:
-    alerted = set(db.scalars(select(AlertEvidence.normalized_log_id).distinct()))
+    # A service-exposure alert says a service is open, not that its connections are attacks.
+    alerted = set(db.scalars(
+        select(AlertEvidence.normalized_log_id).join(Alert, Alert.id == AlertEvidence.alert_id)
+        .where(Alert.alert_type != INTERNET_EXPOSURE_ALERT).distinct()
+    ))
     # One row per distinct raw line: a line imported twice is still one event.
     first_ids = (
         select(func.min(NormalizedLog.id))
@@ -196,7 +201,7 @@ def _verdict(db: Session, log_id: int) -> dict[str, Any]:
         db.execute(
             select(Alert.id, Alert.alert_type, Alert.severity, Alert.threat_score, Alert.matched_rules_json)
             .join(AlertEvidence, AlertEvidence.alert_id == Alert.id)
-            .where(AlertEvidence.normalized_log_id == log_id)
+            .where(AlertEvidence.normalized_log_id == log_id, Alert.alert_type != INTERNET_EXPOSURE_ALERT)
         )
     )
     return {

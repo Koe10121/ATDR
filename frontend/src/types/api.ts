@@ -4255,3 +4255,39 @@ export interface NotificationTestResult {
   channel: string;
   words: string;
 }
+
+export type InternetServiceStatus = "unreviewed" | "expected" | "not_expected";
+
+// An MFU address and port that answered someone on the internet (/api/exposure/services).
+export interface InternetService {
+  id: number;
+  address: string;
+  port: number;
+  protocol: string;
+  what: string;
+  apps: Array<{ app: string; connections: number }>;
+  connections: number;
+  sources: number;
+  sample_sources: string[];
+  first_seen: string | null;
+  last_seen: string | null;
+  status: InternetServiceStatus;
+  note: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  risk: { name: string; severity: "High" | "Medium"; why: string } | null;
+}
+
+export interface InternetServiceList {
+  summary: {
+    services: number;
+    addresses: number;
+    unreviewed: number;
+    expected: number;
+    not_expected: number;
+    risky_not_approved: number;
+    listing_since: string | null;
+  };
+  services: InternetService[];
+  total_shown: number;
+}

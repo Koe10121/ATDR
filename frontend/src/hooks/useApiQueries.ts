@@ -9,6 +9,7 @@ import type {
   AssistantReviewSaveRequest,
   DetectionReviewSaveRequest,
   EvidenceReviewWorkspace,
+  InternetServiceStatus,
   ManualAnchorReviewSaveRequest,
   SupplementalThreatAnchorReviewSaveRequest,
   SupervisedQualificationReviewSaveRequest,
@@ -82,6 +83,7 @@ export const queryKeys = {
   suppressions: ["suppressions"],
   watchlists: ["watchlists"],
   watchlistFeeds: ["watchlist-feeds"],
+  internetServices: ["internet-services"],
   tuning: ["detection-tuning"],
   mlReport: ["ml-report"],
   behaviorFindings: (windowStart?: string | null) => ["behavior-findings", windowStart ?? "latest"] as const,
@@ -940,6 +942,21 @@ export function useWatchlists() {
 
 export function useWatchlistFeeds() {
   return useQuery({ queryKey: queryKeys.watchlistFeeds, queryFn: api.watchlistFeeds, refetchInterval: 60_000 });
+}
+
+export function useInternetServices() {
+  return useQuery({ queryKey: queryKeys.internetServices, queryFn: api.internetServices, refetchInterval: 60_000 });
+}
+
+export function useInternetServiceReview() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status, note }: { id: number; status: InternetServiceStatus; note?: string }) => api.reviewInternetService(id, status, note),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.internetServices });
+      invalidateAudit(queryClient);
+    }
+  });
 }
 
 export function useUsers(enabled = true) {

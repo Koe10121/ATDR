@@ -14,6 +14,7 @@ const DemoControls = lazy(() => import("./pages/DemoControls").then((module) => 
 const DetectionTuning = lazy(() => import("./pages/DetectionTuning").then((module) => ({ default: module.DetectionTuning })));
 const EvidenceReviewPage = lazy(() => import("./pages/EvidenceReviewPage").then((module) => ({ default: module.EvidenceReviewPage })));
 const ExecutiveOverview = lazy(() => import("./pages/ExecutiveOverview").then((module) => ({ default: module.ExecutiveOverview })));
+const InternetExposure = lazy(() => import("./pages/InternetExposure").then((module) => ({ default: module.InternetExposure })));
 const LogExplorer = lazy(() => import("./pages/LogExplorer").then((module) => ({ default: module.LogExplorer })));
 const MLGovernance = lazy(() => import("./pages/MLGovernance").then((module) => ({ default: module.MLGovernance })));
 const ResponseCenter = lazy(() => import("./pages/ResponseCenter").then((module) => ({ default: module.ResponseCenter })));
@@ -37,6 +38,7 @@ export function App() {
           <Route path="/assistant" element={<PageSuspense><AssistantPage /></PageSuspense>} />
           <Route path="/response" element={<PageSuspense><ResponseCenter /></PageSuspense>} />
           <Route path="/controls" element={<PageSuspense><ThreatControls /></PageSuspense>} />
+          <Route path="/exposure" element={<PageSuspense><InternetExposure /></PageSuspense>} />
           <Route path="/audit" element={<PageSuspense><AuditLogPage /></PageSuspense>} />
           <Route path="/tuning" element={<PageSuspense><DetectionTuning /></PageSuspense>} />
           <Route path="/evidence-review" element={<PageSuspense><EvidenceReviewPage /></PageSuspense>} />

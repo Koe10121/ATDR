@@ -1,4 +1,4 @@
-import { Activity, BarChart3, Bot, Brain, ClipboardList, Database, Gauge, LogOut, RadioTower, Settings2, ShieldAlert, SlidersHorizontal, Users } from "lucide-react";
+import { Activity, BarChart3, Bot, Brain, ClipboardList, Database, Gauge, Globe, LogOut, RadioTower, Settings2, ShieldAlert, SlidersHorizontal, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
@@ -39,7 +39,8 @@ const fullNavGroups: Array<{ label: string; items: NavItem[] }> = [
     items: [
       { to: "/response", label: "Response & Audit", icon: RadioTower },
       { to: "/audit", label: "Audit Trail", icon: ClipboardList },
-      { to: "/controls", label: "Threat Controls", icon: SlidersHorizontal }
+      { to: "/controls", label: "Threat Controls", icon: SlidersHorizontal },
+      { to: "/exposure", label: "Internet Exposure", icon: Globe }
     ]
   },
   {
@@ -60,7 +61,8 @@ const presentationNavGroups: Array<{ label: string; items: NavItem[] }> = [
       { to: "/logs", label: "Investigation", icon: Database },
       { to: "/assistant", label: "SOC Assistant", icon: Bot },
       { to: "/ml", label: "AI Governance", icon: Brain },
-      { to: "/response", label: "Response & Audit", icon: RadioTower }
+      { to: "/response", label: "Response & Audit", icon: RadioTower },
+      { to: "/exposure", label: "Internet Exposure", icon: Globe }
     ]
   },
   {

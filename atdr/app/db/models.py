@@ -496,6 +496,32 @@ class WatchlistItem(Base):
     source: Mapped[str | None] = mapped_column(String(128), index=True)
 
 
+class InternetService(Base):
+    """An MFU address and port that answered someone on the internet (atdr/app/services/exposure_service.py)."""
+
+    __tablename__ = "internet_services"
+    __table_args__ = (UniqueConstraint("address", "port", "protocol", name="uq_internet_services_address_port_protocol"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    address: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    port: Mapped[int] = mapped_column(Integer, nullable=False)
+    protocol: Mapped[str] = mapped_column(String(16), nullable=False)
+    # The apps the firewall named in its answered connections, most seen first: "ssh" on port 210 says more than 210.
+    apps: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    connections: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # The most outside addresses seen using it in one check; the true number is at least this.
+    sources: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    sample_sources: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    first_seen: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_seen: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    # unreviewed, expected (meant to be public) or not_expected (should not be reachable from the internet).
+    status: Mapped[str] = mapped_column(String(16), default="unreviewed", nullable=False, index=True)
+    note: Mapped[str | None] = mapped_column(Text)
+    reviewed_by: Mapped[str | None] = mapped_column(String(128))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
 class MLModelRun(Base):
     __tablename__ = "ml_model_runs"
 

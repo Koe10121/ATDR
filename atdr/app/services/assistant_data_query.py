@@ -63,6 +63,7 @@ ATTACK_PHRASES: tuple[tuple[str, str], ...] = (
     (r"\bmalware\b|\bc2\b|\bcommand[ -]and[ -]control\b|\bbeacon", "malware_c2"),
     (r"\bexfil|\bdata theft\b|\bdata leak|\blarge uploads?\b", "data_exfiltration_suspicion"),
     (r"\bexploits?\b|\bexploitation\b|\bvulnerability attacks?\b|\bweb attacks?\b", "exploit_attempt"),
+    (r"\bexposed\b|\bexposures?\b|\bopen to the internet\b|\binternet[- ]facing\b|\battack surface\b", "exposed_service"),
     (r"\bpolicy violations?\b", "policy_violation"),
     (r"\bunclassified\b|\bunknown attack", "unknown_anomaly"),
 )

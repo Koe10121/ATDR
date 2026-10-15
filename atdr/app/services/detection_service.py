@@ -40,16 +40,19 @@ from atdr.app.detection.scoring import clamp_score, severity_from_score
 from atdr.app.detection.v520_schema_aware_abstention import assess_log_schema_compatibility
 from atdr.app.services.alert_service import (
     ALERT_DEDUP_ACTIVE_STATUSES,
+    INTERNET_EXPOSURE_ALERT,
     INTERNET_SCANNING_ALERT,
     create_grouped_alert_from_detections,
     existing_evidence_log_ids,
     insert_pending_alert_evidence_rows,
     open_alert_for_group,
+    record_internet_exposure,
     record_internet_scanning,
 )
 from atdr.app.services.detection_coordination_service import (
     acquire_detection_transaction_lock,
 )
+from atdr.app.services.exposure_service import ExposureMap, exposure_findings, note_internet_services
 from atdr.app.services.operation_run_service import (
     attack_type_counts_for_alerts,
     complete_detection_run,
@@ -801,6 +804,8 @@ def run_detection(
             log_id_range=(min(evaluated_log_ids), max(evaluated_log_ids)) if evaluated_log_ids else (0, -1),
         )
         watchlist = WatchlistIndex(list_watchlist_items(db, active_only=True))
+        exposure_map = ExposureMap.load(db)
+        expected_service_logs = 0
         candidates: list[DetectionCandidate] = []
         evaluated = 0
         watchlist_matches = 0
@@ -836,6 +841,15 @@ def run_detection(
                         attack_type=watchlist_attack_type(matched_watchlist_items, log),
                     )
                 )
+            # A service an admin marked as meant to be public: someone using it is not an outsider trying an
+            # unusual port. When another rule finds more (a scan across many addresses, password guessing, a threat
+            # signature), every reason stays, or the connection could drop below the alert threshold.
+            if matches and exposure_map.is_expected(log):
+                others = [match for match in matches if match.code not in INTERNET_SWEEP_RULES]
+                still_flags = [match for match in _alert_authoritative_matches(others) if match.code not in SUPPORTING_ONLY_RULES]
+                if not still_flags and len(others) != len(matches):
+                    expected_service_logs += 1
+                    matches = others
             if not matches:
                 continue
             # Rules are the sole alert-creation authority and always
@@ -904,6 +918,11 @@ def run_detection(
         }
         if candidate_alert_types & INTERNET_SCANNING_RULES:
             candidate_alert_types.add(INTERNET_SCANNING_ALERT)
+        # Every checked log, alerted on or not: an MFU service that answered the internet goes on the list.
+        noted_services = note_internet_services(db, logs)
+        exposure_found = exposure_findings(noted_services, started=exposure_map.started)
+        if exposure_found:
+            candidate_alert_types.add(INTERNET_EXPOSURE_ALERT)
         sources_doing_more = _sources_doing_more(db, grouped)
         internet_scanning: list[tuple[NormalizedLog | DetectionLogRecord, DetectionResult]] = []
         internet_scanning_groups = 0
@@ -999,6 +1018,19 @@ def run_detection(
                 known_alert_objects.add(id(alert))
                 created += int(was_created)
                 deduplicated_alert_updates += int(not was_created)
+        if exposure_found:
+            for alert, was_created in record_internet_exposure(
+                db,
+                exposure_found,
+                dedup_alerts=dedup_alerts,
+                evidence_id_cache=evidence_id_cache,
+                bulk_evidence=bounded_rule_mode,
+                pending_evidence=pending_evidence,
+            ):
+                touched_alerts.append(alert)
+                known_alert_objects.add(id(alert))
+                created += int(was_created)
+                deduplicated_alert_updates += int(not was_created)
         if pending_evidence is not None:
             insert_pending_alert_evidence_rows(db, pending_evidence)
         _runtime_profile_sample(db, runtime_profile, "alerts_built")
@@ -1038,6 +1070,9 @@ def run_detection(
             "p2p_policy_logs": p2p_policy_logs,
             "background_probe_logs": background_probe_logs,
             "internet_scanning_groups": internet_scanning_groups,
+            "internet_services_noted": len(noted_services),
+            "exposure_findings": len(exposure_found),
+            "expected_service_logs": expected_service_logs,
             "rule_detection_authoritative": True,
             "detection_layers": detection_layers,
             "limit": limit,

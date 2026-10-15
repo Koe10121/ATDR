@@ -96,6 +96,17 @@ PLAYBOOK_GUIDANCE: dict[str, PlaybookGuidance] = {
         resolved_when="The attempt was blocked, or the target is confirmed not vulnerable and shows no follow-up activity.",
         escalate_when="The attempt was allowed and the target runs an affected version, or the same source then connects successfully.",
     ),
+    "exposed_service": PlaybookGuidance(
+        label="Service open to the internet",
+        objective="Decide whether this MFU service should be reachable from the internet.",
+        containment=(
+            "Find out who looks after the MFU address and what runs on the port; the firewall's app name says what it saw there.",
+            "If it should not be public, close the port at the firewall and check the machine for anything else that answers.",
+        ),
+        false_positive_when="The service is meant to be public, such as a web site, DNS or a published application: mark it expected on the Internet Exposure page.",
+        resolved_when="The port is closed to the internet, or the service is marked expected with a reason.",
+        escalate_when="It is remote control, a database or a debugging port, or the same MFU address has other alerts.",
+    ),
     "data_exfiltration_suspicion": PlaybookGuidance(
         label="Possible data exfiltration",
         objective="Decide whether large uploads leaving the network are approved, or data being taken.",
