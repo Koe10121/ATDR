@@ -94,7 +94,8 @@ const ruleHints: Record<string, keyof typeof mapping> = {
   outside_to_inside: "unknown_anomaly",
   repeated_source_ip: "unknown_anomaly",
   watchlist_match: "unknown_anomaly",
-  mfu_behavior_model: "unknown_anomaly"
+  mfu_behavior_model: "unknown_anomaly",
+  internet_exposed_service: "exposed_service"
 };
 
 export function attackMappingForType(attackType?: string | null): AttackMapping {

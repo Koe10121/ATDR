@@ -14,6 +14,7 @@ MLAttackType = Literal[
     "policy_violation",
     "data_exfiltration_suspicion",
     "exploit_attempt",
+    "exposed_service",
     "unknown_anomaly",
 ]
 MLLabelSource = Literal["manual", "assisted_rule", "assisted_ml", "assisted_hybrid"]

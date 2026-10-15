@@ -47,6 +47,7 @@ ATTACK_NAMES = {
     "policy_violation": "policy violation",
     "data_exfiltration_suspicion": "data exfiltration",
     "exploit_attempt": "exploit attempt",
+    "exposed_service": "service open to the internet",
     "unknown_anomaly": "unknown",
 }
 LABEL_NAMES = {"suspicious": "suspicious", "malicious": "malicious", "needs_context": "needs context",

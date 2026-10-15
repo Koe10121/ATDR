@@ -34,6 +34,7 @@ VALID_ATTACK_TYPES = {
     "policy_violation",
     "data_exfiltration_suspicion",
     "exploit_attempt",
+    "exposed_service",
     "unknown_anomaly",
 }
 VALID_LABEL_SOURCES = {"manual", "assisted_rule", "assisted_ml", "assisted_hybrid"}
