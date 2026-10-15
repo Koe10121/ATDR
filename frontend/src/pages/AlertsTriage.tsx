@@ -162,20 +162,37 @@ export function AlertsTriage() {
       : detectionSummary?.top_evidence_points) ?? [];
   const groupMetadata = selected?.matched_rules_json?.find((rule) => rule.code === "group_metadata") ?? null;
   const occurrenceCount = Number(groupMetadata?.occurrence_count ?? groupMetadata?.evidence_count ?? selected?.evidence_count ?? 0);
-  // An "Internet scanning" alert lists every outside address that only scanned MFU in its hour.
+  // An "Internet scanning" alert lists every outside address that only scanned MFU in its hour, with how many of its
+  // connections an MFU address answered (not on alerts made before ATDR counted that). Those that got answers come first.
   const scannerEntries =
     selected?.alert_type === "internet_scanning" && groupMetadata?.scanners && typeof groupMetadata.scanners === "object"
-      ? Object.entries(groupMetadata.scanners as Record<string, { connections?: number; targets?: number; ports?: number[]; kept?: number }>)
+      ? Object.entries(
+          groupMetadata.scanners as Record<
+            string,
+            { connections?: number; targets?: number; ports?: number[]; kept?: number; answered?: number; answered_by?: number; answered_ports?: number[]; answered_ping?: number }
+          >
+        )
           .map(([address, entry]) => ({
             address,
             connections: Number(entry.connections ?? 0),
             targets: Number(entry.targets ?? 0),
             ports: Array.isArray(entry.ports) ? entry.ports : [],
-            kept: Number(entry.kept ?? 0)
+            kept: Number(entry.kept ?? 0),
+            answered: typeof entry.answered === "number" ? entry.answered : null,
+            answeredBy: Number(entry.answered_by ?? 0),
+            answeredOn: [
+              ...(Array.isArray(entry.answered_ports) ? entry.answered_ports.map((port) => `port ${port}`) : []),
+              ...(Number(entry.answered_ping ?? 0) > 0 ? ["ping"] : [])
+            ]
           }))
-          .sort((left, right) => right.connections - left.connections || left.address.localeCompare(right.address))
+          .sort(
+            (left, right) =>
+              (right.answered ?? -1) - (left.answered ?? -1) || right.connections - left.connections || left.address.localeCompare(right.address)
+          )
       : [];
   const scannersShown = scannerEntries.slice(0, 20);
+  const answersCounted = scannerEntries.some((scanner) => scanner.answered !== null);
+  const scannersAnswered = scannerEntries.filter((scanner) => (scanner.answered ?? 0) > 0).length;
   const relatedLogCount = Number(groupMetadata?.related_log_count ?? groupMetadata?.evidence_count ?? selected?.evidence_count ?? 0);
   const evidenceLogLabel = selected?.evidence_log_ids.length
     ? `${selected.evidence_log_ids.join(", ")}${selected.evidence_log_ids_truncated ? ` (first ${selected.evidence_log_ids.length} of ${selected.evidence_count})` : ""}`
@@ -711,8 +728,21 @@ export function AlertsTriage() {
                 <p className="mb-3 text-sm text-muted">
                   {scannerEntries.length.toLocaleString("en-US")} outside {scannerEntries.length === 1 ? "address" : "addresses"} scanned or probed MFU and did
                   nothing else ATDR alerts on
-                  {scannerEntries.length > scannersShown.length ? `; the busiest ${scannersShown.length} are shown` : ""}. An address that does more gets its
-                  own alert.
+                  {scannerEntries.length > scannersShown.length
+                    ? answersCounted
+                      ? `; ${scannersShown.length} are shown, those that got answers first`
+                      : `; the busiest ${scannersShown.length} are shown`
+                    : ""}
+                  . An address that does more gets its own alert.{" "}
+                  {answersCounted ? (
+                    <span data-testid="internet-scanners-answered">
+                      {scannersAnswered
+                        ? `${scannersAnswered.toLocaleString("en-US")} of them got answers from MFU addresses: something on MFU's side replied, so check that it should be reachable from the internet.`
+                        : "Not one of them got an answer from an MFU address."}
+                    </span>
+                  ) : (
+                    "Which of them got answers was not counted for this alert."
+                  )}
                 </p>
                 <div className="overflow-auto">
                   <table className="w-full text-sm">
@@ -720,6 +750,7 @@ export function AlertsTriage() {
                       <tr className="text-left text-xs uppercase tracking-wide text-muted">
                         <th className="py-1 pr-3">Address</th>
                         <th className="py-1 pr-3">Connections</th>
+                        <th className="py-1 pr-3">Answered</th>
                         <th className="py-1 pr-3">MFU addresses reached</th>
                         <th className="py-1 pr-3">Ports</th>
                         <th className="py-1">Evidence logs kept</th>
@@ -727,9 +758,22 @@ export function AlertsTriage() {
                     </thead>
                     <tbody>
                       {scannersShown.map((scanner) => (
-                        <tr key={scanner.address} className="border-t border-line">
+                        <tr key={scanner.address} className="border-t border-line" data-testid="internet-scanner-row">
                           <td className="py-1 pr-3 font-bold text-text">{scanner.address}</td>
                           <td className="py-1 pr-3">{scanner.connections.toLocaleString("en-US")}</td>
+                          <td className="py-1 pr-3">
+                            {scanner.answered === null ? (
+                              "-"
+                            ) : scanner.answered > 0 ? (
+                              <>
+                                <span className="font-bold text-amber">{scanner.answered.toLocaleString("en-US")}</span>
+                                {` by ${scanner.answeredBy.toLocaleString("en-US")} or more MFU ${scanner.answeredBy === 1 ? "address" : "addresses"}`}
+                                {scanner.answeredOn.length ? ` (${scanner.answeredOn.join(", ")})` : ""}
+                              </>
+                            ) : (
+                              "none"
+                            )}
+                          </td>
                           <td className="py-1 pr-3">{scanner.targets.toLocaleString("en-US")} or more</td>
                           <td className="py-1 pr-3">{scanner.ports.length ? scanner.ports.join(", ") : "-"}</td>
                           <td className="py-1">{scanner.kept.toLocaleString("en-US")}</td>

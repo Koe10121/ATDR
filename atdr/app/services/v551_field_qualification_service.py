@@ -365,6 +365,7 @@ def _detection_record(parsed: ParsedPaloAltoLog, row_id: int) -> detection.Detec
         repeat_count=value.get("repeat_count"),
         session_end_reason=value.get("session_end_reason"),
         action_source=value.get("action_source"),
+        packets_received=value.get("packets_received"),
         parsed_json={
             key: parsed.parsed_json.get(key)
             for key in (

@@ -187,6 +187,33 @@ attacks. The assistant answered from a fixed list of question types.
   version before could not be put back by itself. The dashboard stayed up, the background
   worker was missing for four minutes, and it was put in order by hand. Both faults are
   fixed and have tests (`docs/OPERATIONS_RUNBOOK.md`, Releasing A New Version).
+- **Running with nobody at the machine** (14 and 15 October). ATDR started when someone
+  signed in to Windows and its parts ended when they signed out, and on mains power the
+  laptop went to sleep after an hour without use (after five minutes in three of its four
+  power plans). Now Windows starts ATDR's watcher with the machine and every part runs
+  where no sign-in can end it; the laptop no longer sleeps by itself on mains. Two things
+  were found on the way, each by trying it first. Windows tells programs outside a session
+  when its user signs out, and the API, the dashboard server and the syslog receiver took
+  that as a request to stop: they now stay up. And Windows gives a task that runs without a
+  sign-in its user's full administrator rights, even one registered as "Limited": the first
+  install backed out by itself because nothing it started could be looked at or stopped
+  from an ordinary window. Three experiments with throwaway tasks measured this, and the
+  watcher now starts itself again with an ordinary program's rights before it does
+  anything. Measured: the six processes were the same before and after a sign-out, and
+  after a restart every part was answering 2 minutes 15 seconds after Windows started,
+  without the sign-in. Email notifications were set up the same day, and the test message
+  reached the school inbox (`docs/OPERATIONS_RUNBOOK.md`, With the machine, before anyone
+  signs in).
+- **Which scanners got answers** (15 October). The hourly Internet scanning alert listed its
+  130 scanners alike, whether or not anything had replied to them. It now counts, for each
+  scanner, the connections an MFU address answered (anything sent back other than a single
+  reset refusing the connection) and lists those scanners first. Of the 130 on 20 May, 55
+  got answers and 75 got none; one port-80 sweep was answered by 83 MFU web servers, 192 of
+  its 835 connections, and a ping sweep by 29 addresses. Which logs are flagged did not
+  change. Counting showed something else to look at: 39 addresses in Thailand that each
+  reached one MFU server on port 3000, and were answered every time, are listed as
+  scanners by the unusual-port rule; that looks like people using a service, not scanning.
+
 
 ### 2. A model trained on MFU traffic
 

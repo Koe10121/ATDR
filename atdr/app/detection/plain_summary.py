@@ -192,10 +192,20 @@ def _scanning_summary(alert: Alert) -> str:
         when = ""
     who = "one outside address" if count == 1 else f"{count:,} outside addresses"
     connections = "one connection" if total == 1 else f"{total:,} connections"
+    scanners = [entry for entry in (metadata.get("scanners") or {}).values() if isinstance(entry, dict) and "answered" in entry]
+    answered = sum(1 for entry in scanners if int(entry.get("answered") or 0) > 0)
+    if not scanners:
+        # Made before ATDR counted which scanners got answers.
+        answers, first = "", "look at the busiest addresses"
+    elif answered:
+        answers = " One of them got answers from MFU addresses." if answered == 1 else f" {answered:,} of them got answers from MFU addresses."
+        first = "look first at the addresses that got answers, then at the busiest"
+    else:
+        answers, first = " Not one of them got an answer from an MFU address.", "look at the busiest addresses"
     return (
-        f"{when}{who} scanned or probed MFU: {connections} in all. None of them did anything else ATDR alerts on. "
+        f"{when}{who} scanned or probed MFU: {connections} in all. None of them did anything else ATDR alerts on.{answers} "
         "Every public network is scanned all day, so ATDR lists this in one alert an hour. "
-        "Next: look at the busiest addresses, and block one that keeps coming back or works on one service."
+        f"Next: {first}, and block one that keeps coming back or works on one service."
     )
 
 

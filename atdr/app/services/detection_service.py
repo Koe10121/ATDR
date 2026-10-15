@@ -183,6 +183,8 @@ class DetectionLogRecord:
     dst_country: str | None
     app_technology: str | None
     app_subcategory: str | None
+    # What the MFU side sent back: the hourly internet-scanning alert counts the connections that got an answer.
+    packets_received: int | None = None
 
 
 def _runtime_profile_sample(
@@ -266,6 +268,7 @@ def _detection_record_columns(*, include_payload: bool = True) -> tuple:
         NormalizedLog.dst_country,
         NormalizedLog.app_technology,
         NormalizedLog.app_subcategory,
+        NormalizedLog.packets_received,
     )
 
 

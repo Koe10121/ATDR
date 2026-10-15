@@ -652,10 +652,52 @@ SCANNERS_IN_EXPLANATION = 5
 SCANNER_PORTS_KEPT = 8
 SCANNERS_KEPT = 2000
 _SCANNING_RESPONSE = (
-    "Nothing to do for the list as a whole: every public network is scanned all day. Look at the busiest addresses: "
-    "block one at the firewall if it keeps coming back or works on one service, and close any scanned port that "
-    "should not be reachable from the internet. An address that does more than scan gets its own alert."
+    "Nothing to do for the list as a whole: every public network is scanned all day. Start with the addresses that got "
+    "answers: something on MFU's side replied to them, so check that what replied should be reachable from the internet. "
+    "Then look at the busiest: block one at the firewall if it keeps coming back or works on one service, and close any "
+    "scanned port that should not be reachable from the internet. An address that does more than scan gets its own alert."
 )
+SCANNERS_ANSWERED_IN_EXPLANATION = 5
+
+
+def _answered(packets_received: int | None, session_end_reason: str | None) -> bool:
+    """Whether the MFU address answered a connection: it sent something back other than one reset refusing it.
+
+    A scan that gets answers has found something that can be reached from the internet; most get none (in the 20 May
+    export 5,035 of 5,547 scanning connections got no packet back, 48 were blocked by the firewall, and 36 were refused
+    with a single reset).
+    """
+
+    back = int(packets_received or 0)
+    return back > 0 and not (back == 1 and (session_end_reason or "") == "tcp-rst-from-server")
+
+
+def _note_answer(entry: dict, address: str, log_fields: tuple, answering: dict[str, set[str]]) -> None:
+    dst_ip, dst_port, protocol = log_fields
+    entry["answered"] = int(entry.get("answered") or 0) + 1
+    if dst_ip:
+        answering.setdefault(address, set()).add(dst_ip)
+    if (protocol or "").lower() == "icmp":
+        # A ping has no port (the firewall logs it as port 0): an answer to one says the address is in use.
+        entry["answered_ping"] = int(entry.get("answered_ping") or 0) + 1
+        return
+    ports = list(entry.get("answered_ports") or [])
+    if dst_port is not None and dst_port not in ports and len(ports) < SCANNER_PORTS_KEPT:
+        entry["answered_ports"] = sorted([*ports, int(dst_port)])
+
+
+def _answered_on(entry: dict) -> str:
+    ports = [str(port) for port in entry.get("answered_ports") or []]
+    said = [f"port{'' if len(ports) == 1 else 's'} {', '.join(ports)}"] if ports else []
+    if int(entry.get("answered_ping") or 0) > 0:
+        said.append("ping")
+    return " and ".join(said) or "ports unknown"
+
+
+def _note_answering(scanners: dict[str, dict], answering: dict[str, set[str]]) -> None:
+    for address, hosts in answering.items():
+        # As with the addresses reached: the most that answered in one look; the hour's true number is at least this.
+        scanners[address]["answered_by"] = max(int(scanners[address].get("answered_by") or 0), len(hosts))
 
 
 def _scanning_explanation(metadata: dict) -> str:
@@ -679,8 +721,30 @@ def _scanning_explanation(metadata: dict) -> str:
     return (
         f"{count:,} outside address{'' if count == 1 else 'es'} scanned or probed MFU from {hour}: {total:,} "
         f"connection{'' if total == 1 else 's'} in all. None of them did anything else ATDR alerts on, and neither the "
-        f"watchlist nor a firewall threat record names them. The busiest: {listed}.{sample}"
+        f"watchlist nor a firewall threat record names them.{_answers_sentence(scanners)} The busiest: {listed}.{sample}"
     )[:4000]
+
+
+def _answers_sentence(scanners: dict[str, dict]) -> str:
+    """Which scanners got answers from MFU addresses; nothing where the answers were not counted."""
+
+    counted = {address: entry for address, entry in scanners.items() if "answered" in entry}
+    if not counted:
+        return ""
+    answered = sorted(
+        ((address, entry) for address, entry in counted.items() if int(entry["answered"]) > 0),
+        key=lambda item: (-int(item[1]["answered"]), -int(item[1].get("connections") or 0), item[0]),
+    )
+    if not answered:
+        return " Not one of them got an answer from an MFU address."
+    listed = "; ".join(
+        f"{address} ({int(entry['answered']):,} of {int(entry.get('connections') or 0):,} connection"
+        f"{'' if int(entry.get('connections') or 0) == 1 else 's'} answered, by {int(entry.get('answered_by') or 0):,} or more "
+        f"MFU address{'' if int(entry.get('answered_by') or 0) == 1 else 'es'}, {_answered_on(entry)})"
+        for address, entry in answered[:SCANNERS_ANSWERED_IN_EXPLANATION]
+    )
+    many = len(answered)
+    return f" {many:,} of them got answers from MFU addresses, most: {listed}." if many > 1 else f" One of them got answers from MFU addresses: {listed}."
 
 
 def _open_scanning_alert(db: Session, hour_start: str, candidates: list[Alert] | None) -> Alert | None:
@@ -741,18 +805,23 @@ def record_internet_scanning(
         existing = _group_metadata(alert)
         scanners: dict[str, dict] = {address: dict(entry) for address, entry in (existing.get("scanners") or {}).items()}
         targets_now: dict[str, set[str]] = {}
+        answering_now: dict[str, set[str]] = {}
         counted: list[tuple[NormalizedLog, DetectionResult]] = []
         added_log_ids: list[int] = []
         for log, result in items:
             if log.id in existing_log_ids:
                 continue
             address = log.src_ip or "unknown"
-            entry = scanners.setdefault(address, {"connections": 0, "targets": 0, "ports": [], "kept": 0})
+            entry = scanners.setdefault(address, {"connections": 0, "targets": 0, "ports": [], "kept": 0, "answered": 0})
             entry["connections"] = int(entry["connections"]) + 1
             if log.dst_ip:
                 targets_now.setdefault(address, set()).add(log.dst_ip)
             if log.dst_port is not None and log.dst_port not in entry["ports"] and len(entry["ports"]) < SCANNER_PORTS_KEPT:
                 entry["ports"] = sorted([*entry["ports"], int(log.dst_port)])
+            # An entry from before ATDR counted answers stays without them: counting only from now on would say
+            # fewer than there were.
+            if "answered" in entry and _answered(log.packets_received, log.session_end_reason):
+                _note_answer(entry, address, (log.dst_ip, log.dst_port, log.protocol), answering_now)
             counted.append((log, result))
             if _log_source_id(log) in live_source_ids and int(entry["kept"]) >= SCAN_SAMPLE_LOGS_PER_ADDRESS:
                 continue
@@ -764,6 +833,7 @@ def record_internet_scanning(
         for address, targets in targets_now.items():
             # The most addresses it reached in one check; the true total for the hour is at least this.
             scanners[address]["targets"] = max(int(scanners[address]["targets"]), len(targets))
+        _note_answering(scanners, answering_now)
         scanner_count = max(int(existing.get("scanner_count") or 0), len(scanners))
         if len(scanners) > SCANNERS_KEPT:
             scanners = dict(sorted(scanners.items(), key=lambda item: (-int(item[1]["connections"]), item[0]))[:SCANNERS_KEPT])
@@ -857,6 +927,42 @@ def record_internet_scanning(
             )
         touched.append((alert, created))
     return touched
+
+
+def count_scanner_answers(db: Session, alert: Alert) -> dict[str, int]:
+    """Counts the answers on an internet-scanning alert made before ATDR counted them, from its evidence logs.
+
+    Only for the scanners whose every connection is evidence, as all of an imported file is: of the live feed only a
+    sample is kept, and answers counted from it would be too few. Scanners already counted are left as they are.
+    Says how many scanners it counted, and how many it had to leave without answers.
+    """
+
+    metadata = _group_metadata(alert)
+    scanners: dict[str, dict] = {address: dict(entry) for address, entry in (metadata.get("scanners") or {}).items()}
+    uncounted = [address for address, entry in scanners.items() if "answered" not in entry]
+    complete = {address for address in uncounted if int(scanners[address].get("kept") or 0) == int(scanners[address].get("connections") or 0)}
+    if alert.alert_type != INTERNET_SCANNING_ALERT or not complete:
+        return {"counted": 0, "left": len(uncounted)}
+    for address in complete:
+        scanners[address]["answered"] = 0
+    answering: dict[str, set[str]] = {}
+    rows = db.execute(
+        select(NormalizedLog.src_ip, NormalizedLog.dst_ip, NormalizedLog.dst_port, NormalizedLog.protocol,
+               NormalizedLog.packets_received, NormalizedLog.session_end_reason)
+        .join(AlertEvidence, AlertEvidence.normalized_log_id == NormalizedLog.id)
+        .where(AlertEvidence.alert_id == alert.id)
+        .order_by(NormalizedLog.id)
+    )
+    for src_ip, dst_ip, dst_port, protocol, packets_received, session_end_reason in rows:
+        address = src_ip or "unknown"
+        if address in complete and _answered(packets_received, session_end_reason):
+            _note_answer(scanners[address], address, (dst_ip, dst_port, protocol), answering)
+    _note_answering(scanners, answering)
+    metadata = {**metadata, "scanners": scanners}
+    alert.matched_rules_json = [metadata if rule.get("code") == "group_metadata" else rule for rule in alert.matched_rules_json or []]
+    alert.explanation = _scanning_explanation(metadata)
+    alert.recommended_response = _SCANNING_RESPONSE
+    return {"counted": len(complete), "left": len(uncounted) - len(complete)}
 
 
 def _insert_alert_evidence_rows(

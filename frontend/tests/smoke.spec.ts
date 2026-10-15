@@ -8950,10 +8950,72 @@ test("An internet scanning alert lists the hour's scanners, busiest first", asyn
   await expect(rows.first()).toContainText("250 or more");
   await expect(rows.first()).toContainText("22, 3389");
   await expect(table).not.toContainText("198.51.100.7");
+  // Made before ATDR counted answers: nothing is said about them, rather than "none".
+  await expect(table).toContainText("Which of them got answers was not counted for this alert.");
+  await expect(rows.first().locator("td").nth(2)).toHaveText("-");
   // The model reads one device's traffic. Asked about an alert with no single source it answered 404, every time
   // the alert was opened.
   await expect(page.getByTestId("behavior-alert-opinion")).toHaveCount(0);
   expect(opinionsAsked).toEqual([]);
+});
+
+test("An internet scanning alert puts the scanners that got answers first", async ({ page }) => {
+  // A sweep that 83 MFU web servers answered looked the same in this list as one that reached nothing.
+  await mockApi(page);
+  await seedSession(page);
+  const firstLoad = page.waitForResponse((response) => /\/api\/alerts\/1(\?|$)/.test(response.url()));
+  await page.goto("/alerts?alert=1");
+  const base = (await (await firstLoad).json()) as Record<string, unknown>;
+
+  const scanners: Record<string, Record<string, number | number[]>> = {
+    "198.51.100.9": { connections: 1234, targets: 250, ports: [22, 3389], kept: 20, answered: 0 },
+    "203.0.113.5": { connections: 835, targets: 600, ports: [80], kept: 20, answered: 192, answered_by: 83, answered_ports: [80] },
+    "203.0.113.6": { connections: 49, targets: 49, ports: [0], kept: 20, answered: 49, answered_by: 29, answered_ping: 49 }
+  };
+  for (let index = 0; index < 20; index += 1) {
+    scanners[`192.0.2.${index + 1}`] = { connections: 100 + index, targets: 10, ports: [443], kept: 20, answered: 0 };
+  }
+  const scanning = {
+    ...base,
+    alert_type: "internet_scanning",
+    title: "Medium: Internet scanning from 23 outside addresses (20 May 13:00 to 14:00)",
+    severity: "Medium",
+    src_ip: null,
+    dst_ip: null,
+    matched_rules_json: [
+      { code: "internet_scanning", title: "Internet scanning", explanation: "Outside addresses scanned or probed MFU and did nothing else ATDR alerts on." },
+      { code: "group_metadata", occurrence_count: 4108, related_log_count: 460, scanner_count: 23, connections: 4108, scanners }
+    ]
+  };
+  await page.route("**/api/alerts**", async (route) => {
+    const url = route.request().url();
+    if (/\/api\/alerts\/1(\?|$)/.test(url)) return route.fulfill({ json: scanning });
+    if (/\/api\/alerts(\?|$)/.test(url)) return route.fulfill({ json: [scanning] });
+    return route.fallback();
+  });
+  await page.reload();
+
+  const table = page.getByTestId("internet-scanners");
+  await expect(table).toContainText("; 20 are shown, those that got answers first.");
+  await expect(page.getByTestId("internet-scanners-answered")).toHaveText(
+    "2 of them got answers from MFU addresses: something on MFU's side replied, so check that it should be reachable from the internet."
+  );
+  const rows = page.getByTestId("internet-scanner-row");
+  await expect(rows.nth(0).locator("td").nth(0)).toHaveText("203.0.113.5");
+  await expect(rows.nth(0).locator("td").nth(2)).toHaveText("192 by 83 or more MFU addresses (port 80)");
+  await expect(rows.nth(0).locator("td").nth(2).locator("span")).toHaveClass(/text-amber/);
+  await expect(rows.nth(1).locator("td").nth(2)).toHaveText("49 by 29 or more MFU addresses (ping)");
+  // Then the busiest of those that got none, which used to come first.
+  await expect(rows.nth(2).locator("td").nth(0)).toHaveText("198.51.100.9");
+  await expect(rows.nth(2).locator("td").nth(2)).toHaveText("none");
+
+  // Counted, and nobody got an answer.
+  for (const entry of Object.values(scanners)) {
+    entry.answered = 0;
+  }
+  await page.reload();
+  await expect(page.getByTestId("internet-scanners-answered")).toHaveText("Not one of them got an answer from an MFU address.");
+  await expect(rows.nth(0).locator("td").nth(0)).toHaveText("198.51.100.9");
 });
 
 test("An alert with thousands of evidence logs opens on a preview of its report", async ({ page }) => {

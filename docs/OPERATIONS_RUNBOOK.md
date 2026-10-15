@@ -272,6 +272,19 @@ A release ends the watcher and the helper at the desktop and has Windows
 start both again, so that neither goes on with the scripts of the version
 before.
 
+Measured on the team laptop after the install of 2026-10-14:
+
+| What was done | What happened |
+| --- | --- |
+| Signed out and in again (overnight to 15 Oct) | the watcher and all five parts were the same processes before and after |
+| Restarted (15 Oct, 09:40) | Windows up 09:40:06, the watcher 09:40:35, every part started 09:40:43 and answering 09:42:21; the sign-in task left the start to the watcher |
+| `stop_system.cmd` then `start_system.cmd` from a window | all five parts stopped; the watcher started them again in 1 min 26 s |
+| A release restarting the watcher from a window | done in 2 s; the parts kept running; the helper at the desktop was back 14 s later |
+
+After a restart Windows 11 signs its user in by itself and locks the screen
+(here 23 seconds after it started), so a restart does not show ATDR starting
+with nobody signed in; a machine switched on from cold does.
+
 What remains: ATDR pauses while the machine sleeps, which now takes a closed
 lid or an empty battery; and a machine that is switched off runs nothing.
 
@@ -859,11 +872,24 @@ Limits:
   crosses a five-minute window, or a scanner that moves to another port, stays
   one alert. Close an alert and the next activity opens a new one.
 - Scanning from the internet goes on one **Internet scanning** alert an hour
-  (Medium). Its drawer lists the hour's scanners, busiest first. A scanner
-  that does more keeps its own alert: a firewall threat or malware record, a
-  watchlist match, brute force, another kind of alert still open, or its own
-  scan alert still open. Scans from inside MFU and repeated denied attempts
-  keep their own alerts too.
+  (Medium). Its drawer lists the hour's scanners, those that got answers
+  first, then the busiest. A connection counts as answered when the MFU
+  address sent something back other than a single reset refusing it; most
+  scanning gets nothing back. Answers to a ping are counted apart from ports.
+  Of the 130 scanners on 20 May, 55 got answers: a port-80 sweep was answered
+  by 83 MFU web servers (192 of its 835 connections) and a ping sweep by 29
+  addresses. Start with those: something on MFU's side replied, so check that
+  it should be reachable from the internet. A scanner that does more keeps
+  its own alert: a firewall threat or malware record, a watchlist match, brute
+  force, another kind of alert still open, or its own scan alert still open.
+  Scans from inside MFU and repeated denied attempts keep their own alerts
+  too.
+- A scanning alert made before 2026-10-15 is counted from its evidence logs
+  with `python -m atdr.scripts.count_scanner_answers` (a dry run; add
+  `--apply` to back up the database and count). Only scanners whose every
+  connection is evidence are counted, as all of an imported file is; from
+  the live feed only a sample is kept, and those scanners stay without a
+  count rather than with too few.
 - From the live feed the scanning alert keeps 20 evidence logs for each
   scanner and hour and counts the rest, which are deleted with the other live
   logs. Imported logs are all kept as evidence.

@@ -27,8 +27,10 @@ def _session():
 
 
 def _connection(db, *, src: str, dst: str, port: int, at: datetime = AT, inside: bool = False, log_type: str = "TRAFFIC",
-                source_id: int | None = None, imported_at: datetime | None = None) -> None:
-    raw = RawLog(raw_line=f"scan {src} {dst} {port} {at.isoformat()} {log_type}", source_id=source_id)
+                source_id: int | None = None, imported_at: datetime | None = None, protocol: str = "tcp",
+                packets_back: int = 0, ended: str = "aged-out") -> None:
+    """One connection; `packets_back` is what the MFU address sent back (none: nothing answered it)."""
+    raw = RawLog(raw_line=f"scan {src} {dst} {port} {at.isoformat()} {log_type} {packets_back}", source_id=source_id)
     if imported_at is not None:
         raw.imported_at = imported_at
     db.add(raw)
@@ -36,7 +38,8 @@ def _connection(db, *, src: str, dst: str, port: int, at: datetime = AT, inside:
     db.add(NormalizedLog(
         raw_log_id=raw.id, generated_time=at, log_type=log_type, src_ip=src, dst_ip=dst,
         src_zone="LAN-Inside" if inside else "SG-Outside", dst_zone="WLAN-Inside", app="incomplete", app_category="unknown",
-        dst_port=port, action="allow", protocol="tcp", bytes=60, bytes_received=0, packets=1, parsed_json={},
+        dst_port=port, action="allow", protocol=protocol, bytes=60, bytes_received=60 * packets_back, packets=1 + packets_back,
+        packets_received=packets_back, session_end_reason=ended, parsed_json={},
     ))
 
 
@@ -84,6 +87,8 @@ def test_scanners_from_the_internet_share_one_alert_for_the_hour():
     assert "2 outside addresses scanned or probed MFU from 20 May 13:00 to 14:00: 27 connections in all." in alert.explanation
     assert f"The busiest: {SECOND_SCANNER} (15 connections to 15 or more MFU addresses, ports 22); {SCANNER} (12 connections" in alert.explanation
     assert "kept as evidence" not in alert.explanation, "imported logs are all evidence"
+    assert "Not one of them got an answer from an MFU address." in alert.explanation
+    assert {entry["answered"] for entry in metadata["scanners"].values()} == {0}
     assert _evidence(db, alert) == 27
     assert infer_attack_type_from_rules(alert.matched_rules_json) == "port_scan"
 
@@ -240,3 +245,170 @@ def test_the_hours_alert_is_built_the_same_in_the_bounded_memory_mode_queued_job
     assert (later["created_alerts"], later["deduplicated_alert_updates"]) == (0, 1)
     assert (_metadata(alert)["connections"], _evidence(db, alert)) == (39, 39)
     assert alert.title.startswith("Medium: Internet scanning from 3 outside addresses")
+
+
+def _answered_sweep(db) -> None:
+    """A port-80 sweep that three MFU web servers answered and one refused, and a ping sweep five addresses answered."""
+    for host in range(12):
+        packets_back, ended = (4, "tcp-fin") if host < 3 else (1, "tcp-rst-from-server") if host == 3 else (0, "aged-out")
+        _connection(db, src=SCANNER, dst=f"10.0.0.{host + 1}", port=80, at=AT + timedelta(seconds=host), packets_back=packets_back, ended=ended)
+    for host in range(15):
+        _connection(db, src=SECOND_SCANNER, dst=f"10.0.1.{host + 1}", port=0, protocol="icmp", at=AT + timedelta(seconds=host),
+                    packets_back=1 if host < 5 else 0)
+    _sweep(db, THIRD_SCANNER, port=3389)
+    db.commit()
+
+
+def _later_sweep(db) -> None:
+    """The first scanner again, twenty minutes on, on port 443: one MFU address answers."""
+    for host in range(12):
+        _connection(db, src=SCANNER, dst=f"10.0.2.{host + 1}", port=443, at=AT + timedelta(minutes=20, seconds=host),
+                    packets_back=3 if host == 0 else 0, ended="tcp-rst-from-client" if host == 0 else "aged-out")
+    db.commit()
+
+
+def test_the_hours_alert_says_which_scanners_got_answers_and_puts_them_first():
+    # In the 20 May export one sweep was answered by 83 MFU web servers, and the list showed it like one that
+    # reached nothing.
+    from atdr.app.detection.plain_summary import build_plain_summary
+
+    db = _session()
+    _answered_sweep(db)
+    _check(db)
+
+    (alert,) = _alerts(db)
+    scanners = _metadata(alert)["scanners"]
+    # A single reset from the MFU side refuses the connection: that is no answer.
+    assert scanners[SCANNER] | {} == {"connections": 12, "targets": 12, "ports": [80], "kept": 12,
+                                      "answered": 3, "answered_by": 3, "answered_ports": [80]}
+    # A ping has no port: its answers are counted apart.
+    assert (scanners[SECOND_SCANNER]["answered"], scanners[SECOND_SCANNER]["answered_by"], scanners[SECOND_SCANNER]["answered_ping"]) == (5, 5, 5)
+    assert "answered_ports" not in scanners[SECOND_SCANNER]
+    assert scanners[THIRD_SCANNER]["answered"] == 0 and "answered_by" not in scanners[THIRD_SCANNER]
+    assert (
+        f"2 of them got answers from MFU addresses, most: {SECOND_SCANNER} (5 of 15 connections answered, by 5 or more MFU "
+        f"addresses, ping); {SCANNER} (3 of 12 connections answered, by 3 or more MFU addresses, port 80). The busiest:"
+    ) in alert.explanation
+    assert alert.recommended_response.startswith(
+        "Nothing to do for the list as a whole: every public network is scanned all day. Start with the addresses that got answers")
+    summary = build_plain_summary(db, alert, "port_scan")
+    assert "None of them did anything else ATDR alerts on. 2 of them got answers from MFU addresses. Every public" in summary
+    assert "Next: look first at the addresses that got answers, then at the busiest, and block one" in summary
+
+    # More of the same hour: the answers add up. Like the addresses reached, those that answered are the most
+    # seen in one check: the hour's true number is at least that.
+    _later_sweep(db)
+    _check(db)
+    (alert,) = _alerts(db)
+    later = _metadata(alert)["scanners"][SCANNER]
+    assert (later["connections"], later["answered"], later["answered_by"], later["answered_ports"]) == (24, 4, 3, [80, 443])
+
+
+def _forget_answers(db, alert: Alert) -> None:
+    """As an alert made before ATDR counted answers."""
+    rules = []
+    for rule in alert.matched_rules_json:
+        if rule.get("code") == "group_metadata":
+            rule = {**rule, "scanners": {address: {key: value for key, value in entry.items() if not key.startswith("answered")}
+                                         for address, entry in rule["scanners"].items()}}
+        rules.append(rule)
+    alert.matched_rules_json = rules
+    alert.explanation, alert.recommended_response = "made before", "made before"
+    db.commit()
+
+
+def test_an_alert_made_before_answers_were_counted_is_counted_from_its_evidence():
+    from atdr.app.services.alert_service import count_scanner_answers
+
+    db = _session()
+    _answered_sweep(db)
+    _check(db)
+    (alert,) = _alerts(db)
+    counted_as_it_happened = _metadata(alert)["scanners"]
+    _forget_answers(db, alert)
+
+    # A later check of the same hour leaves those scanners uncounted: counting from then on would say too few.
+    _later_sweep(db)
+    _check(db)
+    (alert,) = _alerts(db)
+    assert _metadata(alert)["scanners"][SCANNER]["connections"] == 24
+    assert "answered" not in _metadata(alert)["scanners"][SCANNER]
+    assert "got answers" not in alert.explanation and "got an answer" not in alert.explanation
+    from atdr.app.detection.plain_summary import build_plain_summary
+
+    before = build_plain_summary(db, alert, "port_scan")
+    assert "answer" not in before and "Next: look at the busiest addresses," in before, "nothing is said about answers not counted"
+
+    assert count_scanner_answers(db, alert) == {"counted": 3, "left": 0}
+    db.commit()
+    scanners = _metadata(alert)["scanners"]
+    assert scanners[SECOND_SCANNER] == counted_as_it_happened[SECOND_SCANNER]
+    assert scanners[THIRD_SCANNER] == counted_as_it_happened[THIRD_SCANNER]
+    # From every evidence log at once: all four MFU addresses that answered in the hour.
+    assert (scanners[SCANNER]["answered"], scanners[SCANNER]["answered_by"], scanners[SCANNER]["answered_ports"]) == (4, 4, [80, 443])
+    assert "2 of them got answers from MFU addresses" in alert.explanation
+    assert alert.recommended_response.startswith("Nothing to do for the list as a whole")
+    assert count_scanner_answers(db, alert) == {"counted": 0, "left": 0}, "counted once"
+
+
+def test_a_live_feed_scanner_whose_evidence_is_a_sample_is_left_without_a_count():
+    from atdr.app.services.alert_service import count_scanner_answers
+
+    db = _session()
+    live = LogSource(name="syslog_udp:198.51.100.1", source_type="syslog_udp", parser_profile="palo_alto", enabled=True)
+    db.add(live)
+    db.flush()
+    _sweep(db, SCANNER, hosts=50, source_id=live.id)
+    _sweep(db, SECOND_SCANNER, hosts=12, source_id=live.id)
+    _check(db)
+    (alert,) = _alerts(db)
+    _forget_answers(db, alert)
+
+    assert count_scanner_answers(db, alert) == {"counted": 1, "left": 1}
+    scanners = _metadata(alert)["scanners"]
+    assert "answered" not in scanners[SCANNER], f"{SCAN_SAMPLE_LOGS_PER_ADDRESS} of its 50 connections are evidence"
+    assert scanners[SECOND_SCANNER]["answered"] == 0
+
+
+def test_the_command_counts_older_alerts_after_a_backup_and_a_dry_run_changes_nothing(monkeypatch, tmp_path, capsys):
+    from sqlalchemy.orm import sessionmaker
+
+    from atdr.app.db.models import AuditLog
+    from atdr.scripts import count_scanner_answers as command
+
+    db = _session()
+    _answered_sweep(db)
+    _check(db)
+    (alert,) = _alerts(db)
+    _forget_answers(db, alert)
+    monkeypatch.setattr(command, "SessionLocal", sessionmaker(bind=db.get_bind(), future=True))
+    backups: list[str] = []
+    monkeypatch.setattr(command, "create_database_backup",
+                        lambda **kwargs: backups.append(kwargs["output_dir"]) or {"ok": True, "status": "backup_created", "backup_path": "b.sqlite3"})
+
+    assert command.main([]) == 0
+    db.expire_all()
+    assert "answered" not in _metadata(_alerts(db)[0])["scanners"][SCANNER] and backups == []
+    assert '"got_answers": 2' in capsys.readouterr().out
+
+    assert command.main(["--apply", "--actor", "koe", "--backup-dir", str(tmp_path)]) == 0
+    db.expire_all()
+    (alert,) = _alerts(db)
+    assert _metadata(alert)["scanners"][SCANNER]["answered"] == 3 and backups == [str(tmp_path)]
+    audit = db.scalars(select(AuditLog).where(AuditLog.action == "scanner_answers_counted")).one()
+    assert (audit.actor, audit.target_value, audit.details["counted"]) == ("koe", str(alert.id), 3)
+    assert "Counted: 3 scanners on 1 alerts." in capsys.readouterr().out
+
+    assert command.main(["--apply"]) == 0 and backups == [str(tmp_path)], "nothing left to count: no backup"
+
+
+def test_answers_are_counted_the_same_in_the_bounded_memory_mode_queued_jobs_use():
+    db = _session()
+    _answered_sweep(db)
+
+    run_detection(db, limit=None, use_ml=False, actor="test", only_unchecked=True, bounded_memory=True)
+
+    db.expire_all()
+    scanners = _metadata(_alerts(db)[0])["scanners"]
+    assert (scanners[SCANNER]["answered"], scanners[SCANNER]["answered_ports"]) == (3, [80])
+    assert (scanners[SECOND_SCANNER]["answered"], scanners[SECOND_SCANNER]["answered_ping"]) == (5, 5)
