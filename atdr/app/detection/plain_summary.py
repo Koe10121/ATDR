@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from atdr.app.db.models import Alert, AlertEvidence, NormalizedLog, WatchlistItem
 from atdr.app.detection.attack_mapping import INTERNET_EXPOSURE_ALERT, INTERNET_SCANNING_ALERT, infer_attack_type_from_rules
 from atdr.app.detection.playbooks import PLAYBOOK_GUIDANCE
+from atdr.app.detection.planted_text import field_text
 from atdr.app.detection.rules import (
     INSIDE_ZONE_TOKENS,
     OUTSIDE_ZONE_TOKENS,
@@ -74,7 +75,7 @@ def threat_name(text: str | None) -> str | None:
     """The firewall's threat name in an alert's explanation, without its signature number."""
 
     match = THREAT_NAME.search(text or "")
-    return match.group(1).strip() if match else None
+    return field_text(match.group(1).strip()) if match else None
 
 
 def _side(address: str | None, zone: str | None) -> str | None:

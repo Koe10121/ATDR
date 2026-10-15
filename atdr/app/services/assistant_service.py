@@ -27,6 +27,7 @@ from atdr.app.detection.runtime_contract import experimental_model_runtime_statu
 from atdr.app.detection.attack_mapping import infer_attack_type_from_rules
 from atdr.app.detection.explanations import build_alert_detection_summary, explain_log_triage
 from atdr.app.detection.plain_summary import brief_situation, build_situation_summary, threat_name
+from atdr.app.detection.planted_text import field_text
 from atdr.app.services.case_service import list_alert_cases
 from atdr.app.services.assistant_data_query import (
     ATTACK_LABELS,
@@ -2181,8 +2182,8 @@ def _safe_log_context(log: NormalizedLog) -> dict[str, Any]:
         "dst_ip": log.dst_ip,
         "src_port": log.src_port,
         "dst_port": log.dst_port,
-        "app": log.app,
-        "action": log.action,
+        "app": field_text(log.app),
+        "action": field_text(log.action),
         "protocol": log.protocol,
         "app_risk": log.app_risk,
         "is_anomaly": log.is_anomaly,

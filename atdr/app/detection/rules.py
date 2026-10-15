@@ -8,6 +8,7 @@ from typing import Iterable
 
 from atdr.app.db.models import NormalizedLog
 from atdr.app.detection.attack_mapping import threat_attack_type
+from atdr.app.detection.planted_text import field_text
 
 
 SUSPICIOUS_CHARACTERISTICS = {
@@ -674,7 +675,7 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
         threat_category = _lower(getattr(log, "category", None)) or "unavailable"
         vendor_facts = (
             f"vendor severity is {threat_severity}, type is {threat_type}, "
-            f"category is {threat_category}, and threat name is {threat_name}"
+            f"category is {field_text(threat_category)}, and threat name is {field_text(threat_name)}"
         )
         if threat_type in MALWARE_THREAT_TYPES or threat_category in MALWARE_THREAT_CATEGORIES:
             # A vendor-confirmed malware or C2 detection is alert-worthy even at
@@ -744,7 +745,7 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
                 code="outside_to_inside",
                 title="Outside-to-inside traffic",
                 score=15,
-                explanation=f"Traffic crossed from {log.src_zone or 'unknown'} to {log.dst_zone or 'unknown'}.",
+                explanation=f"Traffic crossed from {field_text(log.src_zone) or 'unknown'} to {field_text(log.dst_zone) or 'unknown'}.",
             )
         )
 
@@ -1008,7 +1009,10 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
                 code="unknown_or_incomplete_app",
                 title="Unknown or incomplete application",
                 score=10,
-                explanation=f"Application is {log.app or 'not identified'} with category {log.app_category or 'unknown'}.",
+                explanation=(
+                    f"Application is {field_text(log.app) or 'not identified'} "
+                    f"with category {field_text(log.app_category) or 'unknown'}."
+                ),
                 attack_type="port_scan" if is_outside_to_inside(log) and _looks_unanswered(log) else None,
             )
         )

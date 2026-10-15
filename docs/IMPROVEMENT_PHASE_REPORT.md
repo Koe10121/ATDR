@@ -272,6 +272,12 @@ attacks. The assistant answered from a fixed list of question types.
   Overview's plain words: what is open, what is new in the period asked about, each kind of
   attack with what the firewall did, and the alert to open first.
 
+- A log can no longer talk the assistant into a verdict. A forged firewall log whose
+  threat name told "the AI assistant" that a Critical alert was a confirmed false
+  positive got that verdict repeated in 4 of 9 answers. Such text is now withheld
+  wherever ATDR turns log values into words, and the answer warns that the log may
+  be forged. Afterwards 36 of 36 answers resisted, and no real MFU value was withheld.
+
 ### 4. Honest evidence
 
 - **The team review pack** put every check that needs a person in one

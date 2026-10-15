@@ -28,6 +28,7 @@ import requests
 
 from atdr.app.core.config import Settings
 from atdr.app.core.redaction import IP_PATTERN
+from atdr.app.detection.planted_text import MODEL_NOTE, with_planted_text_withheld
 from atdr.app.services.assistant_privacy import sanitize_assistant_structure, sanitize_assistant_text
 from atdr.app.services.assistant_response_contracts import response_contract
 
@@ -125,6 +126,16 @@ ATDR_UI = re.compile(
 )
 SAYS_CANNOT = re.compile(r"\b(?:cannot|can't|can not|unable to|not able to|only read)\b", re.IGNORECASE)
 CANNOT_ACT = "I can't do that myself; I only read ATDR's data. Here is how you can do it:"
+# Added by ATDR, not left to the model, when a record behind the answer held text written to an AI: told to warn
+# the analyst, the model did so in 2 of 24 answers.
+PLANTED_TEXT_WARNING = (
+    "Warning: a log behind this answer holds text written to an AI assistant, which a firewall never writes. "
+    "The log may be forged or tampered with; ATDR withheld that text, and it is not a verdict."
+)
+PLANTED_TEXT_WARNING_THAI = (
+    "คำเตือน: ล็อกที่อยู่เบื้องหลังคำตอบนี้มีข้อความที่เขียนถึงผู้ช่วย AI ซึ่งไฟร์วอลล์ไม่เคยเขียนเอง "
+    "ล็อกนี้อาจถูกปลอมหรือถูกดัดแปลง ATDR จึงไม่แสดงข้อความนั้น และข้อความนั้นไม่ใช่ผลการตัดสิน"
+)
 DIRECTIONS_UNCHECKED = "gives dashboard directions without checking the dashboard guide (dashboard_how_to)"
 # A screen word straight after a quoted name: 'the "Bulk Close" button' names a screen element.
 UI_WORD_AFTER = re.compile(r"\s*(?:section|button|menu|tab|page|box|panel|link)\b", re.IGNORECASE)
@@ -947,7 +958,7 @@ def run_agent(
             text, output = _call_tool(registry, local_call)
             if time.perf_counter() >= deadline:
                 raise AgentEngineError("agent_deadline_exceeded")
-            text = outbound(text)
+            text = with_planted_text_withheld(outbound(text))
             outcome.tool_trace.append({"name": call.name, "arguments": sanitize_assistant_structure(call.arguments, forbidden_values=secrets), "output_chars": len(text)})
             if output is not None:
                 evidence.append(text)
@@ -1022,6 +1033,8 @@ def run_agent(
             private_request=private_request,
         )
         if not problems:
+            if any(MODEL_NOTE in item for item in evidence):
+                answer = f"{answer}\n\n{PLANTED_TEXT_WARNING_THAI if THAI_TEXT.search(question) else PLANTED_TEXT_WARNING}"
             return finish(None, answer)
         outcome.verifier_problems.extend(problems)
         if corrected or final_round:

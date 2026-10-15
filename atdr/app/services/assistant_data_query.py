@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 
 from atdr.app.db.models import Alert, NormalizedLog
 from atdr.app.detection.attack_mapping import ATTACK_LABELS, infer_attack_type_from_rules
+from atdr.app.detection.planted_text import field_text
 from atdr.app.detection.rule_catalog import rule_spec
 
 Subject = Literal["alerts", "logs"]
@@ -663,8 +664,9 @@ def _answer_logs(db: Session, dq: DataQuestion) -> DataAnswer:
             else f"No {noun}s {window_phrase(dq)}, so there is nothing to rank."
         )
         display = country_label if dq.group_by in {"src_country", "dst_country"} else str
+        # An application or country is whatever text the log line carried: one written to an AI is withheld.
         lines = [
-            f"{display(value) if value not in (None, '') else 'unknown'}: {_plural(total, 'log')} ({round(100 * total / overall) if overall else 0}%)"
+            f"{field_text(display(value)) if value not in (None, '') else 'unknown'}: {_plural(total, 'log')} ({round(100 * total / overall) if overall else 0}%)"
             for value, total in ranked
         ]
         if not ranked and dq.window.bounded:
