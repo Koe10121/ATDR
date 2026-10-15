@@ -17,7 +17,12 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from atdr.app.db.models import Alert, AlertEvidence, NormalizedLog, WatchlistItem
-from atdr.app.detection.attack_mapping import INTERNET_EXPOSURE_ALERT, INTERNET_SCANNING_ALERT, infer_attack_type_from_rules
+from atdr.app.detection.attack_mapping import (
+    INTERNET_EXPOSURE_ALERT,
+    INTERNET_SCANNING_ALERT,
+    PERSISTENT_CONTACT_ALERT,
+    infer_attack_type_from_rules,
+)
 from atdr.app.detection.playbooks import PLAYBOOK_GUIDANCE
 from atdr.app.detection.planted_text import field_text
 from atdr.app.detection.rules import (
@@ -235,6 +240,25 @@ def _exposure_summary(alert: Alert) -> str:
     return " ".join(said)
 
 
+def _persistent_contact_summary(alert: Alert) -> str:
+    """Inside computers in constant contact with a rarely used outside address (persistent_contact_service)."""
+
+    metadata = next(
+        (rule for rule in alert.matched_rules_json or [] if isinstance(rule, dict) and rule.get("code") == "group_metadata"),
+        {},
+    )
+    sources = metadata.get("sources") or {}
+    connections = sum(int(item.get("connections") or 0) for item in sources.values() if isinstance(item, dict))
+    computers = _count(len(sources), "MFU computer", "MFU computers")
+    return (
+        f"{computers[0].upper() + computers[1:]} kept up constant contact with outside address {metadata.get('destination')}: "
+        f"{_count(connections, 'connection', 'connections')} in their busiest hour, spread over half an hour or more, "
+        f"while no more than {metadata.get('max_sources')} MFU computers used that address at all. "
+        "That is how infected computers check in with an attacker's server, and also how some update or monitoring "
+        "agents talk to their vendor. Next: find out what the address is and which program on those computers talks to it."
+    )
+
+
 def build_plain_summary(db: Session, alert: Alert, attack_type: str | None) -> str:
     """Three to five short sentences about the alert; empty when it has no evidence logs."""
 
@@ -242,6 +266,8 @@ def build_plain_summary(db: Session, alert: Alert, attack_type: str | None) -> s
         return _scanning_summary(alert)
     if alert.alert_type == INTERNET_EXPOSURE_ALERT:
         return _exposure_summary(alert)
+    if alert.alert_type == PERSISTENT_CONTACT_ALERT:
+        return _persistent_contact_summary(alert)
     rows = db.execute(
         select(*_EVIDENCE_COLUMNS)
         .join(AlertEvidence, AlertEvidence.normalized_log_id == NormalizedLog.id)

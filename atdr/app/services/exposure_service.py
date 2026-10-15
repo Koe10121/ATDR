@@ -22,7 +22,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from atdr.app.db.models import AuditLog, InternetService, NormalizedLog
-from atdr.app.detection.rules import connection_answered, is_from_internet
+from atdr.app.detection.rules import connection_answered, is_from_internet, is_ftp_data_connection
 
 STATUSES = ("unreviewed", "expected", "not_expected")
 # A service first seen this long after ATDR began listing them is new: by then the ones always there are listed.
@@ -106,16 +106,6 @@ def risk_of(apps: Iterable[str], port: int) -> RiskyService | None:
 
 def service_key(log: Any) -> tuple[str, int, str]:
     return (str(log.dst_ip), int(log.dst_port), _lower(log.protocol))
-
-
-def is_ftp_data_connection(log: Any) -> bool:
-    """An active-mode FTP data connection: an outside FTP server an MFU computer uses dials back from its port 20 to
-    a high port that computer named. It belongs to the computer's own outgoing session, so it is no service MFU
-    offers: on the BOTSv2 lab data, one user's uploads became 725 "services" on random ports. A connection to a
-    real FTP server (port 21) or any other service is still one, whatever port it comes from.
-    """
-
-    return log.src_port == 20 and _lower(log.app).startswith("ftp") and log.dst_port is not None and log.dst_port >= 1024
 
 
 def is_exposure_log(log: Any) -> bool:

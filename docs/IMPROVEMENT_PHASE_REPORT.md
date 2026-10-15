@@ -228,6 +228,18 @@ attacks. The assistant answered from a fixed list of question types.
   every reason now stays when another rule matched. An exposure alert is not a claim that
   its connections are attacks, so the detection scoreboard and the blind check leave its
   evidence out (`docs/OPERATIONS_RUNBOOK.md`, Internet Exposure).
+- **A second dataset** (15 October). The rules ran unchanged on Palo Alto logs from a firewall
+  they had never seen: Splunk's BOTSv2 lab, in which attackers break into a fictional
+  brewery (`docs/detection/BOTSV2_EVALUATION.md`). They found the data theft by FTP and
+  stayed quiet on the firewall's own probing, which the lab's IDS reported 1,547 times. They
+  also showed three faults. One user's FTP uploads became 725 "services open to the
+  internet"; a firewall that logs each session's start and end got every session counted
+  twice; and the attacker's command server, which four computers contacted every few seconds
+  for two days, raised nothing. The first two are fixed and change nothing on MFU's data. For
+  the third, a new Medium alert finds inside computers in constant contact with an outside
+  address almost nothing else uses. On BOTSv2 it found the command server, plus one false
+  alarm (the lab's log forwarding). It has not been tried on MFU traffic: MFU's export is 21
+  minutes long, and the pattern takes half an hour.
 
 
 ### 2. A model trained on MFU traffic
@@ -337,7 +349,8 @@ logs, so every stored log is now MFU firewall traffic.
 
 - **One export.** Everything was built, tuned and tested on 21 minutes of one
   day from one firewall. No part of it is left untouched, so there is no fair
-  test left. This is the main limit on every figure above.
+  test left. This is the main limit on every figure above. The BOTSv2 lab data
+  (15 October) is a second firewall, but a lab's, with partial ground truth.
 - **Labels.** The blind labels came from an AI reviewer and were checked by a
   person; the team's own labels were AI-assisted. Neither is independent
   ground truth.

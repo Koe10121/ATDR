@@ -107,6 +107,9 @@ ATTACK_LABELS = {
 INTERNET_SCANNING_ALERT = "internet_scanning"
 # The kind of the alert for an MFU service that answers the internet and should not (alert_service, exposure_service).
 INTERNET_EXPOSURE_ALERT = "internet_exposed_service"
+# The kind of the alert for inside computers in constant contact with a rarely used outside address
+# (alert_service, persistent_contact_service).
+PERSISTENT_CONTACT_ALERT = "persistent_outside_contact"
 
 # Each rule's default attack type is the one its catalog entry documents.
 RULE_ATTACK_HINTS = {
@@ -115,6 +118,7 @@ RULE_ATTACK_HINTS = {
     # The MFU behaviour model's experimental alerts; each names its type on the match itself.
     "mfu_behavior_model": "unknown_anomaly",
     INTERNET_EXPOSURE_ALERT: "exposed_service",
+    PERSISTENT_CONTACT_ALERT: "malware_c2",
 }
 
 RULE_ATTACK_PRIORITY = {

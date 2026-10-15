@@ -14,6 +14,7 @@ from atdr.app.db.database import Base, get_db
 from atdr.app.db.models import Alert, AlertEvidence, AuditLog, InternetService, NormalizedLog, RawLog
 from atdr.app.detection.attack_mapping import infer_attack_type_from_rules
 from atdr.app.detection.plain_summary import build_plain_summary
+from atdr.app.detection.rules import build_detection_context, evaluate_rules
 from atdr.app.main import app
 from atdr.app.services.detection_service import run_detection
 from atdr.app.services.exposure_service import list_internet_services, review_internet_service, risk_of
@@ -108,9 +109,10 @@ def test_an_ftp_server_dialling_back_to_an_mfu_computer_is_no_mfu_service():
     db = _session_factory()()
     # Active-mode FTP: the outside server a user uploads to opens each data connection from its port 20 to a high
     # port the user's computer named. BOTSv2's one user made 725 such "services" on random ports.
-    for index, port in enumerate((1076, 23105, 64297)):
+    # Twelve of them in a minute: enough ports for the port-scan rule, were they a scan.
+    for index, port in enumerate((1076, 23105, 64297, 4217, 5220, 9860, 36117, 43689, 45619, 51000, 58805, 59680)):
         _connection(db, src="160.153.91.7", src_port=20, dst=WEB, port=port, app="ftp", packets_back=4, ended="tcp-fin",
-                    at=AT + timedelta(seconds=index))
+                    at=AT + timedelta(seconds=5 * index))
     # From port 20 to a real FTP server, or to SSH: still a service answering the internet.
     _connection(db, src="45.33.32.8", src_port=20, dst=RDP, port=21, app="ftp", packets_back=4, ended="tcp-fin")
     _connection(db, src="45.33.32.9", src_port=20, dst=SSH_ON_210, port=2222, app="ssh", packets_back=4, ended="tcp-fin")
@@ -122,6 +124,14 @@ def test_an_ftp_server_dialling_back_to_an_mfu_computer_is_no_mfu_service():
 
     services = {(row.address, row.port) for row in db.scalars(select(InternetService))}
     assert services == {(RDP, 21), (SSH_ON_210, 2222), (RDP, 50000)}
+    # Nor is it someone scanning MFU: no alert holds one of those connections.
+    dial_backs = set(db.scalars(select(NormalizedLog.id).where(NormalizedLog.src_ip == "160.153.91.7")))
+    held = set(db.scalars(select(AlertEvidence.normalized_log_id)))
+    assert dial_backs and not dial_backs & held
+    # Not even a supporting sign of probing.
+    dial_back = db.scalars(select(NormalizedLog).where(NormalizedLog.src_ip == "160.153.91.7")).first()
+    codes = {match.code for match in evaluate_rules(dial_back, build_detection_context([dial_back]))}
+    assert not codes & {"unusual_destination_port", "possible_port_scan", "possible_horizontal_scan"}
     assert {(_metadata(alert)["address"], _metadata(alert)["port"]) for alert in _exposure_alerts(db)} <= services
 
 

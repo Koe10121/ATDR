@@ -42,17 +42,20 @@ from atdr.app.services.alert_service import (
     ALERT_DEDUP_ACTIVE_STATUSES,
     INTERNET_EXPOSURE_ALERT,
     INTERNET_SCANNING_ALERT,
+    PERSISTENT_CONTACT_ALERT,
     create_grouped_alert_from_detections,
     existing_evidence_log_ids,
     insert_pending_alert_evidence_rows,
     open_alert_for_group,
     record_internet_exposure,
+    record_persistent_contacts,
     record_internet_scanning,
 )
 from atdr.app.services.detection_coordination_service import (
     acquire_detection_transaction_lock,
 )
 from atdr.app.services.exposure_service import ExposureMap, exposure_findings, note_internet_services
+from atdr.app.services.persistent_contact_service import persistent_contacts
 from atdr.app.services.operation_run_service import (
     attack_type_counts_for_alerts,
     complete_detection_run,
@@ -971,6 +974,10 @@ def run_detection(
         exposure_found = exposure_findings(noted_services, started=exposure_map.started)
         if exposure_found:
             candidate_alert_types.add(INTERNET_EXPOSURE_ALERT)
+        # Inside computers that kept up constant contact with a rarely used outside address over the last hour.
+        contacts = persistent_contacts(db, logs)
+        if contacts:
+            candidate_alert_types.add(PERSISTENT_CONTACT_ALERT)
         sources_doing_more = _sources_doing_more(db, grouped)
         internet_scanning: list[tuple[NormalizedLog | DetectionLogRecord, DetectionResult]] = []
         internet_scanning_groups = 0
@@ -1079,6 +1086,19 @@ def run_detection(
                 known_alert_objects.add(id(alert))
                 created += int(was_created)
                 deduplicated_alert_updates += int(not was_created)
+        if contacts:
+            for alert, was_created in record_persistent_contacts(
+                db,
+                contacts,
+                dedup_alerts=dedup_alerts,
+                evidence_id_cache=evidence_id_cache,
+                bulk_evidence=bounded_rule_mode,
+                pending_evidence=pending_evidence,
+            ):
+                touched_alerts.append(alert)
+                known_alert_objects.add(id(alert))
+                created += int(was_created)
+                deduplicated_alert_updates += int(not was_created)
         if pending_evidence is not None:
             insert_pending_alert_evidence_rows(db, pending_evidence)
         _runtime_profile_sample(db, runtime_profile, "alerts_built")
@@ -1121,6 +1141,7 @@ def run_detection(
             "internet_scanning_groups": internet_scanning_groups,
             "internet_services_noted": len(noted_services),
             "exposure_findings": len(exposure_found),
+            "persistent_contacts": len(contacts),
             "expected_service_logs": expected_service_logs,
             "rule_detection_authoritative": True,
             "detection_layers": detection_layers,

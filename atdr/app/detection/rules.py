@@ -252,6 +252,17 @@ def is_outside_to_inside(log: NormalizedLog) -> bool:
     return src_outside and dst_inside
 
 
+def is_ftp_data_connection(log: NormalizedLog) -> bool:
+    """An active-mode FTP data connection: an outside FTP server an inside computer uses dials back from its port 20
+    to a high port that computer named. It belongs to the computer's own outgoing session, so it is neither a
+    service the inside offers nor a scan: on the BOTSv2 lab data one user's uploads became 725 "services" on random
+    ports and two hours of "internet scanning". A connection to a real FTP server (port 21) or any other service
+    still counts, whatever port it comes from.
+    """
+
+    return log.src_port == 20 and _lower(log.app).startswith("ftp") and log.dst_port is not None and log.dst_port >= 1024
+
+
 def is_internal_to_external(log: NormalizedLog) -> bool:
     src_inside = bool(_zone_tokens(log.src_zone) & INSIDE_ZONE_TOKENS)
     dst_outside = bool(_zone_tokens(log.dst_zone) & OUTSIDE_ZONE_TOKENS)
@@ -811,7 +822,9 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
         scan_support.append("unresolved application identity")
     if str(log.log_type or "").upper() == "THREAT" and _lower(log.subtype) == "scan":
         scan_support.append("vendor scan subtype")
-    if distinct_ports >= VERTICAL_SCAN_PORT_THRESHOLD and scan_support:
+    # The many ports an FTP server dials back to are the client's own data connections.
+    ftp_data = is_ftp_data_connection(log)
+    if distinct_ports >= VERTICAL_SCAN_PORT_THRESHOLD and scan_support and not ftp_data:
         matches.append(
             RuleMatch(
                 code="possible_port_scan",
@@ -852,6 +865,7 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
         log.dst_port is not None
         and distinct_destinations_for_port >= HORIZONTAL_SCAN_DESTINATION_THRESHOLD
         and horizontal_support
+        and not ftp_data
     ):
         matches.append(
             RuleMatch(
@@ -957,7 +971,7 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
             )
         )
 
-    if log.dst_port is not None and log.dst_port not in COMMON_PORTS and is_outside_to_inside(log):
+    if log.dst_port is not None and log.dst_port not in COMMON_PORTS and is_outside_to_inside(log) and not ftp_data:
         matches.append(
             RuleMatch(
                 code="unusual_destination_port",

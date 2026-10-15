@@ -11,11 +11,17 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session, joinedload, noload
 
 from atdr.app.db.models import Alert, AlertEvidence, AlertNote, AuditLog, LogSource, NormalizedLog, RawLog, ResponseAction, User
-from atdr.app.detection.attack_mapping import INTERNET_EXPOSURE_ALERT, INTERNET_SCANNING_ALERT, more_specific_attack_type
+from atdr.app.detection.attack_mapping import (
+    INTERNET_EXPOSURE_ALERT,
+    INTERNET_SCANNING_ALERT,
+    PERSISTENT_CONTACT_ALERT,
+    more_specific_attack_type,
+)
 from atdr.app.detection.explanations import build_alert_detection_summary, compact_behavior_features, recommended_response
 from atdr.app.detection.rule_catalog import serialize_rule_match
 from atdr.app.detection.rules import DetectionResult, connection_answered
 from atdr.app.detection.scoring import severity_from_score
+from atdr.app.services.persistent_contact_service import MAX_SOURCES
 
 
 ALERT_STATUSES = {"open", "investigating", "contained", "resolved", "false_positive", "needs_more_context"}
@@ -1114,6 +1120,146 @@ def record_internet_exposure(
         if not created:
             db.add(AuditLog(actor="system", action="alert_deduplicated", target_type="alert", target_value=str(alert.id),
                             details={"alert_type": alert.alert_type, "added_evidence_logs": len(added_log_ids), "connections": connections}))
+        touched.append((alert, created))
+    return touched
+
+
+PERSISTENT_CONTACT_SCORE = 60
+PERSISTENT_CONTACT_EVIDENCE_KEPT = 100
+
+
+def _persistent_contact_explanation(metadata: dict) -> str:
+    destination = metadata["destination"]
+    sources = metadata["sources"]
+    first, last = _parse_iso(metadata.get("first_seen")), _parse_iso(metadata.get("last_seen"))
+    when = f" between {first.day} {first:%b} {first:%H:%M} and {last.day} {last:%b} {last:%H:%M}" if first and last else ""
+    computers = ", ".join(f"{source} ({item['connections']:,} connections in {item['windows']} five-minute windows)"
+                          for source, item in list(sources.items())[:5])
+    ports = ", ".join(str(port) for port in metadata.get("ports") or []) or "unknown"
+    apps = ", ".join(metadata.get("apps") or []) or "unknown"
+    count = len(sources)
+    return (
+        f"{count} inside computer{'' if count == 1 else 's'} kept in constant contact with outside address {destination}"
+        f"{when}, on port {ports} ({apps}): {computers}. In the hour looked back over, no more than "
+        f"{metadata['max_sources']} inside computers used that address at all. Busy, lasting contact with an address "
+        "almost nothing else uses is how infected computers check in with an attacker's command server; it is also "
+        "how some update or monitoring agents talk to their vendor. This check was tried on the BOTSv2 lab data, "
+        "where it found the attacker's command server; it has not been tried on MFU's own traffic."
+    )[:4000]
+
+
+def _persistent_contact_response(destination: str) -> str:
+    return (
+        f"Find out what {destination} is: look it up in threat intelligence and ask who owns the computers that talk "
+        "to it. Check those computers with EDR or antivirus, and look at what runs on them and when it started. If "
+        "nobody can name a legitimate program behind it, block the address at the firewall and isolate the computers. "
+        "If it is a known agent or vendor service, close the alert as a false positive with that reason."
+    )
+
+
+def _open_persistent_contact_alert(destination: str, candidates: list[Alert]) -> Alert | None:
+    for alert in reversed(candidates):
+        if (alert.alert_type == PERSISTENT_CONTACT_ALERT and (alert.status or "open") in ALERT_DEDUP_ACTIVE_STATUSES
+                and _group_metadata(alert).get("destination") == destination):
+            return alert
+    return None
+
+
+def record_persistent_contacts(
+    db: Session,
+    contacts: list,
+    *,
+    dedup_alerts: list[Alert],
+    evidence_id_cache: dict[int, set[int]] | None = None,
+    bulk_evidence: bool = False,
+    pending_evidence: list[tuple[Alert, list[int]]] | None = None,
+) -> list[tuple[Alert, bool]]:
+    """Puts each outside address inside computers kept in constant contact with on its alert; returns (alert, created)."""
+
+    touched: list[tuple[Alert, bool]] = []
+    for contact in contacts:
+        alert = _open_persistent_contact_alert(contact.destination, dedup_alerts)
+        created = alert is None
+        if alert is None:
+            alert = Alert(alert_type=PERSISTENT_CONTACT_ALERT, status="open", matched_rules_json=[])
+            existing_log_ids: set[int] = set()
+        elif evidence_id_cache is not None and id(alert) in evidence_id_cache:
+            existing_log_ids = evidence_id_cache[id(alert)]
+        elif bulk_evidence:
+            existing_log_ids = set(db.scalars(select(AlertEvidence.normalized_log_id).where(AlertEvidence.alert_id == alert.id))) if alert.id else set()
+        else:
+            existing_log_ids = {int(evidence.normalized_log_id) for evidence in alert.evidence}
+        if evidence_id_cache is not None:
+            evidence_id_cache[id(alert)] = existing_log_ids
+        new_ids = [log_id for log_id in contact.log_ids if log_id not in existing_log_ids]
+        room = max(0, PERSISTENT_CONTACT_EVIDENCE_KEPT - len(existing_log_ids))
+        added_log_ids = new_ids[:room]
+        existing_log_ids.update(added_log_ids)
+
+        existing = _group_metadata(alert)
+        sources = dict(existing.get("sources") or {})
+        for source, (connections, windows) in contact.sources.items():
+            before = sources.get(source) or {}
+            # Each check looks back an hour: keep the largest hour seen for each computer.
+            sources[source] = {"connections": max(int(before.get("connections") or 0), connections),
+                               "windows": max(int(before.get("windows") or 0), windows)}
+        sources = dict(sorted(sources.items(), key=lambda item: -item[1]["connections"]))
+        first_seen = min(item for item in (_parse_iso(existing.get("first_seen")), contact.first_seen) if item)
+        last_seen = max(item for item in (_parse_iso(existing.get("last_seen")), contact.last_seen) if item)
+        metadata = {
+            "code": "group_metadata",
+            "title": "Grouped alert metadata",
+            "score": 0,
+            "explanation": "One alert for each outside address that inside computers keep in constant contact with.",
+            "destination": contact.destination,
+            "sources": sources,
+            "max_sources": MAX_SOURCES,
+            "ports": _merge_sorted(existing.get("ports"), contact.ports),
+            "apps": _merge_sorted(existing.get("apps"), contact.apps, limit=3),
+            "evidence_count": len(existing_log_ids),
+            "related_log_count": len(existing_log_ids),
+            "occurrence_count": sum(item["connections"] for item in sources.values()),
+            "first_seen": _iso(first_seen),
+            "last_seen": _iso(last_seen),
+            "unique_src_count": len(sources),
+            "sample_src_ips": list(sources)[:10],
+            "sample_dst_ips": [contact.destination],
+            "sample_dst_ports": _merge_sorted(existing.get("sample_dst_ports"), contact.ports),
+            "deduplicated": not created,
+        }
+        summary_rule = {
+            "code": PERSISTENT_CONTACT_ALERT,
+            "title": "Constant contact with a rarely used outside address",
+            "score": PERSISTENT_CONTACT_SCORE,
+            "attack_type": "malware_c2",
+            "explanation": "Inside computers kept up busy, lasting contact with an outside address almost nothing else uses.",
+            "matched_log_count": metadata["occurrence_count"],
+        }
+        alert.threat_score = PERSISTENT_CONTACT_SCORE
+        alert.severity = severity_from_score(PERSISTENT_CONTACT_SCORE)
+        alert.src_ip = next(iter(sources))
+        alert.dst_ip = contact.destination
+        count = len(sources)
+        alert.title = (f"{alert.severity}: {count} inside computer{'' if count == 1 else 's'} in constant contact "
+                       f"with {contact.destination}")
+        alert.explanation = _persistent_contact_explanation(metadata)
+        alert.recommended_response = _persistent_contact_response(contact.destination)
+        alert.matched_rules_json = [summary_rule, metadata]
+        if created:
+            db.add(alert)
+            dedup_alerts.append(alert)
+        if not bulk_evidence:
+            for log_id in added_log_ids:
+                alert.evidence.append(AlertEvidence(normalized_log_id=log_id))
+        elif pending_evidence is not None:
+            if added_log_ids:
+                pending_evidence.append((alert, added_log_ids))
+        else:
+            db.flush()
+            _insert_alert_evidence_rows(db, alert, added_log_ids)
+        if not created:
+            db.add(AuditLog(actor="system", action="alert_deduplicated", target_type="alert", target_value=str(alert.id),
+                            details={"alert_type": alert.alert_type, "added_evidence_logs": len(added_log_ids)}))
         touched.append((alert, created))
     return touched
 
