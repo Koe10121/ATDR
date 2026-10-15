@@ -6,7 +6,7 @@ from dataclasses import dataclass, fields
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import Float, cast, func, literal, select, update
+from sqlalchemy import Float, cast, func, literal, or_, select, update
 from sqlalchemy.orm import Session, joinedload
 
 from atdr.app.core.config import get_settings
@@ -313,7 +313,47 @@ def _context_neighbour_records(
             if int(row[0]) in batch_ids:
                 continue
             neighbours.append(DetectionLogRecord(**{**dict(zip(_RECORD_FIELDS, row)), "parsed_json": {}}))
-    return neighbours
+    return without_session_starts(db, neighbours)
+
+
+def is_session_start(log: Any) -> bool:
+    return str(log.log_type or "").upper() == "TRAFFIC" and str(log.subtype or "").lower() == "start"
+
+
+def _log_source_id(log: Any) -> int | None:
+    if isinstance(log, NormalizedLog):
+        return log.raw_log.source_id if log.raw_log is not None else None
+    return log.source_id
+
+
+def _sources_logging_session_ends(db: Session, source_ids: set[int | None]) -> set[int | None]:
+    found: set[int | None] = set()
+    for source_id in source_ids:
+        statement = (
+            select(NormalizedLog.id)
+            .join(RawLog, RawLog.id == NormalizedLog.raw_log_id)
+            .where(NormalizedLog.log_type == "TRAFFIC", NormalizedLog.subtype == "end")
+            .where(RawLog.source_id.is_(None) if source_id is None else RawLog.source_id == source_id)
+            .limit(1)
+        )
+        if db.scalar(statement) is not None:
+            found.add(source_id)
+    return found
+
+
+def without_session_starts(db: Session, logs: list) -> list:
+    """The logs without session-start records from a firewall that also logs each session's end.
+
+    Such a firewall (BOTSv2's lab firewall) writes two TRAFFIC records per session, so every count would see each
+    connection twice; the end record carries the whole session. A firewall that logs only session starts keeps
+    them, since they are all it says. MFU's firewall logs session ends only, so its logs are untouched.
+    """
+
+    starts = [log for log in logs if is_session_start(log)]
+    if not starts:
+        return logs
+    ending = _sources_logging_session_ends(db, {_log_source_id(log) for log in starts})
+    return [log for log in logs if not (is_session_start(log) and _log_source_id(log) in ending)]
 
 
 def _event_time_expression():
@@ -380,6 +420,9 @@ def dataset_outlier_thresholds(db: Session) -> tuple[float, float]:
 
     newest = (
         select(NormalizedLog.bytes, NormalizedLog.packets)
+        # A session-start record has no bytes yet, so it says nothing about how big sessions are: 222,202 of them
+        # lowered BOTSv2's bar and added 11 "high outbound bytes" alerts.
+        .where(or_(NormalizedLog.subtype.is_(None), NormalizedLog.subtype != "start"))
         .order_by(NormalizedLog.id.desc())
         .limit(OUTLIER_BASELINE_LOGS)
         .subquery()
@@ -781,6 +824,10 @@ def run_detection(
             if not only_unchecked:
                 logs.reverse()
         evaluated_log_ids = [int(log.id) for log in logs]
+        # Every loaded log is marked checked below; a redundant session start is checked by being left out.
+        loaded = len(logs)
+        logs = without_session_starts(db, logs)
+        session_starts_skipped = loaded - len(logs)
         _runtime_profile_sample(db, runtime_profile, "logs_loaded")
 
         supervised_runtime = score_supervised_runtime_batch(
@@ -807,7 +854,8 @@ def run_detection(
         exposure_map = ExposureMap.load(db)
         expected_service_logs = 0
         candidates: list[DetectionCandidate] = []
-        evaluated = 0
+        # Callers stop when a run checked nothing: skipped session starts were checked.
+        evaluated = session_starts_skipped
         watchlist_matches = 0
         advisory_anomaly_signals = 0
         low_parse_quality_signals = 0
@@ -1054,6 +1102,7 @@ def run_detection(
             "evaluated": evaluated,
             "selection": "unchecked_oldest_first" if only_unchecked else "newest",
             "context_neighbour_logs": len(context_logs),
+            "session_starts_skipped": session_starts_skipped,
             "evaluated_log_id_range": (
                 [min(evaluated_log_ids), max(evaluated_log_ids)] if evaluated_log_ids else None
             ),

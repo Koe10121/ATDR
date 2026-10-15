@@ -30,14 +30,15 @@ def _session_factory():
 
 
 def _connection(db, *, src: str, dst: str, port: int, at: datetime = AT, app: str = "incomplete", protocol: str = "tcp",
-                packets_back: int = 1, ended: str = "aged-out", src_zone: str = "SG-Outside", dst_zone: str = "WLAN-Inside") -> None:
+                packets_back: int = 1, ended: str = "aged-out", src_zone: str = "SG-Outside", dst_zone: str = "WLAN-Inside",
+                src_port: int | None = None) -> None:
     """One connection; `packets_back` is what the MFU side sent back."""
     raw = RawLog(raw_line=f"{src} {dst} {port} {protocol} {at.isoformat()} {packets_back} {ended}")
     db.add(raw)
     db.flush()
     db.add(NormalizedLog(
         raw_log_id=raw.id, generated_time=at, log_type="TRAFFIC", src_ip=src, dst_ip=dst, src_zone=src_zone, dst_zone=dst_zone,
-        app=app, app_category="unknown", dst_port=port, action="allow", protocol=protocol, bytes=60 + 60 * packets_back,
+        app=app, app_category="unknown", src_port=src_port, dst_port=port, action="allow", protocol=protocol, bytes=60 + 60 * packets_back,
         bytes_received=60 * packets_back, packets=1 + packets_back, packets_received=packets_back, session_end_reason=ended,
         parsed_json={},
     ))
@@ -101,6 +102,27 @@ def test_what_a_service_is_comes_from_the_app_the_firewall_saw_before_its_port()
     assert risk_of(["web-browsing"], 3389) is None, "a web site on 3389 is a web site"
     assert risk_of(["mysql"], 4000).name == "a database" and risk_of(["vnc-base"], 9999).name == "remote screen control (VNC)"
     assert risk_of([], 443) is None
+
+
+def test_an_ftp_server_dialling_back_to_an_mfu_computer_is_no_mfu_service():
+    db = _session_factory()()
+    # Active-mode FTP: the outside server a user uploads to opens each data connection from its port 20 to a high
+    # port the user's computer named. BOTSv2's one user made 725 such "services" on random ports.
+    for index, port in enumerate((1076, 23105, 64297)):
+        _connection(db, src="160.153.91.7", src_port=20, dst=WEB, port=port, app="ftp", packets_back=4, ended="tcp-fin",
+                    at=AT + timedelta(seconds=index))
+    # From port 20 to a real FTP server, or to SSH: still a service answering the internet.
+    _connection(db, src="45.33.32.8", src_port=20, dst=RDP, port=21, app="ftp", packets_back=4, ended="tcp-fin")
+    _connection(db, src="45.33.32.9", src_port=20, dst=SSH_ON_210, port=2222, app="ssh", packets_back=4, ended="tcp-fin")
+    # Passive mode: an outsider opens the data connection to MFU's FTP server, which MFU does offer.
+    _connection(db, src="45.33.32.8", src_port=51000, dst=RDP, port=50000, app="ftp", packets_back=4, ended="tcp-fin")
+    db.commit()
+
+    _check(db)
+
+    services = {(row.address, row.port) for row in db.scalars(select(InternetService))}
+    assert services == {(RDP, 21), (SSH_ON_210, 2222), (RDP, 50000)}
+    assert {(_metadata(alert)["address"], _metadata(alert)["port"]) for alert in _exposure_alerts(db)} <= services
 
 
 def test_a_risky_service_gets_an_alert_until_an_admin_marks_it_meant_to_be_public():

@@ -108,6 +108,16 @@ def service_key(log: Any) -> tuple[str, int, str]:
     return (str(log.dst_ip), int(log.dst_port), _lower(log.protocol))
 
 
+def is_ftp_data_connection(log: Any) -> bool:
+    """An active-mode FTP data connection: an outside FTP server an MFU computer uses dials back from its port 20 to
+    a high port that computer named. It belongs to the computer's own outgoing session, so it is no service MFU
+    offers: on the BOTSv2 lab data, one user's uploads became 725 "services" on random ports. A connection to a
+    real FTP server (port 21) or any other service is still one, whatever port it comes from.
+    """
+
+    return log.src_port == 20 and _lower(log.app).startswith("ftp") and log.dst_port is not None and log.dst_port >= 1024
+
+
 def is_exposure_log(log: Any) -> bool:
     """A connection from the internet to a port of an MFU address, which the MFU side answered."""
 
@@ -117,6 +127,7 @@ def is_exposure_log(log: Any) -> bool:
         and bool(log.dst_ip)
         and is_from_internet(log)
         and connection_answered(getattr(log, "packets_received", None), log.session_end_reason)
+        and not is_ftp_data_connection(log)
     )
 
 
