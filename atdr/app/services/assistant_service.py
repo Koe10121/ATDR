@@ -9,16 +9,19 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import desc, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from atdr.app.core.config import PROJECT_ROOT, Settings
 from atdr.app.db.models import (
     Alert,
+    AlertEvidence,
     AssistantFeedback,
     AuditLog,
     DetectionRun,
+    LogSource,
     NormalizedLog,
     OperationJob,
+    RawLog,
     User,
     WatchlistItem,
 )
@@ -2071,7 +2074,7 @@ def assistant_feedback_summary(
 def _answer_alert_list_question(db: Session, *, question: str, redacted: bool) -> AssistantResult:
     lowered = question.lower()
     severity = "Critical" if "critical" in lowered else None
-    alerts = list_alerts(db, severity=severity, status="open", sort_by="updated", limit=5)
+    alerts = list_alerts(db, severity=severity, status="open", sort_by="updated", limit=5, load_evidence=False)
     if not alerts:
         label = "critical " if severity else ""
         answer = (
@@ -2136,15 +2139,40 @@ def _group_metadata(alert: Alert) -> dict[str, Any]:
     return {}
 
 
-def _alert_source_rows(alert: Alert) -> list[dict[str, Any]]:
-    rows: dict[int, dict[str, Any]] = {}
-    for item in alert.evidence:
-        log = item.normalized_log
-        raw = getattr(log, "raw_log", None) if log is not None else None
-        source = getattr(raw, "source", None) if raw is not None else None
-        if source is None:
-            continue
-        rows[source.id] = {
+# An alert's evidence is counted and searched in the database, and only its first logs are read one by one: one
+# hour of internet scanning is one alert with thousands of evidence logs, and loading every one of them made a
+# question about it take 5 to 11 s (measured 21 Oct 2026).
+ALERT_LOGS_LISTED = 12
+
+
+def _alert_evidence_count(db: Session, alert: Alert) -> int:
+    return int(db.scalar(select(func.count(AlertEvidence.id)).where(AlertEvidence.alert_id == alert.id)) or 0)
+
+
+def _first_evidence_logs(db: Session, alert: Alert, *, limit: int = ALERT_LOGS_LISTED) -> list[NormalizedLog]:
+    """The alert's first evidence logs with their raw log and source, oldest link first as in its detail and report."""
+
+    return list(
+        db.scalars(
+            select(NormalizedLog)
+            .join(AlertEvidence, AlertEvidence.normalized_log_id == NormalizedLog.id)
+            .where(AlertEvidence.alert_id == alert.id)
+            .order_by(AlertEvidence.id.asc())
+            .limit(limit)
+            .options(joinedload(NormalizedLog.raw_log).joinedload(RawLog.source))
+        )
+    )
+
+
+def _alert_source_rows(db: Session, alert: Alert) -> list[dict[str, Any]]:
+    evidence_sources = (
+        select(RawLog.source_id)
+        .join(NormalizedLog, NormalizedLog.raw_log_id == RawLog.id)
+        .join(AlertEvidence, AlertEvidence.normalized_log_id == NormalizedLog.id)
+        .where(AlertEvidence.alert_id == alert.id)
+    )
+    return [
+        {
             "source_id": source.id,
             "name": source.name,
             "source_type": source.source_type,
@@ -2154,14 +2182,21 @@ def _alert_source_rows(alert: Alert) -> list[dict[str, Any]]:
             "parse_failure_count": source.parse_failure_count,
             "latest_error": source.latest_error,
         }
-    return list(rows.values())
+        for source in db.scalars(select(LogSource).where(LogSource.id.in_(evidence_sources)).order_by(LogSource.id))
+    ]
 
 
-def _alert_parser_notes(alert: Alert) -> list[str]:
+def _alert_parser_notes(db: Session, alert: Alert) -> list[str]:
+    """The parser's notes on any of the alert's evidence logs, read from their parsed fields alone."""
+
     notes: list[str] = []
-    for item in alert.evidence:
-        log = item.normalized_log
-        parsed = log.parsed_json if log is not None and isinstance(log.parsed_json, dict) else {}
+    for value in db.scalars(
+        select(NormalizedLog.parsed_json)
+        .join(AlertEvidence, AlertEvidence.normalized_log_id == NormalizedLog.id)
+        .where(AlertEvidence.alert_id == alert.id)
+        .order_by(AlertEvidence.id.asc())
+    ):
+        parsed = value if isinstance(value, dict) else {}
         warnings = parsed.get("parser_warnings")
         if isinstance(warnings, list):
             notes.extend(str(warning) for warning in warnings[:4])
@@ -2195,14 +2230,8 @@ def _safe_log_context(log: NormalizedLog) -> dict[str, Any]:
     }
 
 
-def _alert_related_log_rows(alert: Alert, *, limit: int = 8) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    for item in alert.evidence[:limit]:
-        log = item.normalized_log
-        if log is None:
-            continue
-        rows.append(_safe_log_context(log))
-    return rows
+def _alert_related_log_rows(first_logs: list[NormalizedLog], *, limit: int = 8) -> list[dict[str, Any]]:
+    return [_safe_log_context(log) for log in first_logs[:limit]]
 
 
 def _log_alert_rows(log: NormalizedLog) -> list[dict[str, Any]]:
@@ -2303,6 +2332,7 @@ def _confidence_from_evidence(
 def _alert_false_positive_notes(
     alert: Alert,
     *,
+    source_rows: list[dict[str, Any]],
     related_log_rows: list[dict[str, Any]],
     parser_notes: list[str],
     rule_names: list[str],
@@ -2322,7 +2352,6 @@ def _alert_false_positive_notes(
         notes.append("Low related-log support means this may need neighboring traffic review before containment.")
     if not rule_names:
         notes.append("No named rule is available, so the analyst should verify whether anomaly/ML evidence alone is enough.")
-    source_rows = _alert_source_rows(alert)
     if any(str((row.get("latest_error") or "")).strip() for row in source_rows):
         notes.append("Linked source has parser/data-quality errors that can increase noise.")
     supervised = detection_summary.get("supervised") or {}
@@ -2390,9 +2419,9 @@ def _ensure_answer_sections(result: AssistantResult) -> None:
 
 
 def _answer_alert_question(db: Session, question: str, *, alert_id: int | None, redacted: bool) -> AssistantResult:
-    alert = get_alert(db, alert_id) if alert_id is not None else None
+    alert = get_alert(db, alert_id, load_evidence=False) if alert_id is not None else None
     if alert is None:
-        alerts = list_alerts(db, severity="Critical", status="open", sort_by="score", limit=1)
+        alerts = list_alerts(db, severity="Critical", status="open", sort_by="score", limit=1, load_evidence=False)
         alert = alerts[0] if alerts else None
     if alert is None:
         answer = (
@@ -2425,12 +2454,14 @@ def _answer_alert_question(db: Session, question: str, *, alert_id: int | None, 
     detection_summary = build_alert_detection_summary(db, alert)
     attack_mapping = detection_summary.get("attack_mapping") or {}
     group_metadata = _group_metadata(alert)
-    source_rows = _alert_source_rows(alert)
-    parser_notes = _alert_parser_notes(alert)
-    related_log_rows = _alert_related_log_rows(alert)
+    evidence_count = _alert_evidence_count(db, alert)
+    first_logs = _first_evidence_logs(db, alert)
+    source_rows = _alert_source_rows(db, alert)
+    parser_notes = _alert_parser_notes(db, alert)
+    related_log_rows = _alert_related_log_rows(first_logs)
     response_history = _alert_response_history(alert)
-    occurrence_count = group_metadata.get("occurrence_count") or group_metadata.get("evidence_count") or len(alert.evidence)
-    related_log_count = group_metadata.get("related_log_count") or group_metadata.get("evidence_count") or len(alert.evidence)
+    occurrence_count = group_metadata.get("occurrence_count") or group_metadata.get("evidence_count") or evidence_count
+    related_log_count = group_metadata.get("related_log_count") or group_metadata.get("evidence_count") or evidence_count
     rule_names = _top_rule_names(alert, detection_summary)
     evidence_points = [str(item) for item in detection_summary.get("top_evidence_points") or [] if item]
     related_log_points = [
@@ -2447,7 +2478,7 @@ def _answer_alert_question(db: Session, question: str, *, alert_id: int | None, 
     anomaly = detection_summary.get("anomaly") or {}
     confidence_label = _confidence_from_evidence(
         threat_score=alert.threat_score,
-        evidence_count=len(alert.evidence),
+        evidence_count=evidence_count,
         related_log_count=int(related_log_count or 0),
         rule_count=len(rule_names),
         anomaly_present=bool(anomaly.get("present")),
@@ -2455,6 +2486,7 @@ def _answer_alert_question(db: Session, question: str, *, alert_id: int | None, 
     )
     false_positive_notes = _alert_false_positive_notes(
         alert,
+        source_rows=source_rows,
         related_log_rows=related_log_rows,
         parser_notes=parser_notes,
         rule_names=rule_names,
@@ -2519,7 +2551,7 @@ def _answer_alert_question(db: Session, question: str, *, alert_id: int | None, 
 - Alert #{alert.id}: {alert.severity} {alert.alert_type} with risk score {alert.threat_score}.
 - Status: {alert.status}; detection source: {", ".join(detection_sources)}.
 - Observed flow: source {alert.src_ip or "unknown"} to destination {alert.dst_ip or "unknown"}.
-- Evidence logs: {len(alert.evidence)}; occurrences: {occurrence_count}; related logs: {related_log_count}.
+- Evidence logs: {evidence_count}; occurrences: {occurrence_count}; related logs: {related_log_count}.
 - Log source: {", ".join(source_names) if source_names else "not linked"}.
 
 Evidence / Why flagged
@@ -2558,7 +2590,7 @@ Safety note
 
 References
 - Alert ID: {alert.id}
-- Related log IDs: {", ".join(str(item.normalized_log_id) for item in alert.evidence[:12]) or "-"}
+- Related log IDs: {", ".join(str(log.id) for log in first_logs) or "-"}
 - Source IDs: {", ".join(str(row["source_id"]) for row in source_rows) or "-"}
 - Computed case ID: {case_trace.get("case_id") or "-"}
 """
@@ -2586,7 +2618,7 @@ References
                     "threat_score": alert.threat_score,
                     "src_ip": alert.src_ip,
                     "dst_ip": alert.dst_ip,
-                    "evidence_count": len(alert.evidence),
+                    "evidence_count": evidence_count,
                     "occurrence_count": occurrence_count,
                     "related_log_count": related_log_count,
                     "confidence_label": confidence_label,
@@ -2608,7 +2640,7 @@ References
                     "summary": [
                         f"Alert #{alert.id}: {alert.severity} {alert.alert_type} with risk score {alert.threat_score}.",
                         f"Detection source: {', '.join(detection_sources)}.",
-                        f"Evidence logs: {len(alert.evidence)}; occurrences: {occurrence_count}; related logs: {related_log_count}.",
+                        f"Evidence logs: {evidence_count}; occurrences: {occurrence_count}; related logs: {related_log_count}.",
                         f"Linked source: {', '.join(source_names) if source_names else 'not linked'}.",
                         f"Evidence strength: {confidence_label}.",
                     ],
@@ -2740,7 +2772,7 @@ def _answer_attack_status(db: Session, *, redacted: bool) -> AssistantResult:
     newest = db.scalar(select(func.max(NormalizedLog.generated_time)))
     open_count = int(db.scalar(select(func.count(Alert.id)).where(Alert.status == "open")) or 0)
     critical = int(db.scalar(select(func.count(Alert.id)).where(Alert.status == "open", Alert.severity == "Critical")) or 0)
-    top = list_alerts(db, status="open", sort_by="score", limit=3)
+    top = list_alerts(db, status="open", sort_by="score", limit=3, load_evidence=False)
     summary = (
         "ATDR cannot tell whether MFU is under attack right now: it sees only imported firewall logs, and the newest "
         + (f"is from {newest:%d %b %Y %H:%M} (firewall local time)." if newest else "has not arrived yet.")
@@ -3216,7 +3248,7 @@ def _answer_source_question(db: Session, *, source_id: int | None, limit: int, r
                     "threat_score": alert.threat_score,
                     "title": alert.title,
                 }
-                for alert in list_alerts(db, source_id=source_row_id, sort_by="updated", limit=5)
+                for alert in list_alerts(db, source_id=source_row_id, sort_by="updated", limit=5, load_evidence=False)
             ]
             recent_alerts_by_source[source_row_id] = recent_alert_rows
         parts.append(
@@ -4087,9 +4119,9 @@ def _answer_scenario_help(*, redacted: bool) -> AssistantResult:
 
 
 def _answer_safe_next_steps(db: Session, question: str, *, alert_id: int | None, redacted: bool) -> AssistantResult:
-    alert = get_alert(db, alert_id) if alert_id is not None else None
+    alert = get_alert(db, alert_id, load_evidence=False) if alert_id is not None else None
     if alert is None:
-        alerts = list_alerts(db, severity="Critical", status="open", sort_by="score", limit=1)
+        alerts = list_alerts(db, severity="Critical", status="open", sort_by="score", limit=1, load_evidence=False)
         alert = alerts[0] if alerts else None
     if alert is None:
         checklist = [
@@ -4281,7 +4313,7 @@ def _answer_general_question(
 ) -> AssistantResult:
     alert_count = int(db.scalar(select(func.count(Alert.id))) or 0)
     log_count = int(db.scalar(select(func.count(NormalizedLog.id))) or 0)
-    recent_alerts = list_alerts(db, limit=max(0, min(limit, 5)), sort_by="updated") if limit else []
+    recent_alerts = list_alerts(db, limit=max(0, min(limit, 5)), sort_by="updated", load_evidence=False) if limit else []
     alert_text = " ".join(
         f"#{alert.id} {alert.severity} {alert.alert_type} status {alert.status}."
         for alert in recent_alerts

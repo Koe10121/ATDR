@@ -759,6 +759,27 @@ the same way. `atdr/tests/test_assistant_lookups.py` and
 `atdr/tests/test_assistant_data_questions.py` hold the cases; each of 25
 deliberate breaks of the new code turned one of their tests red.
 
+## Questions about a big alert (21 October)
+
+A question about the hour's internet-scanning alert (#4225, 5,547 evidence
+logs) waited 11 s before the model started. The assistant built every
+evidence log of the alert in memory, with its raw log and source, and the
+alert look-up did it twice; the alert page stopped doing this on 9 October.
+While that alert was among the five most recently updated, the answers on
+source health and on the latest alerts built its logs too, about 5 s each.
+
+The assistant now counts an alert's evidence in the database and reads only
+its first logs one by one, oldest link first as on the alert page. Parser
+notes are still taken from every evidence log, from their parsed fields alone.
+Measured on a copy of the live data: the look-up of #4225 takes 0.25 s (was
+11.1 s), source health 1.0 s (was 5.6 s), and the latest open alerts under
+0.01 s (was 4.7 s). Every alert and playbook look-up the model receives, for
+all 87 alerts, and every system-status area is word for word what it was.
+One built-in answer changed: alert #4151 lists its related logs in the order
+they were linked, as the alert page does; before, they were sorted by log
+number. `atdr/tests/test_alert_large_evidence.py` holds the cases; each of 16
+deliberate breaks turned one of its tests red.
+
 ## Measuring it again
 
 ```
@@ -786,6 +807,5 @@ and is not a fresh try.
 - Lookups that ATDR makes before the model answers can be wrong, and the model then answers from them: a wrong match on the word "detected" produced the "1 alert" answer of 3 October. Each answer records the lookups made for it.
 - When Ollama aborts a generation (on 7 October, after a GPU-discovery timeout, with "token repeat limit reached"), the built-in answer is shown at once; ATDR does not ask the model again.
 - For questions outside the summary route ("Are we under attack?", for one) the overview tool still gives a period's counts beside the open ones, and on a day with new alerts the model can put one under the other: asked what happened in the last hour, before that question took the summary route, it answered "163 alerts, with 30 being Critical", where 28 of the 163 were Critical and 30 were open.
-- A question about one alert reads every evidence log of that alert before the model starts: 0.3 s for an ordinary alert, about 8 s for the hour's Internet scanning alert with its 5,547 logs.
 - Planted text is found by its wording. A value that misleads without sounding like an instruction or a verdict (a threat name that is simply false, say) still reads as a real firewall value. The field check covers the places ATDR writes log values into words today; a new place has to use `field_text` too.
 - "The most urgent one" is recognised in English only. Asked the same in Thai ("is there anything that needs dealing with urgently right now?"), the model answers from the whole overview and does not name the alert the Overview opens first.

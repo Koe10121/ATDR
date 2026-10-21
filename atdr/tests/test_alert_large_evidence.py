@@ -1,13 +1,15 @@
-"""An alert with thousands of evidence logs opens, changes and exports without loading them one by one.
+"""An alert with thousands of evidence logs opens, changes, exports and is explained without loading them one by one.
 
 One hour of internet scanning is one alert, and from a file import it keeps every scanning connection as
 evidence: 5,547 logs on the first one. Opening it asked for its timeline and its report, which loaded every
 evidence log (4.7 s) and worked out a behaviour window for each (141 s); a status change, a note, an assignment
-or an escalation loaded them all again (4 to 8 s).
+or an escalation loaded them all again (4 to 8 s). Asked about it, the assistant loaded them all too, twice for
+one look-up (11 s), and so did its answers on source health and the latest alerts while it was among them (5 s).
 """
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Generator
 
 from fastapi.testclient import TestClient
@@ -15,8 +17,9 @@ from sqlalchemy import create_engine, event, func, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from atdr.app.core.config import get_settings
 from atdr.app.db.database import Base, get_db
-from atdr.app.db.models import Alert, AlertEvidence, NormalizedLog
+from atdr.app.db.models import Alert, AlertEvidence, LogSource, NormalizedLog, RawLog
 from atdr.app.main import app
 from atdr.app.services.alert_service import (
     add_alert_note,
@@ -26,17 +29,28 @@ from atdr.app.services.alert_service import (
     escalate_alert,
     update_alert_status,
 )
+from atdr.app.services.assistant_service import (
+    _answer_alert_list_question,
+    _answer_alert_question,
+    _answer_attack_status,
+    _answer_general_question,
+    _answer_safe_next_steps,
+    _answer_source_question,
+)
+from atdr.app.services.assistant_tools import build_assistant_tools
 from atdr.app.services.user_service import create_user
 from atdr.tests.test_detection_grouping import _add_scan_log, _session
 
 EVIDENCE_TABLES = ("alert_evidence", "normalized_logs", "raw_logs")
 
 
-def _alert_with_evidence(db: Session, logs: int, *, first_index: int = 0) -> Alert:
+def _alert_with_evidence(db: Session, logs: int, *, first_index: int = 0, newest_linked_first: bool = False) -> Alert:
     for index in range(first_index, first_index + logs):
         _add_scan_log(db, index)
     db.flush()
-    log_ids = list(db.scalars(select(NormalizedLog.id).order_by(NormalizedLog.id.desc()).limit(logs)))[::-1]
+    log_ids = list(db.scalars(select(NormalizedLog.id).order_by(NormalizedLog.id.desc()).limit(logs)))
+    if not newest_linked_first:
+        log_ids.reverse()
     alert = Alert(title="Medium: scan", alert_type="possible_horizontal_scan", threat_score=50, severity="Medium",
                   status="open", explanation="scan", matched_rules_json=[], recommended_response="look",
                   src_ip="203.0.113.10")
@@ -67,6 +81,40 @@ class _Statements:
 
 def _reads_evidence(statements: list[str]) -> list[str]:
     return [statement for statement in statements if any(table in statement for table in EVIDENCE_TABLES)]
+
+
+class _Built:
+    """How many alerts, evidence links, logs and raw logs a block of code builds from the database."""
+
+    MODELS = (Alert, AlertEvidence, NormalizedLog, RawLog)
+
+    def __enter__(self) -> Counter:
+        self.built: Counter[str] = Counter()
+        for model in self.MODELS:
+            event.listen(model, "load", self._count)
+        return self.built
+
+    def __exit__(self, *_exc) -> None:
+        for model in self.MODELS:
+            event.remove(model, "load", self._count)
+
+    def _count(self, target, _context) -> None:
+        self.built[type(target).__name__] += 1
+
+
+def _from_source(db: Session, name: str, *, alert_id: int | None = None, latest_error: str | None = None) -> None:
+    """Every raw log, or only the given alert's, came in through the named source."""
+
+    source = LogSource(name=name, source_type="syslog", parser_profile="palo_alto", latest_error=latest_error)
+    db.add(source)
+    db.flush()
+    raws = select(RawLog)
+    if alert_id is not None:
+        raws = raws.join(NormalizedLog, NormalizedLog.raw_log_id == RawLog.id).join(
+            AlertEvidence, AlertEvidence.normalized_log_id == NormalizedLog.id).where(AlertEvidence.alert_id == alert_id)
+    for raw in db.scalars(raws):
+        raw.source_id = source.id
+    db.commit()
 
 
 def test_actions_on_an_alert_leave_its_evidence_logs_unread_and_in_place():
@@ -136,6 +184,80 @@ def test_a_report_works_out_behaviour_windows_for_its_first_logs_and_counts_ever
     assert preview["evidence_logs_truncated"] is True and preview["evidence_count"] == 30
     assert preview["anomaly_evidence_count"] == 1, "counted over every evidence log, not the five listed"
     assert "30 linked evidence logs" in preview["executive_summary"]
+
+
+def test_the_assistant_explains_a_large_alert_from_its_first_logs_and_counts_every_one():
+    db = _session()
+    small = _alert_with_evidence(db, 40).id
+    # Linked newest first, so the oldest links are not simply the lowest log numbers.
+    large = _alert_with_evidence(db, 120, first_index=40, newest_linked_first=True).id
+    _from_source(db, "mfu-firewall")
+    _from_source(db, "lab-replay", alert_id=small, latest_error="12 lines did not parse")
+    oldest_log = db.scalar(select(NormalizedLog).where(NormalizedLog.id == 41))
+    oldest_log.parsed_json = {"parser_warnings": ["field 42 missing"]}
+    db.commit()
+
+    built, answers = {}, {}
+    for alert_id in (small, large):
+        db.expunge_all()
+        with _Built() as counted:
+            answers[alert_id] = _answer_alert_question(db, f"Explain alert {alert_id}", alert_id=alert_id, redacted=False)
+        built[alert_id] = dict(counted)
+    assert built[large] == built[small], "a few logs are read one by one, never all of them"
+
+    answer, record = answers[large].answer, answers[large].details["alert"]
+    linked = list(db.scalars(select(AlertEvidence.normalized_log_id).where(AlertEvidence.alert_id == large)
+                             .order_by(AlertEvidence.id)))
+    assert linked[0] == 160, "newest linked first"
+    assert record["evidence_count"] == 120 and "Evidence logs: 120;" in answer
+    assert [row["id"] for row in record["related_logs"]] == linked[:8], "the oldest links first, as on the alert page"
+    assert f"Related log IDs: {', '.join(str(log_id) for log_id in linked[:12])}\n" in answer
+    assert [row["name"] for row in record["source_rows"]] == ["mfu-firewall"]
+    assert [row["name"] for row in answers[small].details["alert"]["source_rows"]] == ["lab-replay"]
+    source_caveat = "Linked source has parser/data-quality errors that can increase noise."
+    assert source_caveat in answers[small].details["alert"]["false_positive_notes"]
+    assert source_caveat not in record["false_positive_notes"]
+    assert record["parser_notes"] == ["field 42 missing"], "a note on the last linked log still counts"
+    assert answers[small].details["alert"]["parser_notes"] == []
+
+
+def test_the_assistant_looks_up_a_large_alert_and_its_playbook_without_building_its_evidence():
+    db = _session()
+    alert_id = _alert_with_evidence(db, 120).id
+    tools = {tool.name: tool for tool in build_assistant_tools(db, settings=get_settings())}
+    texts = {}
+    for name in ("get_alert", "get_alert_playbook"):
+        db.expunge_all()
+        with _Built() as built:
+            texts[name] = tools[name].run({"alert_id": alert_id}).text
+        assert not built["AlertEvidence"], f"{name} built the alert's evidence links"
+        assert built["NormalizedLog"] < 120, f"{name} built every evidence log"
+    assert "120 evidence logs, 120 related logs" in texts["get_alert"]
+
+
+def test_answers_that_name_alerts_build_none_of_their_evidence():
+    db = _session()
+    alert = _alert_with_evidence(db, 120)
+    alert.severity, alert.threat_score = "Critical", 90
+    db.commit()
+    alert_id = alert.id
+    _from_source(db, "mfu-firewall")
+    answers = {
+        "source health": lambda: _answer_source_question(db, source_id=None, limit=5, redacted=False),
+        "open alerts": lambda: _answer_alert_list_question(db, question="Show open alerts", redacted=False),
+        "attack status": lambda: _answer_attack_status(db, redacted=False),
+        "general": lambda: _answer_general_question(db, question="Tell me a story", limit=5, redacted=False,
+                                                    settings=get_settings()),
+        "next steps": lambda: _answer_safe_next_steps(db, "What next?", alert_id=alert_id, redacted=False),
+        "next steps, no alert named": lambda: _answer_safe_next_steps(db, "What next?", alert_id=None, redacted=False),
+        "latest critical alert": lambda: _answer_alert_question(db, "Explain the latest critical alert", alert_id=None,
+                                                                redacted=False),
+    }
+    for name, answer in answers.items():
+        db.expunge_all()
+        with _Built() as built:
+            answer()
+        assert built["Alert"] and not built["AlertEvidence"], f"{name} built the alert's evidence links"
 
 
 def _client_with_alert(logs: int) -> tuple[TestClient, object]:

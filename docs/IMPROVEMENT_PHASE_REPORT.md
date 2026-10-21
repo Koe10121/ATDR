@@ -130,7 +130,9 @@ attacks. The assistant answered from a fixed list of question types.
   windows for its first 25 logs, and the drawer asks for a preview of 25 and says how many
   there are; the CSV and HTML downloads still list every log. On the live list the same
   alert's timeline takes 0.02 s and its report preview about a second, an action 0.02 s
-  or less, and the CSV of all 5,547 logs 0.3 s.
+  or less, and the CSV of all 5,547 logs 0.3 s. The assistant followed on 21 October: a
+  question about that alert waited 11 s for its evidence before the model started, and
+  now waits 0.25 s, with every look-up the model receives word for word the same.
 - **A system that looks after itself** (9 October). The database had been backed up by
   hand, eleven times in a month, into the folder it is in; a part that stopped stayed
   stopped until someone noticed; "Reset to sample data" deleted every log, alert and audit

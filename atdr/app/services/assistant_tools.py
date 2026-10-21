@@ -507,7 +507,7 @@ class AssistantToolbox:
 
     def _alert(self, args: dict[str, Any]) -> Alert:
         alert_id = _integer(args, "alert_id", low=1, high=10**9)
-        alert = get_alert(self.db, alert_id)
+        alert = get_alert(self.db, alert_id, load_evidence=False)
         if alert is None:
             low, high = self.db.execute(select(func.min(Alert.id), func.max(Alert.id))).one()
             raise ValueError(f"there is no alert #{alert_id}; alert IDs run from {low} to {high}")
