@@ -1078,6 +1078,38 @@ def _naming_the_alert(answer: str, alert_id: int, *, opens_first: bool, thai: bo
     return f"{lead}\n{answer}"
 
 
+# ATDR's first version, presented on 26 September 2026: how many alerts it held and the share it left unclassified.
+FIRST_VERSION_ALERTS = 3676
+FIRST_VERSION_UNCLASSIFIED_PERCENT = 53
+# "What changed between the first version and now?" Not "what changed recently?", which asks about the audit trail.
+FIRST_VERSION_QUESTION = re.compile(r"\bfirst (?:version|release|presentation)\b|\bfirst presented\b", re.IGNORECASE)
+
+
+def improvement_figures(db: Session) -> tuple[int, int]:
+    """How many alerts ATDR holds now, and the share of them it cannot give an attack type (%)."""
+
+    rule_lists = list(db.scalars(select(Alert.matched_rules_json)))
+    unclassified = sum(1 for rules in rule_lists if infer_attack_type_from_rules(rules or []) == "unknown_anomaly")
+    return len(rule_lists), round(100 * unclassified / len(rule_lists)) if rule_lists else 0
+
+
+def _with_first_version_figures(db: Session, question: str, answer: str) -> str:
+    """An answer about what changed since the first version, with the alert figures when the model left them out.
+
+    The figures open their points in the improvements topic, yet the model still dropped them in some asks: 4 of 6
+    fresh asks on the evening of 21 October and none of 6 an hour later, on the same question and code, as its state
+    changed. The figures are what show the change, so ATDR adds them.
+    """
+
+    if not FIRST_VERSION_QUESTION.search(question) or re.search(rf"\b{FIRST_VERSION_ALERTS:,}\b|\b{FIRST_VERSION_ALERTS}\b", answer):
+        return answer
+    alerts, unclassified = improvement_figures(db)
+    return (
+        f"{answer}\nIn figures: {FIRST_VERSION_ALERTS:,} alerts then, {alerts:,} now; "
+        f"{FIRST_VERSION_UNCLASSIFIED_PERCENT}% of alerts were unclassified then, {unclassified}% now."
+    )
+
+
 def _asks_for_the_situation(question: str) -> bool:
     """A question about the security situation as a whole, not about one alert and not how to do something."""
 
@@ -1489,6 +1521,7 @@ def answer_assistant_question(
                     opens_first=looked_up[0] == open_first_id,
                     thai=bool(THAI_TEXT.search(clean_question)),
                 )
+            outcome.answer = _with_first_version_figures(db, clean_question, outcome.answer)
             return _agent_response(
                 db,
                 outcome,

@@ -815,6 +815,33 @@ the miss does not come from this change; the afternoon's 3 of 3 for that
 question was a lucky sample. `atdr/tests/test_assistant_lookups.py` holds the
 cases; each of 11 deliberate breaks turned one of its tests red.
 
+## The figures of "what changed", added when missing (21 October)
+
+The afternoon's fix for "What changed between the first version and now?" put
+the figures at the start of each point, and the question passed 3 asks of 3.
+In the evening the same question, code and data passed 2 asks of 6, and an
+hour later 6 of 6. The local model's answer depends on its state, which the
+questions before it leave behind, so a wording that works one hour can fail
+the next. The answers that failed kept the accuracy figures (62.7% then, 85.2%
+now) and dropped the alert counts (3,676 alerts then, 87 now), the ones that
+show the change.
+
+So ATDR now adds the figures itself, as it adds a missing alert number. When a
+question compares with the first version ("first version", "first presented")
+and the answer does not give the first version's 3,676 alerts, ATDR ends it
+with "In figures: 3,676 alerts then, 87 now; 53% of alerts were unclassified
+then, 11% now." The figures come from the same count as the topic the model
+reads. "What changed recently?" asks about the audit trail and gets no such
+line.
+
+Measured: the question and two other wordings, 10 asks after different
+questions, passed 10 of 10, with the model giving the figures itself each
+time, so the line was not needed that hour. Main set 124 of 124, held-out 26
+of 27 (h-29). `atdr/tests/test_assistant_lookups.py` shows the line added when
+the figures are missing, and left out when they are given or when the question
+is about recent changes; each of 6 deliberate breaks turned one of its tests
+red.
+
 ## Measuring it again
 
 ```
@@ -827,7 +854,11 @@ Reports are saved under `.tmp/assistant_scoreboard/`. When a held-out question
 is used to fix something, move it to the main set and write a new held-out one.
 To see how steady an answer is, ask it after a different question each time:
 asked twice in a row, the second answer reuses the first one's working memory
-and is not a fresh try.
+and is not a fresh try. The answers also drift with the model's state: on 21
+October one question passed 2 asks of 6 and, an hour later, 6 of 6, on the
+same code and data. So take six asks or more before calling a fix done, and
+when an answer must give a figure, have ATDR add it when the model leaves it
+out rather than rely on wording.
 
 ## Known limits
 
@@ -844,4 +875,3 @@ and is not a fresh try.
 - For questions outside the summary route ("Are we under attack?", for one) the overview tool still gives a period's counts beside the open ones, and on a day with new alerts the model can put one under the other: asked what happened in the last hour, before that question took the summary route, it answered "163 alerts, with 30 being Critical", where 28 of the 163 were Critical and 30 were open.
 - Planted text is found by its wording. A value that misleads without sounding like an instruction or a verdict (a threat name that is simply false, say) still reads as a real firewall value. The field check covers the places ATDR writes log values into words today; a new place has to use `field_text` too.
 - A Thai question about what to deal with first is recognised by its words (urgent, in a hurry, first, most important). Put another way ("if I had ten minutes, what should I look at?"), it is answered from the whole overview, which does not single out the alert the Overview opens first.
-- Asked "What changed between the first version and now?", the answer leaves out the alert counts (3,676 then, 87 now) in about two asks of three: 2 of 6 passed on the evening of 21 October.

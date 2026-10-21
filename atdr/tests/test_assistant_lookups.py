@@ -375,6 +375,35 @@ def test_what_changed_since_the_first_version_opens_its_points_with_the_figures_
     assert lines[2].startswith("- Every alert names its attack type: 53% of alerts were unclassified then, 25% now. ")
 
 
+def test_an_answer_about_what_changed_since_the_first_version_always_gives_the_alert_figures(seeded, monkeypatch):  # noqa: F811
+    # With the figures opening their points, the model still left them out in 4 of 6 fresh asks on the evening of
+    # 21 October, and in none of 6 an hour later, as its state changed. ATDR adds them when they are missing.
+    first_version = assistant_service.FIRST_VERSION_QUESTION
+    for question in ("What changed between the first version and now?", "What is different now compared with the first version of ATDR?",
+                     "How has ATDR improved since it was first presented?"):
+        assert first_version.search(question), question
+    for question in ("What changed recently?", "What's new in the logs today?"):
+        assert not first_version.search(question), question
+    sessions, settings = seeded
+    with sessions() as db:
+        alerts, unclassified = assistant_service.improvement_figures(db)
+    figures = f"In figures: 3,676 alerts then, {alerts:,} now; 53% of alerts were unclassified then, {unclassified}% now."
+    asked = [
+        ("What changed between the first version and now?", "Alerts are fewer and clearer.",
+         f"Alerts are fewer and clearer.\n{figures}"),
+        ("What changed between the first version and now?", "3,676 alerts then, fewer now.", "3,676 alerts then, fewer now."),
+        # "What changed recently?" asks about the audit trail, not the first version.
+        ("What changed recently?", "Nothing was changed today.", "Nothing was changed today."),
+    ]
+    for question, said, shown in asked:
+        engine = ScriptedEngine(_say(said))
+        monkeypatch.setattr(assistant_service, "engine_from_settings", lambda _settings, engine=engine: engine)
+        with sessions() as db:
+            response = _ask(db, settings, question)
+        assert response["mode"] == "assistant_agent_scripted", question
+        assert response["answer"] == shown, question
+
+
 def _alerts_from_everywhere(db, *, created=None):
     """Outside scanners and an outside exploit, an MFU device with a miner in 3 alerts, and the hour's scanning alert."""
 

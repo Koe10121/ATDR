@@ -208,6 +208,7 @@ the malicious cases and the supervised classifier failed calibration.
 | Re-run on 9 Oct after the alert list was regrouped under rule catalog v5.37.0 (85 alerts on 120,001 logs, 83 of them created that day) | main 122 of 122; held-out 26 of 27; 4.3 s and 4.5 s per answer on average | |
 | Re-run on 21 Oct after the overview began saying who the alerts come from (outside addresses, scanners, MFU devices) and "what changed" opened its points with the figures; main set now 123 checks (held-out h-07 moved to it as rank-09, and h-29 was written before any run) | main 123 of 123; held-out 25 of 27; 4.5 s and 4.8 s per answer on average. The code before, on the same questions and data: main 122 of 123, held-out 25 of 27 | |
 | Re-run on 21 Oct evening after the look-up of the alert to open first began understanding Thai; main set now 124 checks (held-out h-28 moved to it as open-13, and h-30 was written before any run) | main 123 of 124 (rev-26, "what changed since the first version", left out the alert counts; asked fresh six times it passed 2, the code before this change the same 2); held-out 26 of 27; 4.3 s and 4.9 s per answer on average | |
+| Re-run on 21 Oct night after ATDR began adding the first-version figures when an answer about what changed leaves them out | main 124 of 124; held-out 26 of 27 (h-29); 4.3 s and 4.8 s per answer on average | |
 
 Measured on 2026-09-27 with qwen3:8b running locally, after the alert
 rebuild, and again on 2026-09-29 on the 181-alert list. The main set gained three questions when the assistant got tools

@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from atdr.app.core.config import Settings
 from atdr.app.db.models import Alert, DetectionRun, NormalizedLog, WatchlistItem
-from atdr.app.detection.attack_mapping import ATTACK_TYPE_MAPPINGS, infer_attack_type_from_rules
+from atdr.app.detection.attack_mapping import ATTACK_TYPE_MAPPINGS
 from atdr.app.detection.explanations import build_alert_detection_summary
 from atdr.app.detection.playbooks import PLAYBOOK_GUIDANCE, build_alert_playbook
 from atdr.app.detection.plain_summary import brief_situation, build_situation_summary, threat_name
@@ -851,18 +851,16 @@ class AssistantToolbox:
                 "- To use one: open it, read its plain-words box and evidence logs, and confirm before acting."
             )
         if topic == "improvements":
-            rule_lists = list(self.db.scalars(select(Alert.matched_rules_json)))
-            alerts = len(rule_lists)
-            unclassified = sum(1 for rules in rule_lists if infer_attack_type_from_rules(rules or []) == "unknown_anomaly")
+            alerts, unclassified = core.improvement_figures(self.db)
             # The figures open their bullets: at a bullet's end, or in a line above the bullets, the model kept each point
             # and dropped its numbers ("fewer alerts are now generated"). The share unclassified is counted: "10%" had gone
-            # stale.
+            # stale. They are the figures ATDR adds itself when an answer about the first version leaves them out.
             return (
                 "Compared with ATDR's first version, presented on 26 September 2026:\n"
-                f"- Fewer, clearer alerts: 3,676 alerts then, {alerts:,} now. Rules that only describe context (a risky app, a "
-                "busy source) now add points but never raise an alert alone.\n"
-                f"- Every alert names its attack type: 53% of alerts were unclassified then, "
-                f"{round(100 * unclassified / alerts) if alerts else 0}% now. The type comes from the evidence, such as the "
+                f"- Fewer, clearer alerts: {core.FIRST_VERSION_ALERTS:,} alerts then, {alerts:,} now. Rules that only describe "
+                "context (a risky app, a busy source) now add points but never raise an alert alone.\n"
+                f"- Every alert names its attack type: {core.FIRST_VERSION_UNCLASSIFIED_PERCENT}% of alerts were unclassified "
+                f"then, {unclassified}% now. The type comes from the evidence, such as the "
                 "firewall's own threat signature, with its MITRE ATT&CK technique and a response playbook.\n"
                 "- Plain words: each alert and the Overview say what happened in a few sentences ATDR writes from the "
                 "evidence logs.\n"
