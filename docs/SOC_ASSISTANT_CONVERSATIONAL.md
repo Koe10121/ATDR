@@ -780,6 +780,41 @@ they were linked, as the alert page does; before, they were sorted by log
 number. `atdr/tests/test_alert_large_evidence.py` holds the cases; each of 16
 deliberate breaks turned one of its tests red.
 
+## "What needs dealing with first?", asked in Thai (21 October)
+
+Asked "ตอนนี้มีอะไรที่ต้องรีบจัดการไหม" (is there anything to deal with in a
+hurry now?), the assistant answered from the whole overview and listed the
+highest-scoring Critical alerts, without the alert the Overview opens first
+(#4163, the GHOSTENGINE watchlist match). On the live data it did so in 6 asks
+of 6: the question three times and three other Thai wordings, each after a
+different question. For "the most urgent one" ATDR looks that alert up for the
+model, but it recognised the question in English only.
+
+It now recognises the same in Thai, where words are not separated by spaces:
+urgent (ด่วน), in a hurry (รีบ), looking at, checking, handling or fixing
+something first (ก่อน ending the clause, or อันดับแรก), and the alert, threat,
+problem or matter that is the most important, dangerous or worrying. Words that
+only look alike are left out: reboot (รีบูต), detect (ตรวจจับ), "before
+installing" (ก่อนติดตั้ง), and "which IP is the most dangerous", which ranks
+addresses, as it does in English. Of the main set, only the question moved to
+it is newly recognised. When a Thai answer leaves the alert's number out, ATDR
+adds the line in Thai.
+
+Measured on the live data, after a different question each time: 6 of 6 name
+#4163 (before: 0 of 6), in Thai, with what to check on it. Main set 123 of
+124, held-out 26 of 27. h-28 was used to find the problem, so it moved to the
+main set as open-13, and h-30 ("ควรเริ่มดูจากการแจ้งเตือนไหนก่อน", which alert
+should I start looking at first?) was written before any run. It passes, but
+it asks for the alert to look at first, which the Thai words cover by design
+(they follow the English "look at first"), so it shows the fix on an unseen
+wording rather than testing new ground. The held-out miss is h-29, as before.
+The main-set miss is rev-26 ("What changed between the first version and
+now?"): the answer left out the alert counts. Asked fresh six times it passed
+2, and the code before this change passed the same 2 in the same order, so
+the miss does not come from this change; the afternoon's 3 of 3 for that
+question was a lucky sample. `atdr/tests/test_assistant_lookups.py` holds the
+cases; each of 11 deliberate breaks turned one of its tests red.
+
 ## Measuring it again
 
 ```
@@ -808,4 +843,5 @@ and is not a fresh try.
 - When Ollama aborts a generation (on 7 October, after a GPU-discovery timeout, with "token repeat limit reached"), the built-in answer is shown at once; ATDR does not ask the model again.
 - For questions outside the summary route ("Are we under attack?", for one) the overview tool still gives a period's counts beside the open ones, and on a day with new alerts the model can put one under the other: asked what happened in the last hour, before that question took the summary route, it answered "163 alerts, with 30 being Critical", where 28 of the 163 were Critical and 30 were open.
 - Planted text is found by its wording. A value that misleads without sounding like an instruction or a verdict (a threat name that is simply false, say) still reads as a real firewall value. The field check covers the places ATDR writes log values into words today; a new place has to use `field_text` too.
-- "The most urgent one" is recognised in English only. Asked the same in Thai ("is there anything that needs dealing with urgently right now?"), the model answers from the whole overview and does not name the alert the Overview opens first.
+- A Thai question about what to deal with first is recognised by its words (urgent, in a hurry, first, most important). Put another way ("if I had ten minutes, what should I look at?"), it is answered from the whole overview, which does not single out the alert the Overview opens first.
+- Asked "What changed between the first version and now?", the answer leaves out the alert counts (3,676 then, 87 now) in about two asks of three: 2 of 6 passed on the evening of 21 October.

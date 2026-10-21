@@ -46,6 +46,7 @@ from atdr.app.services.assistant_data_query import (
 from atdr.app.services.assistant_agent import (
     ACTION_REQUEST,
     ENTITY_REFERENCE,
+    THAI_TEXT,
     TRUST_QUESTION,
     AgentOutcome,
     OllamaEngine,
@@ -117,7 +118,19 @@ HOW_TO_START = re.compile(r"\s*how (?:do|can|to|should)\b")
 URGENT_ALERT_QUESTION = re.compile(
     r"\b(?:most urgent|check first|look at first|open first|investigate first|handle first|"
     # Not "which ip is the most dangerous": that asks for a ranking of addresses.
-    r"(?:most important|most dangerous|most serious|highest[- ]priority|biggest|worst) (?:alert|one|thing|threat|problem|risk))\b",
+    r"(?:most important|most dangerous|most serious|highest[- ]priority|biggest|worst) (?:alert|one|thing|threat|problem|risk))\b"
+    # The same in Thai, which has no spaces between words. "ตอนนี้มีอะไรที่ต้องรีบจัดการไหม" (is there anything to deal
+    # with in a hurry now?) was answered from the whole overview, without the alert the Overview opens first (21 Oct).
+    # Urgent (ด่วน) or hurry (รีบ, not รีบูต: reboot);
+    r"|ด่วน|รีบ(?!ู)"
+    # look, check (not ตรวจจับ: detect), handle, fix, investigate or deal with something first (ก่อน ending the clause,
+    # not "before installing"; or อันดับแรก/ลำดับแรก: first in order);
+    r"|(?:ดู|ตรวจ(?!จับ)|จัดการ|แก้|สืบสวน|รับมือ)[^?\n]{0,30}?"
+    r"(?:ก่อน(?=\s|$|[?!.]|ดี|ไหม|มั้ย|หรือ|คะ|ค่ะ|ครับ|นะ|เลย)|อันดับแรก|ลำดับแรก)"
+    # or the alert, threat, problem, risk, matter or "what" that is the most important, dangerous, serious, worrying,
+    # biggest or worst ("IP ไหนอันตรายที่สุด" ranks addresses, as in English).
+    r"|(?:แจ้งเตือน|อัลเลิร์ต|ภัย|ปัญหา|ความเสี่ยง|เรื่อง|อะไร|อันไหน)[^?\s]{0,12}?"
+    r"(?:สำคัญ|อันตราย|ร้ายแรง|น่ากังวล|น่าเป็นห่วง|น่าห่วง|ใหญ่|แย่|หนัก)ที่สุด",
     re.IGNORECASE,
 )
 # "What should I do about it?" after "Why was alert 3842 flagged?" also listed the five highest-scoring alerts and was
@@ -1045,17 +1058,23 @@ def _urgent_alert_lookup(db: Session, question: str) -> tuple[list[tuple[str, di
 SINGLE_ALERT_TOOLS = ("get_alert", "get_alert_playbook")
 
 
-def _naming_the_alert(answer: str, alert_id: int, *, opens_first: bool) -> str:
+def _naming_the_alert(answer: str, alert_id: int, *, opens_first: bool, thai: bool = False) -> str:
     """The answer, opening with the number of the alert it is about when it does not give it.
 
     On 3 October the demo's follow-up listed what to check on alert #3738 without naming it, in three runs of three,
     even when told to start with its number; on 4 October "How do you know the GHOSTENGINE alert is not a false
-    positive?" explained the right alert without its number. The analyst needs the number to open the alert.
+    positive?" explained the right alert without its number. The analyst needs the number to open the alert. A Thai
+    question gets the line in Thai, as its answer is.
     """
 
     if re.search(rf"(?:#|\balert\s+){alert_id}(?!\d)", answer, re.IGNORECASE):
         return answer
-    lead = f"Alert #{alert_id} comes first: the Overview says to open it first." if opens_first else f"Alert #{alert_id}"
+    if thai:
+        lead = (
+            f"การแจ้งเตือน #{alert_id} มาก่อน: หน้า Overview แนะนำให้เปิดดูเป็นอันดับแรก" if opens_first else f"การแจ้งเตือน #{alert_id}"
+        )
+    else:
+        lead = f"Alert #{alert_id} comes first: the Overview says to open it first." if opens_first else f"Alert #{alert_id}"
     return f"{lead}\n{answer}"
 
 
@@ -1464,7 +1483,12 @@ def answer_assistant_question(
             # question names, or the alert in context.
             looked_up = [args["alert_id"] for name, args in lookups if name in SINGLE_ALERT_TOOLS and "alert_id" in args]
             if len(set(looked_up)) == 1 and not _named_alert_lookup(clean_question):
-                outcome.answer = _naming_the_alert(outcome.answer, looked_up[0], opens_first=looked_up[0] == open_first_id)
+                outcome.answer = _naming_the_alert(
+                    outcome.answer,
+                    looked_up[0],
+                    opens_first=looked_up[0] == open_first_id,
+                    thai=bool(THAI_TEXT.search(clean_question)),
+                )
             return _agent_response(
                 db,
                 outcome,

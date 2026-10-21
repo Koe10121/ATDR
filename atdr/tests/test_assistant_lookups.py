@@ -12,6 +12,7 @@ import pytest
 
 from atdr.app.core.config import get_settings
 from atdr.app.db.models import WatchlistItem
+from atdr.app.detection.plain_summary import build_situation_summary
 from atdr.app.services import assistant_service
 from atdr.app.services.assistant_agent import drop_tool_mentions
 from atdr.app.services.assistant_help import answer_rule_question
@@ -223,6 +224,8 @@ def test_an_answer_about_one_looked_up_alert_opens_with_its_number_when_it_gives
     for named in ("Alert #3738 is a watchlist match.", "Look at alert 3738 first."):
         assert naming(named, 3738, opens_first=False) == named
     assert naming("See #37380 too.", 3738, opens_first=False).startswith("Alert #3738\n")
+    # A Thai answer gets the line in Thai.
+    assert naming("ตรวจสอบเครื่องต้นทาง", 3738, opens_first=False, thai=True) == "การแจ้งเตือน #3738\nตรวจสอบเครื่องต้นทาง"
 
 
 def test_what_to_do_about_the_alert_in_context_says_which_alert(seeded, monkeypatch):  # noqa: F811
@@ -245,6 +248,47 @@ def test_the_overview_follow_up_about_the_most_urgent_alert_goes_to_the_alert_th
         tools = {tool.name: tool for tool in build_assistant_tools(db, settings=settings)}
         followups = tools["security_overview"].run({"time_window": "all_time"}).followups
     assert followups and all(assistant_service.URGENT_ALERT_QUESTION.search(question) for question in followups)
+
+
+def test_asked_in_thai_what_needs_dealing_with_first_the_question_is_about_the_most_urgent_alert():
+    # "ตอนนี้มีอะไรที่ต้องรีบจัดการไหม" was answered from the whole overview, without the alert the Overview opens first
+    # (21 Oct): only English questions asked for the most urgent one.
+    urgent = assistant_service.URGENT_ALERT_QUESTION
+    for question in (
+        "ตอนนี้มีอะไรที่ต้องรีบจัดการไหม",  # anything to deal with in a hurry now?
+        "มีการแจ้งเตือนไหนด่วนที่สุด",  # which alert is the most urgent?
+        "ควรจัดการอะไรก่อนดี",  # what should I handle first?
+        "ควรแก้ปัญหาไหนเป็นอันดับแรก",  # which problem should I fix first?
+        "ภัยคุกคามไหนสำคัญที่สุดตอนนี้",  # which threat matters most now?
+    ):
+        assert urgent.search(question), question
+    for question in (
+        "IP ไหนอันตรายที่สุด",  # which IP is the most dangerous: a ranking of addresses, as in English
+        "ต้องรีบูตเครื่องไหม",  # do I need to reboot?
+        "ระบบตรวจจับการโจมตีได้ก่อนไหม",  # can the system detect attacks beforehand?
+        "ต้องจัดการอะไรก่อนติดตั้ง",  # what must I deal with before installing?
+        "ก่อนหน้านี้มีการแจ้งเตือนอะไรบ้าง",  # which alerts were there earlier?
+        "สรุปสถานการณ์ความปลอดภัยวันนี้ให้หน่อย",  # summarise today's security situation
+    ):
+        assert not urgent.search(question), question
+
+
+def test_asked_in_thai_what_needs_dealing_with_first_the_answer_names_the_alert_the_overview_opens_first(seeded, monkeypatch):  # noqa: F811
+    sessions, settings = seeded
+    with sessions() as db:
+        first = build_situation_summary(db)["open_first"]
+    assert first, "the seeded alerts give the Overview an alert to open first"
+    engine = ScriptedEngine(_say("- ตรวจสอบเครื่องต้นทางก่อน\n- แล้วดูล็อกที่เกี่ยวข้อง"))
+    monkeypatch.setattr(assistant_service, "engine_from_settings", lambda _settings: engine)
+    with sessions() as db:
+        response = _ask(db, settings, "ตอนนี้มีอะไรที่ต้องรีบจัดการไหม")
+    messages = engine.requests[0][0]
+    assert [message["name"] for message in messages if message["role"] == "tool"] == ["get_alert"]
+    assert any(f"open alert #{first['alert_id']} first" in message["content"] for message in messages if message["role"] == "system")
+    assert response["mode"] == "assistant_agent_scripted"
+    assert response["answer"].startswith(
+        f"การแจ้งเตือน #{first['alert_id']} มาก่อน: หน้า Overview แนะนำให้เปิดดูเป็นอันดับแรก\n- ตรวจสอบ"
+    )
 
 
 def test_a_step_that_only_named_a_tool_leaves_no_bare_number_behind():
