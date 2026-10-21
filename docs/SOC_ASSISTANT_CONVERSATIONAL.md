@@ -701,6 +701,64 @@ before the fix misses it the same way on today's data. `atdr/tests/test_planted_
 holds the payloads and real firewall values, and undoing any part of the fix
 turns one of its tests red.
 
+## Who is attacking us, and what changed since the first version (21 October)
+
+Two reviewer questions kept missing. Asked fresh, after a different question,
+the way a reviewer asks them, each missed 3 times in 3 on the live data (87
+alerts). The "2 of 3" measured on 15 October came from asking one question
+three times in a row: the model reuses its working memory of an identical
+question, so only the first ask was a fresh one.
+
+- **"Who is attacking us the most?"** The model said ATDR "focuses on
+  detecting suspicious behavior rather than specific IP addresses", which is
+  false. Where it named a source, it named the top source by alerts: an MFU
+  device with a crypto miner. The eight sources with the most alerts are all
+  MFU devices, and the 130 outside addresses that scanned MFU sit in one hourly
+  alert that has no single source. On a day with no new alerts, the overview's
+  ranking said only "nothing to rank".
+- **"What changed between the first version and now?"** The answer kept every
+  point and dropped the figures that ended them ("fewer alerts are now
+  generated"); figures put in a line above the points were skipped too. The
+  share of unclassified alerts was written into the text as 10%; it is 11%
+  (10 of 87).
+
+The fix is in what the tools give the model; its instructions are unchanged.
+
+- Address rankings say which side of the firewall each address is on ("MFU
+  device", "outside address", "outside server"), judged as the alert drawer
+  judges an alert's parties: a private address is MFU's, any other goes by
+  the zones of the logs it appears in.
+- The overview says who the alerts come from, in three parts: the outside
+  addresses with the most alerts, each with the alert to open and that alert's
+  kind; each hourly internet-scanning alert, with its number of scanners and
+  its busiest scanner; and the MFU devices with the most alerts, as MFU's own
+  devices to check for infection or misuse. On a day without new alerts it
+  ranks the open alerts, and it leaves out the day's empty count and ranking.
+- "What changed" opens each point with its figures ("3,676 alerts then, 87
+  now"), and the share unclassified is counted.
+- A tool result reaches the model whole up to 4,500 characters (it was
+  3,500). The overview had grown to between 3,500 and 4,100 characters, and
+  its last lines, the stored logs and the latest detection run, were cut.
+
+Two new lines in the instructions were tried and left out: that ATDR knows
+every address it masks, and how to answer a question about attackers. With
+them, "Are any MFU devices talking to a known malicious server?" stopped
+looking up the watchlist (2 asks in 2; without them it looked it up in both);
+without them, the questions about attackers were answered just as well.
+
+Measured on the live data, after a different question each time: the two
+questions 3 times each and five other wordings, 10 of 11 (the code before: 2
+of 11); the one miss lists the outside addresses as "external IPs", a word the
+check does not take. Main set 123 of 123, held-out 25 of 27. The code before,
+on the same questions and data: main set 122 of 123, held-out 25 of 27. h-07 was
+used to find the problem, so it moved to the main set as rank-09, and h-29
+("Is any single IP hammering our network?") was written before any run. The
+model reads "hammering" as a flood and answers that no single address stands
+out, without pointing to an alert or an address; the code before answers it
+the same way. `atdr/tests/test_assistant_lookups.py` and
+`atdr/tests/test_assistant_data_questions.py` hold the cases; each of 25
+deliberate breaks of the new code turned one of their tests red.
+
 ## Measuring it again
 
 ```
@@ -711,6 +769,9 @@ python -m atdr.scripts.assistant_scoreboard --engine ollama --questions data/eva
 
 Reports are saved under `.tmp/assistant_scoreboard/`. When a held-out question
 is used to fix something, move it to the main set and write a new held-out one.
+To see how steady an answer is, ask it after a different question each time:
+asked twice in a row, the second answer reuses the first one's working memory
+and is not a fresh try.
 
 ## Known limits
 

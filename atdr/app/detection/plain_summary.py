@@ -39,6 +39,8 @@ THREAT_NAME = re.compile(r"threat name is ([^.;(]+?)\s*(?:\(\d+\))?[.;]")
 WATCHLIST_PREFIX = "Matched active watchlist indicator(s): "
 FIRST_SENTENCE = re.compile(r"(.+?)[.!?](?=\s|$)")
 MODEL_ALERT_TYPE = "mfu_behavior_model"
+# Logs read to place an address on one side of MFU's firewall: an address keeps its zone, so a few are enough.
+SIDE_SAMPLE_LOGS = 20
 
 # attack type: (what it is, for the model's reading; what it may mean, for a rule alert)
 PLAIN_WORDS: dict[str, tuple[str, str]] = {
@@ -59,6 +61,14 @@ _NOUNS = {
     ("source", None): ("an address", "addresses"),
     ("destination", None): ("an address", "addresses"),
 }
+
+
+def party_noun(role: str, side: str | None) -> str:
+    """'MFU device', 'outside address' or 'outside server': what an alert's party on that side is called."""
+
+    return _NOUNS[(role, side)][0].split(" ", 1)[1]
+
+
 _EVIDENCE_COLUMNS = (
     NormalizedLog.generated_time,
     NormalizedLog.src_ip,
@@ -83,7 +93,7 @@ def threat_name(text: str | None) -> str | None:
     return field_text(match.group(1).strip()) if match else None
 
 
-def _side(address: str | None, zone: str | None) -> str | None:
+def address_side(address: str | None, zone: str | None) -> str | None:
     """'campus' or 'outside'. A private address is on MFU's side whatever its zone is called ("WLAN-Outside")."""
 
     if _is_private_address(address):
@@ -96,8 +106,25 @@ def _side(address: str | None, zone: str | None) -> str | None:
     return None
 
 
+def address_sides(db: Session, addresses: Sequence[str | None], role: str = "source") -> dict[str, str]:
+    """'campus' or 'outside' for each address, judged as the drawer judges an alert's parties: a private address is
+    MFU's, any other goes by the zones of the logs it appears in, and one that no log places is left out."""
+
+    prefix = "src" if role == "source" else "dst"
+    address_column, zone_column = getattr(NormalizedLog, f"{prefix}_ip"), getattr(NormalizedLog, f"{prefix}_zone")
+    sides: dict[str, str] = {}
+    for address in dict.fromkeys(item for item in addresses if item):
+        zones = [None] if _is_private_address(address) else db.scalars(
+            select(zone_column).where(address_column == address, zone_column.is_not(None)).limit(SIDE_SAMPLE_LOGS)
+        ).all()
+        counted = Counter(side for side in (address_side(address, zone) for zone in zones) if side)
+        if counted:
+            sides[address] = counted.most_common(1)[0][0]
+    return sides
+
+
 def _main_side(rows: Sequence[Any], prefix: str) -> str | None:
-    sides = Counter(_side(getattr(row, f"{prefix}_ip"), getattr(row, f"{prefix}_zone")) for row in rows)
+    sides = Counter(address_side(getattr(row, f"{prefix}_ip"), getattr(row, f"{prefix}_zone")) for row in rows)
     return sides.most_common(1)[0][0] if sides else None
 
 

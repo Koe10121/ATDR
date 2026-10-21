@@ -8,7 +8,7 @@ from sqlalchemy import func, select, update
 
 from atdr.app.db.models import Alert, AlertEvidence, NormalizedLog, RawLog, WatchlistItem
 from atdr.app.detection.explanations import build_alert_detection_summary
-from atdr.app.detection.plain_summary import build_plain_summary, threat_name
+from atdr.app.detection.plain_summary import address_sides, build_plain_summary, threat_name
 from atdr.app.services import assistant_service
 from atdr.tests.test_assistant_agent import ScriptedEngine, _ask, _call, _say, seeded  # noqa: F401
 from atdr.tests.test_detection_grouping import _session
@@ -122,6 +122,21 @@ def test_a_private_address_is_an_mfu_device_whatever_its_zone_is_called():
         "On 20 May at 13:36, an MFU device (10.1.94.28) made 3 connections to another MFU device (192.168.1.5) on port 53."
     )
     assert "The firewall blocked 1 of the 3 and allowed the rest." in text
+
+
+def test_an_address_alone_is_placed_by_the_zones_of_the_logs_it_appears_in():
+    # The assistant's rankings and its "who is attacking us" place addresses as the drawer places an alert's parties.
+    db = _session()
+    _log(db, src="172.25.9.212", dst="8.8.8.8", port=53, src_zone="WLAN-Outside", dst_zone="SG-Outside")
+    _log(db, src="202.28.44.10", dst="8.8.8.8", port=443, src_zone="LAN-Inside", dst_zone="SG-Outside")
+    _log(db, src="91.92.93.94", dst="10.1.1.1", port=22, src_zone="SG-Outside", dst_zone="WLAN-Inside")
+    _log(db, src="91.92.93.94", dst="10.1.1.2", port=22, src_zone=None, dst_zone="WLAN-Inside")
+
+    sides = address_sides(db, ["172.25.9.212", "202.28.44.10", "91.92.93.94", "100.20.30.40", None])
+    assert sides == {"172.25.9.212": "campus", "202.28.44.10": "campus", "91.92.93.94": "outside"}
+    assert address_sides(db, ["8.8.8.8", "10.1.1.1"], "destination") == {"8.8.8.8": "outside", "10.1.1.1": "campus"}
+    # As a source 8.8.8.8 appears in no log, so nothing places it there.
+    assert address_sides(db, ["8.8.8.8"]) == {}
 
 
 def test_the_drawer_summary_counts_every_evidence_log_not_only_the_first_25():

@@ -126,6 +126,17 @@ def test_sentences_about_internal_tools_are_removed_and_the_rest_kept():
     assert outcome.ok and outcome.answer == "There are 7 High alerts." and len(engine.requests) == 2
 
 
+def test_a_tool_result_as_long_as_the_overview_reaches_the_model_whole():
+    # The overview had grown to 3,500-4,100 characters on 21 Oct 2026 and lost its last lines to a 3,500 cut.
+    seen = []
+    for text in ("x" * 4_000, "y" * (assistant_agent.MAX_TOOL_OUTPUT_CHARS + 1)):
+        engine = ScriptedEngine(_call("query_alerts"), _say("Here it is."))
+        run_agent(question="how many alerts", engine=engine, tools=[_count_tool(text)])
+        seen.append(engine.requests[1][0][-1]["content"])
+    assert "x" * 4_000 in seen[0] and "[output shortened]" not in seen[0]
+    assert seen[1].endswith("[output shortened]")
+
+
 def test_a_request_to_act_must_be_answered_with_the_real_dashboard_steps():
     guide = AgentTool(
         "dashboard_how_to", "Steps.", {"type": "object", "properties": {}},

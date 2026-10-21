@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
@@ -9,7 +10,7 @@ from sqlalchemy.pool import StaticPool
 
 from atdr.app.core.config import get_settings
 from atdr.app.db.database import Base
-from atdr.app.db.models import Alert
+from atdr.app.db.models import Alert, NormalizedLog, RawLog
 from atdr.app.detection.rule_catalog import RULE_CATALOG
 from atdr.app.main import app
 from atdr.app.services import assistant_data_query, assistant_service
@@ -178,11 +179,41 @@ def test_an_empty_window_points_to_the_latest_matching_alert(db):
 def test_rankings_leave_out_missing_ips_and_name_an_example_alert(db):
     answer = answer_data_question(db, _parse("Which source IPs have the most alerts?"))
     assert answer.counts["ranked"] == [("10.0.0.1", 2), ("10.0.0.2", 2)]
-    assert answer.lines[0].startswith("10.0.0.1: 2 alerts (40%), e.g. alert #")
+    assert answer.lines[0].startswith("10.0.0.1 (MFU device): 2 alerts (40%), e.g. alert #")
     assert "1 alert had no source IP and is not ranked" in answer.basis
 
     attack_types = answer_data_question(db, _parse("What is the most common attack type?"))
     assert attack_types.counts["ranked"][0] == ("port scan", 3)
+
+
+def test_a_ranked_address_says_which_side_of_mfus_firewall_it_is_on(db):
+    # Asked who attacks MFU the most, the assistant named the top source: an MFU device with a crypto miner.
+    def seen(src, src_zone, dst, dst_zone):
+        raw = RawLog(raw_line=f"{src} {dst}")
+        db.add(raw)
+        db.flush()
+        db.add(NormalizedLog(raw_log_id=raw.id, log_type="TRAFFIC", src_ip=src, src_zone=src_zone, dst_ip=dst,
+                             dst_zone=dst_zone, parsed_json={}))
+
+    seen("91.92.93.94", "SG-Outside", "10.9.9.9", "WLAN-Inside")
+    # An MFU public address is placed by its zone, a private one by its range.
+    seen("202.28.44.10", "LAN-Inside", "185.199.10.20", "SG-Outside")
+    scan = datetime(2026, 9, 26, 9, 30, tzinfo=BANGKOK)
+    outbound = _alert(8, "Low", "possible_port_scan", scan, src_ip="202.28.44.10")
+    outbound.dst_ip = "185.199.10.20"
+    # 100.20.30.40 appears in no log, so nothing places it.
+    db.add_all([_alert(6, "High", "possible_port_scan", scan, src_ip="91.92.93.94"), outbound,
+                _alert(7, "Low", "possible_port_scan", scan, src_ip="100.20.30.40")])
+    db.commit()
+
+    sources = answer_data_question(db, _parse("Which source IPs have the most alerts?")).lines
+    assert sources[0].startswith("10.0.0.1 (MFU device): 2 alerts")
+    assert any(line.startswith("91.92.93.94 (outside address): 1 alert (") for line in sources)
+    assert any(line.startswith("202.28.44.10 (MFU device): 1 alert (") for line in sources)
+    assert any(line.startswith("100.20.30.40: 1 alert (") for line in sources)
+    destinations = answer_data_question(db, _parse("Which destination IPs have the most alerts?")).lines
+    assert destinations[0].startswith("10.9.9.9 (MFU device): ")
+    assert any(line.startswith("185.199.10.20 (outside server): 1 alert (") for line in destinations)
 
 
 def test_trend_lists_busy_days_newest_first(db):
@@ -298,6 +329,7 @@ def test_ranked_ips_stay_redacted_in_answers_but_keep_an_alert_to_open():
     try:
         payload = client.post("/api/assistant/chat", json={"question": "Which source IPs have the most alerts?"}, headers=headers).json()
         assert "203.0.113.10" not in payload["answer"]
-        assert "[redacted-ip]: 1 alert (100%), e.g. alert #1" in payload["answer"]
+        # The side of the firewall may stand between them (Python counts this documentation range as private).
+        assert re.search(r"\[redacted-ip\](?: \([a-zA-Z ]+\))?: 1 alert \(100%\), e\.g\. alert #1\b", payload["answer"])
     finally:
         app.dependency_overrides.clear()

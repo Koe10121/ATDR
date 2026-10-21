@@ -206,6 +206,7 @@ the malicious cases and the supervised classifier failed calibration.
 | Re-run on 7 Oct after ATDR began writing the situation summary itself, for the model to relay; main set now 122 checks (the held-out Thai summary moved to it, and a new held-out question was written before any run) | main 122 of 122; held-out 26 of 27; 4.2 s and 5.0 s per answer on average | |
 | Same, on a copy of the data on which the 163 rebuilt alerts were created that day (the state of 4 Oct) | main 122 of 122; held-out 26 of 27; 4.3 s and 5.3 s per answer on average | |
 | Re-run on 9 Oct after the alert list was regrouped under rule catalog v5.37.0 (85 alerts on 120,001 logs, 83 of them created that day) | main 122 of 122; held-out 26 of 27; 4.3 s and 4.5 s per answer on average | |
+| Re-run on 21 Oct after the overview began saying who the alerts come from (outside addresses, scanners, MFU devices) and "what changed" opened its points with the figures; main set now 123 checks (held-out h-07 moved to it as rank-09, and h-29 was written before any run) | main 123 of 123; held-out 25 of 27; 4.5 s and 4.8 s per answer on average. The code before, on the same questions and data: main 122 of 123, held-out 25 of 27 | |
 
 Measured on 2026-09-27 with qwen3:8b running locally, after the alert
 rebuild, and again on 2026-09-29 on the 181-alert list. The main set gained three questions when the assistant got tools

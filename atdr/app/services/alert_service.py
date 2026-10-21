@@ -694,12 +694,19 @@ def _note_answering(scanners: dict[str, dict], answering: dict[str, set[str]]) -
         scanners[address]["answered_by"] = max(int(scanners[address].get("answered_by") or 0), len(hosts))
 
 
+def busiest_scanners(metadata: dict, limit: int) -> list[tuple[str, dict]]:
+    """The hourly scanning alert's scanners with the most connections, as (address, entry)."""
+
+    scanners: dict[str, dict] = metadata.get("scanners") or {}
+    return sorted(scanners.items(), key=lambda item: (-int(item[1].get("connections") or 0), item[0]))[:limit]
+
+
 def _scanning_explanation(metadata: dict) -> str:
     start = _parse_iso(metadata.get("hour_start"))
     scanners: dict[str, dict] = metadata.get("scanners") or {}
     count = int(metadata.get("scanner_count") or len(scanners))
     hour = f"{start.day} {start:%b} {start:%H}:00 to {(start + timedelta(hours=1)):%H}:00" if start else "this hour"
-    busiest = sorted(scanners.items(), key=lambda item: (-int(item[1].get("connections") or 0), item[0]))[:SCANNERS_IN_EXPLANATION]
+    busiest = busiest_scanners(metadata, SCANNERS_IN_EXPLANATION)
     listed = "; ".join(
         f"{address} ({int(entry.get('connections') or 0):,} connection{'' if int(entry.get('connections') or 0) == 1 else 's'} "
         f"to {int(entry.get('targets') or 0):,} or more MFU addresses, ports {', '.join(str(port) for port in entry.get('ports') or []) or 'unknown'})"

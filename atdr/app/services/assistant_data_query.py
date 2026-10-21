@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
@@ -24,7 +25,8 @@ from sqlalchemy import desc, func, or_, select
 from sqlalchemy.orm import Session
 
 from atdr.app.db.models import Alert, NormalizedLog
-from atdr.app.detection.attack_mapping import ATTACK_LABELS, infer_attack_type_from_rules
+from atdr.app.detection.attack_mapping import ATTACK_LABELS, INTERNET_SCANNING_ALERT, infer_attack_type_from_rules
+from atdr.app.detection.plain_summary import address_sides, party_noun
 from atdr.app.detection.planted_text import field_text
 from atdr.app.detection.rule_catalog import rule_spec
 
@@ -429,6 +431,15 @@ def _alert_group_value(row: Any, group_by: str) -> str:
     return str(value) if value not in (None, "") else "unknown"
 
 
+def _highest_scoring(rows: list[Any], group_of: Callable[[Any], str]) -> dict[str, int]:
+    """Each group's alert to open: its highest-scoring one, the newest among equals."""
+
+    example: dict[str, int] = {}
+    for row in sorted(rows, key=lambda item: (-(item.threat_score or 0), -item.id)):
+        example.setdefault(group_of(row), row.id)
+    return example
+
+
 def _latest_line(rows: list[Any]) -> str | None:
     if not rows:
         return None
@@ -501,10 +512,12 @@ def _answer_alerts(db: Session, dq: DataQuestion) -> DataAnswer:
         if group in {"src_ip", "dst_ip"}:
             # An alert without an address is not a "top source"; count it aside.
             missing = counter.pop("unknown", 0)
-        example: dict[str, int] = {}
-        for row in sorted(rows, key=lambda item: (-(item.threat_score or 0), -item.id)):
-            example.setdefault(_alert_group_value(row, group), row.id)
+        example = _highest_scoring(rows, lambda row: _alert_group_value(row, group))
         ranked = counter.most_common(dq.limit)
+        # Which side of the firewall each address is on: asked who attacks MFU the most, the assistant named the top
+        # source, an infected MFU device.
+        role = {"src_ip": "source", "dst_ip": "destination"}.get(group)
+        sides = address_sides(db, [value for value, _ in ranked], role) if role else {}
         label = group_labels.get(group, "groups")
         summary = (
             (
@@ -516,7 +529,8 @@ def _answer_alerts(db: Session, dq: DataQuestion) -> DataAnswer:
             else f"No {noun}s {'were created ' if dq.window.bounded else ''}{window_phrase}, so there is nothing to rank."
         )
         lines = [
-            f"{value}: {_plural(count, 'alert')} ({round(100 * count / total)}%), e.g. alert #{example[value]}"
+            f"{value}{f' ({party_noun(role, sides[value])})' if value in sides else ''}: "
+            f"{_plural(count, 'alert')} ({round(100 * count / total)}%), e.g. alert #{example[value]}"
             for value, count in ranked
         ]
         if missing:
@@ -715,3 +729,27 @@ def window_phrase(dq: DataQuestion) -> str:
 
 def answer_data_question(db: Session, dq: DataQuestion) -> DataAnswer:
     return _answer_alerts(db, dq) if dq.subject == "alerts" else _answer_logs(db, dq)
+
+
+def alert_sources(db: Session, dq: DataQuestion, *, limit: int = 3) -> dict[str, Any]:
+    """Who the alerts a question selects come from: the outside addresses and the MFU devices behind the most of
+    them, each as (address, alerts, alert to open, that alert's attack type), and the hourly internet-scanning alerts,
+    whose outside addresses no source field holds. Asked who attacks MFU the most, the assistant had named an infected
+    MFU device."""
+
+    rows, _ = _alert_rows(db, dq)
+    with_source = [row for row in rows if row.src_ip]
+    counter = Counter(row.src_ip for row in with_source)
+    example = _highest_scoring(with_source, lambda row: row.src_ip)
+    by_id = {row.id: row for row in with_source}
+    ranked: dict[str, list[tuple[str, int, int, str]]] = {"outside": [], "campus": []}
+    # Among equal counts, the address whose alert to open scores highest comes first.
+    for address in sorted(counter, key=lambda item: (-counter[item], -(by_id[example[item]].threat_score or 0), item)):
+        if all(len(items) >= limit for items in ranked.values()):
+            break
+        side = address_sides(db, [address]).get(address)
+        if side in ranked and len(ranked[side]) < limit:
+            # Without it, the model called an address's alerts exploit attempts when they were a scan.
+            kind = _alert_group_value(by_id[example[address]], "attack_type")
+            ranked[side].append((address, counter[address], example[address], kind))
+    return {"total": len(rows), **ranked, "scanning": [row for row in rows if row.alert_type == INTERNET_SCANNING_ALERT]}

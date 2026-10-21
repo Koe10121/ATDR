@@ -37,7 +37,9 @@ OLLAMA_DEFAULT_MODEL = "qwen3:8b"
 GEMINI_OPENAI_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
 GEMINI_DEFAULT_MODEL = "gemini-2.5-flash"
 MAX_TOOL_CALLS_PER_ROUND = 4
-MAX_TOOL_OUTPUT_CHARS = 3500
+# The overview, the longest result, had grown to 3,500-4,100 characters and lost its stored-logs and detection-run
+# lines to a 3,500 cut (measured 21 Oct 2026; every other tool stayed under 2,900 except the largest alert's detail).
+MAX_TOOL_OUTPUT_CHARS = 4500
 MAX_ANSWER_CHARS = 6000
 # Numbers this small are ordinary words ("one or two checks", "3 steps").
 FREE_NUMBERS = frozenset({"1", "2", "3"})

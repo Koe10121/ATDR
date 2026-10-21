@@ -21,14 +21,14 @@ from sqlalchemy.orm import Session
 
 from atdr.app.core.config import Settings
 from atdr.app.db.models import Alert, DetectionRun, NormalizedLog, WatchlistItem
-from atdr.app.detection.attack_mapping import ATTACK_TYPE_MAPPINGS
+from atdr.app.detection.attack_mapping import ATTACK_TYPE_MAPPINGS, infer_attack_type_from_rules
 from atdr.app.detection.explanations import build_alert_detection_summary
 from atdr.app.detection.playbooks import PLAYBOOK_GUIDANCE, build_alert_playbook
 from atdr.app.detection.plain_summary import brief_situation, build_situation_summary, threat_name
 from atdr.app.detection.rule_catalog import RULE_CATALOG
 from atdr.app.detection.scoring import severity_from_score
 from atdr.app.services import assistant_service as core
-from atdr.app.services.alert_service import ALERT_MERGE_WINDOW_HOURS, SLA_TARGETS, alert_sla, get_alert
+from atdr.app.services.alert_service import ALERT_MERGE_WINDOW_HOURS, SLA_TARGETS, alert_sla, busiest_scanners, get_alert
 from atdr.app.services.assistant_agent import AgentTool, ToolOutput
 from atdr.app.services.assistant_data_query import (
     ALL_TIME,
@@ -38,6 +38,8 @@ from atdr.app.services.assistant_data_query import (
     _as_local,
     _local_now,
     _parse_window,
+    _plural,
+    alert_sources,
     answer_data_question,
 )
 from atdr.app.services.assistant_help import HELP_TOPICS, answer_help_question, answer_rule_question
@@ -70,6 +72,8 @@ LOG_GROUPS = ("src_ip", "dst_ip", "app", "action", "dst_port", "src_country", "d
 LOG_ACTIONS = {"denied": (("deny", "drop"), "denied or dropped"), "allowed": (("allow",), "allowed")}
 SYSTEM_AREAS = ("ml", "detection_runs", "operations", "sources", "recent_changes", "failed_jobs")
 SYSTEM_OVERVIEW_AREAS = {"all", "overall", "overview", "health", "everything", "summary"}
+# The live feed makes one scanning alert an hour; the overview describes the busiest and counts the rest.
+SCANNING_ALERTS_IN_OVERVIEW = 2
 
 ATTACK_CONCEPTS = {
     "port_scan": "A port scan is one source probing many ports or many hosts to find services it can reach. A vertical scan hits many ports on one host; a horizontal scan hits the same port on many hosts. It is usually the first step before an attack.",
@@ -411,10 +415,20 @@ class AssistantToolbox:
         headline = situation["headline"].split(" The newest log")[0]
         story = [f"What the open alerts show, in plain words: {headline}", *(f"- {line}" for line in brief_situation(situation))]
         parts.append("\n".join(story))
-        parts.append(self._alerts(DataQuestion(subject="alerts", intent="count", window=window)))
+        new_alerts = answer_data_question(db, DataQuestion(subject="alerts", intent="count", window=window)).counts.get("total")
+        quiet = window.bounded and not new_alerts
+        # On a quiet day the period's count and ranking only repeated "none were created" (said below) and "nothing to
+        # rank" (the plain words above sort the open alerts by kind), and pushed the overview past what the model is
+        # shown; who the open alerts come from is given instead.
+        if not quiet:
+            parts.append(self._alerts(DataQuestion(subject="alerts", intent="count", window=window)))
         parts.append(self._data(DataQuestion(subject="alerts", intent="count", status="open")))
-        parts.append(self._data(DataQuestion(subject="alerts", intent="top", window=window, group_by="attack_type", limit=4)))
-        parts.append(self._data(DataQuestion(subject="alerts", intent="top", window=window, group_by="src_ip", limit=3)))
+        if quiet:
+            parts.append(self._sources(DataQuestion(subject="alerts", intent="top", status="open"), "Who the open alerts come from"))
+        else:
+            parts.append(self._data(DataQuestion(subject="alerts", intent="top", window=window, group_by="attack_type", limit=4)))
+            heading = f"Who the alerts created {window.phrase} come from" if window.bounded else "Who the alerts come from"
+            parts.append(self._sources(DataQuestion(subject="alerts", intent="top", window=window), heading))
         open_list = DataQuestion(subject="alerts", intent="list", window=window, status="open", limit=5)
         text = self._data(open_list)
         if text.startswith("No "):
@@ -433,8 +447,7 @@ class AssistantToolbox:
         if window.bounded:
             log_line += "\n" + self._data(DataQuestion(subject="logs", intent="count", window=window))
         parts.append(log_line)
-        new_alerts = answer_data_question(db, DataQuestion(subject="alerts", intent="count", window=window)).counts.get("total")
-        if window.bounded and not new_alerts:
+        if quiet:
             # A quiet period once led to "we are not under attack" while Critical alerts sat open.
             still_open = int(db.scalar(select(func.count(Alert.id)).where(Alert.status == "open")) or 0)
             critical = int(db.scalar(select(func.count(Alert.id)).where(Alert.status == "open", Alert.severity == "Critical")) or 0)
@@ -456,6 +469,41 @@ class AssistantToolbox:
             # "the most urgent alert", not "the top alert": the router knows it as the one the Overview opens first.
             ["Which alert should I look at first?", "What should I do about the most urgent alert?"],
         )
+
+    def _sources(self, question: DataQuestion, heading: str) -> str:
+        """Who the alerts come from: outside addresses, the scanners in the hourly scanning alerts, and MFU's own
+        devices, kept apart. Ranked together, the top "attacker" was an MFU device with a crypto miner, and the
+        scanners, held in alerts without one source, were left out."""
+
+        found = alert_sources(self.db, question)
+
+        def listed(items: list[tuple[str, int, int, str]]) -> str:
+            return "; ".join(
+                f"{address} ({_plural(count, 'alert')}, e.g. alert #{alert_id}, {kind})" for address, count, alert_id, kind in items
+            )
+
+        lines = []
+        if found["outside"]:
+            lines.append(f"- Outside addresses with the most alerts: {listed(found['outside'])}.")
+        scanning = sorted(found["scanning"], key=lambda row: (-int(core._group_metadata(row).get("connections") or 0), -row.id))
+        for row in scanning[:SCANNING_ALERTS_IN_OVERVIEW]:
+            metadata = core._group_metadata(row)
+            line = (
+                f"- Internet scanning, alert #{row.id}: "
+                f"{_plural(int(metadata.get('scanner_count') or 0), 'outside address', 'outside addresses')} scanned or probed "
+                f"MFU ({_plural(int(metadata.get('connections') or 0), 'connection')})"
+            )
+            for address, entry in busiest_scanners(metadata, 1):
+                line += (
+                    f"; the busiest, {address}, made {_plural(int(entry.get('connections') or 0), 'connection')} "
+                    f"to {int(entry.get('targets') or 0):,} or more MFU addresses"
+                )
+            lines.append(line + ".")
+        if len(scanning) > SCANNING_ALERTS_IN_OVERVIEW:
+            lines.append(f"- {_plural(len(scanning) - SCANNING_ALERTS_IN_OVERVIEW, 'more hourly scanning alert')}.")
+        if found["campus"]:
+            lines.append(f"- MFU devices with the most alerts, MFU's own devices to check for infection or misuse: {listed(found['campus'])}.")
+        return f"{heading}:\n" + "\n".join(lines) if lines else f"{heading}: no alert names an address it came from."
 
     def _alert(self, args: dict[str, Any]) -> Alert:
         alert_id = _integer(args, "alert_id", low=1, high=10**9)
@@ -803,13 +851,19 @@ class AssistantToolbox:
                 "- To use one: open it, read its plain-words box and evidence logs, and confirm before acting."
             )
         if topic == "improvements":
-            alerts = int(self.db.scalar(select(func.count(Alert.id))) or 0)
+            rule_lists = list(self.db.scalars(select(Alert.matched_rules_json)))
+            alerts = len(rule_lists)
+            unclassified = sum(1 for rules in rule_lists if infer_attack_type_from_rules(rules or []) == "unknown_anomaly")
+            # The figures open their bullets: at a bullet's end, or in a line above the bullets, the model kept each point
+            # and dropped its numbers ("fewer alerts are now generated"). The share unclassified is counted: "10%" had gone
+            # stale.
             return (
                 "Compared with ATDR's first version, presented on 26 September 2026:\n"
-                "- Fewer, clearer alerts: rules that only describe context (a risky app, a busy source) now add points but "
-                f"never raise an alert alone, so the list went from 3,676 alerts to {alerts:,}.\n"
-                "- Every alert names its attack type from the evidence, such as the firewall's own threat signature, with "
-                "its MITRE ATT&CK technique and a response playbook; unclassified alerts fell from 53% to 10%.\n"
+                f"- Fewer, clearer alerts: 3,676 alerts then, {alerts:,} now. Rules that only describe context (a risky app, a "
+                "busy source) now add points but never raise an alert alone.\n"
+                f"- Every alert names its attack type: 53% of alerts were unclassified then, "
+                f"{round(100 * unclassified / alerts) if alerts else 0}% now. The type comes from the evidence, such as the "
+                "firewall's own threat signature, with its MITRE ATT&CK technique and a response playbook.\n"
                 "- Plain words: each alert and the Overview say what happened in a few sentences ATDR writes from the "
                 "evidence logs.\n"
                 "- A watchlist of known-bad addresses from public threat feeds.\n"

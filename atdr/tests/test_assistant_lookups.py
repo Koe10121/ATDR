@@ -6,8 +6,11 @@ or from memory.
 
 from __future__ import annotations
 
+from datetime import datetime
+
 import pytest
 
+from atdr.app.core.config import get_settings
 from atdr.app.db.models import WatchlistItem
 from atdr.app.services import assistant_service
 from atdr.app.services.assistant_agent import drop_tool_mentions
@@ -309,7 +312,95 @@ def test_the_coverage_topic_counts_the_rules_like_the_rule_answer_and_says_what_
         changes = tools["explain_concept"].run({"topic": "improvements"}).text
     assert coverage.startswith(answer_rule_question("how many rules").summary)
     assert "email and phishing" in coverage and "not continuously" in coverage
-    assert changes.startswith("Compared with ATDR's first version") and "from 3,676 alerts to" in changes
+    assert changes.startswith("Compared with ATDR's first version") and "3,676 alerts then" in changes
+
+
+def test_what_changed_since_the_first_version_opens_its_points_with_the_figures_counted_now():
+    # Asked "what changed between the first version and now?", the model kept every point and dropped the figures that
+    # ended them; and "unclassified ... to 10%" had gone stale (10 of 87 alerts is 11%).
+    db = _session()
+    for code in ("possible_port_scan", "possible_port_scan", "possible_port_scan", "a_rule_that_names_no_attack"):
+        _alert(db, code, [])
+    tools = {tool.name: tool for tool in build_assistant_tools(db, settings=get_settings())}
+    lines = tools["explain_concept"].run({"topic": "improvements"}).text.splitlines()
+
+    assert lines[1] == (
+        "- Fewer, clearer alerts: 3,676 alerts then, 4 now. Rules that only describe context (a risky app, a busy source) "
+        "now add points but never raise an alert alone."
+    )
+    assert lines[2].startswith("- Every alert names its attack type: 53% of alerts were unclassified then, 25% now. ")
+
+
+def _alerts_from_everywhere(db, *, created=None):
+    """Outside scanners and an outside exploit, an MFU device with a miner in 3 alerts, and the hour's scanning alert."""
+
+    def raised(src, code, logs, score, **fields):
+        alert = _alert(db, code, logs, **fields)
+        alert.src_ip, alert.threat_score = src, score
+        if created is not None:
+            alert.created_at = created
+        return alert
+
+    inbound = {"dst": "10.1.1.9", "port": 22, "src_zone": "SG-Outside", "dst_zone": "WLAN-Inside"}
+    alerts = {
+        # The alert to open is the one scoring highest, here the older one.
+        "scan": [raised("91.92.93.94", "possible_port_scan", [_log(db, src="91.92.93.94", **inbound)], score) for score in (70, 60)],
+        "exploit": raised("185.199.10.20", "paloalto_threat_log", [_log(db, src="185.199.10.20", **inbound)], 90,
+                          rules=[{"code": "paloalto_threat_log", "attack_type": "exploit_attempt"}]),
+        # One alert as well, scoring lower: ranked after the exploit though its address sorts first.
+        "probe": raised("100.20.30.40", "possible_port_scan", [_log(db, src="100.20.30.40", **inbound)], 40),
+        # A fourth outside address, past the three the overview names.
+        "fourth": raised("100.20.30.41", "possible_port_scan", [_log(db, src="100.20.30.41", **inbound)], 30),
+        "miner": [
+            raised("10.1.44.163", "paloalto_malware_threat", [_log(db, src="10.1.44.163", dst="51.222.106.1", port=14444,
+                   src_zone="WLAN-Inside", dst_zone="SG-Outside")], 100, explanation=XMRIG)
+            for _ in range(3)
+        ],
+        "scanning": raised(None, "internet_scanning", [], 50, rules=[
+            {"code": "internet_scanning", "attack_type": "port_scan"},
+            {"code": "group_metadata", "scanner_count": 2, "connections": 30, "scanners": {
+                "77.88.99.2": {"connections": 5, "targets": 5, "ports": [23]},
+                "77.88.99.1": {"connections": 25, "targets": 20, "ports": [80]},
+            }},
+        ]),
+    }
+    db.flush()
+    return alerts
+
+
+def test_asked_who_attacks_mfu_the_overview_names_outside_addresses_scanners_and_mfu_devices_apart():
+    # "Who is attacking us the most?" was answered "ATDR does not identify specific IP addresses", or with the top
+    # source: an MFU device with a crypto miner. On a day without new alerts the overview had only "nothing to rank".
+    db = _session()
+    alerts = _alerts_from_everywhere(db, created=datetime(2026, 5, 20, 6, 0))
+    settings = get_settings().model_copy(update={"assistant_redact_ips": False})
+    overview = {tool.name: tool for tool in build_assistant_tools(db, settings=settings)}["security_overview"]
+    text = overview.run({}).text
+
+    assert (
+        "Who the open alerts come from:\n"
+        f"- Outside addresses with the most alerts: 91.92.93.94 (2 alerts, e.g. alert #{alerts['scan'][0].id}, port scan); "
+        f"185.199.10.20 (1 alert, e.g. alert #{alerts['exploit'].id}, exploit attempt); "
+        f"100.20.30.40 (1 alert, e.g. alert #{alerts['probe'].id}, port scan).\n"
+        f"- Internet scanning, alert #{alerts['scanning'].id}: 2 outside addresses scanned or probed MFU (30 connections); "
+        "the busiest, 77.88.99.1, made 25 connections to 20 or more MFU addresses.\n"
+        "- MFU devices with the most alerts, MFU's own devices to check for infection or misuse: "
+        f"10.1.44.163 (3 alerts, e.g. alert #{alerts['miner'][2].id}, malware / C2)."
+    ) in text
+    assert "100.20.30.41" not in text
+    # What a quiet day's overview no longer repeats.
+    assert "nothing to rank" not in text and "Created at any time instead" not in text
+    assert "Who the alerts come from:\n- Outside addresses" in overview.run({"time_window": "all_time"}).text
+
+
+def test_on_a_day_with_new_alerts_the_overview_says_who_they_come_from():
+    db = _session()
+    _alerts_from_everywhere(db)
+    overview = {tool.name: tool for tool in build_assistant_tools(db, settings=get_settings())}["security_overview"]
+    text = overview.run({}).text
+
+    assert "Who the alerts created today come from:\n- Outside addresses with the most alerts: [redacted-ip] (2 alerts" in text
+    assert "attack types" in text
 
 
 def test_the_assistant_says_when_new_logs_are_checked_as_the_settings_have_it(seeded):  # noqa: F811
