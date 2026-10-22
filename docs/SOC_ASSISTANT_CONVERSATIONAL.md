@@ -925,6 +925,32 @@ Measured on the live data: main set 125 of 125, held-out 27 of 27. Answers took 
 and `atdr/tests/test_assistant_data_questions.py` hold the cases; each of 14
 deliberate breaks turned one of their tests red.
 
+## "Are we under attack?" in 5 seconds (22 October)
+
+"Are we under attack?" took about 15 seconds, the longest of the common
+questions. The model summarized the whole overview, 228 words against a limit
+of 220, and the answer was sent back and written a second time: 828 words of
+output for a 218-word answer.
+
+- A draft that fails only on length, and is at most 15% over the limit, is now
+  cut at a whole line or sentence, as a rewrite already was, and checked again.
+  A draft with any other problem, or one that loses what it needs in the cut,
+  is still written again.
+- A question about whether MFU is under attack, hacked or safe takes the route
+  of "summarize the security situation": ATDR looks up its own short summary
+  and the model relays it. The summary then opens with ATDR's sentence that it
+  cannot tell whether MFU is under attack right now, with its newest log's
+  date. Told only to say so, the model wrote "We are not under a confirmed
+  attack"; given the sentence, it opened with it.
+- The check on claims about an attack now also sends back "not under a
+  confirmed (or known, ongoing, real) attack", "no confirmed attacks" and "the
+  network is not safe", the same claims the other way.
+
+Measured on the live data, the question and five other wordings, each after a
+different question: the English wordings in 3 to 5 seconds (before: 15 seconds for the question, 4.9 to 15.6 for the others), the Thai one in 14.8 (before: 18.7, when both drafts failed the checks and the built-in answer was shown), and each opening with what ATDR cannot know. Main set 125 of 125, held-out 27 of 27, with answers taking 4.1 seconds on average (95th percentile 7.4; earlier the same day 4.4 and 9.7).
+`atdr/tests/test_plain_summary.py` holds the cases; each of 12 deliberate
+breaks turned one of its tests red.
+
 ## Measuring it again
 
 ```
@@ -947,7 +973,7 @@ out rather than rely on wording.
 
 - An 8-billion-parameter model sometimes phrases things loosely or stays general when the tool gave specifics. Numbers and screen names are checked; wording is not.
 - General-knowledge answers are the model's own knowledge and can be wrong or out of date, like any chat assistant; they are labelled so the analyst knows.
-- Long answers take 10 to 20 seconds, most of it the model writing the answer.
+- Long answers take 10 to 20 seconds, most of it the model writing the answer; Thai answers take longer than English ones of the same length.
 - Asked "Why should I trust your answers?", the model's own wording keeps leaving the checks out, so that question gets the built-in answer (labelled "ATDR deterministic analysis"). "Is MFU under attack right now?" does in some runs.
 - It only knows what ATDR's tools return about MFU. It cannot see the internet or other MFU systems, and it cannot yet filter alerts by who they are assigned to.
 - A number is checked against the tools, but not what it counts: asked in Thai what attacks are happening now, it once gave the Critical count (34) as the number of exploit attempts.

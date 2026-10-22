@@ -75,6 +75,10 @@ SYSTEM_AREAS = ("ml", "detection_runs", "operations", "sources", "recent_changes
 SYSTEM_OVERVIEW_AREAS = {"all", "overall", "overview", "health", "everything", "summary"}
 # The live feed makes one scanning alert an hour; the overview describes the busiest and counts the rest.
 SCANNING_ALERTS_IN_OVERVIEW = 2
+ATTACK_STATUS_UNKNOWN = (
+    "ATDR cannot tell whether MFU is under attack right now: it sees only imported firewall logs, and the newest is from "
+    "{newest} (firewall local time)."
+)
 # The outside addresses with the most connections, beside a ranking of alert sources.
 BUSIEST_OUTSIDE_SOURCES = 3
 
@@ -446,8 +450,11 @@ class AssistantToolbox:
             # Given everything below on a day with new alerts, the model put that day's counts under the open alerts,
             # named five alerts to open first and ran past the word limit.
             still_open, new, rows, closing = core.situation_brief(db, window if window.bounded else _parse_window("today", _local_now()))
+            # Asked whether MFU is under attack, the model relayed the summary as "We are not under a confirmed attack";
+            # with the whole overview it had copied this sentence, its first line.
+            cannot_tell = [ATTACK_STATUS_UNKNOWN.format(newest=_log_when(db.scalar(select(func.max(NormalizedLog.generated_time)))))] if args.get("attack_status") else []
             return ToolOutput(
-                self._text("\n".join([still_open, new, "What the open alerts show:", *(f"- {row}" for row in rows), closing])),
+                self._text("\n".join([*cannot_tell, still_open, new, "What the open alerts show:", *(f"- {row}" for row in rows), closing])),
                 [("Alert records", "/api/alerts", None), ("Firewall log records", "/api/logs", None)],
                 ["Which alert should I look at first?", "What should I do about the most urgent alert?"],
             )
@@ -455,8 +462,7 @@ class AssistantToolbox:
         # First, because the model answers from the top: asked "is MFU under attack right now?", it said "not
         # currently under attack" from a quiet day, though ATDR's newest traffic was months old.
         parts = [
-            "ATDR cannot tell whether MFU is under attack right now: it sees only imported firewall logs, and the "
-            f"newest is from {_log_when(last)} (firewall local time).",
+            ATTACK_STATUS_UNKNOWN.format(newest=_log_when(last)),
             # Today's date is given because, without it, a Thai summary called the newest alert's date "today".
             f"Security overview for alerts created {window.phrase if window.bounded else 'at any time'}. "
             f"Today is {_local_now():%d %b %Y} (server local time).",

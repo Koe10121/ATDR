@@ -1128,6 +1128,14 @@ SITUATION_NOTE = (
     "open, how many alerts are new in the period, the kinds of attack and what the firewall did, and the alert to open "
     "first. Give each count exactly as the summary gives it."
 )
+# "Are we under attack?" summarized the whole overview, ran past the word limit and was written again: 15 seconds. It
+# takes the same summary, opening with what ATDR cannot know.
+ATTACK_STATUS_NOTE = (
+    "ATDR has already looked up its summary of the security situation. Start with its first sentence, that ATDR "
+    "cannot tell whether MFU is under attack right now and how old its newest log is, then answer from the summary in "
+    "under 150 words: what is open, the kinds of attack and what the firewall did, and the "
+    "alert to open first. Give each count exactly as the summary gives it."
+)
 
 
 def _response_lookup(question: str, alert_id: int | None) -> tuple[list[tuple[str, dict[str, Any]]], str | None]:
@@ -1478,13 +1486,15 @@ def answer_assistant_question(
         # names. Not when ATDR looked something else up for the question (a country, a named threat, one alert): then
         # the question is about that.
         situation_note = None
+        attack_status = bool(ATTACK_STATUS_QUESTION.search(clean_question))
         if (
             not action_request
-            and _asks_for_the_situation(clean_question)
+            and (_asks_for_the_situation(clean_question) or attack_status)
             and all(name == "security_overview" for name, _args in lookups)
         ):
-            lookups = [("security_overview", {"time_window": _situation_period(clean_question), "summary": "brief"})]
-            situation_note = SITUATION_NOTE
+            brief = {"time_window": _situation_period(clean_question), "summary": "brief"}
+            lookups = [("security_overview", {**brief, "attack_status": True} if attack_status else brief)]
+            situation_note = ATTACK_STATUS_NOTE if attack_status else SITUATION_NOTE
         outcome = run_agent(
             question=clean_question,
             engine=engine,

@@ -43,6 +43,9 @@ MAX_TOOL_CALLS_PER_ROUND = 4
 # lines to a 3,500 cut (measured 21 Oct 2026; every other tool stayed under 2,900 except the largest alert's detail).
 MAX_TOOL_OUTPUT_CHARS = 4500
 MAX_ANSWER_CHARS = 6000
+TOO_LONG = "answer is too long"
+# How far over the word limit a draft may be and still be cut instead of written again.
+TRIM_INSTEAD_OF_REWRITE = 1.15
 # Numbers this small are ordinary words ("one or two checks", "3 steps").
 FREE_NUMBERS = frozenset({"1", "2", "3"})
 
@@ -158,15 +161,17 @@ ACTION_CLAIM = re.compile(
 # ATDR sees only imported logs, so it cannot say whether MFU is under attack now. Asked exactly that, the model
 # answered "MFU is not currently under attack" from a quiet day of alerts while its newest log was months old.
 # A scripted second draft, "MFU is safe and not under attack", passed: "and not", "isn't", "not currently being
-# attacked" and "MFU is safe" are the same claim.
+# attacked" and "MFU is safe" are the same claim. So is "We are not under a confirmed attack" (22 October).
+ATTACK_KIND = r"(?:(?:active|confirmed|known|ongoing|current|real|actual)\s+)?"
 ATTACK_STATUS_CLAIM = re.compile(
     r"(?:\b(?:is|are)\s+not|\b(?:is|are)n['’]t|\band\s+not|\bnor)\s+(?:currently\s+|now\s+)?(?:being\s+)?"
-    r"(?:under\s+(?:an?\s+)?(?:active\s+)?attack|attacked|hacked)\b"
-    r"|\bno\s+(?:active|ongoing|current)\s+attacks?\b"
+    rf"(?:under\s+(?:an?\s+|any\s+)?{ATTACK_KIND}attack|attacked|hacked)\b"
+    r"|\bno\s+(?:active|ongoing|current|confirmed|known)\s+attacks?\b"
     r"|(?<!whether )(?<!if )(?<!not mean )(?<!n't mean )\b(?:MFU|we|the network|our network)\s+(?:is|are)\s+(?:currently\s+|now\s+)?"
-    r"under\s+(?:an?\s+)?(?:active\s+)?attack\b"
+    rf"under\s+(?:an?\s+)?{ATTACK_KIND}attack\b"
     # "make sure the network is secure" is advice, not a claim.
-    r"|(?<!whether )(?<!if )(?<!sure )(?<!that )\b(?:MFU|we|the network|our network)\s+(?:is|are)\s+(?:currently\s+|now\s+)?"
+    # "The network is not currently safe" claims as much the other way (22 October).
+    r"|(?<!whether )(?<!if )(?<!sure )(?<!that )\b(?:MFU|we|the network|our network)\s+(?:is|are)\s+(?:not\s+)?(?:currently\s+|now\s+)?"
     r"(?:safe|secure)\b(?!\s+to\b)",
     re.IGNORECASE,
 )
@@ -713,7 +718,7 @@ def verify_answer(
     words = len(answer.split())
     if len(answer) > MAX_ANSWER_CHARS or words > limit:
         # The number to aim for goes back to the model; "too long" alone got a rewrite just as long.
-        problems.append(f"answer is too long: {words} words, the limit is {limit}; keep only what matters most")
+        problems.append(f"{TOO_LONG}: {words} words, the limit is {limit}; keep only what matters most")
     for secret in forbidden_values:
         if secret and len(secret) >= 8 and secret in answer:
             problems.append("answer contains a configured secret")
@@ -1103,21 +1108,35 @@ def run_agent(
             answer = trim_to_words(answer, response_contract("conversation").word_limit)
         if ACTION_REQUEST.search(question) and not SAYS_CANNOT.search(answer):
             answer = f"{CANNOT_ACT}\n{answer}"
-        problems = verify_answer(
-            answer,
-            evidence=[*outbound(earlier_answers), *evidence],
-            asked=outbound(asked),
-            redacted=redacted,
-            forbidden_values=forbidden_values or [],
-            tool_names=list(registry),
-            steps_checked=any(
-                registry[item["name"]].provides_steps for item in outcome.tool_trace if item["name"] in registry
-            ),
-            action_requested=bool(ACTION_REQUEST.search(question)),
-            grounded=outcome.grounded,
-            about_atdr=about_atdr,
-            private_request=private_request,
-        )
+        def check(text: str) -> list[str]:
+            return verify_answer(
+                text,
+                evidence=[*outbound(earlier_answers), *evidence],
+                asked=outbound(asked),
+                redacted=redacted,
+                forbidden_values=forbidden_values or [],
+                tool_names=list(registry),
+                steps_checked=any(
+                    registry[item["name"]].provides_steps for item in outcome.tool_trace if item["name"] in registry
+                ),
+                action_requested=bool(ACTION_REQUEST.search(question)),
+                grounded=outcome.grounded,
+                about_atdr=about_atdr,
+                private_request=private_request,
+            )
+
+        problems = check(answer)
+        limit = response_contract("conversation").word_limit
+        if (
+            problems
+            and all(item.startswith(TOO_LONG) for item in problems)
+            and len(answer.split()) <= limit * TRIM_INSTEAD_OF_REWRITE
+        ):
+            # "Are we under attack?" was 8 words over the limit and written a second time, half of its 15 seconds. A
+            # little over, it is cut at a whole line or sentence instead, as a rewrite is, and checked again.
+            trimmed = trim_to_words(answer, limit)
+            if trimmed != answer and not check(trimmed):
+                answer, problems = trimmed, []
         if not problems:
             if any(MODEL_NOTE in item for item in evidence):
                 answer = f"{answer}\n\n{PLANTED_TEXT_WARNING_THAI if THAI_TEXT.search(question) else PLANTED_TEXT_WARNING}"

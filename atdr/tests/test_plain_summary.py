@@ -586,3 +586,77 @@ def test_a_newest_log_dated_outside_the_stored_logs_is_sent_back():
     for fine in ("The newest log is from 20 May 2026 at 13:39.", "The newest log is from 13:39.",
                  "The newest alert was created on 22 Oct 2026, when detection ran."):
         assert check(fine) == [], fine
+
+
+def test_claims_that_mfu_is_or_is_not_under_attack_or_safe_are_sent_back_in_any_wording():
+    from atdr.app.services.assistant_agent import ATTACK_STATUS_CLAIM
+
+    # Relaying the short summary, the model wrote both of the first two (22 October).
+    for claim in ("We are not under a confirmed attack.", "The network is not currently safe.", "There are no confirmed attacks.",
+                  "We are not under any attack.", "MFU is not under attack.", "The network is safe."):
+        assert ATTACK_STATUS_CLAIM.search(claim), claim
+    for fine in ("ATDR cannot tell whether MFU is under attack right now.", "ATDR cannot tell whether the network is safe.",
+                 "Make sure the network is secure.", "This does not mean we are under attack."):
+        assert not ATTACK_STATUS_CLAIM.search(fine), fine
+
+
+def test_a_draft_a_little_over_the_word_limit_is_cut_instead_of_written_again():
+    # "Are we under attack?" was 8 words over the limit of 220 and written a second time: half of its 15 seconds.
+    from atdr.app.services.assistant_agent import run_agent
+    from atdr.tests.test_assistant_agent import _count_tool
+
+    sentence = "The firewall blocked most of these connections from outside."
+    a_little_over = "7 High alerts were created today.\n" + " ".join([sentence] * 24)
+    engine = ScriptedEngine(_call("query_alerts"), _say(a_little_over))
+    outcome = run_agent(question="Tell me about today's alerts", engine=engine, tools=[_count_tool()])
+
+    assert outcome.ok and len(engine.requests) == 2
+    assert outcome.answer.startswith("7 High alerts were created today.\n") and outcome.answer.endswith(sentence)
+    assert len(outcome.answer.split()) <= 220 < len(a_little_over.split()) <= 220 * 1.15
+
+    # Only length is cut away: a number no tool gave, even in the part a cut would drop, gets the draft written again.
+    wrong_tail = a_little_over + " Then 9 more came in."
+    engine = ScriptedEngine(_call("query_alerts"), _say(wrong_tail), _say("7 High alerts were created today."))
+    outcome = run_agent(question="Tell me about today's alerts", engine=engine, tools=[_count_tool()])
+    assert outcome.ok and len(engine.requests) == 3 and outcome.answer == "7 High alerts were created today."
+
+    # What is left after a cut is checked again: asked why to trust the answers, a cut that drops the only sentence
+    # saying how answers are checked is written again.
+    checks = _count_tool("ATDR checks that every number in an answer appears in what the tools returned.")
+    trust_tail = " ".join(["The firewall data comes from MFU's own exports."] * 30) + " Every figure is verified against the tools."
+    engine = ScriptedEngine(_call("query_alerts"), _say(trust_tail), _say("ATDR checks that every number appears in the tools' results."))
+    outcome = run_agent(question="Why should I trust your answers?", engine=engine, tools=[checks])
+    assert outcome.ok and len(engine.requests) == 3 and outcome.answer.startswith("ATDR checks")
+
+    # Far over the limit, the model writes it again.
+    far_over = "7 High alerts were created today.\n" + " ".join([sentence] * 40)
+    engine = ScriptedEngine(_call("query_alerts"), _say(far_over), _say("7 High alerts were created today."))
+    outcome = run_agent(question="Tell me about today's alerts", engine=engine, tools=[_count_tool()])
+    assert outcome.ok and len(engine.requests) == 3 and outcome.answer == "7 High alerts were created today."
+
+
+def test_asked_whether_mfu_is_under_attack_the_model_relays_the_short_summary_opening_with_what_atdr_cannot_know(seeded, monkeypatch):  # noqa: F811
+    # "Are we under attack?" summarized the whole overview, ran past the word limit and was written again: 15 seconds.
+    testing_session, settings = seeded
+    engine = ScriptedEngine(_say("ATDR cannot tell whether MFU is under attack right now."))
+    monkeypatch.setattr(assistant_service, "engine_from_settings", lambda _settings: engine)
+    with testing_session() as db:
+        response = _ask(db, settings, "Are we under attack?")
+        newest = db.scalar(select(func.max(NormalizedLog.generated_time)))
+        engine.replies.append(_say("A summary."))
+        summarized = _ask(db, settings, "Summarize the security situation today")
+
+    looked_up = response["details"]["agent"]["tools_called"][0]
+    assert (looked_up["name"], looked_up["arguments"]) == (
+        "security_overview", {"time_window": "today", "summary": "brief", "attack_status": True}
+    )
+    seen = [message["content"] for message in engine.requests[0][0] if message["role"] == "tool"]
+    assert seen[0].startswith(
+        f"ATDR cannot tell whether MFU is under attack right now: it sees only imported firewall logs, and the newest is "
+        f"from {newest:%d %b %Y %H:%M} (firewall local time).\n"
+    )
+    assert assistant_service.ATTACK_STATUS_NOTE in engine.requests[0][0][0]["content"]
+    # A summary that does not ask about attacks keeps its own note and starts with what is open.
+    asked = [message for message in engine.requests[1][0] if message["role"] == "tool"][0]["content"]
+    assert not asked.startswith("ATDR cannot tell") and assistant_service.SITUATION_NOTE in engine.requests[1][0][0]["content"]
+    assert summarized["details"]["agent"]["tools_called"][0]["arguments"] == {"time_window": "today", "summary": "brief"}
