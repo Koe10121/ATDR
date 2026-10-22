@@ -1306,11 +1306,11 @@ def test_analyst_cannot_block_ip():
 def test_alert_workflow_requires_auth_and_audits_user():
     client = _client()
     try:
-        unauthorized = client.post("/api/alerts/1/resolve")
+        unauthorized = client.post("/api/alerts/1/status", json={"status": "resolved"})
         assert unauthorized.status_code == 401
 
         headers = _login(client, "analyst", "analyst123")
-        resolved = client.post("/api/alerts/1/resolve", headers=headers)
+        resolved = client.post("/api/alerts/1/status", json={"status": "resolved"}, headers=headers)
         assert resolved.status_code == 200
         assert resolved.json()["status"] == "resolved"
 
@@ -1605,7 +1605,7 @@ def test_list_filters_support_react_dashboard_tables(tmp_path):
         assert int(alerts.headers["X-Total-Count"]) == 1
         assert alerts.json()[0]["alert_type"] == "api_test"
 
-        updated = client.post("/api/alerts/1/investigate", headers=analyst_headers)
+        updated = client.post("/api/alerts/1/status", json={"status": "investigating"}, headers=analyst_headers)
         assert updated.status_code == 200
         audit = client.get(
             "/api/audit",
@@ -2492,3 +2492,15 @@ def test_parser_profile_diagnostics_requires_auth_and_hides_private_data():
         assert "global_baseline" not in serialized
     finally:
         app.dependency_overrides.clear()
+
+
+def test_the_api_has_one_way_to_change_an_alerts_status_and_one_to_cancel_a_job():
+    # /investigate, /needs-context, /contain, /resolve and /false-positive did what /status does; /request-cancel
+    # what /cancel does; /api/detection/summary counted what the Overview counts. Nothing called them.
+    # The OpenAPI description lists every router's routes; app.routes holds an included router as one entry.
+    paths = {(method.upper(), path) for path, operations in app.openapi()["paths"].items() for method in operations}
+    for gone in ("investigate", "needs-context", "contain", "resolve", "false-positive"):
+        assert ("POST", f"/api/alerts/{{alert_id}}/{gone}") not in paths
+    assert ("POST", "/api/jobs/{job_id}/request-cancel") not in paths
+    assert ("GET", "/api/detection/summary") not in paths
+    assert {("POST", "/api/alerts/{alert_id}/status"), ("POST", "/api/jobs/{job_id}/cancel")} <= paths

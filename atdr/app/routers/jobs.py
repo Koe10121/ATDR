@@ -26,7 +26,6 @@ from atdr.app.services.job_service import (
     get_job,
     job_to_dict,
     list_jobs,
-    request_job_cancellation,
     resume_import_job,
     retry_job,
 )
@@ -241,22 +240,6 @@ def api_cancel_job(
     _require_job_access(job, current_user)
     try:
         return job_to_dict(cancel_job(db, job, actor=current_user.username))
-    except ValueError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-
-
-@router.post("/{job_id}/request-cancel", response_model=OperationJobRead)
-def api_request_job_cancellation(
-    job_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_analyst_or_admin),
-) -> dict:
-    job = get_job(db, job_id)
-    if job is None:
-        raise HTTPException(status_code=404, detail="Operation job not found.")
-    _require_job_access(job, current_user)
-    try:
-        return job_to_dict(request_job_cancellation(db, job, actor=current_user.username))
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 

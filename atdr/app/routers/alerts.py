@@ -367,51 +367,6 @@ def update_status(
     return _set_alert_status(db, alert_id, request.normalized_status(), current_user.username)
 
 
-@router.post("/{alert_id}/investigate", response_model=AlertStatusResponse)
-def investigate_alert(
-    alert_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_analyst_or_admin),
-) -> dict:
-    return _set_alert_status(db, alert_id, "investigating", current_user.username)
-
-
-@router.post("/{alert_id}/needs-context", response_model=AlertStatusResponse)
-def needs_context_alert(
-    alert_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_analyst_or_admin),
-) -> dict:
-    return _set_alert_status(db, alert_id, "needs_more_context", current_user.username)
-
-
-@router.post("/{alert_id}/contain", response_model=AlertStatusResponse)
-def contain_alert(
-    alert_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_analyst_or_admin),
-) -> dict:
-    return _set_alert_status(db, alert_id, "contained", current_user.username)
-
-
-@router.post("/{alert_id}/resolve", response_model=AlertStatusResponse)
-def resolve_alert(
-    alert_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_analyst_or_admin),
-) -> dict:
-    return _set_alert_status(db, alert_id, "resolved", current_user.username)
-
-
-@router.post("/{alert_id}/false-positive", response_model=AlertStatusResponse)
-def false_positive_alert(
-    alert_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_analyst_or_admin),
-) -> dict:
-    return _set_alert_status(db, alert_id, "false_positive", current_user.username)
-
-
 @router.post("/{alert_id}/notes", response_model=AlertNoteRead)
 def create_alert_note(
     alert_id: int,

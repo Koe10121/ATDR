@@ -348,7 +348,7 @@ def test_resume_is_admin_only_and_running_cancel_request_is_persisted(monkeypatc
             db.commit()
 
         requested = client.post(
-            f"/api/jobs/{resumed_payload['job_id']}/request-cancel",
+            f"/api/jobs/{resumed_payload['job_id']}/cancel",
             headers=admin_headers,
         )
         assert requested.status_code == 200

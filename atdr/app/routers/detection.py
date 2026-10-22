@@ -1,10 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from atdr.app.core.security import require_analyst_or_admin
 from atdr.app.db.database import get_db
-from atdr.app.db.models import Alert, NormalizedLog, User
+from atdr.app.db.models import User
 from atdr.app.schemas.operations import DetectionRunRead
 from atdr.app.services.detection_service import run_detection
 from atdr.app.services.job_service import build_result_summary, complete_job, enqueue_job, fail_job, job_to_dict, start_job
@@ -84,23 +83,6 @@ def api_get_detection_run(
     if run is None:
         raise HTTPException(status_code=404, detail="Detection run not found.")
     return detection_run_to_dict(run)
-
-
-@router.get("/summary")
-def detection_summary(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_analyst_or_admin),
-) -> dict:
-    total_logs = int(db.scalar(select(func.count(NormalizedLog.id))) or 0)
-    total_alerts = int(db.scalar(select(func.count(Alert.id))) or 0)
-    open_alerts = int(db.scalar(select(func.count(Alert.id)).where(Alert.status == "open")) or 0)
-    anomaly_count = int(db.scalar(select(func.count(NormalizedLog.id)).where(NormalizedLog.is_anomaly.is_(True))) or 0)
-    return {
-        "total_logs": total_logs,
-        "total_alerts": total_alerts,
-        "open_alerts": open_alerts,
-        "ml_anomaly_logs": anomaly_count,
-    }
 
 
 @router.get("/tuning")

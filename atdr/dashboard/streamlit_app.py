@@ -1766,16 +1766,16 @@ def alerts_page():
             )
         with right:
             if st.button("Investigating", key=f"investigating_{selected}"):
-                api_post(f"/api/alerts/{selected}/investigate")
+                api_post(f"/api/alerts/{selected}/status", json={"status": "investigating"})
                 st.rerun()
             if st.button("Contained", key=f"contained_{selected}"):
-                api_post(f"/api/alerts/{selected}/contain")
+                api_post(f"/api/alerts/{selected}/status", json={"status": "contained"})
                 st.rerun()
             if st.button("Resolved", key=f"resolve_{selected}"):
-                api_post(f"/api/alerts/{selected}/resolve")
+                api_post(f"/api/alerts/{selected}/status", json={"status": "resolved"})
                 st.rerun()
             if st.button("False Positive", key=f"false_positive_{selected}"):
-                api_post(f"/api/alerts/{selected}/false-positive")
+                api_post(f"/api/alerts/{selected}/status", json={"status": "false_positive"})
                 st.rerun()
             if current_user["role"] == "admin":
                 if target_ip and st.button("Block Selected IP", key=f"block_{selected}"):
