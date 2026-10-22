@@ -318,3 +318,31 @@ def test_the_api_answers_for_a_large_alert_the_way_its_detail_does():
         assert client.get("/api/alerts/1/report?evidence_limit=0", headers=headers).status_code == 422
     finally:
         app.dependency_overrides.clear()
+
+
+def test_the_alert_list_leaves_out_the_scanning_alerts_scanner_list_that_its_detail_shows():
+    # The hourly scanning alert keeps up to 2,000 scanners; the list showed none of them but sent them all.
+    client, engine = _client_with_alert(5)
+    scanners = {f"198.51.100.{n}": {"connections": 40 - n, "targets": 20, "ports": [22, 80]} for n in range(1, 31)}
+    with Session(engine) as db:
+        alert = db.get(Alert, 1)
+        alert.alert_type = "internet_scanning"
+        alert.src_ip = None
+        alert.matched_rules_json = [
+            {"code": "internet_scanning", "title": "Internet scanning", "score": 50, "explanation": "30 scanners"},
+            {"code": "group_metadata", "scanner_count": 30, "connections": 765, "scanners": scanners},
+        ]
+        db.commit()
+    try:
+        login = client.post("/api/auth/login", json={"username": "analyst", "password": "analyst123"})
+        headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+        row = client.get("/api/alerts", headers=headers).json()[0]
+        detail = client.get("/api/alerts/1", headers=headers).json()
+    finally:
+        app.dependency_overrides.clear()
+
+    listed = next(rule for rule in row["matched_rules_json"] if rule["code"] == "group_metadata")
+    shown = next(rule for rule in detail["matched_rules_json"] if rule["code"] == "group_metadata")
+    assert "scanners" not in listed and (listed["scanner_count"], listed["connections"]) == (30, 765)
+    assert shown["scanners"] == scanners
+    assert row["matched_rules_json"][0] == detail["matched_rules_json"][0], "the rules themselves are listed in full"

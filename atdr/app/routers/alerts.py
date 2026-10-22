@@ -47,12 +47,28 @@ from atdr.app.services.source_service import source_ids_for_filters
 router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
 
+def _without_scanner_list(rules: list[dict]) -> list[dict]:
+    """An alert's rules without the hourly scanning alert's list of scanners, which only its detail shows.
+
+    That alert keeps up to SCANNERS_KEPT (2,000) scanners with their ports and answers, so a page of 50 alerts from
+    the live feed, a day of hourly scanning alerts among them, could carry megabytes the list never shows.
+    """
+
+    return [
+        {key: value for key, value in rule.items() if key != "scanners"}
+        if isinstance(rule, dict) and rule.get("code") == "group_metadata"
+        else rule
+        for rule in rules or []
+    ]
+
+
 def _alert_to_dict(
     alert,
     db: Session | None = None,
     *,
     include_detection_summary: bool = False,
     evidence_summary: dict | None = None,
+    list_row: bool = False,
 ) -> dict:
     if evidence_summary is None:
         evidence_count = len(alert.evidence)
@@ -105,7 +121,7 @@ def _alert_to_dict(
         "ticket_reference": alert.ticket_reference,
         "escalated_at": alert.escalated_at,
         "explanation": alert.explanation,
-        "matched_rules_json": alert.matched_rules_json,
+        "matched_rules_json": _without_scanner_list(alert.matched_rules_json) if list_row else alert.matched_rules_json,
         # Same function the detail drawer uses, so list and drawer can't disagree.
         "attack_type": infer_attack_type_from_rules(alert.matched_rules_json or []),
         "recommended_response": alert.recommended_response,
@@ -191,6 +207,7 @@ def api_list_alerts(
         _alert_to_dict(
             alert,
             evidence_summary=evidence_summaries.get(int(alert.id)),
+            list_row=True,
         )
         for alert in alert_rows
     ]
