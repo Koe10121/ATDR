@@ -44,14 +44,14 @@ export function MLEvidenceSnapshotPanel({ snapshot, loading, error }: MLEvidence
         </div>
       </div>
 
-      {loading ? <div className="rounded border border-line bg-panel2 p-4 text-sm text-muted">Loading canonical evidence...</div> : null}
+      {loading ? <div className="rounded-sm border border-line bg-panel2 p-4 text-sm text-muted">Loading canonical evidence...</div> : null}
       {error ? (
-        <div className="rounded border border-danger/30 bg-danger/10 p-4 text-sm text-danger">
+        <div className="rounded-sm border border-danger/30 bg-danger/10 p-4 text-sm text-danger">
           Canonical ML evidence could not be loaded. No historical metric fallback was used.
         </div>
       ) : null}
       {!loading && !error && evidence && !evidence.available ? (
-        <div className="rounded border border-amber/30 bg-amber/10 p-4 text-sm text-amber">
+        <div className="rounded-sm border border-amber/30 bg-amber/10 p-4 text-sm text-amber">
           <div className="font-bold">Canonical evidence unavailable</div>
           <div className="mt-1">{evidence.reason}</div>
         </div>
@@ -69,19 +69,19 @@ export function MLEvidenceSnapshotPanel({ snapshot, loading, error }: MLEvidence
           </div>
 
           <div className="mt-4 grid gap-3 lg:grid-cols-3">
-            <div className="rounded border border-line bg-panel2 p-4 text-sm">
+            <div className="rounded-sm border border-line bg-panel2 p-4 text-sm">
               <div className="font-extrabold uppercase text-muted">Evidence Provenance</div>
               <div className="mt-2 font-bold text-text">{evidence.dataset?.title ?? "Dataset not recorded"}</div>
               <div className="mt-1 text-muted">{evidence.dataset?.publisher}</div>
               <div className="mt-2 text-muted">Snapshot {evidence.snapshot_id} | {displayDate(evidence.generated_at)}</div>
             </div>
-            <div className="rounded border border-line bg-panel2 p-4 text-sm">
+            <div className="rounded-sm border border-line bg-panel2 p-4 text-sm">
               <div className="font-extrabold uppercase text-muted">Selected Diagnostic</div>
-              <div className="mt-2 break-words font-bold text-text">{evidence.selected_strategy?.replaceAll("_", " ")}</div>
+              <div className="mt-2 wrap-break-word font-bold text-text">{evidence.selected_strategy?.replaceAll("_", " ")}</div>
               <div className="mt-1 text-muted">{evidence.evaluated_splits ?? 0} development splits | not active</div>
               <div className="mt-2 text-muted">Worst split: {evidence.worst_split?.split_mode?.replaceAll("_", " ") ?? "not recorded"}</div>
             </div>
-            <div className="rounded border border-amber/30 bg-amber/10 p-4 text-sm">
+            <div className="rounded-sm border border-amber/30 bg-amber/10 p-4 text-sm">
               <div className="font-extrabold uppercase text-amber">Calibration</div>
               <div className="mt-2 font-bold text-text">{evidence.calibration?.status ?? "unknown"}</div>
               <div className="mt-1 text-muted">ECE {evidence.calibration?.expected_calibration_error ?? "-"} | max gap {evidence.calibration?.max_confidence_accuracy_gap ?? "-"}</div>
@@ -124,7 +124,7 @@ export function MLEvidenceSnapshotPanel({ snapshot, loading, error }: MLEvidence
       </div>
 
       {abstention ? (
-        <details className="mt-4 rounded border border-line bg-panel2 p-3 text-sm">
+        <details className="mt-4 rounded-sm border border-line bg-panel2 p-3 text-sm">
           <summary className="cursor-pointer font-bold text-text">Schema compatibility policy</summary>
           <div className="mt-3 grid gap-2 text-muted md:grid-cols-2">
             <div>Expected evidence: {abstention.expected_schema_id.replaceAll("_", " ")}</div>
@@ -136,7 +136,7 @@ export function MLEvidenceSnapshotPanel({ snapshot, loading, error }: MLEvidence
       ) : null}
 
       {evidence?.limitations?.length || supervised?.message ? (
-        <details className="mt-4 rounded border border-line bg-panel2 p-3 text-sm">
+        <details className="mt-4 rounded-sm border border-line bg-panel2 p-3 text-sm">
           <summary className="cursor-pointer font-bold text-text">Provenance and limitations</summary>
           <div className="mt-3 space-y-2 text-muted">
             {supervised?.message ? <div>{supervised.message}</div> : null}

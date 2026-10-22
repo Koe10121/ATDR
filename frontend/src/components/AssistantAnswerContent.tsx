@@ -109,7 +109,7 @@ function SectionCard({ title, items }: { title: string; items: string[] }) {
       <div className="text-xs font-black uppercase tracking-wide text-muted">{title}</div>
       <ul className="mt-3 list-disc space-y-2 pl-5 text-sm font-semibold leading-relaxed text-text marker:text-danger">
         {items.map((item, index) => (
-          <li key={`${title}-${index}`} className="break-words">
+          <li key={`${title}-${index}`} className="wrap-break-word">
             {item}
           </li>
         ))}
@@ -177,7 +177,7 @@ export function AssistantCitationList({ citations }: { citations: AssistantCitat
               className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-panel2 px-3 py-2"
             >
               <div className="min-w-0">
-                <div className="break-words font-black text-text">{citation.label}</div>
+                <div className="wrap-break-word font-black text-text">{citation.label}</div>
                 <div className="mt-1 break-all text-xs text-muted">
                   {citation.source}
                   {citation.reference_id ? <span className="ml-1 font-bold text-text">{refLabel}</span> : null}
@@ -231,7 +231,7 @@ export function AssistantAnswerProvenance({ response }: { response: AssistantCha
         <div className="min-w-0">
           <div className="text-[11px] font-black uppercase tracking-wide text-muted">Answer provenance</div>
           <div className="mt-1 text-sm font-black text-text" data-testid="assistant-provenance-origin">{origin}</div>
-          <div className="mt-1 break-words text-xs font-semibold text-muted" data-testid="assistant-provenance-scope">
+          <div className="mt-1 wrap-break-word text-xs font-semibold text-muted" data-testid="assistant-provenance-scope">
             Evidence: {evidenceScope.join(", ")} ({provenance?.citation_count ?? response.citations.length} references)
           </div>
         </div>
@@ -258,7 +258,7 @@ export function AssistantAnswerContent({ response }: { response: AssistantChatRe
         <div className="text-[11px] font-black uppercase tracking-wide text-cyan">
           {responseModeLabel(response.response_mode)}
         </div>
-        <div className="mt-2 text-sm font-semibold leading-relaxed text-text whitespace-pre-wrap break-words">
+        <div className="mt-2 text-sm font-semibold leading-relaxed text-text whitespace-pre-wrap wrap-break-word">
           {response.answer}
         </div>
       </div>
@@ -285,7 +285,7 @@ export function AssistantTechnicalContext({ response }: { response: AssistantCha
     <details className="rounded-lg border border-line bg-panel2 p-4">
       <summary className="cursor-pointer text-sm font-black uppercase tracking-wide text-muted">Technical context</summary>
       <pre
-        className="mt-3 max-h-80 overflow-auto rounded-lg border border-line bg-panel2 p-3 text-xs leading-relaxed text-muted whitespace-pre-wrap break-words"
+        className="mt-3 max-h-80 overflow-auto rounded-lg border border-line bg-panel2 p-3 text-xs leading-relaxed text-muted whitespace-pre-wrap wrap-break-word"
         data-testid="assistant-technical-context"
       >
         {JSON.stringify(

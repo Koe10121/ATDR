@@ -477,7 +477,7 @@ export function ExecutiveOverview() {
             <div className="text-xs font-extrabold uppercase tracking-wide text-amber">Operational Warnings</div>
             <div className="mt-2 grid gap-1 text-sm text-text lg:grid-cols-2">
               {operationWarnings.slice(0, 4).map((warning) => (
-                <div key={warning.code} className="break-words">
+                <div key={warning.code} className="wrap-break-word">
                   <span className="font-bold capitalize">{warning.code.replaceAll("_", " ")}:</span> {warning.message}
                 </div>
               ))}
@@ -495,7 +495,7 @@ export function ExecutiveOverview() {
               {parserOperationalAlerts.slice(0, 6).map((alert, index) => (
                 <button
                   type="button"
-                  className="break-words text-left"
+                  className="wrap-break-word text-left"
                   key={`${alert.sourceId}-${alert.code}-${index}`}
                   onClick={() => setSelectedSourceId(alert.sourceId)}
                 >
@@ -612,7 +612,7 @@ export function ExecutiveOverview() {
           </div>
           <div className="rounded-lg border border-line bg-panel2 p-3 text-sm">
             <div className="text-xs font-bold uppercase tracking-wide text-muted">Latest Failed Job</div>
-            <div className="mt-1 break-words font-bold text-text">
+            <div className="mt-1 wrap-break-word font-bold text-text">
               {latestFailedJob ? `#${latestFailedJob.job_id} ${latestFailedJob.job_type.replaceAll("_", " ")}` : "-"}
             </div>
           </div>
@@ -622,7 +622,7 @@ export function ExecutiveOverview() {
           <div className="mt-3 grid gap-3 lg:grid-cols-2">
             <div className="space-y-2">
               {(ingestionRuns.data ?? []).slice(0, 5).map((run) => (
-                <div key={run.run_id} className="rounded border border-line bg-shell p-3 text-sm text-muted">
+                <div key={run.run_id} className="rounded-sm border border-line bg-shell p-3 text-sm text-muted">
                   <div className="font-bold text-text">Ingestion #{run.run_id} | {run.status}</div>
                   <div>{run.source_type} | parsed {run.parsed_successfully} | failed {run.parse_failures} | {run.runtime_seconds ?? "-"}s</div>
                 </div>
@@ -630,7 +630,7 @@ export function ExecutiveOverview() {
             </div>
             <div className="space-y-2">
               {(detectionRuns.data ?? []).slice(0, 5).map((run) => (
-                <div key={run.run_id} className="rounded border border-line bg-shell p-3 text-sm text-muted">
+                <div key={run.run_id} className="rounded-sm border border-line bg-shell p-3 text-sm text-muted">
                   <div className="font-bold text-text">Detection #{run.run_id} | {run.status}</div>
                   <div>{run.detection_type} | evaluated {run.logs_evaluated} | created {run.alerts_created} | dedup {run.alerts_deduplicated}</div>
                 </div>
@@ -639,7 +639,7 @@ export function ExecutiveOverview() {
           </div>
           <div className="mt-3 space-y-2">
             {(jobs.data ?? []).slice(0, 5).map((job) => (
-              <div key={job.job_id} className="rounded border border-line bg-shell p-3 text-sm text-muted">
+              <div key={job.job_id} className="rounded-sm border border-line bg-shell p-3 text-sm text-muted">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="font-bold text-text">
                     Job #{job.job_id} | {job.job_type.replaceAll("_", " ")} | {job.status}
@@ -703,14 +703,14 @@ export function ExecutiveOverview() {
                     style={{ width: `${Math.max(0, Math.min(100, job.progress_percentage ?? 0))}%` }}
                   />
                 </div>
-                {job.error_summary ? <div className="mt-1 break-words text-amber">{job.error_summary}</div> : null}
+                {job.error_summary ? <div className="mt-1 wrap-break-word text-amber">{job.error_summary}</div> : null}
                 {job.resume_ineligible_reason && ["import_logs", "replay_logs"].includes(job.job_type) && ["failed", "cancelled"].includes(job.status) ? (
-                  <div className="mt-1 break-words text-xs text-muted">Resume unavailable: {job.resume_ineligible_reason}</div>
+                  <div className="mt-1 wrap-break-word text-xs text-muted">Resume unavailable: {job.resume_ineligible_reason}</div>
                 ) : null}
                 {(job.checkpoint_line ?? 0) > 0 ? (
                   <details className="mt-2 text-xs">
                     <summary className="cursor-pointer font-bold text-muted">Technical details</summary>
-                    <div className="mt-1 break-words text-muted">
+                    <div className="mt-1 wrap-break-word text-muted">
                       Checkpoint line {job.checkpoint_line} | bytes {job.checkpoint_bytes ?? 0} | chunks {job.chunk_commits ?? 0}
                       {job.resume_of_job_id ? ` | resumed from job #${job.resume_of_job_id}` : ""}
                     </div>
@@ -789,7 +789,7 @@ export function ExecutiveOverview() {
                 <div className="text-sm font-extrabold uppercase tracking-wide text-amber">Parser Quality Alerts</div>
                 <div className="mt-2 space-y-2 text-sm text-text">
                   {(sourceDetail.data.quality?.operational_alerts ?? []).map((alert) => (
-                    <div className="break-words" key={alert.code}>
+                    <div className="wrap-break-word" key={alert.code}>
                       <span className="font-bold capitalize">{alert.code.replaceAll("_", " ")}:</span> {alert.message}
                     </div>
                   ))}
@@ -800,7 +800,7 @@ export function ExecutiveOverview() {
               <div className="text-sm font-extrabold uppercase tracking-wide text-muted">Troubleshooting Hints</div>
               <div className="mt-2 space-y-2 text-sm text-muted">
                 {!sourceDetail.data.enabled ? (
-                  <div className="rounded border border-cyan/30 bg-cyan/10 p-2 text-cyan">
+                  <div className="rounded-sm border border-cyan/30 bg-cyan/10 p-2 text-cyan">
                     Disabled sources keep all historical raw logs, normalized rows, alerts, labels, and audit evidence. Re-enable it when the sender should be monitored again.
                   </div>
                 ) : null}
@@ -810,10 +810,10 @@ export function ExecutiveOverview() {
                   fields, generic syslog preserves minimal wrapper data, and raw fallback preserves raw evidence while structured fields may be limited.
                 </div>
                 {(sourceDetail.data.health.warnings ?? []).map((warning) => (
-                  <div key={warning} className="rounded border border-amber/30 bg-amber/10 p-2 text-amber">{warning}</div>
+                  <div key={warning} className="rounded-sm border border-amber/30 bg-amber/10 p-2 text-amber">{warning}</div>
                 ))}
                 {(sourceDetail.data.quality?.warnings ?? []).map((warning) => (
-                  <div key={warning} className="rounded border border-amber/30 bg-amber/10 p-2 text-amber">{warning}</div>
+                  <div key={warning} className="rounded-sm border border-amber/30 bg-amber/10 p-2 text-amber">{warning}</div>
                 ))}
               </div>
             </section>
@@ -849,7 +849,7 @@ export function ExecutiveOverview() {
               <div className="text-sm font-extrabold uppercase tracking-wide text-muted">Recent Ingestion Runs</div>
               <div className="mt-3 space-y-2">
                 {(sourceDetail.data.recent_ingestion_runs ?? []).map((run) => (
-                  <div key={run.run_id} className="rounded border border-line bg-shell p-3 text-sm text-muted">
+                  <div key={run.run_id} className="rounded-sm border border-line bg-shell p-3 text-sm text-muted">
                     <div className="font-bold text-text">Run #{run.run_id} | {run.status}</div>
                     <div>{run.source_type} | parsed {run.parsed_successfully} | failed {run.parse_failures} | {run.runtime_seconds ?? "-"}s</div>
                     {parserQualityDetail(run.details) ? (
@@ -872,7 +872,7 @@ export function ExecutiveOverview() {
               <div className="text-sm font-extrabold uppercase tracking-wide text-muted">Recent Detection Runs</div>
               <div className="mt-3 space-y-2">
                 {(sourceDetail.data.recent_detection_runs ?? []).map((run) => (
-                  <div key={run.run_id} className="rounded border border-line bg-shell p-3 text-sm text-muted">
+                  <div key={run.run_id} className="rounded-sm border border-line bg-shell p-3 text-sm text-muted">
                     <div className="font-bold text-text">Run #{run.run_id} | {run.status}</div>
                     <div>
                       {run.detection_type} | evaluated {run.logs_evaluated} | created {run.alerts_created} | dedup {run.alerts_deduplicated} |{" "}

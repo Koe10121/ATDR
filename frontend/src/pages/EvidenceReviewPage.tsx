@@ -340,7 +340,7 @@ function DetectionWorkspace({
             {Object.entries(item.evidence).map(([key, value]) => (
               <div key={key} className="min-w-0 border-b border-line pb-2">
                 <dt className="text-xs font-black uppercase tracking-wide text-muted">{formatFieldName(key)}</dt>
-                <dd className="mt-1 break-words text-sm font-semibold text-text">{safeDisplayValue(value)}</dd>
+                <dd className="mt-1 wrap-break-word text-sm font-semibold text-text">{safeDisplayValue(value)}</dd>
               </div>
             ))}
           </dl>
@@ -475,11 +475,11 @@ function AssistantWorkspace({
           </div>
           <div className="mt-4 border-b border-line pb-4">
             <div className="text-xs font-black uppercase tracking-wide text-muted">Question</div>
-            <div className="mt-2 break-words text-base font-bold">{item.question}</div>
+            <div className="mt-2 wrap-break-word text-base font-bold">{item.question}</div>
           </div>
           <div className="border-b border-line py-4">
             <div className="text-xs font-black uppercase tracking-wide text-muted">Answer</div>
-            <div className="mt-2 whitespace-pre-wrap break-words text-sm leading-6">{item.answer}</div>
+            <div className="mt-2 whitespace-pre-wrap wrap-break-word text-sm leading-6">{item.answer}</div>
           </div>
           <div className="pt-4">
             <div className="text-xs font-black uppercase tracking-wide text-muted">Citations</div>
@@ -626,7 +626,7 @@ function ManualAnchorWorkspace({
             {Object.entries(item.evidence).map(([key, value]) => (
               <div key={key} className="min-w-0 border-b border-line pb-2">
                 <dt className="text-xs font-black uppercase tracking-wide text-muted">{formatFieldName(key)}</dt>
-                <dd className="mt-1 break-words text-sm font-semibold text-text">{safeDisplayValue(value)}</dd>
+                <dd className="mt-1 wrap-break-word text-sm font-semibold text-text">{safeDisplayValue(value)}</dd>
               </div>
             ))}
           </dl>
@@ -936,7 +936,7 @@ function SupplementalThreatAnchorWorkspace({
             {Object.entries(item.evidence).map(([key, value]) => (
               <div key={key} className="min-w-0 border-b border-line pb-2">
                 <dt className="text-xs font-black uppercase tracking-wide text-muted">{formatFieldName(key)}</dt>
-                <dd className="mt-1 break-words text-sm font-semibold text-text">{safeDisplayValue(value)}</dd>
+                <dd className="mt-1 wrap-break-word text-sm font-semibold text-text">{safeDisplayValue(value)}</dd>
               </div>
             ))}
           </dl>

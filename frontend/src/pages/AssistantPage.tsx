@@ -530,7 +530,7 @@ function AssistantProviderTelemetry({ response }: { response: AssistantChatRespo
           <div><span className="uppercase tracking-wide">Redaction:</span> <span className="text-text">{boolLabel(response.redaction_applied, "Applied", "Not applied")}</span></div>
           <div><span className="uppercase tracking-wide">Secrets:</span> <span className="text-text">{boolLabel(llm?.secrets_exposed, "Check required", "Not exposed", "Not exposed")}</span></div>
           {llm?.failure_category ? <div><span className="uppercase tracking-wide">Fallback class:</span> <span className="text-text">{llm.failure_category.replaceAll("_", " ")}</span></div> : null}
-          <div><span className="uppercase tracking-wide">Contract:</span> <span className="break-words text-text">{promptContract ?? "Local deterministic"}</span></div>
+          <div><span className="uppercase tracking-wide">Contract:</span> <span className="wrap-break-word text-text">{promptContract ?? "Local deterministic"}</span></div>
           <div><span className="uppercase tracking-wide">Output:</span> <span className="text-text">{providerCalled ? boolLabel(llm?.structured_output_valid, "Validated", "Fallback") : "Local"}</span></div>
           <div><span className="uppercase tracking-wide">Latency:</span> <span className="text-text">{typeof llm?.latency_ms === "number" ? `${llm.latency_ms} ms` : "Not called"}</span></div>
           <div><span className="uppercase tracking-wide">Attempts:</span> <span className="text-text">{llm?.attempts ?? 0}</span></div>
@@ -1087,7 +1087,7 @@ export function AssistantPage() {
           </label>
           <textarea
             id="assistant-question"
-            className="mt-3 min-h-36 w-full rounded-lg border border-line bg-panel2 p-3 text-sm font-semibold text-text outline-none transition focus:border-cyan"
+            className="mt-3 min-h-36 w-full rounded-lg border border-line bg-panel2 p-3 text-sm font-semibold text-text outline-hidden transition focus:border-cyan"
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
             onKeyDown={(event) => {
@@ -1219,8 +1219,8 @@ export function AssistantPage() {
                   <ol className="mt-3 space-y-3">
                     {previousConversationTurns.map((turn) => (
                       <li key={turn.id} className="rounded-lg border border-line bg-panel2 p-3">
-                        <div className="break-words text-xs font-black text-text">{turn.question}</div>
-                        <div className="mt-1 break-words text-xs font-semibold text-muted">
+                        <div className="wrap-break-word text-xs font-black text-text">{turn.question}</div>
+                        <div className="mt-1 wrap-break-word text-xs font-semibold text-muted">
                           {turn.response.answer.slice(0, 240)}{turn.response.answer.length > 240 ? "..." : ""}
                         </div>
                       </li>
@@ -1267,7 +1267,7 @@ export function AssistantPage() {
                 </label>
                 <textarea
                   id="assistant-feedback-note"
-                  className="mt-2 min-h-20 w-full rounded-lg border border-line bg-panel2 p-3 text-sm font-semibold text-text outline-none transition focus:border-cyan"
+                  className="mt-2 min-h-20 w-full rounded-lg border border-line bg-panel2 p-3 text-sm font-semibold text-text outline-hidden transition focus:border-cyan"
                   value={feedbackNote}
                   onChange={(event) => setFeedbackNote(event.target.value)}
                   placeholder="Short note for answer-quality review."
@@ -1338,7 +1338,7 @@ export function AssistantPage() {
                   <tr key={item.id} className="border-b border-line/70">
                     <td className="px-3 py-2 font-semibold text-muted">{item.created_at ? new Date(item.created_at).toLocaleString() : "-"}</td>
                     <td className="px-3 py-2 font-semibold text-text">{item.actor}</td>
-                    <td className="max-w-xl px-3 py-2 font-semibold text-text break-words">{item.question}</td>
+                    <td className="max-w-xl px-3 py-2 font-semibold text-text wrap-break-word">{item.question}</td>
                     <td className="px-3 py-2 font-semibold text-muted">{item.context_used.join(", ") || "-"}</td>
                     <td className="px-3 py-2 font-semibold text-muted">{item.external_provider_used ? "External" : "Local"}</td>
                   </tr>
@@ -1452,8 +1452,8 @@ export function AssistantPage() {
                     <span className="text-sm font-black text-text">{item.rating.replaceAll("_", " ")}</span>
                     <Badge value="Review Recommended" />
                   </div>
-                  <div className="mt-2 text-sm font-semibold text-text break-words">{item.question}</div>
-                  <div className="mt-2 text-xs font-semibold text-muted break-words">{item.review_reason ?? "Review recommended."}</div>
+                  <div className="mt-2 text-sm font-semibold text-text wrap-break-word">{item.question}</div>
+                  <div className="mt-2 text-xs font-semibold text-muted wrap-break-word">{item.review_reason ?? "Review recommended."}</div>
                 </div>
               ))}
             </div>
@@ -1484,8 +1484,8 @@ export function AssistantPage() {
                       {item.context_type ?? "-"}
                       {item.context_reference ? ` #${item.context_reference}` : ""}
                     </td>
-                    <td className="max-w-xl px-3 py-2 font-semibold text-text break-words">{item.question}</td>
-                    <td className="max-w-lg px-3 py-2 font-semibold text-muted break-words">{item.answer_summary ?? "-"}</td>
+                    <td className="max-w-xl px-3 py-2 font-semibold text-text wrap-break-word">{item.question}</td>
+                    <td className="max-w-lg px-3 py-2 font-semibold text-muted wrap-break-word">{item.answer_summary ?? "-"}</td>
                     <td className="px-3 py-2 font-semibold text-muted">
                       {item.action_executed ? "Action executed" : "No action"}
                       {item.raw_log_context_included ? " / raw context" : ""}

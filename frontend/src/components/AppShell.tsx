@@ -117,7 +117,7 @@ export function AppShell() {
       >
         Skip to main content
       </a>
-      <aside className="fixed inset-y-0 left-0 z-20 hidden w-72 border-r border-maroonDeep bg-gradient-to-b from-maroon to-maroonDeep p-5 text-white shadow-panel lg:block">
+      <aside className="fixed inset-y-0 left-0 z-20 hidden w-72 border-r border-maroonDeep bg-linear-to-b from-maroon to-maroonDeep p-5 text-white shadow-panel lg:block">
         <div className="border-b border-white/15 pb-5">
           <div className="text-[11px] font-black uppercase tracking-[0.2em] text-gold">Mae Fah Luang University</div>
           <div className="mt-2 text-xl font-black text-white">MFU ATDR</div>
@@ -159,7 +159,7 @@ export function AppShell() {
       </aside>
 
       <div className="lg:pl-72">
-        <header className="sticky top-0 z-10 border-b border-line border-t-4 border-t-gold bg-panel/95 px-5 py-3 shadow-sm backdrop-blur">
+        <header className="sticky top-0 z-10 border-b border-line border-t-4 border-t-gold bg-panel/95 px-5 py-3 shadow-xs backdrop-blur-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <div className="text-xs font-extrabold uppercase tracking-wide text-cyan">MFU Security Operations</div>
@@ -200,7 +200,7 @@ export function AppShell() {
               API health check failed. Confirm FastAPI is running.
             </div>
           ) : null}
-          <main id="main-content" ref={mainRef} tabIndex={-1} className="focus:outline-none">
+          <main id="main-content" ref={mainRef} tabIndex={-1} className="focus:outline-hidden">
             <RouteErrorBoundary key={location.pathname}>
               <Outlet />
             </RouteErrorBoundary>

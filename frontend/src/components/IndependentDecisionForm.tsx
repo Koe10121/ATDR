@@ -144,7 +144,7 @@ export function IndependentDecisionForm<TItem extends IndependentDecisionFormIte
           <span className="font-mono font-bold">Ctrl+Enter</span> save &amp; next
         </div>
       ) : null}
-      <form ref={formRef} tabIndex={-1} className="mt-4 space-y-4 outline-none" onSubmit={submit} onKeyDown={onFormKeyDown}>
+      <form ref={formRef} tabIndex={-1} className="mt-4 space-y-4 outline-hidden" onSubmit={submit} onKeyDown={onFormKeyDown}>
         <label className="block text-sm font-bold">
           Final decision
           <SafeSelect

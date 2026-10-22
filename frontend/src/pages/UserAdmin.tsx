@@ -213,7 +213,7 @@ export function UserAdmin() {
           </div>
           <div className="rounded-lg border border-line bg-panel2 p-3">
             <div className="text-xs uppercase tracking-wide text-muted">Allowed Domains</div>
-            <div className="mt-1 break-words font-bold">
+            <div className="mt-1 wrap-break-word font-bold">
               {oidcStatus.data?.allowed_domains.length ? oidcStatus.data.allowed_domains.join(", ") : "Not configured"}
             </div>
           </div>
@@ -229,7 +229,7 @@ export function UserAdmin() {
           </div>
           <div className="rounded-lg border border-line bg-panel2 p-3">
             <div className="text-xs uppercase tracking-wide text-muted">School Domains</div>
-            <div className="mt-1 break-words font-bold">
+            <div className="mt-1 wrap-break-word font-bold">
               {schoolDomains.length ? schoolDomains.join(", ") : "Not configured"}
             </div>
           </div>
@@ -289,7 +289,7 @@ export function UserAdmin() {
         <div className="mt-3 grid gap-3 md:grid-cols-4">
           <div className="rounded-lg border border-line bg-panel2 p-3">
             <div className="text-xs uppercase tracking-wide text-muted">School Domains</div>
-            <div className="mt-1 break-words font-bold">{mfuDomains.length ? mfuDomains.join(", ") : "Not configured"}</div>
+            <div className="mt-1 wrap-break-word font-bold">{mfuDomains.length ? mfuDomains.join(", ") : "Not configured"}</div>
           </div>
           <div className="rounded-lg border border-line bg-panel2 p-3">
             <div className="text-xs uppercase tracking-wide text-muted">Default Role</div>
@@ -365,7 +365,7 @@ export function UserAdmin() {
           </div>
           <div className="rounded-lg border border-line bg-panel2 p-3">
             <div className="text-xs uppercase tracking-wide text-muted">Allowed Domains</div>
-            <div className="mt-1 break-words font-bold">{schoolDomains.length ? schoolDomains.join(", ") : "Not configured"}</div>
+            <div className="mt-1 wrap-break-word font-bold">{schoolDomains.length ? schoolDomains.join(", ") : "Not configured"}</div>
           </div>
           <div className="rounded-lg border border-line bg-panel2 p-3">
             <div className="text-xs uppercase tracking-wide text-muted">Local Email Login</div>
@@ -397,7 +397,7 @@ export function UserAdmin() {
                       <td className="break-all">{item.recipient_email}</td>
                       <td>{item.purpose}</td>
                       <td><Badge value={item.delivery_status} /></td>
-                      <td className="max-w-xl whitespace-pre-wrap break-words">{item.body_preview}</td>
+                      <td className="max-w-xl whitespace-pre-wrap wrap-break-word">{item.body_preview}</td>
                     </tr>
                   ))}
                 </tbody>

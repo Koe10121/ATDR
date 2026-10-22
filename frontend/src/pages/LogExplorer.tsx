@@ -427,7 +427,7 @@ export function LogExplorer() {
                 {selected.triage_explanation.normalized_signals.length ? (
                   <div className="mb-3 flex flex-wrap gap-2">
                     {selected.triage_explanation.normalized_signals.slice(0, 6).map((signal) => (
-                      <span key={signal} className="rounded border border-line bg-panel2 px-2 py-1 text-xs font-bold text-muted">
+                      <span key={signal} className="rounded-sm border border-line bg-panel2 px-2 py-1 text-xs font-bold text-muted">
                         {signal}
                       </span>
                     ))}
@@ -435,15 +435,15 @@ export function LogExplorer() {
                 ) : null}
                 <div className="grid gap-2 md:grid-cols-2">
                   {selected.triage_explanation.reasons.slice(0, 4).map((reason) => (
-                    <div key={reason} className="rounded border border-line bg-shell p-3 text-sm text-muted">{reason}</div>
+                    <div key={reason} className="rounded-sm border border-line bg-shell p-3 text-sm text-muted">{reason}</div>
                   ))}
                 </div>
                 <div className="mt-3 grid gap-2 md:grid-cols-2">
-                  <div className="rounded border border-line bg-panel2 p-3">
+                  <div className="rounded-sm border border-line bg-panel2 p-3">
                     <div className="text-xs font-bold uppercase tracking-wide text-muted">Evidence strength</div>
                     <div className="mt-1 text-sm font-bold text-text">{selected.triage_explanation.evidence_strength ?? "analyst review required"}</div>
                   </div>
-                  <div className="rounded border border-line bg-panel2 p-3">
+                  <div className="rounded-sm border border-line bg-panel2 p-3">
                     <div className="text-xs font-bold uppercase tracking-wide text-muted">Missing context</div>
                     <div className="mt-1 text-sm font-semibold text-text">
                       {selected.triage_explanation.missing_context?.length
@@ -457,7 +457,7 @@ export function LogExplorer() {
                     <summary className="cursor-pointer text-sm font-bold text-text">Parser notes</summary>
                     <div className="mt-2 space-y-2">
                       {selected.triage_explanation.parser_warnings.map((warning) => (
-                        <div key={warning} className="rounded border border-amber/30 bg-amber/10 p-2 text-sm text-amber">{warning}</div>
+                        <div key={warning} className="rounded-sm border border-amber/30 bg-amber/10 p-2 text-sm text-amber">{warning}</div>
                       ))}
                     </div>
                   </details>

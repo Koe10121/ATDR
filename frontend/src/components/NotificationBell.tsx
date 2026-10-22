@@ -28,12 +28,12 @@ function Entry({ item, fresh, onOpen }: { item: NotificationItem; fresh: boolean
             <span className="sr-only">{level.words}: </span>
             {item.title}
             {fresh ? (
-              <span className="ml-2 rounded bg-cyan/15 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wide text-cyan" data-testid="notification-new">
+              <span className="ml-2 rounded-sm bg-cyan/15 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wide text-cyan" data-testid="notification-new">
                 New
               </span>
             ) : null}
           </div>
-          {item.body ? <div className="mt-0.5 whitespace-pre-line break-words text-xs text-muted">{item.body}</div> : null}
+          {item.body ? <div className="mt-0.5 whitespace-pre-line wrap-break-word text-xs text-muted">{item.body}</div> : null}
           <div className="mt-1 text-[11px] text-muted">{when(item.created_at)}</div>
         </div>
       </div>
@@ -42,7 +42,7 @@ function Entry({ item, fresh, onOpen }: { item: NotificationItem; fresh: boolean
   return (
     <li className={clsx("border-t border-line first:border-t-0", fresh && "bg-cyan/5")} data-testid="notification-item">
       {item.link ? (
-        <Link to={item.link} onClick={onOpen} className="block px-4 py-3 hover:bg-panel2 focus:bg-panel2 focus:outline-none">
+        <Link to={item.link} onClick={onOpen} className="block px-4 py-3 hover:bg-panel2 focus:bg-panel2 focus:outline-hidden">
           {content}
         </Link>
       ) : (

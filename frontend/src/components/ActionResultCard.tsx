@@ -149,13 +149,13 @@ export function ActionResultCard({ title, result, kind = "generic" }: ActionResu
         </span>
       </div>
 
-      {hasSafeSampleNote ? <div className="mt-3 rounded border border-amber/30 bg-amber/10 p-2 text-xs text-amber">{safeSampleNote}</div> : null}
+      {hasSafeSampleNote ? <div className="mt-3 rounded-sm border border-amber/30 bg-amber/10 p-2 text-xs text-amber">{safeSampleNote}</div> : null}
 
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         {summary.map(([label, value]) => (
-          <div key={String(label)} className="min-w-0 rounded border border-line/80 bg-shell/50 px-3 py-2">
+          <div key={String(label)} className="min-w-0 rounded-sm border border-line/80 bg-shell/50 px-3 py-2">
             <div className="text-[11px] font-bold uppercase tracking-wide text-muted">{String(label)}</div>
-            <div className="mt-1 break-words text-sm font-bold text-text">{shortValue(value)}</div>
+            <div className="mt-1 wrap-break-word text-sm font-bold text-text">{shortValue(value)}</div>
           </div>
         ))}
       </div>

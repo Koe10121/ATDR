@@ -249,7 +249,7 @@ export function SupervisedEvidenceExpansionPanel() {
                       {Object.entries(item.data.evidence).map(([key, value]) => (
                         <div key={key} className="min-w-0 border-b border-line pb-2">
                           <dt className="text-xs font-black uppercase tracking-wide text-muted">{formatFieldName(key)}</dt>
-                          <dd className="mt-1 break-words text-sm font-semibold text-text">{safeDisplayValue(value)}</dd>
+                          <dd className="mt-1 wrap-break-word text-sm font-semibold text-text">{safeDisplayValue(value)}</dd>
                         </div>
                       ))}
                     </dl>

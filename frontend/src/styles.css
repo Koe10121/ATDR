@@ -1,6 +1,162 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+@theme {
+  --color-shell: #0a0e16;
+  --color-panel: #121927;
+  --color-panel2: #1a2335;
+  --color-line: #2a3650;
+  --color-muted: #8b96ac;
+  --color-text: #e8edf7;
+  --color-cyan: #22d3ee;
+  --color-teal: #2dd4bf;
+  --color-amber: #fbbf24;
+  --color-gold: #e8b64a;
+  --color-goldSoft: #3a2f1a;
+  --color-danger: #f87171;
+  --color-success: #4ade80;
+  --color-maroon: #5c0f12;
+  --color-maroonDeep: #450a0c;
+
+  --font-sans: Inter, Segoe UI, Arial, sans-serif;
+  --font-mono: JetBrains Mono, Consolas, monospace;
+
+  --shadow-panel: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-glow:
+    0 0 0 1px rgba(34, 211, 238, 0.15), 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
+
+@utility panel {
+  @apply min-w-0 rounded-lg border border-line bg-panel p-5 shadow-panel;
+}
+
+@utility hero-panel {
+  @apply relative min-w-0 overflow-hidden rounded-lg border border-line bg-panel p-6 shadow-panel;
+
+  &::before {
+    content: '';
+    @apply absolute left-0 right-0 top-0 h-1;
+    background: linear-gradient(90deg, #22d3ee, #2dd4bf);
+  }
+}
+
+@utility input {
+  @apply w-full rounded-lg border border-line bg-panel2 px-3 py-2 text-sm text-text outline-hidden transition placeholder:text-muted focus:border-cyan focus:ring-1 focus:ring-cyan;
+}
+
+@utility btn-primary {
+  @apply rounded-lg border border-cyan bg-cyan px-4 py-2 text-sm font-extrabold text-[#04222b] transition hover:bg-[#67e2f3] disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+@utility btn-secondary {
+  @apply rounded-lg border border-line bg-panel2 px-4 py-2 text-sm font-extrabold text-text transition hover:border-cyan/50 hover:bg-cyan/10 disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+@utility metric-card {
+  @apply min-w-0 rounded-lg border border-line bg-panel p-4 shadow-panel;
+}
+
+@utility metric-label {
+  @apply text-[11px] font-black uppercase tracking-wide text-muted;
+}
+
+@utility metric-value {
+  @apply mt-2 wrap-break-word font-black text-text;
+}
+
+@utility metric-help {
+  @apply mt-1 text-xs font-semibold leading-relaxed text-muted;
+}
+
+@utility badge {
+  @apply inline-flex items-center rounded-full border border-line bg-panel2 px-3 py-1 text-xs font-extrabold uppercase tracking-wide text-muted;
+}
+
+@utility badge-ok {
+  @apply border-success/30 bg-success/10 text-success;
+}
+
+@utility soc-table {
+  @apply min-w-full border-separate border-spacing-0 text-left text-sm;
+
+  & th {
+    @apply sticky top-0 border-b border-line bg-panel2 px-3 py-3 text-xs font-extrabold uppercase tracking-wide text-muted;
+  }
+
+  & td {
+    @apply border-b border-line/70 px-3 py-3 text-muted;
+  }
+
+  & tr:hover td {
+    @apply bg-cyan/5 text-text;
+  }
+}
+
+@utility soc-table-compact {
+  & th {
+    @apply px-2 py-2;
+  }
+
+  & td {
+    @apply px-2 py-2 text-xs;
+  }
+}
+
+@utility action-result-card {
+  @apply min-w-0 rounded-lg border p-4 text-sm shadow-panel;
+}
+
+@utility action-result-card-success {
+  @apply border-success/30 bg-success/10 text-success;
+}
+
+@utility action-result-card-amber {
+  @apply border-amber/30 bg-amber/10 text-amber;
+}
+
+@utility action-result-card-danger {
+  @apply border-danger/30 bg-danger/10 text-danger;
+}
+
+@utility action-result-card-cyan {
+  @apply border-cyan/30 bg-cyan/10 text-cyan;
+}
+
+@utility technical-json {
+  @apply max-h-80 min-w-0 overflow-auto rounded-lg border border-line bg-shell p-3 text-xs text-muted;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@utility presentation-mode {
+  & .presentation-technical {
+    display: none;
+  }
+}
+
+@utility presentation-technical {
+  .presentation-mode & {
+    display: none;
+  }
+}
 
 @layer base {
   html {
@@ -21,6 +177,12 @@
     box-sizing: border-box;
   }
 
+  /* Tailwind 3 gave buttons a pointing hand; Tailwind 4 leaves the browser's arrow. */
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
   :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
     outline: 3px solid #22d3ee;
     outline-offset: 3px;
@@ -35,112 +197,5 @@
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
     }
-  }
-}
-
-@layer components {
-  .panel {
-    @apply min-w-0 rounded-lg border border-line bg-panel p-5 shadow-panel;
-  }
-
-  .hero-panel {
-    @apply relative min-w-0 overflow-hidden rounded-lg border border-line bg-panel p-6 shadow-panel;
-  }
-
-  .hero-panel::before {
-    content: "";
-    @apply absolute left-0 right-0 top-0 h-1;
-    background: linear-gradient(90deg, #22d3ee, #2dd4bf);
-  }
-
-  .input {
-    @apply w-full rounded-lg border border-line bg-panel2 px-3 py-2 text-sm text-text outline-none transition placeholder:text-muted focus:border-cyan focus:ring-1 focus:ring-cyan;
-  }
-
-  .btn-primary {
-    @apply rounded-lg border border-cyan bg-cyan px-4 py-2 text-sm font-extrabold text-[#04222b] transition hover:bg-[#67e2f3] disabled:cursor-not-allowed disabled:opacity-50;
-  }
-
-  .btn-secondary {
-    @apply rounded-lg border border-line bg-panel2 px-4 py-2 text-sm font-extrabold text-text transition hover:border-cyan/50 hover:bg-cyan/10 disabled:cursor-not-allowed disabled:opacity-50;
-  }
-
-  .metric-card {
-    @apply min-w-0 rounded-lg border border-line bg-panel p-4 shadow-panel;
-  }
-
-  .metric-label {
-    @apply text-[11px] font-black uppercase tracking-wide text-muted;
-  }
-
-  .metric-value {
-    @apply mt-2 break-words font-black text-text;
-  }
-
-  .metric-help {
-    @apply mt-1 text-xs font-semibold leading-relaxed text-muted;
-  }
-
-  .badge {
-    @apply inline-flex items-center rounded-full border border-line bg-panel2 px-3 py-1 text-xs font-extrabold uppercase tracking-wide text-muted;
-  }
-
-  .badge-ok {
-    @apply border-success/30 bg-success/10 text-success;
-  }
-
-  .soc-table {
-    @apply min-w-full border-separate border-spacing-0 text-left text-sm;
-  }
-
-  .soc-table th {
-    @apply sticky top-0 border-b border-line bg-panel2 px-3 py-3 text-xs font-extrabold uppercase tracking-wide text-muted;
-  }
-
-  .soc-table td {
-    @apply border-b border-line/70 px-3 py-3 text-muted;
-  }
-
-  .soc-table-compact th {
-    @apply px-2 py-2;
-  }
-
-  .soc-table-compact td {
-    @apply px-2 py-2 text-xs;
-  }
-
-  .soc-table tr:hover td {
-    @apply bg-cyan/5 text-text;
-  }
-
-  .action-result-card {
-    @apply min-w-0 rounded-lg border p-4 text-sm shadow-panel;
-  }
-
-  .action-result-card-success {
-    @apply border-success/30 bg-success/10 text-success;
-  }
-
-  .action-result-card-amber {
-    @apply border-amber/30 bg-amber/10 text-amber;
-  }
-
-  .action-result-card-danger {
-    @apply border-danger/30 bg-danger/10 text-danger;
-  }
-
-  .action-result-card-cyan {
-    @apply border-cyan/30 bg-cyan/10 text-cyan;
-  }
-
-  .technical-json {
-    @apply max-h-80 min-w-0 overflow-auto rounded-lg border border-line bg-shell p-3 text-xs text-muted;
-    overflow-wrap: anywhere;
-    white-space: pre-wrap;
-    word-break: break-word;
-  }
-
-  .presentation-mode .presentation-technical {
-    display: none;
   }
 }

@@ -30,7 +30,7 @@ STAMP = ".atdr-build.json"
 # What a build is made from. A change to any of these makes the build stale.
 SOURCE_PATHS = (
     "src", "public", "index.html", "package.json", "package-lock.json", "vite.config.ts", "tsconfig.json",
-    "tsconfig.node.json", "tailwind.config.ts", "postcss.config.cjs", ".env", ".env.local",
+    "tsconfig.node.json", "postcss.config.cjs", ".env", ".env.local",
 )
 BUILD_TIMEOUT_SECONDS = 900
 

@@ -250,7 +250,7 @@ export function MLGovernance() {
       : activeRegistryModel?.display_feature_set ?? activeRegistryModel?.feature_set_version ?? "-";
   const supervisedRuntimeState = detectionRuntime.data?.supervised.state ?? registry?.effective_runtime?.state ?? "unavailable";
   const registryBadge = supervisedRuntimeState === "active_shadow"
-    ? "shadow active"
+    ? "shadow-sm active"
     : supervisedRuntimeState === "unqualified"
       ? "candidate unqualified"
       : activeArtifactMetadataUnknown
@@ -650,7 +650,7 @@ export function MLGovernance() {
             </label>
             <button className="btn-secondary" type="button" onClick={() => void downloadExport("report")}>Download Model Report</button>
           </div>
-          <details className="mt-3 rounded border border-line bg-panel px-3 py-2">
+          <details className="mt-3 rounded-sm border border-line bg-panel px-3 py-2">
             <summary className="cursor-pointer text-sm font-bold text-text">Review exports and technical reports</summary>
             <div className="mt-3 flex flex-wrap gap-2">
               <button className="btn-secondary" type="button" onClick={() => void downloadExport("template")}>CSV Template</button>
@@ -671,13 +671,13 @@ export function MLGovernance() {
               <button className="btn-secondary" type="button" onClick={() => void downloadExport("temporal_coverage")}>Temporal Coverage Report</button>
             </div>
           </details>
-          {importResult ? <div className="mt-3 rounded border border-success/30 bg-success/10 p-2 text-sm text-success">{importResult}</div> : null}
-          {benchmarkImportResult ? <div className="mt-3 rounded border border-cyan/30 bg-cyan/10 p-2 text-sm text-cyan">{benchmarkImportResult}</div> : null}
+          {importResult ? <div className="mt-3 rounded-sm border border-success/30 bg-success/10 p-2 text-sm text-success">{importResult}</div> : null}
+          {benchmarkImportResult ? <div className="mt-3 rounded-sm border border-cyan/30 bg-cyan/10 p-2 text-sm text-cyan">{benchmarkImportResult}</div> : null}
           {downloadError ? <div className="mt-3 text-sm text-danger">{downloadError}</div> : null}
           {labelMutations.importCsv.isError ? <div className="mt-3"><ErrorBanner error={labelMutations.importCsv.error} /></div> : null}
           {labelMutations.importBenchmarkCsv.isError ? <div className="mt-3"><ErrorBanner error={labelMutations.importBenchmarkCsv.error} /></div> : null}
-          {quickReviewMessage ? <div className="mt-3 rounded border border-cyan/30 bg-cyan/10 p-2 text-sm text-cyan">{quickReviewMessage}</div> : null}
-          <details className="mt-3 rounded border border-line bg-panel px-3 py-2 text-xs text-muted">
+          {quickReviewMessage ? <div className="mt-3 rounded-sm border border-cyan/30 bg-cyan/10 p-2 text-sm text-cyan">{quickReviewMessage}</div> : null}
+          <details className="mt-3 rounded-sm border border-line bg-panel px-3 py-2 text-xs text-muted">
             <summary className="cursor-pointer font-bold text-text">CSV import rules</summary>
             <div className="mt-2">
               Fill `human_review_decision` with benign, benign_unusual, suspicious, malicious, or needs_context. Blank rows are skipped safely and the import preserves assisted provenance.
@@ -731,7 +731,7 @@ export function MLGovernance() {
                         {(["benign", "benign_unusual", "suspicious", "malicious", "needs_context"] as MLLabelValue[]).map((label) => (
                           <button
                             key={label}
-                            className="rounded border border-line bg-panel2 px-2 py-1 text-xs font-bold text-muted hover:border-cyan hover:text-cyan"
+                            className="rounded-sm border border-line bg-panel2 px-2 py-1 text-xs font-bold text-muted hover:border-cyan hover:text-cyan"
                             type="button"
                             onClick={() => quickReview(item, label)}
                           >
@@ -825,7 +825,7 @@ export function MLGovernance() {
                   <div className="mb-2 text-xs font-extrabold uppercase tracking-wide text-muted">{String(title)}</div>
                   <div className="space-y-2 text-sm">
                     {(rows as Array<{ name: string; count: number }> | undefined)?.slice(0, 6).map((row) => (
-                      <div key={`${title}-${row.name}`} className="flex justify-between rounded border border-line bg-panel px-3 py-2">
+                      <div key={`${title}-${row.name}`} className="flex justify-between rounded-sm border border-line bg-panel px-3 py-2">
                         <span className="text-muted">{row.name}</span>
                         <span className="font-bold text-text">{row.count}</span>
                       </div>
@@ -834,7 +834,7 @@ export function MLGovernance() {
                 </div>
               ))}
             </div>
-            {drift?.interpretation ? <div className="mt-4 rounded border border-line bg-panel2 p-3 text-sm text-muted">{drift.interpretation}</div> : null}
+            {drift?.interpretation ? <div className="mt-4 rounded-sm border border-line bg-panel2 p-3 text-sm text-muted">{drift.interpretation}</div> : null}
           </section>
 
           <section className="panel">
@@ -851,7 +851,7 @@ export function MLGovernance() {
                 <div className="text-xs font-extrabold uppercase tracking-wide text-muted">
                   IsolationForest Capability
                 </div>
-                <div className="mt-1 break-words text-lg font-black text-text">
+                <div className="mt-1 wrap-break-word text-lg font-black text-text">
                   {anomalyCapabilityLabel}
                 </div>
                 <p className="mt-1 text-sm text-muted">
@@ -873,7 +873,7 @@ export function MLGovernance() {
                 <div className="text-xs font-extrabold uppercase tracking-wide text-muted">
                   Corrective Preflight
                 </div>
-                <code className="mt-2 block max-w-full overflow-x-auto whitespace-pre-wrap break-all rounded border border-line bg-surface px-3 py-2 text-sm text-text">
+                <code className="mt-2 block max-w-full overflow-x-auto whitespace-pre-wrap break-all rounded-sm border border-line bg-surface px-3 py-2 text-sm text-text">
                   {anomalyBootstrapCommand}
                 </code>
               </div>
@@ -920,11 +920,11 @@ export function MLGovernance() {
             <dl className="mt-4 grid min-w-0 gap-x-4 gap-y-3 border-y border-line py-4 sm:grid-cols-2 xl:grid-cols-4">
               <div className="min-w-0">
                 <dt className="text-xs font-extrabold uppercase tracking-wide text-muted">Provider</dt>
-                <dd className="mt-1 break-words font-bold">{assistantStatus.data?.llm_ready ? assistantStatus.data.llm_provider_name : "Disabled"}</dd>
+                <dd className="mt-1 wrap-break-word font-bold">{assistantStatus.data?.llm_ready ? assistantStatus.data.llm_provider_name : "Disabled"}</dd>
               </div>
               <div className="min-w-0">
                 <dt className="text-xs font-extrabold uppercase tracking-wide text-muted">Provider health</dt>
-                <dd className="mt-1 break-words font-bold">{assistantStatus.data?.llm_operational.status?.replaceAll("_", " ") ?? "Not evaluated"}</dd>
+                <dd className="mt-1 wrap-break-word font-bold">{assistantStatus.data?.llm_operational.status?.replaceAll("_", " ") ?? "Not evaluated"}</dd>
               </div>
               <div className="min-w-0">
                 <dt className="text-xs font-extrabold uppercase tracking-wide text-muted">Raw log context</dt>
@@ -964,7 +964,7 @@ export function MLGovernance() {
               </div>
             </div>
             {fieldQualification.isError ? (
-              <div className="mt-3 rounded border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+              <div className="mt-3 rounded-sm border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
                 Field qualification status is unavailable. Detection authority and model lifecycle remain unchanged.
               </div>
             ) : (
@@ -1017,7 +1017,7 @@ export function MLGovernance() {
               </div>
             </div>
             {candidateFreeze.isError ? (
-              <div className="mt-3 rounded border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+              <div className="mt-3 rounded-sm border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
                 Candidate readiness is unavailable. Model lifecycle remains unchanged.
               </div>
             ) : (
@@ -1070,7 +1070,7 @@ export function MLGovernance() {
               </div>
             </div>
             {manualAnchorTransfer.isError ? (
-              <div className="mt-3 rounded border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+              <div className="mt-3 rounded-sm border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
                 Transfer status is unavailable. Model lifecycle remains unchanged.
               </div>
             ) : (
@@ -1124,7 +1124,7 @@ export function MLGovernance() {
               </div>
             </div>
             {manualAnchorAcquisition.isError ? (
-              <div className="mt-3 rounded border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+              <div className="mt-3 rounded-sm border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
                 Manual-anchor status is unavailable. Governed evidence remains sealed.
               </div>
             ) : (
@@ -1182,7 +1182,7 @@ export function MLGovernance() {
               </div>
             </div>
             {combinedFixedRevalidation.isError ? (
-              <div className="mt-3 rounded border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+              <div className="mt-3 rounded-sm border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
                 Combined revalidation status is unavailable. The supervised lifecycle remains unchanged.
               </div>
             ) : (
@@ -1214,7 +1214,7 @@ export function MLGovernance() {
                     tone={combinedFixedRevalidationData?.diagnostic_candidate_qualified ? "teal" : "amber"}
                   />
                 </div>
-                <div className="mt-3 rounded border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-muted">
+                <div className="mt-3 rounded-sm border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-muted">
                   {combinedFixedRevalidationData?.selection_bias_notice ?? "Threat-enriched evidence is diagnostic and does not estimate field prevalence."}
                 </div>
               </details>
@@ -1238,7 +1238,7 @@ export function MLGovernance() {
               </div>
             </div>
             {developmentModelRepair.isError ? (
-              <div className="mt-3 rounded border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+              <div className="mt-3 rounded-sm border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
                 Development repair status is unavailable. Model lifecycle remains unchanged.
               </div>
             ) : (
@@ -1291,7 +1291,7 @@ export function MLGovernance() {
               </div>
             </div>
             {temporalStability.isError ? (
-              <div className="mt-3 rounded border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+              <div className="mt-3 rounded-sm border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
                 Temporal stability status is unavailable. Model lifecycle remains unchanged.
               </div>
             ) : (
@@ -1345,7 +1345,7 @@ export function MLGovernance() {
               </div>
             </div>
             {blindEvidence.isError ? (
-              <div className="mt-3 rounded border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+              <div className="mt-3 rounded-sm border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
                 Independent evidence status is unavailable. Model lifecycle remains unchanged.
               </div>
             ) : (
@@ -1406,7 +1406,7 @@ export function MLGovernance() {
                 </div>
               </div>
               {productization.isError ? (
-                <div className="rounded border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+                <div className="rounded-sm border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
                   Detection/ML productization status could not be loaded.
                 </div>
               ) : (
@@ -1451,23 +1451,23 @@ export function MLGovernance() {
                   </div>
                   {productizationData ? (
                     <details className="mt-3">
-                      <summary className="cursor-pointer rounded border border-line bg-panel px-3 py-2 text-sm font-bold text-text">
+                      <summary className="cursor-pointer rounded-sm border border-line bg-panel px-3 py-2 text-sm font-bold text-text">
                         View productization checks
                       </summary>
                       <div className="mt-3 grid gap-3 text-sm text-muted lg:grid-cols-2">
-                        <div className="rounded border border-line bg-panel px-3 py-2">
+                        <div className="rounded-sm border border-line bg-panel px-3 py-2">
                           Safety: database mutated{" "}
                           <span className="font-bold text-text">{String(productizationData.safety.current_database_mutated)}</span>, labels written{" "}
                           <span className="font-bold text-text">{String(productizationData.safety.labels_written)}</span>, model activated{" "}
                           <span className="font-bold text-text">{String(productizationData.safety.model_activated)}</span>, raw logs included{" "}
                           <span className="font-bold text-text">{String(productizationData.safety.raw_logs_included)}</span>.
                         </div>
-                        <div className="rounded border border-line bg-panel px-3 py-2">
+                        <div className="rounded-sm border border-line bg-panel px-3 py-2">
                           Training data: <span className="font-bold text-text">{metricText(productizationData.training_data.reviewed_label_rows)}</span> reviewed labels,{" "}
                           <span className="font-bold text-text">{metricText(productizationData.training_data.weak_or_unreviewed_label_rows)}</span> weak/unreviewed rows.
                         </div>
                       </div>
-                      <div className="mt-3 overflow-auto rounded border border-line bg-panel px-3 py-2">
+                      <div className="mt-3 overflow-auto rounded-sm border border-line bg-panel px-3 py-2">
                         <table className="soc-table soc-table-compact">
                           <thead>
                             <tr>
@@ -1581,7 +1581,7 @@ export function MLGovernance() {
                   <MetricCard
                     label="P95 Latency"
                     value={shadowLatency.p95 === undefined ? "-" : `${metricText(shadowLatency.p95)} ms`}
-                    detail="Per-row shadow inference"
+                    detail="Per-row shadow-sm inference"
                     tone="teal"
                   />
                   <MetricCard
@@ -1641,7 +1641,7 @@ export function MLGovernance() {
                 </div>
                 </details>
                 <div
-                  className="mt-3 rounded border border-line bg-surface px-3 py-3"
+                  className="mt-3 rounded-sm border border-line bg-surface px-3 py-3"
                   data-testid="governed-shadow-runtime"
                 >
                   <div className="flex flex-wrap gap-2">
@@ -1707,7 +1707,7 @@ export function MLGovernance() {
                   </div>
                 </div>
                 <div
-                  className="mt-3 rounded border border-line bg-surface px-3 py-3"
+                  className="mt-3 rounded-sm border border-line bg-surface px-3 py-3"
                   data-testid="longitudinal-shadow-observation"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1804,7 +1804,7 @@ export function MLGovernance() {
                     />
                   </div>
                   </details>
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded border border-line bg-panel px-3 py-2 text-sm">
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-sm border border-line bg-panel px-3 py-2 text-sm">
                     <div className="text-muted">
                       Operational gates{" "}
                       <span className="font-bold text-text">
@@ -1823,11 +1823,11 @@ export function MLGovernance() {
                     />
                   </div>
                   {shadowOperations.isError ? (
-                    <div className="mt-3 rounded border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+                    <div className="mt-3 rounded-sm border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
                       Operational observation status could not be loaded.
                     </div>
                   ) : operational?.warnings.length ? (
-                    <details className="mt-3 rounded border border-line bg-panel px-3 py-2 text-sm">
+                    <details className="mt-3 rounded-sm border border-line bg-panel px-3 py-2 text-sm">
                       <summary className="cursor-pointer font-bold text-text">
                         View operational warnings ({operational.warnings.length})
                       </summary>
@@ -1839,14 +1839,14 @@ export function MLGovernance() {
                     </details>
                   ) : null}
                   <details
-                    className="mt-3 rounded border border-line bg-panel px-3 py-2 text-sm"
+                    className="mt-3 rounded-sm border border-line bg-panel px-3 py-2 text-sm"
                     data-testid="parser-profile-diagnostics"
                   >
                     <summary className="cursor-pointer font-bold text-text">
                       Parser profile baseline ({parserDiagnostics?.observation_count ?? 0})
                     </summary>
                     {parserProfileDiagnostics.isError ? (
-                      <div className="mt-3 rounded border border-danger/30 bg-danger/10 px-3 py-2 text-danger">
+                      <div className="mt-3 rounded-sm border border-danger/30 bg-danger/10 px-3 py-2 text-danger">
                         Parser profile diagnostics could not be loaded.
                       </div>
                     ) : parserDiagnostics?.rows.length ? (
@@ -1928,20 +1928,20 @@ export function MLGovernance() {
                         </div>
                       </>
                     ) : (
-                      <div className="mt-3 rounded border border-dashed border-line px-3 py-4 text-muted">
+                      <div className="mt-3 rounded-sm border border-dashed border-line px-3 py-4 text-muted">
                         No comparable parser-profile observations are available.
                       </div>
                     )}
                   </details>
                   <details
-                    className="mt-3 rounded border border-line bg-panel px-3 py-2 text-sm"
+                    className="mt-3 rounded-sm border border-line bg-panel px-3 py-2 text-sm"
                     data-testid="shadow-monitoring-diagnostics"
                   >
                     <summary className="cursor-pointer font-bold text-text">
                       Operational drift diagnostics ({diagnostics?.observation_count ?? 0})
                     </summary>
                     {shadowDiagnostics.isError ? (
-                      <div className="mt-3 rounded border border-danger/30 bg-danger/10 px-3 py-2 text-danger">
+                      <div className="mt-3 rounded-sm border border-danger/30 bg-danger/10 px-3 py-2 text-danger">
                         Aggregate drift diagnostics could not be loaded.
                       </div>
                     ) : diagnostics?.rows.length ? (
@@ -1992,8 +1992,8 @@ export function MLGovernance() {
                                   <td className="px-2 py-2 text-text">{rateText(row.disagreement_rate)}</td>
                                   <td className="px-2 py-2 text-text">{rateText(row.isolation_anomaly_rate)}</td>
                                   <td className="max-w-[300px] px-2 py-2 text-muted">
-                                    <div className="break-words">{row.quality_warning}</div>
-                                    <div className="mt-1 break-words text-[11px]">
+                                    <div className="wrap-break-word">{row.quality_warning}</div>
+                                    <div className="mt-1 wrap-break-word text-[11px]">
                                       {row.root_cause_codes
                                         .map((value) => value.replaceAll("_", " "))
                                         .join(", ")}
@@ -2016,13 +2016,13 @@ export function MLGovernance() {
                         </div>
                       </>
                     ) : (
-                      <div className="mt-3 rounded border border-dashed border-line px-3 py-4 text-muted">
+                      <div className="mt-3 rounded-sm border border-dashed border-line px-3 py-4 text-muted">
                         No aggregate operational diagnostics are available.
                       </div>
                     )}
                   </details>
                   {longitudinalTrend.length > 1 ? (
-                    <div className="mt-3 h-56 min-w-0 rounded border border-line bg-panel p-2">
+                    <div className="mt-3 h-56 min-w-0 rounded-sm border border-line bg-panel p-2">
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart
                           data={longitudinalTrend}
@@ -2056,7 +2056,7 @@ export function MLGovernance() {
                       </ResponsiveContainer>
                     </div>
                   ) : (
-                    <div className="mt-3 rounded border border-dashed border-line px-3 py-4 text-sm text-muted">
+                    <div className="mt-3 rounded-sm border border-dashed border-line px-3 py-4 text-sm text-muted">
                       At least two bounded observations are required for a trend.
                     </div>
                   )}
@@ -2071,7 +2071,7 @@ export function MLGovernance() {
                   </div>
                 </div>
                 {reliabilityValidation?.available ? (
-                  <details className="mt-3 rounded border border-line bg-panel px-3 py-2 text-sm">
+                  <details className="mt-3 rounded-sm border border-line bg-panel px-3 py-2 text-sm">
                     <summary className="cursor-pointer font-bold text-text">View reliability blockers</summary>
                     <div className="mt-2 space-y-2 text-muted">
                       <div>
@@ -2103,7 +2103,7 @@ export function MLGovernance() {
                         </div>
                       ) : null}
                       {reliabilityValidation.v57_available ? (
-                        <div className="rounded border border-line bg-surface px-3 py-2">
+                        <div className="rounded-sm border border-line bg-surface px-3 py-2">
                           <div className="mb-2 flex flex-wrap gap-2">
                             <Badge value="Frozen Diagnostic Candidate" />
                             <Badge
@@ -2298,7 +2298,7 @@ export function MLGovernance() {
                 </div>
                 <div className="grid gap-2 md:grid-cols-2">
                   {readiness.items.map((item) => (
-                    <div key={item.name} className="rounded border border-line bg-panel px-3 py-2 text-sm">
+                    <div key={item.name} className="rounded-sm border border-line bg-panel px-3 py-2 text-sm">
                       <div className={item.passed ? "font-bold text-success" : "font-bold text-amber"}>
                         {item.passed ? "Pass" : "Needs work"}: {item.name}
                       </div>
@@ -2327,7 +2327,7 @@ export function MLGovernance() {
                 <div className="mb-2 text-xs font-extrabold uppercase tracking-wide text-muted">Metrics</div>
                 <div className="grid gap-2 text-sm text-muted sm:grid-cols-2">
                   {["accuracy", "precision", "recall", "f1"].map((name) => (
-                    <div key={name} className="flex justify-between rounded border border-line bg-panel px-3 py-2">
+                    <div key={name} className="flex justify-between rounded-sm border border-line bg-panel px-3 py-2">
                       <span className="capitalize">{name}</span>
                       <span className="font-bold text-text">{String(supervisedMetrics[name] ?? "-")}</span>
                     </div>
@@ -2339,7 +2339,7 @@ export function MLGovernance() {
                 <div className="space-y-2 text-sm text-muted">
                   {Object.entries(supervisedData?.label_distribution ?? {}).length ? (
                     Object.entries(supervisedData?.label_distribution ?? {}).map(([label, count]) => (
-                      <div key={label} className="flex justify-between rounded border border-line bg-panel px-3 py-2">
+                      <div key={label} className="flex justify-between rounded-sm border border-line bg-panel px-3 py-2">
                         <span>{label}</span>
                         <span className="font-bold text-text">{count}</span>
                       </div>
@@ -2356,7 +2356,7 @@ export function MLGovernance() {
                 <div className="space-y-2 text-sm text-muted">
                   {Object.entries(supervisedData?.reviewed_label_distribution ?? {}).length ? (
                     Object.entries(supervisedData?.reviewed_label_distribution ?? {}).map(([label, count]) => (
-                      <div key={label} className="flex justify-between rounded border border-line bg-panel px-3 py-2">
+                      <div key={label} className="flex justify-between rounded-sm border border-line bg-panel px-3 py-2">
                         <span>{label}</span>
                         <span className="font-bold text-text">{count}</span>
                       </div>
@@ -2371,7 +2371,7 @@ export function MLGovernance() {
                 <div className="space-y-2 text-sm text-muted">
                   {Object.entries(supervisedData?.weak_label_distribution ?? {}).length ? (
                     Object.entries(supervisedData?.weak_label_distribution ?? {}).map(([label, count]) => (
-                      <div key={label} className="flex justify-between rounded border border-line bg-panel px-3 py-2">
+                      <div key={label} className="flex justify-between rounded-sm border border-line bg-panel px-3 py-2">
                         <span>{label}</span>
                         <span className="font-bold text-text">{count}</span>
                       </div>
@@ -2384,23 +2384,23 @@ export function MLGovernance() {
               <div className="rounded-lg border border-line bg-panel2 p-4">
                 <div className="mb-2 text-xs font-extrabold uppercase tracking-wide text-muted">Analyst Review Gate</div>
                 <div className="space-y-2 text-sm text-muted">
-                  <div className="flex justify-between rounded border border-line bg-panel px-3 py-2">
+                  <div className="flex justify-between rounded-sm border border-line bg-panel px-3 py-2">
                     <span>Decision</span>
                     <span className="font-bold text-text">{String(promotionGate.decision ?? "candidate_only")}</span>
                   </div>
-                  <div className="flex justify-between rounded border border-line bg-panel px-3 py-2">
+                  <div className="flex justify-between rounded-sm border border-line bg-panel px-3 py-2">
                     <span>Analyst review</span>
                     <span className="font-bold text-text">{String(analystReviewEligible)}</span>
                   </div>
-                  <div className="flex justify-between rounded border border-line bg-panel px-3 py-2">
+                  <div className="flex justify-between rounded-sm border border-line bg-panel px-3 py-2">
                     <span>Deployment Mode</span>
                     <span className="font-bold text-text">{productionPromoted ? "Promoted" : "Not promoted"}</span>
                   </div>
-                  <div className="flex justify-between rounded border border-line bg-panel px-3 py-2">
+                  <div className="flex justify-between rounded-sm border border-line bg-panel px-3 py-2">
                     <span>Automation</span>
                     <span className="font-bold text-text">{promotionGate.response_automation_allowed ? "Enabled" : "Disabled"}</span>
                   </div>
-                  <div className="flex justify-between rounded border border-line bg-panel px-3 py-2">
+                  <div className="flex justify-between rounded-sm border border-line bg-panel px-3 py-2">
                     <span>Split</span>
                     <span className="font-bold text-text">{String(supervisedData?.latest_run?.split_strategy ?? "random")}</span>
                   </div>

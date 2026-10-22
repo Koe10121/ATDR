@@ -4136,6 +4136,14 @@ test("login page loads", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Sign in for recovery", exact: true })).toBeVisible();
 });
 
+test("buttons show a pointing hand, as they did before Tailwind 4", async ({ page }) => {
+  // Tailwind 4 leaves buttons with the browser's arrow; the dashboard keeps the hand that says "click me".
+  await mockApi(page);
+  await seedSession(page);
+  await page.goto("/overview");
+  await expect(page.getByRole("button", { name: "Logout" })).toHaveCSS("cursor", "pointer");
+});
+
 test("login entry has no automated WCAG A or AA violations", async ({ page }) => {
   await page.route("**/api/auth/me", (route) =>
     route.fulfill({ status: 401, json: { detail: "Not authenticated" } })

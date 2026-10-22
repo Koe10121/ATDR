@@ -122,7 +122,7 @@ export function AiTrustSummary({
                 {row.status}
               </span>
             </div>
-            <div className="min-w-0 break-words text-sm text-muted">
+            <div className="min-w-0 wrap-break-word text-sm text-muted">
               {row.text}
               {row.link ? (
                 <>

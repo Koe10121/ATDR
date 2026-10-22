@@ -590,26 +590,26 @@ export function AlertsTriage() {
                 <Badge value={detectionSummary?.attack_type ?? selected.attack_type ?? inferAttackTypeFromAlertType(selected.alert_type)} />
               </div>
               <div className="grid gap-3 md:grid-cols-2">
-                <div className="rounded border border-line bg-panel2 p-3">
+                <div className="rounded-sm border border-line bg-panel2 p-3">
                   <div className="text-xs font-bold uppercase tracking-wide text-muted">What happened</div>
                   <div className="mt-1 text-sm font-semibold text-text">
                     {narrative(detectionSummary?.what_happened ?? selected.explanation)}
                   </div>
                 </div>
-                <div className="rounded border border-line bg-panel2 p-3">
+                <div className="rounded-sm border border-line bg-panel2 p-3">
                   <div className="text-xs font-bold uppercase tracking-wide text-muted">Evidence strength</div>
                   <div className="mt-1 font-bold text-text">{evidenceConfidence}</div>
                   <div className="text-sm text-muted">
                     {alertAuthority?.authoritative_rule_count ?? detectionSummary?.matched_rule_names?.length ?? 0} authoritative rule match(es), {relatedLogCount} related log(s)
                   </div>
                 </div>
-                <div className="rounded border border-line bg-panel2 p-3">
+                <div className="rounded-sm border border-line bg-panel2 p-3">
                   <div className="text-xs font-bold uppercase tracking-wide text-muted">Missing context</div>
                   <div className="mt-1 text-sm font-semibold text-text">
                     {missingContext.length ? missingContext.slice(0, 3).join("; ") : "No explicit gap recorded; confirm asset ownership and expected traffic."}
                   </div>
                 </div>
-                <div className="rounded border border-line bg-panel2 p-3">
+                <div className="rounded-sm border border-line bg-panel2 p-3">
                   <div className="text-xs font-bold uppercase tracking-wide text-muted">Recommended checks</div>
                   <ul className="mt-1 list-disc space-y-1 pl-4 text-sm font-semibold text-text">
                     {(analystNextSteps.length ? analystNextSteps : [selected.recommended_response]).slice(0, 3).map((step) => (
@@ -621,29 +621,29 @@ export function AlertsTriage() {
               {observedEvidence.length ? (
                 <div className="mt-3 grid gap-2 md:grid-cols-2">
                   {observedEvidence.slice(0, 4).map((point) => (
-                  <div key={point} className="rounded border border-line bg-shell p-3 text-sm text-muted">{point}</div>
+                  <div key={point} className="rounded-sm border border-line bg-shell p-3 text-sm text-muted">{point}</div>
                   ))}
                 </div>
               ) : null}
-              <details className="mt-3 rounded border border-line bg-panel2 p-3">
+              <details className="mt-3 rounded-sm border border-line bg-panel2 p-3">
                 <summary className="cursor-pointer text-sm font-bold text-text">Detection layer detail</summary>
                 <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-                  <div className="rounded border border-line bg-shell p-3">
+                  <div className="rounded-sm border border-line bg-shell p-3">
                     <div className="text-xs font-bold uppercase tracking-wide text-muted">Rule Authority</div>
                     <div className="mt-1 font-bold text-text">{alertAuthority?.authoritative_rule_count ?? detectionSummary?.matched_rule_names?.length ?? 0} matched</div>
                     <div className="text-sm text-muted">Created the alert</div>
                   </div>
-                  <div className="rounded border border-line bg-shell p-3">
+                  <div className="rounded-sm border border-line bg-shell p-3">
                     <div className="text-xs font-bold uppercase tracking-wide text-muted">ATT&CK-style Mapping</div>
                     <div className="mt-1 font-bold text-text">{attackMapping.tactic}</div>
                     <div className="text-sm text-muted">{attackMapping.technique} / {attackMapping.technique_id}</div>
                   </div>
-                  <div className="rounded border border-line bg-shell p-3">
+                  <div className="rounded-sm border border-line bg-shell p-3">
                     <div className="text-xs font-bold uppercase tracking-wide text-muted">Anomaly Advisory</div>
                     <div className="mt-1 font-bold text-text">{anomalySummary?.present === true ? "Present" : "Not present"}</div>
                     <div className="text-sm text-muted">Score {String(anomalySummary?.min_score ?? "-")} | No alert authority</div>
                   </div>
-                  <div className="rounded border border-line bg-shell p-3">
+                  <div className="rounded-sm border border-line bg-shell p-3">
                     <div className="text-xs font-bold uppercase tracking-wide text-muted">Supervised Signal</div>
                     <div className="mt-1 font-bold text-text">
                       {supervisedSummary?.predicted_label
@@ -665,13 +665,13 @@ export function AlertsTriage() {
                           : "Rules remain authoritative; no supervised score was used."}
                     </div>
                   </div>
-                  <div className="rounded border border-line bg-shell p-3">
+                  <div className="rounded-sm border border-line bg-shell p-3">
                     <div className="text-xs font-bold uppercase tracking-wide text-muted">Hybrid Interpretation</div>
                     <div className="mt-1 font-bold text-text">{String(hybridSummary?.hybrid_risk_score ?? hybridSummary?.risk_score ?? "-")}</div>
                     <div className="text-sm text-muted">Diagnostic only</div>
                   </div>
                 </div>
-                <div className="mt-3 rounded border border-amber/30 bg-amber/10 px-3 py-2 text-xs text-amber">
+                <div className="mt-3 rounded-sm border border-amber/30 bg-amber/10 px-3 py-2 text-xs text-amber">
                   ML output is decision support. Verify rule evidence, anomaly context, and related logs before any simulated response.
                 </div>
                 <details className="mt-3">
@@ -789,7 +789,7 @@ export function AlertsTriage() {
               <div className="mb-3 text-sm font-extrabold uppercase tracking-wide text-muted">Matched Rules</div>
               <div className="space-y-2">
                 {selected.matched_rules_json.filter((rule) => rule.code !== "group_metadata").map((rule, index) => (
-                  <div key={index} className="rounded border border-line bg-shell p-3 text-sm text-muted">
+                  <div key={index} className="rounded-sm border border-line bg-shell p-3 text-sm text-muted">
                     <div className="font-bold text-text">{String(rule.title ?? rule.code ?? `Rule ${index + 1}`)}</div>
                     <div className="mt-1">{narrative(String(rule.explanation ?? "No explanation provided."))}</div>
                   </div>
@@ -811,7 +811,7 @@ export function AlertsTriage() {
                 Evidence logs:
                 {selected.evidence_log_ids.length
                   ? selected.evidence_log_ids.map((id) => (
-                      <span key={id} className="inline-flex flex-wrap items-center gap-2 rounded border border-cyan/30 bg-cyan/10 px-2 py-1">
+                      <span key={id} className="inline-flex flex-wrap items-center gap-2 rounded-sm border border-cyan/30 bg-cyan/10 px-2 py-1">
                         <Link className="text-cyan underline" to={`/logs?log=${id}`}>
                           Log {id}
                         </Link>
@@ -851,7 +851,7 @@ export function AlertsTriage() {
               </form>
               <div className="mt-3 space-y-2">
                 {(notes.data ?? []).map((item) => (
-                  <div key={item.id} className="rounded border border-line bg-shell p-3 text-sm text-muted">
+                  <div key={item.id} className="rounded-sm border border-line bg-shell p-3 text-sm text-muted">
                     <div className="font-bold text-text">{item.author} | {item.created_at}</div>
                     <div className="mt-1">{item.note}</div>
                   </div>
@@ -863,7 +863,7 @@ export function AlertsTriage() {
               <div className="mb-3 text-sm font-extrabold uppercase tracking-wide text-muted">Timeline</div>
               <div className="space-y-2">
                 {(timeline.data ?? []).map((event, index) => (
-                  <div key={`${event.event_time}-${index}`} className="rounded border border-line bg-shell p-3 text-sm text-muted">
+                  <div key={`${event.event_time}-${index}`} className="rounded-sm border border-line bg-shell p-3 text-sm text-muted">
                     <div className="font-bold text-text">{event.event_type} | {event.actor}</div>
                     <div>{event.event_time}</div>
                     <div className="mt-1">{event.summary}</div>
