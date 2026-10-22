@@ -356,6 +356,46 @@ def test_ollama_engine_turns_thinking_off_sets_the_context_and_sends_tool_names(
     assert reply.tool_calls[0].arguments == {"intent": "count"} and reply.usage["input_tokens"] == 50
 
 
+def test_ollama_is_asked_once_more_after_a_server_error_while_time_is_left(monkeypatch):
+    # On 7 Oct Ollama answered 500 ("prediction aborted, token repeat limit reached") and the built-in answer was
+    # shown at once; Ollama starts its model runner again for the next request.
+    engine = OllamaEngine(base_url="http://127.0.0.1:11434", model="qwen3:8b", timeout=60, context_tokens=8192, keep_alive="30m")
+    answer = {"message": {"content": "Alert #1 is open."}, "prompt_eval_count": 9, "eval_count": 3}
+    replies = [_Response({"error": "token repeat limit reached"}, status=500), _Response(answer)]
+    calls = []
+
+    def post(url, json, headers, timeout):
+        calls.append(timeout)
+        return replies.pop(0)
+
+    monkeypatch.setattr(assistant_agent.requests, "post", post)
+    reply = engine.chat([{"role": "user", "content": "q"}], None)
+    assert reply.content == "Alert #1 is open." and reply.usage["engine_retries"] == 1 and len(calls) == 2
+    assert calls[1] <= calls[0], "the second try gets what is left of the time, not a fresh allowance"
+
+    def answering(url, json, headers, timeout):
+        calls.append(timeout)
+        return _Response(answer)
+
+    monkeypatch.setattr(assistant_agent.requests, "post", answering)
+    assert "engine_retries" not in engine.chat([{"role": "user", "content": "q"}], None).usage
+
+    def failing(status):
+        def post(url, json, headers, timeout):
+            calls.append(timeout)
+            return _Response({}, status=status)
+        return post
+
+    for status, timeout, tries, reason in ((500, None, 2, "engine_unavailable"), (400, None, 1, "engine_request_rejected"),
+                                           (500, 3.0, 1, "engine_unavailable")):
+        # Twice in a row the error stands; a refused request is not sent again, nor one with too little time left.
+        calls.clear()
+        monkeypatch.setattr(assistant_agent.requests, "post", failing(status))
+        with pytest.raises(AgentEngineError) as error:
+            engine.chat([{"role": "user", "content": "q"}], None, timeout=timeout)
+        assert (error.value.reason, len(calls)) == (reason, tries), (status, timeout)
+
+
 def test_the_status_says_whether_the_local_model_can_answer_not_just_that_it_is_configured(monkeypatch):
     # After a restart Ollama was down and the card still said "Ready" while every answer came from the built-in set.
     class Tags:

@@ -34,6 +34,8 @@ from atdr.app.services.assistant_response_contracts import response_contract
 
 OLLAMA_DEFAULT_URL = "http://127.0.0.1:11434"
 OLLAMA_DEFAULT_MODEL = "qwen3:8b"
+# A request Ollama failed with a server error is sent once more only when at least this long is left for it.
+OLLAMA_RETRY_MIN_SECONDS = 5.0
 GEMINI_OPENAI_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
 GEMINI_DEFAULT_MODEL = "gemini-2.5-flash"
 MAX_TOOL_CALLS_PER_ROUND = 4
@@ -439,7 +441,20 @@ class OllamaEngine:
         }
         if tools:
             payload["tools"] = tools
-        data = _post(f"{self.base_url}/api/chat", payload=payload, headers={}, timeout=min(self.timeout, timeout) if timeout is not None else self.timeout)
+        limit = min(self.timeout, timeout) if timeout is not None else self.timeout
+        started = time.perf_counter()
+        retried = 0
+        try:
+            data = _post(f"{self.base_url}/api/chat", payload=payload, headers={}, timeout=limit)
+        except AgentEngineError as error:
+            # Ollama answers 500 when its model runner aborts a generation ("token repeat limit reached" on 7 Oct)
+            # or has stopped, and starts a runner again for the next request. So it is asked once more while time is
+            # left, before the built-in answer is shown.
+            left = limit - (time.perf_counter() - started)
+            if error.reason != "engine_unavailable" or left < OLLAMA_RETRY_MIN_SECONDS:
+                raise
+            retried = 1
+            data = _post(f"{self.base_url}/api/chat", payload=payload, headers={}, timeout=left)
         message = data.get("message")
         if not isinstance(message, dict):
             raise AgentEngineError("engine_malformed_response")
@@ -449,6 +464,8 @@ class OllamaEngine:
             arguments, malformed = _parse_arguments(function.get("arguments"))
             calls.append(ToolCall(str(call.get("id") or f"call_{index}"), str(function.get("name") or ""), arguments, malformed))
         usage = {"input_tokens": int(data.get("prompt_eval_count") or 0), "output_tokens": int(data.get("eval_count") or 0)}
+        if retried:
+            usage["engine_retries"] = retried
         return EngineReply(str(message.get("content") or ""), calls, usage)
 
 
