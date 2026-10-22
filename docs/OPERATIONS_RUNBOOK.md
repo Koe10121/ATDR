@@ -280,10 +280,13 @@ Measured on the team laptop after the install of 2026-10-14:
 | Restarted (15 Oct, 09:40) | Windows up 09:40:06, the watcher 09:40:35, every part started 09:40:43 and answering 09:42:21; the sign-in task left the start to the watcher |
 | `stop_system.cmd` then `start_system.cmd` from a window | all five parts stopped; the watcher started them again in 1 min 26 s |
 | A release restarting the watcher from a window | done in 2 s; the parts kept running; the helper at the desktop was back 14 s later |
+| Power lost (18 Oct, 18:21; Windows logged an unexpected shutdown) | switched on from cold at 18:21:59; the watcher 18:22:28, ATDR starting 18:22:29 and running 18:24:17, with nothing done by hand |
 
 After a restart Windows 11 signs its user in by itself and locks the screen
-(here 23 seconds after it started), so a restart does not show ATDR starting
-with nobody signed in; a machine switched on from cold does.
+(here 23 seconds after it started), and on 18 October the user was signed in
+21 seconds after the machine came on, so neither shows ATDR starting with
+nobody signed in at all. Switching on and waiting three minutes at the
+sign-in screen does; that has not been done yet.
 
 What remains: ATDR pauses while the machine sleeps, which now takes a closed
 lid or an empty battery; and a machine that is switched off runs nothing.
@@ -822,6 +825,24 @@ Limit: alert evidence is kept as long as its alert. In the replay 2.8% of
 logs became evidence, which at MFU's rate adds about 5 GB a day (it was 7.3%
 and about 13 GB before alerts were grouped as described under Alert
 Grouping). Nothing deletes old evidence yet.
+
+### Audit Entries, Jobs And Staged Files
+
+The background worker also deletes these once they are past their time, every
+hour while it has no queued job (since 22 October 2026; before, the periods
+were set but only commands run by hand applied them, so nothing was deleted):
+
+| What | Kept for | Never deleted |
+| --- | --- | --- |
+| Audit entries | `AUDIT_RETENTION_DAYS` (365; it cannot be set below `AUDIT_RETENTION_MIN_DAYS`, 90) | sign-in, access, response and blocking records, whatever their age |
+| Finished operation jobs | `JOB_RETENTION_DAYS` (30) | a job still running or queued, and one a later job resumed or repeats |
+| Staged copies of imported files | `OPERATION_STAGING_RETENTION_HOURS` (24) | a copy a running or resumable job still needs |
+
+Each pass deletes at most `AUDIT_RETENTION_BATCH_SIZE` (500) audit entries and
+100 jobs, and says what it deleted in the Audit Trail (`audit_retention_applied`,
+`housekeeping_applied`); a pass that deletes nothing writes nothing. On the live
+system on 22 October the oldest audit entry was from 27 May, so none is due
+before May 2027; three finished jobs from June were.
 
 ## Automatic Detection
 

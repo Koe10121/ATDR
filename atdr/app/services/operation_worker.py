@@ -40,6 +40,7 @@ from atdr.app.services.job_service import (
 )
 from atdr.app.services.notification_service import LOOK_SECONDS as NOTIFICATION_LOOK_SECONDS
 from atdr.app.services.notification_service import PROBLEMS_EVERY_SECONDS, notification_look
+from atdr.app.services.housekeeping_service import HOUSEKEEPING_LOOK_SECONDS, run_housekeeping
 from atdr.app.services.retention_service import RETENTION_EVERY_SECONDS, RetentionProgress, run_live_retention
 from atdr.app.services.scheduled_backup_service import BACKUP_LOOK_SECONDS, run_scheduled_backup
 from atdr.app.services.resumable_ingestion_service import (
@@ -537,6 +538,23 @@ def _backup_look(worker_id: str, next_look: float) -> float:
     return time.monotonic() + BACKUP_LOOK_SECONDS
 
 
+def _housekeeping_look(next_look: float) -> float:
+    """With no queued job waiting, delete audit entries, finished jobs and staged files past their time; returns when
+    to look again.
+
+    Never raises: like a failed backup, a failed pass must not stop the worker's queued jobs.
+    """
+
+    if time.monotonic() < next_look:
+        return next_look
+    try:
+        with SessionLocal() as db:
+            run_housekeeping(db, settings=get_settings())
+    except Exception:
+        logger.exception("housekeeping failed")
+    return time.monotonic() + HOUSEKEEPING_LOOK_SECONDS
+
+
 class NotificationLooks:
     """When the worker next looks for something to tell, and when it next looks for problems of ATDR's own."""
 
@@ -593,6 +611,7 @@ def run_worker_loop(
     next_automatic_look = 0.0
     next_retention_look = 0.0
     next_backup_look = 0.0
+    next_housekeeping_look = 0.0
     retention_progress = RetentionProgress()
     notification_looks = NotificationLooks()
     with SessionLocal() as db:
@@ -621,6 +640,7 @@ def run_worker_loop(
                 next_automatic_look = _automatic_detection_look(active_worker_id, next_automatic_look)
                 next_retention_look = _retention_look(next_retention_look, retention_progress)
                 next_backup_look = _backup_look(active_worker_id, next_backup_look)
+                next_housekeeping_look = _housekeeping_look(next_housekeeping_look)
                 # Last: what the looks before it found or failed at is told in the same pass.
                 _notification_look(active_worker_id, notification_looks)
             if stop_event is not None:
