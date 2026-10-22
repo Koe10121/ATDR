@@ -75,7 +75,7 @@ def test_housekeeping_deletes_what_is_past_its_time_and_keeps_the_rest(monkeypat
 
     done = run_housekeeping(db, settings=settings)
 
-    assert done == {"audit_entries": 1, "jobs": 1, "staged_files": 1, "staged_bytes": len("staged firewall lines")}
+    assert done == {"audit_entries": 1, "jobs": 1, "staged_files": 1, "staged_bytes": len("staged firewall lines"), "evidence_logs": 0}
     kept_audit = set(db.scalars(select(AuditLog.id)))
     assert old_note not in kept_audit and {old_sign_in, recent_note} <= kept_audit
     kept_jobs = set(db.scalars(select(OperationJob.id)))
@@ -85,7 +85,7 @@ def test_housekeeping_deletes_what_is_past_its_time_and_keeps_the_rest(monkeypat
     assert sorted(actions) == ["audit_retention_applied", "housekeeping_applied"]
 
     # Nothing more is past its time: the next pass deletes nothing and writes no audit entry.
-    assert run_housekeeping(db, settings=settings) == {"audit_entries": 0, "jobs": 0, "staged_files": 0, "staged_bytes": 0}
+    assert run_housekeeping(db, settings=settings) == {"audit_entries": 0, "jobs": 0, "staged_files": 0, "staged_bytes": 0, "evidence_logs": 0}
     assert len(list(db.scalars(select(AuditLog).where(AuditLog.actor == "housekeeping")))) == 2
 
 
@@ -144,3 +144,20 @@ def test_the_worker_loop_does_its_housekeeping_when_nothing_is_queued(monkeypatc
     finally:
         give_up.cancel()
     assert looks == [0.0], "the first pass comes as soon as the worker has nothing queued"
+
+
+def test_housekeeping_deletes_old_evidence_of_closed_alerts_and_says_so(monkeypatch):
+    calls = []
+
+    def evidence(db, *, settings):
+        calls.append(settings.alert_evidence_retention_days)
+        return {"enabled": True, "links": 3, "logs": 2, "alerts": 1}
+
+    monkeypatch.setattr(housekeeping_service, "delete_closed_alert_evidence", evidence)
+    db = _session()
+    done = run_housekeeping(db, settings=Settings(_env_file=None, ALERT_EVIDENCE_RETENTION_DAYS=30))
+
+    assert calls == [30] and done["evidence_logs"] == 2
+    entry = db.scalar(select(AuditLog).where(AuditLog.action == "housekeeping_applied"))
+    assert (entry.details["evidence_links_removed"], entry.details["evidence_logs_deleted"]) == (3, 2)
+    assert entry.details["evidence_retention_days"] == 30

@@ -482,6 +482,9 @@ class Settings(BaseSettings):
     audit_retention_days: int = Field(default=365, alias="AUDIT_RETENTION_DAYS")
     audit_retention_min_days: int = Field(default=90, alias="AUDIT_RETENTION_MIN_DAYS")
     audit_retention_batch_size: int = Field(default=500, alias="AUDIT_RETENTION_BATCH_SIZE")
+    # Live-feed logs that are an alert's evidence are deleted this many days after the alert was closed (resolved or
+    # false positive), unless labelled or still evidence of another alert. 0 keeps evidence as long as its alert.
+    alert_evidence_retention_days: int = Field(default=0, alias="ALERT_EVIDENCE_RETENTION_DAYS")
 
     # ---- Notifications ----
     # ATDR tells people about new alerts of the severity below and about problems of its own: always in the
@@ -890,6 +893,8 @@ def validate_runtime_settings(settings: Settings) -> list[str]:
         issues.append("JOB_RETENTION_DAYS must be greater than zero.")
     if settings.run_history_retention_days <= 0:
         issues.append("RUN_HISTORY_RETENTION_DAYS must be greater than zero.")
+    if settings.alert_evidence_retention_days < 0:
+        issues.append("ALERT_EVIDENCE_RETENTION_DAYS must be zero (keep evidence as long as its alert) or greater.")
     if settings.operation_worker_poll_seconds <= 0:
         issues.append("OPERATION_WORKER_POLL_SECONDS must be greater than zero.")
     if settings.operation_worker_lease_seconds <= 0:

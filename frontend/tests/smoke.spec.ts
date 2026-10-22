@@ -4791,6 +4791,49 @@ test("an experimental model alert says the model found it and that it is low con
   await expect(page.getByText(/part of the model's training data/)).toHaveCount(0);
 });
 
+test("an alert whose live evidence was deleted after it was closed says so", async ({ page }) => {
+  // ALERT_EVIDENCE_RETENTION_DAYS lets live-feed evidence go a set time after the alert is closed.
+  await mockApi(page);
+  await seedSession(page);
+  await page.route("**/api/alerts/1", (route) =>
+    route.fulfill({
+      json: {
+        id: 1,
+        title: "High: Possible port scan from 10.1.0.20",
+        alert_type: "possible_port_scan",
+        src_ip: "10.1.0.20",
+        dst_ip: null,
+        threat_score: 70,
+        severity: "High",
+        status: "resolved",
+        explanation: "Port scan.",
+        matched_rules_json: [
+          { code: "possible_port_scan", title: "Possible port scan", explanation: "Many ports.", score: 40 },
+          {
+            code: "group_metadata",
+            related_log_count: 40,
+            evidence_deleted_count: 1250,
+            evidence_deleted_at: "2026-10-22T12:00:00+00:00",
+            evidence_retention_days: 30
+          }
+        ],
+        recommended_response: "Done.",
+        created_at: "2026-09-01T00:00:00Z",
+        updated_at: "2026-09-20T00:00:00Z",
+        evidence_count: 0,
+        evidence_log_ids: [],
+        source_ids: [1],
+        source_names: ["syslog_udp:198.51.100.1"],
+        attack_type: "port_scan"
+      }
+    })
+  );
+  await page.goto("/alerts?alert=1");
+  await expect(page.getByTestId("evidence-deleted")).toContainText(
+    "1,250 of its live-feed evidence logs were deleted on 22 Oct 2026, 30 days after the alert was closed."
+  );
+});
+
 test("AI Governance describes the conversational assistant that is actually running", async ({ page }) => {
   // The trust summary used to call the assistant "Gemini, rewords only" after the local
   // tool-using agent had replaced it.

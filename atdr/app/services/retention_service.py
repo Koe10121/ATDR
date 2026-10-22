@@ -14,11 +14,11 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import case, delete, exists, func, or_, select
+from sqlalchemy import case, delete, exists, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from atdr.app.core.config import get_settings
-from atdr.app.db.models import AlertEvidence, AuditLog, LogSource, MLLabel, NormalizedLog, RawLog, TrafficHourlySummary
+from atdr.app.db.models import Alert, AlertEvidence, AuditLog, LogSource, MLLabel, NormalizedLog, RawLog, TrafficHourlySummary
 from atdr.app.services.detection_service import _event_time_expression
 
 LIVE_SOURCE_TYPE = "syslog_udp"
@@ -207,3 +207,72 @@ def run_live_retention(
                         target_value=f"older than {hours:g} h", details=summary))
     db.commit()
     return summary
+
+
+# An alert is closed once an analyst resolves it or calls it a false positive.
+CLOSED_ALERT_STATUSES = ("resolved", "false_positive")
+
+
+def delete_closed_alert_evidence(
+    db: Session, *, settings: Any = None, now: datetime | None = None, budget_seconds: float = PASS_SECONDS
+) -> dict[str, Any]:
+    """Live-feed evidence of alerts closed more than ALERT_EVIDENCE_RETENTION_DAYS ago: unlinked from the alert, and the
+    log deleted unless it is labelled or another alert still has it as evidence. Imported files are never touched.
+
+    At MFU's rate about 2.8% of live logs become evidence, about 5 GB a day, and evidence was kept as long as its alert.
+    Each alert notes how many of its logs went and when; its counts and summary stay as they were.
+    """
+
+    settings = settings or get_settings()
+    days = int(settings.alert_evidence_retention_days)
+    if days <= 0:
+        return {"enabled": False, "links": 0, "logs": 0, "alerts": 0}
+    now = _utc(now or datetime.now(timezone.utc))
+    sources = live_source_ids(db)
+    links = logs = 0
+    per_alert: dict[int, int] = {}
+    started = time.monotonic()
+    while sources and time.monotonic() - started < budget_seconds:
+        rows = db.execute(
+            select(AlertEvidence.id, AlertEvidence.alert_id, NormalizedLog.id, RawLog.id)
+            .join(NormalizedLog, NormalizedLog.id == AlertEvidence.normalized_log_id)
+            .join(RawLog, RawLog.id == NormalizedLog.raw_log_id)
+            .join(Alert, Alert.id == AlertEvidence.alert_id)
+            .where(
+                Alert.status.in_(CLOSED_ALERT_STATUSES),
+                Alert.updated_at < now - timedelta(days=days),
+                RawLog.source_id.in_(sources),
+                ~exists().where(MLLabel.log_id == NormalizedLog.id),
+            )
+            .order_by(AlertEvidence.id)
+            .limit(DELETE_CHUNK)
+        ).all()
+        if not rows:
+            break
+        db.execute(delete(AlertEvidence).where(AlertEvidence.id.in_([row[0] for row in rows])))
+        candidates = {row[2]: row[3] for row in rows}
+        still_evidence = set(
+            db.scalars(select(AlertEvidence.normalized_log_id).where(AlertEvidence.normalized_log_id.in_(list(candidates))))
+        )
+        gone = {log_id: raw_id for log_id, raw_id in candidates.items() if log_id not in still_evidence}
+        if gone:
+            db.execute(delete(NormalizedLog).where(NormalizedLog.id.in_(list(gone))))
+            db.execute(delete(RawLog).where(RawLog.id.in_(list(gone.values()))))
+        for row in rows:
+            per_alert[row[1]] = per_alert.get(row[1], 0) + 1
+        links += len(rows)
+        logs += len(gone)
+        db.commit()
+    for alert_id, alert_rules in db.execute(select(Alert.id, Alert.matched_rules_json).where(Alert.id.in_(list(per_alert)))):
+        rules = [dict(rule) if isinstance(rule, dict) else rule for rule in alert_rules or []]
+        metadata = next((rule for rule in rules if isinstance(rule, dict) and rule.get("code") == "group_metadata"), None)
+        if metadata is None:
+            metadata = {"code": "group_metadata"}
+            rules.append(metadata)
+        metadata["evidence_deleted_count"] = int(metadata.get("evidence_deleted_count") or 0) + per_alert[alert_id]
+        metadata["evidence_deleted_at"] = now.isoformat()
+        metadata["evidence_retention_days"] = days
+        # Set updated_at to itself: the note must not count as a change that restarts the alert's time.
+        db.execute(update(Alert).where(Alert.id == alert_id).values(matched_rules_json=rules, updated_at=Alert.updated_at))
+    db.commit()
+    return {"enabled": True, "links": links, "logs": logs, "alerts": len(per_alert)}

@@ -821,10 +821,20 @@ growing, because SQLite reuses the space of deleted logs (the file itself does
 not shrink). A five-minute window of MFU's traffic (180,924 logs) was checked
 in 57 seconds meanwhile.
 
-Limit: alert evidence is kept as long as its alert. In the replay 2.8% of
-logs became evidence, which at MFU's rate adds about 5 GB a day (it was 7.3%
-and about 13 GB before alerts were grouped as described under Alert
-Grouping). Nothing deletes old evidence yet.
+Alert evidence is kept as long as its alert unless
+`ALERT_EVIDENCE_RETENTION_DAYS` is set. In the replay 2.8% of logs became
+evidence, which at MFU's rate adds about 5 GB a day (it was 7.3% and about
+13 GB before alerts were grouped as described under Alert Grouping). Set to a
+number of days, the live-feed evidence of an alert closed (resolved or false
+positive) more than that long ago is deleted: the link first, then the log
+unless it is labelled or another alert still has it as evidence. Imported
+files are never touched, and open alerts keep everything. The alert keeps its
+counts and summary, and its drawer says how many evidence logs went and when.
+"Closed more than that long ago" counts from the alert's last change, so a
+change of its status, owner or escalation restarts it; a note does not. The
+default, 0, deletes nothing: choose
+the period before the live feed is switched on (with the 2.8% above, 30 days
+of closed alerts' evidence is up to about 150 GB at MFU's rate).
 
 ### Audit Entries, Jobs And Staged Files
 
@@ -837,6 +847,7 @@ were set but only commands run by hand applied them, so nothing was deleted):
 | Audit entries | `AUDIT_RETENTION_DAYS` (365; it cannot be set below `AUDIT_RETENTION_MIN_DAYS`, 90) | sign-in, access, response and blocking records, whatever their age |
 | Finished operation jobs | `JOB_RETENTION_DAYS` (30) | a job still running or queued, and one a later job resumed or repeats |
 | Staged copies of imported files | `OPERATION_STAGING_RETENTION_HOURS` (24) | a copy a running or resumable job still needs |
+| Live-feed evidence of closed alerts | `ALERT_EVIDENCE_RETENTION_DAYS` after the alert was closed (0, the default: as long as the alert) | evidence of an open alert, a labelled log, a log another alert still has, imported files |
 
 Each pass deletes at most `AUDIT_RETENTION_BATCH_SIZE` (500) audit entries and
 100 jobs, and says what it deleted in the Audit Trail (`audit_retention_applied`,

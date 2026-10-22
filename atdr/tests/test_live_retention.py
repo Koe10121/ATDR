@@ -261,3 +261,61 @@ def test_the_hourly_summaries_api_lists_the_newest_hour_first_for_one_address():
     assert [row["connections"] for row in everyone.json()] == [900, 7, 5]
     assert one.headers["X-Total-Count"] == "2"
     assert [row["connections"] for row in one.json()] == [7, 5]
+
+
+def _alert_with(db, status: str, updated: datetime, logs: list[NormalizedLog]) -> int:
+    alert = Alert(title=f"{status} alert", alert_type="possible_port_scan", threat_score=70, severity="High", status=status,
+                  explanation="test", matched_rules_json=[{"code": "group_metadata", "related_log_count": len(logs)}],
+                  recommended_response="look", created_at=updated, updated_at=updated)
+    db.add(alert)
+    db.flush()
+    db.add_all(AlertEvidence(alert_id=alert.id, normalized_log_id=log.id) for log in logs)
+    db.flush()
+    return int(alert.id)
+
+
+def test_live_evidence_of_an_alert_closed_long_enough_ago_is_deleted_when_a_limit_is_set():
+    # At MFU's rate about 2.8% of live logs become evidence, about 5 GB a day, and evidence was kept as long as its
+    # alert. ALERT_EVIDENCE_RETENTION_DAYS (0 by default) lets it go a set time after the alert is closed.
+    db = _session()
+    live = _source(db, "syslog_udp:198.51.100.1", "syslog_udp")
+    imported = _source(db, "mfu-export.log", "file_import")
+    long_ago = NOW - timedelta(days=40)
+    only_theirs = _log(db, live, long_ago, "10.0.0.1")
+    shared = _log(db, live, long_ago, "10.0.0.2")
+    labelled = _log(db, live, long_ago, "10.0.0.3")
+    db.add(MLLabel(log_id=labelled.id, label="malicious", attack_type="port_scan", confidence=3, reviewer="team"))
+    from_a_file = _log(db, imported, long_ago, "10.0.0.4")
+    open_evidence = _log(db, live, long_ago, "10.0.0.5")
+    recent_evidence = _log(db, live, long_ago, "10.0.0.6")
+    closed = _alert_with(db, "resolved", long_ago, [only_theirs, shared, labelled, from_a_file])
+    still_open = _alert_with(db, "open", long_ago, [shared, open_evidence])
+    recently_closed = _alert_with(db, "false_positive", NOW - timedelta(days=10), [recent_evidence])
+    db.commit()
+    evidence = lambda alert_id: set(db.scalars(select(AlertEvidence.normalized_log_id).where(AlertEvidence.alert_id == alert_id)))  # noqa: E731
+    before = {alert_id: evidence(alert_id) for alert_id in (closed, still_open, recently_closed)}
+    ids = {name: log.id for name, log in (('only_theirs', only_theirs), ('shared', shared), ('labelled', labelled),
+                                          ('from_a_file', from_a_file), ('open', open_evidence), ('recent', recent_evidence))}
+
+    assert retention_service.delete_closed_alert_evidence(db, settings=_settings(), now=NOW)["enabled"] is False
+    assert {alert_id: evidence(alert_id) for alert_id in before} == before, "0, the default, keeps evidence as long as its alert"
+
+    done = retention_service.delete_closed_alert_evidence(db, settings=_settings(alert_evidence_retention_days=30), now=NOW)
+
+    assert done == {"enabled": True, "links": 2, "logs": 1, "alerts": 1}
+    assert evidence(closed) == {ids["labelled"], ids["from_a_file"]}, "labelled and imported evidence stays"
+    assert evidence(still_open) == before[still_open] and evidence(recently_closed) == before[recently_closed]
+    left = set(db.scalars(select(NormalizedLog.id)))
+    assert ids["only_theirs"] not in left and {ids[name] for name in ids if name != "only_theirs"} <= left
+    alert = db.get(Alert, closed)
+    db.refresh(alert)
+    metadata = next(rule for rule in alert.matched_rules_json if rule.get("code") == "group_metadata")
+    assert (metadata["evidence_deleted_count"], metadata["evidence_retention_days"]) == (2, 30)
+    assert metadata["evidence_deleted_at"] == NOW.isoformat() and metadata["related_log_count"] == 4
+    assert alert.updated_at.replace(tzinfo=None) == long_ago.replace(tzinfo=None), "the note is not a change to the alert"
+
+    again = retention_service.delete_closed_alert_evidence(db, settings=_settings(alert_evidence_retention_days=30), now=NOW)
+    assert again == {"enabled": True, "links": 0, "logs": 0, "alerts": 0}
+    assert retention_service.delete_closed_alert_evidence(db, settings=_settings(alert_evidence_retention_days=30),
+                                                          now=NOW)["links"] == 0
+    assert validate_runtime_settings(Settings(_env_file=None, ALERT_EVIDENCE_RETENTION_DAYS=-1))

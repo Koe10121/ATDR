@@ -827,6 +827,19 @@ export function AlertsTriage() {
                   </span>
                 ) : null}
               </div>
+              {groupMetadata?.evidence_deleted_at ? (
+                <div className="mt-2 text-sm text-muted" data-testid="evidence-deleted">
+                  {Number(groupMetadata.evidence_deleted_count ?? 0).toLocaleString("en-US")} of its live-feed evidence logs
+                  were deleted on{" "}
+                  {new Date(String(groupMetadata.evidence_deleted_at)).toLocaleDateString("en-GB", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric"
+                  })}
+                  , {String(groupMetadata.evidence_retention_days)} days after the alert was closed. Its counts and summary are
+                  as they were.
+                </div>
+              ) : null}
               <div className="mt-2 text-sm text-muted">
                 ML anomaly evidence: {anomalyEvidenceLogs > 0 ? "Present in evidence logs" : "No anomaly flag in the evidence logs"}
               </div>

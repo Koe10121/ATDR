@@ -5,7 +5,8 @@ ever deleted (found 22 October 2026). The background worker now runs this every 
 
 - audit entries older than AUDIT_RETENTION_DAYS (365), never a sign-in, access, response or blocking record;
 - finished operation jobs older than JOB_RETENTION_DAYS (30), but not one that a later job resumed or repeats;
-- staged copies of imported files older than OPERATION_STAGING_RETENTION_HOURS (24) that no job still needs.
+- staged copies of imported files older than OPERATION_STAGING_RETENTION_HOURS (24) that no job still needs;
+- live-feed evidence of alerts closed more than ALERT_EVIDENCE_RETENTION_DAYS ago, when that is set (0 by default).
 
 Each pass deletes only what is past its time, in batches, so it costs little when nothing is.
 """
@@ -25,6 +26,7 @@ from atdr.app.services.audit_retention_service import (
     build_audit_retention_report,
 )
 from atdr.app.services.job_service import cleanup_terminal_jobs, list_cleanup_candidates
+from atdr.app.services.retention_service import delete_closed_alert_evidence
 from atdr.app.services.staged_input_retention_service import apply_staged_cleanup, build_staged_cleanup_plan
 
 HOUSEKEEPING_LOOK_SECONDS = 3600
@@ -47,7 +49,7 @@ def _jobs_past_their_time(db: Session, *, retention_days: int) -> list[Operation
 
 
 def run_housekeeping(db: Session, *, settings: Settings) -> dict[str, Any]:
-    done: dict[str, Any] = {"audit_entries": 0, "jobs": 0, "staged_files": 0, "staged_bytes": 0}
+    done: dict[str, Any] = {"audit_entries": 0, "jobs": 0, "staged_files": 0, "staged_bytes": 0, "evidence_logs": 0}
     policy = {
         "retention_days": int(settings.audit_retention_days),
         "minimum_days": int(settings.audit_retention_min_days),
@@ -66,7 +68,10 @@ def run_housekeeping(db: Session, *, settings: Settings) -> dict[str, Any]:
         staged = apply_staged_cleanup(plan)
         done["staged_files"], done["staged_bytes"] = staged["deleted_count"], staged["deleted_bytes"]
 
-    if done["jobs"] or done["staged_files"]:
+    evidence = delete_closed_alert_evidence(db, settings=settings)
+    done["evidence_logs"] = evidence["logs"]
+
+    if done["jobs"] or done["staged_files"] or evidence["links"]:
         db.add(
             AuditLog(
                 actor=ACTOR,
@@ -79,6 +84,10 @@ def run_housekeeping(db: Session, *, settings: Settings) -> dict[str, Any]:
                     "staged_files_deleted": done["staged_files"],
                     "staged_bytes_deleted": done["staged_bytes"],
                     "staging_retention_hours": int(settings.operation_staging_retention_hours),
+                    "evidence_links_removed": evidence["links"],
+                    "evidence_logs_deleted": evidence["logs"],
+                    "evidence_alerts": evidence["alerts"],
+                    "evidence_retention_days": int(settings.alert_evidence_retention_days),
                 },
             )
         )
