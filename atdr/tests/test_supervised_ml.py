@@ -78,7 +78,6 @@ from atdr.app.services.class_temporal_coverage_service import build_class_tempor
 from atdr.app.services.label_quality_service import build_label_quality_issues, export_label_quality_issues_csv
 from atdr.app.main import app
 from atdr.app.ml.features import build_log_features
-from atdr.app.ml.benchmark_adapter import BenchmarkDatasetSpec, benchmark_dataset_report
 from atdr.app.services.assisted_label_service import export_label_review_sample, generate_assisted_labels
 from atdr.app.services.ml_label_service import build_label_review_queue, export_review_queue_csv, import_ml_labels_csv
 from atdr.app.services.ml_service import baseline_drift_report
@@ -1025,20 +1024,6 @@ def test_baseline_drift_report_handles_missing_fields():
     assert report["unknown_app_rate"] >= 0
 
 
-def test_benchmark_adapter_does_not_mix_with_real_labels():
-    csv_body = (
-        "src_port,dst_port,bytes,packets,app_risk,protocol,action,app,label,attack_type\n"
-        "12345,443,5000,10,2,tcp,allow,ssl,normal,normal\n"
-        "23456,22,1000,8,5,tcp,deny,ssh,port_scan,port_scan\n"
-        "34567,4444,9000,20,5,tcp,deny,unknown,malicious,malware\n"
-    )
-    report = benchmark_dataset_report(csv_body, BenchmarkDatasetSpec(dataset_name="unit-benchmark", source_type="public_csv"))
-
-    assert report["dataset_name"] == "unit-benchmark"
-    assert report["writes_to_real_labels"] is False
-    assert report["label_distribution"]["benign"] == 1
-    assert report["label_distribution"]["malicious"] == 1
-    assert any("must not be presented as real deployment accuracy" in warning for warning in report["warnings"])
 
 
 def test_supervised_training_time_split_and_reviewed_label_warnings(tmp_path, monkeypatch):

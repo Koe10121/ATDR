@@ -23,19 +23,10 @@ from atdr.app.db.models import (
 )
 from atdr.app.detection import explanations
 from atdr.app.detection import v51_supervised_lifecycle as lifecycle
-from atdr.app.detection.v519_independent_labeled_validation import (
-    V519_LATEST,
-    V519_STATE,
-    V519_VERSION,
-)
 from atdr.app.detection.v520_schema_aware_abstention import (
     assess_log_schema_compatibility,
     public_schema_abstention_policy,
     summarize_schema_compatibility,
-)
-from atdr.app.detection.v520_schema_aware_abstention_validation import (
-    V520_LOCK_RECORD,
-    run_v520_schema_aware_abstention_validation,
 )
 from atdr.app.services import ml_evidence_snapshot_service
 
@@ -275,43 +266,6 @@ def test_ml_evidence_snapshot_exposes_policy_not_secrets(monkeypatch, tmp_path):
     assert "client_secret" not in encoded.lower()
 
 
-def test_v519_terminal_lock_is_read_only_and_keeps_fingerprints_private(tmp_path):
-    state = {
-        "version": V519_VERSION,
-        "evaluation_completed": True,
-        "adapter_recovery_completed": True,
-        "labels_revealed": True,
-        "predictions_frozen_before_labels": True,
-        "post_reveal_candidate_changes": False,
-        "labels_used_for_features": False,
-        "labels_used_for_prediction": False,
-        "labels_used_for_sampling": False,
-        "labels_used_for_tuning": False,
-    }
-    (tmp_path / V519_STATE).write_text(json.dumps(state), encoding="utf-8")
-    (tmp_path / V519_LATEST).write_text(
-        json.dumps({"version": V519_VERSION, "status": "evaluated"}),
-        encoding="utf-8",
-    )
-    before = {
-        name: (tmp_path / name).read_bytes()
-        for name in (V519_STATE, V519_LATEST)
-    }
-    result = run_v520_schema_aware_abstention_validation(output_dir=tmp_path)
-    after = {
-        name: (tmp_path / name).read_bytes()
-        for name in (V519_STATE, V519_LATEST)
-    }
-
-    assert result["ok"] is True
-    assert result["v519_terminal_lock"]["locked"] is True
-    assert result["fingerprints_exposed"] is False
-    assert result["labels_opened"] is False
-    assert result["prediction_rows_opened"] is False
-    assert before == after
-    private_lock = json.loads((tmp_path / V520_LOCK_RECORD).read_text(encoding="utf-8"))
-    assert private_lock["terminal_state"] is True
-    assert all(row["sha256"] for row in private_lock["files"].values())
 
 
 def test_public_policy_keeps_ml_and_response_authority_disabled():

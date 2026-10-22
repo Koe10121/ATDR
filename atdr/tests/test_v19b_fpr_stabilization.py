@@ -5,12 +5,6 @@ from atdr.app.benchmarks.readiness import (
     readiness_gate_v7b_fpr_stabilization,
 )
 from atdr.app.routers.dashboard import _latest_v19b_ai_summary
-from atdr.scripts.run_v19b_independent_fpr_stabilization import (
-    _false_positive_analysis,
-    _profile_safety_reasons,
-    _render_analysis,
-    stabilize_independent_boundary,
-)
 
 
 def _record(
@@ -82,98 +76,14 @@ def _metrics(*, fpr: float = 0.09) -> dict:
     }
 
 
-def test_stabilized_boundary_routes_unresolved_unknown_service_to_review():
-    result = stabilize_independent_boundary(
-        record=_record(),
-        row=_row(),
-        profile="independent_fpr_stabilized",
-    )
-
-    assert result["prediction"] == "benign_like"
-    assert result["analyst_review_recommended"] is True
-    assert result["boundary_original_prediction"] == "suspicious"
-    assert result["threat_probability"] == 0.5
 
 
-def test_stabilized_boundary_does_not_depend_on_source_or_scenario_identity():
-    first = stabilize_independent_boundary(
-        record=_record(source="sensor-a", scenario="one"),
-        row=_row(),
-        profile="independent_fpr_stabilized",
-    )
-    second = stabilize_independent_boundary(
-        record=_record(source="different-sensor", scenario="different-scenario"),
-        row=_row(),
-        profile="independent_fpr_stabilized",
-    )
-
-    assert first["prediction"] == second["prediction"]
-    assert first["boundary_reason"] == second["boundary_reason"]
 
 
-def test_stabilized_boundary_preserves_behavior_and_rule_supported_threats():
-    behavior_row = _row(
-        behavior_evidence={
-            "class": "suspicious",
-            "reason": "behavior-window horizontal scan pattern",
-        }
-    )
-    rule_row = _row(rule_class="suspicious", rule_score=0.72)
-
-    behavior_result = stabilize_independent_boundary(
-        record=_record(),
-        row=behavior_row,
-        profile="independent_fpr_stabilized",
-    )
-    rule_result = stabilize_independent_boundary(
-        record=_record(label="suspicious"),
-        row=rule_row,
-        profile="independent_fpr_stabilized",
-    )
-
-    assert behavior_result["prediction"] == "suspicious"
-    assert rule_result["prediction"] == "suspicious"
-    assert "analyst_review_recommended" not in behavior_result
-    assert "analyst_review_recommended" not in rule_result
 
 
-def test_profile_safety_rejects_fpr_recall_identity_and_evidence_failures():
-    profile = {
-        "metrics": {
-            **_metrics(fpr=0.2),
-            "threat_positive_recall": 0.7,
-            "per_class": {
-                "suspicious": {"recall": 0.7},
-                "malicious": {"recall": 0.5},
-            },
-        },
-        "uses_source_or_scenario_identity": True,
-        "preserves_behavior_evidence": False,
-    }
-
-    reasons = _profile_safety_reasons(profile)
-
-    assert "threat recall below 0.85" in reasons
-    assert "suspicious recall below 0.80" in reasons
-    assert "malicious recall below 0.60" in reasons
-    assert "benign FPR exceeds 0.15" in reasons
-    assert "profile depends on source/scenario identity" in reasons
-    assert "profile does not preserve behavior-window evidence" in reasons
 
 
-def test_false_positive_analysis_identifies_needs_context_without_overlay():
-    analysis = _false_positive_analysis(
-        records=[_record()],
-        y_true=["benign_like"],
-        rows=[_row()],
-    )
-    markdown = _render_analysis(analysis)
-
-    assert analysis["false_positive_count"] == 1
-    assert analysis["original_labels"] == {"needs_context": 1}
-    assert analysis["behavior_evidence_rows"] == 0
-    assert "ambiguous needs_context rows" in markdown
-    assert "Source and scenario identity are not inputs" in markdown
 
 
 def test_readiness_v7b_passes_without_promotion_activation_or_automation():

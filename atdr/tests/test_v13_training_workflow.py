@@ -1,6 +1,4 @@
-import csv
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -9,14 +7,6 @@ from sqlalchemy.pool import StaticPool
 from atdr.app.benchmarks.readiness import readiness_gate_v3
 from atdr.app.db.database import Base
 from atdr.app.db.models import MLLabel, NormalizedLog, RawLog
-from atdr.app.detection.v13_training import (
-    V13_REVIEW_FIELDS,
-    analyze_v13_ml_errors,
-    audit_training_data_quality,
-    export_v13_ai_training_review_sample,
-    train_v13_supervised_candidates,
-    write_v13_label_target_plan,
-)
 
 
 def _session() -> Session:
@@ -80,49 +70,8 @@ def _seed_labels(db: Session, *, rows_per_class: int = 8) -> None:
     db.commit()
 
 
-def test_v13_audit_and_label_target_plan(tmp_path):
-    with _session() as db:
-        _seed_labels(db)
-        audit = audit_training_data_quality(
-            db,
-            output_path=tmp_path / "training_data_quality_audit_test.md",
-            split="random",
-        )
-        target = write_v13_label_target_plan(
-            db,
-            output_path=tmp_path / "v1_3_label_target_plan.md",
-            split="random",
-        )
-
-    assert audit["ok"] is True
-    assert audit["reviewed_label_count"] == 20
-    assert "duplicate_summary" in audit
-    assert "missing_feature_rates" in audit
-    assert Path(audit["report_path"]).exists()
-    assert len(target["class_rows"]) == 5
-    assert all("better_gap" in row for row in target["class_rows"])
-    assert Path(target["report_path"]).exists()
 
 
-def test_v13_review_sample_has_importable_columns(tmp_path):
-    with _session() as db:
-        _seed_labels(db)
-        result = export_v13_ai_training_review_sample(
-            db,
-            limit=15,
-            focus="balanced",
-            output_path=tmp_path / "v1_3_ai_training_review_sample.csv",
-        )
-
-    assert result["ok"] is True
-    assert result["rows"] > 0
-    with Path(result["path"]).open(encoding="utf-8", newline="") as handle:
-        reader = csv.DictReader(handle)
-        assert reader.fieldnames == V13_REVIEW_FIELDS
-        first = next(reader)
-    assert first["human_review_decision"] == ""
-    assert first["log_id"]
-    assert result["response_automation_allowed"] is False
 
 
 def test_readiness_gate_v3_is_conservative():
@@ -158,28 +107,3 @@ def test_readiness_gate_v3_is_conservative():
     assert result["response_automation_allowed"] is False
 
 
-def test_v13_candidate_training_and_error_analysis_do_not_activate_model(tmp_path):
-    with _session() as db:
-        _seed_labels(db, rows_per_class=10)
-        candidates = train_v13_supervised_candidates(
-            db,
-            output_path=tmp_path / "v1_3_supervised_candidate_report_test.md",
-            split="random",
-            min_samples=6,
-        )
-        errors = analyze_v13_ml_errors(
-            db,
-            output_path=tmp_path / "v1_3_ml_error_analysis_test.md",
-            split="random",
-            min_samples=6,
-        )
-
-    assert candidates["ok"] is True
-    assert candidates["best_flat_candidate"] is not None
-    assert candidates["safety"]["model_artifact_written"] is False
-    assert candidates["safety"]["model_activated"] is False
-    assert candidates["safety"]["automatic_response_enabled"] is False
-    assert candidates["readiness_gate_v3"]["production_promoted"] is False
-    assert errors["ok"] is True
-    assert "recommended_next_label_focus" in errors
-    assert errors["response_automation_allowed"] is False

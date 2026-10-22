@@ -1,6 +1,23 @@
 # Module Index: Live vs. Historical
 
-Date: 2026-09-22
+Date: 2026-09-22; updated 2026-10-22
+
+## Removed on 22 October 2026
+
+These 21 historical modules were deleted, with the one-off scripts that ran
+them and the tests that only covered them (git history keeps them all):
+`v13_training`, `v14b_false_positive`, `v14c_malicious_recovery`, `v333`,
+`v334`, `v336`, `v338`, `v339`, `v340`, `v345`, `v350`, `v354`, `v399`,
+`v400`, `v401`, `v519` and `v520_schema_aware_abstention_validation`,
+`v549_fixed_revalidation_decision` (detection), and
+`ml_baseline_review_service`, `v50_shadow_validation_service`,
+`v518_postgres_scale_service` (services). So were 165 scripts that nothing
+ran and no current document named, mostly `run_vNNN_*` campaign runners, and
+`atdr/app/ml/benchmark_adapter.py`. Their rows are gone from the table below;
+the rest of this index is as of 22 September. Kept on purpose although
+nothing calls them yet: `audit_retention_service` and
+`staged_input_retention_service` (so audit-log retention does not run on its
+own today), and the MFU sign-in template and IAM checks.
 
 ## Why this exists
 
@@ -36,18 +53,18 @@ are individual abandoned side-branches sitting *inside* two long-lived,
 still-active lineages, plus a few fully self-contained dead clusters:
 
 1. **The dashboard-evaluation lineage** (`v330` → `v372`, rooted in
-   `routers/dashboard.py`) is mostly live. Its dead side-branches:
-   `v333, v334, v336, v338, v339, v340, v345, v350, v354`.
+   `routers/dashboard.py`) is mostly live. Its dead side-branches
+   (`v333, v334, v336, v338, v339, v340, v345, v350, v354`) were removed on
+   22 October.
 2. **The evidence-qualification lineage** (`v49`–`v57`, `v398`, `v521`–`v563`,
    rooted in `routers/evidence_review.py` and `routers/ml.py`) is mostly
-   live. Its dead side-branches: `v514, v515, v516, v517, v518` (services),
-   `v519` (detection), `v525` (services), `v531` (detection), `v538`
-   (services).
+   live. Its dead side-branches: `v514, v515, v516, v517` (services),
+   `v525` (services), `v531` (detection), `v538` (services); `v518`
+   (services) and `v519` (detection) were removed on 22 October.
 3. **Fully self-contained dead islands** (no live root at all):
    - `v13_training.py`, `v14b_false_positive.py`, `v14c_malicious_recovery.py`
-     — note `v14_false_positive.py` (no letter suffix) is a **different,
-     live** file, imported by `v330_detection_ml_quality.py`. Easy to
-     conflate with its dead `v14b`/`v14c` siblings by name alone.
+     (removed 22 October) — note `v14_false_positive.py` (no letter suffix)
+     is a **different, live** file, imported by `v330_detection_ml_quality.py`.
    - `v564_window_aware_anomaly.py` — genuinely unwired. The anomaly model
      actually loaded at startup is `v561_anomaly_bootstrap_service.py`
      (`atdr/app/main.py:39`). `v564` is unpromoted research, not a
@@ -73,8 +90,8 @@ still-active lineages, plus a few fully self-contained dead clusters:
 13 more historical files are non-versioned one-off admin/ops tooling, each
 reachable only from its own script+test pair: `audit_retention_service.py`,
 `load_test_service.py`, `mfu_iam_validation.py`,
-`mfu_shell_package_service.py`, `ml_baseline_review_service.py`,
-`repository_cleanup_service.py`, `repository_security_service.py`,
+`mfu_shell_package_service.py`, `ml_baseline_review_service.py` (removed
+22 October), `repository_cleanup_service.py`, `repository_security_service.py`,
 `repository_surface_service.py`, `staged_input_retention_service.py`,
 `template_bridge_contract.py`, `template_shell_auth.py`, plus the two named
 above.
@@ -106,10 +123,7 @@ reachable from. `__init__.py` package markers are excluded.
 | supervised_workflow.py | live | ml.py |
 | suspicious_recall_analysis.py | live | ml.py |
 | threshold_tuning.py | live | ml.py |
-| v13_training.py | historical | scripts + test only |
 | v14_false_positive.py | live | dashboard.py (imported by v330) |
-| v14b_false_positive.py | historical | script + test only; also imported by dead v14c |
-| v14c_malicious_recovery.py | historical | script + test only |
 | v49_detection_ml_reliability.py | live | evidence_review.py |
 | v51_supervised_lifecycle.py | live | ml.py |
 | v52_shadow_reliability.py | live | evidence_review.py |
@@ -121,40 +135,26 @@ reachable from. `__init__.py` package markers are excluded.
 | v330_detection_ml_quality.py | live | dashboard.py |
 | v331_noise_reduction.py | live | evidence_review.py |
 | v332_guard_validation.py | live | dashboard.py |
-| v333_guard_refinement.py | historical | script + test only |
-| v334_soc_queue_redesign.py | historical | script + test only |
 | v335_split_stability_repair.py | live | dashboard.py |
-| v336_label_semantics.py | historical | script + test only |
 | v337_evidence_feature_enrichment.py | live | dashboard.py |
-| v338_calibrated_threshold_search.py | historical | script + test only; also imported by dead v339, v340 |
-| v339_suspicious_recall_recovery.py | historical | script + test only |
-| v340_suspicious_boundary_model.py | historical | script + test only |
 | v341_label_semantics_audit.py | live | dashboard.py |
 | v342_label_policy_reframing.py | live | dashboard.py |
 | v343_hybrid_soc_queue.py | live | dashboard.py |
 | v344_two_stage_soc_queue.py | live | dashboard.py |
-| v345_queue_precision_severity_recall.py | historical | script + test only |
 | v346_queue_target_separability.py | live | dashboard.py |
 | v347_queue_target_repair_proposal.py | live | dashboard.py |
 | v348_repaired_queue_target_model.py | live | dashboard.py |
 | v349_repaired_queue_severity_model.py | live | dashboard.py |
-| v350_queued_severity_semantics.py | historical | script + test only |
 | v351_queue_severity_interface.py | live | dashboard.py |
 | v352_repaired_interface_severity_model.py | live | dashboard.py |
 | v353_severity_feature_repair.py | live | dashboard.py |
-| v354_severity_target_semantics_audit.py | historical | script + test only |
 | v355_severity_target_policy_reframing.py | live | dashboard.py |
 | v357_queue_rule_hybrid_agreement.py | live | dashboard.py |
 | v359_supervised_output_policy_contract.py | live | dashboard.py |
 | v362_supervised_training_target_contract.py | live | dashboard.py |
 | v372_unified_detection_ml_evaluation.py | live | dashboard.py (direct import) |
 | v398_independent_holdout_validation.py | live | evidence_review.py |
-| v399_multisource_frozen_revalidation.py | historical | script + test only; also imported by dead v400 |
-| v400_provider_blinded_external_validation.py | historical | script + test only; also imported by dead v401 |
-| v401_schema_aware_soc_queue.py | historical | script + test only |
-| v519_independent_labeled_validation.py | historical | script + tests only; also imported by dead v520_schema_aware_abstention_validation.py |
 | v520_schema_aware_abstention.py | live | ml.py |
-| v520_schema_aware_abstention_validation.py | historical | script + test only (distinct file from v520_schema_aware_abstention.py above) |
 | v521_native_panos_evidence.py | live | evidence_review.py |
 | v522_supervised_model_rebuild.py | live | evidence_review.py |
 | v526_native_blind_qualification.py | live | evidence_review.py |
@@ -172,7 +172,6 @@ reachable from. `__init__.py` package markers are excluded.
 | v546_manual_anchor_transfer_repair.py | live | evidence_review.py (direct import) |
 | v547_manual_anchor_acquisition.py | live | evidence_review.py (direct import) |
 | v548_manual_anchor_fixed_revalidation.py | live | evidence_review.py (direct import) |
-| v549_fixed_revalidation_decision.py | historical | script + test only (distinct from live v549a/v549b) |
 | v549a_supplemental_threat_anchor_acquisition.py | live | evidence_review.py (direct import) |
 | v549b_combined_fixed_revalidation.py | live | evidence_review.py (direct import) |
 | v562_supervised_qualification_campaign.py | live | evidence_review.py |
@@ -213,7 +212,6 @@ reachable from. `__init__.py` package markers are excluded.
 | mfu_iam_service.py | live | auth.py |
 | mfu_iam_validation.py | historical | script + test only |
 | mfu_shell_package_service.py | historical | scripts + test only; also imported by dead v560 |
-| ml_baseline_review_service.py | historical | script + test only |
 | ml_evidence_snapshot_service.py | live | ml.py |
 | ml_label_service.py | live | ml.py |
 | ml_service.py | live | ml.py |
@@ -241,7 +239,6 @@ reachable from. `__init__.py` package markers are excluded.
 | user_service.py | live | auth.py |
 | watchlist_service.py | live | watchlists.py |
 | windows_firewall_connector.py | live | main.py (direct import) |
-| v50_shadow_validation_service.py | historical | scripts + test only |
 | v58_shadow_scoring_service.py | live | ml.py |
 | v59_shadow_observation_service.py | live | ml.py |
 | v510_detection_operations_service.py | live | ml.py (direct import) |
@@ -251,7 +248,6 @@ reachable from. `__init__.py` package markers are excluded.
 | v515_runtime_soak_service.py | historical | script + test only; also imported by dead v516 |
 | v516_memory_query_service.py | historical | script + test only; also imported by dead v517, v518 |
 | v517_postgres_multiworker_service.py | historical | script + test only; also imported by dead v518 |
-| v518_postgres_scale_service.py | historical | script + test only |
 | v523_live_source_acceptance_service.py | live | evidence_review.py |
 | v524_investigation_gemini_quality_service.py | live | evidence_review.py |
 | v525_integrated_acceptance_service.py | historical | script + test only |

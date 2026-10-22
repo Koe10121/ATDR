@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import csv
 import json
-import sys
 from pathlib import Path
 
 import pytest
@@ -14,7 +13,6 @@ from atdr.app.db.database import Base
 from atdr.app.services import evidence_review_service as review_service
 from atdr.app.services import v533_independent_acceptance_service as v533
 from atdr.app.services import v539_independent_evidence_decision_service as service
-from atdr.scripts import run_v536_independent_evidence_activation_decision as legacy_cli
 
 
 def _settings() -> Settings:
@@ -493,62 +491,5 @@ def test_orphaned_cross_process_claim_fails_closed(
     assert status["evaluation_execution_count"] == 1
 
 
-def test_v536_cli_is_a_read_only_v539_preflight_alias(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    calls = 0
-
-    def safe_status(*, settings):
-        nonlocal calls
-        calls += 1
-        return {
-            "ok": True,
-            "status": "human_review_required",
-            "safety": {
-                "model_activated": False,
-                "response_actions_written": 0,
-            },
-        }
-
-    monkeypatch.setattr(legacy_cli, "get_settings", _settings)
-    monkeypatch.setattr(legacy_cli, "get_v539_evaluation_status", safe_status)
-    monkeypatch.setattr(sys, "argv", ["run_v536", "--pretty"])
-
-    with pytest.raises(SystemExit) as exc_info:
-        legacy_cli.main()
-
-    output = json.loads(capsys.readouterr().out)
-    assert exc_info.value.code == 0
-    assert calls == 1
-    assert output["legacy_command"] is True
-    assert output["status"] == "human_review_required"
-    assert output["safety"]["model_activated"] is False
-    assert output["safety"]["response_actions_written"] == 0
-    assert "run_v539_independent_evidence_decision" in output["message"]
 
 
-def test_v536_cli_fails_closed_without_private_error_details(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    def fail_status(*, settings):
-        raise service.FrozenEvidenceIntegrityError(
-            "frozen_evidence_changed",
-            "The frozen evidence changed after the evaluation claim.",
-        )
-
-    monkeypatch.setattr(legacy_cli, "get_settings", _settings)
-    monkeypatch.setattr(legacy_cli, "get_v539_evaluation_status", fail_status)
-    monkeypatch.setattr(sys, "argv", ["run_v536"])
-
-    with pytest.raises(SystemExit) as exc_info:
-        legacy_cli.main()
-
-    output = json.loads(capsys.readouterr().out)
-    assert exc_info.value.code == 1
-    assert output["ok"] is False
-    assert output["legacy_command"] is True
-    assert output["secrets_exposed"] is False
-    assert output["private_paths_exposed"] is False
-    assert "digest" not in json.dumps(output).lower()

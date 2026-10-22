@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
 import json
-from pathlib import Path
 from threading import Event
 
 import pytest

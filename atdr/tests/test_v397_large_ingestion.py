@@ -6,7 +6,7 @@ from pathlib import Path
 import subprocess
 import sys
 
-from sqlalchemy import create_engine, event, func, inspect, select, text
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 

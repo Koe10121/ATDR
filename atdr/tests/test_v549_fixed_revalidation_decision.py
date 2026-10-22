@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
 
 from atdr.app.detection import v548_manual_anchor_fixed_revalidation as v548
-from atdr.app.detection import v549_fixed_revalidation_decision as v549
 
 
 def _strategy(name: str, *, passed: bool = False) -> dict[str, object]:
@@ -88,110 +86,14 @@ def _result(*, leader_passed: bool = True) -> dict[str, object]:
     }
 
 
-def test_all_eight_strategies_and_candidate_are_reported() -> None:
-    decision = v549.build_fixed_candidate_decision(_result())
-
-    assert decision["status"] == "diagnostic_candidate_qualified"
-    assert decision["strategy_count"] == 8
-    assert len(decision["strategies"]) == 8
-    assert decision["diagnostic_candidate"] == v548.FIXED_CANDIDATE_STRATEGIES[0]["name"]
-    assert decision["diagnostic_candidate_qualified"] is True
-    assert decision["activation_allowed"] is False
-    assert decision["model_activated"] is False
-    assert decision["response_automation_allowed"] is False
-    for row in decision["strategies"]:
-        assert set(row["metrics"]) == set(v549.METRIC_FIELDS)
-        assert set(row["calibration"]) == set(v549.CALIBRATION_FIELDS)
 
 
-def test_failed_fixed_gate_keeps_shadow_lifecycle() -> None:
-    decision = v549.build_fixed_candidate_decision(
-        _result(leader_passed=False)
-    )
-
-    assert decision["status"] == "no_diagnostic_candidate"
-    assert decision["diagnostic_candidate"] is None
-    assert decision["diagnostic_candidate_qualified"] is False
-    assert "queue_f1" in decision["failed_gate_checks"]
-    assert decision["lifecycle_state"] == "shadow_observation"
-    assert decision["remaining_supervised_phases"]
 
 
-@pytest.mark.parametrize(
-    "mutation",
-    (
-        lambda result: result.update(evaluation_execution_count=2),
-        lambda result: result.update(model_activated=True),
-        lambda result: result.update(response_actions_written=1),
-        lambda result: result["strategies"].pop(),
-        lambda result: result["strategies"][0]["fixed_freeze_gate"].update(
-            gates={"queue_f1_min": 0.1}
-        ),
-    ),
-)
-def test_integrity_or_authority_mutation_fails_closed(mutation) -> None:
-    result = _result()
-    mutation(result)
-    with pytest.raises(v549.V549DecisionError):
-        v549.build_fixed_candidate_decision(result)
 
 
-def test_status_blocks_without_review_and_never_reads_result(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        v549.v548,
-        "get_public_v548_status",
-        lambda _output_dir: {
-            "review": {
-                "closed": False,
-                "ready_for_fixed_revalidation": False,
-            },
-            "evaluation_execution_count": 0,
-        },
-    )
-    status = v549.get_public_v549_status(tmp_path)
-
-    assert status["status"] == "blocked_review_incomplete"
-    assert status["evaluation_execution_count"] == 0
-    assert status["model_activated"] is False
-    assert status["automatic_import_performed"] is False
 
 
-def test_public_status_contains_no_private_result_fields(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        v549.v548,
-        "get_public_v548_status",
-        lambda _output_dir: {
-            "review": {
-                "closed": True,
-                "ready_for_fixed_revalidation": True,
-            },
-            "evaluation_execution_count": 1,
-        },
-    )
-    (tmp_path / v548.V548_RESULT).write_text(
-        json.dumps(_result()),
-        encoding="utf-8",
-    )
-
-    status = v549.get_public_v549_status(tmp_path)
-    serialized = json.dumps(status).casefold()
-    for forbidden in (
-        "review_token",
-        "raw_log",
-        "source_ip",
-        "destination_ip",
-        "protocol_digest",
-        "api_key",
-    ):
-        assert forbidden not in serialized
-    assert status["row_predictions_returned"] is False
-    assert status["secrets_exposed"] is False
 
 
 def test_private_execution_claim_is_atomic_and_fail_closed(tmp_path: Path) -> None:

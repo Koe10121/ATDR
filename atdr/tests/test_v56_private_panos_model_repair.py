@@ -6,7 +6,6 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
-import pandas as pd
 import pytest
 
 from atdr.app.detection import supervised_detector

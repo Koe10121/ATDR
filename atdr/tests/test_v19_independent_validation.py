@@ -3,11 +3,6 @@ from pathlib import Path
 
 from atdr.app.benchmarks.readiness import readiness_gate_v7_independent_validation
 from atdr.app.routers.dashboard import _latest_v19_ai_summary
-from atdr.scripts.build_independent_holdout import build_independent_holdout
-from atdr.scripts.run_controlled_real_source_validation import (
-    run_controlled_real_source_validation,
-)
-from atdr.scripts.run_v19_independent_revalidation import _best_profile
 
 
 def _metrics(*, f1: float, recall: float, fpr: float) -> dict:
@@ -25,33 +20,8 @@ def _metrics(*, f1: float, recall: float, fpr: float) -> dict:
     }
 
 
-def test_independent_holdout_builder_is_seeded_separate_and_safe(tmp_path):
-    result = build_independent_holdout(
-        output_dir=tmp_path,
-        csv_path=tmp_path / "independent.csv",
-    )
-
-    assert result["row_count"] == 500
-    assert result["source_count"] >= 5
-    assert result["scenario_count"] >= 10
-    assert result["duplicate_summary"]["exact_duplicate_rows"] == 0
-    assert result["previous_holdout_overlap"]["exact_overlap_rows"] == 0
-    assert Path(result["snapshot_path"]).exists()
-    assert result["model_activated"] is False
-    assert result["response_automation_allowed"] is False
 
 
-def test_independent_holdout_dry_run_writes_nothing(tmp_path):
-    result = build_independent_holdout(
-        output_dir=tmp_path,
-        csv_path=tmp_path / "independent.csv",
-        dry_run=True,
-    )
-
-    assert result["row_count"] == 500
-    assert result["csv_path"] is None
-    assert result["snapshot_path"] is None
-    assert not list(tmp_path.iterdir())
 
 
 def test_readiness_v7_can_validate_without_promotion_or_automation():
@@ -91,40 +61,8 @@ def test_readiness_v7_stays_conservative_when_independent_fpr_fails():
     assert result["production_promoted"] is False
 
 
-def test_profile_selection_balances_f1_and_false_positive_budget():
-    result = _best_profile(
-        [
-            {
-                "profile": "external_recall_plus",
-                "metrics": _metrics(f1=0.9, recall=0.93, fpr=0.154),
-            },
-            {
-                "profile": "rules_only",
-                "metrics": _metrics(f1=0.76, recall=0.67, fpr=0.08),
-            },
-        ]
-    )
-
-    assert result["profile"] == "external_recall_plus"
 
 
-def test_controlled_real_source_validation_is_isolated_and_safe():
-    result = run_controlled_real_source_validation(write_output=False)
-
-    assert result["ok"] is True
-    assert result["temporary_database_used"] is True
-    assert result["current_database_modified"] is False
-    assert result["raw_logs"] >= result["parse_success"]
-    assert result["parse_failures"] >= 1
-    assert result["alert_count"] >= 1
-    assert result["case_count"] >= 1
-    assert result["alerts_deduplicated"] >= 1
-    assert result["response_and_audit_safety"]["protected_ip_denied"] is True
-    assert result["response_and_audit_safety"]["audit_recorded"] is True
-    assert (
-        result["response_and_audit_safety"]["automatic_response_actions"] == 0
-    )
-    assert result["real_firewall_blocking_enabled"] is False
 
 
 def test_v19_dashboard_summary_is_concise_and_safe(tmp_path):

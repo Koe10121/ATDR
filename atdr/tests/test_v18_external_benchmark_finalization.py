@@ -4,12 +4,6 @@ from datetime import datetime, timezone
 from atdr.app.benchmarks.adapter import BenchmarkRecord
 from atdr.app.benchmarks.readiness import readiness_gate_v6_external_finalization
 from atdr.app.routers.dashboard import _latest_v18_ai_summary
-from atdr.scripts.run_v18_external_benchmark_finalization import (
-    _behavior_evidence,
-    _cross_fitted_confidence_calibration,
-    _predict_profile,
-    _profile_safety_reasons,
-)
 
 
 def _record(
@@ -94,94 +88,12 @@ def test_v18_readiness_rejects_noisy_profile():
     assert "profile_safety_filter" in failed
 
 
-def test_v18_behavior_evidence_uses_window_features_not_scenario_name():
-    evidence = _behavior_evidence(
-        _record(),
-        {
-            "src_ip_15min_event_count": 6,
-            "src_ip_15min_unique_dst_ips": 6,
-            "scanning_like_behavior_score": 52,
-            "src_ip_15min_total_bytes": 660,
-        },
-    )
-
-    assert evidence == {
-        "class": "suspicious",
-        "reason": "behavior-window horizontal scan pattern",
-    }
 
 
-def test_v18_profile_recovery_does_not_create_response_action():
-    record = _record()
-    baseline = {
-        "prediction": "benign_like",
-        "probabilities": {
-            "benign_like": 0.66,
-            "suspicious": 0.05,
-            "malicious": 0.29,
-        },
-        "rule": {
-            "suggested_class": "benign_like",
-            "score": 0.08,
-        },
-        "anomaly": {"score": 0.1},
-    }
-    result = _predict_profile(
-        record=record,
-        features={
-            "src_ip_15min_event_count": 6,
-            "src_ip_15min_unique_dst_ips": 6,
-            "scanning_like_behavior_score": 52,
-        },
-        baseline=baseline,
-        profile="external_recall_plus",
-        calibrator={"method": "none"},
-    )
-
-    assert result["prediction"] == "suspicious"
-    assert result["behavior_evidence"]["reason"].startswith("behavior-window")
-    assert "response_action" not in result
 
 
-def test_v18_cross_fitted_calibration_reports_all_methods():
-    y_true = ["benign_like", "suspicious", "malicious"] * 20
-    predictions = ["benign_like", "suspicious", "malicious"] * 20
-    probabilities = [
-        {"benign_like": 0.7, "suspicious": 0.2, "malicious": 0.1},
-        {"benign_like": 0.2, "suspicious": 0.65, "malicious": 0.15},
-        {"benign_like": 0.15, "suspicious": 0.2, "malicious": 0.65},
-    ] * 20
-
-    result = _cross_fitted_confidence_calibration(
-        y_true=y_true,
-        predictions=predictions,
-        probabilities=probabilities,
-    )
-
-    assert result["cross_fitted"] is True
-    assert result["fold_count"] >= 2
-    assert {item["method"] for item in result["methods"]} == {
-        "none",
-        "temperature",
-        "sigmoid",
-        "isotonic",
-        "bucket_smoothing",
-    }
-    assert result["selected_metrics"]["buckets"]
 
 
-def test_v18_profile_safety_filter_rejects_false_positive_spike():
-    reasons = _profile_safety_reasons(
-        {
-            "metrics": {
-                "benign_false_positive_rate": 0.2,
-                "threat_positive_precision": 0.9,
-            },
-            "uses_scenario_or_source_identifiers": False,
-        }
-    )
-
-    assert reasons == ["benign FPR exceeds 0.15"]
 
 
 def test_v18_dashboard_summary_is_concise_and_safe(tmp_path):

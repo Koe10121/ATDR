@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from atdr.app.core.config import get_settings

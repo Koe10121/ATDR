@@ -424,7 +424,7 @@ def test_performance_smoke_runs_read_only(monkeypatch):
 
 
 def test_the_duplicate_check_finds_exact_copies_through_the_fingerprint_index():
-    from sqlalchemy import event, text
+    from sqlalchemy import event
 
     from atdr.app.services.log_service import _existing_raw_log_id
 

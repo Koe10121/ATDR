@@ -2,50 +2,12 @@ from pathlib import Path
 
 from atdr.scripts.register_log_source import register_log_source
 from atdr.scripts.run_source_scenario import _temp_session_factory
-from atdr.scripts.run_v32_no_hardware_source_pilot import run_v32_no_hardware_source_pilot
-from atdr.scripts.run_v32_syslog_source_simulator import run_v32_syslog_source_simulator
 
 
-def test_v32_syslog_source_simulator_dry_run_is_non_mutating():
-    result = run_v32_syslog_source_simulator(dry_run=True, count=30)
-
-    assert result["ok"] is True
-    assert result["dry_run"] is True
-    assert result["hardware_required"] is False
-    assert result["current_database_modified"] is False
-    assert result["real_device_forwarding_validated"] is False
-    assert result["production_ready"] is False
 
 
-def test_v32_syslog_source_simulator_imports_safe_rows_in_temp_db():
-    result = run_v32_syslog_source_simulator(use_temp_db=True, count=100)
-
-    assert result["ok"] is True
-    assert result["simulated_source_validated"] is True
-    assert result["counts"]["raw_logs_imported"] == 100
-    assert result["counts"]["normalized_logs_created"] == 100
-    assert result["counts"]["parse_successes"] == 97
-    assert result["counts"]["parse_failures"] == 3
-    assert result["response_safety"]["automatic_response_actions_created"] == 0
-    assert result["real_firewall_blocking_enabled"] is False
 
 
-def test_v32_no_hardware_pilot_validates_source_pipeline_in_temp_db():
-    result = run_v32_no_hardware_source_pilot(use_temp_db=True, count=100)
-
-    assert result["ok"] is True
-    assert result["status"] == "simulated_source_pilot_validated"
-    assert result["simulated_source_validated"] is True
-    assert result["real_device_forwarding_validated"] is False
-    assert result["counts"]["parse_successes"] == 97
-    assert result["counts"]["parse_failures"] == 3
-    assert result["detection_result"]["source_name"] == "lab-firewall-sim-1"
-    assert result["detection_result"]["top_attack_types"] == [{"name": "port_scan", "count": 1}]
-    assert result["counts"]["after_detection"]["alerts"] >= 1
-    assert result["case_summaries"]
-    assert result["response_safety"]["automatic_response_actions_created"] == 0
-    assert result["v30_validator"]["real_device_forwarding_validated"] is False
-    assert result["production_ready"] is False
 
 
 def test_register_log_source_helper_is_idempotent_for_v32(monkeypatch):

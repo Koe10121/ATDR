@@ -1,6 +1,5 @@
 from collections.abc import Generator
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, func, select

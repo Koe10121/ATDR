@@ -65,17 +65,10 @@ def test_real_data_ai_demo_helper_is_documented_and_private_logs_are_ignored():
     assert "run_ai_demo_pipeline.ps1" in historical_runbook
 
 
-def test_assisted_labeling_scripts_and_runbook_warning_exist():
-    generator = Path("atdr/scripts/generate_assisted_labels.py").read_text(encoding="utf-8")
-    sampler = Path("atdr/scripts/export_label_review_sample.py").read_text(encoding="utf-8")
+def test_assisted_labeling_runbook_warning_and_review_controls_exist():
     runbook = Path("docs/AI_TRAINING_RUNBOOK.md").read_text(encoding="utf-8")
     governance_page = Path("frontend/src/pages/MLGovernance.tsx").read_text(encoding="utf-8")
 
-    assert "--dry-run" in generator
-    assert "--apply" in generator
-    assert "--min-confidence" in generator
-    assert "assisted_label_preview.csv" in generator
-    assert "assisted_label_human_review_sample.csv" in sampler
     assert "assisted suggestions remain weak labels" in runbook
     assert "Human Review Sample" in governance_page
     assert "Import Reviewed CSV" in governance_page

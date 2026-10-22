@@ -10,7 +10,6 @@ from sqlalchemy.pool import StaticPool
 
 from atdr.app.benchmarks.adapter import (
     BenchmarkRecord,
-    write_benchmark_snapshot,
 )
 from atdr.app.benchmarks.review import (
     apply_benchmark_reviews,
@@ -22,9 +21,6 @@ from atdr.app.db.models import MLLabel
 from atdr.app.main import app
 from atdr.app.services.ml_label_service import import_ml_labels_csv
 from atdr.app.services.user_service import create_user
-from atdr.scripts.run_external_benchmark_validation import (
-    run_external_benchmark_validation,
-)
 
 
 def _record(
@@ -253,161 +249,3 @@ def test_apply_benchmark_reviews_overrides_expected_label_and_attack_type():
     assert metadata[2]["human_review_confidence"] == 4
 
 
-def test_external_validation_uses_reviewed_benchmark_labels(
-    tmp_path,
-    monkeypatch,
-):
-    import atdr.scripts.run_external_benchmark_validation as module
-
-    external_records = [
-        _record(2, label="benign_like", attack_type="normal"),
-        _record(3, label="malicious", attack_type="malware_c2"),
-    ]
-    internal_records = [
-        _record(10, label="benign_like", attack_type="normal"),
-        _record(11, label="suspicious", attack_type="port_scan"),
-        _record(12, label="malicious", attack_type="malware_c2"),
-    ]
-    external_snapshot = write_benchmark_snapshot(
-        external_records,
-        input_name="external.csv",
-        mapping_summary={},
-        output_dir=tmp_path / "external",
-        sample_strategy="balanced",
-        requested_limit=None,
-    )
-    internal_snapshot = write_benchmark_snapshot(
-        internal_records,
-        input_name="internal.csv",
-        mapping_summary={},
-        output_dir=tmp_path / "internal",
-        sample_strategy="balanced",
-        requested_limit=None,
-    )
-    review_path = tmp_path / "reviewed.csv"
-    review_path.write_text(_review_csv(), encoding="utf-8")
-    calls: list[dict] = []
-
-    monkeypatch.setattr(
-        module,
-        "prepare_external_benchmark_snapshot",
-        lambda **_kwargs: {
-            **external_snapshot,
-            "source_kind": "fixed_safe_unseen_holdout",
-            "benchmark_label_count": 2,
-        },
-    )
-    monkeypatch.setattr(
-        module,
-        "build_internal_ai_readiness_benchmark",
-        lambda **_kwargs: {"ok": True},
-    )
-    monkeypatch.setattr(
-        module,
-        "prepare_benchmark_dataset",
-        lambda **_kwargs: {
-            **internal_snapshot,
-            "rows_selected": len(internal_records),
-        },
-    )
-    monkeypatch.setattr(
-        module,
-        "compare_layered_benchmark_reliability",
-        lambda **_kwargs: {
-            "ok": True,
-            "mode_results": [
-                {
-                    "mode": "supervised_only",
-                    "metrics": {
-                        "precision": 1,
-                        "recall": 1,
-                        "f1": 1,
-                        "benign_false_positive_rate": 0,
-                        "false_positives": 0,
-                        "false_negatives": 0,
-                    },
-                    "runtime_seconds": 0.01,
-                }
-            ],
-        },
-    )
-
-    def fake_candidate(**kwargs):
-        records, _ = module.load_prepared_benchmark_snapshot(
-            kwargs["holdout_snapshot"]
-        )
-        calls.append(
-            {
-                "labels": [record.label for record in records],
-                "reviewed": len(kwargs.get("review_metadata") or {}),
-            }
-        )
-        reviewed = bool(kwargs.get("review_metadata"))
-        metrics = {
-            "threat_positive_precision": 0.9 if reviewed else 0.7,
-            "threat_positive_recall": 0.9 if reviewed else 0.6,
-            "threat_positive_f1": 0.9 if reviewed else 0.64,
-            "benign_false_positive_rate": 0.1 if reviewed else 0.4,
-            "macro_f1": 0.88 if reviewed else 0.6,
-            "weighted_f1": 0.89 if reviewed else 0.62,
-            "false_positives": 0,
-            "false_negatives": 0,
-            "per_class": {
-                "benign_like": {"recall": 0.9},
-                "suspicious": {"recall": 0.85 if reviewed else 0.2},
-                "malicious": {"recall": 0.8},
-            },
-        }
-        return {
-            "ok": True,
-            "candidate_name": "test-candidate",
-            "holdout_rows": len(records),
-            "metrics": metrics,
-            "calibration": {"status": "passed"},
-            "reviewed_labels_applied": len(
-                kwargs.get("review_metadata") or {}
-            ),
-        }
-
-    monkeypatch.setattr(module, "_cross_dataset_candidate", fake_candidate)
-    monkeypatch.setattr(
-        module,
-        "_latest_json",
-        lambda *_args, **_kwargs: {
-            "best_benchmark_candidate": {
-                "metrics": {
-                    "threat_positive_f1": 0.9,
-                    "threat_positive_recall": 0.9,
-                    "benign_false_positive_rate": 0.1,
-                    "per_class": {
-                        "benign_like": {"recall": 0.9},
-                        "suspicious": {"recall": 0.85},
-                        "malicious": {"recall": 0.8},
-                    },
-                }
-            },
-            "readiness_gate_v4": {"benchmark_validated": True},
-        },
-    )
-    monkeypatch.setattr(
-        module,
-        "_latest_validation_status",
-        lambda: {"passed": True},
-    )
-
-    result = run_external_benchmark_validation(
-        reviewed_benchmark_csv=review_path,
-        output_dir=tmp_path / "reports",
-    )
-
-    assert result["reviewed_benchmark_labels"]["applied_count"] == 1
-    assert result["cross_dataset_candidate"][
-        "reviewed_labels_applied"
-    ] == 1
-    assert result["reviewed_metrics_comparison"][
-        "threat_positive_f1"
-    ] == {"before": 0.64, "after": 0.9, "change": 0.26}
-    assert calls[0]["labels"][0] == "benign_like"
-    assert calls[1]["labels"][0] == "suspicious"
-    assert result["model_activated"] is False
-    assert result["response_automation_allowed"] is False

@@ -20,7 +20,6 @@ from atdr.app.services.v553_release_readiness_service import (
     build_v553_release_readiness_report,
     validate_acceptance_manifest,
 )
-from atdr.scripts import run_v553_team_runtime_acceptance as team_rehearsal
 from atdr.tests.test_mfu_iam_handoff import _client as _handoff_client
 from atdr.tests.test_mfu_iam_handoff import _configure_handoff
 from atdr.tests.test_v390_durable_operation_jobs import _client_with_session
@@ -398,75 +397,7 @@ def test_repository_secret_scan_never_returns_matched_value_and_sbom_is_bounded(
     }
 
 
-def test_team_rehearsal_preflight_is_path_safe_and_never_executes(monkeypatch, tmp_path):
-    root = tmp_path / "ATDR clean clone"
-    template = tmp_path / "private MFU shell"
-    (root / "config").mkdir(parents=True)
-    (root / ".env.shell.example").write_text("RESPONSE_SIMULATION=true\n", encoding="utf-8")
-    required = ["backend-node/package.json", "frontend-vue/package.json"]
-    (root / "config/mfu-shell-contract.json").write_text(json.dumps({"required_paths": required}), encoding="utf-8")
-    for relative in required:
-        path = template / relative
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("{}", encoding="utf-8")
-    monkeypatch.setattr(team_rehearsal, "_command", lambda _name: "available")
-    monkeypatch.setattr(team_rehearsal, "_source_clean", lambda _root: True)
-
-    report = team_rehearsal.build_team_runtime_preflight(
-        root=root,
-        template_root=template,
-        shell_package=None,
-        private_config_root=None,
-    )
-    encoded = json.dumps(report)
-    assert report["ok"] is True
-    assert report["status"] == "ready_for_disposable_rehearsal"
-    assert report["configured_database_accessed"] is False
-    assert report["configured_shell_modified"] is False
-    assert str(template) not in encoded
 
 
-def test_team_rehearsal_handoff_contract_requires_safe_shell_status():
-    report = {
-        "ok": True,
-        "all_services_ready": True,
-        "configuration": {
-            "auth_mode": "template_shell",
-            "response_simulation": True,
-            "secrets_exposed": False,
-        },
-        "identity_provider": {
-            "iam_proxy_configured": True,
-            "google_auth_ready": True,
-            "acceptance_requires_real_sign_in": True,
-            "account_scope_acceptance": "not_validated",
-            "secrets_exposed": False,
-        },
-        "secrets_exposed": False,
-    }
-    assert team_rehearsal._login_handoff_contract_ready(report) is True
-    report["identity_provider"]["account_scope_acceptance"] = "accepted_without_real_sign_in"
-    assert team_rehearsal._login_handoff_contract_ready(report) is False
 
 
-def test_team_rehearsal_start_stage_can_avoid_inherited_capture_handles(monkeypatch, tmp_path):
-    recorded: dict[str, object] = {}
-
-    class Result:
-        returncode = 0
-
-    def fake_run(*args, **kwargs):
-        recorded.update(kwargs)
-        return Result()
-
-    monkeypatch.setattr(team_rehearsal.subprocess, "run", fake_run)
-    assert team_rehearsal._run_stage(
-        "powershell.exe",
-        ["-File", "start_system.ps1"],
-        cwd=tmp_path,
-        timeout=10,
-        capture_output=False,
-    ) is True
-    assert recorded["stdout"] is team_rehearsal.subprocess.DEVNULL
-    assert recorded["stderr"] is team_rehearsal.subprocess.DEVNULL
-    assert "capture_output" not in recorded

@@ -1,17 +1,7 @@
 import csv
-import json
-from datetime import datetime, timezone
 from pathlib import Path
 
-from atdr.app.benchmarks.adapter import BenchmarkRecord
 from atdr.app.benchmarks.readiness import readiness_gate_v2
-from atdr.scripts.compare_layered_benchmark_reliability import compare_layered_benchmark_reliability
-from atdr.scripts.prepare_benchmark_dataset import prepare_benchmark_dataset
-from atdr.scripts.run_benchmark_ml_experiment import (
-    _split_indices,
-    run_benchmark_ml_experiment,
-)
-from atdr.scripts.run_detection_benchmark import run_detection_benchmark
 
 
 def _benchmark_csv(path: Path) -> Path:
@@ -74,133 +64,14 @@ def _benchmark_csv(path: Path) -> Path:
     return path
 
 
-def test_prepare_benchmark_dataset_writes_sanitized_snapshot(tmp_path):
-    csv_path = _benchmark_csv(tmp_path / "benchmark.csv")
-    snapshot = prepare_benchmark_dataset(
-        input_csv=csv_path,
-        mapping_config=Path("data/samples/benchmarks/example_firewall_mapping.json"),
-        label_config=Path("data/samples/benchmarks/example_label_mapping.json"),
-        limit=12,
-        sample_strategy="balanced",
-        output_dir=tmp_path,
-    )
-
-    assert snapshot["ok"] is True
-    assert snapshot["rows_selected"] == 12
-    assert snapshot["profile"]["label_distribution"]["benign"] > 0
-    assert snapshot["profile"]["label_distribution"]["threat"] > 0
-    assert snapshot["private_raw_payloads_excluded"] is True
-    assert Path(snapshot["snapshot_path"]).exists()
-    payload = json.loads(Path(snapshot["snapshot_path"]).read_text(encoding="utf-8"))
-    assert all("raw" not in row for row in payload["records"])
 
 
-def test_detection_benchmark_uses_prepared_snapshot_and_readiness_gate(tmp_path):
-    csv_path = _benchmark_csv(tmp_path / "benchmark.csv")
-    snapshot = prepare_benchmark_dataset(
-        input_csv=csv_path,
-        mapping_config=Path("data/samples/benchmarks/example_firewall_mapping.json"),
-        label_config=Path("data/samples/benchmarks/example_label_mapping.json"),
-        output_dir=tmp_path,
-    )
-
-    report = run_detection_benchmark(
-        prepared_snapshot=Path(snapshot["snapshot_path"]),
-        detection_mode="hybrid",
-        output_dir=tmp_path,
-    )
-
-    assert report["ok"] is True
-    assert report["detection_mode"] == "hybrid"
-    assert report["metrics"]["threat_positive_recall"] > 0
-    assert "per_class_metrics" in report["metrics"]
-    assert "confusion_matrix" in report["metrics"]
-    assert report["readiness_gate_v2"]["production_promoted"] is False
-    assert report["safety"]["response_actions_created"] == 0
 
 
-def test_benchmark_ml_experiment_does_not_activate_model(tmp_path):
-    csv_path = _benchmark_csv(tmp_path / "benchmark.csv")
-    snapshot = prepare_benchmark_dataset(
-        input_csv=csv_path,
-        mapping_config=Path("data/samples/benchmarks/example_firewall_mapping.json"),
-        label_config=Path("data/samples/benchmarks/example_label_mapping.json"),
-        output_dir=tmp_path,
-    )
-
-    report = run_benchmark_ml_experiment(
-        snapshot_path=Path(snapshot["snapshot_path"]),
-        split="random",
-        output_dir=tmp_path,
-    )
-
-    assert report["ok"] is True
-    assert report["best_candidate"] is not None
-    assert report["safety"]["model_artifact_written"] is False
-    assert report["safety"]["model_activated"] is False
-    assert report["safety"]["automatic_response_enabled"] is False
-    assert Path(report["paths"]["json"]).exists()
 
 
-def test_benchmark_time_split_handles_aware_naive_and_missing_timestamps():
-    records = [
-        BenchmarkRecord(
-            row_number=2,
-            raw={},
-            normalized={"timestamp": datetime(2026, 1, 2, tzinfo=timezone.utc)},
-            label="benign",
-            attack_type="normal",
-        ),
-        BenchmarkRecord(
-            row_number=3,
-            raw={},
-            normalized={"timestamp": datetime(2026, 1, 1)},
-            label="suspicious",
-            attack_type="port_scan",
-        ),
-        BenchmarkRecord(
-            row_number=4,
-            raw={},
-            normalized={"timestamp": None},
-            label="malicious",
-            attack_type="brute_force",
-        ),
-    ]
-
-    train, test, warnings = _split_indices(
-        records,
-        ["benign_like", "suspicious", "malicious"],
-        split="time",
-        test_size=0.34,
-        train_test_split=None,
-    )
-
-    assert train == [1]
-    assert test == [0, 2]
-    assert warnings == []
 
 
-def test_layered_benchmark_comparison_report_and_ignored_output_policy(tmp_path):
-    csv_path = _benchmark_csv(tmp_path / "benchmark.csv")
-    snapshot = prepare_benchmark_dataset(
-        input_csv=csv_path,
-        mapping_config=Path("data/samples/benchmarks/example_firewall_mapping.json"),
-        label_config=Path("data/samples/benchmarks/example_label_mapping.json"),
-        output_dir=tmp_path,
-    )
-
-    report = compare_layered_benchmark_reliability(
-        prepared_snapshot=Path(snapshot["snapshot_path"]),
-        output_dir=tmp_path,
-    )
-
-    assert report["ok"] is True
-    assert {row["mode"] for row in report["mode_results"]} == {"rules_only", "anomaly_only", "supervised_only", "hybrid"}
-    assert report["safety"]["automatic_response_enabled"] is False
-    assert Path(report["paths"]["markdown"]).exists()
-    gitignore = Path(".gitignore").read_text(encoding="utf-8")
-    assert "demo_exports/" in gitignore
-    assert "ml_baseline_reviews/" in gitignore
 
 
 def test_readiness_gate_v2_remains_conservative():
