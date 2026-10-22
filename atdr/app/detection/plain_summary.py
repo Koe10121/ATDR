@@ -372,8 +372,18 @@ def _count(number: int, one: str, many: str) -> str:
     return f"{number:,} {one if number == 1 else many}"
 
 
-def _source_noun(rows: Sequence[Any]) -> tuple[str, str]:
-    return ("MFU device", "MFU devices") if _main_side(rows, "src") == "campus" else ("outside address", "outside addresses")
+def _sources(rows: Sequence[Any]) -> str:
+    """'8 MFU devices', or '2 outside addresses and 1 MFU device': each source on its own side. Named by the side most
+    of them were on, three flood alerts from two outside addresses and one MFU device read "3 outside addresses"."""
+
+    sides: dict[str, Counter] = {}
+    for row in rows:
+        if row.src_ip:
+            sides.setdefault(row.src_ip, Counter())[address_side(row.src_ip, row.src_zone)] += 1
+    campus = sum(1 for seen in sides.values() if seen.most_common(1)[0][0] == "campus")
+    parts = [(len(sides) - campus, "outside address", "outside addresses"), (campus, "MFU device", "MFU devices")]
+    named = [_count(number, one, many) for number, one, many in sorted(parts, key=lambda part: -part[0]) if number]
+    return " and ".join(named) or "no recorded source"
 
 
 def _connections_verdict(blocked: int, total: int) -> str:
@@ -436,7 +446,7 @@ def build_situation_summary(db: Session) -> dict[str, Any]:
         sources = {row.src_ip for row in evidence if row.src_ip}
         line = f"{SITUATION_LABELS.get(kind, kind)}: {_count(len(group), 'alert', 'alerts')}"
         if sources:
-            line += f" from {_count(len(sources), *_source_noun(evidence))}"
+            line += f" from {_sources(evidence)}"
         if evidence:
             line += f"; {_connections_verdict(sum(blocked.get(alert.id, 0) for alert in group), len(evidence))}"
         named: dict[str, list[Alert]] = {}
@@ -451,10 +461,9 @@ def build_situation_summary(db: Session) -> dict[str, Any]:
             parts = []
             for name, matched in named.items():
                 rows_for_name = [row for alert in matched for row in by_alert.get(alert.id, [])]
-                devices = {row.src_ip for row in rows_for_name if row.src_ip}
                 stopped = sum(blocked.get(alert.id, 0) for alert in matched)
                 outcome = "blocked" if stopped == len(rows_for_name) else "let through" if stopped == 0 else "partly blocked"
-                parts.append((outcome == "blocked", -len(matched), f"{name} ({_count(len(devices), *_source_noun(rows_for_name))}, {outcome})"))
+                parts.append((outcome == "blocked", -len(matched), f"{name} ({_sources(rows_for_name)}, {outcome})"))
             # What got through first.
             line += ". Named by the firewall or the watchlist: " + "; ".join(text for *_, text in sorted(parts)[:3])
         points.append(line + ".")

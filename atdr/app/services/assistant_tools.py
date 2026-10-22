@@ -20,11 +20,11 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from atdr.app.core.config import Settings
-from atdr.app.db.models import Alert, DetectionRun, NormalizedLog, WatchlistItem
-from atdr.app.detection.attack_mapping import ATTACK_TYPE_MAPPINGS
+from atdr.app.db.models import Alert, AlertEvidence, DetectionRun, NormalizedLog, WatchlistItem
+from atdr.app.detection.attack_mapping import ATTACK_TYPE_MAPPINGS, INTERNET_SCANNING_ALERT, infer_attack_type_from_rules
 from atdr.app.detection.explanations import build_alert_detection_summary
 from atdr.app.detection.playbooks import PLAYBOOK_GUIDANCE, build_alert_playbook
-from atdr.app.detection.plain_summary import brief_situation, build_situation_summary, threat_name
+from atdr.app.detection.plain_summary import address_side, brief_situation, build_situation_summary, threat_name
 from atdr.app.detection.rule_catalog import RULE_CATALOG
 from atdr.app.detection.scoring import severity_from_score
 from atdr.app.services import assistant_service as core
@@ -35,6 +35,7 @@ from atdr.app.services.assistant_data_query import (
     ATTACK_LABELS,
     DataQuestion,
     TimeWindow,
+    _alert_rows,
     _as_local,
     _local_now,
     _parse_window,
@@ -74,6 +75,8 @@ SYSTEM_AREAS = ("ml", "detection_runs", "operations", "sources", "recent_changes
 SYSTEM_OVERVIEW_AREAS = {"all", "overall", "overview", "health", "everything", "summary"}
 # The live feed makes one scanning alert an hour; the overview describes the busiest and counts the rest.
 SCANNING_ALERTS_IN_OVERVIEW = 2
+# The outside addresses with the most connections, beside a ranking of alert sources.
+BUSIEST_OUTSIDE_SOURCES = 3
 
 ATTACK_CONCEPTS = {
     "port_scan": "A port scan is one source probing many ports or many hosts to find services it can reach. A vertical scan hits many ports on one host; a horizontal scan hits the same port on many hosts. It is usually the first step before an attack.",
@@ -346,7 +349,56 @@ class AssistantToolbox:
             **kept,
             **filters,
         )
-        return ToolOutput(note + self._with_threat_names(self._alerts(question)), [("Alert records", "/api/alerts", None)])
+        text = note + self._with_threat_names(self._alerts(question))
+        if group_by == "src_ip" and not any(filters.values()) and (busiest := self._busiest_outside_sources()):
+            # Ranked below the flood alerts' sources, the model still answered that no single IP was hammering the
+            # network: for floods, how much one address sent is the answer, so it comes first.
+            text = f"{busiest}\n\n{text}" if kept["attack_type"] == "dos_ddos" else f"{text}\n{busiest}"
+        return ToolOutput(text, [("Alert records", "/api/alerts", None)])
+
+    def _busiest_outside_sources(self) -> str:
+        """The outside addresses with the most connections in the stored logs, and the alert each is in. Asked whether
+        any single IP was hammering the network, the model ranked the flood alerts' sources, one alert each, and
+        answered no; the busiest outside address had made 1,057 connections, all in the hourly scanning alert."""
+
+        found = self.db.execute(
+            select(NormalizedLog.src_ip, func.max(NormalizedLog.src_zone), func.count(NormalizedLog.id),
+                   func.count(func.distinct(NormalizedLog.dst_ip)), func.min(NormalizedLog.generated_time),
+                   func.max(NormalizedLog.generated_time))
+            .where(NormalizedLog.src_ip.is_not(None))
+            .group_by(NormalizedLog.src_ip)
+            .order_by(func.count(NormalizedLog.id).desc())
+            .limit(10 * BUSIEST_OUTSIDE_SOURCES)
+        ).all()
+        busiest = [row for row in found if address_side(row[0], row[1]) == "outside"][:BUSIEST_OUTSIDE_SOURCES]
+        if not busiest:
+            return ""
+        parts = []
+        for address, _, connections, destinations, first, last in busiest:
+            part = f"{address}: {_plural(connections, 'connection')} to {_plural(destinations, 'destination address', 'destination addresses')}"
+            if first is not None and last is not None:
+                # "1,057 connections" said nothing to the model until it had the minutes they came in.
+                minutes = round((last - first).total_seconds() / 60)
+                part += (f" in about {_plural(minutes, 'minute')} ({_log_when(first)} to {last:%H:%M})" if minutes
+                         else f" within a minute ({_log_when(first)})")
+            held = self.db.execute(
+                select(Alert.id, Alert.alert_type, Alert.matched_rules_json)
+                .join(AlertEvidence, AlertEvidence.alert_id == Alert.id)
+                .join(NormalizedLog, NormalizedLog.id == AlertEvidence.normalized_log_id)
+                .where(NormalizedLog.src_ip == address)
+                .group_by(Alert.id)
+                .order_by(func.count(AlertEvidence.id).desc(), Alert.id.desc())
+                .limit(1)
+            ).first()
+            if held is None:
+                part += ", in no alert"
+            else:
+                kind = ("internet scanning" if held.alert_type == INTERNET_SCANNING_ALERT
+                        else ATTACK_LABELS.get(infer_attack_type_from_rules(held.matched_rules_json or []), "unclassified"))
+                part += f", in alert #{held.id} ({kind})"
+            parts.append(part)
+        return self._text("Busiest single outside addresses in the stored firewall logs, by connections rather than alerts: "
+                          + "; ".join(parts) + ".")
 
     def query_logs(self, args: dict[str, Any]) -> ToolOutput:
         intent = _choice(args, "intent", ("count", "top", "trend"), "count")
@@ -420,7 +472,11 @@ class AssistantToolbox:
         # On a quiet day the period's count and ranking only repeated "none were created" (said below) and "nothing to
         # rank" (the plain words above sort the open alerts by kind), and pushed the overview past what the model is
         # shown; who the open alerts come from is given instead.
-        if not quiet:
+        if not quiet and window.bounded:
+            # In place of the period's own count: beside it, the sentence only repeated its figures, and the week's
+            # overview came within 60 characters of what the model is shown.
+            parts.insert(2, self._counts_kept_apart(window))
+        elif not quiet:
             parts.append(self._alerts(DataQuestion(subject="alerts", intent="count", window=window)))
         parts.append(self._data(DataQuestion(subject="alerts", intent="count", status="open")))
         if quiet:
@@ -468,6 +524,25 @@ class AssistantToolbox:
             [("Alert records", "/api/alerts", None), ("Firewall log records", "/api/logs", None)],
             # "the most urgent alert", not "the top alert": the router knows it as the one the Overview opens first.
             ["Which alert should I look at first?", "What should I do about the most urgent alert?"],
+        )
+
+    def _counts_kept_apart(self, window: TimeWindow) -> str:
+        """The period's alerts, how many of them are still open, and the open ones from any day, in one sentence.
+        Given them in separate paragraphs, the model wrote "Open alerts: 20 (Critical: 4, High: 4, Medium: 17, Low:
+        5)", the severities of all 30 alerts created that day."""
+
+        def severities(rows: list[Any]) -> str:
+            found = {severity: sum(1 for row in rows if row.severity == severity) for severity in SEVERITIES}
+            return ", ".join(f"{severity} {count:,}" for severity, count in found.items() if count) or "none"
+
+        created, _ = _alert_rows(self.db, DataQuestion(subject="alerts", intent="count", window=window))
+        still_open = [row for row in created if row.status == "open"]
+        all_open, _ = _alert_rows(self.db, DataQuestion(subject="alerts", intent="count", status="open"))
+        return (
+            f"The counts, kept apart: {_plural(len(created), 'alert was', 'alerts were')} created {window.phrase} "
+            f"({severities(created)}), and {len(still_open):,} of them {'is' if len(still_open) == 1 else 'are'} still open"
+            f"{f' ({severities(still_open)})' if still_open else ''}. Open now, from any day: "
+            f"{_plural(len(all_open), 'alert')} ({severities(all_open)})."
         )
 
     def _sources(self, question: DataQuestion, heading: str) -> str:

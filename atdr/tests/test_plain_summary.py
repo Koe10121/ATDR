@@ -541,3 +541,30 @@ def test_a_summary_question_about_something_atdr_looked_up_gets_no_situation_not
 
     assert assistant_service._asks_for_the_situation("Summarize the alerts from Malaysia")
     assert assistant_service.SITUATION_NOTE not in engine.requests[0][0][0]["content"]
+
+
+def test_a_kind_of_attack_from_both_sides_names_each_source_on_its_own_side():
+    # Three flood alerts, from two outside addresses and one MFU device, read "3 alerts from 3 outside addresses": the
+    # sources were all named after the side most of the evidence was on.
+    from atdr.app.detection.plain_summary import build_situation_summary
+
+    db = _session()
+    inbound = {"dst": "202.28.44.1", "port": 80, "src_zone": "SG-Outside", "dst_zone": "WLAN-Inside"}
+    for src in ("154.26.136.192", "54.151.239.5"):
+        _typed_alert(db, "connection_flood_suspicion", ["connection_flood_suspicion"], [_log(db, src=src, **inbound) for _ in range(2)])
+    _typed_alert(db, "connection_flood_suspicion", ["connection_flood_suspicion"], [
+        _log(db, src="10.1.94.28", dst="8.8.8.8", port=53, src_zone="WLAN-Inside", dst_zone="SG-Outside") for _ in range(3)
+    ])
+    # One named threat seen from both sides, more of them MFU devices: the larger side comes first.
+    inside, outside = ("WLAN-Inside", "SG-Outside"), ("SG-Outside", "WLAN-Inside")
+    for src, zones in (("10.1.44.163", inside), ("147.45.50.171", outside), ("10.1.44.164", inside)):
+        _typed_alert(db, "paloalto_malware_threat", ["paloalto_malware_threat"], [
+            _log(db, src=src, dst="51.222.106.1", port=14444, src_zone=zones[0], dst_zone=zones[1], action="drop")
+        ], severity="Critical", score=100, explanation=XMRIG)
+    points = build_situation_summary(db)["points"]
+
+    assert points[0] == (
+        "Malware calling out: 3 alerts from 2 MFU devices and 1 outside address; the firewall blocked all 3 connections. "
+        "Named by the firewall or the watchlist: XMRig Miner Command and Control (2 MFU devices and 1 outside address, blocked)."
+    )
+    assert points[1] == "Floods: 3 alerts from 2 outside addresses and 1 MFU device; the firewall let all 7 connections through."

@@ -842,6 +842,55 @@ the figures are missing, and left out when they are given or when the question
 is about recent changes; each of 6 deliberate breaks turned one of its tests
 red.
 
+## Hammering, the day's counts, and sources on both sides (22 October)
+
+Asked "Is any single IP hammering our network?" (h-29, written before any run
+on 21 October), the model ranked the sources of the three flood alerts, one
+alert each, and answered that no single address stood out. In the stored logs
+one outside address had made 1,057 connections to 570 addresses in about 3
+minutes, all in the hourly scanning alert #4225, and flood alert #4160 holds
+308 connections from one address. On the live data the code before failed 3
+of 6 asks: the question twice and four other wordings, each after a different
+question.
+
+- A ranking of alert sources or destinations gives the size of each example
+  alert: "e.g. alert #4160, 308 connections".
+- A ranking of alert sources that names no address adds the three outside
+  addresses with the most connections in the stored logs: how many
+  destinations, the minutes the connections came in, and the alert holding
+  most of them ("1,057 connections to 570 destination addresses in about 3
+  minutes (20 May 2026 13:36 to 13:39), in alert #4225 (internet scanning)").
+  For flood alerts the line comes first: placed after the ranking, and without
+  the minutes, the model still opened with "no single IPs are hammering our
+  network". It takes about 0.6 s on 120,001 logs.
+
+On a day with new alerts the overview gave the day's count and the open count
+in separate paragraphs. On a copy of the live data where 30 alerts were made
+that day and 10 of them closed, "Give me today's numbers" answered "Open
+alerts: 20 (Critical: 4, High: 4, Medium: 17, Low: 5)", the severities of all
+30. The overview now gives one sentence in place of the day's own count: "The
+counts, kept apart: 30 alerts were created today (Critical 4, High 4, Medium
+17, Low 5), and 20 of them are still open (Critical 4, High 3, Medium 12, Low
+1). Open now, from any day: 77 alerts (Critical 23, High 11, Medium 35, Low
+8)." The same question then gave each group its own figures, and the overview
+is shorter than before: 4,113 characters for a week, against the 4,500 the
+model is shown.
+
+The plain words at the top of the Overview, which the assistant reads too,
+named all of a kind's sources after the side most of its evidence came from:
+three flood alerts from two outside addresses and one MFU device read "3
+alerts from 3 outside addresses". Each source is now counted on its own side:
+"3 alerts from 2 outside addresses and 1 MFU device", the larger side first.
+
+Measured on the live data, after a different question each time: the hammering
+wordings 6 of 6, both asks of the question opening with the busiest address
+and #4225 (the code before: 3 of 6); the day's counts 6 of 6 with each group's
+own figures. Main set 125 of 125, held-out 27 of 27. h-29 moved to the main set
+as rank-10, and h-31 ("Is one address flooding us with connections?") was
+written before any run. `atdr/tests/test_plain_summary.py` and
+`atdr/tests/test_assistant_lookups.py` hold the cases; each of 17 deliberate
+breaks turned one of their tests red.
+
 ## Measuring it again
 
 ```
@@ -872,6 +921,7 @@ out rather than rely on wording.
 - Whether the model gives an alert's number varies from run to run, even at temperature 0. ATDR adds the number when it looked the alert up itself; where the model looked the alert up on its own, the number can still be missing.
 - Lookups that ATDR makes before the model answers can be wrong, and the model then answers from them: a wrong match on the word "detected" produced the "1 alert" answer of 3 October. Each answer records the lookups made for it.
 - When Ollama fails a request with a server error (on 7 October, after a GPU-discovery timeout, it aborted generations with "token repeat limit reached"), ATDR asks it once more if at least 5 seconds of the answer's time are left (since 22 October; the answer's details count it as `engine_retries`). When that fails too, the built-in answer is shown. On 7 October every request failed until Ollama was restarted, so one more try would not have saved those answers.
-- For questions outside the summary route ("Are we under attack?", for one) the overview tool still gives a period's counts beside the open ones, and on a day with new alerts the model can put one under the other: asked what happened in the last hour, before that question took the summary route, it answered "163 alerts, with 30 being Critical", where 28 of the 163 were Critical and 30 were open.
+- On a day with new alerts the overview gives the day's counts and the open ones in one sentence (since 22 October), but the model can still put one under the other in its own words; the numbers are checked against the tools, not what each counts.
+- Asked "Which single address is hitting MFU the hardest?", one answer took the open-alerts list, each alert with its own source, as the alerts of one address. Asked "Are we under attack?", answers have given the newest alert's date (22 October) as the newest log's.
 - Planted text is found by its wording. A value that misleads without sounding like an instruction or a verdict (a threat name that is simply false, say) still reads as a real firewall value. The field check covers the places ATDR writes log values into words today; a new place has to use `field_text` too.
 - A Thai question about what to deal with first is recognised by its words (urgent, in a hurry, first, most important). Put another way ("if I had ten minutes, what should I look at?"), it is answered from the whole overview, which does not single out the alert the Overview opens first.

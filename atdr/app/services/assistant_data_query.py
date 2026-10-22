@@ -24,7 +24,7 @@ from typing import Any, Literal
 from sqlalchemy import desc, func, or_, select
 from sqlalchemy.orm import Session
 
-from atdr.app.db.models import Alert, NormalizedLog
+from atdr.app.db.models import Alert, AlertEvidence, NormalizedLog
 from atdr.app.detection.attack_mapping import ATTACK_LABELS, INTERNET_SCANNING_ALERT, infer_attack_type_from_rules
 from atdr.app.detection.plain_summary import address_sides, party_noun
 from atdr.app.detection.planted_text import field_text
@@ -440,6 +440,20 @@ def _highest_scoring(rows: list[Any], group_of: Callable[[Any], str]) -> dict[st
     return example
 
 
+def _connection_counts(db: Session, alert_ids: list[int]) -> dict[int, int]:
+    """How many firewall logs (connections) each of these alerts holds as evidence."""
+
+    if not alert_ids:
+        return {}
+    return dict(
+        db.execute(
+            select(AlertEvidence.alert_id, func.count(AlertEvidence.id))
+            .where(AlertEvidence.alert_id.in_(set(alert_ids)))
+            .group_by(AlertEvidence.alert_id)
+        ).all()
+    )
+
+
 def _latest_line(rows: list[Any]) -> str | None:
     if not rows:
         return None
@@ -518,6 +532,9 @@ def _answer_alerts(db: Session, dq: DataQuestion) -> DataAnswer:
         # source, an infected MFU device.
         role = {"src_ip": "source", "dst_ip": "destination"}.get(group)
         sides = address_sides(db, [value for value, _ in ranked], role) if role else {}
+        # How big each example alert is: asked whether any single IP was hammering the network, the model saw three
+        # flood sources with one alert each and answered no, though one of them had made 308 connections.
+        sizes = _connection_counts(db, [example[value] for value, _ in ranked]) if role else {}
         label = group_labels.get(group, "groups")
         summary = (
             (
@@ -531,6 +548,7 @@ def _answer_alerts(db: Session, dq: DataQuestion) -> DataAnswer:
         lines = [
             f"{value}{f' ({party_noun(role, sides[value])})' if value in sides else ''}: "
             f"{_plural(count, 'alert')} ({round(100 * count / total)}%), e.g. alert #{example[value]}"
+            f"{', ' + _plural(sizes[example[value]], 'connection') if sizes.get(example[value]) else ''}"
             for value, count in ranked
         ]
         if missing:

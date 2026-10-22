@@ -499,3 +499,58 @@ def test_the_assistant_says_when_new_logs_are_checked_as_the_settings_have_it(se
                 assert (manual if sentence is automatic else automatic) not in text
     note = assistant_service._topic_notes("Does ATDR work with live traffic?")[0]
     assert "as the topic says it" in note and "only when someone runs it" not in note
+
+
+def test_a_ranking_of_alert_sources_gives_each_alerts_size_and_the_busiest_outside_addresses():
+    # "Is any single IP hammering our network?": the model ranked the flood alerts' sources, one alert each, and
+    # answered no, though one outside address had made 1,057 connections, all in the hourly scanning alert.
+    db = _session()
+    alerts = _alerts_from_everywhere(db)
+    inbound = {"port": 443, "src_zone": "SG-Outside", "dst_zone": "WLAN-Inside"}
+    for n in range(5):
+        _log(db, src="45.82.76.10", dst=f"10.1.1.{n}", minute=36 + n, **inbound)
+    for _ in range(2):
+        _log(db, src="185.199.10.20", dst="10.1.1.9", **inbound)
+    db.flush()
+    settings = get_settings().model_copy(update={"assistant_redact_ips": False})
+    query_alerts = {tool.name: tool for tool in build_assistant_tools(db, settings=settings)}["query_alerts"]
+    text = query_alerts.run({"intent": "top", "group_by": "src_ip"}).text
+
+    assert f"91.92.93.94 (outside address): 2 alerts (22%), e.g. alert #{alerts['scan'][0].id}, 1 connection\n" in text
+    # The MFU device with the miner has more connections than two of these, but is not an outside address.
+    assert text.endswith(
+        "Busiest single outside addresses in the stored firewall logs, by connections rather than alerts: "
+        "45.82.76.10: 5 connections to 5 destination addresses in about 4 minutes (20 May 2026 13:36 to 13:40), in no alert; "
+        "185.199.10.20: 3 connections to 1 destination address within a minute (20 May 2026 13:36), "
+        f"in alert #{alerts['exploit'].id} (exploit attempt); "
+        "91.92.93.94: 2 connections to 1 destination address within a minute (20 May 2026 13:36), "
+        f"in alert #{alerts['scan'][1].id} (port scan)."
+    )
+    # For floods, how much one address sent is the answer, so the busiest come first.
+    flood = query_alerts.run({"intent": "top", "group_by": "src_ip", "attack_type": "dos_ddos"}).text
+    assert flood.startswith("Busiest single outside addresses in the stored firewall logs") and "\n\nNo flood" in flood
+    # Not beside a ranking of something else, nor of one address's alerts.
+    assert "Busiest single" not in query_alerts.run({"intent": "top", "group_by": "attack_type"}).text
+    assert "Busiest single" not in query_alerts.run({"intent": "top", "group_by": "src_ip", "ip": "10.1.1.9"}).text
+
+
+def test_on_a_day_with_new_alerts_the_overview_keeps_the_days_counts_and_the_open_ones_apart():
+    # Given the day's counts and the open ones in separate paragraphs, the model wrote "Open alerts: 20 (Critical: 4,
+    # High: 4, Medium: 17, Low: 5)", the severities of all 30 alerts created that day.
+    db = _session()
+    alerts = _alerts_from_everywhere(db)
+    alerts["probe"].severity = alerts["fourth"].severity = "Medium"
+    alerts["scan"][1].status = "resolved"
+    alerts["fourth"].created_at = datetime(2026, 5, 20, 6, 0)
+    db.flush()
+    overview = {tool.name: tool for tool in build_assistant_tools(db, settings=get_settings())}["security_overview"]
+    parts = overview.run({}).text.split("\n\n")
+
+    # In place of the day's own count, which only repeated its figures.
+    assert not any(part.startswith("8 alerts were created today.") for part in parts)
+    assert parts[2] == (
+        "The counts, kept apart: 8 alerts were created today (Critical 7, Medium 1), and 7 of them are still open "
+        "(Critical 6, Medium 1). Open now, from any day: 8 alerts (Critical 6, Medium 2)."
+    )
+    # Over all time there is no period to keep apart from the open alerts.
+    assert "kept apart" not in overview.run({"time_window": "all_time"}).text
