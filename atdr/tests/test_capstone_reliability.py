@@ -606,6 +606,64 @@ def test_local_ollama_keeps_transient_question_but_not_record_ips():
     assert outcome.ok and engine.requests[0][0][-1]["content"] == "Check 203.0.113.8"
 
 
+def test_local_ollama_tells_hidden_addresses_apart_but_shows_none_of_them():
+    # With addresses hidden, every address reached the local model as the same "[redacted-ip]": asked which single
+    # address hit MFU the hardest, it gave one address the alerts of three different sources (6 asks of 6).
+    import json
+
+    captured = []
+    listing = "Alert #1: source 45.82.76.10\nAlert #2: source 185.199.10.20\nAlert #3: source 45.82.76.10\nAlert #4: source 10.1.44.163"
+
+    def alerts(arguments):
+        return assistant_agent.ToolOutput(listing, [("Alert records", "/api/alerts?src_ip=45.82.76.10", None)], ["What else did 185.199.10.20 do?"])
+
+    def lookup(arguments):
+        captured.append(arguments)
+        return assistant_agent.ToolOutput(f"{arguments['ip']} is not on the watchlist.")
+
+    tools = [assistant_agent.AgentTool("query_alerts", "Alerts", {}, alerts), assistant_agent.AgentTool("watchlist_lookup", "Lookup", {}, lookup)]
+    said = ("Alerts #1 and #3 come from [redacted-ip-1] and alert #2 from [redacted-ip-2], which is not on the watchlist; "
+            "10.1.44.163, which you asked about, is in alert #4.")
+    engine = ScriptedEngine(_call("query_alerts"), _call("watchlist_lookup", ip="[redacted-ip-2]"), _say(said))
+    engine.name = "ollama"
+    outcome = assistant_agent.run_agent(question="Who are the sources? And 10.1.44.163?", engine=engine, tools=tools)
+
+    seen = [message["content"] for message in engine.requests[2][0] if message["role"] == "tool"]
+    # One number per address, kept across lookups; the address the analyst typed is given as typed.
+    assert seen == [
+        "Alert #1: source [redacted-ip-1]\nAlert #2: source [redacted-ip-2]\nAlert #3: source [redacted-ip-1]\nAlert #4: source 10.1.44.163",
+        "[redacted-ip-2] is not on the watchlist.",
+    ]
+    assert captured == [{"ip": "185.199.10.20"}]
+    assert outcome.ok and outcome.answer == (
+        "Alerts #1 and #3 come from [redacted-ip] and alert #2 from [redacted-ip], which is not on the watchlist; "
+        "10.1.44.163, which you asked about, is in alert #4."
+    )
+    shown = json.dumps([outcome.answer, outcome.citations, outcome.followups, outcome.safe_details()])
+    assert "45.82.76.10" not in shown and "185.199.10.20" not in shown and "redacted-ip-" not in shown
+    assert outcome.followups == ["What else did [redacted-ip] do?"]
+
+    # With addresses shown, the local model is given them as they are.
+    engine = ScriptedEngine(_call("query_alerts"), _say("Alert #2 comes from 185.199.10.20."))
+    engine.name = "ollama"
+    outcome = assistant_agent.run_agent(question="Who are the sources?", engine=engine, tools=tools, redacted=False)
+    assert [message["content"] for message in engine.requests[1][0] if message["role"] == "tool"] == [listing]
+    assert outcome.answer == "Alert #2 comes from 185.199.10.20."
+
+
+def test_the_assistant_gives_the_agent_real_addresses_to_number_and_shows_none(seeded, monkeypatch):  # noqa: F811
+    testing_session, settings = seeded
+    engine = ScriptedEngine(_call("query_alerts", intent="top", group_by="src_ip"), _say("The top sources are listed above."))
+    engine.name = "ollama"
+    monkeypatch.setattr(assistant_service, "engine_from_settings", lambda _settings: engine)
+    with testing_session() as db:
+        response = _ask(db, settings, "Which source IPs have the most alerts?")
+
+    seen = next(message["content"] for message in engine.requests[1][0] if message["role"] == "tool")
+    assert "[redacted-ip-1]" in seen and "[redacted-ip]" not in seen
+    assert response["mode"] == "assistant_agent_ollama" and "redacted-ip-" not in str(response)
+
+
 def test_transcript_sanitizer_preserves_identifiers_but_excludes_pasted_evidence():
     from atdr.app.services.assistant_privacy import sanitize_assistant_text
 

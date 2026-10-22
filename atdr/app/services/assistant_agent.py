@@ -47,6 +47,7 @@ MAX_ANSWER_CHARS = 6000
 FREE_NUMBERS = frozenset({"1", "2", "3"})
 
 IPV4 = IP_PATTERN  # Compatibility name; shared pattern covers IPv4 and IPv6.
+NUMBERED_ALIAS = re.compile(r"\[redacted-ip-\d+\]")
 # "alert 42" names an alert; "log", "source", "job" and "run" name a record only with "#" or "id"
 # ("log #7", "run id 3"), so ordinary phrases such as "run 2 more checks" are not read as references.
 ENTITY_REFERENCE = re.compile(
@@ -196,6 +197,12 @@ CALENDAR_DAY = re.compile(
     re.IGNORECASE,
 )
 LOG_DATES = re.compile(r"event times from (\d{1,2} [A-Z][a-z]{2} \d{4}) [\d:]+ to (\d{1,2} [A-Z][a-z]{2} \d{4})")
+# "The newest log is from 22 October 2026": on a day with new alerts the model gave today's date, though the stored
+# logs ended on 20 May (checked only when a tool gave the log dates).
+NEWEST_LOG_CLAIM = re.compile(
+    r"\b(?:newest|latest|most recent|last)\s+(?:stored\s+)?(?:firewall\s+)?log(?:\s+entry|\s+event)?s?\b[^.\n]{0,60}",
+    re.IGNORECASE,
+)
 NO_ALERTS_CLAIM = re.compile(
     r"\bno (?:new )?alerts?\b(?!\s+(?:of|with)\s)|\b(?:were|was) no (?:new )?alerts?\b|\bno alerts? (?:were|was) "
     r"(?:created|triggered|raised|generated)",
@@ -232,11 +239,29 @@ def day_in_span(month: int, day: int, first: date, last: date) -> date | None:
     return None
 
 
-def _logged_day_asked(asked: list[str], known_text: str) -> date | None:
-    spans = [
+def _log_spans(known_text: str) -> list[tuple[date, date]]:
+    return [
         (datetime.strptime(start, "%d %b %Y").date(), datetime.strptime(end, "%d %b %Y").date())
         for start, end in LOG_DATES.findall(known_text)
     ]
+
+
+def _newest_log_misdated(answer: str, known_text: str) -> tuple[str, date] | None:
+    """A claim about the newest log naming a day the stored logs do not reach, with the day they end."""
+
+    spans = _log_spans(known_text)
+    if not spans:
+        return None
+    newest = max(last for _, last in spans)
+    for claim in NEWEST_LOG_CLAIM.finditer(answer):
+        for month, day in calendar_days([claim.group(0)]):
+            if not any(day_in_span(month, day, first, last) for first, last in spans):
+                return claim.group(0).strip(), newest
+    return None
+
+
+def _logged_day_asked(asked: list[str], known_text: str) -> date | None:
+    spans = _log_spans(known_text)
     for month, day in calendar_days(asked):
         for first, last in spans:
             if found := day_in_span(month, day, first, last):
@@ -785,6 +810,12 @@ def verify_answer(
             "traffic of that day; an alert's own date is when ATDR's detection ran, not when the traffic happened: say what "
             "the alerts found in that traffic"
         )
+    if misdated := _newest_log_misdated(answer, known_text):
+        claim, newest = misdated
+        problems.append(
+            f"says {claim!r}, but the newest stored firewall log is from {newest.day} {newest:%b %Y}; a date on an alert is "
+            "when ATDR's detection ran, not when its traffic happened: give the newest log's own date"
+        )
     status_claim = ATTACK_STATUS_CLAIM.search(answer) or THAI_ATTACK_STATUS_CLAIM.search(answer)
     if status_claim:
         problems.append(
@@ -914,6 +945,8 @@ def run_agent(
     hosted = not (engine.name == "ollama" and is_loopback_url(getattr(engine, "base_url", OLLAMA_DEFAULT_URL)))
     secrets = forbidden_values or []
     ip_aliases: dict[str, str] = {}
+    # Addresses the analyst typed are theirs to see; the local model is given them as typed.
+    typed_ips = {ip for text in [question, *(turn.get("question", "") for turn in history or [])] for ip in IP_PATTERN.findall(text)}
 
     def alias_ip(match: re.Match) -> str:
         address = match[0]
@@ -921,8 +954,36 @@ def run_agent(
             ip_aliases[address] = f"[redacted-ip-{len(ip_aliases) + 1}]"
         return ip_aliases[address]
 
+    def local_alias(match: re.Match) -> str:
+        return match[0] if match[0] in typed_ips else alias_ip(match)
+
+    def numbered(value: Any) -> Any:
+        if isinstance(value, str):
+            return IP_PATTERN.sub(local_alias, value)
+        if isinstance(value, list):
+            return [numbered(item) for item in value]
+        if isinstance(value, dict):
+            return {key: numbered(item) for key, item in value.items()}
+        return value
+
     def outbound(value: Any) -> Any:
-        return sanitize_assistant_structure(value, forbidden_values=secrets, redact_ips=redacted, ip_replacement=alias_ip) if hosted else value
+        if hosted:
+            return sanitize_assistant_structure(value, forbidden_values=secrets, redact_ips=redacted, ip_replacement=alias_ip)
+        # With addresses hidden, every address once reached the local model as the same "[redacted-ip]": asked which
+        # single address hit MFU the hardest, it gave one address the alerts of three. It now tells them apart.
+        return numbered(value) if redacted else value
+
+    def shown(value: Any) -> Any:
+        """What the analyst sees: a hidden address as "[redacted-ip]", whichever number the model knew it by."""
+
+        if isinstance(value, str):
+            value = NUMBERED_ALIAS.sub("[redacted-ip]", value)
+            return IP_PATTERN.sub(lambda match: match[0] if match[0] in typed_ips else "[redacted-ip]", value)
+        if isinstance(value, (list, tuple)):
+            return type(value)(shown(item) for item in value)
+        if isinstance(value, dict):
+            return {key: shown(item) for key, item in value.items()}
+        return value
 
     def local_arguments(value: Any) -> Any:
         if isinstance(value, str):
@@ -987,6 +1048,12 @@ def run_agent(
             messages.append({"role": "tool", "tool_call_id": call.id, "name": call.name, "content": text})
 
     def finish(reason: str | None, answer: str | None = None) -> AgentOutcome:
+        if redacted:
+            # The lookups give the agent real addresses to number for the model; none of them is shown.
+            answer = shown(answer) if answer is not None else None
+            outcome.tool_trace = [{**item, "arguments": shown(item["arguments"])} for item in outcome.tool_trace]
+            outcome.citations = shown(outcome.citations)
+            outcome.followups = shown(outcome.followups)
         outcome.ok = reason is None
         outcome.answer = answer
         outcome.fallback_reason = reason

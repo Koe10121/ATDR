@@ -42,7 +42,7 @@ unavailable, the page falls back to the old built-in answers.
    - requests for raw logs, passwords or keys must be refused;
    - internal tool names and leaked model markup are removed from the text.
 5. If a check fails, the model gets one chance to correct the answer. If it still fails, the built-in answer is shown instead and the page says why. The whole exchange, every model call and tool call together, has one time limit (`ASSISTANT_AGENT_TIMEOUT_SECONDS`, 120 seconds by default); past it, the built-in answer is used.
-6. With a hosted engine such as Gemini, ATDR removes IP addresses, secrets, email addresses and pasted log lines from the question, the earlier turns and the tool results before they leave the laptop. An IP the analyst typed is replaced by a placeholder, which ATDR swaps back only inside its own lookups. The local model sees the question as typed, since nothing leaves the laptop. The audit trail stores the question with secrets, email addresses and IP addresses removed.
+6. With a hosted engine such as Gemini, ATDR removes IP addresses, secrets, email addresses and pasted log lines from the question, the earlier turns and the tool results before they leave the laptop. An IP the analyst typed is replaced by a placeholder, which ATDR swaps back only inside its own lookups. The local model sees the question as typed, since nothing leaves the laptop; with addresses hidden (ASSISTANT_REDACT_IPS), the addresses in ATDR's records reach it as numbered placeholders, one per address, and every answer shows them as [redacted-ip]. The audit trail stores the question with secrets, email addresses and IP addresses removed.
 7. Requests to *do* something ("block 10.1.1.1", "close these alerts") get the real dashboard guide fetched before the model answers, and the answer always says the assistant did not do it.
 8. Investigation briefs, empty questions and unsafe or prompt-injection requests still go straight to the built-in handlers.
 
@@ -891,6 +891,40 @@ written before any run. `atdr/tests/test_plain_summary.py` and
 `atdr/tests/test_assistant_lookups.py` hold the cases; each of 17 deliberate
 breaks turned one of their tests red.
 
+## Telling hidden addresses apart, and the newest log's date (22 October)
+
+With addresses hidden, as on the live system, every address reached the local
+model as the same "[redacted-ip]". Asked "Which single address is hitting MFU
+the hardest?", it named one "[redacted-ip]" and gave it the alerts of the
+open-alerts list, #4218, #4217 and #4188, which come from different sources:
+6 asks of 6, on the live data and on a copy with new alerts that day.
+
+The assistant's lookups now give the agent the real addresses, and the agent
+numbers them before the model sees anything: "[redacted-ip-1]",
+"[redacted-ip-2]", one number per address for the whole question, as it
+already did for a hosted model. The model can pass a number back to a lookup,
+which receives the address. Before the answer is shown, every number becomes
+"[redacted-ip]" again, and so does any address in the suggested follow-ups,
+the links and the lookups listed under the answer: the analyst sees what they
+saw before. An address the analyst typed is given to the model as typed and
+may appear in the answer, as before. The same question then named the busiest
+scanner, 1,057 connections in alert #4225, in 6 asks of 6.
+
+On a day with new alerts, "Are we under attack?" said the newest log was from
+22 October, the day the alerts were created; the stored logs end on 20 May.
+The overview's line about the newest alert now says what its date is ("Newest
+alert created: alert #4233 (Medium), on 22 Oct 2026 09:00, when detection
+ran"), and an answer that dates the newest log outside the stored logs' dates
+is sent back to the model with the right date. The model kept writing 22
+October after the first change alone (3 asks of 3); with the check, the
+answers give 20 May as the newest log and 22 October as the newest alert's
+creation.
+
+Measured on the live data: main set 125 of 125, held-out 27 of 27. Answers took as long as the previous version's, asked the same questions back to back.
+`atdr/tests/test_capstone_reliability.py`, `atdr/tests/test_plain_summary.py`
+and `atdr/tests/test_assistant_data_questions.py` hold the cases; each of 14
+deliberate breaks turned one of their tests red.
+
 ## Measuring it again
 
 ```
@@ -922,6 +956,5 @@ out rather than rely on wording.
 - Lookups that ATDR makes before the model answers can be wrong, and the model then answers from them: a wrong match on the word "detected" produced the "1 alert" answer of 3 October. Each answer records the lookups made for it.
 - When Ollama fails a request with a server error (on 7 October, after a GPU-discovery timeout, it aborted generations with "token repeat limit reached"), ATDR asks it once more if at least 5 seconds of the answer's time are left (since 22 October; the answer's details count it as `engine_retries`). When that fails too, the built-in answer is shown. On 7 October every request failed until Ollama was restarted, so one more try would not have saved those answers.
 - On a day with new alerts the overview gives the day's counts and the open ones in one sentence (since 22 October), but the model can still put one under the other in its own words; the numbers are checked against the tools, not what each counts.
-- Asked "Which single address is hitting MFU the hardest?", one answer took the open-alerts list, each alert with its own source, as the alerts of one address. Asked "Are we under attack?", answers have given the newest alert's date (22 October) as the newest log's.
 - Planted text is found by its wording. A value that misleads without sounding like an instruction or a verdict (a threat name that is simply false, say) still reads as a real firewall value. The field check covers the places ATDR writes log values into words today; a new place has to use `field_text` too.
 - A Thai question about what to deal with first is recognised by its words (urgent, in a hurry, first, most important). Put another way ("if I had ten minutes, what should I look at?"), it is answered from the whole overview, which does not single out the alert the Overview opens first.

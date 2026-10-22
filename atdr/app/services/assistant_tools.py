@@ -238,10 +238,11 @@ def _log_when(value: datetime | None) -> str:
 class AssistantToolbox:
     """Builds the tool list for one question, bound to one database session."""
 
-    def __init__(self, db: Session, *, settings: Settings) -> None:
+    def __init__(self, db: Session, *, settings: Settings, hide_ips: bool | None = None) -> None:
         self.db = db
         self.settings = settings
-        self.redacted = settings.assistant_redact_ips
+        # The agent hides addresses itself, numbering them so that the model can tell them apart (hide_ips=False).
+        self.redacted = settings.assistant_redact_ips if hide_ips is None else hide_ips
         self.context_limit = min(max(1, settings.assistant_max_context_rows), 50)
 
     def _text(self, value: str) -> str:
@@ -1309,5 +1310,5 @@ def _duration(delta) -> str:
     return f"{hours // 24} days" if hours >= 48 else f"{hours} hour{'s' if hours != 1 else ''}"
 
 
-def build_assistant_tools(db: Session, *, settings: Settings) -> list[AgentTool]:
-    return AssistantToolbox(db, settings=settings).tools()
+def build_assistant_tools(db: Session, *, settings: Settings, hide_ips: bool | None = None) -> list[AgentTool]:
+    return AssistantToolbox(db, settings=settings, hide_ips=hide_ips).tools()

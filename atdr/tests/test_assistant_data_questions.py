@@ -173,7 +173,7 @@ def test_an_empty_window_points_to_the_latest_matching_alert(db):
     answer = answer_data_question(db, _parse("How many high alerts last month?"))
     assert answer.counts["total"] == 0
     assert answer.summary == "0 High alerts were created last month (August)."
-    assert answer.lines == ["Most recent: alert #1 (High) on 26 Sep 2026 09:00."]
+    assert answer.lines == ["Newest alert created: alert #1 (High), on 26 Sep 2026 09:00, when detection ran."]
 
 
 def test_rankings_leave_out_missing_ips_and_name_an_example_alert(db):

@@ -568,3 +568,21 @@ def test_a_kind_of_attack_from_both_sides_names_each_source_on_its_own_side():
         "Named by the firewall or the watchlist: XMRig Miner Command and Control (2 MFU devices and 1 outside address, blocked)."
     )
     assert points[1] == "Floods: 3 alerts from 2 outside addresses and 1 MFU device; the firewall let all 7 connections through."
+
+
+def test_a_newest_log_dated_outside_the_stored_logs_is_sent_back():
+    # On a day with new alerts, "Are we under attack?" was answered "the newest log is from 22 October 2026", today's
+    # date; the stored logs ended on 20 May.
+    from atdr.app.services.assistant_agent import verify_answer
+
+    logs = ["Stored firewall logs: 120,001, with event times from 20 May 2026 13:36 to 20 May 2026 13:39 (firewall local time)."]
+    check = lambda answer: [  # noqa: E731
+        problem for problem in verify_answer(answer, evidence=logs, asked=["Are we under attack?"], redacted=True, forbidden_values=[])
+        if "newest stored firewall log is from 20 May 2026" in problem
+    ]
+    for claim in ("The alerts come from logs of 20 May 2026, and the newest log is from 22 October 2026.",
+                  "The most recent log entry is from Oct 22."):
+        assert check(claim), claim
+    for fine in ("The newest log is from 20 May 2026 at 13:39.", "The newest log is from 13:39.",
+                 "The newest alert was created on 22 Oct 2026, when detection ran."):
+        assert check(fine) == [], fine

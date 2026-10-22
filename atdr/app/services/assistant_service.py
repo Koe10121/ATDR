@@ -1488,7 +1488,8 @@ def answer_assistant_question(
         outcome = run_agent(
             question=clean_question,
             engine=engine,
-            tools=build_assistant_tools(db, settings=settings),
+            # Real addresses for the agent, which numbers them for the model and shows none of them.
+            tools=build_assistant_tools(db, settings=settings, hide_ips=False),
             history=[] if should_reset_context else _load_conversation_history(
                 db,
                 actor=actor,

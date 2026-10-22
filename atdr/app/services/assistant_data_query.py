@@ -459,7 +459,8 @@ def _latest_line(rows: list[Any]) -> str | None:
         return None
     latest = max(rows, key=lambda row: (row.created_at or datetime.min, row.id))
     when = _as_local(latest.created_at)
-    return f"Most recent: alert #{latest.id} ({latest.severity}) on {when:%d %b %Y %H:%M}." if when else None
+    # Not "Most recent: ... on 22 Oct": on a day with new alerts the model gave that date as the newest log's.
+    return f"Newest alert created: alert #{latest.id} ({latest.severity}), on {when:%d %b %Y %H:%M}, when detection ran." if when else None
 
 
 def _alert_basis(dq: DataQuestion, window_text: str, truncated: bool) -> str:
