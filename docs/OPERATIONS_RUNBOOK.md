@@ -513,6 +513,34 @@ When a release did not change the dashboard's source, its build is left as it
 is, and the System panel says the dashboard was built at an earlier version
 and has not changed since.
 
+### Installing a retrained model
+
+Trained models (`atdr\models`) are not in git, so a release never carries
+them: the live copy got the development folder's models once, when it was
+made, and a model retrained since stays in the development folder until it
+is installed on purpose, so an experiment there never goes live by accident.
+
+1. In the live copy, compare and test the new files with the live copy's own
+   packages (read-only):
+
+   ```powershell
+   cd C:\ATDR-live
+   .venv\Scripts\python.exe -m atdr.scripts.check_models --from C:\Users\User\Desktop\ATDR\atdr\models
+   ```
+
+   It lists each file that is new or different, gives each model card's
+   version against the one installed, and loads every new model file. A file
+   that "DOES NOT LOAD here" (saved by another version of scikit-learn, for
+   one) must not be copied: retrain with the live copy's packages.
+2. Stop ATDR: `scripts\stop_system.cmd`.
+3. Copy `C:\ATDR-live\atdr\models` aside (to `atdr\models-before-<date>`),
+   then copy the files the check listed into `C:\ATDR-live\atdr\models`.
+4. Start ATDR: `scripts\start_system.cmd`. The Overview's model panel and AI
+   Governance show the behaviour model's version and what it was trained on.
+
+To go back, stop ATDR, copy the folder that was set aside back over
+`atdr\models`, and start it again.
+
 ## Notifications
 
 ATDR tells people what they need to know without anyone opening a page:
