@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from atdr.app.db.database import Base
 from atdr.app.db.models import Alert, AlertEvidence, NormalizedLog, RawLog
-from atdr.app.services.alert_service import ALERT_MERGE_WINDOW_HOURS, update_alert_status
+from atdr.app.detection.rules import DetectionResult, RuleMatch
+from atdr.app.services.alert_service import ALERT_MERGE_WINDOW_HOURS, create_grouped_alert_from_detections, update_alert_status
 from atdr.app.services.detection_service import run_detection
 
 START = datetime(2026, 5, 20, 13, 36)
@@ -115,3 +116,57 @@ def test_the_open_alert_is_found_among_many_of_its_kind():
     assert (again["created_alerts"], again["deduplicated_alert_updates"]) == (0, 1)
     assert len(_scan_alerts(db)) == 61
     assert _ports(_scan_alerts(db)[0]) == [22, 8080]
+
+
+def _raised(db, kind: str, at: datetime, destinations: list[str], port: int, *, src_ip: str = "172.25.11.92",
+            sources: list[str] | None = None) -> Alert:
+    """The alert detection raises (or updates) for one group of logs of this kind, from one source or several."""
+    entries = [(at + timedelta(seconds=index), {
+        "src_ip": source, "dst_ip": destination, "src_zone": "LAN-Inside", "dst_zone": "SG-Outside",
+        "app": "web-browsing", "dst_port": port, "action": "allow", "bytes": 600, "packets": 4,
+    }) for index, (source, destination) in enumerate(zip(sources or [src_ip] * len(destinations), destinations))]
+    _store(db, entries)
+    logs = list(db.scalars(select(NormalizedLog).order_by(NormalizedLog.id.desc()).limit(len(entries))))[::-1]
+    rule = RuleMatch(code=kind, title=kind, score=50, explanation="test")
+    result = DetectionResult(threat_score=50, severity="Medium", explanation="test", matched_rules=[rule])
+    alert = create_grouped_alert_from_detections(db, [(log, result) for log in logs], primary_rule_code=kind)
+    db.commit()
+    return alert
+
+
+def test_a_source_s_next_destinations_join_the_alert_it_raised_for_one_destination():
+    # 21 Oct, live: one connection to 47.246.167.231 on port 443 was a horizontal-scan alert of its own, which named
+    # that address as its destination and so took nothing else; the same device's next 14 connections on port 80,
+    # 26 s later, raised a second alert.
+    db = _session()
+    first = _raised(db, "possible_horizontal_scan", START, ["47.246.167.231"], 443)
+    assert first.dst_ip == "47.246.167.231"
+
+    later = _raised(db, "possible_horizontal_scan", START + timedelta(seconds=26), [f"93.184.216.{n}" for n in range(14)], 80)
+
+    assert later.id == first.id and len(_scan_alerts(db)) == 1
+    assert later.dst_ip is None, "an alert about several destinations names none"
+    assert _ports(later) == [80, 443]
+    assert db.scalar(select(func.count(AlertEvidence.id)).where(AlertEvidence.alert_id == first.id)) == 15
+
+
+def test_a_beacon_to_one_address_does_not_take_a_beacon_to_another():
+    # Beaconing and floods are told apart by their destination: each outside server a device calls is its own alert.
+    db = _session()
+    first = _raised(db, "beaconing_like_outbound", START, ["198.51.100.77"], 4444)
+    second = _raised(db, "beaconing_like_outbound", START + timedelta(minutes=5), ["198.51.100.78"], 4444)
+    again = _raised(db, "beaconing_like_outbound", START + timedelta(minutes=10), ["198.51.100.77"], 4444)
+
+    assert first.id != second.id and again.id == first.id
+    assert (first.dst_ip, second.dst_ip) == ("198.51.100.77", "198.51.100.78")
+
+
+def test_an_alert_about_many_sources_stays_about_its_one_destination():
+    # Many addresses on one server's port are that server's alert; the same on another server is another alert.
+    db = _session()
+    callers = [f"198.51.100.{n}" for n in range(1, 4)]
+    first = _raised(db, "unusual_destination_port", START, ["10.20.30.40"] * 3, 8443, sources=callers)
+    second = _raised(db, "unusual_destination_port", START + timedelta(minutes=5), ["10.20.30.41"] * 3, 8443, sources=callers)
+
+    assert (first.src_ip, first.dst_ip) == (None, "10.20.30.40")
+    assert second.id != first.id and second.dst_ip == "10.20.30.41"

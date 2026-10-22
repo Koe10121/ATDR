@@ -32,6 +32,11 @@ ALERT_DEDUP_ACTIVE_STATUSES = {"open", "investigating", "contained", "needs_more
 # scanner working through four ports raised four alerts every five minutes, and the same traffic nine minutes
 # later raised 193 more (about 1,900 alerts an hour in all).
 ALERT_MERGE_WINDOW_HOURS = 24
+# Kinds of alert about one destination: a source's beaconing to one address, or its flood of one address, is told
+# apart by that address. An alert of any other kind about one source takes what the source does next, whatever the
+# destination: a horizontal scan's single connection to one address on port 443 kept its own alert while the same
+# device's next 14 connections, 26 s later, raised another (21 Oct).
+DESTINATION_ALERT_KINDS = frozenset({"beaconing_like_outbound", "connection_flood_suspicion"})
 _DEDUP_MERGE_NOTE = re.compile(r"^(?:Deduplicated alert updated with \d+ new evidence logs?\. )+")
 SLA_TARGETS = {
     "Critical": ("Immediate", timedelta(hours=1)),
@@ -425,7 +430,8 @@ def _alert_source_matches(
     dst_ips = observations.get("sample_dst_ips") or []
     if alert.src_ip and alert.src_ip not in src_ips:
         return False
-    if alert.dst_ip and alert.dst_ip not in dst_ips:
+    destination_bound = alert.src_ip is None or alert.alert_type in DESTINATION_ALERT_KINDS
+    if destination_bound and alert.dst_ip and alert.dst_ip not in dst_ips:
         return False
     return True
 
@@ -617,6 +623,8 @@ def _update_deduplicated_alert(
         ),
         "deduplicated": True,
     }
+    if metadata["unique_dst_count"] > 1:
+        alert.dst_ip = None  # about several destinations now, as a new alert for them would be
     alert.threat_score = max(alert.threat_score, max_score)
     alert.severity = severity_from_score(alert.threat_score)
     alert.title = f"{alert.severity}: {top_rule['title']} ({related_log_count} related logs, {occurrence_count} occurrences)"

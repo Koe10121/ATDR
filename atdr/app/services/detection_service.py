@@ -40,6 +40,7 @@ from atdr.app.detection.scoring import clamp_score, severity_from_score
 from atdr.app.detection.v520_schema_aware_abstention import assess_log_schema_compatibility
 from atdr.app.services.alert_service import (
     ALERT_DEDUP_ACTIVE_STATUSES,
+    DESTINATION_ALERT_KINDS,
     INTERNET_EXPOSURE_ALERT,
     INTERNET_SCANNING_ALERT,
     PERSISTENT_CONTACT_ALERT,
@@ -79,7 +80,8 @@ GROUP_BUCKET_MINUTES = 5
 LOW_SEVERITY_GROUP_MIN_EVIDENCE = 5
 INTERNET_SWEEP_RULES = {"unusual_destination_port", "unknown_or_incomplete_app", "outside_to_inside"}
 APP_RISK_POLICY_RULES = {"app_risk_4", "app_risk_5", "suspicious_app_characteristic"}
-REPEATED_DESTINATION_RULES = {"beaconing_like_outbound", "connection_flood_suspicion"}
+# Grouped by destination too, and their alerts take only that destination's activity.
+REPEATED_DESTINATION_RULES = DESTINATION_ALERT_KINDS
 MULTI_EVENT_PATTERN_RULES = {
     "beaconing_like_outbound",
     "connection_flood_suspicion",

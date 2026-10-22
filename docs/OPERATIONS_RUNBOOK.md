@@ -868,9 +868,16 @@ Limits:
 
 - One alert for each kind of activity and source. New activity of the same
   kind from the same source joins the alert still open for it, up to 24 hours
-  after that alert's last activity, whatever the port. So an attack that
-  crosses a five-minute window, or a scanner that moves to another port, stays
-  one alert. Close an alert and the next activity opens a new one.
+  after that alert's last activity, whatever the port or destination. So an
+  attack that crosses a five-minute window, or a scanner that moves to another
+  port or other hosts, stays one alert; an alert that now covers several
+  destinations names none. Beaconing and floods are the exception: each is
+  about one destination, so a device calling two outside servers has two
+  alerts. Before 22 October an alert that began with one destination took only
+  that destination's activity: one device's horizontal scan became two alerts
+  (#4210 and #4215, which stay as they are on the live list), and the 20 May
+  data now gives 79 alerts instead of 80.
+  Close an alert and the next activity opens a new one.
 - Scanning from the internet goes on one **Internet scanning** alert an hour
   (Medium). Its drawer lists the hour's scanners, those that got answers
   first, then the busiest. A connection counts as answered when the MFU

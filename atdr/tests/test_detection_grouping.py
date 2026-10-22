@@ -490,6 +490,15 @@ def _candidate(*, src_zone: str, dst_zone: str, primary_code: str) -> DetectionC
     return DetectionCandidate(log=log, result=result, primary_rule=rule)
 
 
+def test_beacons_and_floods_are_grouped_by_destination_as_their_alerts_are_matched():
+    # One list says which kinds are about one destination, for grouping logs and for matching open alerts.
+    for code in ("beaconing_like_outbound", "connection_flood_suspicion"):
+        key = detection_service._group_key(_candidate(src_zone="LAN-Inside", dst_zone="SG-Outside", primary_code=code))
+        assert key[3] == "198.51.100.5", code
+    scan = detection_service._group_key(_candidate(src_zone="LAN-Inside", dst_zone="SG-Outside", primary_code="possible_horizontal_scan"))
+    assert scan[3] is None
+
+
 def test_group_key_does_not_merge_same_zone_untrust_traffic_as_internet_sweep():
     # Regression test: Palo Alto's own default zone names are "trust"
     # (inside) and "untrust" (outside). A prior substring-matching bug
