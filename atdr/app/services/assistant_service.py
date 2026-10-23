@@ -40,6 +40,7 @@ from atdr.app.services.assistant_data_query import (
     _local_now,
     _parse_window,
     _plural,
+    alert_sources,
     answer_data_question,
     parse_data_question,
 )
@@ -929,6 +930,21 @@ CONCEPT_QUESTIONS = (
 )
 # "Which MFU devices might be infected with malware?" ended with "Let me look up the source IPs" and no lookup.
 INFECTED_QUESTION = re.compile(r"\binfected\b|\bcompromised\b", re.IGNORECASE)
+# "Which MFU devices should I worry about?" was answered from the behaviour model's description, naming no device: the
+# model looked that topic up itself. ATDR looks up the open alerts' sources and the model's own finds instead.
+DEVICES_QUESTION = re.compile(
+    r"\b(?:which|what)\b[^?.]{0,40}\b(?:devices?|hosts?|computers?|machines?|endpoints?|pcs?|laptops?)\b[^?.]{0,40}"
+    r"\b(?:worr\w*|concern\w*|check|look at|investigate|suspicious|at risk|risky|dangerous|problem\w*|trouble\w*)",
+    re.IGNORECASE,
+)
+ALERT_NUMBER = re.compile(r"#\d+")
+# Given the devices and the model's whole view, the first draft ran to 307 words and was written again (15 to 20 s).
+DEVICES_NOTE = (
+    "ATDR has already looked up the MFU devices with the most open alerts and the MFU behaviour model's own finds. "
+    "Answer in under 150 words: each listed device with its alert to open and that alert's kind, then the devices only "
+    "the model flagged, marked experimental."
+)
+DEVICES_LOOKUPS = (("query_alerts", {"mfu_devices": True}), ("behavior_model_view", {}))
 # A threat is named by the first word of its name: "XMRig" in the firewall's "XMRig Miner Command and Control Traffic
 # Detection", "GHOSTENGINE" in a watchlist note. Matching any word of a name fetched alert #3824 ("RPC Portmapper DUMP
 # Request Detected") for "How many alerts were detected by our AI model and rules together?", which was then answered
@@ -969,6 +985,8 @@ def _topic_lookups(question: str) -> list[tuple[str, dict[str, Any]]]:
         calls.append(("security_overview", {"time_window": "all_time"}))
     if INFECTED_QUESTION.search(question):
         calls.extend((("explain_concept", {"topic": "malware_c2"}), ("watchlist_lookup", {})))
+    if DEVICES_QUESTION.search(question):
+        calls.extend((name, dict(arguments)) for name, arguments in DEVICES_LOOKUPS)
     return calls
 
 
@@ -1108,6 +1126,24 @@ def _with_first_version_figures(db: Session, question: str, answer: str) -> str:
         f"{answer}\nIn figures: {FIRST_VERSION_ALERTS:,} alerts then, {alerts:,} now; "
         f"{FIRST_VERSION_UNCLASSIFIED_PERCENT}% of alerts were unclassified then, {unclassified}% now."
     )
+
+
+def _with_device_alerts(db: Session, question: str, answer: str) -> str:
+    """An answer about which MFU devices to worry about, with the alerts to open when the model named none.
+
+    Given the devices with their alerts, 3 of 6 fresh asks still described them ("one MFU device has 3 alerts") without
+    an alert number to open.
+    """
+
+    if not DEVICES_QUESTION.search(question) or ALERT_NUMBER.search(answer):
+        return answer
+    devices = alert_sources(db, DataQuestion(subject="alerts", intent="top", status="open"), limit=3)["campus"]
+    if not devices:
+        return answer
+    # A sentence of its own: an answer about the model's finds alone was followed by "these MFU devices", meaning others.
+    numbers = [f"#{alert_id}" for _, _, alert_id, _ in devices]
+    listed = ", ".join(numbers[:-1]) + f" and {numbers[-1]}" if len(numbers) > 1 else numbers[0]
+    return f"{answer}\n\nThe MFU devices with the most open alerts are in {'alerts' if len(numbers) > 1 else 'alert'} {listed}."
 
 
 def _asks_for_the_situation(question: str) -> bool:
@@ -1487,6 +1523,7 @@ def answer_assistant_question(
         # the question is about that.
         situation_note = None
         attack_status = bool(ATTACK_STATUS_QUESTION.search(clean_question))
+        devices_note = DEVICES_NOTE if not action_request and DEVICES_QUESTION.search(clean_question) else None
         if (
             not action_request
             and (_asks_for_the_situation(clean_question) or attack_status)
@@ -1507,7 +1544,7 @@ def answer_assistant_question(
                 limit=settings.assistant_conversation_history_turns if include_recent_context else 0,
             ),
             context_note=" ".join(
-                note for note in (context_note, urgent_note, response_note, situation_note, *topic_notes) if note
+                note for note in (context_note, urgent_note, response_note, situation_note, devices_note, *topic_notes) if note
             ) or None,
             # Asked to act ("close these alerts"): give the model the real dashboard guide to relay, and the alert the
             # request names ("block the IP in alert 3738" was rejected for naming an alert no tool had returned).
@@ -1533,6 +1570,7 @@ def answer_assistant_question(
                     thai=bool(THAI_TEXT.search(clean_question)),
                 )
             outcome.answer = _with_first_version_figures(db, clean_question, outcome.answer)
+            outcome.answer = _with_device_alerts(db, clean_question, outcome.answer)
             return _agent_response(
                 db,
                 outcome,

@@ -33,6 +33,7 @@ from atdr.app.services.assistant_agent import AgentTool, ToolOutput
 from atdr.app.services.assistant_data_query import (
     ALL_TIME,
     ATTACK_LABELS,
+    STATUS_LABELS,
     DataQuestion,
     TimeWindow,
     _alert_rows,
@@ -79,6 +80,8 @@ ATTACK_STATUS_UNKNOWN = (
     "ATDR cannot tell whether MFU is under attack right now: it sees only imported firewall logs, and the newest is from "
     "{newest} (firewall local time)."
 )
+# The MFU devices listed for "which devices should I worry about?".
+MFU_DEVICES_LISTED = 5
 # The outside addresses with the most connections, beside a ranking of alert sources.
 BUSIEST_OUTSIDE_SOURCES = 3
 
@@ -325,6 +328,9 @@ class AssistantToolbox:
         )
 
     def query_alerts(self, args: dict[str, Any]) -> ToolOutput:
+        if args.get("mfu_devices"):
+            # What ATDR looks up itself for "which MFU devices should I worry about?" (the model is not offered this form).
+            return self._mfu_devices()
         intent = _choice(args, "intent", ("count", "top", "trend", "list"), "count")
         try:
             filters = _ip_filters(args)
@@ -360,6 +366,18 @@ class AssistantToolbox:
             # network: for floods, how much one address sent is the answer, so it comes first.
             text = f"{busiest}\n\n{text}" if kept["attack_type"] == "dos_ddos" else f"{text}\n{busiest}"
         return ToolOutput(text, [("Alert records", "/api/alerts", None)])
+
+    def _mfu_devices(self) -> ToolOutput:
+        """The MFU devices behind the most open alerts, each with its alert to open. Given every source and the busiest
+        outside addresses, answers about which devices to worry about drifted to outside scanners and left out the
+        alert numbers."""
+
+        devices = alert_sources(self.db, DataQuestion(subject="alerts", intent="top", status="open"), limit=MFU_DEVICES_LISTED)["campus"]
+        if not devices:
+            return ToolOutput("No open alert names an MFU device as its source.", [("Alert records", "/api/alerts", None)])
+        lines = [f"- {address}: {_plural(count, 'open alert')}, e.g. alert #{alert_id} ({kind})" for address, count, alert_id, kind in devices]
+        text = "MFU devices with the most open alerts, MFU's own devices to check for infection or misuse:\n" + "\n".join(lines)
+        return ToolOutput(self._text(text), [("Alert records", "/api/alerts", None)])
 
     def _busiest_outside_sources(self) -> str:
         """The outside addresses with the most connections in the stored logs, and the alert each is in. Asked whether
@@ -484,14 +502,17 @@ class AssistantToolbox:
             # overview came within 60 characters of what the model is shown.
             parts.insert(2, self._counts_kept_apart(window))
         elif not quiet:
-            parts.append(self._alerts(DataQuestion(subject="alerts", intent="count", window=window)))
+            parts.append(self._all_alerts_line())
         parts.append(self._data(DataQuestion(subject="alerts", intent="count", status="open")))
         if quiet:
             parts.append(self._sources(DataQuestion(subject="alerts", intent="top", status="open"), "Who the open alerts come from"))
         else:
-            parts.append(self._data(DataQuestion(subject="alerts", intent="top", window=window, group_by="attack_type", limit=4)))
-            heading = f"Who the alerts created {window.phrase} come from" if window.bounded else "Who the alerts come from"
-            parts.append(self._sources(DataQuestion(subject="alerts", intent="top", window=window), heading))
+            # Over all time, every count is of the open alerts: the kinds of attack once counted closed alerts too, and
+            # beside "77 open alerts" the model wrote "Port scan (39 alerts)", 3 of them closed.
+            status = None if window.bounded else "open"
+            parts.append(self._data(DataQuestion(subject="alerts", intent="top", window=window, status=status, group_by="attack_type", limit=4)))
+            heading = f"Who the alerts created {window.phrase} come from" if window.bounded else "Who the open alerts come from"
+            parts.append(self._sources(DataQuestion(subject="alerts", intent="top", window=window, status=status), heading))
         open_list = DataQuestion(subject="alerts", intent="list", window=window, status="open", limit=5)
         text = self._data(open_list)
         if text.startswith("No "):
@@ -531,6 +552,19 @@ class AssistantToolbox:
             [("Alert records", "/api/alerts", None), ("Firewall log records", "/api/logs", None)],
             # "the most urgent alert", not "the top alert": the router knows it as the one the Overview opens first.
             ["Which alert should I look at first?", "What should I do about the most urgent alert?"],
+        )
+
+    def _all_alerts_line(self) -> str:
+        """How many alerts exist and how many are open, in one line: the overview's other alert counts are open ones."""
+
+        by_status = dict(self.db.execute(select(Alert.status, func.count(Alert.id)).group_by(Alert.status)).all())
+        total, still_open = sum(by_status.values()), by_status.get("open", 0)
+        if total == still_open:
+            return f"All {_plural(total, 'alert')} {'is' if total == 1 else 'are'} open."
+        others = ", ".join(f"{STATUS_LABELS.get(status, status)} {count:,}" for status, count in sorted(by_status.items()) if status != "open")
+        return (
+            f"{_plural(total, 'alert')} in all, {still_open:,} of them open (the other {total - still_open:,}: {others}). "
+            "The alert counts below are of the open alerts."
         )
 
     def _counts_kept_apart(self, window: TimeWindow) -> str:

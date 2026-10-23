@@ -43,6 +43,13 @@ from atdr.tests.test_plain_summary import XMRIG, _alert, _log
             "Which MFU devices might be infected with malware?",
             [("explain_concept", {"topic": "malware_c2"}), ("watchlist_lookup", {})],
         ),
+        # Answered from the behaviour model's description, naming no device: the model had looked that topic up itself.
+        (
+            "Which MFU devices should I worry about?",
+            [("query_alerts", {"mfu_devices": True}), ("behavior_model_view", {})],
+        ),
+        ("What hosts look suspicious?", [("query_alerts", {"mfu_devices": True}), ("behavior_model_view", {})]),
+        ("How many devices are there?", []),
         # "18 alerts from our AI detection" (the unclassified rule alerts), "1 alert" (see the named-threat test) and
         # "the AI (ATDR) raised 178".
         ("How many alerts come from our AI detection?", [("explain_concept", {"topic": "alert_creation"})]),
@@ -463,7 +470,7 @@ def test_asked_who_attacks_mfu_the_overview_names_outside_addresses_scanners_and
     assert "100.20.30.41" not in text
     # What a quiet day's overview no longer repeats.
     assert "nothing to rank" not in text and "Created at any time instead" not in text
-    assert "Who the alerts come from:\n- Outside addresses" in overview.run({"time_window": "all_time"}).text
+    assert "Who the open alerts come from:\n- Outside addresses" in overview.run({"time_window": "all_time"}).text
 
 
 def test_on_a_day_with_new_alerts_the_overview_says_who_they_come_from():
@@ -516,7 +523,7 @@ def test_a_ranking_of_alert_sources_gives_each_alerts_size_and_the_busiest_outsi
     query_alerts = {tool.name: tool for tool in build_assistant_tools(db, settings=settings)}["query_alerts"]
     text = query_alerts.run({"intent": "top", "group_by": "src_ip"}).text
 
-    assert f"91.92.93.94 (outside address): 2 alerts (22%), e.g. alert #{alerts['scan'][0].id}, 1 connection\n" in text
+    assert f"91.92.93.94 (outside address): 2 alerts (22%), e.g. alert #{alerts['scan'][0].id} (port scan), 1 connection\n" in text
     # The MFU device with the miner has more connections than two of these, but is not an outside address.
     assert text.endswith(
         "Busiest single outside addresses in the stored firewall logs, by connections rather than alerts: "
@@ -554,3 +561,58 @@ def test_on_a_day_with_new_alerts_the_overview_keeps_the_days_counts_and_the_ope
     )
     # Over all time there is no period to keep apart from the open alerts.
     assert "kept apart" not in overview.run({"time_window": "all_time"}).text
+
+
+def test_over_all_time_the_overview_counts_open_alerts_throughout():
+    # Beside "77 open alerts" the model wrote "Port scan (39 alerts)" and "14 malware alerts": the kinds of attack and
+    # who the alerts come from counted closed alerts too.
+    db = _session()
+    alerts = _alerts_from_everywhere(db)
+    overview = {tool.name: tool for tool in build_assistant_tools(db, settings=get_settings())}["security_overview"]
+    assert "All 9 alerts are open." in overview.run({"time_window": "all_time"}).text
+
+    alerts["scan"][0].status = alerts["miner"][0].status = "resolved"
+    db.flush()
+    text = overview.run({"time_window": "all_time"}).text
+
+    assert "9 alerts in all, 7 of them open (the other 2: resolved 2). The alert counts below are of the open alerts." in text
+    assert "Top 3 attack types across all 7 open alerts:\n- port scan: 4 alerts (57%)" in text
+    assert "- malware / C2: 2 alerts (29%)" in text
+    assert "Who the open alerts come from:" in text and "[redacted-ip] (2 alerts, e.g. alert #" in text
+    assert "9 alerts in total" not in text and "across all 9 alerts" not in text
+
+
+def test_asked_which_devices_to_worry_about_the_model_gets_mfu_devices_with_their_alerts(seeded, monkeypatch):  # noqa: F811
+    # Given every source and the busiest outside addresses, answers drifted to outside scanners, and 3 of 6 named no
+    # alert to open.
+    db = _session()
+    alerts = _alerts_from_everywhere(db)
+    settings = get_settings().model_copy(update={"assistant_redact_ips": False})
+    query_alerts = {tool.name: tool for tool in build_assistant_tools(db, settings=settings)}["query_alerts"]
+    assert query_alerts.run({"mfu_devices": True}).text == (
+        "MFU devices with the most open alerts, MFU's own devices to check for infection or misuse:\n"
+        f"- 10.1.44.163: 3 open alerts, e.g. alert #{alerts['miner'][2].id} (malware / C2)"
+    )
+    for miner in alerts["miner"]:
+        miner.status = "resolved"
+    db.flush()
+    assert query_alerts.run({"mfu_devices": True}).text == "No open alert names an MFU device as its source."
+
+    # When the answer names no alert, ATDR adds the alerts to open; when it names one, it is left as it is.
+    sessions, seeded_settings = seeded
+    for said, added in (("One MFU device has open alerts.", True), ("Open alert #1 first.", False)):
+        engine = ScriptedEngine(_say(said))
+        monkeypatch.setattr(assistant_service, "engine_from_settings", lambda _settings, engine=engine: engine)
+        with sessions() as session:
+            response = _ask(session, seeded_settings, "Which MFU devices should I worry about?")
+            devices = assistant_service.alert_sources(
+                session, assistant_service.DataQuestion(subject="alerts", intent="top", status="open"), limit=3
+            )["campus"]
+        assert devices and response["mode"] == "assistant_agent_scripted"
+        numbers = [f"#{alert_id}" for _, _, alert_id, _ in devices]
+        listed = ", ".join(numbers[:-1]) + f" and {numbers[-1]}" if len(numbers) > 1 else numbers[0]
+        added_line = f"\n\nThe MFU devices with the most open alerts are in {'alerts' if len(numbers) > 1 else 'alert'} {listed}."
+        assert response["answer"] == (f"{said}{added_line}" if added else said)
+        assert assistant_service.DEVICES_NOTE in engine.requests[0][0][0]["content"]
+        looked_up = [item["name"] for item in response["details"]["agent"]["tools_called"]]
+        assert looked_up[:2] == ["query_alerts", "behavior_model_view"]

@@ -536,6 +536,9 @@ def _answer_alerts(db: Session, dq: DataQuestion) -> DataAnswer:
         # How big each example alert is: asked whether any single IP was hammering the network, the model saw three
         # flood sources with one alert each and answered no, though one of them had made 308 connections.
         sizes = _connection_counts(db, [example[value] for value, _ in ranked]) if role else {}
+        # And what each is: asked which MFU devices to worry about, an answer needs why ("3 alerts, malware / C2").
+        examples = {example[value] for value, _ in ranked}
+        kinds = {row.id: _alert_group_value(row, "attack_type") for row in rows if row.id in examples} if role else {}
         label = group_labels.get(group, "groups")
         summary = (
             (
@@ -549,6 +552,7 @@ def _answer_alerts(db: Session, dq: DataQuestion) -> DataAnswer:
         lines = [
             f"{value}{f' ({party_noun(role, sides[value])})' if value in sides else ''}: "
             f"{_plural(count, 'alert')} ({round(100 * count / total)}%), e.g. alert #{example[value]}"
+            f"{' (' + kinds[example[value]] + ')' if example[value] in kinds else ''}"
             f"{', ' + _plural(sizes[example[value]], 'connection') if sizes.get(example[value]) else ''}"
             for value, count in ranked
         ]

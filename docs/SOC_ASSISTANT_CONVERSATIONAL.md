@@ -951,6 +951,39 @@ different question: the English wordings in 3 to 5 seconds (before: 15 seconds f
 `atdr/tests/test_plain_summary.py` holds the cases; each of 12 deliberate
 breaks turned one of its tests red.
 
+## Open alerts throughout, and which MFU devices to worry about (23 October)
+
+Over all time, the overview counted some things over every alert, closed ones
+included (the total, the kinds of attack, who the alerts come from), and the
+rest over open alerts. On a copy of the live data with 10 of 87 alerts closed,
+2 of 6 answers mixed them: "77 open alerts" beside "Port scan (39 alerts)" and
+"14 malware alerts", where 36 and 10 were open; one also said "9 exploit
+attempts" (there were 3). The labels ("across all 87 alerts ... any status")
+were already there.
+
+- Over all time, every alert count in the overview is now of open alerts, and
+  one line says how many alerts there are in all ("87 alerts in all, 77 of
+  them open (the other 10: resolved 10)"). A period's view (today, this week)
+  keeps its own counts, kept apart by the sentence added on 22 October.
+- A ranking of alert sources or destinations says what each example alert is:
+  "e.g. alert #4178 (malware / C2), 7 connections".
+
+Asked "Which MFU devices should I worry about?", the model looked up the
+behaviour model's description and answered that it "does not directly identify
+specific devices", naming none: 4 of 6 asks on the live data, with five other
+wordings, failed. ATDR now looks up, for a question about which devices, hosts
+or computers to worry about, check or investigate, the MFU devices with the
+most open alerts, each with its alert to open and that alert's kind, and the
+behaviour model's own finds, with a note to answer in under 150 words (without
+it, the first draft ran to 307 words and was written again, 15 to 20 seconds).
+When an answer still names no alert, ATDR adds a sentence naming the alerts of
+the MFU devices with the most open alerts. Measured the same way: 6 of 6, in 5
+to 12 seconds. rank-11 in the main set holds the question.
+
+Measured on the live data: main set 126 of 126 (4.2 seconds on average), held-out 27 of 27.
+`atdr/tests/test_assistant_lookups.py` holds the cases; each of 15 deliberate
+breaks turned one of its tests red.
+
 ## Measuring it again
 
 ```
@@ -982,5 +1015,6 @@ out rather than rely on wording.
 - Lookups that ATDR makes before the model answers can be wrong, and the model then answers from them: a wrong match on the word "detected" produced the "1 alert" answer of 3 October. Each answer records the lookups made for it.
 - When Ollama fails a request with a server error (on 7 October, after a GPU-discovery timeout, it aborted generations with "token repeat limit reached"), ATDR asks it once more if at least 5 seconds of the answer's time are left (since 22 October; the answer's details count it as `engine_retries`). When that fails too, the built-in answer is shown. On 7 October every request failed until Ollama was restarted, so one more try would not have saved those answers.
 - On a day with new alerts the overview gives the day's counts and the open ones in one sentence (since 22 October), but the model can still put one under the other in its own words; the numbers are checked against the tools, not what each counts.
+- A number is checked against the tools, but not which item it belongs to: listing the MFU devices with their alerts, one answer gave the first device the second device's alert and shifted the rest by one line.
 - Planted text is found by its wording. A value that misleads without sounding like an instruction or a verdict (a threat name that is simply false, say) still reads as a real firewall value. The field check covers the places ATDR writes log values into words today; a new place has to use `field_text` too.
 - A Thai question about what to deal with first is recognised by its words (urgent, in a hurry, first, most important). Put another way ("if I had ten minutes, what should I look at?"), it is answered from the whole overview, which does not single out the alert the Overview opens first.
