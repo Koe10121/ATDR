@@ -16,7 +16,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from atdr.app.core.config import PROJECT_ROOT, get_settings
+from atdr.app.core.config import PROJECT_ROOT, get_settings, validate_runtime_settings
 from atdr.app.db.database import SessionLocal
 from atdr.app.db.models import Alert, NormalizedLog
 from atdr.app.main import app
@@ -52,6 +52,10 @@ def assistant_calls(alert_ids: list[int], log_ids: list[int]) -> list[tuple[str,
 
 def main() -> None:
     out = Path(sys.argv[1])
+    issues = validate_runtime_settings(get_settings())
+    if issues:
+        # Otherwise every page answers 503 and the run fails later, on a missing sign-in token.
+        raise SystemExit(f"ATDR would not start with these settings: {issues}")
     report: dict = {"imports": [], "detection": {}, "routes": {}, "tools": {}}
     with SessionLocal() as db:
         create_user(db, username="admin", password=PASSWORD, role="admin", full_name="Smoke Test Admin")

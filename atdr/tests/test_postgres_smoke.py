@@ -60,7 +60,9 @@ def _norm(value):
 
 
 def _run_flow(database_url: str, out) -> dict:
-    env = {key: value for key, value in os.environ.items() if key != "PYTHONPATH"}
+    # The worker and staging settings are the test's own: CI's PostgreSQL job sets two workers and shared staging
+    # for its other checks, and two workers are not allowed on SQLite, so the SQLite run's pages were withheld.
+    env = {key: value for key, value in os.environ.items() if key != "PYTHONPATH" and not key.startswith("OPERATION_")}
     env.update(
         DATABASE_URL=database_url,
         AUTO_CREATE_TABLES="false",
@@ -70,6 +72,9 @@ def _run_flow(database_url: str, out) -> dict:
         SMTP_ENABLED="false",
         ASSISTANT_LLM_ENABLED="false",
         OPERATION_WORKER_ENABLED="false",
+        OPERATION_WORKER_CONCURRENCY="1",
+        OPERATION_STAGING_SHARED="false",
+        OPERATION_STAGING_ROOT=str(out.parent / f"{out.stem}-staging"),
         ENVIRONMENT="development",
         PYTHONIOENCODING="utf-8",
     )
