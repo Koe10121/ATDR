@@ -10,6 +10,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
+# Values that ship in ATDR's own files, so anyone can know them: the default JWT secrets and the classroom demo
+# passwords. The settings checks, both doctors and the repository scan use these same sets.
+KNOWN_DEFAULT_SECRETS = frozenset({"change-this-dev-secret", "change-this-secret-before-production"})
+KNOWN_DEMO_PASSWORDS = frozenset({"admin123", "analyst123", "password", "changeme"})
+
 
 def _is_documentation_placeholder(value: str) -> bool:
     clean = value.strip().lower()
@@ -696,7 +701,7 @@ def validate_runtime_settings(settings: Settings) -> list[str]:
     if settings.db_statement_timeout_ms < 0:
         issues.append("DB_STATEMENT_TIMEOUT_MS must be zero or greater.")
     if settings.environment.lower() == "production":
-        if settings.jwt_secret_key in {"change-this-dev-secret", "change-this-secret-before-production"}:
+        if settings.jwt_secret_key in KNOWN_DEFAULT_SECRETS:
             issues.append("JWT_SECRET_KEY must be changed for production.")
         if settings.auto_create_tables:
             issues.append("AUTO_CREATE_TABLES must be false in production; use Alembic migrations.")

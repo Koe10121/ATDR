@@ -7,13 +7,15 @@ from typing import Any
 
 from sqlalchemy.engine import make_url
 
-from atdr.app.core.config import PROJECT_ROOT, Settings, validate_runtime_settings
+from atdr.app.core.config import (
+    KNOWN_DEFAULT_SECRETS as DEFAULT_SECRETS,
+    KNOWN_DEMO_PASSWORDS as DEMO_PASSWORDS,
+    PROJECT_ROOT,
+    Settings,
+    validate_runtime_settings,
+)
 from atdr.app.db.engine import inspect_database_runtime
 from atdr.app.services.mfu_iam_service import build_mfu_iam_status
-
-
-DEFAULT_SECRETS = {"change-this-dev-secret", "change-this-secret-before-production"}
-DEMO_PASSWORDS = {"admin123", "analyst123", "password", "changeme"}
 
 
 def _resolve_project_path(path_value: str | Path) -> Path:

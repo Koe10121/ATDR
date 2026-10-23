@@ -4,32 +4,14 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from atdr.app.core.config import PROJECT_ROOT, Settings, validate_runtime_settings
-
-
-DEFAULT_SECRETS = {
-    "change-this-dev-secret",
-    "change-this-secret-before-production",
-}
-DEMO_PASSWORDS = {
-    "admin123",
-    "analyst123",
-    "password",
-    "changeme",
-}
-SENSITIVE_TRACKED_PATTERNS = (
-    ".env",
-    "atdr.db",
-    ".sqlite",
-    ".sqlite3",
-    ".db",
-    ".joblib",
-    ".pkl",
-    "ml_baseline_reviews/",
-    "demo_exports/",
-    "atdr/data/processed/",
-    "paloalto-firewall",
+from atdr.app.core.config import (
+    KNOWN_DEFAULT_SECRETS as DEFAULT_SECRETS,
+    KNOWN_DEMO_PASSWORDS as DEMO_PASSWORDS,
+    PROJECT_ROOT,
+    Settings,
+    validate_runtime_settings,
 )
+from atdr.app.services.repository_security_service import scan_repository_paths
 
 
 def _check(name: str, passed: bool, severity: str, detail: str, fix: str) -> dict[str, Any]:
@@ -60,25 +42,11 @@ def _tracked_files() -> list[str]:
     return [line.strip().replace("\\", "/") for line in result.stdout.splitlines() if line.strip()]
 
 
-def _tracked_sensitive_files(files: list[str]) -> list[str]:
-    matched: list[str] = []
-    for file_name in files:
-        lower = file_name.lower()
-        if lower.endswith(".env.example") or lower in {
-            ".env.example",
-            ".env.lab.example",
-            ".env.production.example",
-            "frontend/.env.example",
-        }:
-            continue
-        for pattern in SENSITIVE_TRACKED_PATTERNS:
-            normalized = pattern.lower()
-            if lower == normalized or lower.endswith(normalized) or normalized in lower:
-                if file_name.endswith(".gitkeep"):
-                    continue
-                matched.append(file_name)
-                break
-    return sorted(set(matched))
+def _tracked_sensitive_files(files: list[str], root: Path = PROJECT_ROOT) -> list[str]:
+    # The same scan as CI's security controls: private files by name, secrets by their form, and example settings
+    # files that hold anything but placeholders. The doctor once kept a list of its own, which flagged the
+    # placeholder-only .env.preproduction.example and .env.shell.example (23 Oct 2026).
+    return sorted({item["path"] for item in scan_repository_paths(root, files)["findings"]})
 
 
 def run_production_readiness_doctor(settings: Settings | None = None) -> dict[str, Any]:

@@ -8,6 +8,8 @@ from typing import Any, Iterable
 from urllib.parse import quote
 from uuid import NAMESPACE_URL, uuid5
 
+from atdr.app.core.config import KNOWN_DEFAULT_SECRETS, KNOWN_DEMO_PASSWORDS, _is_documentation_placeholder
+
 
 _SECRET_PATTERNS = (
     ("private_key_material", re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----")),
@@ -39,6 +41,49 @@ _ALLOWED_ENV_EXAMPLES = {
     "atdr.env.example",
 }
 
+# A setting whose value is a secret: a password, secret, key, token or webhook address. Names that end otherwise are
+# not, such as a key's file path, a header's or provider's name or a token limit ("DEPLOYMENT_TLS_PRIVATE_KEY_PATH",
+# "MFU_IAM_HANDOFF_SECRET_HEADER", "DEPLOYMENT_SECRET_PROVIDER", "ASSISTANT_LLM_MAX_OUTPUT_TOKENS").
+_SECRET_SETTING_NAME = re.compile(r"(?:PASSWORD|SECRET|_KEY|TOKEN|WEBHOOK_URL)$")
+# KEY=value, also written as `export KEY=value` or commented out: a commented secret is still in the file.
+_SETTING_LINE = re.compile(r"^\s*#?\s*(?:export\s+)?([A-Z][A-Z0-9_]*)\s*=(.*)$")
+
+
+def _setting_value(raw: str) -> str:
+    clean = raw.lstrip()
+    if clean[:1] in {'"', "'"}:
+        end = clean.find(clean[0], 1)
+        return clean[1:end] if end > 0 else clean[1:]
+    # As python-dotenv reads it: a "#" after a space starts a comment ("KEY= # note" is empty, "KEY=#abc" is not).
+    return re.split(r"\s#", raw, maxsplit=1)[0].strip()
+
+
+def _is_placeholder(value: str) -> bool:
+    clean = value.strip()
+    return (
+        _is_documentation_placeholder(clean)
+        or clean.lower().startswith("replace")
+        or (clean.startswith("<") and clean.endswith(">"))
+        or clean in KNOWN_DEFAULT_SECRETS
+        or clean in KNOWN_DEMO_PASSWORDS
+    )
+
+
+def example_secret_settings(text: str) -> list[str]:
+    """The secret settings in an example file that hold a value rather than a placeholder: none may.
+
+    An example file is published with the code, so each password, secret, key, token or webhook address in it must be
+    empty, a placeholder (`<...>`, `replace-...`, `change-this-...`) or a value that already ships with ATDR. Only the
+    setting names are returned, never their values.
+    """
+
+    names: list[str] = []
+    for line in text.splitlines():
+        match = _SETTING_LINE.match(line)
+        if match and _SECRET_SETTING_NAME.search(match.group(1)) and not _is_placeholder(_setting_value(match.group(2))):
+            names.append(match.group(1))
+    return names
+
 
 def tracked_paths(root: Path) -> list[str]:
     result = subprocess.run(
@@ -66,6 +111,11 @@ def _sensitive_path_rule(relative_path: str) -> str | None:
         return "private_runtime_artifact"
     if {"ml_baseline_reviews", "demo_exports"} & lower_parts:
         return "private_generated_evidence"
+    if normalized.lower().startswith("atdr/data/processed/") and path.name != ".gitkeep":
+        return "private_generated_evidence"
+    # The MFU firewall exports are named paloalto-firewall*.log.
+    if "paloalto-firewall" in path.name.lower():
+        return "private_firewall_log"
     return None
 
 
@@ -98,6 +148,8 @@ def scan_repository_paths(root: Path, relative_paths: Iterable[str]) -> dict[str
         for rule, pattern in _SECRET_PATTERNS:
             if pattern.search(text):
                 findings.append({"path": relative_path, "rule": rule})
+        if Path(relative_path.replace("\\", "/")).name in _ALLOWED_ENV_EXAMPLES and example_secret_settings(text):
+            findings.append({"path": relative_path, "rule": "secret_value_in_example"})
     unique_findings = [
         {"path": path, "rule": rule}
         for path, rule in sorted({(item["path"], item["rule"]) for item in findings})
