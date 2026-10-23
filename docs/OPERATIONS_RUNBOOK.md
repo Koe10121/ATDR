@@ -937,18 +937,21 @@ Limits:
   about one destination, so a device calling two outside servers has two
   alerts. Before 22 October an alert that began with one destination took only
   that destination's activity: one device's horizontal scan became two alerts
-  (#4210 and #4215, which stay as they are on the live list), and the 20 May
-  data now gives 79 alerts instead of 80.
+  (#4210 and #4215; one alert, #4302, since the live list was rebuilt on
+  2026-10-23), and the 20 May data now gives 79 alerts instead of 80.
   Close an alert and the next activity opens a new one.
 - Scanning from the internet goes on one **Internet scanning** alert an hour
   (Medium). Its drawer lists the hour's scanners, those that got answers
   first, then the busiest. A connection counts as answered when the MFU
   address sent something back other than a single reset refusing it; most
   scanning gets nothing back. Answers to a ping are counted apart from ports.
-  Of the 130 scanners on 20 May, 55 got answers: a port-80 sweep was answered
-  by 83 MFU web servers (192 of its 835 connections) and a ping sweep by 29
-  addresses. Start with those: something on MFU's side replied, so check that
-  it should be reachable from the internet. A scanner that does more keeps
+  Of the 93 scanners on 20 May (alert #4317), 16 got answers: a port-80 sweep
+  was answered by 83 MFU web servers (192 of its 835 connections) and a ping
+  sweep by 29 addresses. Start with those: something on MFU's side replied, so
+  check that it should be reachable from the internet. An address that only
+  reached services marked as meant to be public (Internet Exposure) is not on
+  it: 39 of the 130 addresses the alert listed before the services were
+  reviewed. A scanner that does more keeps
   its own alert: a firewall threat or malware record, a watchlist match, brute
   force, another kind of alert still open, or its own scan alert still open.
   Scans from inside MFU and repeated denied attempts keep their own alerts
@@ -970,8 +973,9 @@ Limits:
   imported logs give 78 alerts instead of 158.
 - The live list was rebuilt under this grouping on 2026-10-09: its 165 alerts
   became 85 with the same 7,773 logs flagged, and 76 alerts for scanning from
-  the internet became one that lists 130 addresses
-  (`docs/detection/ALERT_REBUILD.md`).
+  the internet became one that lists 130 addresses. It was rebuilt again on
+  2026-10-23 under catalog v5.38.0: 93 open alerts, and the scanning alert
+  (#4317) lists 93 addresses (`docs/detection/ALERT_REBUILD.md`).
 - Measured at MFU's firewall rate on 2026-10-08 (8 min 44 s of the export,
   then the same traffic again): 214 alerts instead of 556. The repeated
   traffic raised 16 alerts instead of 186, one Internet scanning alert listed

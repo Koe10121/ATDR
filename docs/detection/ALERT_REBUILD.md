@@ -233,6 +233,58 @@ drawer loaded every evidence log and worked out a behaviour window for each.
 That was fixed before the live rebuild (`../IMPROVEMENT_PHASE_REPORT.md`,
 "A large alert opens as fast as a small one").
 
+## 2026-10-23 regrouped under rule catalog v5.38.0
+
+The rules changed after 9 October reach only new logs: one alert for each kind and
+source, services marked as not meant to be public get their own alert, FTP data
+and session-start records, and the rating of attacks the firewall blocked. The
+live list still held its alerts grouped by the 9 October rules, so it was rebuilt
+under catalog v5.38.0 with its own reason (`--reason`).
+
+Rehearsed on a copy first, then run by Koe with ATDR held (backup
+`backups/atdr-sqlite-20261023T103108Z-f29103ee.sqlite3`, audit entry 4392
+`alerts_rebuilt`): 90 alerts archived, 2 kept because a response is recorded on
+them (#2049 open, #2637 marked a false positive), 86 raised by the rules and
+the watchlist (8 of them for services open to the internet), and 6 by the MFU
+behaviour model. The live
+list matched the rehearsal alert for alert (all 94: type, rating, score, status,
+addresses, title and evidence).
+
+| Open alerts | Before | After |
+|---|---|---|
+| All | 91 | 93 |
+| Critical | 16 | 16 |
+| High | 21 | 19 |
+| Medium | 40 | 37 |
+| Low | 14 | 21 |
+| Logs kept as evidence | 7,776 | 7,596 |
+
+- 82 alerts have the same evidence, type, rating and score under new numbers.
+- #4151, one Medium alert for unidentified applications across 14 sources, is now
+  one alert for each of the 8 MFU devices (7 Low, 1 Medium), citing 62 of its 97
+  logs. The other 35 were incomplete connections from 6 outside addresses to
+  MFU's public servers (ports 443, 80 and 995), which today's rules do not count
+  as an unidentified application on MFU's side.
+- Two High horizontal scans from outside scanners (#4177 from 24.199.126.56,
+  #4207 from 146.190.153.30) and two Medium unusual-port alerts (#4181, #4219)
+  did nothing else ATDR alerts on, so they joined the hour's Internet scanning
+  alert.
+- #4210 and #4215, two horizontal scans by the same MFU device (172.25.11.92) 26
+  seconds apart, are one High alert, #4302.
+- The Internet scanning alert is #4317: 93 outside addresses with 5,917
+  connections (it was #4225 with 130 and 5,547). 39 of the 130 only reached
+  services marked as meant to be public (145 connections), so they are no longer
+  counted as scanning; the connections to the services marked as not meant to be
+  public are evidence of those services' own alerts.
+
+The alerts the reports and checks name have new numbers: #4163 (the GHOSTENGINE
+watchlist alert, open first on the Overview) is #4255, #4179 is #4271, #4152 is
+#4242, #4218 is #4311, #4199 is #4292, #4225 is #4317, the services' alerts
+#4232 to #4239 are #4318 to #4325 in another order (#4232, Chrome remote
+debugging, is #4323; #4233, SSH, is #4320), and the model's alerts #4226 to
+#4231 are #4326 to #4331 (#4228 is #4328). The morning summary after the rebuild says the
+list was rebuilt rather than counting its alerts as new.
+
 ## Alert numbers after a rebuild
 
 An alert's number is never given to another alert. Until 4 October 2026 SQLite

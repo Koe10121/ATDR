@@ -1016,6 +1016,26 @@ and two questions about the newest Critical alert word their answers
 differently): main 126 of 126 (before: 121), held-out 26 of 27, the miss h-30
 passing 6 asks of 6 afterwards. Each of 6 deliberate breaks turned a test red.
 
+## The alert list rebuilt again (23 October, evening)
+
+On 23 October the live list was rebuilt under rule catalog v5.38.0
+(`docs/detection/ALERT_REBUILD.md`): 93 open alerts, every one of the 92 new
+ones created that day. The alerts this document names have new numbers again:
+#4163 is #4255, #4179 is #4271, #4218 is #4311, #4225 is #4317 and #4228 is
+#4328. The question sets name no alert numbers, so they did not change.
+
+On a copy of the rebuilt list: main set 126 of 126 (4.2 s on average), held-out
+26 of 27 (4.8 s). The miss is h-30, "ควรเริ่มดูจากการแจ้งเตือนไหนก่อน" (which
+alert should I start with?), and it is not chance: asked fresh it failed 6 times
+of 6. The same code passed it 6 of 6 on the list from before the rebuild, and 6
+of 6 on the rebuilt list with its alerts dated a day earlier. With the alert to
+open first created that day, the model looked up that alert's playbook, wrote in
+English, and rewriting in Thai turned the watchlist source's "May 2024" into a
+Buddhist-era year that is wrong (2577; 2024 is 2567). ATDR found that number in
+no tool result and showed its built-in answer instead, which names no alert.
+A live feed creates the alert to open first on the day it is asked about, so
+this is kept as an open item (`docs/ATDR_FINISH_LIST.md`).
+
 ## Measuring it again
 
 ```
