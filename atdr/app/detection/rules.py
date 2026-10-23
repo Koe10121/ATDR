@@ -402,7 +402,7 @@ def is_informational_threat_record(log: NormalizedLog) -> bool:
     if str(log.log_type or "").upper() != "THREAT":
         return False
     threat_type = _lower(log.subtype)
-    if threat_type in MALWARE_THREAT_TYPES or _lower(getattr(log, "category", None)) in MALWARE_THREAT_CATEGORIES:
+    if _is_malware_threat(log):
         return False
     severity = _parsed_value(log, "parsed_threat_severity").lower()
     return severity in INFORMATIONAL_THREAT_SEVERITIES and threat_attack_type(
@@ -421,6 +421,27 @@ def _threat_event_score(log: NormalizedLog) -> tuple[int, str]:
         "critical": 45,
     }
     return scores.get(severity, 30), severity or "unavailable"
+
+
+def _is_malware_threat(log: NormalizedLog) -> bool:
+    return _lower(log.subtype) in MALWARE_THREAT_TYPES or _lower(getattr(log, "category", None)) in MALWARE_THREAT_CATEGORIES
+
+
+# A blocked attack from the internet is rated no higher than the firewall rated it. The block stopped it, and the
+# points for the block itself and for context (a risky app, inbound direction) had made Nmap probes the firewall rated
+# low, and dropped, Critical (#2049, #4199). Malware and C2 keep their rating: the infected device is inside MFU,
+# blocked or not.
+BLOCKED_ATTACK_SCORE_CAPS = {"informational": 30, "info": 30, "low": 30, "medium": 60, "high": 80, "critical": 80}
+
+
+def blocked_attack_cap(log: NormalizedLog) -> tuple[int, str] | None:
+    """The highest score a blocked attack from the internet may have, with the firewall's rating it comes from."""
+
+    if str(log.log_type or "").upper() != "THREAT" or not _is_deny_or_drop(log) or not is_from_internet(log) or _is_malware_threat(log):
+        return None
+    _score, severity = _threat_event_score(log)
+    cap = BLOCKED_ATTACK_SCORE_CAPS.get(severity)
+    return (cap, severity) if cap is not None else None
 
 
 def _outbound_byte_value(log: NormalizedLog) -> tuple[int | None, str]:
@@ -688,7 +709,7 @@ def evaluate_rules(log: NormalizedLog, context: DetectionContext) -> list[RuleMa
             f"vendor severity is {threat_severity}, type is {threat_type}, "
             f"category is {field_text(threat_category)}, and threat name is {field_text(threat_name)}"
         )
-        if threat_type in MALWARE_THREAT_TYPES or threat_category in MALWARE_THREAT_CATEGORIES:
+        if _is_malware_threat(log):
             # A vendor-confirmed malware or C2 detection is alert-worthy even at
             # low vendor severity, unlike a generic vulnerability or URL probe.
             matches.append(

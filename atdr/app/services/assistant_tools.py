@@ -788,7 +788,9 @@ class AssistantToolbox:
                 "Each rule that matches a log adds points to a risk score from 0 to 100. The score sets the severity: "
                 + ", ".join(bands) + ". "
                 f"A log needs at least {self.settings.min_alert_score} points, including a behaviour rule, to become an alert. "
-                "Context signals (risky app, busy source, inbound direction, large transfer) add points but never raise an alert alone."
+                "Context signals (risky app, busy source, inbound direction, large transfer) add points but never raise an alert alone. "
+                "An attack from the internet that the firewall blocked is rated no higher than the firewall rated it "
+                "(low: Low, medium: Medium, high or critical: High); malware and command-and-control traffic keep their rating."
             )
         if topic == "sla":
             targets = ", ".join(f"{severity} {label.lower()} ({_duration(delta)})" for severity, (label, delta) in SLA_TARGETS.items())

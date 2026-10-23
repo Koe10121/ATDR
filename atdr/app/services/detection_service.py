@@ -23,6 +23,7 @@ from atdr.app.detection.rules import (
     PACKET_OUTLIER_FLOOR,
     DetectionResult,
     RuleMatch,
+    blocked_attack_cap,
     build_detection_context,
     correlation_window_for_log,
     correlation_window_start,
@@ -518,11 +519,17 @@ def _result_from_matches(
     matches: list[RuleMatch],
     *,
     scoring_matches: list[RuleMatch] | None = None,
+    cap: tuple[int, str] | None = None,
 ) -> DetectionResult:
+    """`cap`: the highest score allowed and why (rules.blocked_attack_cap)."""
+
     authoritative = matches if scoring_matches is None else scoring_matches
     score = clamp_score(sum(match.score for match in authoritative))
-    severity = severity_from_score(score)
     explanation = " ".join(match.explanation for match in matches)
+    if cap is not None and score > cap[0]:
+        score = cap[0]
+        explanation += f" The firewall blocked this attack from the internet, so it is rated no higher than the firewall rated it ({cap[1]})."
+    severity = severity_from_score(score)
     return DetectionResult(threat_score=score, severity=severity, explanation=explanation, matched_rules=matches)
 
 
@@ -667,6 +674,10 @@ def _should_create_group_alert(candidates: list[DetectionCandidate]) -> bool:
         return True
     if candidates[0].primary_rule.code in CONTEXT_ONLY_PRIMARY_RULES:
         return len(candidates) >= LOW_SEVERITY_GROUP_MIN_EVIDENCE
+    # A blocked attack the firewall rated low is held to Low (rules.blocked_attack_cap), not dropped: it scored above
+    # 30 before the cap, and it is still a named attack on MFU.
+    if any(blocked_attack_cap(candidate.log) for candidate in candidates):
+        return True
     max_score = max(candidate.result.threat_score for candidate in candidates)
     if max_score <= 30:
         return len(candidates) >= LOW_SEVERITY_GROUP_MIN_EVIDENCE
@@ -952,7 +963,7 @@ def run_detection(
             if is_background_probe(log, context) and not any(match.code in BACKGROUND_ESCALATION_RULES for match in trigger_matches):
                 background_probe_logs += 1
                 continue
-            result = _result_from_matches(matches, scoring_matches=authoritative_matches)
+            result = _result_from_matches(matches, scoring_matches=authoritative_matches, cap=blocked_attack_cap(log))
             if result.threat_score >= settings.min_alert_score:
                 candidates.append(
                     DetectionCandidate(

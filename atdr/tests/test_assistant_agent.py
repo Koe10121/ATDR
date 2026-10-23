@@ -625,6 +625,9 @@ def test_every_tool_runs_read_only_against_a_real_schema(seeded, monkeypatch):
     assert not any("203.0.113.10" in text for text in outputs.values())
     assert "T1046" in outputs["get_alert"] and "T1046" in outputs["get_alert_playbook"]
     assert "Low 0-30, Medium 31-60, High 61-80, Critical 81-100" in outputs["explain_concept"]
+    # Blocked attacks from the internet follow the firewall's rating (rules.blocked_attack_cap).
+    assert ("An attack from the internet that the firewall blocked is rated no higher than the firewall rated it "
+            "(low: Low, medium: Medium, high or critical: High)") in outputs["explain_concept"]
     assert "Queue import" in outputs["dashboard_how_to"]
     assert "Across all stored logs instead" in outputs["logs_today"] and "- 22: 1 log" in outputs["logs_today"]
     assert "no way to delete alerts" in outputs["delete"]
