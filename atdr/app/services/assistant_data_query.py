@@ -528,7 +528,9 @@ def _answer_alerts(db: Session, dq: DataQuestion) -> DataAnswer:
             # An alert without an address is not a "top source"; count it aside.
             missing = counter.pop("unknown", 0)
         example = _highest_scoring(rows, lambda row: _alert_group_value(row, group))
-        ranked = counter.most_common(dq.limit)
+        # Ties by name, not by the order the rows came in (the query has no order, and PostgreSQL moves a row when
+        # it is updated): "malware / C2" and "port scan", 3 alerts each, swapped places between SQLite and PostgreSQL.
+        ranked = sorted(counter.items(), key=lambda item: (-item[1], str(item[0])))[: dq.limit]
         # Which side of the firewall each address is on: asked who attacks MFU the most, the assistant named the top
         # source, an infected MFU device.
         role = {"src_ip": "source", "dst_ip": "destination"}.get(group)

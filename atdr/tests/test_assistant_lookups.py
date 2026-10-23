@@ -639,3 +639,17 @@ def test_asked_which_devices_to_worry_about_the_model_gets_mfu_devices_with_thei
         assert assistant_service.DEVICES_NOTE in engine.requests[0][0][0]["content"]
         looked_up = [item["name"] for item in response["details"]["agent"]["tools_called"]]
         assert looked_up[:2] == ["query_alerts", "behavior_model_view"]
+
+
+def test_tied_attack_types_are_ranked_by_name_not_by_the_order_the_rows_came_in():
+    # 3 port scans and 3 malware alerts swapped places between SQLite and PostgreSQL (23 Oct 2026): the alert
+    # query has no order, and PostgreSQL moves a row when it is updated. Here the port scans come in first.
+    db = _session()
+    for alert_type in ("possible_port_scan", "possible_port_scan", "paloalto_malware_threat", "paloalto_malware_threat"):
+        _alert(db, alert_type, [])
+    db.commit()
+    query_alerts = {item.name: item for item in build_assistant_tools(db, settings=get_settings())}["query_alerts"]
+
+    lines = [line for line in query_alerts.run({"intent": "top", "group_by": "attack_type"}).text.splitlines() if line.startswith("- ")]
+
+    assert lines[0].startswith("- malware / C2: 2 alerts") and lines[1].startswith("- port scan: 2 alerts"), lines
