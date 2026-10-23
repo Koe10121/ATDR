@@ -1,6 +1,6 @@
 {
-  "version": "atdr_assistant_holdout_v7",
-  "description": "Held-out questions written after the assistant was tuned on assistant_questions.json, never used while changing it. Run once per assistant change and report the result as the fair estimate; if a question here is used to fix something, move it to the main suite and write a new one. v2: h-03 and h-08 moved to the main suite (open-11, rank-08); h-21 and h-22 added. v3 (2026-09-27): general questions are now answered, so h-20 expects an honest 'no internet access'; h-23 to h-27 (general questions) added before any run. v4 (2026-10-07): h-02 (a Thai summary of today) was used to fix the situation summary, so it moved to the main suite (open-12); h-28 added before any run. v5 (2026-10-21): h-07 (who is attacking us the most) was used to fix how the overview names who the alerts come from, so it moved to the main suite (rank-09); h-29 added before any run. v6 (2026-10-21): h-28 (asked in Thai whether anything needs dealing with urgently) was used to make the look-up of the alert to open first understand Thai, so it moved to the main suite (open-13); h-30 added before any run. v7 (2026-10-22): h-29 (is any single IP hammering our network) was used to give the source rankings each alert's connection count and the busiest single outside addresses, so it moved to the main suite (rank-10); h-31 added before any run.",
+  "version": "atdr_assistant_holdout_v8",
+  "description": "Held-out questions written after the assistant was tuned on assistant_questions.json, never used while changing it. Run once per assistant change and report the result as the fair estimate; if a question here is used to fix something, move it to the main suite and write a new one. v2: h-03 and h-08 moved to the main suite (open-11, rank-08); h-21 and h-22 added. v3 (2026-09-27): general questions are now answered, so h-20 expects an honest 'no internet access'; h-23 to h-27 (general questions) added before any run. v4 (2026-10-07): h-02 (a Thai summary of today) was used to fix the situation summary, so it moved to the main suite (open-12); h-28 added before any run. v5 (2026-10-21): h-07 (who is attacking us the most) was used to fix how the overview names who the alerts come from, so it moved to the main suite (rank-09); h-29 added before any run. v6 (2026-10-21): h-28 (asked in Thai whether anything needs dealing with urgently) was used to make the look-up of the alert to open first understand Thai, so it moved to the main suite (open-13); h-30 added before any run. v7 (2026-10-22): h-29 (is any single IP hammering our network) was used to give the source rankings each alert's connection count and the busiest single outside addresses, so it moved to the main suite (rank-10); h-31 added before any run. v8 (2026-10-23): h-30 (asked in Thai which alert to start with) and h-01 (any critical stuff I should worry about?) failed on a list whose alerts were all new, and their rejected drafts were read to design the built-in answers that replace 'no built-in answer', so they moved to the main suite (open-15, open-16); h-32 to h-34 added before any run.",
   "checks": {
     "answered": "the assistant did not fall back to 'I don't have a specific built-in answer'",
     "facts": "each named fact's value appears in the answer (thousands separators ignored)",
@@ -12,7 +12,6 @@
   },
   "never": ["security_overview", "query_alerts", "query_logs", "get_alert", "get_alert_playbook", "get_log", "explain_detection_rules", "explain_concept", "dashboard_how_to", "system_status"],
   "questions": [
-    {"id": "h-01", "category": "open_ended", "q": "any critical stuff I should worry about?", "answered": true, "any": ["critical"]},
     {"id": "h-04", "category": "counts", "q": "how many medium alerts were there this week", "answered": true, "any": ["medium"]},
     {"id": "h-05", "category": "counts", "q": "list the open port scan alerts", "answered": true, "any": ["#"]},
     {"id": "h-06", "category": "counts", "q": "Is 10.10.10.10 in any alerts?", "answered": true, "any": ["no ", "0 ", "not", "none"]},
@@ -35,8 +34,10 @@
     {"id": "h-25", "category": "general", "q": "can you help me write a short incident note for my shift handover?", "answered": true, "any": ["incident", "handover", "shift"]},
     {"id": "h-26", "category": "general", "q": "what is the OSI model?", "answered": true, "any": ["layer"]},
     {"id": "h-27", "category": "general", "q": "good morning!", "answered": true, "any": ["morning", "hello", "hi", "help"]},
-    {"id": "h-30", "category": "open_ended", "q": "ควรเริ่มดูจากการแจ้งเตือนไหนก่อน", "answered": true, "mentions_facts": ["open_first_alert"]},
-    {"id": "h-31", "category": "rankings", "q": "Is one address flooding us with connections?", "answered": true, "any": ["[redacted-ip]", "alert #"], "none": ["not directly identified", "does not identify specific", "doesn't identify specific", "rather than specific ip"]}
+    {"id": "h-31", "category": "rankings", "q": "Is one address flooding us with connections?", "answered": true, "any": ["[redacted-ip]", "alert #"], "none": ["not directly identified", "does not identify specific", "doesn't identify specific", "rather than specific ip"]},
+    {"id": "h-32", "category": "open_ended", "q": "I've only got 15 minutes today. What needs my attention first?", "answered": true, "mentions_facts": ["open_first_alert"]},
+    {"id": "h-33", "category": "open_ended", "q": "ช่วงนี้มีอะไรที่น่าห่วงที่สุดไหม", "answered": true, "mentions_facts": ["open_first_alert"]},
+    {"id": "h-34", "category": "open_ended", "q": "Is there anything serious I need to know about?", "answered": true, "any": ["critical", "open"]}
   ],
   "conversations": [
     {"id": "hc-01", "category": "follow_up", "turns": [

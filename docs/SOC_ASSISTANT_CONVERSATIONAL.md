@@ -1036,6 +1036,29 @@ no tool result and showed its built-in answer instead, which names no alert.
 A live feed creates the alert to open first on the day it is asked about, so
 this is kept as an open item (`docs/ATDR_FINISH_LIST.md`).
 
+## "If I had ten minutes", and when the answer fails the checks (23 October, night)
+
+"If I had ten minutes, what should I look at?" was answered from the whole overview, which does not single out
+the alert the Overview opens first: on the rebuilt list it failed 6 fresh asks of 6, and so did the other ways
+of asking it (where to start, with little time, in English and Thai: 0 of 4). A question that gives the time
+the analyst has ("if I had ten minutes", "I only have a few minutes", not "the last 30 minutes", which is a
+window) together with something to look at, check, start or attend to, or asks "where do I start?" on its own,
+now counts as asking what comes first, in English and in Thai. ATDR looks up that alert for the model, as for
+"the most urgent one". After: 6 of 6, the other wordings 4 of 4, in 3 to 5 seconds instead of 17.
+
+On a list whose alerts are all new, two questions failed ATDR's checks every time and got "no built-in answer":
+the Thai "which alert should I start with?" (rewriting in Thai turned the watchlist's "May 2024" into a wrong
+Buddhist-era year) and "any critical stuff I should worry about?" (a draft over the word limit, with a figure no
+lookup gave). Now, when the model's answer fails the checks, a question about what comes first gets ATDR's own
+answer: the alert the Overview opens first, why, and its first checks (the lead line in Thai when the question
+is); a question about what to worry about or need to know gets the Overview's short summary. Every other
+question keeps the reply it had, and "what should I check first for this alert?" keeps its own answer. Asked
+fresh 6 times each on the rebuilt list: the Thai question 6 of 6 (5 from ATDR's own answer), the other 6 of 6.
+
+Both had been held-out questions (h-30, h-01). Their failing drafts were read to design this, so they moved to
+the main set (open-15, open-16), and three held-out questions were written before any run (h-32 to h-34). On a
+copy of the live list: main 129 of 129, held-out 28 of 28.
+
 ## Measuring it again
 
 ```
@@ -1069,4 +1092,5 @@ out rather than rely on wording.
 - On a day with new alerts the overview gives the day's counts and the open ones in one sentence (since 22 October), but the model can still put one under the other in its own words; the numbers are checked against the tools, not what each counts.
 - A number is checked against the tools, but not which item it belongs to: listing the MFU devices with their alerts, one answer gave the first device the second device's alert and shifted the rest by one line.
 - Planted text is found by its wording. A value that misleads without sounding like an instruction or a verdict (a threat name that is simply false, say) still reads as a real firewall value. The field check covers the places ATDR writes log values into words today; a new place has to use `field_text` too.
-- A Thai question about what to deal with first is recognised by its words (urgent, in a hurry, first, most important). Put another way ("if I had ten minutes, what should I look at?"), it is answered from the whole overview, which does not single out the alert the Overview opens first.
+- A question about what to deal with first is recognised by its words, in English and Thai: urgent, first, most important, a short time the analyst has ("if I had ten minutes"), or where to start. Put in words outside these, it is answered from the whole overview, which does not single out the alert the Overview opens first.
+- When the model's answer to such a question fails ATDR's checks, ATDR answers itself: the alert to open first, why, and its first checks. That answer's lead line is in Thai when the question is, but the alert's title, the reason and the checks stay in English.

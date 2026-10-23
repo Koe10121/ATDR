@@ -131,7 +131,29 @@ URGENT_ALERT_QUESTION = re.compile(
     # or the alert, threat, problem, risk, matter or "what" that is the most important, dangerous, serious, worrying,
     # biggest or worst ("IP ไหนอันตรายที่สุด" ranks addresses, as in English).
     r"|(?:แจ้งเตือน|อัลเลิร์ต|ภัย|ปัญหา|ความเสี่ยง|เรื่อง|อะไร|อันไหน)[^?\s]{0,12}?"
-    r"(?:สำคัญ|อันตราย|ร้ายแรง|น่ากังวล|น่าเป็นห่วง|น่าห่วง|ใหญ่|แย่|หนัก)ที่สุด",
+    r"(?:สำคัญ|อันตราย|ร้ายแรง|น่ากังวล|น่าเป็นห่วง|น่าห่วง|ใหญ่|แย่|หนัก)ที่สุด"
+    # With little time: "If I had ten minutes, what should I look at?" was answered from the whole overview, without
+    # the alert the Overview opens first (23 Oct). A time the analyst has (not "the last 30 minutes", a window) and
+    # something to look at, check, start or give attention to ("I have 5 minutes, summarise it" asks for the summary);
+    r"|^(?=.*\b(?:if (?:i|we) (?:only )?(?:had|have)|(?:i|we) (?:only |just )?(?:have|had|got)|(?:i've|we've) (?:only |just )?got"
+    r"|with (?:only |just )?)\s+(?:\d+|a few|a couple of|one|two|three|five|ten|fifteen|twenty|thirty|half an?)\s+(?:more\s+)?"
+    r"(?:minutes?|mins?|hours?)\b)"
+    r"(?=.*\b(?:look(?:ing)? at|check|focus|start|begin|open|priorit\w*|deal with|handle|investigate|attention|tackle)\b)"
+    # "where do I start?" on its own, not "where do I start importing logs?" (a how-to question);
+    r"|\bwhere (?:do|should|can|would|shall) (?:i|we) (?:start|begin)"
+    r"(?:\s+(?:looking|today|now|first|this morning|with (?:the |our )?alerts?))*\s*[?.!]*\s*$"
+    # the same in Thai: "ถ้ามีเวลาแค่สิบนาที ควรดูอะไร" (if I only had ten minutes, what should I look at?) and
+    # "ควรเริ่มจากตรงไหนดี" (where should I start?).
+    r"|^(?=.*มีเวลา[^?\n]{0,15}?(?:นาที|ชั่วโมง))(?=.*(?:ดู|ตรวจ(?!จับ)|เช็ค|จัดการ|เริ่ม|โฟกัส|สนใจ))"
+    r"|เริ่ม(?:ดู|ตรวจ|จาก|ที่)?[^?\n]{0,10}?(?:ตรงไหน|อันไหน)",
+    re.IGNORECASE,
+)
+THIS_ALERT = re.compile(r"\b(?:this|that) (?:alert|one|incident)\b", re.IGNORECASE)
+# "Any critical stuff I should worry about?": what goes on, asked as what to worry about or need to know. When the
+# model's answer to it fails ATDR's checks, the fallback is the Overview's own summary, not "no built-in answer".
+WORRY_QUESTION = re.compile(
+    r"\b(?:worr(?:y|ied|ying)|concern(?:ed|ing)?|be aware of|need to (?:know|watch)|should (?:i|we) (?:know|watch))\b"
+    r"|น่าห่วง|น่าเป็นห่วง|กังวล|ควรรู้",
     re.IGNORECASE,
 )
 # "What should I do about it?" after "Why was alert 3842 flagged?" also listed the five highest-scoring alerts and was
@@ -1096,6 +1118,52 @@ def _naming_the_alert(answer: str, alert_id: int, *, opens_first: bool, thai: bo
     return f"{lead}\n{answer}"
 
 
+def _answer_what_first(db: Session, question: str, *, redacted: bool) -> AssistantResult | None:
+    """ATDR's own answer to "what should I look at first?": the alert the Overview opens first, why, and its first checks.
+
+    For when the model's answer fails ATDR's checks. On 23 October, with every alert created that day, the Thai
+    "which alert should I start with?" failed them in 6 asks of 6 (rewriting in Thai turned the watchlist's "May 2024"
+    into a wrong Buddhist-era year), and the analyst got "no built-in answer", which names no alert at all.
+    """
+
+    first = build_situation_summary(db)["open_first"]
+    alert = get_alert(db, first["alert_id"], load_evidence=False) if first else None
+    if alert is None:
+        return None
+    thai = bool(THAI_TEXT.search(question))
+    checks = [
+        str(item) for item in build_alert_detection_summary(db, alert).get("prioritized_analyst_checks") or [] if str(item).strip()
+    ][:3]
+    summary = _naming_the_alert("", alert.id, opens_first=True, thai=thai).strip()
+    rows = [
+        first["title"],
+        f"{'ทำไมมาก่อน' if thai else 'Why first'}: {first['reason']}.",
+        *(f"{'ตรวจสอบ' if thai else 'Check'}: {check}" for check in checks),
+    ]
+    basis = (
+        "จากหน้า Overview ซึ่งเลือกการแจ้งเตือนที่ควรเปิดดูก่อน และรายการตรวจสอบของการแจ้งเตือนนั้น"
+        if thai
+        else "From the Overview's choice of the alert to open first, and that alert's own checks."
+    )
+    citations = [Citation("Alert detail", "/api/alerts/{alert_id}", str(alert.id)), Citation("Overview", "/api/dashboard/summary")]
+    return AssistantResult(
+        answer=_text("\n".join([summary, *[f"- {row}" for row in rows], basis]), redacted=redacted),
+        # Shown as a data answer: the summary line, the rows and the basis, none of them cut.
+        context_used=["alert_query", "situation_summary", "alert_detail"],
+        citations=citations,
+        suggested_followups=[f"Explain alert {alert.id}", "What should I do about it?"],
+        details={
+            "alert": {"id": alert.id, "severity": alert.severity, "status": alert.status, "alert_type": alert.alert_type},
+            "answer_sections": {
+                "summary": [_text(summary, redacted=redacted)],
+                "evidence": [_text(row, redacted=redacted) for row in rows],
+                "related_context": [basis],
+                "citations": [_citation_reference(citation) for citation in citations],
+            },
+        },
+    )
+
+
 # ATDR's first version, presented on 26 September 2026: how many alerts it held and the share it left unclassified.
 FIRST_VERSION_ALERTS = 3676
 FIRST_VERSION_UNCLASSIFIED_PERCENT = 53
@@ -1634,6 +1702,15 @@ def answer_assistant_question(
         result = _answer_trust(db, settings=settings, redacted=redacted)
     elif PRIVACY_QUESTION.search(clean_question):
         result = _answer_privacy(db, settings=settings, redacted=redacted)
+    elif (
+        URGENT_ALERT_QUESTION.search(clean_question)
+        # Not "what should I check first for this alert?": that asks about one alert, the one in context.
+        and requested_alert_id is None
+        and not THIS_ALERT.search(clean_question)
+        and not _named_alert_lookup(clean_question)
+        and (what_first := _answer_what_first(db, clean_question, redacted=redacted)) is not None
+    ):
+        result = what_first
     elif calendar_days([clean_question]) and TRAFFIC_DAY_QUESTION.search(clean_question) and not HOW_TO_START.match(lowered):
         result = _answer_traffic_day(db, clean_question, redacted=redacted)
     elif (help_answer := answer_help_question(clean_question)) is not None:
@@ -1734,7 +1811,7 @@ def answer_assistant_question(
         result = _answer_import_logs_help(redacted=redacted)
     elif any(term in lowered for term in ["replay", "import", "run detection", "detection", "start", "command", "how do i"]):
         result = _answer_workflow_question(redacted=redacted)
-    elif _asks_for_the_situation(clean_question):
+    elif _asks_for_the_situation(clean_question) or WORRY_QUESTION.search(clean_question):
         # Last, so that it only replaces "no built-in answer": every question a route above answers keeps its answer.
         result = _answer_situation(db, clean_question, redacted=redacted)
     else:

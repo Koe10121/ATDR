@@ -61,6 +61,9 @@
     {"id": "open-11", "category": "open_ended", "q": "hello", "answered": true, "any": ["help", "ask", "atdr"], "none": ["hello again"]},
     {"id": "open-12", "category": "open_ended", "q": "สรุปสถานการณ์ความปลอดภัยวันนี้ให้หน่อย", "answered": true, "facts": ["alerts_today"]},
     {"id": "open-13", "category": "open_ended", "q": "ตอนนี้มีอะไรที่ต้องรีบจัดการไหม", "answered": true, "mentions_facts": ["open_first_alert"]},
+    {"id": "open-14", "category": "open_ended", "q": "If I had ten minutes, what should I look at?", "answered": true, "mentions_facts": ["open_first_alert"]},
+    {"id": "open-15", "category": "open_ended", "q": "ควรเริ่มดูจากการแจ้งเตือนไหนก่อน", "answered": true, "mentions_facts": ["open_first_alert"]},
+    {"id": "open-16", "category": "open_ended", "q": "any critical stuff I should worry about?", "answered": true, "any": ["critical"]},
 
     {"id": "howto-01", "category": "how_to", "q": "How do I add an IP to a watchlist?", "answered": true, "any": ["watchlist"]},
     {"id": "howto-02", "category": "how_to", "q": "How do I mark an alert as false positive?", "answered": true, "any": ["false positive"]},

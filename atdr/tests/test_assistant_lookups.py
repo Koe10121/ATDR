@@ -653,3 +653,92 @@ def test_tied_attack_types_are_ranked_by_name_not_by_the_order_the_rows_came_in(
     lines = [line for line in query_alerts.run({"intent": "top", "group_by": "attack_type"}).text.splitlines() if line.startswith("- ")]
 
     assert lines[0].startswith("- malware / C2: 2 alerts") and lines[1].startswith("- port scan: 2 alerts"), lines
+
+
+def test_little_time_or_where_to_start_asks_for_the_alert_to_open_first():
+    # "If I had ten minutes, what should I look at?" was answered from the whole overview, without the alert the
+    # Overview opens first (Known limits, 23 Oct).
+    urgent = assistant_service.URGENT_ALERT_QUESTION
+    for question in (
+        "If I had ten minutes, what should I look at?",
+        "I only have a few minutes. Where do I start?",
+        "Where should I start today?",
+        "ถ้ามีเวลาแค่สิบนาที ควรดูอะไร",  # if I only had ten minutes, what should I look at?
+        "ควรเริ่มจากตรงไหนดี",  # where should I start?
+    ):
+        assert urgent.search(question), question
+    for question in (
+        "Check the alerts from the last 30 minutes",  # a time window, not the analyst's time
+        "What happened in the last 10 minutes?",
+        "I have 5 minutes, summarise the situation",  # asks for the summary
+        "Where do I start importing logs?",  # a how-to question
+        "เริ่มต้นใช้งานยังไง",  # how do I get started (using the system)?
+    ):
+        assert not urgent.search(question), question
+
+
+def test_given_little_time_the_model_gets_the_alert_the_overview_opens_first(seeded, monkeypatch):  # noqa: F811
+    sessions, settings = seeded
+    with sessions() as db:
+        first = build_situation_summary(db)["open_first"]
+    engine = ScriptedEngine(_say(f"Start with alert #{first['alert_id']}."))
+    monkeypatch.setattr(assistant_service, "engine_from_settings", lambda _settings: engine)
+    with sessions() as db:
+        _ask(db, settings, "If I had ten minutes, what should I look at?")
+    messages = engine.requests[0][0]
+    assert [message["name"] for message in messages if message["role"] == "tool"] == ["get_alert"]
+    assert any(f"open alert #{first['alert_id']} first" in message["content"] for message in messages if message["role"] == "system")
+
+
+def _failing_engine() -> ScriptedEngine:
+    # Both the draft and its rewrite give a number no tool returned, as the Thai rewrite's wrong year did.
+    return ScriptedEngine(*[_say("Look at the 2577 newest alerts.") for _ in range(6)])
+
+
+def test_when_the_answer_fails_the_checks_what_first_is_answered_by_atdr_with_the_alert(seeded, monkeypatch):  # noqa: F811
+    # On 23 Oct the Thai "which alert should I start with?" failed ATDR's checks in 6 asks of 6 and the analyst got
+    # "no built-in answer", which names no alert.
+    sessions, settings = seeded
+    with sessions() as db:
+        first = build_situation_summary(db)["open_first"]
+    monkeypatch.setattr(assistant_service, "engine_from_settings", lambda _settings: _failing_engine())
+    with sessions() as db:
+        thai = _ask(db, settings, "ควรเริ่มดูจากการแจ้งเตือนไหนก่อน")
+        english = _ask(db, settings, "I only have a few minutes. Where do I start?")
+
+    assert thai["answer"].startswith(f"การแจ้งเตือน #{first['alert_id']} มาก่อน: หน้า Overview แนะนำให้เปิดดูเป็นอันดับแรก\n- ")
+    assert "ทำไมมาก่อน: " in thai["answer"] and "2577" not in thai["answer"]
+    assert english["answer"].startswith(f"Alert #{first['alert_id']} comes first: the Overview says to open it first.\n- ")
+    assert "Why first: " in english["answer"] and "built-in answer" not in english["answer"]
+
+
+def test_when_the_answer_fails_the_checks_what_to_worry_about_gets_the_overviews_summary(seeded, monkeypatch):  # noqa: F811
+    # "any critical stuff I should worry about?" got "no built-in answer" on the rebuilt list (23 Oct).
+    sessions, settings = seeded
+    from atdr.app.services.assistant_agent import AgentEngineError
+
+    monkeypatch.setattr(assistant_service, "engine_from_settings", lambda _settings: _failing_engine())
+    with sessions() as db:
+        worry = _ask(db, settings, "any critical stuff I should worry about?")
+    # With the model down the fallback answers everything: a question about something else keeps the reply it had.
+    monkeypatch.setattr(assistant_service, "engine_from_settings", lambda _settings: ScriptedEngine(AgentEngineError("engine_timeout")))
+    with sessions() as db:
+        poem = _ask(db, settings, "Write me a poem about cats")
+
+    assert "built-in answer" not in worry["answer"] and "open" in worry["answer"].lower()
+    assert "situation_summary" in worry["context_used"]
+    assert "I don't have a specific built-in answer" in poem["answer"]
+
+
+def test_what_to_check_first_on_this_alert_keeps_its_own_answer(seeded, monkeypatch):  # noqa: F811
+    # "What should I check first for this alert?" asks about one alert, not which alert comes first.
+    from atdr.app.services.assistant_agent import AgentEngineError
+
+    sessions, settings = seeded
+    monkeypatch.setattr(assistant_service, "engine_from_settings", lambda _settings: ScriptedEngine(AgentEngineError("engine_timeout")))
+    with sessions() as db:
+        this_one = _ask(db, settings, "What should I check first for this alert?")
+        in_context = _ask(db, settings, "Where do I start?", alert_id=1)
+
+    assert this_one["response_mode"] == "safe_next_step" and "comes first: the Overview" not in this_one["answer"]
+    assert "comes first: the Overview" not in in_context["answer"]
