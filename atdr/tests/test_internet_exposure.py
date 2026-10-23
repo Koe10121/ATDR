@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Generator
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
@@ -200,7 +200,119 @@ def test_a_service_marked_not_to_be_public_is_reported_when_it_answers():
 
     (web,) = [alert for alert in _exposure_alerts(db) if alert.dst_ip == WEB]
     assert web.title == f"High: Service open to the internet: {WEB} port 443"
-    assert "An admin marked this service as not meant to be reachable from the internet, and it still answers." in web.explanation
+    assert web.explanation.endswith("An admin marked this service as not meant to be reachable from the internet.")
+
+
+def test_marking_a_service_not_to_be_public_raises_its_alert_at_once():
+    # A service is listed because it answered the internet. On live, 6 of 8 services marked not to be public on
+    # 22 Oct had no alert: the mark waited for a next connection that never came.
+    db = _session_factory()()
+    _traffic(db)
+    _check(db)
+
+    reviewed = review_internet_service(db, _service(db, WEB, 443).id, status="not_expected", note="retired site", actor="koe")
+
+    (web,) = [alert for alert in _exposure_alerts(db) if alert.dst_ip == WEB]
+    assert reviewed["alert"] == {"id": web.id, "severity": "High", "status": "open"}
+    assert web.title == f"High: Service open to the internet: {WEB} port 443"
+    assert web.explanation.startswith(f"MFU address {WEB} answered 2 connections from the internet on port 443 (tcp), from 2 or more outside addresses")
+    assert web.explanation.endswith("An admin marked this service as not meant to be reachable from the internet.")
+    assert build_plain_summary(db, web, "exposed_service") == (
+        f"MFU address {WEB} answered 2 connections from the internet on port 443, from 2 outside addresses or more. "
+        "An admin marked it as not meant to be public. "
+        "Next: close it at the firewall, or mark it expected if it should be public after all.")
+    assert len(db.scalars(select(AlertEvidence).where(AlertEvidence.alert_id == web.id)).all()) == 2
+    audit = db.scalars(select(AuditLog).where(AuditLog.action == "internet_service_reviewed")).one()
+    assert (audit.details["alert_id"], audit.details["alert_created"]) == (web.id, True)
+    listed = {item["id"]: item for item in list_internet_services(db)["services"]}
+    assert listed[_service(db, WEB, 443).id]["alert"] == {"id": web.id, "severity": "High", "status": "open"}
+    assert listed[_service(db, DEBUGGING, 9222).id]["alert"]["severity"] == "High"
+
+    # Saving the review again (a better note, say) keeps the one alert.
+    review_internet_service(db, _service(db, WEB, 443).id, status="not_expected", note="retired site, owner asked", actor="koe")
+    assert [alert.id for alert in _exposure_alerts(db) if alert.dst_ip == WEB] == [web.id]
+    again = db.scalars(select(AuditLog).where(AuditLog.action == "internet_service_reviewed").order_by(AuditLog.id.desc())).first()
+    assert (again.details["alert_id"], again.details["alert_created"]) == (web.id, False)
+    assert _metadata(web)["connections"] == 2
+    # The review has its own audit entry; nothing was deduplicated.
+    assert not db.scalars(select(AuditLog).where(AuditLog.action == "alert_deduplicated", AuditLog.target_value == str(web.id))).all()
+
+
+def test_a_risky_service_marked_not_to_be_public_says_so_on_its_open_alert():
+    db = _session_factory()()
+    _traffic(db)
+    _check(db)
+    ssh = next(alert for alert in _exposure_alerts(db) if alert.dst_ip == SSH_ON_210)
+    assert ssh.severity == "Medium" and "Nobody has marked it as meant to be public." in ssh.explanation
+
+    review_internet_service(db, _service(db, SSH_ON_210, 210).id, status="not_expected", note="no admin uses it", actor="koe")
+
+    (marked,) = [alert for alert in _exposure_alerts(db) if alert.dst_ip == SSH_ON_210]
+    assert marked.id == ssh.id
+    assert marked.title == f"High: SSH remote login open to the internet: {SSH_ON_210} port 210"
+    assert "An admin marked this service as not meant to be reachable from the internet" in marked.explanation
+    assert "Nobody has marked" not in marked.explanation
+    assert (_metadata(marked)["reason"], _metadata(marked)["connections"]) == ("not_expected", 1)
+    assert len(db.scalars(select(AlertEvidence).where(AlertEvidence.alert_id == ssh.id)).all()) == 1
+
+
+def test_a_service_whose_alert_was_closed_waits_for_its_next_connection():
+    from atdr.app.services.alert_service import update_alert_status
+
+    db = _session_factory()()
+    _traffic(db)
+    _check(db)
+    ssh = next(alert for alert in _exposure_alerts(db) if alert.dst_ip == SSH_ON_210)
+    update_alert_status(db, ssh.id, "resolved", actor="koe")
+
+    reviewed = review_internet_service(db, _service(db, SSH_ON_210, 210).id, status="not_expected", note=None, actor="koe")
+
+    assert reviewed["alert"] is None
+    assert [alert.id for alert in _exposure_alerts(db) if alert.dst_ip == SSH_ON_210] == [ssh.id]
+    audit = db.scalars(select(AuditLog).where(AuditLog.action == "internet_service_reviewed")).one()
+    assert audit.details["alert_id"] is None
+
+
+def test_a_marked_service_gets_its_alert_from_the_list_when_its_connections_are_no_longer_stored():
+    db = _session_factory()()
+    _traffic(db)
+    _check(db)
+    # Ordinary logs are kept for hours; the list keeps the counts, which cover more than the 10 sample addresses.
+    for log in db.scalars(select(NormalizedLog).where(NormalizedLog.dst_ip == WEB, NormalizedLog.dst_port == 443)):
+        db.delete(log)
+    db.commit()
+    service = _service(db, WEB, 443)
+    service.connections, service.sources = 55, 40
+    db.commit()
+    # PostgreSQL hands times back with their zone.
+    service.first_seen = AT.replace(tzinfo=timezone.utc)
+
+    review_internet_service(db, service.id, status="not_expected", note=None, actor="koe")
+
+    (web,) = [alert for alert in _exposure_alerts(db) if alert.dst_ip == WEB]
+    assert (_metadata(web)["connections"], _metadata(web)["sources"], _metadata(web)["unique_src_count"]) == (55, 40, 40)
+    assert _metadata(web)["first_seen"] == AT.isoformat()
+    assert web.explanation.startswith(f"MFU address {WEB} answered 55 connections from the internet on port 443 (tcp), from 40 or more outside addresses")
+    assert not db.scalars(select(AlertEvidence).where(AlertEvidence.alert_id == web.id)).all()
+
+
+def test_a_rebuild_leaves_the_services_counts_as_they_were():
+    # Checking every log again had doubled every service's connections on a copy of the live database (23 Oct).
+    from atdr.app.services.alert_rebuild_service import rebuild_alerts
+
+    db = _session_factory()()
+    _traffic(db)
+    _check(db)
+    counted = {(row.address, row.port): (row.connections, row.sources, row.apps) for row in db.scalars(select(InternetService))}
+    # A service missing from the list before the rebuild is counted by it, once.
+    db.delete(_service(db, WEB, 443))
+    db.commit()
+
+    rebuild_alerts(db, actor="test", reason="test")
+
+    after = {(row.address, row.port): (row.connections, row.sources, row.apps) for row in db.scalars(select(InternetService))}
+    assert after == counted
+    assert {alert.dst_ip for alert in _exposure_alerts(db)} == {DEBUGGING, SSH_ON_210}
 
 
 def _users_of_one_service(db, at: datetime, *, users: int = 6) -> None:

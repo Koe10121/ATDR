@@ -289,6 +289,12 @@ def _iso(value: datetime | None) -> str | None:
     return value.isoformat() if value else None
 
 
+def _naive_utc(value: datetime | None) -> datetime | None:
+    """Log times are stored without a zone, in UTC; a time that carries one is put the same way."""
+
+    return value.astimezone(timezone.utc).replace(tzinfo=None) if value is not None and value.tzinfo else value
+
+
 def _parse_iso(value: str | None) -> datetime | None:
     if not value:
         return None
@@ -1008,7 +1014,8 @@ def _exposure_explanation(metadata: dict, finding) -> str:
         f"port {port} ({protocol}), from {sources:,} or more outside address{'' if sources == 1 else 'es'}{when}.{named}"
     )
     if finding.reason == "not_expected":
-        reason = " An admin marked this service as not meant to be reachable from the internet, and it still answers."
+        # Said of the connections above, which may be the ones that led to the mark (record_marked_exposure).
+        reason = " An admin marked this service as not meant to be reachable from the internet."
     elif finding.reason == "risky":
         reason = (f" It looks like {finding.risk.name}: {finding.risk.why}. Nobody has marked it as meant to be public.")
     else:
@@ -1042,8 +1049,14 @@ def record_internet_exposure(
     evidence_id_cache: dict[int, set[int]] | None = None,
     bulk_evidence: bool = False,
     pending_evidence: list[tuple[Alert, list[int]]] | None = None,
+    from_review: bool = False,
 ) -> list[tuple[Alert, bool]]:
-    """Puts each MFU service that answered the internet and should not on its alert; returns (alert, created)."""
+    """Puts each MFU service that answered the internet and should not on its alert; returns (alert, created).
+
+    `from_review`: an admin has just marked the service, so its alert is written although no connection is new, with
+    the counts from the service list (which counted every connection as it came; the stored ones may be only the
+    last few hours'). The review writes its own audit entry.
+    """
 
     touched: list[tuple[Alert, bool]] = []
     for finding in findings:
@@ -1063,7 +1076,7 @@ def record_internet_exposure(
         if evidence_id_cache is not None:
             evidence_id_cache[id(alert)] = existing_log_ids
         new_logs = [log for log in finding.logs if int(log.id) not in existing_log_ids]
-        if not new_logs:
+        if not new_logs and not from_review:
             continue
         room = max(0, EXPOSURE_EVIDENCE_KEPT - len(existing_log_ids))
         added_log_ids = [int(log.id) for log in new_logs[:min(EXPOSURE_EVIDENCE_PER_CHECK, room)]]
@@ -1075,6 +1088,13 @@ def record_internet_exposure(
         last_seen = max((item for item in (_parse_iso(existing.get("last_seen")), _parse_iso(observations.get("last_seen"))) if item), default=None)
         connections = int(existing.get("connections") or 0) + len(new_logs)
         sources_now = {str(log.src_ip) for log in new_logs if log.src_ip}
+        sources_count = len(sources_now)
+        if from_review:
+            first_seen = min((item for item in (first_seen, _naive_utc(service.first_seen)) if item), default=None)
+            last_seen = max((item for item in (last_seen, _naive_utc(service.last_seen)) if item), default=None)
+            connections = max(connections, int(service.connections or 0))
+            sources_now |= {str(source) for source in service.sample_sources or []}
+            sources_count = max(len(sources_now), int(service.sources or 0))
         severity = finding.severity
         score = EXPOSURE_SCORES[severity]
         metadata = {
@@ -1091,14 +1111,14 @@ def record_internet_exposure(
             "what": finding.risk.name if finding.risk else None,
             "apps": list(service.apps or []),
             "connections": connections,
-            "sources": max(int(existing.get("sources") or 0), len(sources_now)),
+            "sources": max(int(existing.get("sources") or 0), sources_count),
             "sample_src_ips": _merge_sorted(existing.get("sample_src_ips"), sorted(sources_now)),
             "evidence_count": len(existing_log_ids),
             "related_log_count": len(existing_log_ids),
             "occurrence_count": connections,
             "first_seen": _iso(first_seen),
             "last_seen": _iso(last_seen),
-            "unique_src_count": max(int(existing.get("unique_src_count") or 0), len(sources_now)),
+            "unique_src_count": max(int(existing.get("unique_src_count") or 0), sources_count),
             "sample_dst_ips": [service.address],
             "sample_dst_ports": [int(service.port)],
             "protocols": [service.protocol],
@@ -1132,11 +1152,27 @@ def record_internet_exposure(
         else:
             db.flush()
             _insert_alert_evidence_rows(db, alert, added_log_ids)
-        if not created:
+        if not created and not from_review:
             db.add(AuditLog(actor="system", action="alert_deduplicated", target_type="alert", target_value=str(alert.id),
                             details={"alert_type": alert.alert_type, "added_evidence_logs": len(added_log_ids), "connections": connections}))
         touched.append((alert, created))
     return touched
+
+
+def record_marked_exposure(db: Session, finding) -> tuple[Alert, bool] | None:
+    """An admin has just marked finding.service as not meant to be public: its open alert says so, and a service that
+    never had an alert gets one now. It has answered the internet already (that is how it came on the list), so
+    waiting for its next connection would leave the review off the alert list, for good if the port was closed
+    meanwhile. A service whose alert was closed is left to its next connection."""
+
+    key = _exposure_key(finding.service.address, finding.service.port, finding.service.protocol)
+    alerts = [alert for alert in db.scalars(select(Alert).where(Alert.alert_type == INTERNET_EXPOSURE_ALERT).order_by(Alert.id))
+              if _group_metadata(alert).get("service_key") == key]
+    still_open = [alert for alert in alerts if (alert.status or "open") in ALERT_DEDUP_ACTIVE_STATUSES]
+    if alerts and not still_open:
+        return None
+    touched = record_internet_exposure(db, [finding], dedup_alerts=still_open, from_review=True)
+    return touched[0] if touched else None
 
 
 PERSISTENT_CONTACT_SCORE = 60

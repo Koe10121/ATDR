@@ -9140,19 +9140,22 @@ test("Alert details explain when a big upload comes into MFU rather than leaving
 });
 
 test("Internet Exposure lists the MFU services that answer the internet, risky ones first, and an admin marks them", async ({ page }) => {
+  type ServiceAlert = { id: number; severity: string; status: string } | null;
   // On 20 May 134 MFU services answered the internet; Chrome remote debugging and SSH on port 210 among them.
   const services = [
     { id: 1, address: "202.28.46.216", port: 9222, protocol: "tcp", what: "Chrome remote debugging", apps: [{ app: "incomplete", connections: 1 }],
       connections: 1, sources: 1, sample_sources: ["164.92.82.91"], first_seen: "2026-05-20T13:37:00Z", last_seen: "2026-05-20T13:37:00Z",
       status: "unreviewed", note: null, reviewed_by: null, reviewed_at: null,
-      risk: { name: "Chrome remote debugging", severity: "High", why: "whoever reaches it can control the browser and every site it is signed in to" } },
+      risk: { name: "Chrome remote debugging", severity: "High", why: "whoever reaches it can control the browser and every site it is signed in to" },
+      alert: { id: 4232, severity: "High", status: "open" } as ServiceAlert },
     { id: 2, address: "202.28.46.155", port: 210, protocol: "tcp", what: "SSH remote login", apps: [{ app: "ssh", connections: 5 }],
       connections: 5, sources: 3, sample_sources: [], first_seen: "2026-05-20T13:36:20Z", last_seen: "2026-05-20T13:39:00Z",
       status: "unreviewed", note: null, reviewed_by: null, reviewed_at: null,
-      risk: { name: "SSH remote login", severity: "Medium", why: "fine when it is meant to be public, but password guessing aims at it all day" } },
+      risk: { name: "SSH remote login", severity: "Medium", why: "fine when it is meant to be public, but password guessing aims at it all day" },
+      alert: null as ServiceAlert },
     { id: 3, address: "202.28.46.7", port: 53, protocol: "udp", what: "DNS", apps: [{ app: "dns-base", connections: 1200 }],
       connections: 1200, sources: 755, sample_sources: [], first_seen: "2026-05-20T13:36:15Z", last_seen: "2026-05-20T13:39:30Z",
-      status: "unreviewed", note: null, reviewed_by: null, reviewed_at: null, risk: null }
+      status: "unreviewed", note: null, reviewed_by: null, reviewed_at: null, risk: null, alert: null as ServiceAlert }
   ];
   const patches: Array<{ id: string; body: Record<string, unknown> }> = [];
   const listing = () => ({
@@ -9169,7 +9172,9 @@ test("Internet Exposure lists the MFU services that answer the internet, risky o
       const body = JSON.parse(request.postData() ?? "{}") as Record<string, unknown>;
       patches.push({ id, body });
       const service = services.find((item) => String(item.id) === id)!;
-      Object.assign(service, { status: body.status, note: body.note, reviewed_by: "admin" });
+      // A service marked not to be public gets its alert at once (the server names it).
+      Object.assign(service, { status: body.status, note: body.note, reviewed_by: "admin" },
+        body.status === "not_expected" ? { alert: { id: 4279, severity: "High", status: "open" } } : {});
       return route.fulfill({ json: service });
     }
     return route.fulfill({ json: listing() });
@@ -9189,6 +9194,8 @@ test("Internet Exposure lists the MFU services that answer the internet, risky o
   await expect(rows.nth(1)).toContainText("Firewall saw: ssh");
   await expect(rows.nth(2)).toContainText("755 or more");
   await expect(rows.nth(2).locator("td").nth(2)).not.toContainText("risk");
+  await expect(rows.nth(0).getByRole("link", { name: "Alert #4232 (High)" })).toHaveAttribute("href", "/alerts?alert=4232");
+  await expect(rows.nth(1).getByRole("link", { name: /Alert #/ })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Risky, not approved" }).click();
   await expect(rows).toHaveCount(2);
@@ -9209,6 +9216,13 @@ test("Internet Exposure lists the MFU services that answer the internet, risky o
   await expect(rows.nth(1).locator("td").nth(2).locator("div").first()).not.toHaveClass(/text-amber/);
   await page.getByRole("button", { name: "Risky, not approved" }).click();
   await expect(rows).toHaveCount(1);
+
+  // Marked not to be public, a service shows the alert it got.
+  await page.getByRole("button", { name: "All" }).click();
+  await rows.nth(2).getByRole("button", { name: "Review" }).click();
+  await page.getByTestId("exposure-review").getByRole("button", { name: "Should not be public" }).click();
+  await expect(rows.nth(2).getByTestId("exposure-service-status")).toContainText("Should not be public");
+  await expect(rows.nth(2).getByRole("link", { name: "Alert #4279 (High)" })).toHaveAttribute("href", "/alerts?alert=4279");
 });
 
 test("Analysts read the Internet Exposure list and cannot mark services", async ({ page }) => {

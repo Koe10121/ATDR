@@ -986,7 +986,8 @@ when it came from a public address in an outside zone and the MFU side sent
 something back other than a single reset refusing it; pings are left out.
 Detection adds to the list as it checks logs: the connections, the most
 outside addresses seen in one check, the apps the firewall named there, and
-when the service was first and last seen.
+when the service was first and last seen. A rebuild of the alert list leaves
+these counts as they were: each connection was counted once, as it came.
 
 An admin marks each service **Meant to be public** or **Should not be
 public**, with a note saying why. Then:
@@ -994,7 +995,12 @@ public**, with a note saying why. Then:
 - someone using a service meant to be public is not taken for an outsider
   trying an unusual port. When another rule finds more (a scan across many
   addresses, password guessing, a threat signature), every reason stays;
-- a service marked not public that answers again raises a **High** alert;
+- a service marked not public gets a **High** alert at once, from the
+  connections that put it on the list (with the list's counts when its logs
+  are no longer stored), and later answers join it. If the service already
+  has an open alert, that alert says it was marked and becomes High; if its
+  alert was closed, the next answer raises a new one. The page links each
+  service's open alert;
 - a service of a kind that should rarely be public raises an alert until it
   is marked meant to be public: remote desktop, VNC, Telnet, Windows remote
   management or file sharing, Chrome remote debugging, Docker or Kubernetes

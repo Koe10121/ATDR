@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { LoadingPanel } from "../components/LoadingPanel";
@@ -164,6 +165,11 @@ export function InternetExposure() {
                     </div>
                     {service.note ? <div className="text-xs text-muted">{service.note}</div> : null}
                     {service.reviewed_by ? <div className="text-xs text-muted">by {service.reviewed_by}</div> : null}
+                    {service.alert ? (
+                      <Link className="text-xs font-bold text-cyan underline" to={`/alerts?alert=${service.alert.id}`}>
+                        Alert #{service.alert.id} ({service.alert.severity})
+                      </Link>
+                    ) : null}
                   </td>
                   <td className="py-2 text-right">
                     {isAdmin && reviewing === service.id ? (

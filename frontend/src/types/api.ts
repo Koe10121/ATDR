@@ -4278,6 +4278,8 @@ export interface InternetService {
   reviewed_by: string | null;
   reviewed_at: string | null;
   risk: { name: string; severity: "High" | "Medium"; why: string } | null;
+  // The service's open alert, if it has one.
+  alert: { id: number; severity: string; status: string } | null;
 }
 
 export interface InternetServiceList {

@@ -954,6 +954,8 @@ export function useInternetServiceReview() {
     mutationFn: ({ id, status, note }: { id: number; status: InternetServiceStatus; note?: string }) => api.reviewInternetService(id, status, note),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.internetServices });
+      // A service marked not to be public gets its alert at once.
+      invalidateAlerts(queryClient);
       invalidateAudit(queryClient);
     }
   });

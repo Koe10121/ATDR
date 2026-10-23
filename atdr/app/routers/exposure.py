@@ -36,7 +36,8 @@ def patch_internet_service(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ) -> dict:
-    """Marks a service as meant to be public or not; detection uses the mark from its next check on."""
+    """Marks a service as meant to be public or not; detection uses the mark from its next check on, and a service
+    marked not to be public gets its alert at once (the reply names it)."""
 
     reviewed = review_internet_service(db, service_id, status=body.status, note=body.note, actor=current_user.username)
     if reviewed is None:

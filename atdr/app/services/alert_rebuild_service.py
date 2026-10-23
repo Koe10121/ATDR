@@ -12,7 +12,8 @@ what ATDR detects today. A rebuild:
 3. marks every log unchecked and runs the current rules and watchlist over all of them, the same way
    the "check every unchecked log" action does.
 
-Logs cited by a kept alert stay out of new alerts, as in any detection run. The archive is never
+Logs cited by a kept alert stay out of new alerts, as in any detection run. The list of MFU services that answer
+the internet keeps its counts: it counted each connection once, as it came. The archive is never
 deleted, and ``atdr.scripts.rebuild_alerts`` backs the database up before it applies a rebuild.
 """
 
@@ -20,6 +21,7 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from collections.abc import Callable
+from copy import copy
 from datetime import datetime
 from typing import Any
 
@@ -27,13 +29,15 @@ from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from atdr.app.core.config import get_settings
-from atdr.app.db.models import Alert, AlertArchive, AlertEvidence, AlertNote, AuditLog, NormalizedLog, ResponseAction
+from atdr.app.db.models import Alert, AlertArchive, AlertEvidence, AlertNote, AuditLog, InternetService, NormalizedLog, ResponseAction
 from atdr.app.detection.rule_catalog import RULE_CATALOG_VERSION
 from atdr.app.services.detection_scoreboard_service import run_all_detection
 from atdr.app.services.model_alert_service import create_model_alerts
 from atdr.app.services.notification_service import cover_alerts
 
 CHUNK = 500
+# What detection adds to a listed service as it checks logs (exposure_service.note_internet_services).
+SERVICE_COUNT_FIELDS = ("connections", "sources", "sample_sources", "apps", "first_seen", "last_seen")
 
 
 def worked_alert_ids(db: Session) -> set[int]:
@@ -110,7 +114,15 @@ def rebuild_alerts(
     db.execute(update(NormalizedLog).values(last_detection_run_id=None))
     db.commit()
 
+    # The services list counted each connection once, as it came; checking every log again would count it twice
+    # (every service's connections doubled on a copy of the live database, 23 Oct 2026).
+    service_counts = {service.id: {field: copy(getattr(service, field)) for field in SERVICE_COUNT_FIELDS}
+                      for service in db.scalars(select(InternetService))}
     run = detect(db)
+    for service in db.scalars(select(InternetService).where(InternetService.id.in_(service_counts))):
+        for field, value in service_counts[service.id].items():
+            setattr(service, field, value)
+    db.commit()
     # The live list also carries the MFU model's experimental alerts, when they are switched on.
     model_run = create_model_alerts(db, actor=actor) if get_settings().model_alerts_enabled else None
     # The same findings under new numbers are not news: nobody is told about them again.

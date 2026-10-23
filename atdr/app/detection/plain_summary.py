@@ -257,9 +257,12 @@ def _exposure_summary(alert: Alert) -> str:
         f"MFU address {metadata.get('address')} answered {_count(connections, 'connection', 'connections')} from the internet "
         f"on port {metadata.get('port')}, from {_count(sources, 'outside address', 'outside addresses')} or more."
     ]
+    # A marked service's alert can come from the connections that led to the mark, so it says nothing of now.
     if reason == "not_expected":
-        said.append("An admin marked it as not meant to be public, and it still answers.")
-    elif what:
+        said.append("An admin marked it as not meant to be public.")
+        said.append("Next: close it at the firewall, or mark it expected if it should be public after all.")
+        return " ".join(said)
+    if what:
         said.append(f"It looks like {what}, which should rarely be reachable from the internet.")
     else:
         said.append("It began answering the internet recently, and nobody has marked it as meant to be public.")

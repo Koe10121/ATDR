@@ -7,7 +7,8 @@ meant to be public ("expected") or not ("not_expected"). Detection then
 - raises an alert for a service that answers the internet although it was marked not to be public, for one that
   is a kind of service that should rarely be public (remote control, databases, file sharing, debugging), unless it
   is marked expected, and for a service that starts answering after ATDR has watched for a day.
-alert_service.record_internet_exposure writes those alerts.
+alert_service.record_internet_exposure writes those alerts. A service is listed because it answered the internet, so
+marking it not to be public raises its alert at once (review_internet_service), from the connections already seen.
 """
 
 from __future__ import annotations
@@ -21,8 +22,10 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from atdr.app.db.models import AuditLog, InternetService, NormalizedLog
+from atdr.app.db.models import Alert, AuditLog, InternetService, NormalizedLog
+from atdr.app.detection.attack_mapping import INTERNET_EXPOSURE_ALERT
 from atdr.app.detection.rules import connection_answered, is_from_internet, is_ftp_data_connection
+from atdr.app.services.alert_service import ALERT_DEDUP_ACTIVE_STATUSES, EXPOSURE_EVIDENCE_PER_CHECK, record_marked_exposure
 
 STATUSES = ("unreviewed", "expected", "not_expected")
 # A service first seen this long after ATDR began listing them is new: by then the ones always there are listed.
@@ -289,7 +292,8 @@ def _order(item: dict[str, Any]) -> tuple:
 
 def list_internet_services(db: Session, *, status: str | None = None, limit: int = 1000) -> dict[str, Any]:
     rows = list(db.scalars(select(InternetService)))
-    items = sorted((describe(row) for row in rows), key=_order)
+    alerts = _open_alerts_by_service(db)
+    items = sorted((describe(row) | {"alert": alerts.get(row.id)} for row in rows), key=_order)
     summary = {
         "services": len(items),
         "addresses": len({item["address"] for item in items}),
@@ -303,6 +307,30 @@ def list_internet_services(db: Session, *, status: str | None = None, limit: int
     return {"summary": summary, "services": shown[:limit], "total_shown": len(shown)}
 
 
+def stored_connections(db: Session, service: InternetService, *, limit: int) -> list[NormalizedLog]:
+    """The first of the stored connections from the internet that this service answered (ordinary logs are kept
+    for hours only; the counts on the service are the whole story)."""
+
+    rows = db.scalars(
+        select(NormalizedLog)
+        .where(NormalizedLog.dst_ip == service.address, NormalizedLog.dst_port == int(service.port), NormalizedLog.packets_received > 0)
+        .order_by(NormalizedLog.id)
+        .limit(limit * 10)
+    )
+    return [row for row in rows if is_exposure_log(row) and service_key(row) == (service.address, int(service.port), service.protocol)][:limit]
+
+
+def _open_alerts_by_service(db: Session) -> dict[int, dict[str, Any]]:
+    """Each service's open alert, by service id."""
+
+    found: dict[int, dict[str, Any]] = {}
+    for alert in db.scalars(select(Alert).where(Alert.alert_type == INTERNET_EXPOSURE_ALERT, Alert.status.in_(ALERT_DEDUP_ACTIVE_STATUSES))):
+        service_id = next((rule.get("internet_service_id") for rule in alert.matched_rules_json or [] if rule.get("code") == "group_metadata"), None)
+        if service_id is not None:
+            found[int(service_id)] = {"id": alert.id, "severity": alert.severity, "status": alert.status}
+    return found
+
+
 def review_internet_service(db: Session, service_id: int, *, status: str, note: str | None, actor: str) -> dict[str, Any] | None:
     if status not in STATUSES:
         raise ValueError(f"status must be one of {', '.join(STATUSES)}")
@@ -314,12 +342,19 @@ def review_internet_service(db: Session, service_id: int, *, status: str, note: 
     service.note = (note or "").strip()[:2000] or None
     service.reviewed_by = actor if status != "unreviewed" else None
     service.reviewed_at = datetime.now(timezone.utc) if status != "unreviewed" else None
+    alerted = None
+    if status == "not_expected":
+        finding = ExposureFinding(service=service, reason="not_expected", risk=risk_of(_app_names(service), int(service.port)),
+                                  logs=stored_connections(db, service, limit=EXPOSURE_EVIDENCE_PER_CHECK))
+        alerted = record_marked_exposure(db, finding)
+        db.flush()
     db.add(AuditLog(actor=actor, action="internet_service_reviewed", target_type="internet_service", target_value=str(service.id),
                     details={"address": service.address, "port": service.port, "protocol": service.protocol,
-                             "status_before": before, "status": status, "note": service.note}))
+                             "status_before": before, "status": status, "note": service.note,
+                             "alert_id": alerted[0].id if alerted else None, "alert_created": bool(alerted and alerted[1])}))
     db.commit()
     db.refresh(service)
-    return describe(service)
+    return describe(service) | {"alert": _open_alerts_by_service(db).get(service.id)}
 
 
 def answered_internet_logs(db: Session, *, chunk: int | None = None) -> Iterable[list[NormalizedLog]]:
