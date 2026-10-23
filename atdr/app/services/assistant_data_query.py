@@ -685,7 +685,8 @@ def _answer_logs(db: Session, dq: DataQuestion) -> DataAnswer:
                 select(column, count)
                 .where(*conditions, column.is_not(None))
                 .group_by(column)
-                .order_by(desc(count))
+                # Ties by value: SQLite and PostgreSQL ordered tied addresses differently.
+                .order_by(desc(count), column)
                 .limit(dq.limit)
             )
         ]

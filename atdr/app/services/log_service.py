@@ -560,9 +560,11 @@ def build_log_query(
             statement = statement.where(LogSource.name.ilike(f"%{source_name}%"))
         if source_type:
             statement = statement.where(LogSource.source_type == source_type)
+    # Where a value is missing, PostgreSQL sorts the other way from SQLite: a malformed log without a time came first
+    # on PostgreSQL and last on SQLite. Saying where it goes keeps the list the same on both.
     if sort_by in {"action", "src_ip", "dst_ip"}:
-        return statement.order_by(order_column.asc(), NormalizedLog.id.desc())
-    return statement.order_by(desc(order_column), NormalizedLog.id.desc())
+        return statement.order_by(order_column.asc().nulls_first(), NormalizedLog.id.desc())
+    return statement.order_by(order_column.desc().nulls_last(), NormalizedLog.id.desc())
 
 
 def list_logs(db: Session, *, limit: int = 100, offset: int = 0, **filters) -> list[NormalizedLog]:

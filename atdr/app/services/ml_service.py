@@ -254,7 +254,8 @@ def _count_group(db: Session, column, limit: int = 10) -> list[dict]:
         select(column, func.count())
         .where(column.is_not(None))
         .group_by(column)
-        .order_by(desc(func.count()))
+        # Ties by value, so the same logs give the same ten on SQLite and PostgreSQL.
+        .order_by(desc(func.count()), column)
         .limit(limit)
     ).all()
     return [{"name": str(name), "count": int(count)} for name, count in rows]
@@ -456,7 +457,8 @@ def _anomalous_group(db: Session, column, limit: int = 10) -> list[dict]:
         select(column, func.count())
         .where(NormalizedLog.is_anomaly.is_(True), column.is_not(None))
         .group_by(column)
-        .order_by(desc(func.count()))
+        # Ties by value, so the same logs give the same ten on SQLite and PostgreSQL.
+        .order_by(desc(func.count()), column)
         .limit(limit)
     ).all()
     return [{"name": str(name), "count": int(count)} for name, count in rows]

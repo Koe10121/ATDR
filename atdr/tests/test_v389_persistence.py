@@ -109,7 +109,7 @@ def test_postgres_engine_options_are_dialect_specific_and_secret_free():
     assert kwargs["max_overflow"] == 4
     assert kwargs["pool_timeout"] == 12.0
     assert kwargs["connect_args"]["connect_timeout"] == 8
-    assert kwargs["connect_args"]["options"] == "-c statement_timeout=25000"
+    assert kwargs["connect_args"]["options"] == "-c timezone=UTC -c statement_timeout=25000"
     assert secret not in json.dumps(kwargs)
 
 

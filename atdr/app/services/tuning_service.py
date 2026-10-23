@@ -62,7 +62,8 @@ def _alert_type_pressure(db: Session, total_alerts: int) -> list[dict[str, Any]]
                 "tuning_priority": tuning_priority,
             }
         )
-    return sorted(items, key=lambda item: (item["count"], item["high_or_critical_count"]), reverse=True)
+    # Ties by name: the database's row order decided them before, and SQLite and PostgreSQL return rows differently.
+    return sorted(items, key=lambda item: (-item["count"], -item["high_or_critical_count"], item["alert_type"]))
 
 
 def _suppression_candidates(alert_pressure: list[dict[str, Any]]) -> list[dict[str, Any]]:

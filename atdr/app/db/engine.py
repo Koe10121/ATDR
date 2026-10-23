@@ -38,9 +38,13 @@ def build_engine_kwargs(settings: Settings, *, poolclass: type[Pool] | None = No
             "timeout": float(settings.db_connect_timeout_seconds),
         }
     elif kind == "postgresql":
-        connect_args: dict[str, Any] = {"connect_timeout": settings.db_connect_timeout_seconds}
+        # ATDR takes a stored time without an offset as UTC (core/time_utils.parse_timestamp), as SQLite keeps it.
+        # PostgreSQL takes such a time in the session's time zone, which is the server's setting: on a server set to
+        # Asia/Bangkok every time ATDR wrote came back 7 hours off (23 Oct 2026). So each connection works in UTC.
+        options = ["-c timezone=UTC"]
         if settings.db_statement_timeout_ms > 0:
-            connect_args["options"] = f"-c statement_timeout={settings.db_statement_timeout_ms}"
+            options.append(f"-c statement_timeout={settings.db_statement_timeout_ms}")
+        connect_args: dict[str, Any] = {"connect_timeout": settings.db_connect_timeout_seconds, "options": " ".join(options)}
         kwargs.update(
             {
                 "connect_args": connect_args,

@@ -286,7 +286,8 @@ def build_dashboard_summary(db: Session) -> dict:
         select(Alert.src_ip, func.count(Alert.id))
         .where(Alert.src_ip.is_not(None), Alert.status == "open")
         .group_by(Alert.src_ip)
-        .order_by(desc(func.count(Alert.id)))
+        # Ties by address: without it, which of the tied addresses made the ten depended on the database.
+        .order_by(desc(func.count(Alert.id)), Alert.src_ip)
         .limit(10)
     ).all()
     evidence_count = (
