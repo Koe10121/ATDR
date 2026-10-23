@@ -432,7 +432,9 @@ def run_udp_syslog_receiver(
     report_every = status_seconds or settings.syslog_status_seconds
     min_free_gb = float(settings.syslog_min_free_disk_gb if min_free_disk_gb is None else min_free_disk_gb)
 
-    if initialize_database:
+    # Tables are made only where ATDR may make them; in the production profile (AUTO_CREATE_TABLES=false) only the
+    # migrations do. The receiver had made them at every start whatever the setting said (found 23 Oct 2026).
+    if initialize_database and settings.auto_create_tables:
         init_db()
     make_session = session_factory or SessionLocal
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)

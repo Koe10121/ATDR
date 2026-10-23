@@ -559,3 +559,30 @@ def test_store_parsed_batch_writes_the_rows_persist_parsed_log_writes(tmp_path):
             assert len(rows) == 4 + 4
         else:
             assert len(rows) == 2 * len(lines)
+
+
+class _NoSocket(Exception):
+    pass
+
+
+def _receiver_start(monkeypatch, *, auto_create_tables: bool) -> list[str]:
+    made: list[str] = []
+    monkeypatch.setattr(syslog_service, "get_settings", lambda: Settings(_env_file=None, AUTO_CREATE_TABLES=auto_create_tables))
+    monkeypatch.setattr(syslog_service, "init_db", lambda: made.append("tables"))
+
+    def no_socket(*_args, **_kwargs):
+        raise _NoSocket()
+
+    # The receiver stops where it would open its socket: what it did before that is what this looks at.
+    monkeypatch.setattr(syslog_service.socket, "socket", no_socket)
+    try:
+        syslog_service.run_udp_syslog_receiver(port=55999, max_messages=1, socket_timeout=1)
+    except _NoSocket:
+        pass
+    return made
+
+
+def test_the_receiver_makes_no_tables_in_the_production_profile(monkeypatch):
+    # With AUTO_CREATE_TABLES=false only the migrations make tables; the receiver made them at every start (23 Oct).
+    assert _receiver_start(monkeypatch, auto_create_tables=False) == []
+    assert _receiver_start(monkeypatch, auto_create_tables=True) == ["tables"]

@@ -1215,6 +1215,48 @@ it is, free disk space and folders. `database_portability_audit` reports the set
 the column types; it does not read the code, so this test is the check that the code works on PostgreSQL.
 It does not cover the live receiver at MFU's rate on PostgreSQL, or a copy of the live data.
 
+### Production profile
+
+`ENVIRONMENT=production` makes ATDR refuse to start on settings that are fine on one laptop and not on a
+shared host. Rehearsed on 2026-10-23 on a copy (PostgreSQL 16 and a fresh migrated database, the API over
+HTTPS with a scratch certificate, the MFU-shell sign-in settings as on the team laptop). The settings that
+differ from development:
+
+```text
+ENVIRONMENT=production
+AUTO_CREATE_TABLES=false                 # tables come from the migrations only (releases run them)
+DATABASE_URL=postgresql+psycopg2://...   # the doctor blocks SQLite in production
+JWT_SECRET_KEY=<long random value>       # not a value that ships with ATDR
+DEMO_ADMIN_PASSWORD=<not a demo default>
+DEMO_ANALYST_PASSWORD=<not a demo default>
+CORS_ALLOWED_ORIGINS=https://<dashboard host>
+MFU_IAM_TEMPLATE_SHELL_BASE_URL=https://<shell host>
+MFU_IAM_TEMPLATE_SHELL_LAUNCH_URL=https://<shell host>/#/pages/login
+MFU_IAM_HANDOFF_FRONTEND_URL=https://<dashboard host>
+MFU_IAM_HANDOFF_ALLOWED_ORIGINS=https://<shell host>
+MFU_IAM_HANDOFF_COOKIE_SECURE=true
+```
+
+The three sign-in addresses must be HTTPS: with plain HTTP, as on the team laptop (127.0.0.1 only),
+ATDR does not start in production. What the rehearsal showed:
+
+- Start-up checks: no issue. Ready over HTTPS: database PostgreSQL, migrations at head; plain HTTP gets
+  no answer.
+- Local sign-in is refused in the MFU-shell mode ("Sign in through the MFU application shell"); a
+  session token works; the session cookie is `HttpOnly; Path=/; SameSite=lax; Secure`.
+- Uploads queue as jobs, the worker completes them, detection runs, the Overview and the alert list load
+  (9 checks of 9).
+- The readiness doctor for the profile has no blocker on PostgreSQL (on SQLite: PostgreSQL itself).
+  Its warnings are what a host must show: PostgreSQL lab validation, TLS and the reverse proxy, and the
+  restore and performance checks, which the doctor cannot run itself.
+- The live database's schema matches the migrations (`alembic check` on a copy: no change), so turning
+  `AUTO_CREATE_TABLES` off would not lose a table.
+- Fixed on the way: the live syslog receiver made tables at every start whatever
+  `AUTO_CREATE_TABLES` said.
+
+Not rehearsed: the handoff from the MFU shell over HTTPS (it needs the shell itself on HTTPS). The team
+laptop stays in the development profile (decided 2026-10-23): it serves one person on 127.0.0.1 only.
+
 ## Troubleshooting
 
 | Symptom | Safe action |
