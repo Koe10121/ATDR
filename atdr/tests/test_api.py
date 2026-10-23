@@ -1421,6 +1421,51 @@ def test_alert_list_detail_and_dashboard_agree_on_attack_type():
         app.dependency_overrides.clear()
 
 
+def test_dashboard_severity_sources_and_attack_types_count_open_alerts():
+    # The Overview shows these beside its open-alert figures. After #2637 was marked a false positive on live,
+    # the severity chart still said Critical 23 beside "22 open".
+    client = _client()
+    try:
+        db = next(app.dependency_overrides[get_db]())
+        try:
+            to_close = Alert(
+                title="Critical: brute force from 10.9.9.9",
+                alert_type="brute_force_like_attempts",
+                src_ip="10.9.9.9",
+                dst_ip="10.0.0.22",
+                threat_score=95,
+                severity="Critical",
+                status="open",
+                explanation="Repeated failed logins.",
+                matched_rules_json=[{"code": "brute_force_like_attempts", "title": "Brute force", "score": 40, "explanation": "x"}],
+                recommended_response="Review.",
+            )
+            db.add(to_close)
+            db.commit()
+            closed_id = to_close.id
+        finally:
+            db.close()
+
+        headers = _login(client, "analyst", "analyst123")
+        before = client.get("/api/dashboard/summary", headers=headers).json()
+        assert before["severity_counts"] == {"Critical": 1, "Medium": 1}
+        assert {"name": "10.9.9.9", "count": 1} in before["top_suspicious_source_ips"]
+        assert {"name": "brute_force", "count": 1} in before["top_attack_types"]
+
+        assert client.post(f"/api/alerts/{closed_id}/status", headers=headers, json={"status": "false_positive"}).status_code == 200
+        after = client.get("/api/dashboard/summary", headers=headers).json()
+
+        assert after["severity_counts"] == {"Medium": 1}
+        assert after["critical_open_alerts"] == 0
+        assert "10.9.9.9" not in {item["name"] for item in after["top_suspicious_source_ips"]}
+        assert "brute_force" not in {item["name"] for item in after["top_attack_types"]}
+        # Totals still count every alert.
+        assert after["total_alerts"] == 2
+        assert after["status_counts"] == {"false_positive": 1, "open": 1}
+    finally:
+        app.dependency_overrides.clear()
+
+
 def test_bulk_alert_status_rejects_bad_requests():
     client = _client()
     try:

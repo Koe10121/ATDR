@@ -145,10 +145,13 @@ def _parser_error_examples(db: Session, *, total_logs: int, limit: int = 3) -> l
 
 
 def _alert_operations_aggregate(db: Session) -> dict:
-    severity_counts: Counter[str] = Counter()
+    # Severity and attack type count open alerts: the Overview shows them beside its open-alert figures, and a
+    # closed Critical alert had kept "Critical 23" in its severity chart beside "22 open". Status, alert type
+    # and occurrences still count every alert.
+    open_severity_counts: Counter[str] = Counter()
     status_counts: Counter[str] = Counter()
     alert_type_counts: Counter[str] = Counter()
-    attack_type_counts: Counter[str] = Counter()
+    open_attack_type_counts: Counter[str] = Counter()
     occurrence_count = 0
     rows = db.execute(
         select(
@@ -159,10 +162,11 @@ def _alert_operations_aggregate(db: Session) -> dict:
         )
     )
     for severity, status, alert_type, rules in rows:
-        severity_counts[str(severity)] += 1
         status_counts[str(status)] += 1
         alert_type_counts[str(alert_type)] += 1
-        attack_type_counts[infer_attack_type_from_rules(rules or [])] += 1
+        if status == "open":
+            open_severity_counts[str(severity)] += 1
+            open_attack_type_counts[infer_attack_type_from_rules(rules or [])] += 1
         metadata = next(
             (
                 rule
@@ -181,10 +185,10 @@ def _alert_operations_aggregate(db: Session) -> dict:
         else:
             occurrence_count += 1
     return {
-        "severity_counts": severity_counts,
+        "open_severity_counts": open_severity_counts,
         "status_counts": status_counts,
         "alert_type_counts": alert_type_counts,
-        "attack_type_counts": attack_type_counts,
+        "open_attack_type_counts": open_attack_type_counts,
         "occurrence_count": occurrence_count,
     }
 
@@ -272,7 +276,7 @@ def build_dashboard_summary(db: Session) -> dict:
     watchlist_hits = int(db.scalar(select(func.coalesce(func.sum(WatchlistItem.match_count), 0))) or 0)
     anomaly_rate = round((anomaly_logs / total_logs) * 100, 2) if total_logs else 0.0
     alert_operations = _alert_operations_aggregate(db)
-    severity_rows = sorted(alert_operations["severity_counts"].items())
+    severity_rows = sorted(alert_operations["open_severity_counts"].items())
     status_rows = sorted(alert_operations["status_counts"].items())
     alert_type_rows = sorted(
         alert_operations["alert_type_counts"].items(),
@@ -280,7 +284,7 @@ def build_dashboard_summary(db: Session) -> dict:
     )[:10]
     suspicious_rows = db.execute(
         select(Alert.src_ip, func.count(Alert.id))
-        .where(Alert.src_ip.is_not(None))
+        .where(Alert.src_ip.is_not(None), Alert.status == "open")
         .group_by(Alert.src_ip)
         .order_by(desc(func.count(Alert.id)))
         .limit(10)
@@ -336,11 +340,11 @@ def build_dashboard_summary(db: Session) -> dict:
         "severity_counts": {severity: int(count) for severity, count in severity_rows},
         "status_counts": {status: int(count) for status, count in status_rows},
         "top_alert_types": [{"name": str(alert_type), "count": int(count)} for alert_type, count in alert_type_rows],
-        # Attack types come from the same rule mapping the alert drawer uses.
+        # Attack types of open alerts, from the same rule mapping the alert drawer uses.
         "top_attack_types": [
             {"name": str(attack_type), "count": int(count)}
             for attack_type, count in sorted(
-                alert_operations["attack_type_counts"].items(), key=lambda item: (-item[1], item[0])
+                alert_operations["open_attack_type_counts"].items(), key=lambda item: (-item[1], item[0])
             )[:10]
         ],
         # The open alerts in plain words, for the top of the Overview.

@@ -399,7 +399,7 @@ export function ExecutiveOverview() {
       </section>
 
       <div className="grid gap-4 xl:grid-cols-3">
-        <ChartCard title="Severity Mix">
+        <ChartCard title="Open Alerts By Severity">
           {severityRows.length ? (
             <div className="h-72">
               <ResponsiveContainer>
@@ -408,7 +408,7 @@ export function ExecutiveOverview() {
                     {severityRows.map((item, index) => (
                       <Cell
                         key={item.name}
-                        aria-label={`${item.name}: ${item.count} alerts`}
+                        aria-label={`${item.name}: ${item.count} open alerts`}
                         fill={chartColors[index % chartColors.length]}
                       />
                     ))}
@@ -418,7 +418,7 @@ export function ExecutiveOverview() {
               </ResponsiveContainer>
             </div>
           ) : (
-            <EmptyState title="No severity data" body="Import logs and run detection to populate the posture chart." />
+            <EmptyState title="No open alerts" body="Open alerts appear here by severity." />
           )}
         </ChartCard>
 
@@ -436,7 +436,7 @@ export function ExecutiveOverview() {
         </ChartCard>
 
         <section className="panel">
-          <div className="mb-4 text-sm font-extrabold uppercase tracking-wide text-muted">Top Sources And Attack Types</div>
+          <div className="mb-4 text-sm font-extrabold uppercase tracking-wide text-muted">Open Alerts: Top Sources And Attack Types</div>
           <div className="space-y-3">
             {(data?.top_suspicious_source_ips ?? []).slice(0, 4).map((item) => (
               <div key={item.name} className="flex justify-between rounded-lg border border-line bg-panel2 px-3 py-2 text-sm">
