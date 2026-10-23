@@ -8,7 +8,10 @@ from typing import Any, Iterable
 from urllib.parse import quote
 from uuid import NAMESPACE_URL, uuid5
 
-from atdr.app.core.config import KNOWN_DEFAULT_SECRETS, KNOWN_DEMO_PASSWORDS, _is_documentation_placeholder
+# Standard library and known_values only: CI's security-controls job runs this scan before ATDR's packages are
+# installed (an import of atdr.app.core.config, which needs pydantic, failed it on 23 Oct 2026).
+from atdr.app.core.known_values import KNOWN_DEFAULT_SECRETS, KNOWN_DEMO_PASSWORDS
+from atdr.app.core.known_values import is_documentation_placeholder as _is_documentation_placeholder
 
 
 _SECRET_PATTERNS = (

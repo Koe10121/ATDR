@@ -7,18 +7,14 @@ from urllib.parse import urlparse
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from atdr.app.core.known_values import (  # noqa: F401 - the doctors take the known values from here
+    KNOWN_DEFAULT_SECRETS,
+    KNOWN_DEMO_PASSWORDS,
+    is_documentation_placeholder as _is_documentation_placeholder,
+)
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-
-# Values that ship in ATDR's own files, so anyone can know them: the default JWT secrets and the classroom demo
-# passwords. The settings checks, both doctors and the repository scan use these same sets.
-KNOWN_DEFAULT_SECRETS = frozenset({"change-this-dev-secret", "change-this-secret-before-production"})
-KNOWN_DEMO_PASSWORDS = frozenset({"admin123", "analyst123", "password", "changeme"})
-
-
-def _is_documentation_placeholder(value: str) -> bool:
-    clean = value.strip().lower()
-    return not clean or any(marker in clean for marker in ("replace-during", "replace-with", "change-this", "placeholder"))
 
 
 def _valid_http_url(value: str, *, require_https: bool, origin_only: bool) -> bool:

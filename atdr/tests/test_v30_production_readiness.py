@@ -1,5 +1,8 @@
 import inspect
 import json
+import os
+import subprocess
+import sys
 
 from atdr.app.benchmarks.readiness import readiness_gate_v9_production_readiness_track
 from atdr.app.core.config import KNOWN_DEFAULT_SECRETS, KNOWN_DEMO_PASSWORDS, PROJECT_ROOT, Settings
@@ -184,3 +187,24 @@ def test_the_doctors_use_the_shared_lists_of_known_values_and_private_files():
     source = inspect.getsource(doctor_module)
     assert ".example" not in source.replace(".env.preproduction.example and .env.shell.example", "")
     assert "scan_repository_paths" in inspect.getsource(doctor_module._tracked_sensitive_files)
+
+
+def test_the_repository_scan_runs_without_atdrs_packages(tmp_path):
+    # CI's security-controls job runs this scan with only pip-audit installed: an import of the settings module, which
+    # needs pydantic, failed it on 23 Oct 2026. "-S" leaves site-packages out, so nothing but the standard library is
+    # there, as in that job.
+    (tmp_path / ".env.shell.example").write_text('JWT_SECRET_KEY="replace-during-private-setup"\n', encoding="utf-8")
+    code = (
+        "import sys; sys.path.insert(0, sys.argv[1]); from pathlib import Path\n"
+        "import atdr.scripts.run_v553_security_acceptance\n"
+        "from atdr.app.services.repository_security_service import scan_repository_paths\n"
+        "print(scan_repository_paths(Path(sys.argv[2]), ['.env.shell.example'])['ok'])\n"
+    )
+    env = {key: value for key, value in os.environ.items() if key != "PYTHONPATH"}
+    result = subprocess.run(
+        [sys.executable, "-S", "-c", code, str(PROJECT_ROOT), str(tmp_path)],
+        capture_output=True, text=True, env=env, timeout=120,
+    )
+
+    assert result.returncode == 0, result.stderr[-800:]
+    assert result.stdout.strip() == "True"
