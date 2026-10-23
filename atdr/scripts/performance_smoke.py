@@ -10,7 +10,7 @@ from atdr.app.core.config import get_settings
 from atdr.app.db.database import SessionLocal
 from atdr.app.db.models import Alert, NormalizedLog, RawLog
 from atdr.app.ml.features import build_feature_rows
-from atdr.app.services.alert_service import list_alerts
+from atdr.app.services.alert_service import alert_evidence_summaries, list_alerts
 from atdr.app.services.case_service import list_alert_cases
 from atdr.app.services.dashboard_service import build_dashboard_summary, build_dashboard_summary_cached, clear_dashboard_summary_cache
 from atdr.app.services.job_service import build_job_summary
@@ -29,6 +29,14 @@ def _timed(label: str, fn: Callable[[], Any]) -> tuple[str, Any, float]:
     started = time.perf_counter()
     result = fn()
     return label, result, round(time.perf_counter() - started, 4)
+
+
+def _alert_list_as_the_page_loads_it(db) -> list[Alert]:
+    # As /api/alerts loads it: without each alert's evidence logs, with their counts. The smoke loaded every evidence
+    # log, which no page does: 4.1 s on the live list (its scanning alert holds 5,917 logs) against 0.01 s (23 Oct).
+    rows = list_alerts(db, limit=50, load_evidence=False)
+    alert_evidence_summaries(db, [int(alert.id) for alert in rows], alerts=rows)
+    return rows
 
 
 def run_performance_smoke(*, feature_limit: int = 20) -> dict[str, Any]:
@@ -61,7 +69,7 @@ def run_performance_smoke(*, feature_limit: int = 20) -> dict[str, Any]:
             ),
         )
         timings["operation_job_summary_query_seconds"] = seconds
-        _, alerts, seconds = _timed("alert_list", lambda: list_alerts(db, limit=50))
+        _, alerts, seconds = _timed("alert_list", lambda: _alert_list_as_the_page_loads_it(db))
         timings["alert_list_query_seconds"] = seconds
         _, cases, seconds = _timed("case_summary", lambda: list_alert_cases(db, limit=20))
         timings["case_summary_query_seconds"] = seconds

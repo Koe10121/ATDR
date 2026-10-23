@@ -470,3 +470,21 @@ def test_generic_syslog_repeats_are_counted_but_kept_as_evidence():
                                    actor="unit_test")
         raw_count = int(db.scalar(select(func.count(RawLog.id))) or 0)
     assert result["duplicate_raw_logs"] == 1 and result["imported"] == 2 and raw_count == 2
+
+
+def test_performance_smoke_times_the_alert_list_as_the_page_loads_it(monkeypatch):
+    # The smoke loaded every alert's evidence logs, which no page does (4.1 s on the live list against the page's
+    # 0.01 s, 23 Oct 2026); /api/alerts lists them without their evidence and adds the counts.
+    from atdr.scripts import performance_smoke
+
+    Session = _session()
+    with Session() as db:
+        import_log_file(db, "data/samples/paloalto-demo.txt", limit=2, actor="unit_test")
+    calls = []
+    real = performance_smoke.list_alerts
+    monkeypatch.setattr(performance_smoke, "list_alerts", lambda db, **kwargs: calls.append(kwargs) or real(db, **kwargs))
+    monkeypatch.setattr(performance_smoke, "SessionLocal", Session)
+
+    run_performance_smoke(feature_limit=2)
+
+    assert calls and all(call.get("load_evidence") is False for call in calls), calls
