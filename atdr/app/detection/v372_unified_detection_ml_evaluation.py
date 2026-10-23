@@ -71,7 +71,7 @@ def _supervised_output_policy_summary(output_dir: Path) -> dict[str, Any]:
             "available": False,
             "status": "missing",
             "path": str(path),
-            "recommendation": "Run python -m atdr.scripts.run_v359_supervised_output_policy_contract --pretty.",
+            "recommendation": "No v3.59 report on this copy; the research script that wrote it was retired on 22 October 2026.",
         }
     contract = payload.get("contract") or {}
     return {
@@ -103,7 +103,7 @@ def _training_target_summary(output_dir: Path) -> dict[str, Any]:
             "available": False,
             "status": "missing",
             "path": str(path),
-            "recommendation": "Run python -m atdr.scripts.run_v362_supervised_training_target_contract --pretty.",
+            "recommendation": "No v3.62 report on this copy; the research script that wrote it was retired on 22 October 2026.",
         }
     contract = payload.get("contract") or {}
     return {

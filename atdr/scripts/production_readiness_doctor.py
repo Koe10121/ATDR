@@ -95,7 +95,8 @@ def run_production_readiness_doctor(settings: Settings | None = None) -> dict[st
             not is_production,
             "warning",
             "PostgreSQL shared-lab validation is tracked separately.",
-            "Run atdr.scripts.run_postgres_lab_validation on a Docker/PostgreSQL-capable host before shared-lab claims.",
+            "Before shared-lab claims, run ATDR's own flow on the target PostgreSQL and compare it with SQLite: set "
+            "ATDR_TEST_POSTGRES_URL and run python -m pytest atdr/tests/test_postgres_smoke.py.",
         ),
         _check(
             "alembic_required_for_production",

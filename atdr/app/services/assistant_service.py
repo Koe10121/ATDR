@@ -3922,15 +3922,14 @@ def _answer_supervised_output_policy(*, redacted: bool) -> AssistantResult:
     payload = _latest_v359_supervised_output_policy_payload()
     if payload is None:
         answer = (
-            "The supervised output policy contract has not been generated yet. "
-            "Run `.\\.venv\\Scripts\\python.exe -m atdr.scripts.run_v359_supervised_output_policy_contract --pretty` "
-            "to create the local ignored report. This does not activate a model, write labels, or enable response automation."
+            "This copy of ATDR has no supervised output policy report. The research script that wrote it was retired "
+            "on 22 October 2026, so the status document is the record. This does not activate a model, write labels, "
+            "or enable response automation."
         )
         return AssistantResult(
             answer=_text(answer, redacted=redacted),
             context_used=["v359_supervised_output_policy_missing"],
             citations=[
-                Citation("v3.59 policy runner", "atdr/scripts/run_v359_supervised_output_policy_contract.py"),
                 Citation("v3.59 status doc", "docs/V3_59_SUPERVISED_OUTPUT_POLICY_CONTRACT.md"),
             ],
             suggested_followups=["Explain current ML model status.", "Does ML agree with rule/hybrid evidence?"],
@@ -4022,15 +4021,14 @@ def _answer_queue_evidence_agreement(*, redacted: bool) -> AssistantResult:
     payload = _latest_v357_queue_evidence_payload()
     if payload is None:
         answer = (
-            "The queue-vs-rule/hybrid agreement diagnostic has not been generated yet. "
-            "Run `.\\.venv\\Scripts\\python.exe -m atdr.scripts.run_v357_queue_rule_hybrid_agreement --test-size 0.3 --min-samples 6 --pretty` "
-            "to create the local ignored report. This does not activate a model or enable response automation."
+            "This copy of ATDR has no queue-vs-rule/hybrid agreement report. The research script that wrote it was "
+            "retired on 22 October 2026, so the status document is the record. This does not activate a model or "
+            "enable response automation."
         )
         return AssistantResult(
             answer=_text(answer, redacted=redacted),
             context_used=["v357_queue_evidence_agreement_missing"],
             citations=[
-                Citation("v3.57 diagnostic runner", "atdr/scripts/run_v357_queue_rule_hybrid_agreement.py"),
                 Citation("v3.57 status doc", "docs/V3_57_QUEUE_RULE_HYBRID_AGREEMENT.md"),
             ],
             suggested_followups=["Explain current ML model status.", "Why is the model not production promoted?"],

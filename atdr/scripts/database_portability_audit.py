@@ -93,7 +93,8 @@ def run_database_portability_audit(settings: Settings | None = None) -> dict[str
         "recommended_next_steps": [
             "Keep SQLite for normal local development.",
             "Run Alembic check before PostgreSQL lab validation.",
-            "Run atdr.scripts.run_postgres_lab_validation on a PostgreSQL/Docker-capable host.",
+            "Run ATDR's own flow on the target PostgreSQL and compare it with SQLite: set ATDR_TEST_POSTGRES_URL and run "
+            "python -m pytest atdr/tests/test_postgres_smoke.py.",
             "Run atdr.scripts.backup_database with an explicit output directory; execution requires --execute.",
             "Run atdr.scripts.validate_persistence_profile for isolated migration, backup, checksum, and restore validation.",
             "Do not claim production readiness until real-device forwarding, PostgreSQL, backup/restore, and secrets are validated.",
