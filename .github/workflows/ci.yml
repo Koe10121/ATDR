@@ -266,6 +266,16 @@ jobs:
           -o cache_dir=.tmp/pytest-cache
           --basetemp=.tmp/pytest-postgres-persistence
 
+      # ATDR's own flow (import, detection, every page's data, the assistant's look-ups) on PostgreSQL and on SQLite,
+      # compared answer by answer; the test makes and drops a database of its own.
+      - name: Compare ATDR on PostgreSQL with ATDR on SQLite
+        env:
+          ATDR_TEST_POSTGRES_URL: postgresql+psycopg2://atdr_ci:atdr_ci_ephemeral@127.0.0.1:5432/postgres
+        run: >-
+          python -m pytest atdr/tests/test_postgres_smoke.py -q
+          -o cache_dir=.tmp/pytest-cache
+          --basetemp=.tmp/pytest-postgres-smoke
+
       - name: Apply v3.94 migrations to isolated worker database
         env:
           DATABASE_URL: ${{ env.ATDR_V394_POSTGRES_DATABASE_URL }}

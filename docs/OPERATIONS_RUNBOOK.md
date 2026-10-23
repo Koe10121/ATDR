@@ -1186,6 +1186,35 @@ disaster-recovery evidence from the host owner.
 .\.venv\Scripts\python.exe -m atdr.scripts.run_v553_release_readiness --pretty
 ```
 
+### PostgreSQL
+
+ATDR's own flow has run on PostgreSQL 16 since 2026-10-23. `atdr/tests/test_postgres_smoke.py`
+imports the scenario files in `data/samples/scenarios`, runs detection, and opens every page's
+data, each alert and the assistant's look-ups, once on a new SQLite file and once on a new
+PostgreSQL database, then compares the two answer by answer. CI runs it on every push (job
+`postgres-persistence`). To run it against a server (it creates and drops a database of its own;
+the account needs that right):
+
+```powershell
+$env:ATDR_TEST_POSTGRES_URL = "postgresql+psycopg2://<user>:<password>@<host>:5432/postgres"
+.\.venv\Scripts\python.exe -m pytest atdr/tests/test_postgres_smoke.py -q
+```
+
+What the first run found, and what changed (the test's database is set to Asia/Bangkok on purpose):
+
+- A time without an offset is UTC to ATDR, but PostgreSQL reads it in the session's time zone, the
+  server's setting. On a server set to Asia/Bangkok every time ATDR wrote came back 7 hours off.
+  ATDR's PostgreSQL connections now work in UTC (`-c timezone=UTC`), whatever the server's setting.
+- PostgreSQL sorts a missing value first where SQLite sorts it last: a malformed log without a time
+  topped the log list. The log list now says where a missing value goes.
+- Ties in rankings came out in another order (the Overview's top sources, alert-type pressure, the
+  model report's top lists, the assistant's log ranking). Ties are now broken by name.
+
+After the fixes the two runs give the same answers, apart from what differs by nature: which database
+it is, free disk space and folders. `database_portability_audit` reports the settings, the connection and
+the column types; it does not read the code, so this test is the check that the code works on PostgreSQL.
+It does not cover the live receiver at MFU's rate on PostgreSQL, or a copy of the live data.
+
 ## Troubleshooting
 
 | Symptom | Safe action |
