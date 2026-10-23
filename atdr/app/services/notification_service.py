@@ -73,7 +73,7 @@ WORKER, WATCHER = "worker", "watcher"
 PENDING, SENDING, SENT, GAVE_UP = "pending", "sending", "sent", "failed"
 ACTOR = "notifications"
 NOTIFICATION_SENT, NOTIFICATION_FAILED = "notification_sent", "notification_failed"
-STARTED_AT, SUMMARY_SINCE, FEED_LOST = "started_at", "summary_since", "feed_lost"
+STARTED_AT, SUMMARY_SINCE, FEED_LOST, REBUILT_AT = "started_at", "summary_since", "feed_lost", "alerts_rebuilt_at"
 SYSTEM_PAGE, ALERTS_PAGE = "/data", "/alerts"
 
 # How often the worker looks for something to tell, and how often for problems of ATDR's own.
@@ -319,11 +319,22 @@ def _summary_due(settings: Settings, *, since: datetime, now: datetime, zone: tz
     return local >= today and since.astimezone(zone) < today
 
 
+def note_alerts_rebuilt(db: Session, *, now: datetime | None = None) -> None:
+    """A rebuild raises the same findings again under new numbers, each reading as created then: the next summary
+    counts new alerts from here, and says the list was rebuilt (alert_rebuild_service calls this when it is done)."""
+
+    moment = _now(now)
+    _set_state(db, REBUILT_AT, moment.isoformat(), moment)
+
+
 def raise_summary(db: Session, *, settings: Settings, now: datetime, zone: tzinfo | None = None) -> Notification | None:
     since = _moment(_state(db, SUMMARY_SINCE))
     if since is None or not _summary_due(settings, since=since, now=now, zone=zone):
         return None
-    new = dict(db.execute(select(Alert.severity, func.count()).where(Alert.created_at > since).group_by(Alert.severity)).all())
+    rebuilt = _moment(_state(db, REBUILT_AT))
+    rebuilt = rebuilt if rebuilt is not None and rebuilt > since else None
+    counted_from = rebuilt or since
+    new = dict(db.execute(select(Alert.severity, func.count()).where(Alert.created_at > counted_from).group_by(Alert.severity)).all())
     total = sum(int(count) for count in new.values())
     by_severity = ", ".join(f"{int(new[name])} {name}" for name in SEVERITIES if new.get(name))
     open_now = dict(db.execute(
@@ -333,7 +344,8 @@ def raise_summary(db: Session, *, settings: Settings, now: datetime, zone: tzinf
     waiting = list(db.scalars(
         select(NotificationCondition).where(NotificationCondition.announced_at.is_not(None)).order_by(NotificationCondition.since)
     ))
-    lines = [f"Since {_when(since, now, zone)}: " + (f"{_counted(total, 'new alert')} ({by_severity})." if total else "no new alerts.")]
+    lines = [f"The alert list was rebuilt at {_when(rebuilt, now, zone)}: the same findings under new numbers, not new ones."] if rebuilt else []
+    lines.append(f"Since {_when(counted_from, now, zone)}: " + (f"{_counted(total, 'new alert')} ({by_severity})." if total else "no new alerts."))
     lines.append(f"Open now: {_counted(open_total, 'alert')}, {open_critical} of them Critical." if open_total else "Open now: no alerts.")
     if waiting:
         lines.append("Needs attention:")

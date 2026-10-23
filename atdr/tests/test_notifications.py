@@ -348,6 +348,34 @@ def test_the_summary_goes_once_a_day_at_its_time_and_says_what_is_new_and_open(t
     assert _look(db, settings, morning + DAY * 2 + HOUR * 7, outbox, problems=False)["made"] == []
 
 
+def test_after_a_rebuild_the_summary_counts_new_alerts_from_the_rebuild_and_says_so(tmp_path):
+    # A rebuild raises the same findings again, each reading as created then: the summary after the planned rebuild of
+    # the live list would have announced every one of its alerts as new, by email.
+    settings, db = _system(tmp_path, ATDR_NOTIFY_SUMMARY_AT="08:00")
+    outbox = _Outbox()
+    _look(db, settings, START, outbox)
+    _alert(db, START + HOUR, severity="High")  # new before the rebuild, then raised again by it
+    rebuilt_at = START + HOUR * 3
+    for severity in ("Critical", "High", "Medium"):
+        _alert(db, rebuilt_at - MINUTE, severity=severity)
+    # As alert_rebuild_service does: nobody is told about them one by one, and the summary counts from here.
+    notify.cover_alerts(db, settings=settings, now=rebuilt_at)
+    notify.note_alerts_rebuilt(db, now=rebuilt_at)
+    _alert(db, rebuilt_at + HOUR, severity="Low")  # found after it
+    db.commit()
+
+    morning = datetime(2026, 10, 10, 1, 0, tzinfo=timezone.utc)  # 08:00 in Bangkok
+    assert _look(db, settings, morning, outbox)["made"][0]["title"] == "Daily summary: 1 new alert"
+    assert _last(db).body.splitlines()[:2] == [
+        "The alert list was rebuilt at 9 Oct 13:00: the same findings under new numbers, not new ones.",
+        "Since 9 Oct 13:00: 1 new alert (1 Low).",
+    ]
+    # The next day's summary counts from that summary, and the rebuild is not said again.
+    _alert(db, morning + HOUR, severity="Medium")
+    _look(db, settings, morning + DAY, outbox, problems=False)
+    assert _last(db).body.splitlines()[0] == "Since 10 Oct 08:00: 1 new alert (1 Medium)."
+
+
 def test_no_summary_without_a_time_and_a_time_that_is_not_one_is_said_to_be_wrong(tmp_path):
     settings, db = _system(tmp_path)
     _look(db, settings, START)

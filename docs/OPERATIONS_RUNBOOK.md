@@ -555,7 +555,9 @@ ATDR tells people what they need to know without anyone opening a page:
   raised since the last summary by severity, what is open, and what about
   ATDR still needs attention. If the machine was off at that time, the
   summary goes when it is next on. A day without a summary means ATDR was
-  not running.
+  not running. After a rebuild of the alert list (which raises the same
+  findings again under new numbers), the summary says so and counts new
+  alerts from the rebuild, not from the last summary.
 - **Problems of its own**, when they begin and when they are over: a backup
   that failed, a part that keeps stopping, ATDR that could not be started,
   the live feed not running, losing lines or hearing nothing from the

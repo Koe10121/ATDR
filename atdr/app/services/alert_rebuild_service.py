@@ -33,7 +33,7 @@ from atdr.app.db.models import Alert, AlertArchive, AlertEvidence, AlertNote, Au
 from atdr.app.detection.rule_catalog import RULE_CATALOG_VERSION
 from atdr.app.services.detection_scoreboard_service import run_all_detection
 from atdr.app.services.model_alert_service import create_model_alerts
-from atdr.app.services.notification_service import cover_alerts
+from atdr.app.services.notification_service import cover_alerts, note_alerts_rebuilt
 
 CHUNK = 500
 # What detection adds to a listed service as it checks logs (exposure_service.note_internet_services).
@@ -125,8 +125,10 @@ def rebuild_alerts(
     db.commit()
     # The live list also carries the MFU model's experimental alerts, when they are switched on.
     model_run = create_model_alerts(db, actor=actor) if get_settings().model_alerts_enabled else None
-    # The same findings under new numbers are not news: nobody is told about them again.
+    # The same findings under new numbers are not news: nobody is told about them again, and the daily summary counts
+    # new alerts from here (it had counted every alert by when it was created).
     cover_alerts(db)
+    note_alerts_rebuilt(db)
     # Every alert now on the list that was not kept is new. (This does not compare ids with the old maximum:
     # until migration a8f1c0d2e3b4, SQLite numbered a rebuild's new alerts from the highest kept alert.)
     new_alerts = Counter(db.scalars(select(Alert.alert_type).where(Alert.id.not_in(keep) if keep else True)))

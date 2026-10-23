@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 
 import pytest
 from sqlalchemy import func, select
@@ -83,6 +84,31 @@ def test_a_rebuild_archives_old_alerts_in_full_and_runs_the_current_rules_over_e
     audit = db.scalar(select(AuditLog).where(AuditLog.action == "alerts_rebuilt"))
     assert audit.actor == "koe" and audit.target_value == RULE_CATALOG_VERSION
     assert audit.details["archived"] == 1 and audit.details["kept_alert_ids"] == sorted(worked)
+
+
+def test_a_rebuild_tells_the_daily_summary_to_count_new_alerts_from_it():
+    # Without it, the morning summary after the rebuild would have announced every re-raised alert as new, by email.
+    from datetime import datetime, timezone
+
+    from atdr.app.db.models import NotificationState
+
+    db = _session()
+    _seed(db)
+    before = datetime.now(timezone.utc)
+
+    def detect(session):
+        # An alert's time is the database's, to the second: past this one, a mark set before detection reads as earlier.
+        time.sleep(1.1)
+        _alert(session, "possible_port_scan")
+        return {"logs_checked": 30}
+
+    summary = rebuild_alerts(db, actor="koe", reason="regrouped", detect=detect)
+
+    assert summary["new_alerts"] == 1
+    noted = datetime.fromisoformat(db.get(NotificationState, "alerts_rebuilt_at").value)
+    assert before <= noted <= datetime.now(timezone.utc)
+    newest_alert = max(alert.created_at for alert in db.scalars(select(Alert)))
+    assert newest_alert.replace(tzinfo=timezone.utc) <= noted, "every alert the rebuild raised is before the mark"
 
 
 def test_the_current_rules_find_what_the_retired_alert_was_really_about():
