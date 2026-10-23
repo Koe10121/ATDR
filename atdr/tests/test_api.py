@@ -18,11 +18,15 @@ from atdr.app.db.engine import database_kind
 from atdr.app.db.models import Alert
 from atdr.app.main import app, database_operational_exception_handler
 from atdr.app.routers import dashboard as dashboard_router
+from atdr.app.services.dashboard_service import clear_dashboard_summary_cache
 from atdr.app.services.user_service import create_user
 from atdr.tests.test_parser import TRAFFIC_LINE
 
 
 def _client() -> TestClient:
+    # Every test's database is "sqlite://", and the summary cache tells databases apart by counts and times to the
+    # second: a test writing what the one before wrote, in the same second, got the summary of the one before.
+    clear_dashboard_summary_cache()
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
