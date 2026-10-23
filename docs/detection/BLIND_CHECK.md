@@ -187,6 +187,16 @@ nothing moves: precision 80.6%, recall 81.8%, false alarms 1.5%, F1 81.2%; no
 sample changes its flag. On the unimported 13:45-13:57 traffic alerts go from
 684 to 453.
 
+### v5.37.0 and v5.38.0: alerts grouped differently, blocked attacks rated lower
+
+v5.37.0 groups the same findings into fewer alerts and v5.38.0 rates an attack
+the firewall blocked no higher than the firewall rated it; neither changes which
+logs are flagged. Re-run on a copy of the holdout on 2026-10-23 (453,908 logs,
+`second_look_v5_38.json`): on the same 150 labels nothing moves, precision 80.6%
+(66.7-92.7%), recall 81.8%, false alarms 1.5%, F1 81.2%; with the human-checked
+labels 93.5%, 78.2%, 0.5%, 85.2%, as under v5.36.0. No sample labeled Threat lost
+its flag.
+
 ## Human check (28 Sep)
 
 The 83 rows below were checked in the team review pack: the answers were an
@@ -230,5 +240,6 @@ python -m atdr.scripts.anonymized_review_files verify-blind-labels   # needs ope
 that it refuses to replace it and needs `--out` for any other scoring. The files
 under `.tmp/blind_check/` contain real MFU IP addresses and stay private to
 the team. The second looks are written next to it (`second_look.json` for
-v5.33.0, `second_look_v5_34.json` for v5.34.0); `score.json` is the official
+v5.33.0, `second_look_v5_34.json` for v5.34.0, `second_look_v5_38.json` for
+v5.38.0); `score.json` is the official
 blind result and is not rewritten.

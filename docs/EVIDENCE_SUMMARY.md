@@ -42,6 +42,9 @@ mfu_behavior_v2). Details are in the linked documents.
 | Same, with the 74 unresolved unidentified-app labels set aside as "needs context" | Agreement (circular) | 96.0% | 99.7% | 1.6% | 97.8% |
 | Same, after 31,001 duplicate log copies were removed and the list rebuilt (4 Oct; 1,415 labeled records) | Agreement (circular) | 96.7% | 99.2% | 1.3% | 98.0% |
 | Same, rule catalog v5.37.0 (8 Oct: alerts grouped differently, 78 instead of 158 on the same logs; no label changes its flag) | Agreement (circular) | 96.7% | 99.2% | 1.3% | 98.0% |
+| Same, rule catalog v5.38.0 (23 Oct, after the synthetic log was removed: 1,414 labeled records, 381 of 384 threats flagged, 8 of 1,030 harmless logs flagged) | Agreement (circular) | 97.9% | 99.2% | 0.8% | 98.6% |
+| Blind check re-scored, rules v5.38.0 (23 Oct; the same 150 labels; no sampled threat lost its flag) | Second look | 80.6% (66.7-92.7%) | 81.8% | 1.5% | 81.2% |
+| Blind check, rules v5.38.0, labels human-checked (23 Oct) | Second look | 93.5% (83.9-100%) | 78.2% | 0.5% | 85.2% |
 | Live alert list before the rebuild (3,676 alerts) | Agreement | 48.9% | 87.6% | 43.3% | 62.8% |
 | Live alert list after the rebuild (314 alerts) | Agreement | 93.9% | 80.4% | 2.5% | 86.6% |
 

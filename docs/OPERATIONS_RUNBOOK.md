@@ -1043,6 +1043,35 @@ which get one alert each.
 5. Any response remains an analyst-confirmed simulation and is written to the
    audit trail. Never describe it as firewall enforcement.
 
+## Performance
+
+`performance_smoke` times the main reads on whatever database `DATABASE_URL` names, without
+writing. Run it on a copy of live, not on live itself:
+
+```powershell
+$env:DATABASE_URL = "sqlite:///<copy of live>.db"
+.\.venv\Scripts\python.exe -m atdr.scripts.performance_smoke --pretty
+```
+
+Measured 2026-10-23 on a copy of live, and on a second copy after importing the export's first
+319,643 lines (199,643 new logs in 206 s, then detection over them in 73 s; the blind-check lines
+were left out):
+
+| | Live copy (120,000 logs, 94 alerts) | After the large import (319,643 logs, 204 alerts) |
+|---|---|---|
+| Overview, cold | 0.22 s | 0.45 s |
+| Overview, cached, first | 0.17 s | 0.44 s |
+| Overview, cached | 0.015 s | 0.028 s |
+| Alert list (as the Alerts page loads it) | 0.012 s | 0.011 s |
+| AI Governance summary, cold | 0.30 s | 0.52 s |
+| Supervised model report | 1.9 s | 1.5 s |
+| Model features for 20 logs | 2.6 s | 6.9 s |
+
+All within the smoke's budgets except the model features: building them costs about 2.5 s per
+call on the live copy, nearly all of it fixed (200 logs 3.4 s, 2,000 logs 4.1 s), and it grows
+with the stored logs. Detection builds them once per batch of 5,000 logs. Until 2026-10-23 the
+smoke timed the alert list with every evidence log loaded (4.1 s), which no page does.
+
 ## Backup And Restore
 
 ### Scheduled backups
@@ -1122,6 +1151,38 @@ cannot overwrite what is there. When it says `restore_validated`: rename
 if they are there, move `.tmp\restored-atdr.db` to `atdr.db`, run
 `.\.venv\Scripts\python.exe -m alembic upgrade head` (the backup may be older
 than the newest migration), then `.\scripts\start_system.cmd`.
+
+### Restore drill
+
+A drill restores a backup into a new file and checks it, with ATDR left running. From
+the development folder or the live copy:
+
+```powershell
+.\.venv\Scripts\python.exe -m atdr.scripts.verify_latest_backup --backup-dir "D:\ATDR-backups" --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.restore_database --backup-path "D:\ATDR-backups\<newest>.sqlite3" `
+  --target-database-url "sqlite:///<scratch folder>/restored.db" --pretty
+.\.venv\Scripts\python.exe -m atdr.scripts.restore_database --backup-path "D:\ATDR-backups\<newest>.sqlite3" `
+  --target-database-url "sqlite:///<scratch folder>/restored.db" `
+  --execute --confirm RESTORE_TO_NEW_EMPTY_TARGET --pretty
+```
+
+The first checks the newest backup's size, checksum and age; the second is a dry run;
+the third copies the backup into the new file and reports `restore_validated` only when
+the checksum matches, `PRAGMA quick_check` says ok, every table's row count equals the
+count in the backup's manifest, and the migration revision matches. Then compare the
+restored counts with live: every difference should be something live did after the
+backup, and its audit log says what.
+
+Drill of 2026-10-23 (newest daily backup `atdr-sqlite-20261023T025258Z-3c658d85`,
+670 MB, 11.5 hours old): verified; restored and validated in 3.8 seconds (checksum,
+integrity, all 33 tables' counts, revision `f1a3c5e7b9d2`). Against live, 20 tables had
+the same count, and the 13 others matched the day's audit entries after the backup: the
+synthetic log removed (1 log, 1 raw line, 1 label fewer), a note on #2637, 6 alerts for
+services marked not to be public and the synthetic alert archived (87 to 92), then the
+rebuild (90 archived, 92 raised: 94; evidence regrouped), 59 audit entries, and the
+running system's notifications and heartbeats. A full restore onto live adds the stop,
+the file moves and `alembic upgrade head` above: a few minutes, most of it the stop and
+start.
 
 ### By hand
 
@@ -1256,6 +1317,35 @@ ATDR does not start in production. What the rehearsal showed:
 
 Not rehearsed: the handoff from the MFU shell over HTTPS (it needs the shell itself on HTTPS). The team
 laptop stays in the development profile (decided 2026-10-23): it serves one person on 127.0.0.1 only.
+
+### Moving to a server
+
+ATDR stays on the team laptop for the capstone (decided 2026-10-23). If it moves to a server for the
+team, these are the steps; the parts marked rehearsed were run on 2026-10-23, the rest need the server.
+
+1. **PostgreSQL 16** on the server or next to it, with a database and an account for ATDR. Rehearsed:
+   migrations, the app and its answers on PostgreSQL (the PostgreSQL part above). Run the comparison
+   test against the new server before anything else.
+2. **HTTPS** for the dashboard, the API and the MFU sign-in shell, with certificates the browsers
+   trust, behind the reverse proxy in `deploy/nginx/` (trusted proxy addresses in
+   `TRUSTED_PROXY_CIDRS`). The three sign-in addresses must be HTTPS or ATDR does not start in
+   production.
+3. **Settings**: start from `deploy/systemd/atdr.env.example` and the "Production profile" list above;
+   secrets from the owner's secret store, never from the laptop's `.env` (`deploy/secrets/`).
+4. **Tables**: `python -m alembic upgrade head`, then `python -m alembic check`. Rehearsed on a fresh
+   PostgreSQL database.
+5. **Processes**: the API and the workers from `deploy/systemd/` (`atdr-api`, `atdr-worker@`, the
+   backup-verify and readiness timers). There is no unit for the live syslog receiver yet
+   (`python -m atdr.scripts.run_syslog_receiver`); it needs one like the worker's.
+6. **The firewall feed**: MFU's firewall sends syslog to the server's UDP port (`SYSLOG_PORT`, 5514),
+   with `SYSLOG_HOST` set to the interface it arrives on and the network opened for it by MFU IT.
+7. **Backups**: `python -m atdr.scripts.backup_postgres` (pg_dump) to storage off the server; the
+   SQLite backups on D: cannot be loaded into PostgreSQL.
+8. **The data**: there is no tool that copies the laptop's SQLite database into PostgreSQL. A server
+   starts empty and fills from the feed (or from the firewall export, imported as on the laptop);
+   the laptop's labels and reviews stay on the laptop unless a copy tool is written.
+9. **Checks**: the readiness doctor in the production profile (no blocker), the PostgreSQL comparison
+   test, the restore drill above, and `performance_smoke` on the server.
 
 ## Troubleshooting
 
