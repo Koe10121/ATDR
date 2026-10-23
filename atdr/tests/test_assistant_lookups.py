@@ -457,11 +457,14 @@ def test_asked_who_attacks_mfu_the_overview_names_outside_addresses_scanners_and
     overview = {tool.name: tool for tool in build_assistant_tools(db, settings=settings)}["security_overview"]
     text = overview.run({}).text
 
+    # Outside addresses by connections, the scanners in the hourly alert among them: with every scanner in that alert,
+    # ranking by alerts gave each address one alert, and the answer fell back to kinds of attack (rebuilt live copy).
     assert (
         "Who the open alerts come from:\n"
-        f"- Outside addresses with the most alerts: 91.92.93.94 (2 alerts, e.g. alert #{alerts['scan'][0].id}, port scan); "
-        f"185.199.10.20 (1 alert, e.g. alert #{alerts['exploit'].id}, exploit attempt); "
-        f"100.20.30.40 (1 alert, e.g. alert #{alerts['probe'].id}, port scan).\n"
+        "- Outside addresses that hit MFU hardest, by connections (scanners included): "
+        f"77.88.99.1 (25 connections, in internet scanning alert #{alerts['scanning'].id}); "
+        f"77.88.99.2 (5 connections, in internet scanning alert #{alerts['scanning'].id}); "
+        f"91.92.93.94 (2 connections in 2 alerts, e.g. alert #{alerts['scan'][0].id}, port scan).\n"
         f"- Internet scanning, alert #{alerts['scanning'].id}: 2 outside addresses scanned or probed MFU (30 connections); "
         "the busiest, 77.88.99.1, made 25 connections to 20 or more MFU addresses.\n"
         "- MFU devices with the most alerts, MFU's own devices to check for infection or misuse: "
@@ -473,13 +476,33 @@ def test_asked_who_attacks_mfu_the_overview_names_outside_addresses_scanners_and
     assert "Who the open alerts come from:\n- Outside addresses" in overview.run({"time_window": "all_time"}).text
 
 
+def test_an_outside_address_with_one_alert_of_many_connections_comes_before_a_smaller_scanner():
+    # On the rebuilt live copy every outside address had one alert; a flood of 308 connections is one alert too.
+    db = _session()
+    alerts = _alerts_from_everywhere(db, created=datetime(2026, 5, 20, 6, 0))
+    inbound = {"dst": "10.1.1.9", "port": 443, "src_zone": "SG-Outside", "dst_zone": "WLAN-Inside"}
+    flood = _alert(db, "connection_flood_suspicion", [_log(db, src="45.10.20.30", **inbound) for _ in range(40)])
+    flood.src_ip, flood.threat_score, flood.created_at = "45.10.20.30", 60, datetime(2026, 5, 20, 6, 0)
+    db.flush()
+    settings = get_settings().model_copy(update={"assistant_redact_ips": False})
+    text = {tool.name: tool for tool in build_assistant_tools(db, settings=settings)}["security_overview"].run({}).text
+
+    assert (
+        "- Outside addresses that hit MFU hardest, by connections (scanners included): "
+        f"45.10.20.30 (40 connections in 1 alert, e.g. alert #{flood.id}, flood / denial of service); "
+        f"77.88.99.1 (25 connections, in internet scanning alert #{alerts['scanning'].id}); "
+        f"77.88.99.2 (5 connections, in internet scanning alert #{alerts['scanning'].id})."
+    ) in text
+
+
 def test_on_a_day_with_new_alerts_the_overview_says_who_they_come_from():
     db = _session()
     _alerts_from_everywhere(db)
     overview = {tool.name: tool for tool in build_assistant_tools(db, settings=get_settings())}["security_overview"]
     text = overview.run({}).text
 
-    assert "Who the alerts created today come from:\n- Outside addresses with the most alerts: [redacted-ip] (2 alerts" in text
+    assert ("Who the alerts created today come from:\n- Outside addresses that hit MFU hardest, by connections (scanners included): "
+            "[redacted-ip] (25 connections, in internet scanning alert #") in text
     assert "attack types" in text
 
 

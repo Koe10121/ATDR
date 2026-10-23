@@ -754,25 +754,52 @@ def answer_data_question(db: Session, dq: DataQuestion) -> DataAnswer:
     return _answer_alerts(db, dq) if dq.subject == "alerts" else _answer_logs(db, dq)
 
 
+def _scanners(row: Any) -> dict[str, dict]:
+    """The outside addresses an hourly internet-scanning alert lists, each with its connections."""
+
+    metadata = next((rule for rule in row.matched_rules_json or [] if isinstance(rule, dict) and rule.get("code") == "group_metadata"), {})
+    return metadata.get("scanners") or {}
+
+
 def alert_sources(db: Session, dq: DataQuestion, *, limit: int = 3) -> dict[str, Any]:
-    """Who the alerts a question selects come from: the outside addresses and the MFU devices behind the most of
-    them, each as (address, alerts, alert to open, that alert's attack type), and the hourly internet-scanning alerts,
-    whose outside addresses no source field holds. Asked who attacks MFU the most, the assistant had named an infected
-    MFU device."""
+    """Who the alerts a question selects come from, kept apart: the outside addresses that hit MFU hardest, by
+    connections, with the scanners the hourly internet-scanning alerts list among them, each as (address, connections,
+    alerts of its own, alert to open, that alert's attack type); the MFU devices behind the most alerts, each as
+    (address, alerts, alert to open, attack type); and the scanning alerts. Asked who attacks MFU the most, the
+    assistant had named an infected MFU device. Outside addresses were ranked by their alerts until every scanner
+    went into the hourly alert (rebuilt on a copy of live, 23 Oct): each address then had one alert, and the answer
+    fell back to kinds of attack while a scanner had made 1,057 connections."""
 
     rows, _ = _alert_rows(db, dq)
     with_source = [row for row in rows if row.src_ip]
     counter = Counter(row.src_ip for row in with_source)
     example = _highest_scoring(with_source, lambda row: row.src_ip)
     by_id = {row.id: row for row in with_source}
-    ranked: dict[str, list[tuple[str, int, int, str]]] = {"outside": [], "campus": []}
+    sides = address_sides(db, sorted(counter))
+    scanning = [row for row in rows if row.alert_type == INTERNET_SCANNING_ALERT]
+
+    def kind(address: str) -> str:
+        # Without it, the model called an address's alerts exploit attempts when they were a scan.
+        return _alert_group_value(by_id[example[address]], "attack_type")
+
     # Among equal counts, the address whose alert to open scores highest comes first.
-    for address in sorted(counter, key=lambda item: (-counter[item], -(by_id[example[item]].threat_score or 0), item)):
-        if all(len(items) >= limit for items in ranked.values()):
-            break
-        side = address_sides(db, [address]).get(address)
-        if side in ranked and len(ranked[side]) < limit:
-            # Without it, the model called an address's alerts exploit attempts when they were a scan.
-            kind = _alert_group_value(by_id[example[address]], "attack_type")
-            ranked[side].append((address, counter[address], example[address], kind))
-    return {"total": len(rows), **ranked, "scanning": [row for row in rows if row.alert_type == INTERNET_SCANNING_ALERT]}
+    order = sorted(counter, key=lambda item: (-counter[item], -(by_id[example[item]].threat_score or 0), item))
+    campus = [(address, counter[address], example[address], kind(address)) for address in order if sides.get(address) == "campus"][:limit]
+
+    sizes = _connection_counts(db, [row.id for row in with_source if sides.get(row.src_ip) == "outside"])
+    connections: Counter = Counter()
+    for row in with_source:
+        if sides.get(row.src_ip) == "outside":
+            connections[row.src_ip] += sizes.get(row.id, 0)
+    scanned_in: dict[str, int] = {}
+    for row in sorted(scanning, key=lambda item: -item.id):
+        for address, entry in _scanners(row).items():
+            connections[address] += int(entry.get("connections") or 0)
+            scanned_in.setdefault(address, row.id)
+    hardest = sorted(connections, key=lambda item: (-connections[item], -counter.get(item, 0), item))[:limit]
+    outside = [
+        (address, connections[address], counter[address], example[address], kind(address)) if counter.get(address)
+        else (address, connections[address], 0, scanned_in[address], "internet scanning")
+        for address in hardest
+    ]
+    return {"total": len(rows), "outside": outside, "campus": campus, "scanning": scanning}

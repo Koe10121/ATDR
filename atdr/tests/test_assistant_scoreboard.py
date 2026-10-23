@@ -137,6 +137,24 @@ def test_the_models_own_alerts_are_a_fact_counted_apart_from_the_rules(tmp_path)
     assert check_answer(spec, {"answer": "There are 18 unclassified alerts from our AI detection."}, facts)
 
 
+def test_a_report_counts_the_open_alerts_and_the_total_counts_every_alert(tmp_path):
+    # A report for the dean said "91 open alerts" and failed against the total of 92: one alert had been closed.
+    from atdr.app.services.assistant_scoreboard_service import compute_facts
+
+    engine = create_engine(f"sqlite:///{_source(tmp_path).as_posix()}", future=True)
+    with sessionmaker(bind=engine, future=True)() as db:
+        db.add(Alert(title="closed", alert_type="possible_port_scan", threat_score=90, severity="Critical", status="false_positive",
+                     explanation="x", matched_rules_json=[], recommended_response="-",
+                     created_at=datetime.now(UTC).replace(tzinfo=None)))
+        db.commit()
+        facts = compute_facts(db)
+    engine.dispose()
+    assert (facts["alerts_total"], facts["open_alerts"]) == (4, 3)
+    report = {"answer": "3 alerts are open, 1 of them Critical."}
+    assert check_answer({"facts": ["open_alerts"]}, report, facts) == []
+    assert check_answer({"facts": ["alerts_total"]}, report, facts) == ["missing alerts_total=4"]
+
+
 def test_scoreboard_fills_facts_keeps_conversations_and_never_writes_the_source(tmp_path):
     source = _source(tmp_path)
     before = hashlib.sha256(source.read_bytes()).hexdigest()

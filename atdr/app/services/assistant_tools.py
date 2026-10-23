@@ -598,9 +598,16 @@ class AssistantToolbox:
                 f"{address} ({_plural(count, 'alert')}, e.g. alert #{alert_id}, {kind})" for address, count, alert_id, kind in items
             )
 
+        def hardest(items: list[tuple[str, int, int, int, str]]) -> str:
+            return "; ".join(
+                f"{address} ({_plural(connections, 'connection')} in {_plural(alerts, 'alert')}, e.g. alert #{alert_id}, {kind})"
+                if alerts else f"{address} ({_plural(connections, 'connection')}, in internet scanning alert #{alert_id})"
+                for address, connections, alerts, alert_id, kind in items
+            )
+
         lines = []
         if found["outside"]:
-            lines.append(f"- Outside addresses with the most alerts: {listed(found['outside'])}.")
+            lines.append(f"- Outside addresses that hit MFU hardest, by connections (scanners included): {hardest(found['outside'])}.")
         scanning = sorted(found["scanning"], key=lambda row: (-int(core._group_metadata(row).get("connections") or 0), -row.id))
         for row in scanning[:SCANNING_ALERTS_IN_OVERVIEW]:
             metadata = core._group_metadata(row)

@@ -86,6 +86,8 @@ def compute_facts(db: Session) -> dict[str, Any]:
     return {
         "logs_total": int(db.scalar(select(func.count(NormalizedLog.id))) or 0),
         "alerts_total": count(),
+        # What a report on the situation counts; it was alerts_total until an alert was closed on live (23 Oct).
+        "open_alerts": count(Alert.status == "open"),
         "alerts_today": count(*today),
         "high_alerts_today": count(*today, Alert.severity == "High"),
         "critical_alerts_today": count(*today, Alert.severity == "Critical"),

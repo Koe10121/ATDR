@@ -984,6 +984,38 @@ Measured on the live data: main set 126 of 126 (4.2 seconds on average), held-ou
 `atdr/tests/test_assistant_lookups.py` holds the cases; each of 15 deliberate
 breaks turned one of its tests red.
 
+## Who hits MFU hardest, and what a report counts (23 October, later)
+
+A rebuild of the alert list under the 23 October rules was rehearsed on a copy
+of the live data. "Who is attacking us the most?" then failed 2 asks of 2: the
+overview ranked outside addresses by their alerts, and with every scanner in
+the hourly scanning alert each outside address had one alert. The model wrote
+about kinds of attack instead, its draft failed the checks (330 words, and a
+"3%" no tool gave), and the built-in answer listed kinds of attack. On the list
+as it was, it had named a scanner that still had two alerts of its own.
+
+- The overview now ranks outside addresses by connections, with the scanners
+  the hourly scanning alerts list among them: "Outside addresses that hit MFU
+  hardest, by connections (scanners included): [redacted-ip] (1,057
+  connections, in internet scanning alert #4225); ...". An address with alerts
+  of its own gives its connections in them and its alert to open. MFU's own
+  devices are still ranked by their alerts. The same three scanners lead on the
+  list as it is and on the rebuilt one.
+
+Once an alert was closed on live (#2637, a false positive), "Write a
+one-paragraph security report for the dean" and "Brief the IT director in two
+sentences" failed every time: the scoreboard wanted the number of all alerts,
+92, and the answers gave the 91 open ones, the number the overview leads with.
+A report counts what is open; those two questions now check the new
+`open_alerts` fact. "total number of alerts" and rev-31 still check every alert.
+
+Measured on a copy of the live data: main set 126 of 126 (before: 124 since the
+alert was closed), held-out 27 of 27; on the rebuilt copy, with its alerts dated
+the day before (on the day of a rebuild every alert reads as created that day,
+and two questions about the newest Critical alert word their answers
+differently): main 126 of 126 (before: 121), held-out 26 of 27, the miss h-30
+passing 6 asks of 6 afterwards. Each of 6 deliberate breaks turned a test red.
+
 ## Measuring it again
 
 ```
