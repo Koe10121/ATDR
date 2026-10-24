@@ -1,6 +1,6 @@
 # Module Index: Live vs. Historical
 
-Date: 2026-09-22; updated 2026-10-22
+Date: 2026-09-22; updated 2026-10-24
 
 ## Removed on 22 October 2026
 
@@ -14,10 +14,64 @@ them and the tests that only covered them (git history keeps them all):
 `v518_postgres_scale_service` (services). So were 165 scripts that nothing
 ran and no current document named, mostly `run_vNNN_*` campaign runners, and
 `atdr/app/ml/benchmark_adapter.py`. Their rows are gone from the table below;
-the rest of this index is as of 22 September. Kept on purpose although
-nothing calls them yet: `audit_retention_service` and
-`staged_input_retention_service` (so audit-log retention does not run on its
-own today), and the MFU sign-in template and IAM checks.
+the rest of this index is as of 22 September. Since 22 October the worker's
+housekeeping (`housekeeping_service.py`, called by `operation_worker.py`)
+runs `audit_retention_service` and `staged_input_retention_service` on its
+own, so both are live now.
+
+## Operator tools (kept on purpose, 24 October 2026)
+
+Nothing in the running system imports these 32 scripts and 2 modules. They
+are tools an operator runs by hand with `python -m <name>`, and each was
+checked and kept. Nothing was removed in this pass.
+
+**Never run the tools that write data against live.** `reset_demo` deletes
+every log and alert, while `seed_demo`, `seed_demo_labels` and
+`register_log_source` add rows. All four write to whatever database
+`DATABASE_URL` names. `send_sample_syslog` sends lines to the receiver that
+is running, which on this laptop is live. Before any of these, point
+`DATABASE_URL` at a scratch copy and stop or move the receiver. The two
+`use_*_config` scripts rewrite `.env`.
+
+- **Checks** (read-only reports):
+  - `atdr.scripts.check_runtime_readiness`: the readiness checks as JSON; exit code 1 when not ready.
+  - `atdr.scripts.database_portability_audit`: the settings, connection and column types (it does not scan code).
+  - `atdr.scripts.detection_scoreboard`: the rules scored against the human-reviewed labels, on its own scratch copy.
+  - `atdr.scripts.profile_dashboard_summary`: Overview query timings.
+  - `atdr.scripts.profile_ml_governance`: AI Governance response timings, cold and warm.
+  - `atdr.scripts.run_backup_restore_drill`: backup and restore readiness (`--dry-run` available).
+  - `atdr.scripts.validate_large_ingestion`: resumable large-file import, on synthetic data and a throwaway SQLite file.
+  - `atdr.scripts.export_lab_validation_report`: a report on one log source.
+- **Housekeeping** (preview by default; applying needs a flag; the worker already does audit, staged-input and job clean-up on its own):
+  - `atdr.scripts.audit_retention`
+  - `atdr.scripts.cleanup_staged_inputs`
+  - `atdr.scripts.maintenance_jobs`
+  - `atdr.scripts.cleanup_exports`
+- **Live feed and lab:**
+  - `atdr.scripts.register_log_source` (writes a source)
+  - `atdr.scripts.send_sample_syslog`: harmless sample Palo Alto lines sent over UDP.
+  - `atdr.scripts.syslog_lab_smoke`: a localhost UDP import smoke test.
+  - `atdr.scripts.validate_live_source`
+- **Model lifecycle:**
+  - `atdr.scripts.list_supervised_models`
+  - `atdr.scripts.activate_supervised_model`
+  - `atdr.scripts.rollback_supervised_model`
+  - `atdr.scripts.manage_supervised_lifecycle`
+- **MFU sign-in shell setup** (for when ATDR sits behind the MFU template):
+  - `atdr.scripts.apply_template_atdr_launcher`
+  - `atdr.scripts.template_auth_doctor`
+  - `atdr.scripts.test_mfu_iam_provider`
+  - `atdr.scripts.use_local_sqlite_config`
+  - `atdr.scripts.use_template_shell_config`
+  - `atdr.scripts.validate_template_bridge_contract`
+  - `atdr.scripts.validate_template_shell_runtime`
+  - the modules behind them, `atdr.app.services.mfu_iam_validation` and `atdr.app.services.template_bridge_contract`
+- **Demo data** (scratch databases only):
+  - `atdr.scripts.backup_demo`
+  - `atdr.scripts.export_demo_bundle`
+  - `atdr.scripts.reset_demo`
+  - `atdr.scripts.seed_demo`
+  - `atdr.scripts.seed_demo_labels`
 
 ## Why this exists
 
@@ -94,7 +148,10 @@ reachable only from its own script+test pair: `audit_retention_service.py`,
 22 October), `repository_cleanup_service.py`, `repository_security_service.py`,
 `repository_surface_service.py`, `staged_input_retention_service.py`,
 `template_bridge_contract.py`, `template_shell_auth.py`, plus the two named
-above.
+above. Two have been live since 22 October: `audit_retention_service.py` and
+`staged_input_retention_service.py`, which the worker's housekeeping runs.
+Since 23 October, `repository_security_service.py` has also been the readiness
+doctor's secret check.
 
 ## Full table
 
@@ -192,7 +249,7 @@ reachable from. `__init__.py` package markers are excluded.
 | assistant_response_contracts.py | live | assistant.py |
 | assistant_service.py | live | assistant.py (direct import) |
 | assisted_label_service.py | live | ml.py |
-| audit_retention_service.py | historical | script + test only |
+| audit_retention_service.py | live | operation_worker.py via housekeeping_service.py (since 22 Oct) |
 | backup_monitoring_service.py | live | observability.py |
 | case_service.py | live | alerts.py |
 | class_temporal_coverage_service.py | live | ml.py |
@@ -228,7 +285,7 @@ reachable from. `__init__.py` package markers are excluded.
 | resumable_ingestion_service.py | live | jobs.py |
 | runtime_parser_quality_service.py | live | sources.py |
 | source_service.py | live | sources.py |
-| staged_input_retention_service.py | historical | script + test only |
+| staged_input_retention_service.py | live | operation_worker.py via housekeeping_service.py (since 22 Oct) |
 | staging_service.py | live | jobs.py |
 | supervised_review_worksheet_service.py | historical | scripts + test only; imports dead v565/v567 review services |
 | suppression_service.py | live | suppressions.py |
