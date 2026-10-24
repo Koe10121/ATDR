@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import stat
 import subprocess
 import sys
 import time
@@ -1320,3 +1321,19 @@ def test_status_says_what_runs_and_what_is_waiting(machine, dev):
     assert "  1 of its files were changed by hand: atdr/app/main.py." in said
     assert "  ATDR: the background worker is not running." in said
     assert any(line.startswith("  A RELEASE DID NOT FINISH (it began ") and line.endswith("scripts\\release.cmd recover") for line in said)
+
+
+def test_a_check_cut_off_earlier_does_not_stop_the_next_check_of_the_same_commit(machine, dev):
+    # A release cut off during its tests (24 Oct 2026) left its scratch folder behind with the read-only object files
+    # of the test repositories; checking the same commit again failed with FileExistsError.
+    commit = _git(dev, "rev-parse", "HEAD")
+    left = dev / ".tmp" / "release-check" / commit[:7] / "pytest" / "repo" / ".git" / "objects" / "ab"
+    left.mkdir(parents=True)
+    (left / "cdef").write_text("object", encoding="utf-8")
+    os.chmod(left / "cdef", stat.S_IREAD)
+    machine.github = [(422, None)]
+
+    checked = release.check_commit(machine.tools, dev, commit)
+
+    assert checked["ok"] and checked["by"] == "local_tests", checked["words"]
+    assert not (dev / ".tmp" / "release-check" / commit[:7]).exists(), "the scratch space is cleared after a pass"

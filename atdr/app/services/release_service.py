@@ -581,6 +581,22 @@ def _counted(text: str) -> str:
     return ", ".join(f"{numbers[-1]} {word}" for word, numbers in found.items() if numbers)
 
 
+def remove_folder(path: Path) -> None:
+    """Remove a folder and everything in it, read-only files too.
+
+    Git makes a repository's object files read-only, and on Windows `shutil.rmtree` stops at them. The release check's
+    scratch folder, which holds the test repositories its tests make, was never fully removed, and checking the same
+    commit again after a release was cut off failed on the folder left behind (24 Oct 2026).
+    """
+
+    def writable_then_again(function: Callable[..., Any], name: str, _error: Any) -> None:
+        os.chmod(name, stat.S_IWRITE)
+        function(name)
+
+    if path.exists():
+        shutil.rmtree(path, onerror=writable_then_again)
+
+
 def local_tests(tools: Tools, dev: Path, commit: str) -> dict[str, Any]:
     """The whole test suite, on a folder that holds exactly the commit."""
 
@@ -598,7 +614,12 @@ def local_tests(tools: Tools, dev: Path, commit: str) -> dict[str, Any]:
             f"{'file in this folder is' if len(loose) == 1 else 'files in this folder are'} not committed ({shown}). "
             "Commit them or put them aside, then try again.")}
     scratch = dev / ".tmp" / "release-check" / facts["short"]
-    shutil.rmtree(scratch, ignore_errors=True)
+    try:
+        remove_folder(scratch)
+    except OSError as error:
+        return {"ok": False, "by": "local_tests", "words": (
+            f"The scratch folder of an earlier check of this commit, {scratch}, could not be removed "
+            f"({error.__class__.__name__}): a program may still be using it. Close it and try again.")}
     scratch.mkdir(parents=True)
     log = dev / RUNTIME / "logs" / "release-check.log"
     log.parent.mkdir(parents=True, exist_ok=True)
@@ -620,7 +641,10 @@ def local_tests(tools: Tools, dev: Path, commit: str) -> dict[str, Any]:
                 + "\n".join(f"    {line}" for line in end.splitlines()[-12:]))}
         passed.append({"name": step.name, "seconds": round(time.monotonic() - began, 1), "said": said})
         tools.say(f"    passed{f' ({said})' if said else ''}")
-    shutil.rmtree(scratch, ignore_errors=True)
+    try:
+        remove_folder(scratch)
+    except OSError:
+        pass  # the check passed; what is left is removed when this commit is checked again
     counts = "; ".join(f"{step['name']}: {step['said']}" for step in passed if step["said"])
     return {"ok": True, "by": "local_tests", "words": f"the tests passed on this machine ({counts})", "steps": passed}
 
