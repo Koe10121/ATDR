@@ -166,18 +166,33 @@ How Claude uses this list:
       (PostgreSQL, HTTPS, settings, migrations, processes, the feed, backups, data, checks); rehearsed parts:
       the production profile and PostgreSQL. Gaps named in it: no unit for the syslog receiver, no SQLite to
       PostgreSQL copy tool.
-- [needs you] **Team documents** (Team Guide, explainer, Presentation Script, decks on claude.ai, school account): Koe
+- [x] **Team documents** (Team Guide, explainer, Presentation Script, decks on claude.ai, school account): Koe
       said this comes last. Decided 23 Oct: figures and alert numbers only.
-      This session runs on the personal account, where the claude.ai artifact list is empty, so the Team
-      Guide and decks cannot be reached.
-      NEEDS YOU: type `/login` and sign in with the school account, then ask Claude: "Update the Team Guide,
-      explainer, Presentation Script and decks: figures and alert numbers only, from
-      docs/ATDR_FINISH_LIST.md". The figures to use:
-      - rule catalog v5.38.0; 94 alerts, 93 open (Critical 16, High 19, Medium 37, Low 21) on 120,000 logs;
-      - #4163 is #4255 (GHOSTENGINE, open first), #4225 is #4317 (Internet scanning, 93 addresses, 5,917
-        connections), #4218 is #4311, #4179 is #4271, #4228 is #4328, #4210/#4215 are #4302;
-      - team labels 381 of 384, precision 97.9%, F1 98.6%; assistant 129/129 and held-out 28/28;
-      - tests: 1,865 backend and 98 browser.
+      Done 24 Oct, after Koe switched to the school account. Seven documents were updated:
+      - Team Guide, ATDR Explained for the Team, How ATDR Works, ATDR after the presentation, Presentation
+        Script: figures, alert numbers and as-of dates.
+      - Main deck (v42) and Q&A Practice deck (v6): figures and alert numbers.
+      What changed:
+      - #4033 / 3738 is #4255, #4067 is #4271, #4134 is #4311, #4145 is #4328, and #4143-#4148 are
+        #4326-#4331, all checked on live by the route check.
+      - The counts now read 94 alerts, 93 open (Critical 16, High 19, Medium 37, Low 21), on 120,000 logs.
+      - The MFU model panel reads 98 / 92 / 6, with 6 experimental alerts (4 malware / C2, 2 port scan).
+      - Unclassified is 19%; team labels give precision 97.9%, recall 99.2%; the assistant scores 129/129
+        and 28/28; tests are 1,865 + 98.
+      - The Assistant slide quotes the real 24 Oct answer: 16 open Critical.
+      Decided 24 Oct (Koe, question tool): recreate the demo files and re-measure, and retake the backup
+      screenshots.
+      - `Downloads\mfu-demo-import.log` (export lines 120,001-123,000) and `mfu-practice-import.log`
+        (200,001-203,000) were recreated.
+      - Stop 8 rehearsed on a copy of live with live's code: 3,000 logs in 2.9 s, re-import 3,000
+        duplicates, check 21.4 s, 4 new alerts, evidence added to 8. The Overview then shows 97 open
+        (17 Critical) and still opens #4255.
+      - "Undo a practice import" rewritten for `C:\ATDR-live` (backup_now, stop, restore_database, swap,
+        alembic, start). Rehearsed: the restore validated with 94 alerts and 120,000 logs.
+      - Nine backup screenshots retaken from live with every address shown as [redacted-ip]; the capture's
+        check found no visible address.
+      Not touched: the four documents teammates shared (ATDR Live Demo Guide, Presentation Slides, their
+      Presentation Script, ATDR at a Glance). The Team Guide says it replaces them.
 - [needs you] **Chat notifications:** built but not set up; needs a chat webhook address from Koe.
       NEEDS YOU: create an incoming webhook in Discord, Slack or Google Chat (the formats ATDR sends) and give
       Claude the address. Claude then backs up `C:\ATDR-live\.env`, sets `ATDR_NOTIFY_CHAT_WEBHOOK_URL=<address>`,
