@@ -193,10 +193,12 @@ How Claude uses this list:
         check found no visible address.
       Not touched: the four documents teammates shared (ATDR Live Demo Guide, Presentation Slides, their
       Presentation Script, ATDR at a Glance). The Team Guide says it replaces them.
-- [needs you] **Chat notifications:** built but not set up; needs a chat webhook address from Koe.
-      NEEDS YOU: create an incoming webhook in Discord, Slack or Google Chat (the formats ATDR sends) and give
-      Claude the address. Claude then backs up `C:\ATDR-live\.env`, sets `ATDR_NOTIFY_CHAT_WEBHOOK_URL=<address>`,
-      restarts ATDR (`stop_system.cmd`, `start_system.cmd`) and presses Send a test on the Notifications page.
+- [x] **Chat notifications:** built but not set up; needs a chat webhook address from Koe.
+      Decided 24 Oct (Koe, question tool): not needed. Chat would only repeat what email already sends: a new
+      Critical alert, the daily summary, ATDR's own problems. Live has sent 10 notification emails (the daily
+      summary at 09:33 on 24 Oct the newest) and 20 Windows notifications. More people can get them by adding
+      their addresses to `ATDR_NOTIFY_EMAIL_TO`. The chat channel stays built and off; setting
+      `ATDR_NOTIFY_CHAT_WEBHOOK_URL` turns it on later.
 
 ## 4. Not for Claude
 
