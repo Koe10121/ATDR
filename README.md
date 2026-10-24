@@ -16,16 +16,19 @@ enforcement (see [Response And Containment](#response-and-containment)); no
 real network-firewall connector is implemented, and shared/production
 deployments remain simulation-only regardless of configuration.
 
-## Current State (29 Sep 2026)
+## Current State (24 Oct 2026)
 
-- **Detection:** rule catalog v5.37.0 (21 detection rules, plus 1 legacy
+- **Detection:** rule catalog v5.38.0 (21 detection rules, plus 1 legacy
   machine-learning rule that no longer creates alerts). Context-only rules add points
   but never raise an alert alone. Every alert names its attack type, MITRE
-  ATT&CK technique and response playbook. The live list holds 85 alerts on
-  120,001 distinct firewall logs. It was rebuilt on 9 October 2026 under
-  v5.37.0's grouping: the same 7,773 logs are flagged as in the 165 alerts
-  before, and an hour of scanning from the internet is one alert. Older alerts
-  are archived in full.
+  ATT&CK technique and response playbook. The live list holds 94 alerts on
+  120,000 distinct firewall logs, 93 of them open (Critical 16, High 19,
+  Medium 37, Low 21). It was rebuilt on 23 October 2026 under v5.38.0: one
+  alert for each kind and source, services that should not be public get an
+  alert of their own, and an hour of scanning from the internet is one alert.
+  Older alerts are archived in full (`docs/detection/ALERT_REBUILD.md`).
+  Against the team's labels the rules find 381 of 384 threats (precision
+  97.9%, false alarms 0.8%, F1 98.6%; `docs/EVIDENCE_SUMMARY.md`).
 - **MFU behaviour model (v2):** trained only on MFU's firewall traffic plus
   simulated attacks blended into it. It gives its view on the Overview and on
   every alert, and raises alerts marked experimental where it flags a device
@@ -35,7 +38,7 @@ deployments remain simulation-only regardless of configuration.
   Ollama) that looks facts up through read-only tools; every number it states
   is checked against what the tools returned. Built-in answers remain the
   fallback (`docs/SOC_ASSISTANT_CONVERSATIONAL.md`).
-- **Operation:** ATDR starts when its Windows user signs in, brings back a
+- **Operation:** ATDR starts with the machine, before anyone signs in, brings back a
   part that stops, backs its database up every day and checks the copy, and
   serves its dashboard from built files. The System panel on Data & Detection
   shows each part, the last backup and the dashboard's build

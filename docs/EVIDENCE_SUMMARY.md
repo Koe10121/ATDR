@@ -1,7 +1,7 @@
 # ATDR evidence summary
 
 Every number the team quotes about ATDR, what kind of number it is, and how
-much to trust it. As of 2026-09-28 (rule catalog v5.36.0, behaviour model
+much to trust it. As of 2026-10-24 (rule catalog v5.38.0, behaviour model
 mfu_behavior_v2). Details are in the linked documents.
 
 **All accuracy figures come from one 21-minute MFU export (20 May 2026); treat them as low-confidence estimates until tested on more traffic.** ATDR shows this line wherever it quotes accuracy.
@@ -9,9 +9,10 @@ mfu_behavior_v2). Details are in the linked documents.
 ## The data
 
 - One firewall (MFU-FW), one export: 20 May 2026, 13:36-13:57, 773,551 lines.
-- The live database holds 13:36:15-13:39:30: 120,001 logs, each a distinct line of the MFU
-  firewall's export (240 synthetic demo and lab logs were removed on 30 Sep, and 31,001
-  repeated copies of the export's first 10,000 lines on 4 Oct); the team's labels
+- The live database holds 13:36:15-13:39:30: 120,000 logs, each a distinct line of the MFU
+  firewall's export. 240 synthetic demo and lab logs were removed on 30 Sep, 31,001
+  repeated copies of the export's first 10,000 lines on 4 Oct, and one synthetic
+  log on 23 Oct. The team's labels
   are there. The behaviour model trained on 13:36-13:45. The 13:45-13:57 part
   was never imported into the live system, labeled or tuned on; it is the
   holdout for the blind check and the model's tests.
@@ -148,6 +149,14 @@ one Internet scanning alert that lists the hour's 130 scanning addresses.
 - Typing from evidence changes only the type; which logs alert, and every
   precision and recall figure, stay the same. Source:
   `detection/ATDR_DETECTION_TAXONOMY.md`.
+
+On 23 Oct the list was rebuilt under rule catalog v5.38.0, and it is the list live holds
+today: 94 alerts, 93 of them open (Critical 16, High 19, Medium 37, Low 21), 6 of them the
+MFU model's. 7,596 logs are kept as evidence. The rules raise one alert for each kind and
+source. Services marked as not meant to be public get an alert of their own (8). An attack
+the firewall blocked is rated no higher than the firewall rated it. The hour's Internet
+scanning alert, #4317, lists 93 addresses with 5,917 connections. Source:
+`detection/ALERT_REBUILD.md`.
 
 ## Detection: the MFU behaviour model (advises, and raises experimental alerts)
 

@@ -60,7 +60,7 @@ attacks. The assistant answered from a fixed list of question types.
   one line per kind of attack, most dangerous first, with the threats the
   firewall or the watchlist named and whether the firewall blocked them, and
   the alert to open first: a named threat the firewall let through, which is
-  #4163, the GHOSTENGINE server.
+  #4163, the GHOSTENGINE server (#4255 since the 23 October rebuild).
 - **A dashboard that reads like a product** (2 October). Presentation, lab and
   research wording left the pages: data caveats, documentation paths, the
   release checklist, "lab" and "demo" labels, and the Overview's validation
@@ -321,7 +321,7 @@ attacks. The assistant answered from a fixed list of question types.
   traffic. They are archived and those logs removed, so every stored log is
   MFU firewall traffic.
 
-## Where we are now (1 October)
+## Where we are now (24 October)
 
 | | Result | Kind |
 |---|---|---|
@@ -330,16 +330,15 @@ attacks. The assistant answered from a fixed list of question types.
 | Blind check, current rules, labels human-checked | precision 93.5%, recall 78.2%, F1 85.2% | Second look; partly because 5 flagged rows became Unsure |
 | Rules plus MFU model, same labels | F1 90.1% | Second look |
 | MFU model on fresh simulated attacks | port scan 96.5%, brute force 97.5%, flood 100%, C2 88.5%, exfiltration 98.0% | Simulated |
-| Team labels, current rules | precision 96.7%, recall 99.2% | Agreement, not accuracy |
-| Assistant | 122 of 122 (31 reviewer questions and the demo's conversation added), and 26 of 27 held-out questions, in about 5 seconds per answer (7 Oct on the cleaned data, and again on 9 Oct on the regrouped list; 84 of 85 and 26 of 27 on 30 Sep; runs vary by a question or two) | Automatic scoring |
-| Tests | 1,853 backend and 91 browser tests passing (11 Oct, the check before the first release) | |
+| Team labels, current rules (v5.38.0) | precision 97.9%, recall 99.2%, false alarms 0.8% | Agreement, not accuracy |
+| Assistant | 129 of 129, and 28 of 28 held-out questions, in about 4.5 seconds per answer (23 Oct, on the list rebuilt that day; 122 of 122 and 26 of 27 on 9 Oct; runs vary by a question or two) | Automatic scoring |
+| Tests | 1,865 backend and 98 browser tests passing (24 Oct, the check before release eaed567) | |
 
-The live dashboard holds 85 alerts (Critical 23, High 11, Medium 39, Low 12) on
-120,001 logs, since the list was regrouped on 9 October (165 before, with the same
-logs flagged). Each names its attack type: port scan 39, malware / C2 14, policy
-violation 9, data exfiltration 7, flood 3, exploit attempt 3, unclassified 10.
-Six are the MFU model's experimental alerts, and one lists the hour's 130 internet
-scanners.
+The live dashboard holds 94 alerts on 120,000 logs, 93 of them open (Critical 16,
+High 19, Medium 37, Low 21), since the list was rebuilt under rule catalog v5.38.0
+on 23 October (`docs/detection/ALERT_REBUILD.md`). Each names its attack type.
+Six are the MFU model's experimental alerts, eight are services marked as not meant
+to be public, and one, #4317, lists the hour's 93 internet scanners.
 
 On 29 September a check of the live list found 4 alerts (3 Critical, 1 High)
 built on 46 synthetic lab logs that a test tool had written into the live
