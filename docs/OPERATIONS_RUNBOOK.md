@@ -286,7 +286,8 @@ After a restart Windows 11 signs its user in by itself and locks the screen
 (here 23 seconds after it started), and on 18 October the user was signed in
 21 seconds after the machine came on, so neither shows ATDR starting with
 nobody signed in at all. Switching on and waiting three minutes at the
-sign-in screen does; that has not been done yet.
+sign-in screen would; the team decided on 24 October that this test is not
+needed.
 
 What remains: ATDR pauses while the machine sleeps, which now takes a closed
 lid or an empty battery; and a machine that is switched off runs nothing.

@@ -1059,6 +1059,27 @@ Both had been held-out questions (h-30, h-01). Their failing drafts were read to
 the main set (open-15, open-16), and three held-out questions were written before any run (h-32 to h-34). On a
 copy of the live list: main 129 of 129, held-out 28 of 28.
 
+## Which language model (24 October)
+
+Three local models that fit the laptop's 8 GB graphics card and can call tools answered both question sets on
+the same copy of the live data, with the same tools and checks; only `ASSISTANT_AGENT_MODEL` changed. "Own
+answer passed" counts the answers where the model's own reply passed ATDR's checks, before any built-in answer
+stood in for a failed or slow one.
+
+| Model | Main set (129) | Held-out (28) | Own answer passed | Per answer, on average |
+|---|---|---|---|---|
+| qwen3:8b (the one ATDR uses) | 128 | 28 | 150 of 157 (96%) | 4.4 s |
+| llama3.1:8b | 109 | 24 | 125 of 157 (80%) | 4.0 s |
+| mistral:7b | 86 | 18 | 54 of 157 (34%) | 11.5 s |
+
+qwen3:8b's one miss, "Brief the IT director in two sentences", passed 6 fresh asks of 6. Llama gave wrong
+totals, left out that the newest log is from 20 May, and once said the supervised model is used; Mistral's
+answers failed the checks or ran out of time 93 times, so ATDR's built-in answers stood in. On the 6 Thai
+questions: qwen3:8b 6, Llama 4, Mistral 5. The instructions and tool texts were written and tuned with qwen3:8b,
+which favours it; the gap holds on the held-out set too. Not tried: models too large for the graphics card, and
+hosted models, which would send MFU data off the laptop. The detection model's algorithm was compared the same
+day (`EVIDENCE_SUMMARY.md`, "Which algorithm").
+
 ## Measuring it again
 
 ```

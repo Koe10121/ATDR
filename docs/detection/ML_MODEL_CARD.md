@@ -254,6 +254,19 @@ fewer windows (759 of the 15,153), but every window the model flagged keeps its
 rule alert, so the model-only windows are the same 15 and the review stays
 complete.
 
+## Why gradient-boosted trees (compared 24 Oct 2026)
+
+Random Forest, Extra Trees, a small neural network, logistic regression and
+Isolation Forest were trained on exactly v2's data with the same false-alarm
+budget, three times each. The three tree models tie on fresh simulated attacks
+(96.4-96.7% named right); with the rules, gradient-boosted trees and Random
+Forest are level at 90.1% F1 on the human-checked blind labels (second look;
+rules alone 85.2%), the neural network reaches 86.4%, and logistic regression
+and Isolation Forest lower it (83.0%, 74.8%). Isolation Forest cannot name the
+attack type. The table and the method are in `../EVIDENCE_SUMMARY.md`, "Which
+algorithm". v2 stays as it is: no other algorithm does better in the way ATDR
+uses it, and its extra finds are the ones the team reviewed.
+
 ## Known limits
 
 - **Traffic nobody alerted on is trained as normal.** One campus device called

@@ -185,6 +185,37 @@ The earlier models (anomaly model and supervised classifier) stay advisory.
 In the pre-presentation 40-case blind review the anomaly model found none of
 the malicious cases and the supervised classifier failed calibration.
 
+### Which algorithm (24 Oct)
+
+Six algorithms got exactly what v2 got: the same training windows (13:36-13:45),
+the team's labels, the same 300 simulated attacks per type, the same
+source-grouped validation split, and a threshold that flags 0.18% of real
+normal validation windows (ATDR's own rule without its 0.5-0.99 clamp, which
+Random Forest, Extra Trees and logistic regression would otherwise hit). Each
+was trained three times; the figures are the averages. Isolation Forest learns
+from the normal training windows only and cannot name an attack type.
+
+| Algorithm | Simulated attacks named right (1,000 fresh, seed never used before) | Malware / C2 | F1 alone, human-checked blind labels | F1 with the rules (v5.38.0; rules alone 85.2%) |
+|---|---|---|---|---|
+| Gradient-boosted trees (ATDR's) | 96.7% | 87.7% | 73.1% | 90.1% |
+| Random Forest | 96.5% | 86.2% | 79.3% | 90.1% |
+| Extra Trees | 96.4% | 85.7% | 79.4% | 88.9% |
+| Neural network (64-32 MLP) | 95.6% | 83.3% | 76.2% | 86.4% |
+| Logistic regression | 93.7% | 78.0% | 69.6% | 83.0% |
+| Isolation Forest | cannot name (47.8% flagged) | - | 58.1% | 74.8% |
+
+Kinds: simulated, and second look (the blind labels have been read since 27
+Sep). The shipped v2, scored the same way, reproduced its card (96.5% port
+scan to 88.5% C2 on the seed it was tested on; 230 flags, 15 model-only;
+rules or v2 90.1%). The tree models tie; together with the rules, which is how
+ATDR uses the model, gradient-boosted trees and Random Forest are level.
+Random Forest flags about 254 windows of the fresh traffic against about 165,
+and its extra finds were never reviewed. The neural network varied most between
+runs (C2 78-88%); logistic regression and Isolation Forest lower the rules' F1.
+With 27 real attack windows to learn from, data limits the model more than the
+algorithm does. XGBoost and LightGBM were not tried (scikit-learn's
+gradient-boosted trees use LightGBM's histogram method).
+
 ## Threat intelligence
 
 - One real finding: a campus device called 111.90.158[.]40, listed by Elastic
@@ -231,6 +262,18 @@ does the MFU behaviour model see?" with the earlier anomaly model's status.
 Scores move by a question or two between runs. The held-out miss asks about "the latest Critical alert", whose
 expected wording was written when that was a brute-force alert.
 Source: `SOC_ASSISTANT_CONVERSATIONAL.md`.
+
+### Which language model (24 Oct)
+
+| Model (local, same tools and checks) | Main set (129) | Held-out (28) | Own answer passed the checks | Per answer |
+|---|---|---|---|---|
+| qwen3:8b (ATDR's) | 128 | 28 | 96% | 4.4 s |
+| llama3.1:8b | 109 | 24 | 80% | 4.0 s |
+| mistral:7b | 86 | 18 | 34% | 11.5 s |
+
+Kind: agreement with the question sets' automatic checks. qwen3:8b's one miss
+passed 6 fresh asks of 6. ATDR's instructions were tuned with qwen3:8b, which
+favours it; the held-out set shows the same order.
 
 ## What these numbers do not show
 

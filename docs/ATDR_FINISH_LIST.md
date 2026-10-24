@@ -206,8 +206,10 @@ How Claude uses this list:
   needs MFU IT; once the feed is connected, the tuning becomes new items here.
 - A USB drive with an `ATDR-backups` folder (every daily summary asks for it), and deleting the two leftover
   files on `D:`.
-- The cold-start test: switch the laptop on from off, leave it at the sign-in screen for 3 minutes, then check
-  that the dashboard answers without anyone signing in. The runbook says this has not been done ("With the
-  machine, before anyone signs in"). Restart and power loss already passed.
+- The cold-start test (switch on from off, 3 minutes at the sign-in screen): decided 24 Oct (Koe) not needed.
+  Restart and power loss already passed; after a restart on 24 Oct, ATDR's parts started 35 seconds after Windows.
 - The open items in `docs/PROFESSOR_DEFENSE_PREP.md` (AI-usage disclosure, programme policy).
-- The documents the professor asked for, when the team presents to committees.
+- The documents the professor asked for, when the team presents to committees. Added 24 Oct on claude.ai (school
+  account): an Overview slide, "Why gradient-boosted trees?" and "Why qwen3:8b?" with the comparisons in
+  `EVIDENCE_SUMMARY.md`, and a Conclusion slide (main deck v44); 11 committee questions (Q&A deck v7); the
+  Presentation Script re-timed for them.
